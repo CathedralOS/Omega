@@ -51,6 +51,15 @@ pub(crate) fn project_boundary_application_realizations(
                 "attached-Unit boundary application realization has no expression use site",
             )]);
         };
+        if !expression_is_owned_by_package(
+            compilation,
+            expression,
+            realization.authored_use_kind,
+            realization.requirement_operator,
+            package,
+        )? {
+            continue;
+        }
         let location = canonical_source_span_location(
             compilation,
             authored_application_source_span(
@@ -133,6 +142,15 @@ fn project_specialized_checked_body_applications(
                 "specialized boundary application realization has no expression use site",
             )]);
         };
+        if !expression_is_owned_by_package(
+            compilation,
+            expression,
+            realization.authored_use_kind,
+            realization.requirement_operator,
+            package,
+        )? {
+            continue;
+        }
         let location = canonical_source_span_location(
             compilation,
             authored_application_source_span(
@@ -263,6 +281,63 @@ fn project_exact_application(
     Ok(PackageReviewBoundaryApplication::Exact(projected))
 }
 
+fn expression_is_owned_by_package(
+    compilation: &CheckedCompilation,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    use_kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
+    requirement_operator: psi_symbols::SymbolHandle,
+    package: PackageKeyIdentity,
+) -> Result<bool, Vec<Diagnostic>> {
+    let span = compilation.typed.expression_table.source_span(expression);
+    // This projection records actual authored applications. Checked lowering
+    // may synthesize applications with an empty provenance span and no
+    // authored-selection custody while deriving contracts; those are compiler
+    // derivations, not package uses. Test and generated fixtures can retain an
+    // empty expression span beside a real authored selection, so the ledger is
+    // the deciding distinction.
+    if span.span.start >= span.span.end {
+        let expected_kind = authored_application_selection_kind(use_kind);
+        let has_exact_authored_selection = compilation
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .filter_map(|occurrence| {
+                compilation
+                    .typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+            })
+            .any(|selection| {
+                selection.kind() == expected_kind
+                    && matches!(
+                        selection.target(),
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                            if target.selected_symbol() == requirement_operator
+                    )
+            });
+        if !has_exact_authored_selection {
+            return Ok(false);
+        }
+    }
+    let source = compilation.typed.symbols.source_file(span).ok_or_else(|| {
+        vec![Diagnostic::error(format!(
+            "boundary application expression {expression:?} has no retained source file",
+        ))]
+    })?;
+    match source.origin {
+        psi_source::SourceOrigin::Toolchain => Ok(false),
+        psi_source::SourceOrigin::User => source
+            .package_identity
+            .map(|owner| owner == package)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "boundary application source `{}` has no reconciled package identity",
+                    source.path.display(),
+                ))]
+            }),
+    }
+}
+
 pub(super) fn stage_realization(
     staged: &mut Vec<StagedRealization>,
     row: CheckedPackageBoundaryApplicationRealizationReview,
@@ -295,18 +370,10 @@ pub(super) fn authored_application_source_span(
     requirement_operator: psi_symbols::SymbolHandle,
 ) -> Result<psi_source::SourceSpan, Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
     };
 
-    let expected_kind = match use_kind {
-        omega_selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
-            AuthoredDeclarationSelectionKind::Call
-        }
-        omega_selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
-            AuthoredDeclarationSelectionKind::Operator
-        }
-    };
+    let expected_kind = authored_application_selection_kind(use_kind);
     let selections = compilation
         .typed
         .expression_table
@@ -320,10 +387,22 @@ pub(super) fn authored_application_source_span(
         .filter(|selection| selection.kind() == expected_kind)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
+        let expression_span = compilation.typed.expression_table.source_span(expression);
+        let source = compilation.typed.symbols.source_file(expression_span);
         return Err(vec![Diagnostic::error(format!(
-            "boundary application expression {expression:?} retains {} matching authored selection occurrences; expected one",
+            "boundary application expression {expression:?} for `{}` ({use_kind:?}) at {}:{}..{} retains {} matching authored selection occurrences; expected one",
+            compilation
+                .typed
+                .symbols
+                .display_path(requirement_operator, "::"),
+            source
+                .map(|source| source.path.display().to_string())
+                .unwrap_or_else(|| "<unknown source>".to_owned()),
+            expression_span.span.start,
+            expression_span.span.end,
             selections.len(),
-        ))]);
+        ))
+        .with_source_span(expression_span)]);
     };
     let target_is_exact = matches!(
         selection.target(),
@@ -334,12 +413,27 @@ pub(super) fn authored_application_source_span(
         || !target_is_exact
         || selection.source_span().span.start >= selection.source_span().span.end
     {
-        return Err(vec![Diagnostic::error(
-            "boundary application has invalid authored selection custody",
-        )
-        .with_source_span(selection.source_span())]);
+        return Err(vec![
+            Diagnostic::error("boundary application has invalid authored selection custody")
+                .with_source_span(selection.source_span()),
+        ]);
     }
     Ok(selection.source_span())
+}
+
+fn authored_application_selection_kind(
+    use_kind: omega_selected_dispatch::CheckedOperatorAuthoredUseKind,
+) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind {
+    use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind;
+
+    match use_kind {
+        omega_selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
+            AuthoredDeclarationSelectionKind::Call
+        }
+        omega_selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
+            AuthoredDeclarationSelectionKind::Operator
+        }
+    }
 }
 
 fn same_application_key(

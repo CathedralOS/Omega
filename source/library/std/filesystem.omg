@@ -18,7 +18,7 @@
 // The RAW BOUNDARY (`FilesystemHost`) and the `Path` byte-domain are the single
 // canonical declaration in the sibling std module; this ergonomic layer imports
 // them (rather than re-declaring the trait) and builds `File`/result enums on top.
-use omega::language::std::filesystem_host;
+use filesystem_host;
 use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 
@@ -30,10 +30,10 @@ use omega::language::core::numeric_conversion;
 // importing them from the target defs dragged wrapper machines into raw-seam
 // programs that have no `Filesystem` at all (file_journal broke). The
 // pre-resolution target filter keeps exactly one target's copies live.
-use omega::language::std::targets::windows_x86_64::filesystem_impl;
-use omega::language::std::targets::macos_arm64::filesystem_impl;
-use omega::language::std::targets::linux_x86_64::filesystem_impl;
-use omega::language::std::targets::linux_arm64::filesystem_impl;
+use targets::windows_x86_64::filesystem_impl;
+use targets::macos_arm64::filesystem_impl;
+use targets::linux_x86_64::filesystem_impl;
+use targets::linux_arm64::filesystem_impl;
 
 // An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
 // it pass by value into read/write/close.

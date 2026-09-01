@@ -383,86 +383,26 @@ explicitly.
   every std import or provider selection, and no name, alias, path, repository,
   filename, or same-spelled declaration may restore it.
 
-  The ordinary package path now uses compiler-owned `BuildPath`, `BuildSource`,
-  and `BuildOutput`; exact reachable facet calls activate the existing sponsor,
-  and the live `generated-table -> generated-consumer` canary proves Source
-  open/read/close, Output create/write/close, explicit handoff, and dependency
-  injection without rerunning the producer. The explicit-`FilesystemHost`
-  compatibility prelude, std-owned `Path`/`Build.filesystem` route, and its
-  compiler-level raw-filesystem test matrix are now removed. Build evaluation
-  admits no ordinary runtime boundary service merely because it is filesystem-
-  or console-shaped. Do not expand the Build facets without a concrete
-  package-build customer.
-  `FilesystemSponsor` remains the enforcement boundary for source/output
-  roots, symlinks, limits, descriptors, and staging custody.
+  Remaining work:
 
-  The Windows `find_first`/`find_next`/`find_close` companion remains ordered
-  after this migration. Its unrooted working-directory-dependent pattern
-  cannot become a portable receipt; replace it with the root-aware Build facet
-  before admission rather than adding a same-path-only replay rule.
+  - remove the package-aware bundled std mount and legacy Toolchain Console
+    lane atomically; standalone compilation may retain its compatibility route;
+  - migrate package-aware product, parser, sample, and fixture consumers to
+    explicit std dependency edges;
+  - replace UEFI physical-entry recognition, FilesystemHost dangerous-authority
+    classification and checked-interpreter dispatch, whole-library
+    source-frontier admission, and standalone std/alloc source classification
+    with consumer-approved exact nominal/schema bindings where recognition is
+    actually required;
+  - feed accepted Filesystem and UEFI bindings through lock replay into normal
+    package-aware compilation; and
+  - replace Windows `find_first`/`find_next`/`find_close`'s unrooted,
+    working-directory-dependent pattern with the root-aware Build facet before
+    admission.
 
-  Audit every non-test `SourceOrigin::Toolchain` consumer. Preserve it for core,
-  intrinsics, and virtual compiler sources such as `<build-prelude>`; replace
-  relocated std checks with ordinary `PackageKeyIdentity` provenance. Where
-  target integration or dangerous-authority review genuinely needs compiler
-  recognition, carry an accepted-closure-scoped binding to the exact nominal
-  declaration and normalized schema fingerprint rather than granting a role to
-  its whole package. Candidate review designations remain non-authoritative;
-  accepted bindings come only from consumer policy.
-
-  The live ordinary-std canary proves an explicit `omega_language_std`
-  dependency retains std's exact package identity and an undeclared alias does
-  not consult the compiler bundle. Build intrinsic recognition now also
-  requires the exact injected `<build-prelude>` source, not merely a
-  toolchain-origin declaration with a Build-facet spelling.
-
-  The Toolchain-origin audit is complete. Generic provenance consumers already
-  follow the frontend classification, and exact core vocabulary checks remain
-  legitimate. The first accepted-closure consumer binding is now implemented
-  for `Console::exit_process(i32) -> Unit`. It binds exact package and nominal
-  identity, a collision-resistant normalized service-schema digest, and the
-  complete selected-provider-plan digest; compiler settlement rejects foreign,
-  stale, ambiguous, or unused rows and retains the resolved exact declaration
-  symbol for independent package-review replay. The semantic role and Process
-  risk classification are target-independent. Linux x86-64 and AArch64 alone
-  currently close the distinct `exit_group(i32)` physical execution identity;
-  other targets gain no lowering claim. The row is consumer policy, not proof
-  that an audit occurred. Its current normalization is intentionally claimed
-  only for Console's compiler-primitive signature and self reach, not arbitrary
-  package-owned nominal carrier types. Package spelling alone remains inert.
-
-  Manager review compilation now carries that binding only for its exact
-  consuming `PackageKey`, and accepted ordinary evidence retains the exact
-  compiler-resolved row after fresh policy accepts all resulting blockers.
-  Missing consumers, duplicate consumer roles, foreign provider packages,
-  stale schemas, stale plans, ambiguous matches, and unused bindings reject.
-  The install/update candidate entrance now owns discovery: it performs a
-  non-authoritative preliminary review, proposes only the supported exact
-  package-owned Console role, and recompiles with that consumer-scoped row.
-  The compiler remains the exact validator, and only the final bound review
-  reaches conflict and root-policy handling. Remaining sequencing is to remove
-  the package-aware Toolchain Console fallback and bundled std mount
-  atomically.
-
-  The remaining stale std-specific consumers are the legacy Toolchain Console
-  lane and mount, UEFI physical-entry recognition, FilesystemHost dangerous-
-  authority classification, checked-interpreter FilesystemHost
-  dispatch, whole-library source-frontier admission, and standalone std/alloc
-  source classification. Migrate each through a consumer-approved exact nominal
-  declaration and normalized schema commitment. A package name, source path,
-  alias, repository, or bare `PackageKeyIdentity` is not a substitute and must
-  not be introduced as an interim recognition rule. Remove the legacy
-  package-aware `omega::language::std` mount and Toolchain Console lane
-  atomically after the real ordinary-std dependency path supplies this binding.
-  This is engineering sequencing, not an owner question.
-
-  Before that atomic removal, make the std source tree reviewable as an
-  ordinary library, replace its bundled self-imports, and migrate package-aware
-  product, parser, sample, and fixture consumers to explicit dependencies.
-  Add exact Filesystem and UEFI physical-contract bindings for their real
-  consumers. Accepted-lock replay must feed those admitted bindings into normal
-  package-aware compilation. Standalone compilation may retain its bundled
-  compatibility path during this migration.
+  Do not substitute a package name, alias, repository, path, filename, or bare
+  `PackageKeyIdentity` for an exact accepted binding. Do not expand Build facets
+  without a concrete package-build consumer.
 
 - [ ] Complete the remaining generic exact-application work for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic

@@ -11,14 +11,14 @@
 // the constants readable without importing a particular proof library's
 // convention.
 
-data FloatSpecialValues [copy] {
+pub data FloatSpecialValues [copy] {
     signed_zero: bool;
     subnormals: bool;
     infinity: bool;
     nan: bool;
 }
 
-data FloatFormat [copy] {
+pub data FloatFormat [copy] {
     radix: u32;
     precision: u32;
     minimum_normal_exponent: i32;
@@ -31,25 +31,25 @@ data FloatFormat [copy] {
 // Stable namespace carriers for operations bound to the two permanent
 // primitive formats. They carry no runtime value; F32/F64-qualified machines
 // and operators consume ordinary f32/f64 operands.
-data F32 { }
-data F64 { }
+pub data F32 { }
+pub data F64 { }
 
 // Stable namespaces for destination-owned integer conversion requirements.
 // These are operation owners only; primitive i8..u64 values remain the
 // runtime carriers.
-data I8 { }
-data I16 { }
-data I32 { }
-data I64 { }
-data U8 { }
-data U16 { }
-data U32 { }
-data U64 { }
+pub data I8 { }
+pub data I16 { }
+pub data I32 { }
+pub data I64 { }
+pub data U8 { }
+pub data U16 { }
+pub data U32 { }
+pub data U64 { }
 
 // Permanent semantic identities for the language's f32 and f64 carriers.
 // Targets may realize these records in hardware or software; they may not
 // reinterpret the names as a different format.
-const FloatFormat::BINARY32: FloatFormat = FloatFormat {
+pub const FloatFormat::BINARY32: FloatFormat = FloatFormat {
     radix: 2,
     precision: 24,
     minimum_normal_exponent: -126,
@@ -64,7 +64,7 @@ const FloatFormat::BINARY32: FloatFormat = FloatFormat {
     rounds_to_nearest_ties_to_even: true,
 };
 
-const FloatFormat::BINARY64: FloatFormat = FloatFormat {
+pub const FloatFormat::BINARY64: FloatFormat = FloatFormat {
     radix: 2,
     precision: 53,
     minimum_normal_exponent: -1022,

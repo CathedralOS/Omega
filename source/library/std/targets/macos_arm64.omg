@@ -2,4 +2,4 @@
 // `std/targets/<target>.omg` = the target def; checked per-subsystem target
 // implementations live beneath `std/targets/macos_arm64/`). Target filtering
 // keeps non-selected implementations inert.
-use omega::language::std::targets::macos_arm64::filesystem_impl;
+use targets::macos_arm64::filesystem_impl;

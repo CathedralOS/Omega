@@ -3948,19 +3948,20 @@ does not grant a provider or capability, and cannot be reconstructed from an
 alias or source location. Candidate designations guide confined review only;
 accepted bindings come from consumer policy.
 
-The first implemented binding role is the Linux
+The first implemented binding role is the target-independent
 `Console::exit_process(i32) -> Unit` compiler-intrinsic consumer. Its input row
 binds the exact `PackageKeyIdentity`, canonical nominal declaration path,
 collision-resistant normalized `ServiceSchema` digest, and collision-resistant
 complete selected `ProviderPlan` digest. Compilation first requires the package
 to be in the reconciled closure, then independently rejoins the selected exact
-symbols, package owners, schema, complete plan, Linux target, external
-realization mechanism, and ABI. A supplied row must settle exactly once;
+symbols, package owners, schema, and complete plan. A supplied row must settle exactly once;
 foreign, stale, ambiguous, and unused authority rejects. Downstream review
 rederives against the compiler-resolved declaration symbol rather than
 searching by path, and only that exact symbol receives the existing Process
-dangerous-authority classification. Constructing or consuming this policy row
-proves no human or model audit occurred.
+dangerous-authority classification on every target. Physical lowering remains
+separate: only Linux x86-64 and AArch64 currently close the exact
+`LinuxExitGroupI32` execution identity. Constructing or consuming this policy
+row proves no human or model audit occurred.
 
 This role is deliberately narrow. Its present schema normalization is exact for
 the compiler-primitive `i32`/`Unit` signature and self reach used by Console; it
@@ -3969,19 +3970,27 @@ nominal carrier types. The legacy toolchain-owned Console lane remains only
 until the real std source/import migration can attach this accepted ordinary-
 package binding and remove the old mount atomically.
 
-The first vertical implementation canary resolves the repository's real std
+The vertical implementation canary resolves the repository's real std
 directory as an ordinary local package, derives its default
-`omega_language_std` alias from its own declaration, compiles a consumer from
-resolver snapshots, and retains imported std declarations under std's exact
-user-package identity. Omitting the dependency edge rejects the import rather
-than consulting bundled std. This establishes the package and compiler-handoff
-model independently of remote workspace-member selection and final application
-role-evidence plumbing. It does not complete the production migration: legacy
-`omega::language::std` import routing, the remaining target/provider semantic
-bindings, dangerous-authority designations, macOS GUI injection, and core/std
-toolchain-source classification remain explicit seams to remove. Only
-`omega::language::core` keeps its magic toolchain mount after those consumers
-migrate atomically.
+`omega_language_std` alias from its own declaration, compiles from resolver
+snapshots, and produces a complete ordinary package-review entry containing
+the public Console and wire surfaces. Std's authored self-imports are ordinary
+package-local imports. Omitting the dependency edge rejects a consumer import
+rather than consulting bundled std. Standalone and legacy toolchain-mounted std
+compilation retain a compatibility route confined to the exact bundled std
+root while remaining consumers migrate. The package-aware bundled mount,
+legacy Toolchain Console lane, remaining target/provider bindings,
+dangerous-authority designations, and macOS GUI injection remain explicit seams
+to remove. Only `omega::language::core` keeps its magic toolchain mount after
+those consumers migrate atomically.
+
+Making std ordinary also makes core's package boundary concrete. Source-facing
+float namespaces, formats, meanings, semantic operators, and boundary
+operators are explicitly public rather than admitted by toolchain location.
+The two canonical primitive-to-proof projections remain private and
+compiler-sealed; public float contracts may cite only those exact checked
+toolchain declarations. Same-spelled authored declarations do not satisfy that
+narrow exception.
 
 ## Current engineering delta
 

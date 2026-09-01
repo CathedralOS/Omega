@@ -6,6 +6,30 @@ use psi_symbols::SymbolKind;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+fn is_sealed_toolchain_float_projection(
+    program: &TypedTrees,
+    symbol: psi_symbols::SymbolHandle,
+) -> bool {
+    let Some(operator) = psi_typed_trees::operator::declaration_by_symbol(program, symbol) else {
+        return false;
+    };
+    let [namespace, name] = program.operator_path_members(operator.name) else {
+        return false;
+    };
+    let Some(projection) =
+        psi_numerics::float_projection::FloatProjectionOperation::from_source_identity(
+            namespace.as_str(),
+            name.as_str(),
+        )
+    else {
+        return false;
+    };
+    crate::float_projection_bindings::exact_toolchain_float_projection_primitive(
+        program, operator, projection,
+    )
+    .is_some()
+}
+
 pub(crate) fn collect_declaration_visibility_diagnostics(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
@@ -37,7 +61,11 @@ pub(crate) fn collect_declaration_visibility_diagnostics(
             );
             continue;
         };
-        if !visibility.is_public() {
+        // The two canonical float projections are deliberately private: they
+        // expose a compiler-sealed proof view, not a package-callable API.
+        // Public toolchain float contracts may still cite those exact checked
+        // declarations. Authored lookalikes cannot satisfy the recognizer.
+        if !visibility.is_public() && !is_sealed_toolchain_float_projection(program, symbol) {
             diagnostics.push(
                 Diagnostic::error(format!(
                     "public interface selects private {} `{}`",
