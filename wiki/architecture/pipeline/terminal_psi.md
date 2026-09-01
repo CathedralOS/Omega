@@ -841,7 +841,7 @@ omission stays fact-only. Lowering canonicalizes those selections by guarded
 callee-row coordinate, emits the exact two-machine closure, retains sibling
 guarded rows and producer provenance on the callee, and rejoins each selected
 row to a distinct caller-local term without changing the four-unit runtime.
-The next bounded rung permits one, two, three, four, five, six, or seven
+The next bounded rung permits one, two, three, four, five, six, seven, or eight
 distinct selected whole-result guarded terms to be used once each as dense
 ordered named `requires` inputs of one direct tail state in the matching
 payloadless arm.
@@ -853,7 +853,7 @@ applications, evidence terms, and caller/target places. Format 42 / vocabulary
 45 reject omission, duplication, reordering, redirection, interface drift, and
 tail-shape drift. The tail remains outside the runtime entry graph, so
 interpretation and fixed fuel retain the existing four-unit saved-result path.
-Payload projections, multiple or partial-result substitutions, eight-or-more
+Payload projections, multiple or partial-result substitutions, nine-or-more
 evidence arguments, repeated term use, later invalidation, erased proof-output
 linkage, wider structural calls, and tagged-sum target lowering remain outside
 this bounded source rung.
