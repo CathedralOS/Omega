@@ -70,9 +70,9 @@ fn check_build_optimization_vocabulary(audit: &mut Audit) {
                 "// compiler-owned optimization report machine",
             ] {
                 let count = contents.matches(slot).count();
-                if count != 2 {
+                if count != 1 {
                     audit.violations.insert(format!(
-                        "both build preludes must contain exactly one `{slot}` slot; found {count} in {source_assembly}"
+                        "the sole build prelude must contain exactly one `{slot}` slot; found {count} in {source_assembly}"
                     ));
                 }
             }
