@@ -364,15 +364,29 @@ fn bounded_boolean_control_retains_one_uniform_mixed_cleanup_frontier() {
     ] {
         let lowered = lower_to_target_operations(&plan, target)
             .expect("bounded Boolean control and mixed cleanup lower");
-        let TargetOperation::BooleanControlWithCleanup {
-            control,
+        let TargetOperation::ScalarReturnWithCleanup {
+            scalar,
             structural_parameters,
             cleanup_actions,
+            psi_edge,
             ..
         } = &lowered.functions[0].operation
         else {
-            panic!("bounded Boolean cleanup retains its target carrier")
+            panic!("bounded Boolean cleanup selects one shared target tail")
         };
+        let TargetOperation::ReturnBooleanSharedConvergence {
+            return_edges,
+            control,
+            ..
+        } = scalar.as_ref()
+        else {
+            panic!("bounded Boolean cleanup retains its shared convergence")
+        };
+        assert_eq!(
+            return_edges,
+            &[6, 7, 5].map(|edge| EdgeId::new(edge).unwrap()).as_slice()
+        );
+        assert_eq!(*psi_edge, return_edges[0]);
         assert_eq!(structural_parameters.len(), 2);
         assert!(matches!(
             cleanup_actions.as_slice(),
@@ -419,6 +433,60 @@ fn bounded_boolean_control_retains_one_uniform_mixed_cleanup_frontier() {
                 EdgeId::new(5).unwrap(),
             ],
         );
+    }
+}
+
+#[test]
+fn bounded_non_immediate_boolean_cleanup_keeps_the_per_control_fallback() {
+    let mut plan = bounded_boolean_cleanup_plan();
+    for (operation_index, parameter) in [(3, 40), (5, 41), (7, 40)] {
+        let AbstractOperation::Return { value, .. } =
+            &mut plan.functions[0].operations[operation_index]
+        else {
+            unreachable!("fixture leaf returns")
+        };
+        *value = ValueId::new(parameter).unwrap();
+    }
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations(&plan, target)
+            .expect("parameter-returning Boolean cleanup keeps its supported fallback");
+        let TargetOperation::BooleanControlWithCleanup {
+            control,
+            cleanup_actions,
+            ..
+        } = &lowered.functions[0].operation
+        else {
+            panic!("non-immediate leaves must not select the immediate-only shared tail")
+        };
+        assert_eq!(cleanup_actions.len(), 2);
+
+        fn parameter_leaf_count(control: &TargetBooleanControl) -> usize {
+            match control {
+                TargetBooleanControl::ReturnParameter { .. } => 1,
+                TargetBooleanControl::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                }
+                | TargetBooleanControl::ConditionalExpression {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    parameter_leaf_count(&when_true.control)
+                        + parameter_leaf_count(&when_false.control)
+                }
+                _ => 0,
+            }
+        }
+        assert_eq!(parameter_leaf_count(control), 3);
     }
 }
 

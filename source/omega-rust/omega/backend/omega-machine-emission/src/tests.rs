@@ -1227,70 +1227,78 @@ fn boolean_control_nominal_cleanup_plan(target: NativeTarget) -> TargetOperation
         .chain(10..=12)
         .map(|edge| EdgeId::new(edge).unwrap())
         .collect();
-    plan.functions[0].operation = TargetOperation::BooleanControlWithCleanup {
-        control: TargetBooleanControl::Conditional {
-            condition_source: ValueId::new(1).unwrap(),
-            condition_parameter_index: 0,
-            condition_location,
-            when_true: arm(2, nested),
-            when_false: arm(3, leaf(12, true)),
-        },
+    let return_edges = [10, 11, 12].map(|edge| EdgeId::new(edge).unwrap()).to_vec();
+    plan.functions[0].operation = TargetOperation::ScalarReturnWithCleanup {
+        scalar: Box::new(TargetOperation::ReturnBooleanSharedConvergence {
+            psi_edge: return_edges[0],
+            return_edges,
+            control: TargetBooleanControl::Conditional {
+                condition_source: ValueId::new(1).unwrap(),
+                condition_parameter_index: 0,
+                condition_location,
+                when_true: arm(2, nested),
+                when_false: arm(3, leaf(12, true)),
+            },
+        }),
         structural_types,
         call_plan,
         structural_parameters,
         cleanup_actions,
+        psi_edge: EdgeId::new(10).unwrap(),
     };
     plan
 }
 
 #[test]
-fn bounded_boolean_control_duplicates_edge_owned_cleanup_at_all_three_leaves() {
+fn bounded_boolean_control_emits_one_shared_edge_rostered_cleanup_tail() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let emitted = emit_machine_code(&boolean_control_nominal_cleanup_plan(target))
             .expect("bounded Boolean control cleanup emits");
         let root = &emitted.functions[0];
-        assert!(root.scalar_affine_cleanup.is_none());
-        assert_eq!(root.scalar_control_affine_cleanups.len(), 3);
-        assert_eq!(root.internal_calls.len(), 3);
-        assert_eq!(root.internal_unit_calls.len(), 3);
+        let cleanup = root
+            .scalar_affine_cleanup
+            .as_ref()
+            .expect("one shared affine cleanup");
+        assert!(root.scalar_control_affine_cleanups.is_empty());
+        assert_eq!(root.internal_calls.len(), 1);
+        assert_eq!(root.internal_unit_calls.len(), 1);
         assert_eq!(root.semantic_code_attribution.len(), 3);
+        assert_eq!(cleanup.psi_edge, EdgeId::new(10).unwrap());
+        assert_eq!(cleanup.code_offset + cleanup.byte_count, root.bytes.len());
+        let preservation = root
+            .scalar_stack
+            .as_ref()
+            .and_then(|stack| stack.cleanup_preservation)
+            .expect("shared cleanup preserves the scalar result");
+        assert!(preservation.frame.allocation_offset >= cleanup.code_offset);
+        assert!(preservation.result_store_offset >= cleanup.code_offset);
+        assert!(preservation.result_load_offset >= preservation.result_store_offset);
+        assert!(preservation.frame.release_offset >= preservation.result_load_offset);
+        assert!(matches!(
+            root.internal_unit_calls[0].owner,
+            CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal: 0,
+            } if edge == cleanup.psi_edge
+        ));
+        let ScalarControlFlowEvidence::BooleanSharedConvergence { return_edges, .. } = &root
+            .scalar_stack
+            .as_ref()
+            .expect("scalar stack")
+            .control_flow
+        else {
+            panic!("shared cleanup retains native convergence evidence")
+        };
         assert_eq!(
-            root.scalar_control_affine_cleanups
-                .iter()
-                .map(|leaf| leaf.cleanup.psi_edge)
-                .collect::<Vec<_>>(),
-            [10, 11, 12].map(|edge| EdgeId::new(edge).unwrap()).to_vec()
+            return_edges,
+            &[10, 11, 12]
+                .map(|edge| EdgeId::new(edge).unwrap())
+                .as_slice()
         );
-        assert!(root.scalar_control_affine_cleanups.windows(2).all(|pair| {
-            pair[0].cleanup.code_offset + pair[0].cleanup.byte_count <= pair[1].cleanup.code_offset
-        }));
-        assert_eq!(
-            root.scalar_control_affine_cleanups[2].cleanup.code_offset
-                + root.scalar_control_affine_cleanups[2].cleanup.byte_count,
-            root.bytes.len()
-        );
-        for (ordinal, leaf) in root.scalar_control_affine_cleanups.iter().enumerate() {
-            let cleanup = &leaf.cleanup;
-            let preservation = leaf.preservation;
-            assert!(preservation.frame.allocation_offset >= cleanup.code_offset);
-            assert!(preservation.result_store_offset >= cleanup.code_offset);
-            assert!(preservation.result_load_offset >= preservation.result_store_offset);
-            assert!(preservation.frame.release_offset >= preservation.result_load_offset);
-            assert!(
-                preservation.frame.release_offset + preservation.frame.release_byte_count
-                    < cleanup.code_offset + cleanup.byte_count
-            );
-            assert_eq!(root.internal_unit_calls[ordinal].operation_ordinal, ordinal);
-            assert!(matches!(
-                root.internal_unit_calls[ordinal].owner,
-                CallSiteOwner::CleanupAction {
-                    edge,
-                    action_ordinal: 0,
-                } if edge == cleanup.psi_edge
-            ));
+        for (ordinal, edge) in return_edges.iter().enumerate() {
             assert_eq!(
                 root.semantic_code_attribution[ordinal].site,
-                SemanticCodeSite::Edge(cleanup.psi_edge)
+                SemanticCodeSite::Edge(*edge)
             );
             assert_eq!(
                 root.semantic_code_attribution[ordinal].operation_ordinal,
@@ -1304,27 +1312,20 @@ fn bounded_boolean_control_duplicates_edge_owned_cleanup_at_all_three_leaves() {
                 root.semantic_code_attribution[ordinal].byte_count,
                 cleanup.byte_count
             );
-            match target.architecture {
-                Architecture::X86_64 => {
-                    assert!(preservation.aarch64_return_link.is_none())
-                }
-                Architecture::Aarch64 => {
-                    assert!(preservation.aarch64_return_link.is_some())
-                }
-            }
+        }
+        match target.architecture {
+            Architecture::X86_64 => assert!(preservation.aarch64_return_link.is_none()),
+            Architecture::Aarch64 => assert!(preservation.aarch64_return_link.is_some()),
         }
         let stack = root.scalar_stack.as_ref().expect("scalar stack evidence");
-        assert!(stack.cleanup_preservation.is_none());
-        let ScalarControlFlowEvidence::ConditionalTree {
-            decisions,
-            crash_leaves,
-            branches,
+        assert!(stack.cleanup_preservation.is_some());
+        let ScalarControlFlowEvidence::BooleanSharedConvergence {
+            decisions, joins, ..
         } = &stack.control_flow
         else {
-            panic!("exact two-decision/three-return evidence is retained")
+            panic!("exact two-decision/three-return convergence is retained")
         };
-        assert!(branches.is_empty());
-        assert_eq!(crash_leaves, &[false; 3]);
+        assert_eq!(joins.len(), 2);
         let [root_branch, nested] = decisions.as_slice() else {
             panic!("two decisions are retained")
         };
@@ -1341,7 +1342,7 @@ fn bounded_boolean_control_duplicates_edge_owned_cleanup_at_all_three_leaves() {
                     ScalarStackMutationKind::Allocate { byte_size: 16 }
                 ))
                 .count(),
-            3
+            1
         );
     }
 }
@@ -1351,10 +1352,13 @@ fn bounded_boolean_cleanup_emission_rechecks_distinct_leaf_edges() {
     let target = NativeTarget::linux_x64();
     let mut assigned = assign_registers(&boolean_control_nominal_cleanup_plan(target))
         .expect("valid fixture assigns");
-    let AssignedOperation::BooleanControlWithCleanup { control, .. } =
+    let AssignedOperation::ScalarReturnWithCleanup { scalar, .. } =
         &mut assigned.functions[0].operation
     else {
         unreachable!("fixture retains Boolean cleanup control")
+    };
+    let AssignedOperation::ReturnBooleanSharedConvergence { control, .. } = scalar.as_mut() else {
+        unreachable!("fixture retains shared convergence")
     };
     let AssignedBooleanControl::Conditional { when_true, .. } = control else {
         unreachable!("fixture root remains conditional")

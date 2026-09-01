@@ -692,6 +692,13 @@ pub enum ScalarControlFlowEvidence {
     BooleanSharedConvergence {
         decisions: Vec<ScalarConditionalBranchEvidence>,
         joins: Vec<ScalarJoinBranchEvidence>,
+        /// Exact source return edges in physical true-before-false leaf order.
+        /// One source convergence block has one row even when several value
+        /// leaves reach it; otherwise each uniform source return is retained.
+        return_edges: Vec<EdgeId>,
+        /// Source return edge of the final physical leaf, which falls through
+        /// rather than owning a [`ScalarJoinBranchEvidence`] row.
+        fallthrough_return_edge: EdgeId,
         /// Exact emitted condition regions containing structural-field reads.
         /// Object replay checks these bytes independently from the generic
         /// scalar instruction walk before accepting the shared tail.
@@ -723,6 +730,8 @@ pub struct BooleanStructuralFieldRead {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScalarJoinBranchEvidence {
+    /// Exact source return edge whose value leaf owns this native join.
+    pub return_edge: EdgeId,
     pub join_offset: usize,
     pub join_byte_count: usize,
 }

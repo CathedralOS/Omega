@@ -54,7 +54,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
                 }
                 psi_terminal::TerminalAffineCleanupAction::DiscardResidual(_) => true,
             })
-        || scalar_operation_edge(scalar) != Some(psi_edge)
+        || scalar_operation_edges(scalar).is_none_or(|edges| edges.first() != Some(&psi_edge))
     {
         return Err(EmissionError::UnsupportedScalarCleanup);
     }
@@ -75,6 +75,27 @@ pub(super) fn emit_scalar_return_with_cleanup(
         .as_ref()
         .map(|stack| stack.control_flow.clone())
         .ok_or(EmissionError::UnsupportedScalarCleanup)?;
+    let return_edges =
+        scalar_operation_edges(scalar).ok_or(EmissionError::UnsupportedScalarCleanup)?;
+    if return_edges.is_empty()
+        || return_edges
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != return_edges.len()
+        || match &scalar_control_flow {
+            ScalarControlFlowEvidence::Linear => return_edges.as_slice() != [psi_edge],
+            ScalarControlFlowEvidence::BooleanSharedConvergence {
+                return_edges: retained,
+                ..
+            } => retained != &return_edges,
+            ScalarControlFlowEvidence::LinearWithDivisionBranches { .. }
+            | ScalarControlFlowEvidence::ConditionalTree { .. } => true,
+        }
+    {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
     if emitted.unit_stack.is_some()
         || emitted.unit_affine_cleanup.is_some()
         || emitted.scalar_affine_cleanup.is_some()
@@ -289,12 +310,17 @@ pub(super) fn emit_scalar_return_with_cleanup(
     emitted.scalar_structural_parameter_homes = parameter_homes;
     emitted
         .semantic_code_attribution
-        .push(SemanticCodeAttribution {
-            site: SemanticCodeSite::Edge(psi_edge),
-            operation_ordinal: 0,
-            code_offset: cleanup.code_offset,
-            byte_count: cleanup.byte_count,
-        });
+        .extend(
+            return_edges
+                .iter()
+                .enumerate()
+                .map(|(operation_ordinal, edge)| SemanticCodeAttribution {
+                    site: SemanticCodeSite::Edge(*edge),
+                    operation_ordinal,
+                    code_offset: cleanup.code_offset,
+                    byte_count: cleanup.byte_count,
+                }),
+        );
     Ok(emitted)
 }
 
@@ -893,16 +919,18 @@ fn emit_boolean_cleanup_leaf(
     })
 }
 
-fn scalar_operation_edge(operation: &AssignedOperation) -> Option<psi_core::EdgeId> {
+fn scalar_operation_edges(operation: &AssignedOperation) -> Option<Vec<psi_core::EdgeId>> {
     match operation {
         AssignedOperation::ReturnIntegerImmediate { psi_edge, .. }
         | AssignedOperation::ReturnBooleanImmediate { psi_edge, .. }
         | AssignedOperation::ReturnIntegerParameter { psi_edge, .. }
         | AssignedOperation::ReturnBooleanParameter { psi_edge, .. }
         | AssignedOperation::ReturnBooleanNotParameter { psi_edge, .. }
-        | AssignedOperation::ReturnBooleanSharedConvergence { psi_edge, .. }
         | AssignedOperation::ReturnBooleanExpression { psi_edge, .. }
-        | AssignedOperation::ReturnIntegerExpression { psi_edge, .. } => Some(*psi_edge),
+        | AssignedOperation::ReturnIntegerExpression { psi_edge, .. } => Some(vec![*psi_edge]),
+        AssignedOperation::ReturnBooleanSharedConvergence { return_edges, .. } => {
+            Some(return_edges.clone())
+        }
         _ => None,
     }
 }

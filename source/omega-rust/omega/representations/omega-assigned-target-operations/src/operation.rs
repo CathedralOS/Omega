@@ -150,6 +150,7 @@ pub enum AssignedOperation {
         location: AssignedScalarLocation,
     },
     ReturnBooleanSharedConvergence {
+        return_edges: Vec<EdgeId>,
         psi_edge: EdgeId,
         control: AssignedBooleanControl,
     },

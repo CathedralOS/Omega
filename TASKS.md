@@ -9961,11 +9961,26 @@ reach or trust, and private proof improvements do not change public identity.
   mutually exclusive source-distributed convergence calls with one
   depth-independent conditional-tree carrier. A bounded Boolean carrier also
   accounts ordered actual unconditional native join branches plus the final
-  fallthrough into one affine-cleanup tail. Remaining: extend that accounting
-  to general shared native joins and general affine cleanup rather than
-  claiming convergence from duplicated leaves, then complete the WCSU,
-  `StackPlan`, lease, preservation, cancellation, transfer, park/resume,
-  Terminal suspension-call retention, and suspension-safe-loan work above.
+  fallthrough into one affine-cleanup tail. The first general cleanup-tail rung
+  now covers a finite nested Boolean tree whose distinct immediate-value
+  returning leaves own the same complete affine cleanup frontier. Lowering
+  retains the exact true-before-false source-edge roster, emission replaces the
+  duplicated leaf suffixes with one physical cleanup/return tail, and object
+  replay rejoins the roster to edge-bearing native join/fallthrough evidence,
+  provenance, common byte attribution, result preservation, the common cleanup
+  suffix/actions, and maximum path peak. Reordering, duplication, mismatched
+  edge/attribution, join/fallthrough drift, attribution drift, or cleanup
+  corruption rejects. Source edge-role classification remains upstream carried
+  Terminal provenance and artifact custody because object replay has no
+  Terminal control-flow graph; it does not independently reject a fully
+  coordinated source-identity retarget. Executable nominal cleanup calls
+  continue through the existing generic cleanup-call relocation replay.
+  Remaining: extend shared native joins beyond this finite
+  Boolean/uniform-frontier shape and admit nonuniform or otherwise general
+  affine cleanup without fabricating
+  convergence, then complete the WCSU, `StackPlan`, lease, preservation,
+  cancellation, transfer, park/resume, Terminal suspension-call retention,
+  and suspension-safe-loan work above.
 
   The task-plan foundation now projects a sealed fixed-stack shape only from
   `ComposedTaskStackDemand`, retaining the exact composition/root, byte count,

@@ -52,19 +52,15 @@ pub(super) fn lower_conditional(
             &target_structural_parameters,
             structural_types,
         )?;
-        if let Some(shared_return_edge) = shared_boolean_cleanup_convergence_return_edge(function) {
-            if shared_boolean_control_return_edge(&lowered.control) != Some(shared_return_edge) {
-                return Err(LoweringError::UnsupportedOperationInScalarFunction(
-                    function.machine,
-                ));
-            }
+        if let Some(return_edges) = shared_boolean_cleanup_return_edges(&lowered.control) {
             let cleanup_actions = uniform_conditional_cleanup(
                 function,
-                &[shared_return_edge],
+                &return_edges,
                 &target_structural_parameters,
                 functions,
                 structural_types,
             )?;
+            let cleanup_edge = return_edges[0];
             return Ok(Some(TargetFunction {
                 machine: function.machine,
                 attachment: function.attachment,
@@ -72,7 +68,8 @@ pub(super) fn lower_conditional(
                 provenance: conditional_provenance(function, lowered.operations, lowered.edges),
                 operation: TargetOperation::ScalarReturnWithCleanup {
                     scalar: Box::new(TargetOperation::ReturnBooleanSharedConvergence {
-                        psi_edge: shared_return_edge,
+                        return_edges,
+                        psi_edge: cleanup_edge,
                         control: lowered.control,
                     }),
                     structural_types: structural_types
@@ -82,7 +79,7 @@ pub(super) fn lower_conditional(
                     call_plan,
                     structural_parameters: target_structural_parameters,
                     cleanup_actions,
-                    psi_edge: shared_return_edge,
+                    psi_edge: cleanup_edge,
                 },
             }));
         }

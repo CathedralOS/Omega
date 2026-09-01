@@ -523,9 +523,14 @@ fn emit_function(
                 }
             }
         }
-        AssignedOperation::ReturnBooleanSharedConvergence { control, .. } => {
+        AssignedOperation::ReturnBooleanSharedConvergence {
+            return_edges,
+            control,
+            ..
+        } => {
             scalar_stack_eligible = true;
-            let (emitted, control_flow) = emit_boolean_shared_convergence(architecture, control)?;
+            let (emitted, control_flow) =
+                emit_boolean_shared_convergence(architecture, control, return_edges)?;
             scalar_control_flow = control_flow;
             emitted
         }
