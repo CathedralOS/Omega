@@ -1,0 +1,26 @@
+// A fixed-token use closes one exact type application, specializes its checked
+// generic realization, and retains the resulting internal call beside an
+// independent literal exit.
+use omega_language_std::console;
+
+data GenericMath {}
+
+boundary operator % GenericMath::remainder<Element>(
+    left: Element,
+    right: Element
+) -> Element;
+
+data GenericProvider {}
+
+machine GenericProvider::remainder<Value>(left: Value, right: Value) -> Value
+satisfies GenericMath::remainder
+{
+    left
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let result: i32 = (70 as i32) % (1 as i32);
+    self.console.exit_process(70);
+}
