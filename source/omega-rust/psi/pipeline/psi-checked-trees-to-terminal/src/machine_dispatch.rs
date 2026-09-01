@@ -6,7 +6,9 @@ use psi_checked_trees::{
 
 use crate::attached_unit::{lower_attached_unit_closure, lower_composed_unit_control_machine};
 use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
-use crate::dynamic_composed_unit::lower_direct_dynamic_composed_unit_machine;
+use crate::dynamic_composed_unit::{
+    lower_direct_dynamic_composed_unit_machine, lower_rebound_dynamic_composed_unit_machine,
+};
 use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
 use crate::scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
@@ -35,6 +37,9 @@ pub(super) enum SelectedMachineRoute {
         realization_machine: psi_symbols::SymbolHandle,
     },
     DirectDynamicComposedUnit {
+        realization_machine: psi_symbols::SymbolHandle,
+    },
+    ReboundDynamicComposedUnit {
         realization_machine: psi_symbols::SymbolHandle,
     },
     StructuralScalarReturn,
@@ -93,7 +98,7 @@ pub(super) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
-    let rebound_dynamic_plan_count = checked
+    let rebound_dynamic_plans = checked
         .facts
         .flow
         .terminal_unit_effects
@@ -101,12 +106,20 @@ pub(super) fn lower_selected_machine(
         .rebound_scalar_calls
         .iter()
         .filter(|plan| plan.latest.caller_machine == selection.machine)
-        .count();
-    if rebound_dynamic_plan_count != 0 {
-        if rebound_dynamic_plan_count != 1 {
+        .collect::<Vec<_>>();
+    if !rebound_dynamic_plans.is_empty() {
+        let [plan] = rebound_dynamic_plans.as_slice() else {
             return unsupported("rebound dynamic dispatch plan is duplicated for one caller");
+        };
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("rebound dynamic dispatch requires an attached caller");
         }
-        return unsupported("rebound dynamic descriptor/table custody is not yet lowered");
+        return routed_machine(
+            lower_rebound_dynamic_composed_unit_machine(checked, plan),
+            SelectedMachineRoute::ReboundDynamicComposedUnit {
+                realization_machine: plan.latest.realization_machine,
+            },
+        );
     }
     let direct_dynamic_plans = checked
         .facts

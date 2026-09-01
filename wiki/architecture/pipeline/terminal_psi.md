@@ -602,6 +602,23 @@ identity contract; the landed direct fixture observes its store in the
 following call before returning. `WriteOnlyPrimitiveStore` remains the distinct
 whole-root operation.
 
+Terminal format 62/vocabulary 65 carries the bounded one-reassignment dynamic
+scalar lane without devirtualizing it. The caller owns two dense conformance
+selections, one descriptor naming their initializer/latest relationship, one
+indirect-dispatch row naming the exact closed row and realization, and a
+`CallDynamicScalar` operation that contains only the descriptor ordinal plus
+ordinary obligation/crash lanes. The latest selection supplies the runtime
+shared structural source; the operation contains neither a static callee nor a
+source copy. Independent validation rejoins both sources to the same closed
+application and structural type, validates each against the realization's
+single structural parameter, requires exact row/callable/result/service reach,
+and rejects orphan, duplicate, reordered, retargeted, or direct-call-
+substituted custody. Canonical encoding, call composition, call-graph/service
+reach, reference execution, and fixed-fuel derivation all resolve the same
+descriptor table. Terminal-to-abstract lowering deliberately rejects
+`CallDynamicScalar` until target-neutral table/carrier operations exist; this
+is the current native boundary, not permission to devirtualize the call.
+
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts
 only on written paths and preserves facts over an explicitly unchanged suffix.

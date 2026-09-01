@@ -48,6 +48,33 @@ pub enum ModuleError {
         owner: MachineId,
         operation: OperationId,
     },
+    NonCanonicalReboundDynamicDescriptorOrder,
+    DuplicateReboundDynamicDescriptor {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    NonDenseReboundDynamicDescriptor {
+        owner: MachineId,
+        expected: u32,
+        actual: u32,
+    },
+    InvalidReboundDynamicDescriptor {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    OrphanReboundDynamicDescriptor {
+        owner: MachineId,
+        ordinal: u32,
+    },
+    NonCanonicalIndirectDynamicDispatchOrder,
+    DuplicateIndirectDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
+    InvalidIndirectDynamicDispatch {
+        owner: MachineId,
+        operation: OperationId,
+    },
     NonCanonicalReborrowRestoredCallUseOrder,
     DuplicateReborrowRestoredCallUse,
     DuplicateReborrowRestoredCallLifecycle,

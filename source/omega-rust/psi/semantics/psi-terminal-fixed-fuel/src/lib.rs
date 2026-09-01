@@ -11,7 +11,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, Proposition};
+use psi_core::{BlockId, EdgeId, IntegerValue, MachineId, OperationId, Proposition};
 use psi_terminal::{
     OperationKind, TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator,
 };
@@ -555,6 +555,7 @@ pub fn derive_fixed_safe_point_segments(
         .iter()
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
+    let dynamic_call_targets = dynamic_call_targets(verified.module());
     let schedule = TerminalFuelSchedule::CURRENT;
     let mut memoized_machines = BTreeMap::new();
     let mut active_machines = BTreeSet::from([machine]);
@@ -571,14 +572,11 @@ pub fn derive_fixed_safe_point_segments(
             .ok_or(FixedFuelError::UnknownBlock(current))?;
         let mut terminator_reachable = true;
         for operation in &block.operations {
-            if let OperationKind::Call { callee, .. }
-            | OperationKind::CallUnit { callee, .. }
-            | OperationKind::CallStructuralScalar { callee, .. }
-            | OperationKind::CallStructural { callee, .. } = &operation.kind
-            {
+            if let Some(callee) = operation_callee(machine, operation, &dynamic_call_targets) {
                 let callee_bounds = maximum_machine_outcomes(
-                    *callee,
+                    callee,
                     &machines,
+                    &dynamic_call_targets,
                     schedule,
                     &mut memoized_machines,
                     &mut active_machines,
@@ -697,15 +695,43 @@ fn derive_maximum_entry_bound(
         .iter()
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
+    let dynamic_call_targets = dynamic_call_targets(module);
     maximum_machine_outcomes(
         machine,
         &machines,
+        &dynamic_call_targets,
         schedule,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )?
     .maximum()
     .ok_or(FixedFuelError::NoTerminalPath(machine))
+}
+
+fn dynamic_call_targets(module: &TerminalModule) -> BTreeMap<(MachineId, OperationId), MachineId> {
+    module
+        .dynamic_dispatch
+        .indirect_dispatches
+        .iter()
+        .map(|dispatch| ((dispatch.owner, dispatch.operation), dispatch.realization))
+        .collect()
+}
+
+fn operation_callee(
+    owner: MachineId,
+    operation: &psi_terminal::Operation,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+) -> Option<MachineId> {
+    match &operation.kind {
+        OperationKind::Call { callee, .. }
+        | OperationKind::CallUnit { callee, .. }
+        | OperationKind::CallStructuralScalar { callee, .. }
+        | OperationKind::CallStructural { callee, .. } => Some(*callee),
+        OperationKind::CallDynamicScalar { .. } => {
+            dynamic_call_targets.get(&(owner, operation.id)).copied()
+        }
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -775,6 +801,7 @@ fn block_units(
 fn maximum_machine_outcomes(
     machine: MachineId,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -795,9 +822,11 @@ fn maximum_machine_outcomes(
         .map(|block| (block.id, block))
         .collect::<BTreeMap<_, _>>();
     outcome_bounds_from(
+        machine,
         machine_semantics.entry,
         &blocks,
         machines,
+        dynamic_call_targets,
         schedule,
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
@@ -811,9 +840,11 @@ fn maximum_machine_outcomes(
 }
 
 fn outcome_bounds_from(
+    machine: MachineId,
     current: BlockId,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     schedule: TerminalFuelSchedule,
     memoized: &mut BTreeMap<BlockId, OutcomeBounds>,
     active: &mut BTreeSet<BlockId>,
@@ -835,14 +866,11 @@ fn outcome_bounds_from(
     for operation in &block.operations {
         normal_units =
             checked_optional_add(normal_units, schedule.operation_units(&operation.kind))?;
-        if let OperationKind::Call { callee, .. }
-        | OperationKind::CallUnit { callee, .. }
-        | OperationKind::CallStructuralScalar { callee, .. }
-        | OperationKind::CallStructural { callee, .. } = &operation.kind
-        {
+        if let Some(callee) = operation_callee(machine, operation, dynamic_call_targets) {
             let callee_bounds = maximum_machine_outcomes(
-                *callee,
+                callee,
                 machines,
+                dynamic_call_targets,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -894,6 +922,7 @@ fn outcome_bounds_from(
                 crashed: None,
             },
             machines,
+            dynamic_call_targets,
             schedule,
             memoized_machines,
             active_machines,
@@ -910,6 +939,7 @@ fn outcome_bounds_from(
                     crashed: None,
                 },
                 machines,
+                dynamic_call_targets,
                 schedule,
                 memoized_machines,
                 active_machines,
@@ -924,9 +954,11 @@ fn outcome_bounds_from(
             ),
         },
         (Terminator::Jump { target, .. }, Some(prefix)) => outcome_bounds_from(
+            machine,
             *target,
             blocks,
             machines,
+            dynamic_call_targets,
             schedule,
             memoized,
             active,
@@ -946,9 +978,11 @@ fn outcome_bounds_from(
             },
             Some(prefix),
         ) => outcome_bounds_from(
+            machine,
             when_true.target,
             blocks,
             machines,
+            dynamic_call_targets,
             schedule,
             memoized,
             active,
@@ -956,9 +990,11 @@ fn outcome_bounds_from(
             active_machines,
         )?
         .merge(outcome_bounds_from(
+            machine,
             when_false.target,
             blocks,
             machines,
+            dynamic_call_targets,
             schedule,
             memoized,
             active,
@@ -984,6 +1020,7 @@ fn compose_cleanup_outcomes(
     cleanup_machines: impl IntoIterator<Item = MachineId>,
     mut bounds: OutcomeBounds,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
     schedule: TerminalFuelSchedule,
     memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
     active_machines: &mut BTreeSet<MachineId>,
@@ -995,6 +1032,7 @@ fn compose_cleanup_outcomes(
         let cleanup_bounds = maximum_machine_outcomes(
             cleanup_machine,
             machines,
+            dynamic_call_targets,
             schedule,
             memoized_machines,
             active_machines,
@@ -1022,6 +1060,7 @@ fn derive_segment_bound(
         .iter()
         .map(|machine| (machine.id, machine))
         .collect::<BTreeMap<_, _>>();
+    let dynamic_call_targets = dynamic_call_targets(module);
     let mut memoized_machines = BTreeMap::new();
     let mut active_machines = BTreeSet::from([machine.id]);
     let blocks = machine
@@ -1048,14 +1087,11 @@ fn derive_segment_bound(
             units = units
                 .checked_add(schedule.operation_units(&operation.kind))
                 .ok_or(FixedFuelError::BoundOverflow)?;
-            if let OperationKind::Call { callee, .. }
-            | OperationKind::CallUnit { callee, .. }
-            | OperationKind::CallStructuralScalar { callee, .. }
-            | OperationKind::CallStructural { callee, .. } = &operation.kind
-            {
+            if let Some(callee) = operation_callee(machine.id, operation, &dynamic_call_targets) {
                 let callee_bounds = maximum_machine_outcomes(
-                    *callee,
+                    callee,
                     &machines,
+                    &dynamic_call_targets,
                     schedule,
                     &mut memoized_machines,
                     &mut active_machines,
@@ -1064,7 +1100,7 @@ fn derive_segment_bound(
                     .checked_add(callee_bounds.returned.ok_or(
                         FixedFuelError::SegmentEndUnreachableAfterCall {
                             block: current,
-                            callee: *callee,
+                            callee,
                         },
                     )?)
                     .ok_or(FixedFuelError::BoundOverflow)?;

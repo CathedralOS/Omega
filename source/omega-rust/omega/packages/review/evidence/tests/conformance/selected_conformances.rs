@@ -435,22 +435,16 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         package_inputs(&package.0),
     )
     .expect("private named dynamic selection should check in package-aware compilation");
-    let plans = &checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .direct_scalar_calls;
-    let [plan] = plans.as_slice() else {
-        panic!("one exact checked direct dynamic dispatch plan expected")
+    let [dynamic_selection] = checked.facts.dynamic_conformances.selections.as_slice() else {
+        panic!("one exact checked dynamic conformance selection expected")
     };
-    assert_eq!(
-        plan.selected_conformance,
-        plan.selection
-            .conformance
-            .expect("named conformance selection")
-    );
-    assert_ne!(plan.realization_machine, plan.requirement);
+    let selected_conformance = dynamic_selection
+        .conformance
+        .expect("named conformance selection");
+    let [dynamic_row] = dynamic_selection.rows.as_slice() else {
+        panic!("one exact checked dynamic conformance row expected")
+    };
+    assert_ne!(dynamic_row.realization_machine, dynamic_row.requirement);
 
     let conformance_selections = checked
         .authored_declaration_selections()
@@ -461,7 +455,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
                 && matches!(
                     selection.target(),
                     psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
-                        if target.selected_symbol() == plan.selected_conformance
+                        if target.selected_symbol() == selected_conformance
                 )
         })
         .collect::<Vec<_>>();

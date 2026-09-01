@@ -1,6 +1,6 @@
 # Tasks: Package Manager
 
-Status: remaining work only, 2026-08-30.
+Status: remaining work only, 2026-09-01.
 
 This file is the forward queue for the Cargo-like source/package service under
 `omega`. Completed milestones live in Git history and in the subsystem notes;
@@ -290,10 +290,14 @@ explicitly.
     through one canonical Terminal route, but its end-to-end ordinary-package
     native canary still waits on accepted Console semantic-binding replay from
     the lock; the rebound fixture now retains its initializer and reassignment
-    as a distinct checked call lane and fails at the exact unsupported Terminal
-    boundary, with Terminal descriptor/dispatch rows, canonical verification,
-    two-word carrier materialization, indirect native calls, and relocations
-    still remaining; the two build/runtime float twins
+    as a distinct checked call lane and crosses canonical Terminal format 62 /
+    vocabulary 65 through exact selection/descriptor/indirect-dispatch custody,
+    independent verification, codec replay, reference interpretation, and
+    transitive fixed-fuel accounting. Native production stops honestly at
+    `UnsupportedDynamicScalarCall`; the remaining work is the abstract/target
+    operation, two-word carrier and private table/function materialization,
+    relocations, and the end-to-end native canary. The two build/runtime float
+    twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema

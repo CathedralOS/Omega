@@ -72,7 +72,7 @@ pub(super) fn admit_composed_unit_control<'a>(
     })
 }
 
-pub(crate) fn admit_direct_dynamic_continuation<'a>(
+pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
     plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &'a psi_checked_trees::CheckedDynamicUnitContinuationPlan,

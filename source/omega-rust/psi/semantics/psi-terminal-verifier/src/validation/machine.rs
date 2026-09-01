@@ -91,6 +91,29 @@ pub(super) fn validate_machine(
                 operation.id,
                 ModuleError::DuplicateOperation,
             )?;
+            if let OperationKind::CallDynamicScalar {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                let Some(result) = operation.result.scalar() else {
+                    return Err(ModuleError::ScalarOperationHasUnitResult(operation.id));
+                };
+                insert_value(
+                    &mut value_types,
+                    &mut registry.values,
+                    result.id,
+                    result.scalar_type,
+                )?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
             if let OperationKind::CallStructuralScalar {
                 requirement_obligations,
                 ..
@@ -207,6 +230,7 @@ pub(super) fn validate_machine(
                 | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StructuralScalarFieldStore { .. }
                 | OperationKind::CallStructuralScalar { .. }
+                | OperationKind::CallDynamicScalar { .. }
                 | OperationKind::CallStructural { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
                 | OperationKind::PortWrite { .. }

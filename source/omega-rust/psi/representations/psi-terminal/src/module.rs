@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        64
+        65
     }
 }
 
@@ -1814,6 +1814,16 @@ pub enum OperationKind {
         callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one scalar-result requirement through an owner-local dynamic
+    /// descriptor. Exact descriptor versions, conformance application, table
+    /// row, and realization callable remain in the module dynamic-dispatch
+    /// catalog. This operation intentionally carries no static callee or raw
+    /// source argument.
+    CallDynamicScalar {
+        descriptor_ordinal: u32,
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

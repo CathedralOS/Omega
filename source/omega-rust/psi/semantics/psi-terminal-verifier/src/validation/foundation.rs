@@ -785,6 +785,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                                     OperationKind::Call { .. }
                                         | OperationKind::CallUnit { .. }
                                         | OperationKind::CallStructuralScalar { .. }
+                                        | OperationKind::CallDynamicScalar { .. }
                                         | OperationKind::BoundaryCall { .. }
                                 ) && (!matches!(operation.kind, OperationKind::CallStructural { .. })
                                     || super::structural_operations::exact_payloadless_structural_call(

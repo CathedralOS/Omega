@@ -10,8 +10,9 @@ use psi_terminal::{
     StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalDirectDynamicDispatch,
-    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
+    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
@@ -159,6 +160,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 conformance_application_report_fingerprint: application.report_fingerprint,
                 conformance_application_commitment: application.commitment,
             }],
+            rebound_descriptors: Vec::new(),
             direct_dispatches: vec![TerminalDirectDynamicDispatch {
                 owner: caller,
                 operation,
@@ -170,6 +172,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 realization_callable_identity: "package::Carrier::measure#callable".into(),
                 realization,
             }],
+            indirect_dispatches: Vec::new(),
         },
         quotient_correspondences: Vec::new(),
         machines: vec![
@@ -251,6 +254,47 @@ fn dynamic_dispatch_module() -> TerminalModule {
     }
 }
 
+fn rebound_dynamic_dispatch_module() -> TerminalModule {
+    let mut module = dynamic_dispatch_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("owner is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: id(2),
+        identity: "selected".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(id::<StructuralTypeId>(2)),
+    });
+    let mut latest = module.dynamic_dispatch.selections[0].clone();
+    latest.ordinal = 1;
+    latest.source.path = vec![StructuralPathSegment::Field("selected".into())];
+    module.dynamic_dispatch.selections.push(latest);
+    module.dynamic_dispatch.rebound_descriptors = vec![TerminalReboundDynamicDescriptor {
+        owner: id::<MachineId>(1),
+        ordinal: 0,
+        initial_selection_ordinal: 0,
+        rebound_selection_ordinal: 1,
+    }];
+    let direct = module.dynamic_dispatch.direct_dispatches.remove(0);
+    module.dynamic_dispatch.indirect_dispatches = vec![TerminalIndirectDynamicDispatch {
+        owner: direct.owner,
+        operation: direct.operation,
+        descriptor_ordinal: 0,
+        declaring_trait_identity: direct.declaring_trait_identity,
+        public_requirement_identity: direct.public_requirement_identity,
+        requirement_identity: direct.requirement_identity,
+        realization_identity: direct.realization_identity,
+        realization_callable_identity: direct.realization_callable_identity,
+        realization: direct.realization,
+    }];
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallDynamicScalar {
+        descriptor_ordinal: 0,
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    module
+}
+
 fn direct_call_mut(module: &mut TerminalModule) -> &mut OperationKind {
     &mut module.machines[0].blocks[0].operations[0].kind
 }
@@ -262,6 +306,105 @@ fn validation_error(module: &TerminalModule) -> ModuleError {
 #[test]
 fn admits_exact_source_free_direct_dynamic_dispatch() {
     validate_module(&dynamic_dispatch_module()).expect("exact direct dynamic dispatch is valid");
+}
+
+#[test]
+fn admits_exact_rebound_descriptor_and_indirect_dispatch() {
+    validate_module(&rebound_dynamic_dispatch_module())
+        .expect("exact rebound descriptor and indirect call are valid");
+}
+
+#[test]
+fn rejects_rebound_version_source_and_dispatch_drift() {
+    let expected_descriptor = ModuleError::InvalidReboundDynamicDescriptor {
+        owner: id::<MachineId>(1),
+        ordinal: 0,
+    };
+
+    let mut reversed = rebound_dynamic_dispatch_module();
+    reversed.dynamic_dispatch.rebound_descriptors[0].initial_selection_ordinal = 1;
+    reversed.dynamic_dispatch.rebound_descriptors[0].rebound_selection_ordinal = 0;
+    assert_eq!(validation_error(&reversed), expected_descriptor.clone());
+
+    let mut changed_source = rebound_dynamic_dispatch_module();
+    let StructuralTypeShape::Record { fields } = &mut changed_source.structural_types[0].shape
+    else {
+        panic!("owner is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: id(3),
+        identity: "other".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(id::<StructuralTypeId>(3)),
+    });
+    changed_source.dynamic_dispatch.selections[1].source.path =
+        vec![StructuralPathSegment::Field("other".into())];
+    assert_eq!(validation_error(&changed_source), expected_descriptor);
+
+    let expected_dispatch = ModuleError::InvalidIndirectDynamicDispatch {
+        owner: id::<MachineId>(1),
+        operation: id::<OperationId>(1),
+    };
+    let mut stale_operation = rebound_dynamic_dispatch_module();
+    let OperationKind::CallDynamicScalar {
+        descriptor_ordinal, ..
+    } = &mut stale_operation.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("fixture indirect call")
+    };
+    *descriptor_ordinal = 1;
+    assert_eq!(
+        validation_error(&stale_operation),
+        expected_dispatch.clone()
+    );
+
+    let mut row_drift = rebound_dynamic_dispatch_module();
+    row_drift.dynamic_dispatch.indirect_dispatches[0].requirement_identity =
+        "package::Measure::different".into();
+    assert!(
+        validate_module(&row_drift).is_err(),
+        "an indirect row outside the closed application must reject"
+    );
+}
+
+#[test]
+fn rejects_duplicate_and_orphan_rebound_rows() {
+    let mut duplicate_descriptor = rebound_dynamic_dispatch_module();
+    duplicate_descriptor
+        .dynamic_dispatch
+        .rebound_descriptors
+        .push(duplicate_descriptor.dynamic_dispatch.rebound_descriptors[0].clone());
+    assert_eq!(
+        validation_error(&duplicate_descriptor),
+        ModuleError::DuplicateReboundDynamicDescriptor {
+            owner: id::<MachineId>(1),
+            ordinal: 0,
+        }
+    );
+
+    let mut duplicate_dispatch = rebound_dynamic_dispatch_module();
+    duplicate_dispatch
+        .dynamic_dispatch
+        .indirect_dispatches
+        .push(duplicate_dispatch.dynamic_dispatch.indirect_dispatches[0].clone());
+    assert_eq!(
+        validation_error(&duplicate_dispatch),
+        ModuleError::DuplicateIndirectDynamicDispatch {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(1),
+        }
+    );
+
+    let mut orphan_descriptor = rebound_dynamic_dispatch_module();
+    orphan_descriptor
+        .dynamic_dispatch
+        .indirect_dispatches
+        .clear();
+    orphan_descriptor.machines[0].blocks[0].operations.clear();
+    assert!(
+        validate_module(&orphan_descriptor).is_err(),
+        "an unconsumed rebound descriptor must reject"
+    );
 }
 
 #[test]

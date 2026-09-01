@@ -42,6 +42,7 @@ impl TerminalFuelSchedule {
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }
             | OperationKind::CallStructuralScalar { .. }
+            | OperationKind::CallDynamicScalar { .. }
             | OperationKind::CallStructural { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }

@@ -1236,6 +1236,9 @@ pub fn lower_machine(
         SelectedMachineRoute::DirectDynamicComposedUnit {
             realization_machine,
         } => vec![selection.machine, realization_machine],
+        SelectedMachineRoute::ReboundDynamicComposedUnit {
+            realization_machine,
+        } => vec![selection.machine, realization_machine],
         SelectedMachineRoute::AttachedUnit
             if checked
                 .facts
@@ -1331,6 +1334,7 @@ pub fn lower_machine(
     if matches!(
         route,
         SelectedMachineRoute::DirectDynamicComposedUnit { .. }
+            | SelectedMachineRoute::ReboundDynamicComposedUnit { .. }
     ) {
         if lowered
             .semantic_module
@@ -1339,7 +1343,7 @@ pub fn lower_machine(
             != 1
         {
             return unsupported(
-                "direct dynamic dispatch must publish exactly one closed conformance application",
+                "dynamic dispatch must publish exactly one closed conformance application",
             );
         }
     } else {

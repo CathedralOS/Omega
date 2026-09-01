@@ -1962,6 +1962,7 @@ dependencies = [
  "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
+ "psi-terminal-fixed-fuel",
  "psi-terminal-fuel",
  "psi-terminal-verifier",
 ]

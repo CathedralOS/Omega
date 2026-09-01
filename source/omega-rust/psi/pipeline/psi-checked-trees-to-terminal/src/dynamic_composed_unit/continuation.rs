@@ -6,7 +6,8 @@ pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     continuation: &psi_checked_trees::CheckedDynamicUnitContinuationPlan,
-    caller: DirectCallerShape,
+    caller: DynamicCallerShape,
+    lane: DynamicLoweringLane<'_>,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     if plan.caller_structural_scalar_field_store.is_some() {
         return unsupported(
@@ -14,7 +15,7 @@ pub(super) fn lower(
         );
     }
     let catalogs =
-        crate::attached_unit::lower_direct_dynamic_control_catalogs(checked, plan, continuation)?;
+        crate::attached_unit::lower_dynamic_control_catalogs(checked, plan, continuation)?;
     if !catalogs.internal_targets.is_empty() || catalogs.next_place != 1 {
         return unsupported(
             "direct dynamic continuation requires scalar-only boundary effect leaves",
@@ -65,35 +66,25 @@ pub(super) fn lower(
         callable_result,
         &callable_identity,
     )?;
-    let selection = TerminalDynamicConformanceSelection {
-        owner: caller_machine,
-        ordinal: 0,
-        source: source.clone(),
-        conformance_application_report_fingerprint: application.report_fingerprint,
-        conformance_application_commitment: application.commitment,
-    };
-    let dispatch = TerminalDirectDynamicDispatch {
-        owner: caller_machine,
-        operation: call_operation,
-        selection_ordinal: 0,
-        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-        public_requirement_identity: selected_row.public_requirement_identity.clone(),
-        requirement_identity: selected_row.requirement_identity.clone(),
-        realization_identity: selected_row.realization_identity.clone(),
-        realization_callable_identity: callable_identity,
-        realization: realization_machine,
-    };
+    let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
+        lane,
+        &caller_self,
+        plan,
+        &catalogs.structural_types,
+        &catalogs.type_ids,
+        caller_machine,
+        call_operation,
+        source,
+        &application,
+        &selected_row,
+        callable_identity,
+        realization_machine,
+    )?;
 
     let mut caller_operations = vec![Operation {
         id: call_operation,
         result: OperationResult::Scalar(call_result),
-        kind: OperationKind::CallStructuralScalar {
-            callee: realization_machine,
-            structural_arguments: vec![source],
-            claim_transfers: Vec::new(),
-            requirement_obligations: Vec::new(),
-            crash_continuations: Vec::new(),
-        },
+        kind: call_kind,
     }];
     let guard = lower_checked_scalar_expression(&continuation.guard)?;
     validate_direct_parameter_types(&guard, &[call_result_type])?;
@@ -262,10 +253,7 @@ pub(super) fn lower(
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: vec![application],
-            dynamic_dispatch: TerminalDynamicDispatchCatalog {
-                selections: vec![selection],
-                direct_dispatches: vec![dispatch],
-            },
+            dynamic_dispatch,
             quotient_correspondences: Vec::new(),
             machines: vec![
                 TerminalMachine {

@@ -861,7 +861,7 @@ fn validate_module_with_policy(
     validate_placed_view_inputs(module, &machines)?;
     validate_reborrow_root_handoffs(module, &machines)?;
     validate_reborrow_restored_call_uses(module, &machines)?;
-    dynamic_dispatch::validate_direct_dynamic_dispatches(module, &machines)?;
+    dynamic_dispatch::validate_dynamic_dispatches(module, &machines)?;
     validate_evidence_contract_lanes(module, &machines)?;
     for machine in &module.machines {
         machine::validate_machine(module, machine, &machines, &mut registry, policy)?;

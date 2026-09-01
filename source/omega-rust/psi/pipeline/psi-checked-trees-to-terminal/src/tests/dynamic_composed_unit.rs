@@ -99,7 +99,7 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
         machine measure(&self) -> i32;
     }
 
-    data Item [copy] { value: i32; }
+    data Item { value: i32; }
 
     Primary: Item satisfies Measure {
         machine measure(&self) -> i32 {
@@ -157,7 +157,7 @@ fn direct_plan(
 }
 
 #[test]
-fn rejects_rebound_dynamic_custody_at_the_unimplemented_terminal_lane() {
+fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
     let mut checked = checked_source(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
     assert!(catalog.direct_scalar_calls.is_empty());
@@ -167,12 +167,40 @@ fn rejects_rebound_dynamic_custody_at_the_unimplemented_terminal_lane() {
     assert_eq!(plan.initial.fact.statement_index, 0);
     assert_eq!(plan.latest.selection.statement_index, 1);
     assert_eq!(plan.latest.coordinate.statement_index, 2);
-    assert_eq!(
-        unsupported_message(&checked),
-        "rebound dynamic descriptor/table custody is not yet lowered"
-    );
-
     let duplicate = plan.clone();
+
+    let lowered = lower_machine(&checked, "Main::run").expect("rebound dynamic call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("rebound dynamic module verifies");
+    let terminal_catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(terminal_catalog.selections.len(), 2);
+    assert_eq!(terminal_catalog.rebound_descriptors.len(), 1);
+    assert!(terminal_catalog.direct_dispatches.is_empty());
+    let [dispatch] = terminal_catalog.indirect_dispatches.as_slice() else {
+        panic!("one indirect dynamic dispatch expected")
+    };
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == dispatch.owner)
+        .expect("indirect caller");
+    let operation = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == dispatch.operation)
+        .expect("indirect call operation");
+    assert!(matches!(
+        operation.kind,
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal: 0,
+            ..
+        }
+    ));
+    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("rebound dynamic module has canonical source-free encoding");
+
     checked
         .facts
         .flow

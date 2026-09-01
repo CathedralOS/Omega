@@ -14,6 +14,17 @@ pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleE
                     | OperationKind::CallStructural { callee, .. } => {
                         callees.insert(*callee);
                     }
+                    OperationKind::CallDynamicScalar { .. } => {
+                        let dispatch = module
+                            .dynamic_dispatch
+                            .indirect_dispatches
+                            .iter()
+                            .find(|dispatch| {
+                                dispatch.owner == machine.id && dispatch.operation == operation.id
+                            })
+                            .expect("validated dynamic call has one dispatch row");
+                        callees.insert(dispatch.realization);
+                    }
                     OperationKind::BoundaryCall { boundary, .. } => {
                         callees.extend(
                             module

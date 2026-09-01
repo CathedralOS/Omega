@@ -203,6 +203,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::Call { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
+        | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
