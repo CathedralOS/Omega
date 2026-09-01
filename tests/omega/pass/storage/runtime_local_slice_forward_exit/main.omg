@@ -19,7 +19,7 @@
 // - same-state use of the local slice (no forward) works
 //   (storage/runtime_slice_alias_indexed_field_write_exit);
 // - forwarding a slice derived from a `&mut` PARAM works (inventory.omg).
-use omega::language::std::console;
+use omega_language_std::console;
 data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 2]; }
 data Main { console: Console; }
