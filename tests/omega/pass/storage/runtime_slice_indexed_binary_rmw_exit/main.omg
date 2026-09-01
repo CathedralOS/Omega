@@ -7,7 +7,7 @@
 // zero-layout-width error on this host). The left operand is itself a
 // frame-fixed-indexed READ, so the operand-relocation offsets are
 // exercised too. exit 71 = the RMW missed the element (stale 30).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Exit {
     count: i32;
