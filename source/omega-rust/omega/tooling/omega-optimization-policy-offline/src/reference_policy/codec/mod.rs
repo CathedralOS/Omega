@@ -1,10 +1,10 @@
 //! Optimizer module role: stage group. Strict model and report codecs.
 
-mod cursor;
+pub(super) mod cursor;
 mod model;
 mod report;
 
-use cursor::Cursor;
+pub(super) use cursor::Cursor;
 
 use super::model::{
     OfflinePolicyConfusion, OfflinePolicyEvaluationSummary, OfflinePolicyReferenceError,
@@ -13,7 +13,7 @@ use super::model::{
 pub(super) use model::{decode as decode_model, encode as encode_model};
 pub(super) use report::{decode as decode_report, encode as encode_report};
 
-fn encode_summary(encoded: &mut Vec<u8>, summary: OfflinePolicyEvaluationSummary) {
+pub(super) fn encode_summary(encoded: &mut Vec<u8>, summary: OfflinePolicyEvaluationSummary) {
     encoded.extend_from_slice(&summary.decision_count.to_le_bytes());
     encoded.extend_from_slice(&summary.recorded_choose_count.to_le_bytes());
     encoded.extend_from_slice(&summary.recorded_skip_count.to_le_bytes());
@@ -28,7 +28,7 @@ fn encode_summary(encoded: &mut Vec<u8>, summary: OfflinePolicyEvaluationSummary
     encoded.extend_from_slice(&summary.selected_predicted_cost_delta.to_le_bytes());
 }
 
-fn decode_summary(
+pub(super) fn decode_summary(
     cursor: &mut Cursor<'_>,
 ) -> Result<OfflinePolicyEvaluationSummary, OfflinePolicyReferenceError> {
     Ok(OfflinePolicyEvaluationSummary {

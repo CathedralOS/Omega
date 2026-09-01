@@ -201,7 +201,7 @@ corpus and receipt grant no optimizer replay, compiler activation, process
 execution, or publication authority. Training and evaluation must consume this
 boundary rather than inventing a second feature schema.
 
-The sibling offline command exposes four exact routes:
+The sibling offline command exposes four exact data routes:
 `capture <output-corpus> <decision-log>...`,
 `train <input-corpus> <output-model>`, and distinct `evaluate` and `regression`
 routes from one corpus/model pair to one report. Fixed report commands prevent
@@ -223,3 +223,11 @@ strict codecs, confusion counts, exact chosen-candidate agreement, and a
 checked-i128 selected predicted-cost sum. These metrics describe agreement
 with recorded labels; they do not claim runtime, size, compile-time, or semantic
 quality.
+
+The V1 checked regression manifest snapshots only authenticated comparison
+coordinates: corpus, model, algorithm, regression split, expected report, and
+the complete exact summary. Checking replays the model and recomputes the
+regression report before comparing any baseline field. Manifest creation and
+read-only checking are separate exact commands, so a verification run cannot
+silently bless its own result. This remains recorded-label regression custody,
+not an optimization-quality threshold or compiler activation decision.

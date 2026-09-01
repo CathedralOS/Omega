@@ -487,13 +487,13 @@ inventory registers the complete ladder and forbids compiler, build, pipeline,
 Psi-optimizer, and process-tooling dependencies. This is corpus custody, not a
 second policy catalog or compiler activation path.
 
-The 44-line `src/bin/omega-optimization-policy-offline/main.rs` command
-entrance coordinates the closed `capture`, `train`, `evaluate`, and
-`regression` vocabulary. Its adjacent `arguments`, `capture`, `inputs`,
-`training`, `evaluation`, `publication`, and `error` leaves make positional
-admission, strict artifact custody, fixed report-split selection, create-once
-file output, and exit classification separately visible. The architecture
-inventory names that full descent, including the mirrored command tests.
+The 51-line `src/bin/omega-optimization-policy-offline/main.rs` command
+entrance coordinates the closed artifact vocabulary. Its adjacent `arguments`,
+`capture`, `inputs`, `training`, `evaluation`, `regression_manifest`,
+`publication`, and `error` leaves make positional admission, strict artifact
+custody, fixed report-split selection, explicit baseline creation/read-only
+checking, create-once file output, and exit classification separately visible.
+The architecture inventory names that full descent, including mirrored tests.
 
 The adjacent `reference_policy/mod.rs` entrance exposes only deterministic
 training, evaluation, and strict decode calls. Its `training/mod.rs` and
@@ -503,6 +503,13 @@ rungs. Tests mirror codec, training, evaluation, and refusal behavior, and the
 tooling architecture ladder registers all three library entrances. The command
 routes call these public validated operations; no second trainer, evaluator,
 process, or compiler route is hidden below them.
+
+Checked regression custody descends through the 35-line
+`reference_policy/regression_manifest/mod.rs` entrance into distinct `model`,
+`identity`, `codec`, and `validate` leaves. Creation snapshots one already-
+validated regression report; validation independently recomputes that report
+from corpus/model custody before accepting any expected identity or summary.
+The mirrored test leaf corrupts every coordinate and envelope boundary.
 
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.

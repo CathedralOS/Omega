@@ -12,6 +12,7 @@ pub(super) enum OfflinePolicyCommandError {
     ReadLog { path: PathBuf, source: io::Error },
     ReadCorpus { path: PathBuf, source: io::Error },
     ReadModel { path: PathBuf, source: io::Error },
+    ReadManifest { path: PathBuf, source: io::Error },
     InvalidCorpus(OfflinePolicyCorpusError),
     InvalidReferenceArtifact(OfflinePolicyReferenceError),
     Publish { path: PathBuf, source: io::Error },
@@ -24,6 +25,7 @@ impl OfflinePolicyCommandError {
             Self::ReadLog { .. }
             | Self::ReadCorpus { .. }
             | Self::ReadModel { .. }
+            | Self::ReadManifest { .. }
             | Self::InvalidCorpus(_)
             | Self::InvalidReferenceArtifact(_)
             | Self::Publish { .. } => ExitCode::FAILURE,
@@ -50,6 +52,11 @@ impl std::fmt::Display for OfflinePolicyCommandError {
             Self::ReadModel { path, source } => write!(
                 formatter,
                 "could not read offline policy model {}: {source}",
+                path.display()
+            ),
+            Self::ReadManifest { path, source } => write!(
+                formatter,
+                "could not read offline policy regression manifest {}: {source}",
                 path.display()
             ),
             Self::InvalidCorpus(source) => source.fmt(formatter),

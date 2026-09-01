@@ -124,9 +124,11 @@ and codecs. It measures recorded-action agreement only. Explicit offline
 strict admission and independent-replay boundaries and publish new artifacts
 without overwriting existing paths. Evaluation and regression are distinct
 commands with fixed splits. They run no compiler, external model, or process.
-Checked regression manifests, meaningful measured objectives, external models,
-and sandboxed compiler-side policy execution remain experimental work and are
-not part of ordinary builds.
+A strict V1 regression manifest binds the complete corpus/model/split/report
+identity chain plus exact summary fields; separate creation and read-only check
+commands ensure verification cannot update the expected baseline. Meaningful
+measured objectives, external models, and sandboxed compiler-side policy
+execution remain experimental work and are not part of ordinary builds.
 
 The neutral `omega-bounded-process` tooling boundary is only a prerequisite for
 external execution. It centralizes structured command preparation, concrete

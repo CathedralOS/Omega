@@ -1,7 +1,10 @@
 use std::ffi::OsString;
 
 use crate::{
-    arguments::{CaptureRequest, EvaluationRequest, OfflinePolicyCommand, TrainingRequest, parse},
+    arguments::{
+        CaptureRequest, EvaluationRequest, OfflinePolicyCommand, RegressionManifestCheckRequest,
+        RegressionManifestCreationRequest, TrainingRequest, parse,
+    },
     error::OfflinePolicyCommandError,
 };
 
@@ -126,6 +129,64 @@ fn evaluation_and_regression_share_exact_artifact_coordinates() {
         ])),
         Err(OfflinePolicyCommandError::Usage(
             "regression accepts exactly three paths"
+        ))
+    ));
+}
+
+#[test]
+fn regression_manifest_creation_and_checking_are_distinct_commands() {
+    assert_eq!(
+        parse(args(&[
+            "tool",
+            "create-regression-manifest",
+            "corpus.bin",
+            "model.bin",
+            "manifest.bin"
+        ]))
+        .unwrap(),
+        OfflinePolicyCommand::CreateRegressionManifest(RegressionManifestCreationRequest {
+            corpus: "corpus.bin".into(),
+            model: "model.bin".into(),
+            output: "manifest.bin".into(),
+        })
+    );
+    assert_eq!(
+        parse(args(&[
+            "tool",
+            "check-regression-manifest",
+            "corpus.bin",
+            "model.bin",
+            "manifest.bin"
+        ]))
+        .unwrap(),
+        OfflinePolicyCommand::CheckRegressionManifest(RegressionManifestCheckRequest {
+            corpus: "corpus.bin".into(),
+            model: "model.bin".into(),
+            manifest: "manifest.bin".into(),
+        })
+    );
+    assert!(matches!(
+        parse(args(&[
+            "tool",
+            "create-regression-manifest",
+            "corpus.bin",
+            "model.bin"
+        ])),
+        Err(OfflinePolicyCommandError::Usage(
+            "missing output manifest path"
+        ))
+    ));
+    assert!(matches!(
+        parse(args(&[
+            "tool",
+            "check-regression-manifest",
+            "corpus.bin",
+            "model.bin",
+            "manifest.bin",
+            "extra"
+        ])),
+        Err(OfflinePolicyCommandError::Usage(
+            "check-regression-manifest accepts exactly three paths"
         ))
     ));
 }

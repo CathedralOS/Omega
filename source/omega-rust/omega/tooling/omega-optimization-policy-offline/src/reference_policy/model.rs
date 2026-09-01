@@ -218,6 +218,12 @@ pub enum OfflinePolicyReferenceError {
     UnknownReason(u8),
     ModelIdentityMismatch,
     ReportIdentityMismatch,
+    WrongRegressionSplit,
+    RegressionReportMismatch,
+    RegressionSummaryMismatch,
+    WrongRegressionManifestMagic,
+    UnsupportedRegressionManifestVersion(u32),
+    RegressionManifestIdentityMismatch,
     TrailingBytes,
 }
 

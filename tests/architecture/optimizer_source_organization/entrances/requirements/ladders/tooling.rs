@@ -10,6 +10,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/inputs.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/training.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/evaluation.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/regression_manifest.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/publication.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/error.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/mod.rs",
@@ -17,6 +18,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/capture.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/fixture.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/reference.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/regression_manifest.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/publication.rs",
         ],
     },
@@ -55,6 +57,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/evaluation/compute.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/evaluation/replay.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/codec/report.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "offline CostThresholdV1 checked regression baseline",
+        paths: &[
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/regression_manifest/mod.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/regression_manifest/model.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/regression_manifest/identity.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/regression_manifest/codec.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/regression_manifest/validate.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/reference_policy/tests/regression_manifest.rs",
         ],
     },
 ];

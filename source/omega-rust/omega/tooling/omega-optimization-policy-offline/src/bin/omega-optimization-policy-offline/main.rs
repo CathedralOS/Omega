@@ -8,6 +8,7 @@ mod error;
 mod evaluation;
 mod inputs;
 mod publication;
+mod regression_manifest;
 mod training;
 
 #[cfg(test)]
@@ -36,6 +37,12 @@ fn run(
         OfflinePolicyCommand::Train(request) => training::train(request),
         OfflinePolicyCommand::Evaluate(request) => evaluation::evaluate(request),
         OfflinePolicyCommand::Regression(request) => evaluation::regression(request),
+        OfflinePolicyCommand::CreateRegressionManifest(request) => {
+            regression_manifest::create(request)
+        }
+        OfflinePolicyCommand::CheckRegressionManifest(request) => {
+            regression_manifest::check(request)
+        }
         OfflinePolicyCommand::Help => {
             println!("{}", arguments::USAGE);
             Ok(())
