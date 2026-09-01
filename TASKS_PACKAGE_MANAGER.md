@@ -289,8 +289,11 @@ explicitly.
     direct named-`dyn` scalar-result control and Console-exit leaves now compose
     through one canonical Terminal route, but its end-to-end ordinary-package
     native canary still waits on accepted Console semantic-binding replay from
-    the lock; rebound dynamic descriptor/table custody remains separate work
-    for the rebound fixture; the two build/runtime float twins
+    the lock; the rebound fixture now retains its initializer and reassignment
+    as a distinct checked call lane and fails at the exact unsupported Terminal
+    boundary, with Terminal descriptor/dispatch rows, canonical verification,
+    two-word carrier materialization, indirect native calls, and relocations
+    still remaining; the two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema

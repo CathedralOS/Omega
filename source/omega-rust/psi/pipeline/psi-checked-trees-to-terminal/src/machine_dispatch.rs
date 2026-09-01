@@ -93,6 +93,21 @@ pub(super) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
+    let rebound_dynamic_plan_count = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .rebound_scalar_calls
+        .iter()
+        .filter(|plan| plan.latest.caller_machine == selection.machine)
+        .count();
+    if rebound_dynamic_plan_count != 0 {
+        if rebound_dynamic_plan_count != 1 {
+            return unsupported("rebound dynamic dispatch plan is duplicated for one caller");
+        }
+        return unsupported("rebound dynamic descriptor/table custody is not yet lowered");
+    }
     let direct_dynamic_plans = checked
         .facts
         .flow

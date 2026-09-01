@@ -11613,86 +11613,39 @@ checked-result arithmetic decision listed below.
   crate APIs, and that same inventory remain unchanged; the natural 475-line
   parent retains traversal, operational inference, call/data selection
   transactions, and recursive contract lookup.
-- Materialize dynamic descriptors for pass-through, rebound, and escaping
-  borrows from the retained exact conformance rows and declaring-trait symbol.
-  Bodyless/bare requirements do not license `dyn`; ambiguous same-carrier
-  boundaries name the exact complete conformance.
-  The first pass-through rung is live for an immutable local selected by one
-  exact closed conformance and forwarded to a compatible bare dynamic
-  parameter. Validation requires the earlier same-trait selection rather than
-  searching visible conformances. Checked selection facts retain the source,
-  trait, conformance, and complete normalized row map through state graph and
-  control flow. Each row now carries the complete normalized requirement-
-  overload and selected realization-callable identities; checked-to-state
-  validation independently reconstructs both and rejects identity drift before
-  state-call argument planning rejoins that exact descriptor identity to the
-  bare parameter's closed candidate catalog. Trait drift,
-  unselected dynamic arguments, bodyless conformances, and ambiguous concrete
-  arguments remain fail closed. Target-data planning now validates those rows
-  again and emits one deduplicated, pointer-aligned private data object per
-  logical selected conformance. Each runtime slot is one zero-filled pointer
-  word paired with its exact address-free realization target; normalized-
-  identity drift rejects before any bytes publish. Relocation planning now
-  revalidates zero slot bytes, alignment, strict normalized requirement order,
-  and the private data symbol, then binds every retained realization `StateKey`
-  to exactly one private function symbol with a data-section `Absolute64`
-  materialization record. Missing or duplicate function identities fail
-  closed. The abstract-data bridge now retains the table's exact trait,
-  conformance, normalized row identities, and private object handle rather than
-  degrading it to ordinary data; a unique symbol-keyed lookup fails closed on
-  missing, duplicate, or malformed bindings for transitional instruction
-  selection. The first direct-place pass-through construction now writes the
-  exact two-word runtime ABI carrier: one place-address operation stores the
-  retained concrete instance and one single-word data-address operation stores
-  the selected private table. Target lowering, both native encoders, final-byte
-  validation, and the table/frame relocation pair preserve that distinction;
-  failed exact joins never fall through to copying the unmaterialized erased
-  local. Instruction selection now independently reconstructs each checked
-  table row, validates normalized requirement/realization identity and exact
-  control-flow `StateKey`, and emits one standalone private function containing
-  that retained state body. Repeated exact realizations deduplicate, entry-state
-  realizations reuse the existing entry identity, and missing, duplicate, or
-  mismatched demands fail before machine bytes. Both native targets now
-  complete the table relocation and full-image pass-through canary. The first
-  runtime indirect slot-call rung is also live for an immutable bare-dynamic
-  parameter. Selection requires the exact parameter symbol/kind and two-word
-  descriptor, one normalized requirement row at one common slot in every
-  retained candidate, and an identical authoritative `CallPlan` for every
-  realization; parameter/result shape drift, missing or duplicate rows, and
-  representative-first coincidence reject. That plan alone owns receiver,
-  arguments, and result, so indirect lowering cannot also replay a direct/
-  spliced result producer. Private calls retain a closed validation identity
-  distinct from foreign table calls and therefore add no foreign floating-
-  control envelope on either ISA. Every private realization's complete
-  prologue/body/result/return span contributes to the one root transitive
-  footprint certificate, and ceiling/span failures return diagnostics rather
-  than panicking or omitting evidence. Mach-O publishes loader rebase opcodes
-  for the exact typed data-to-private-function `Absolute64` sites and replays
-  their preferred pointers before publication, so a distinct-instance native
-  canary truly executes the relocated table slot under ASLR. The first mutable
-  rebind rung is now live for one local initialized and reassigned by exact
-  direct-place casts naming the same carrier, trait, conformance, and normalized
-  row map, then forwarded to that bare-dynamic parameter. Selection facts are
-  statement-versioned; recast validation blesses only the exact admitted
-  assignment RHS; checked-to-state replay reconstructs the target, cast, and
-  prior selection; and call planning selects the latest prior version.
-  Instruction selection writes a fresh instance address and the unchanged exact
-  table address into the existing two-word local slot before generic mutation
-  handling. A decoy-to-selected native canary proves that the reassigned
-  instance, not stale initializer state, reaches the indirect slot on both
-  Linux targets. The exact same-conformance local can now also call one
-  requirement directly after rebinding. State-call planning retains a closed
-  `ReboundLocal` receiver with the unanimous exact binding and latest selection
-  statement, refuses malformed/colliding versions without devirtualization
-  fallback, and makes the dispatch itself own the table-materialization demand.
-  Instruction selection independently rejoins that latest selection, its sole
-  conformance candidate, the existing two-word local slot, one common normalized
-  requirement row, and its authoritative `CallPlan` before reusing the private
-  table-call lowering. A distinct decoy/selected canary executes the direct
-  rebound call natively and under both Linux target replays. A changed
-  conformance or carrier, non-cast assignments, aggregate erased calls,
-  stored/joined/escaping descriptors, and component crossing remain fail
-  closed.
+- [ ] **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Materialize dynamic
+  descriptors for pass-through, rebound, and escaping borrows from retained
+  exact conformance rows and the declaring-trait symbol. Bodyless/bare
+  requirements do not license `dyn`; ambiguous same-carrier boundaries must
+  name the exact complete conformance.
+
+  Current canonical status: exact one-selection local calls have a checked and
+  verified Terminal direct-devirtualization lane. Exact same-conformance local
+  reassignment now retains ordered initializer/latest selections, both
+  normalized structural sources, the common complete row map, and the selected
+  call/continuation in a distinct checked rebound lane. It fails explicitly at
+  the absent Terminal descriptor/table boundary. The pre-refactor
+  `omega-state-calls` path and its downstream table planning, instruction
+  selection, and relocation consumers were deleted; their historical tests and
+  task prose are not evidence that the canonical pipeline still implements
+  them. The pass-through baseline also lacks a complete canonical Terminal
+  route.
+
+  Remaining work:
+
+  - add distinct Terminal selection-version, descriptor, and indirect-dispatch
+    rows tied to one exact closed conformance application and latest source;
+  - extend canonical encoding and verification with reordered-version,
+    changed-source, row/application-drift, stale-version, duplicate, and orphan
+    tamper rejection;
+  - lower the exact two-word `{ instance, table }` carrier without allowing a
+    rebound call to enter the direct-devirtualization lane;
+  - materialize private realization tables/functions and exact relocations,
+    then lower the checked indirect call through the selected table row;
+  - restore pass-through and rebound native canaries on the canonical Terminal
+    pipeline before claiming either route live; and
+  - only then extend custody to changed-conformance, stored/joined/escaping,
+    aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

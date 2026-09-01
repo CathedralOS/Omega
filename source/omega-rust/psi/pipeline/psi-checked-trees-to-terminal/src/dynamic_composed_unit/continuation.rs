@@ -4,8 +4,8 @@ use super::*;
 
 pub(super) fn lower(
     checked: &CheckedTrees,
-    plan: &CheckedDirectDynamicScalarCallPlan,
-    continuation: &psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+    plan: &CheckedDynamicScalarCallPlan,
+    continuation: &psi_checked_trees::CheckedDynamicUnitContinuationPlan,
     caller: DirectCallerShape,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     if plan.caller_structural_scalar_field_store.is_some() {

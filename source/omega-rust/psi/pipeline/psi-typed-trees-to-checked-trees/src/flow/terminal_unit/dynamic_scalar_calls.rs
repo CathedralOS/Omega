@@ -1,4 +1,4 @@
-//! Checked custody for direct scalar calls through local named dynamic values.
+//! Checked custody for scalar calls through local named dynamic values.
 //!
 //! This module is intentionally independent from Terminal Psi. It consumes
 //! typed coordinates once, joins them to checked conformance, contract, value,
@@ -13,22 +13,18 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
 ) -> psi_checked_trees::CheckedDynamicDispatchPlans {
-    psi_checked_trees::CheckedDynamicDispatchPlans {
-        direct_scalar_calls: build_checked_direct_dynamic_scalar_call_transaction(
-            program, facts, shapes, boundaries,
-        )
-        .unwrap_or_default(),
-    }
+    build_checked_dynamic_scalar_call_transaction(program, facts, shapes, boundaries)
+        .unwrap_or_default()
 }
 
-fn build_checked_direct_dynamic_scalar_call_transaction(
+fn build_checked_dynamic_scalar_call_transaction(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
-) -> Option<Vec<psi_checked_trees::CheckedDirectDynamicScalarCallPlan>> {
+) -> Option<psi_checked_trees::CheckedDynamicDispatchPlans> {
     let binding_facts = facts.dynamic_conformances.binding_facts();
-    let mut plans = Vec::new();
+    let mut plans = psi_checked_trees::CheckedDynamicDispatchPlans::default();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -54,7 +50,7 @@ fn build_checked_direct_dynamic_scalar_call_transaction(
                     continue;
                 }
 
-                plans.push(build_checked_direct_dynamic_scalar_call(
+                match build_checked_dynamic_scalar_call(
                     program,
                     facts,
                     &binding_facts,
@@ -64,12 +60,24 @@ fn build_checked_direct_dynamic_scalar_call_transaction(
                     call_site,
                     shapes,
                     boundaries,
-                )?);
+                )? {
+                    CheckedDynamicScalarCall::Direct(plan) => {
+                        plans.direct_scalar_calls.push(plan);
+                    }
+                    CheckedDynamicScalarCall::Rebound(plan) => {
+                        plans.rebound_scalar_calls.push(plan);
+                    }
+                }
             }
         }
     }
 
     Some(plans)
+}
+
+enum CheckedDynamicScalarCall {
+    Direct(psi_checked_trees::CheckedDynamicScalarCallPlan),
+    Rebound(psi_checked_trees::CheckedReboundDynamicScalarCallPlan),
 }
 
 fn local_receiver_symbol(
@@ -98,7 +106,7 @@ fn local_receiver_symbol(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_checked_direct_dynamic_scalar_call(
+fn build_checked_dynamic_scalar_call(
     program: &TypedTrees,
     facts: &CheckFacts,
     binding_facts: &psi_checked_trees::DynamicConformanceBindingFacts,
@@ -108,7 +116,7 @@ fn build_checked_direct_dynamic_scalar_call(
     call_site: crate::CallSite<'_>,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
-) -> Option<psi_checked_trees::CheckedDirectDynamicScalarCallPlan> {
+) -> Option<CheckedDynamicScalarCall> {
     let crate::CallSite::Expression { expression, call } = call_site else {
         return None;
     };
@@ -183,7 +191,7 @@ fn build_checked_direct_dynamic_scalar_call(
         primitive_type: result_type,
     };
 
-    let latest_statement = binding_facts
+    let mut binding_selections = binding_facts
         .selections
         .iter()
         .filter(|selection| {
@@ -193,23 +201,20 @@ fn build_checked_direct_dynamic_scalar_call(
                 && selection.binding_name == *receiver_name
                 && selection.statement_index < flow_call.statement_index
         })
-        .map(|selection| selection.statement_index)
-        .max()?;
-    let latest = binding_facts
-        .selections
-        .iter()
-        .filter(|selection| {
-            selection.machine == machine.symbol
-                && selection.state == state.symbol
-                && selection.binding == receiver_path.symbol
-                && selection.binding_name == *receiver_name
-                && selection.statement_index == latest_statement
-        })
         .collect::<Vec<_>>();
-    let [selection] = latest.as_slice() else {
-        return None;
+    binding_selections.sort_by_key(|selection| selection.statement_index);
+    let (rebound_from, selection) = match binding_selections.as_slice() {
+        [selection] => (None, *selection),
+        [initial, rebound] => (Some(*initial), *rebound),
+        _ => return None,
     };
-    let selection = (*selection).clone();
+    if binding_selections
+        .windows(2)
+        .any(|pair| pair[0].statement_index >= pair[1].statement_index)
+    {
+        return None;
+    }
+    let selection = selection.clone();
     let selected_conformance = selection.conformance.filter(|symbol| symbol.is_valid())?;
 
     let (source_parameter_position, caller_parameter_access, source_access) =
@@ -233,6 +238,23 @@ fn build_checked_direct_dynamic_scalar_call(
         .collect::<Vec<_>>();
     let [source_definition] = source_definitions.as_slice() else {
         return None;
+    };
+    let rebound_from = match rebound_from {
+        Some(initial) => Some(checked_rebound_dynamic_selection(
+            program,
+            facts,
+            machine,
+            state,
+            statements,
+            flow_call.statement_index,
+            initial,
+            &selection,
+            source_parameter_position,
+            caller_parameter_access,
+            source_access,
+            &source_type_identity,
+        )?),
+        None => None,
     };
     let caller_structural_scalar_field_store = checked_caller_structural_scalar_field_store_plan(
         program,
@@ -395,7 +417,7 @@ fn build_checked_direct_dynamic_scalar_call(
         transitive: caller_reach_fact.inferred_transitive,
     };
 
-    let mut plan = psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
+    let mut plan = psi_checked_trees::CheckedDynamicScalarCallPlan {
         caller_machine: machine.symbol,
         caller_state: state.symbol,
         caller_attachment_type_identity,
@@ -445,7 +467,64 @@ fn build_checked_direct_dynamic_scalar_call(
     {
         return None;
     }
-    Some(plan)
+    Some(match rebound_from {
+        Some(initial) => CheckedDynamicScalarCall::Rebound(
+            psi_checked_trees::CheckedReboundDynamicScalarCallPlan {
+                initial,
+                latest: plan,
+            },
+        ),
+        None => CheckedDynamicScalarCall::Direct(plan),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn checked_rebound_dynamic_selection(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    statements: &[StatementNode],
+    call_statement_index: usize,
+    initial: &psi_checked_trees::DynamicConformanceBindingFact,
+    rebound: &psi_checked_trees::DynamicConformanceBindingFact,
+    source_parameter_position: u32,
+    caller_parameter_access: CheckedStructuralAccess,
+    source_access: CheckedStructuralAccess,
+    source_type_identity: &str,
+) -> Option<psi_checked_trees::CheckedDynamicSelectionPlan> {
+    if initial.statement_index.checked_add(1)? != rebound.statement_index
+        || rebound.statement_index.checked_add(1)? != call_statement_index
+        || initial.binding != rebound.binding
+        || initial.binding_name != rebound.binding_name
+        || initial.machine != rebound.machine
+        || initial.state != rebound.state
+        || initial.source_data != rebound.source_data
+        || initial.target_trait != rebound.target_trait
+        || initial.conformance != rebound.conformance
+        || initial.rows != rebound.rows
+    {
+        return None;
+    }
+    let (initial_position, initial_caller_access, initial_source_access) =
+        checked_source_argument(program, facts, state, statements, initial)?;
+    if initial_position != source_parameter_position
+        || initial_caller_access != caller_parameter_access
+        || initial_source_access != source_access
+    {
+        return None;
+    }
+    let (source_field, source_path, initial_source_type_identity) =
+        checked_self_attachment_source(program, machine, initial)?;
+    if initial_source_type_identity != source_type_identity {
+        return None;
+    }
+    Some(psi_checked_trees::CheckedDynamicSelectionPlan {
+        fact: initial.clone(),
+        field: source_field,
+        path: source_path,
+        type_identity: initial_source_type_identity,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

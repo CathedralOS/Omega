@@ -9,8 +9,8 @@ pub(crate) fn build(
     boundaries: &[CheckedBoundaryMachinePlan],
     machine: &psi_typed_trees::machine::Machine,
     entry: &psi_typed_trees::state::State,
-    dynamic: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
-) -> Option<psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan> {
+    dynamic: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+) -> Option<psi_checked_trees::CheckedDynamicUnitContinuationPlan> {
     if dynamic.caller_structural_scalar_field_store.is_some() {
         return None;
     }
@@ -155,15 +155,13 @@ pub(crate) fn build(
             ),
         ],
     )?;
-    Some(
-        psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan {
-            guard,
-            when_true: successors[0].clone(),
-            when_false: successors[1].clone(),
-            leaves,
-            provider_attachment_requirements,
-        },
-    )
+    Some(psi_checked_trees::CheckedDynamicUnitContinuationPlan {
+        guard,
+        when_true: successors[0].clone(),
+        when_false: successors[1].clone(),
+        leaves,
+        provider_attachment_requirements,
+    })
 }
 
 fn exact_result_guard(

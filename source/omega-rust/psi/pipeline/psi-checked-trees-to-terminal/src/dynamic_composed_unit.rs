@@ -6,7 +6,7 @@
 //! requirement row, and realization callable in Terminal custody.
 
 use psi_checked_trees::{
-    CheckedBooleanExpression, CheckedDirectDynamicScalarCallPlan, CheckedScalarExpression,
+    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
     CheckedStructuralAccess, CheckedStructuralPredicatePathSegment, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
@@ -32,7 +32,7 @@ struct DirectCallerShape {
 
 pub(super) fn lower_direct_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let caller = validate_exact_direct_plan(checked, plan)?;
     if let Some(unit_continuation) = &plan.unit_continuation {
@@ -291,7 +291,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
 
 fn validate_exact_direct_plan(
     checked: &CheckedTrees,
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
 ) -> Result<DirectCallerShape, LoweringError> {
     let store = plan.caller_structural_scalar_field_store.as_ref();
     if store.is_some() && plan.unit_continuation.is_some() {
@@ -503,7 +503,7 @@ fn checked_store_literal_matches(
 
 fn validate_and_lower_source(
     caller_self: &StructuralParameterDeclaration,
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
     type_ids: &[(String, psi_core::StructuralTypeId)],
 ) -> Result<StructuralArgument, LoweringError> {
@@ -563,7 +563,7 @@ fn terminal_structural_multiplicity(multiplicity: Multiplicity) -> StructuralMul
 /// A shared field projection retains its caller root's consumption bound even
 /// when the projected field's own declared carrier is copyable.
 fn terminal_projected_source_multiplicity(
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
 ) -> StructuralMultiplicity {
     match plan.caller_multiplicity {
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
@@ -574,7 +574,7 @@ fn terminal_projected_source_multiplicity(
 
 fn lower_direct_structural_types(
     checked: &CheckedTrees,
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
     caller_attachment: &str,
 ) -> Result<
     (
@@ -626,7 +626,7 @@ fn lower_direct_structural_types(
 #[allow(clippy::too_many_arguments)]
 fn lower_exact_application(
     checked: &CheckedTrees,
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
     owner: psi_core::MachineId,
     realization: psi_core::MachineId,
     callable_result: ClosedConformanceCallableResult,
@@ -838,7 +838,7 @@ fn terminal_callable_result(
 }
 
 fn lower_caller_store_operations(
-    plan: &CheckedDirectDynamicScalarCallPlan,
+    plan: &CheckedDynamicScalarCallPlan,
     caller_self: &StructuralParameterDeclaration,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
     type_ids: &[(String, psi_core::StructuralTypeId)],
