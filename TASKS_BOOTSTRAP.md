@@ -56,32 +56,50 @@ the former typed functional Delta; Delta is the former fixed-storage Epsilon.
 
   Keep only signed checked `Int`, compact immutable `Bytes`, immutable tagged
   constructors, exhaustive `match`, `if`, one-binding `let`, first-order calls,
-  mutual recursion, and proper tail calls. Use an invocation-local bounded bump
-  arena with explicit exhaustion; do not add general GC, closures, function values,
-  mutation, raw memory, macros, polymorphism, continuations, exceptions,
-  modules, packages, interactive evaluation, or ambient effects.
+  mutual recursion, and proper tail calls. Retain exact immutable source bytes
+  plus declaration spans only; resolve global and local names through exact
+  source-order linear byte scans. Persistent values use a bounded bump arena;
+  bindings and continuations use a separate reusable bounded stack. Do not add
+  an AST, token array, hashes, caches, interning, general GC, closures, function
+  values, mutation, raw memory, macros, polymorphism, source-visible
+  continuations, exceptions, modules, packages, interactive evaluation, or
+  ambient effects.
 
-  The invocation supplies exact Beta source plus sealed input bytes and receives
-  one complete returned value or a distinct source rejection, authored trap,
-  incomplete-capacity result, or internal contradiction. No failure publishes
-  partial customer output. Fuel is profile-owned and cannot classify
-  divergence as a language rejection.
+  The first evaluator uses the fixed `AlphaBootstrapV2` partition recorded in
+  the Beta contract: 1 MiB tape, 8 MiB request, 8 MiB declarations, 16 MiB
+  evaluator stack, 191 MiB immutable arena, and 32 MiB reserved for Alpha's
+  hidden call stack. Regions do not share spare capacity.
+
+  The exact-ended `BETAREQ` v1 invocation supplies u32-length-delimited Beta
+  source and sealed input bytes. The entry returns only `(Complete Bytes)` or
+  `Reject`. Status alone distinguishes invalid request/source, authored
+  trap/rejection, incomplete capacity, and internal contradiction. There is no
+  failure frame, stable reason taxonomy, source coordinate, detailed capacity
+  report, fuel, or call ceiling. No nonzero result publishes an artifact; recursive
+  divergence remains divergence. `Complete` validates and streams its rope in
+  one pass. A late failure may leave stdout bytes, but invocation plumbing
+  discards them unless status is 0; only status-0 stdout is an artifact.
+  Successful output is capped at Alpha's 1,048,572-byte raw tape maximum.
 
   A readable `.alphaasm` reconstruction may live under the Alpha tool owner,
   but the exact evaluator tape is admitted and instruction-audited directly.
   The assembler's correctness is not a premise of Beta meaning.
 
   Acceptance: a closed positive/negative suite pins lexical rejection,
-  declaration and arity checks, exhaustive matching, left-to-right strictness,
-  branch selectivity, checked integer edges, bytes bounds, structural equality,
-  forward/mutual calls, deep proper tail recursion, arena exhaustion, frame
+  complete structural syntax rejection, declaration census, runtime name and
+  arity traps, runtime declaration-order match checking, left-to-right
+  strictness, branch selectivity, checked integer edges, `bytes-single`, rope
+  and view bounds, total structural equality, forward/mutual calls, exact
+  linear name lookup, deep proper tail recursion, arena exhaustion, frame
   exhaustion, malformed private state, and deterministic replay. Mutating an
   evaluator opcode, branch target, allocation bound, constructor tag, or trap
-  path is detected by audit or a focused case.
+  path is detected by audit or a focused case. Output gates cover successful
+  single-pass streaming plus late malformed-rope and oversize prefixes that
+  remain unpublished under nonzero status.
 
 - **BETA-ROOT-AUDIT.** Publish the evaluator's exact tape bytes, decoded
   instruction inventory, control-flow reconstruction, memory map, mutable table
-  inventory, stack/arena/fuel ceilings, and SHA-256 identity. Compare its total
+  inventory, fixed spatial ceilings, and SHA-256 identity. Compare its total
   review cost with the removed assembler-plus-imperative-rung root; source and
   tape size alone are not the verdict.
 
