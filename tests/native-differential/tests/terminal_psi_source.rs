@@ -202,6 +202,7 @@ fn stage_terminal_component(
             external_binding_rows: checked.external_binding_rows(),
             settlements,
             compiler_builtins: &[],
+            ieee_float_fma: &[],
         },
     )?;
     let stack_demand = omega_image_emission::derive_stack_demand(
