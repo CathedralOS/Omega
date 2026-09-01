@@ -246,9 +246,19 @@ atomic result-bearing carrier retains both target functions, entry blocks, the
 canonical projected rosters, and each optimizer node's fuel, effect, and
 ownership custody. Independent legalization replay reconstructs the source,
 target, ABI, roster, optimizer-node, and machine shape on all five targets and
-publishes a typed family receipt. Instruction selection fails with a typed
-unsupported result; selection, allocation, machine realization, and
-publication gain no projected-qualification authority.
+publishes a typed family receipt. Instruction selection now admits only that
+same atomic closure. Its selected carrier binds eight direct integer fragment
+placements, the exact ordinary-call and return constraint rows, fixed operand
+views/classes/access, complete implicit uses/defs/clobbers, and each
+target-dependent transfer. X86-64 retains the full fixed-view `copy_i64` row
+where argument and return registers differ; AArch64 retains an explicit
+same-view/no-copy decision. Construction descends through projection,
+constraint, and transfer leaves, while independent replay reconstructs source,
+catalog, view, effect, and transfer custody on all five targets. Nonempty
+projected custody uses selected identity V13; empty plans retain V12
+byte-for-byte. Liveness and pre-allocation machine-effect entrances reject the
+new carrier explicitly, so allocation, machine realization, encoding, and
+publication still gain no projected-qualification authority.
 
 Target legalization and instruction selection produce explicit selected forms
 over virtual registers. Fixed operands are constraints; they do not preassign
