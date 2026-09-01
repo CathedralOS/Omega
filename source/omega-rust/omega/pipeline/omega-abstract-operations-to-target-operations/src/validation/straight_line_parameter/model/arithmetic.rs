@@ -62,3 +62,16 @@ pub(in crate::validation::straight_line_parameter) struct ReconstructedExactInte
         ReconstructedIntegerArithmeticParameters,
     pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
 }
+
+pub(in crate::validation::straight_line_parameter) struct ExactIntegerDivideParametersSource {
+    pub(in crate::validation::straight_line_parameter) arithmetic:
+        IntegerArithmeticParametersSource,
+    pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
+}
+
+pub(in crate::validation::straight_line_parameter) struct ReconstructedExactIntegerDivideParameters
+{
+    pub(in crate::validation::straight_line_parameter) arithmetic:
+        ReconstructedIntegerArithmeticParameters,
+    pub(in crate::validation::straight_line_parameter) obligation: ObligationId,
+}
