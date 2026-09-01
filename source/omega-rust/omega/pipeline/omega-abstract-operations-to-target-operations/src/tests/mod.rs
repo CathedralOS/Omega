@@ -1,8 +1,10 @@
 //! Optimizer module role: stage group.
 use super::*;
 pub(super) use crate::lowering::{
+    bind_native_callback_arguments_for_tests as bind_native_callback_arguments,
     lower_with_settlements_for_tests as lower_to_target_operations_with_settlements,
     structural_shape_for_tests as structural_shape,
+    validate_native_callback_target_rows_for_tests as validate_native_callback_target_rows,
 };
 pub(super) use std::collections::{BTreeMap, BTreeSet};
 
@@ -37,6 +39,7 @@ pub(super) use psi_terminal::{
 
 mod fixed_integer_scalar_abi;
 mod native_boundaries;
+mod native_callback_arguments;
 mod parameter_translation_fixture;
 mod ranked_countdown;
 mod scalar;

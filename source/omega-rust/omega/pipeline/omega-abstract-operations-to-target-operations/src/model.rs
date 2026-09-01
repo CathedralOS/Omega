@@ -15,6 +15,26 @@ pub struct AdmittedIeeeFloatFmaSettlement<'plan> {
     pub provider: omega_target::AdmittedX86ScalarFmaProvider,
 }
 
+/// Owned target-side input for one compiler-private callback argument.
+///
+/// The exact Terminal operation is the join to the unchanged abstract
+/// `BoundaryCall`. The application and complete registrar plan/context remain
+/// data until this stage independently validates their one-slot relation. The
+/// application commitment is retained compiler provenance, not authority this
+/// reduced tuple can recompute; callers must supply it from the exact retained
+/// placement owner.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedNativeCallbackArgument {
+    pub terminal_operation: OperationId,
+    pub placement_index: usize,
+    pub callback_function: omega_function_identity::MachineFunctionIdentity,
+    pub application: omega_calling_conventions::NativeParameterApplication,
+    pub registrar_boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
+    pub registrar_context: omega_calling_conventions::CallbackMaterializationContext,
+    /// Nonempty compiler-origin application-v3 commitment projection.
+    pub registrar_application_commitment: [u8; 32],
+}
+
 /// One boundary realization sourced from a validated, admitted provider
 /// execution or the consuming lowerer's closed compiler-builtin catalog.
 #[derive(Debug, Clone)]
@@ -120,6 +140,12 @@ pub enum LoweringError {
     UnknownIeeeFloatFmaSettlement(OperationId),
     MissingIeeeFloatFmaSettlement(OperationId),
     InvalidIeeeFloatFmaSettlement(OperationId),
+    DuplicateNativeCallbackArgument(OperationId),
+    MultipleNativeCallbackArguments,
+    UnknownNativeCallbackArgument(OperationId),
+    InvalidNativeCallbackArgument(OperationId),
+    MissingNativeCallbackArgument(OperationId),
+    UnusedNativeCallbackArgument(OperationId),
     IeeeFloatFmaOperandMismatch(ValueId),
     /// Target-neutral custody retains this verified semantic write, but no
     /// target operation may realize it until parameter address, scalar width,

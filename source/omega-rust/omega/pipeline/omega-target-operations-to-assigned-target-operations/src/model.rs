@@ -53,6 +53,10 @@ pub enum AssignmentError {
         machine: MachineId,
         operation: OperationId,
     },
+    DuplicateNativeCallbackArgument(OperationId),
+    MultipleNativeCallbackArguments,
+    UnknownNativeCallbackArgument(OperationId),
+    InvalidNativeCallbackArgument(OperationId),
     ExpressionRegisterCannotHoldParameter {
         value: ValueId,
         register: MachineRegister,

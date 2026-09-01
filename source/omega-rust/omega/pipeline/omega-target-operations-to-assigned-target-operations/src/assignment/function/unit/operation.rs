@@ -6,6 +6,7 @@ pub(super) fn assign(
     operation: &TargetUnitOperation,
     preceding_operations: &[TargetUnitOperation],
     target: NativeTarget,
+    native_callback: Option<&omega_target_operations::TargetNativeCallbackArgument>,
     assigned_scalar_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
     next_scalar_home: &mut u32,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
@@ -191,6 +192,7 @@ pub(super) fn assign(
                 scalar_arguments,
                 *result_home,
                 preceding_operations,
+                native_callback,
                 assigned_scalar_homes,
                 next_scalar_home,
             )?;

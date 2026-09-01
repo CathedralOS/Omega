@@ -11,7 +11,10 @@ mod scalar;
 mod unit;
 
 pub use operation::AssignedOperation;
-pub use plan::{AssignedFunction, AssignedOperationPlan};
+pub use plan::{
+    AssignedFunction, AssignedNativeCallbackArgument, AssignedOperationPlan,
+    AssignedOperationPlanWithNativeCallbacks,
+};
 pub use scalar::{
     AssignedBooleanControl, AssignedBooleanExpression, AssignedCallArgument,
     AssignedCallDestination, AssignedConditionalBooleanArm, AssignedConditionalIntegerArm,

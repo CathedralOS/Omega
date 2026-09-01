@@ -18,6 +18,7 @@ pub(super) fn lower_function(
         InstalledProviderUnitCallEvidence,
     >,
     ieee_float_fma: &BTreeMap<OperationId, omega_target_operations::TargetX86ScalarFmaSettlement>,
+    native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
     if let Some(lowered) =
         lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
@@ -69,6 +70,7 @@ pub(super) fn lower_function(
             installed_calls,
             fixed_integer_scalar_abis,
             ieee_float_fma,
+            native_callbacks,
         );
     };
 

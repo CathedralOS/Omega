@@ -75,6 +75,7 @@ pub(super) fn realize(
             settlements: &[],
             compiler_builtins: &compiler_builtins,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
 }

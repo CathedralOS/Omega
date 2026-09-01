@@ -14,10 +14,11 @@ pub use lowering::{
     lower_to_target_operations_with_provider_executions,
     lower_to_target_operations_with_provider_executions_and_installation,
     lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma,
+    lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks,
 };
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement,
-    LoweringError,
+    AdmittedNativeCallbackArgument, LoweringError,
 };
 pub use validation::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,

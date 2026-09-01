@@ -113,6 +113,11 @@ pub struct NativeRealizationRequest<'request> {
     /// they are never inferred from a selected-plan report coordinate.
     pub ieee_float_fma:
         &'request [omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<'request>],
+    /// Exact target-owned callback arguments rejoined by Terminal operation.
+    /// This custody is consumed only by ordinary target lowering and physical
+    /// assignment; machine emission remains a later, explicitly fenced rung.
+    pub native_callbacks:
+        &'request [omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
 }
 
 /// Compatibility-preserving result for the receipt-requiring native path.

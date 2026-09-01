@@ -5,6 +5,7 @@ mod cleanup;
 mod control;
 mod expressions;
 mod function;
+mod native_callback;
 mod placement;
 pub(crate) mod shared;
 
@@ -12,6 +13,13 @@ use shared::*;
 
 pub fn assign_registers(
     plan: &TargetOperationPlan,
+) -> Result<AssignedOperationPlan, AssignmentError> {
+    assign_registers_inner(plan, &[])
+}
+
+fn assign_registers_inner(
+    plan: &TargetOperationPlan,
+    native_callbacks: &[omega_target_operations::TargetNativeCallbackArgument],
 ) -> Result<AssignedOperationPlan, AssignmentError> {
     if !plan
         .functions
@@ -27,7 +35,26 @@ pub fn assign_registers(
         functions: plan
             .functions
             .iter()
-            .map(|function| function::assign_function(function, plan.target))
+            .map(|function| function::assign_function(function, plan.target, native_callbacks))
             .collect::<Result<Vec<_>, _>>()?,
     })
+}
+
+/// Assign one target plan while preserving exact native-only callback
+/// arguments separately from semantic scalar values.
+pub fn assign_registers_with_native_callbacks(
+    input: &omega_target_operations::TargetOperationPlanWithNativeCallbacks,
+) -> Result<
+    omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks,
+    AssignmentError,
+> {
+    let native_callback_arguments =
+        native_callback::assign(&input.plan, &input.native_callback_arguments)?;
+    let plan = assign_registers_inner(&input.plan, &input.native_callback_arguments)?;
+    Ok(
+        omega_assigned_target_operations::AssignedOperationPlanWithNativeCallbacks {
+            plan,
+            native_callback_arguments,
+        },
+    )
 }

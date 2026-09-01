@@ -35,6 +35,7 @@ pub(super) fn lower_unit_function(
     >,
     fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
+    native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
     validate_unit_function_shape(function)?;
     validate_unit_scalar_definitions(function)?;
@@ -459,6 +460,7 @@ pub(super) fn lower_unit_function(
                 boundary_machines,
                 settlements,
                 installed_calls,
+                native_callbacks,
                 &parameters_by_place,
                 &mut shape_cache,
                 &mut active,

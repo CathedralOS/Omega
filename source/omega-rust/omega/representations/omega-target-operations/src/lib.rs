@@ -29,6 +29,35 @@ pub struct TargetOperationPlan {
     pub functions: Vec<TargetFunction>,
 }
 
+/// One target-owned native-only callback argument joined to an exact
+/// Terminal boundary-call occurrence.
+///
+/// This is deliberately kept beside the ordinary target-operation plan. The
+/// callback has no Terminal [`ValueId`] and therefore must not be inserted
+/// into a boundary call's semantic scalar-argument roster. A later assignment
+/// stage must bind `application.placement` to an exact physical operand while
+/// retaining the symbolic callback-function identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetNativeCallbackArgument {
+    pub terminal_operation: OperationId,
+    pub placement_index: usize,
+    pub callback_function: omega_function_identity::MachineFunctionIdentity,
+    pub application: omega_calling_conventions::NativeParameterApplication,
+    pub registrar_boundary_entry_plan: BoundaryEntryPlan,
+    pub registrar_context: omega_calling_conventions::CallbackMaterializationContext,
+    /// Retained compiler-origin provenance. Target lowering cannot
+    /// independently authenticate this commitment from the reduced tuple.
+    pub registrar_application_commitment: [u8; 32],
+}
+
+/// Compatibility-preserving target plan plus the exact native-only callback
+/// arguments consumed by its normalized foreign calls.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetOperationPlanWithNativeCallbacks {
+    pub plan: TargetOperationPlan,
+    pub native_callback_arguments: Vec<TargetNativeCallbackArgument>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetFunction {
     pub machine: MachineId,

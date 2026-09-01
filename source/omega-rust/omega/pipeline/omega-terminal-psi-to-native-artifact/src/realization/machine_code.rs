@@ -20,27 +20,34 @@ pub(crate) fn emit_realization_machine_code(
         ) => {
             let target = match provider_installation {
                 Some(installation) => {
-                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
+                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
                         &plan,
                         request.target,
                         settlements,
                         Some(&installation),
                         request.ieee_float_fma,
+                        request.native_callbacks,
                     )
                 }
-                None => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
+                None => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
                     &plan,
                     request.target,
                     settlements,
                     None,
                     request.ieee_float_fma,
+                    request.native_callbacks,
                 ),
             }
             .map_err(|error| realization_error("ordinary target lowering", error))?;
-            let assigned =
-                omega_target_operations_to_assigned_target_operations::assign_registers(&target)
-                    .map_err(|error| realization_error("ordinary physical assignment", error))?;
-            omega_machine_emission::emit_machine_code(&assigned)
+            let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&target)
+                .map_err(|error| realization_error("ordinary physical assignment", error))?;
+            if !assigned.native_callback_arguments.is_empty() {
+                return Err(realization_error(
+                    "native callback emission",
+                    "direct callback assignment is retained, but thunk/address and registrar-call emission are not yet implemented",
+                ));
+            }
+            omega_machine_emission::emit_machine_code(&assigned.plan)
                 .map_err(|error| realization_error("machine-code emission", error))
         }
         NativeRealizationInput::Unoptimized(
@@ -48,7 +55,10 @@ pub(crate) fn emit_realization_machine_code(
                 ranked,
             ),
         ) => {
-            if provider_installation.is_some() || !settlements.is_empty() {
+            if provider_installation.is_some()
+                || !settlements.is_empty()
+                || !request.native_callbacks.is_empty()
+            {
                 return Err(realization_error(
                     "ranked native provider isolation",
                     "the exact ranked countdown admits no provider installation or boundary settlement",
@@ -67,6 +77,12 @@ pub(crate) fn emit_realization_machine_code(
                 .map_err(|error| realization_error("ranked machine-code emission", error))
         }
         NativeRealizationInput::ExplicitOptimization(input) => {
+            if !request.native_callbacks.is_empty() {
+                return Err(realization_error(
+                    "optimized native callback custody",
+                    "retained callbacks require the ordinary custody-preserving pipeline",
+                ));
+            }
             if !request.ieee_float_fma.is_empty() {
                 return Err(realization_error(
                     "optimized nearest-FMA custody",

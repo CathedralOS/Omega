@@ -15,8 +15,9 @@ use super::shared::*;
 pub(super) fn assign_function(
     function: &TargetFunction,
     target: NativeTarget,
+    native_callbacks: &[omega_target_operations::TargetNativeCallbackArgument],
 ) -> Result<AssignedFunction, AssignmentError> {
-    let operation = operation_routes::assign_operation(function, target)?;
+    let operation = operation_routes::assign_operation(function, target, native_callbacks)?;
     Ok(AssignedFunction {
         machine: function.machine,
         attachment: function.attachment,

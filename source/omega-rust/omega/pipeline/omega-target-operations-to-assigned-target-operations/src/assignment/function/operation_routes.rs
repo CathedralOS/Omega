@@ -6,6 +6,7 @@ use crate::assignment::shared::*;
 pub(super) fn assign_operation(
     function: &TargetFunction,
     target: NativeTarget,
+    native_callbacks: &[omega_target_operations::TargetNativeCallbackArgument],
 ) -> Result<AssignedOperation, AssignmentError> {
     match &function.operation {
         TargetOperation::RankedU32Countdown(countdown) => {
@@ -23,7 +24,9 @@ pub(super) fn assign_operation(
         }
         operation @ (TargetOperation::ReturnBoundaryPortReadU8 { .. }
         | TargetOperation::ExitProcessI32 { .. }) => boundary::assign(function, operation, target),
-        operation @ TargetOperation::UnitBody(_) => unit::assign(function, operation, target),
+        operation @ TargetOperation::UnitBody(_) => {
+            unit::assign(function, operation, target, native_callbacks)
+        }
         operation @ TargetOperation::ReturnStructuralParameter { .. } => {
             structural_parameter::assign(operation, target)
         }
