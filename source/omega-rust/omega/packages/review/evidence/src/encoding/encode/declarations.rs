@@ -28,6 +28,7 @@ pub(crate) use data::{
 pub(crate) use dependency_trust::{
     encode_dangerous_authority, encode_dangerous_authority_slack, encode_representation_tcb,
     encode_representation_tcb_key, encode_semantic_dependency, encode_semantic_dependency_key,
+    encode_terminal_authority_permission, encode_terminal_authority_permission_key,
     semantic_dependency_kind_tag,
 };
 #[allow(

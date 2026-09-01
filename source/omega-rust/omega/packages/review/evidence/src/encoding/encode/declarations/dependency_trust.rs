@@ -14,8 +14,28 @@ use crate::record::{
     PackageReviewRepresentationTargetProfile, PackageReviewRepresentationTcb,
     PackageReviewRepresentationTcbKind, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewSystemVEightbyteClass,
+    PackageReviewSystemVEightbyteClass, PackageReviewTerminalAuthorityPermission,
 };
+
+pub(crate) fn encode_terminal_authority_permission_key(
+    encoder: &mut Encoder,
+    permission: &PackageReviewTerminalAuthorityPermission,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, permission.service())?;
+    encoder.fixed_bytes(permission.service_schema().as_bytes());
+    encoder.string(permission.requirement_identity())
+}
+
+pub(crate) fn encode_terminal_authority_permission(
+    encoder: &mut Encoder,
+    permission: &PackageReviewTerminalAuthorityPermission,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_terminal_authority_permission_key(encoder, permission)?;
+    encoder.sequence(permission.permitted().classes(), |encoder, class| {
+        encoder.byte(class.canonical_tag());
+        Ok(())
+    })
+}
 
 pub(crate) fn encode_semantic_dependency_key(
     encoder: &mut Encoder,

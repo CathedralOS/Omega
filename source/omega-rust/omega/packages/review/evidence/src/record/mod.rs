@@ -14,6 +14,7 @@ mod quotients;
 mod representation;
 mod rows;
 mod signatures;
+mod terminal_authority;
 
 pub use authority::{
     PackageReviewBooleanExpression, PackageReviewCapabilityFlow, PackageReviewCrash,
@@ -109,3 +110,4 @@ pub use signatures::{
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
+pub use terminal_authority::PackageReviewTerminalAuthorityPermission;

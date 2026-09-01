@@ -169,6 +169,7 @@ pub(super) const fn synthetic_source_tag(kind: PackageReviewSyntheticSourceKind)
         PackageReviewSyntheticSourceKind::EmptySelectedProviderSet => 1,
         PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection => 2,
         PackageReviewSyntheticSourceKind::FreeExternalProviderType => 3,
+        PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission => 4,
     }
 }
 
@@ -180,6 +181,7 @@ pub(super) fn decode_synthetic_source(
         1 => Ok(PackageReviewSyntheticSourceKind::EmptySelectedProviderSet),
         2 => Ok(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection),
         3 => Ok(PackageReviewSyntheticSourceKind::FreeExternalProviderType),
+        4 => Ok(PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission),
         _ => Err(PackageReviewCanonicalRowRecoveryError::new(
             "canonical-row recovery source contains an unknown compiler-derivation tag",
         )),

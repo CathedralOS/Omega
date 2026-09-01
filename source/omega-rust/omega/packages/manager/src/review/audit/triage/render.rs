@@ -145,6 +145,9 @@ pub(super) const fn reason_token(reason: PackageTriageReason) -> &'static str {
         PackageTriageReason::ExternalExecutableSupplyRequiresResolution => {
             "external_executable_supply_requires_resolution"
         }
+        PackageTriageReason::TerminalAuthorityPermissionRequiresResolution => {
+            "terminal_authority_permission_requires_resolution"
+        }
         PackageTriageReason::RetainedDangerousAuthority(
             PackageReviewDangerousAuthorityClass::Filesystem,
         ) => "retained_dangerous_authority_filesystem",

@@ -564,6 +564,26 @@ selected-provider-closure traversal joins those leaves to an exact
 service/schema permission table plus binding-derived containment, before
 filesystem faceting, so the migration never expands the filename classifier.
 
+The first exact package-permission carrier is explicit consumer input, not
+discovery output. An accepted semantic binding may retain rows from its complete
+normalized schema digest and one exact requirement identity to canonical
+permitted classes. Checked replay rejoins each supplied requirement to exactly
+one method; a partial table is legal at this layer because the installed
+closure, not binding construction, owns demand-completeness. A candidate
+Console or filesystem binding carries no permission unless the consumer adds
+one explicitly.
+
+Package review retains each supplied row as its own blocking obligation with
+the resolved service nominal, schema digest, requirement identity, classes, and
+service/requirement source custody. A broad `Process` row therefore cannot
+stand in for `Console::exit_process -> ProcessTermination`, and accepting the
+broad row does not create the exact permission. Direct native compilation
+cross-checks resolved package rows against the receiving permission policy;
+missing or changed rows and duplicates across bindings reject. Root-policy-to-
+native transport and complete legacy-row replacement remain separate unfinished
+joins, so the filename classifier is still present but cannot feed the exact
+table.
+
 ### Resources
 
 Resource bounds remain contracts on explicit resource capabilities:

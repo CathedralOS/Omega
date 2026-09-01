@@ -42,6 +42,7 @@ pub enum PackageTriageReason {
     RepresentationTcbIntroducedOrChanged,
     AcceptedClaimRequiresResolution,
     ExternalExecutableSupplyRequiresResolution,
+    TerminalAuthorityPermissionRequiresResolution,
     RetainedDangerousAuthority(PackageReviewDangerousAuthorityClass),
     DangerousAuthoritySlack(PackageReviewDangerousAuthorityClass),
 }
@@ -430,13 +431,23 @@ fn append_candidate_blocking_reasons(
         .canonical_rows()
         .iter()
         .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply);
+    let terminal_authority_permission = candidate
+        .canonical_rows()
+        .iter()
+        .any(|row| row.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission);
     if accepted_claim {
         reasons.push(PackageTriageReason::AcceptedClaimRequiresResolution);
     }
     if external_executable_supply {
         reasons.push(PackageTriageReason::ExternalExecutableSupplyRequiresResolution);
     }
-    accepted_claim || dangerous_authority || external_executable_supply
+    if terminal_authority_permission {
+        reasons.push(PackageTriageReason::TerminalAuthorityPermissionRequiresResolution);
+    }
+    accepted_claim
+        || dangerous_authority
+        || external_executable_supply
+        || terminal_authority_permission
 }
 
 fn append_candidate_audit_reasons(

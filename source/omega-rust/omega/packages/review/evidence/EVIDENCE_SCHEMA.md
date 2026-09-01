@@ -1,14 +1,29 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 123 and row schema version 81. This file
+The canonical review schema is version 124 and row schema version 82. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
-The ordinary obligation-semantics schema is version 5. Its in-memory result
+The ordinary obligation-semantics schema is version 6. Its in-memory result
 vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
-and external executable supplies open for root admission, and compiler-retained
-contract-entailment stand-downs open for later discharge. The outer ledger
-encoding remains version 2; no new persistence authority is introduced.
+external executable supplies, and exact terminal-authority permissions open
+for root admission, and compiler-retained contract-entailment stand-downs open
+for later discharge. The outer ledger encoding remains version 2; no new
+persistence authority is introduced.
+
+Schema v124 / row v82 / recovery v20 adds D45's first exact package permission
+row. A compiler-resolved, consumer-supplied semantic binding retains the exact
+service nominal, complete normalized schema digest, exact requirement identity,
+and canonical permitted terminal-authority classes. Capture independently
+rejoins the service and requirement to checked declarations and carries both
+source locations plus a synthetic consumer-policy marker; those authored
+anchors do not claim that the service package granted itself permission. It
+never derives a permission from a filename, provider, semantic role, readable
+method name, or broad package-risk label. The row is a
+blocking root-admission obligation and records a grant only: it proves neither
+that a terminal mechanism is exercised nor that a receiving target admitted
+one. The transitional `Process` and `Filesystem` review rows remain separate
+summaries and grant nothing.
 
 Schema v123 / row v81 / recovery v19 adds D26 consumer-demand evidence only
 for opaque representations actually materialized by value. One row per target-

@@ -62,6 +62,18 @@ fn proof_only_quotient_review_rows_have_stable_comparison_identities() {
     );
 }
 
+#[test]
+fn terminal_authority_permission_rows_have_stable_comparison_identities() {
+    assert_eq!(
+        row_kind_tag(PackageReviewCanonicalRowKind::TerminalAuthorityPermission),
+        19
+    );
+    assert_eq!(
+        row_kind_token(PackageReviewCanonicalRowKind::TerminalAuthorityPermission),
+        "terminal_authority_permission"
+    );
+}
+
 #[derive(Clone)]
 struct TestReview {
     key: PackageKey,

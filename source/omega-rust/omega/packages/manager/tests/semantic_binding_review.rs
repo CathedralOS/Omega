@@ -1,7 +1,10 @@
+use omega_effects::{
+    ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
+};
 use omega_package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use omega_package_evidence::record::{
-    PackageReviewCompilerIntrinsicExecution, PackageReviewDangerousAuthorityClass,
-    PackageReviewNominalOwner,
+    PackageReviewCanonicalRowKind, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
 };
 use omega_package_manager::admission::accept_ordinary_closure_evidence;
 use omega_package_manager::declarations::{PackageKey, PackageName};
@@ -10,8 +13,9 @@ use omega_package_manager::resolution::graph::{
 };
 use omega_package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
-    ConsumerScopedSemanticBindingReviewInput, ReviewOnlyCapabilityConflictLimits,
-    ReviewOnlyRootPolicyDisposition, compare_review_only_initial_capabilities,
+    ConsumerScopedSemanticBindingReviewInput, FreshPackageRootPolicyError,
+    ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
+    bind_fresh_package_root_policy, compare_review_only_initial_capabilities,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
     resolve_review_only_root_policy_decisions,
@@ -152,6 +156,14 @@ invokes console;
     else {
         panic!("ordinary Console declaration must retain its exact package owner")
     };
+    let exit_requirement = provider
+        .schema()
+        .methods
+        .iter()
+        .find(|method| method.name == "exit_process")
+        .expect("selected Console schema retains exact exit requirement")
+        .requirement_identity
+        .clone();
     let binding = AcceptedSemanticBinding::new(
         AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         console_package,
@@ -159,7 +171,13 @@ invokes console;
         provider.schema().identity_digest(),
         provider.selected_plan_digest(),
     )
-    .expect("derive exact candidate Console binding");
+    .expect("derive exact candidate Console binding")
+    .with_terminal_authority_permissions(vec![ServiceTerminalAuthorityPermission::new(
+        provider.schema().identity_digest(),
+        exit_requirement.clone(),
+        TerminalAuthorityDisposition::from_classes([TerminalAuthorityClass::ProcessTermination]),
+    )])
+    .expect("attach exact Console exit terminal permission");
     let binding_input =
         ConsumerScopedSemanticBindingReviewInput::new(root_key.clone(), binding.clone());
 
@@ -198,12 +216,13 @@ invokes console;
         ) if consumer == root_key
     ));
 
-    let reviews = compile_resolved_package_candidate_reviews(
+    let reviews = compile_resolved_package_reviews_with_semantic_bindings(
         &closure,
         "linux_x86_64",
         &temporary.0.join("accepted-build"),
+        std::slice::from_ref(&binding_input),
     )
-    .expect("discover and compile exact consumer-bound Console review");
+    .expect("compile exact consumer-bound Console review with explicit terminal permission");
     let root_review = reviews.review(&root_key).expect("bound root review");
     assert_eq!(root_review.semantic_bindings(), &[binding.clone()]);
     let [authority] = root_review.projection().dangerous_authorities() else {
@@ -221,6 +240,34 @@ invokes console;
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
     let conflicts = compare_review_only_initial_capabilities(&reviews, &closure, conflict_limits)
         .expect("derive complete fresh conflicts");
+    let permission_conflicts = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| package.conflicts())
+        .filter(|conflict| {
+            conflict.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission
+        })
+        .collect::<Vec<_>>();
+    let [permission_conflict] = permission_conflicts.as_slice() else {
+        panic!("exact Console exit permission must produce one fresh blocking conflict")
+    };
+    assert!(permission_conflict.is_blocking());
+    assert!(
+        conflicts
+            .render_bounded(1024 * 1024)
+            .expect("render terminal permission conflict")
+            .contains("kind terminal_authority_permission\n")
+    );
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure,
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            conflict_limits,
+            None,
+        ),
+        Err(FreshPackageRootPolicyError::MissingRootPolicy)
+    ));
     let decisions = conflicts
         .packages()
         .iter()
@@ -249,12 +296,40 @@ invokes console;
         Some(&root_policy),
     )
     .expect("fresh policy admits consumer-bound Console evidence");
+    assert_eq!(evidence.schema().version(), 4);
     let root_evidence = evidence
         .packages()
         .iter()
         .find(|package| package.package() == &root_key)
         .expect("accepted evidence retains selected root");
     assert_eq!(root_evidence.semantic_bindings(), &[binding]);
+    let propagated_permissions = evidence
+        .acceptance()
+        .obligations()
+        .root_open_terminal_authority_permissions()
+        .collect::<Vec<_>>();
+    let [(permission_owner, propagated_permission)] = propagated_permissions.as_slice() else {
+        panic!("root reconstruction propagates one owner-retaining terminal permission")
+    };
+    assert_eq!(*permission_owner, &root_key);
+    assert_eq!(
+        propagated_permission.permission().requirement_identity(),
+        exit_requirement
+    );
+    let [permission] = root_evidence
+        .results()
+        .open_terminal_authority_permissions()
+    else {
+        panic!("accepted evidence retains one open exact terminal permission")
+    };
+    assert_eq!(
+        permission.permission().requirement_identity(),
+        exit_requirement
+    );
+    assert_eq!(
+        permission.permission().permitted().classes(),
+        &[TerminalAuthorityClass::ProcessTermination]
+    );
 
     let windows_storage =
         SourceResolverStorage::for_hardened_base(temporary.0.join("windows-resolved"))

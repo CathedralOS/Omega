@@ -10,7 +10,7 @@ use crate::review::CompilerIssuedPackageReviewSet;
 use omega_package_evidence::ledger::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentOpenObligation,
     OrdinaryPackageDangerousAuthorityObligation, OrdinaryPackageExternalExecutableSupplyObligation,
-    OrdinaryPackageObligationResultSet,
+    OrdinaryPackageObligationResultSet, OrdinaryPackageTerminalAuthorityPermissionObligation,
 };
 use std::collections::BTreeMap;
 
@@ -56,6 +56,12 @@ struct OpenDangerousAuthorityReference {
     authority_index: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpenTerminalAuthorityPermissionReference {
+    package_index: usize,
+    permission_index: usize,
+}
+
 /// Exact source/question association plus every supported open obligation
 /// reachable by the selected root.
 ///
@@ -69,6 +75,7 @@ pub struct LocallyComposedPackageObligationResults {
     root_open_contract_entailment_obligations: Vec<OpenContractEntailmentReference>,
     root_open_external_executable_supplies: Vec<OpenExternalExecutableSupplyReference>,
     root_open_dangerous_authorities: Vec<OpenDangerousAuthorityReference>,
+    root_open_terminal_authority_permissions: Vec<OpenTerminalAuthorityPermissionReference>,
 }
 
 impl LocallyComposedPackageObligationResults {
@@ -102,6 +109,7 @@ impl LocallyComposedPackageObligationResults {
         let mut open_contract_entailment_count = 0usize;
         let mut open_external_supply_count = 0usize;
         let mut open_dangerous_authority_count = 0usize;
+        let mut open_terminal_authority_permission_count = 0usize;
         for question_entry in question.entries() {
             let review = reviews_by_package
                 .remove(question_entry.package())
@@ -146,6 +154,13 @@ impl LocallyComposedPackageObligationResults {
                 .ok_or_else(|| {
                     CanonicalPackageReconstructionQuestionError::new(
                         "package obligation open dangerous-authority count overflowed",
+                    )
+                })?;
+            open_terminal_authority_permission_count = open_terminal_authority_permission_count
+                .checked_add(results.open_terminal_authority_permissions().len())
+                .ok_or_else(|| {
+                    CanonicalPackageReconstructionQuestionError::new(
+                        "package obligation open terminal-authority-permission count overflowed",
                     )
                 })?;
             entries.push(LocallyComposedPackageObligationEntry {
@@ -229,6 +244,25 @@ impl LocallyComposedPackageObligationResults {
             }
         }
 
+        let mut root_open_terminal_authority_permissions = Vec::new();
+        root_open_terminal_authority_permissions
+            .try_reserve_exact(open_terminal_authority_permission_count)
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package obligation open terminal-authority-permission reference allocation failed",
+                )
+            })?;
+        for (package_index, entry) in entries.iter().enumerate() {
+            for permission_index in 0..entry.results.open_terminal_authority_permissions().len() {
+                root_open_terminal_authority_permissions.push(
+                    OpenTerminalAuthorityPermissionReference {
+                        package_index,
+                        permission_index,
+                    },
+                );
+            }
+        }
+
         Ok(Self {
             question,
             entries,
@@ -236,6 +270,7 @@ impl LocallyComposedPackageObligationResults {
             root_open_contract_entailment_obligations,
             root_open_external_executable_supplies,
             root_open_dangerous_authorities,
+            root_open_terminal_authority_permissions,
         })
     }
 
@@ -318,6 +353,28 @@ impl LocallyComposedPackageObligationResults {
                 (
                     &entry.package,
                     &entry.results.open_dangerous_authorities()[reference.authority_index],
+                )
+            })
+    }
+
+    /// Iterate every exact terminal-authority permission propagated to the
+    /// selected root while retaining its original package owner.
+    pub fn root_open_terminal_authority_permissions(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            &PackageKey,
+            &OrdinaryPackageTerminalAuthorityPermissionObligation,
+        ),
+    > {
+        self.root_open_terminal_authority_permissions
+            .iter()
+            .map(|reference| {
+                let entry = &self.entries[reference.package_index];
+                (
+                    &entry.package,
+                    &entry.results.open_terminal_authority_permissions()
+                        [reference.permission_index],
                 )
             })
     }

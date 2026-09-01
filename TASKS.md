@@ -9226,10 +9226,40 @@ compiler concept is introduced.
   acceptance separately pins the identity produced by the actual review;
   freely constructible receipt data grants no authority. The remaining D45
   work is to add the future syscall, firmware, table, and checked-physical role
-  variants with their exact evidence, migrate package service permissions onto
-  this schema-keyed policy, and only then delete the blessed filename
-  classifier. No unsupported role is inferred from a string or accepted by a
-  wildcard.
+  variants with their exact evidence and complete the package-permission
+  migration described below before deleting the blessed filename classifier.
+  No unsupported role is inferred from a string or accepted by a wildcard.
+
+  The first exact package-permission rung is now live without granting from
+  discovery. `AcceptedSemanticBinding` may carry canonical consumer-supplied
+  rows keyed by its normalized schema digest and an exact requirement identity;
+  input validation rejects schema substitution, empty/control-bearing keys, and
+  duplicates. Selected dispatch reconstructs the exact `ServiceSchema` and
+  rejoins every supplied row to exactly one method. Partial tables remain valid
+  here because demand-completeness belongs to installed-closure review.
+  Candidate discovery continues to nominate only semantic bindings and never
+  mints an authority class.
+
+  Package review now emits each supplied permission as a distinct blocking
+  canonical row retaining the compiler-resolved service nominal, schema digest,
+  exact requirement, permitted classes, and service/requirement source custody.
+  The row survives ordinary obligation reconstruction, transitive composition,
+  conflict rendering, and exact root-policy acceptance. The first accepted
+  Console fixture covers only its exact `exit_process(i32)` requirement with
+  `ProcessTermination`; a broad transitional `Process` review row is explicitly
+  insufficient and grants nothing. Direct native compilation also requires
+  every resolved package row to appear unchanged in the independently supplied
+  receiving permission policy; omission, class substitution, and cross-binding
+  duplicates reject. The receiving policy may retain unrelated rows for other
+  artifacts.
+
+  Remaining package work is to feed accepted root-policy rows into every native
+  and retained-Terminal realization route, migrate `FilesystemHost` and later
+  services to their exact portable facets, prove selected-closure coverage for
+  every transitional broad row, and only then remove the filename classifier
+  and broad `Process`/`Filesystem` summaries. Until those joins are complete,
+  the new exact table coexists with the legacy review classifier but never
+  derives from it.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,

@@ -1,3 +1,4 @@
+use omega_effects::ServiceTerminalAuthorityPermission;
 use omega_effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 use psi_core::PackageKeyIdentity;
 
@@ -32,6 +33,7 @@ pub struct AcceptedSemanticBinding {
     declaration_path: String,
     normalized_schema_digest: ServiceSchemaDigest,
     selected_provider_plan_digest: Option<ProviderPlanDigest>,
+    terminal_authority_permissions: Vec<ServiceTerminalAuthorityPermission>,
 }
 
 impl AcceptedSemanticBinding {
@@ -55,6 +57,7 @@ impl AcceptedSemanticBinding {
             declaration_path,
             normalized_schema_digest,
             selected_provider_plan_digest: Some(selected_provider_plan_digest),
+            terminal_authority_permissions: Vec::new(),
         })
     }
 
@@ -85,7 +88,50 @@ impl AcceptedSemanticBinding {
             declaration_path,
             normalized_schema_digest,
             selected_provider_plan_digest: None,
+            terminal_authority_permissions: Vec::new(),
         })
+    }
+
+    /// Attach explicit consumer policy for exact requirements in this
+    /// accepted service schema. Rows are canonicalized by their exact key;
+    /// this seam never derives permissions from the semantic role, provider,
+    /// declaration path, or readable method name.
+    pub fn with_terminal_authority_permissions(
+        mut self,
+        mut permissions: Vec<ServiceTerminalAuthorityPermission>,
+    ) -> Result<Self, &'static str> {
+        if permissions
+            .iter()
+            .any(|permission| permission.service_schema() != self.normalized_schema_digest)
+        {
+            return Err("terminal-authority permission names a different service schema");
+        }
+        if permissions.iter().any(|permission| {
+            permission.requirement_identity().is_empty()
+                || permission
+                    .requirement_identity()
+                    .chars()
+                    .any(char::is_control)
+        }) {
+            return Err("terminal-authority permission has an invalid requirement identity");
+        }
+        permissions.sort_by(|left, right| {
+            left.service_schema()
+                .as_bytes()
+                .cmp(right.service_schema().as_bytes())
+                .then_with(|| {
+                    left.requirement_identity()
+                        .cmp(right.requirement_identity())
+                })
+        });
+        if permissions.windows(2).any(|rows| {
+            rows[0].service_schema() == rows[1].service_schema()
+                && rows[0].requirement_identity() == rows[1].requirement_identity()
+        }) {
+            return Err("terminal-authority permissions repeat an exact requirement");
+        }
+        self.terminal_authority_permissions = permissions;
+        Ok(self)
     }
 
     pub const fn role(&self) -> AcceptedSemanticBindingRole {
@@ -106,6 +152,10 @@ impl AcceptedSemanticBinding {
 
     pub const fn selected_provider_plan_digest(&self) -> Option<ProviderPlanDigest> {
         self.selected_provider_plan_digest
+    }
+
+    pub fn terminal_authority_permissions(&self) -> &[ServiceTerminalAuthorityPermission] {
+        &self.terminal_authority_permissions
     }
 }
 

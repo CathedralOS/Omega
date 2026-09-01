@@ -457,6 +457,7 @@ const fn initial_admission_requires_root_policy(kind: PackageReviewCanonicalRowK
             | PackageReviewCanonicalRowKind::DangerousAuthority
             | PackageReviewCanonicalRowKind::ExternalExecutableSupply
             | PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+            | PackageReviewCanonicalRowKind::TerminalAuthorityPermission
     )
 }
 

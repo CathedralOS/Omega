@@ -7,6 +7,7 @@ mod executable_tcb_profile;
 mod isolated_executable_scopes;
 mod process_static_services;
 mod selected_provider_plans;
+mod service_terminal_authority_permission;
 mod terminal_authority;
 
 pub use capabilities::analysis::{
@@ -63,6 +64,7 @@ pub use process_static_services::{
 pub use selected_provider_plans::{
     InstallationReachResolution, SelectedProviderClosureDigest, SelectedProviderPlanFacts,
 };
+pub use service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
 pub use terminal_authority::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     NormalizedForeignTerminalMechanismIdentity, TerminalAuthorityClass,

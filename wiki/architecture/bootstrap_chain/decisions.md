@@ -2133,6 +2133,25 @@ unknown intrinsic family members, every normalized import role including
 Mach-O, string-only rejection, and an exercised-not-permitted containment
 failure.
 
+The first package-side table rung retains explicit consumer policy inside an
+accepted semantic binding. Each row names the complete normalized schema, one
+exact requirement identity, and its canonical permitted classes. Construction
+and compiler replay reject schema substitution, invalid or duplicate keys, and
+requirements that do not rejoin exactly one method in the reconstructed
+schema. Candidate discovery may nominate the semantic binding but never adds a
+permission row or class.
+
+Canonical package review publishes that input as a separate blocking row with
+the compiler-resolved service nominal, schema digest, exact requirement,
+permitted classes, and both service and requirement source custody. It remains
+separate from the transitional broad `Process` and `Filesystem` summaries,
+which grant nothing. Root policy must accept the exact row, and direct native
+compilation requires the resolved row to match the independently supplied
+receiving permission policy. This is the first migration seam, not permission
+completion: retained-Terminal realization, portable filesystem facets, and
+complete replacement of every broad legacy row remain required before the
+filename classifier is deleted.
+
 ## D46 — Same-process package review does not observe its executable pathname
 
 Package orchestration drives compiler review inside the same loaded `omega`

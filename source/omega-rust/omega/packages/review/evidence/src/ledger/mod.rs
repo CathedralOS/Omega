@@ -34,6 +34,7 @@ pub use results::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentOpenObligation,
     OrdinaryPackageDangerousAuthorityObligation, OrdinaryPackageExternalExecutableSupplyObligation,
     OrdinaryPackageObligationResultSet, OrdinaryPackageObligationStatus,
+    OrdinaryPackageTerminalAuthorityPermissionObligation,
     ordinary_package_obligation_results_from_projection,
     reconstruct_ordinary_package_obligation_results, validate_ordinary_package_obligation_results,
 };

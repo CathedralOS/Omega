@@ -9,7 +9,7 @@ use crate::record::{
     CheckedPackageCallableReview, CheckedPackageReviewProjection, PackageReviewCallableSupply,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewContractEntailmentOpenObligation, PackageReviewDangerousAuthority,
-    PackageReviewExternalExecutableSupply,
+    PackageReviewExternalExecutableSupply, PackageReviewTerminalAuthorityPermission,
 };
 use omega_package_compilation::PackageDependencyClosure;
 use omega_target::TargetProfile;
@@ -112,6 +112,31 @@ pub struct OrdinaryPackageDangerousAuthorityObligation {
     row: OrdinaryPackageObligationRow,
 }
 
+/// One exact consumer-supplied terminal-authority permission reconstructed
+/// from checked compiler state.
+///
+/// The row is an open root-admission obligation: package review records the
+/// grant but neither proves exercise nor accepts any physical terminal leaf.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrdinaryPackageTerminalAuthorityPermissionObligation {
+    permission: PackageReviewTerminalAuthorityPermission,
+    row: OrdinaryPackageObligationRow,
+}
+
+impl OrdinaryPackageTerminalAuthorityPermissionObligation {
+    pub const fn permission(&self) -> &PackageReviewTerminalAuthorityPermission {
+        &self.permission
+    }
+
+    pub const fn row(&self) -> &OrdinaryPackageObligationRow {
+        &self.row
+    }
+
+    pub const fn status(&self) -> OrdinaryPackageObligationStatus {
+        OrdinaryPackageObligationStatus::OpenRootAdmission
+    }
+}
+
 impl OrdinaryPackageDangerousAuthorityObligation {
     pub const fn authority(&self) -> &PackageReviewDangerousAuthority {
         &self.authority
@@ -141,6 +166,7 @@ pub struct OrdinaryPackageObligationResultSet {
     open_contract_entailment_obligations: Vec<OrdinaryPackageContractEntailmentOpenObligation>,
     open_external_executable_supplies: Vec<OrdinaryPackageExternalExecutableSupplyObligation>,
     open_dangerous_authorities: Vec<OrdinaryPackageDangerousAuthorityObligation>,
+    open_terminal_authority_permissions: Vec<OrdinaryPackageTerminalAuthorityPermissionObligation>,
 }
 
 impl OrdinaryPackageObligationResultSet {
@@ -178,6 +204,12 @@ impl OrdinaryPackageObligationResultSet {
 
     pub fn open_dangerous_authorities(&self) -> &[OrdinaryPackageDangerousAuthorityObligation] {
         &self.open_dangerous_authorities
+    }
+
+    pub fn open_terminal_authority_permissions(
+        &self,
+    ) -> &[OrdinaryPackageTerminalAuthorityPermissionObligation] {
+        &self.open_terminal_authority_permissions
     }
 }
 
@@ -355,6 +387,43 @@ pub fn ordinary_package_obligation_results_from_projection(
         });
     }
 
+    let terminal_authority_permissions = projection.terminal_authority_permissions();
+    let terminal_authority_permission_rows = ledger
+        .rows()
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission)
+        .collect::<Vec<_>>();
+    if terminal_authority_permissions.len() != terminal_authority_permission_rows.len() {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "ordinary package terminal-authority permissions are not bijective with their canonical rows",
+        ));
+    }
+
+    let mut open_terminal_authority_permissions = Vec::new();
+    open_terminal_authority_permissions
+        .try_reserve_exact(terminal_authority_permission_rows.len())
+        .map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package terminal-authority-permission result allocation failed",
+            )
+        })?;
+    for (permission, row) in terminal_authority_permissions
+        .iter()
+        .zip(terminal_authority_permission_rows)
+    {
+        if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package terminal-authority permission is not blocking",
+            ));
+        }
+        open_terminal_authority_permissions.push(
+            OrdinaryPackageTerminalAuthorityPermissionObligation {
+                permission: permission.clone(),
+                row: row.clone(),
+            },
+        );
+    }
+
     Ok(OrdinaryPackageObligationResultSet {
         schema: ledger.schema(),
         package: ledger.package(),
@@ -364,6 +433,7 @@ pub fn ordinary_package_obligation_results_from_projection(
         open_contract_entailment_obligations,
         open_external_executable_supplies,
         open_dangerous_authorities,
+        open_terminal_authority_permissions,
     })
 }
 

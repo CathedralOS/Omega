@@ -207,6 +207,12 @@ fn validate_open_obligation_conflicts(
         conflicts,
         PackageReviewCanonicalRowKind::DangerousAuthority,
         PackageReviewCanonicalRowRisk::Blocking,
+    )?;
+    validate_open_obligation_kind(
+        obligations,
+        conflicts,
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission,
+        PackageReviewCanonicalRowRisk::Blocking,
     )
 }
 
@@ -225,6 +231,9 @@ fn validate_open_obligation_kind<'a>(
         }
         PackageReviewCanonicalRowKind::DangerousAuthority => {
             obligations.root_open_dangerous_authorities().len()
+        }
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
+            obligations.root_open_terminal_authority_permissions().len()
         }
         _ => 0,
     };
@@ -264,6 +273,15 @@ fn validate_open_obligation_kind<'a>(
                     package,
                     authority.row().key_bytes(),
                     authority.row().canonical_bytes(),
+                ));
+            }
+        }
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
+            for (package, permission) in obligations.root_open_terminal_authority_permissions() {
+                open_obligations.push((
+                    package,
+                    permission.row().key_bytes(),
+                    permission.row().canonical_bytes(),
                 ));
             }
         }
