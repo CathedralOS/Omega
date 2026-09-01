@@ -1,5 +1,6 @@
 use omega_calling_conventions::MachineRegister;
 use omega_target::{Architecture, NativeTarget, X86FeatureRequirement};
+use psi_core::{IeeeFloatValue, OperationId, ValueId};
 use sha2::{Digest, Sha256};
 
 const X86_SCALAR_FMA_FRAGMENT_SCHEMA: &[u8] = b"omega.x86-scalar-fma-fragment.v1";
@@ -8,6 +9,56 @@ const X86_SCALAR_FMA_FRAGMENT_SCHEMA: &[u8] = b"omega.x86-scalar-fma-fragment.v1
 pub enum X86ScalarFmaFormat {
     Binary32,
     Binary64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86ScalarFmaOperandRecord {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub value: IeeeFloatValue,
+    pub register: MachineRegister,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// Exact semantic and selected-plan custody joined to one emitted mechanics
+/// fragment by identity. The complete selected plan remains in the native
+/// realization request/artifact; its SHA-256 digest is the non-substitutable
+/// join key, while the compact report identity remains diagnostic only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86ScalarFmaOccurrenceRecord {
+    pub terminal_operation: OperationId,
+    pub result: ValueId,
+    pub format: X86ScalarFmaFormat,
+    pub left: X86ScalarFmaOperandRecord,
+    pub right: X86ScalarFmaOperandRecord,
+    pub addend: X86ScalarFmaOperandRecord,
+    pub destination: MachineRegister,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: [u8; 32],
+    pub slot: omega_target::X86ScalarFmaSlot,
+    pub admitted_provider: omega_target::AdmittedX86ScalarFmaProvider,
+    pub fragment_identity: [u8; 32],
+    pub operation_ordinal: usize,
+}
+
+/// Function-level proof that ambient x86 floating controls were saved,
+/// Omega's canonical nearest-even/gradual/masked MXCSR was installed, and the
+/// complete incoming control state was restored before return.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86FloatingControlRecord {
+    pub target: NativeTarget,
+    pub canonical_mxcsr: u32,
+    pub canonical_slot_byte_offset: u32,
+    pub saved_slot_byte_offset: u32,
+    pub save_offset: usize,
+    pub save_byte_count: usize,
+    pub canonical_store_offset: usize,
+    pub canonical_store_byte_count: usize,
+    pub install_offset: usize,
+    pub install_byte_count: usize,
+    pub restore_offset: usize,
+    pub restore_byte_count: usize,
 }
 
 /// Exact machine-code custody for one feature-requiring scalar FMA3 interval.

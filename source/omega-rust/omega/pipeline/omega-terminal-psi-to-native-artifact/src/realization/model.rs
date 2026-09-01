@@ -108,6 +108,11 @@ pub struct NativeRealizationRequest<'request> {
     pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    /// Exact retained nearest-FMA occurrences admitted by the source/Terminal
+    /// proposal. The ordinary Abstract-to-Target stage consumes these rows;
+    /// they are never inferred from a selected-plan report coordinate.
+    pub ieee_float_fma:
+        &'request [omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<'request>],
 }
 
 /// Compatibility-preserving result for the receipt-requiring native path.

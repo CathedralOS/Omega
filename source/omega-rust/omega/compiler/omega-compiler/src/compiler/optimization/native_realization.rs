@@ -74,6 +74,7 @@ pub(super) fn realize(
             external_binding_rows: checked.external_binding_rows(),
             settlements: &[],
             compiler_builtins: &compiler_builtins,
+            ieee_float_fma: &[],
         },
     )
 }

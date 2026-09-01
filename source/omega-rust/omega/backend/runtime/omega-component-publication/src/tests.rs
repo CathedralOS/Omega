@@ -302,6 +302,8 @@ fn terminal_image(
             },
             bytes: bytes.clone(),
             x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
             unit_stack: None,
             unit_parameter_homes: Vec::new(),
             unit_parameters: Vec::new(),

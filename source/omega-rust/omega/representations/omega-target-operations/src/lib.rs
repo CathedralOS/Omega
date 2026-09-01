@@ -7,8 +7,9 @@ pub use omega_abstract_operations::{CompletionClaimSource, RankedU32CountdownCus
 use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
+    BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
+    MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralFieldId, StructuralTypeId,
+    ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, CrashRouteBucket,
@@ -379,6 +380,32 @@ pub struct TargetUnitBody {
     pub operations: Vec<TargetUnitOperation>,
 }
 
+/// Exact selected-plan and deployment custody for one target-lowered scalar
+/// x86 FMA occurrence.
+///
+/// The collision-resistant plan digest binds this row back to the complete
+/// selected provider plan retained by native realization. The compact report
+/// identity remains diagnostic data and cannot authorize lowering by itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetX86ScalarFmaSettlement {
+    pub terminal_operation: OperationId,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_digest: [u8; 32],
+    pub format: IeeeFloatFormat,
+    pub slot: omega_target::X86ScalarFmaSlot,
+    pub provider: omega_target::AdmittedX86ScalarFmaProvider,
+}
+
+/// One exact preceding Terminal IEEE constant consumed by a bounded scalar
+/// FMA. Keeping the defining operation and value identity with the raw bits
+/// prevents a same-valued or same-typed constant from being substituted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetIeeeFloatFmaOperand {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub value: IeeeFloatValue,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralParameter {
     pub place: PlaceId,
@@ -490,6 +517,23 @@ pub enum TargetUnitOperation {
         result: ValueId,
         scalar_type: IntegerType,
         value: IntegerValue,
+    },
+    IeeeFloatConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: IeeeFloatValue,
+    },
+    /// One nearest-even scalar FMA whose first bounded Unit lane consumes
+    /// three exact preceding IEEE constants. Physical XMM assignment remains
+    /// the next stage's responsibility.
+    NearestIeeeFloatFusedMultiplyAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        format: IeeeFloatFormat,
+        left: TargetIeeeFloatFmaOperand,
+        right: TargetIeeeFloatFmaOperand,
+        addend: TargetIeeeFloatFmaOperand,
+        settlement: TargetX86ScalarFmaSettlement,
     },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,

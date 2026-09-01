@@ -74,10 +74,20 @@ consumes that ephemeral row into a source-free Terminal realization proposal,
 rejoins the exact selected plan, and, for x86 profiles, requires exactly one
 admitted profile/slot provider. Proposal replay requires one-to-one coverage of
 every canonical Terminal FMA operation. Abstract IR and optimizer identities
-also preserve the operation. Target/assigned/machine lowering, canonical x86
-floating-control establishment, and final instruction emission still remain
-pending; unsupported and optimized-direct paths fail closed rather than losing
-the occurrence custody.
+also preserve the operation. For the bounded no-call attached-Unit lane, the
+ordinary Abstract -> Target -> Assigned -> machine path consumes that proposal
+without a side channel. Target legalization retains the exact selected-plan
+digest and admitted provider while remaining address-free; assignment owns the
+XMM homes; machine emission loads the landed raw bits, saves the caller's
+complete MXCSR value, installs canonical nearest-even `0x1f80` with masked
+exceptions and FTZ/DAZ disabled, emits the admitted scalar FMA, and restores
+the saved value. Object construction independently decodes the operand loads,
+control-state sequence, and FMA bytes. Final native-artifact validation rejoins
+those records to the canonical Terminal value graph and exact selected
+`ProviderPlan`. Wider source/control-flow shapes, call/foreign-code control-
+state preservation, non-x86/software realizations, and native differential-
+execution receipts remain pending; unsupported and optimized-direct paths fail
+closed rather than losing occurrence custody.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A

@@ -16,6 +16,7 @@ pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
+pub use omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
 pub use omega_native_artifact::{
     BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeArtifact,
     NativeArtifactParts, NativeByteSpan, NativePhysicalChild, NativePhysicalChildParts,

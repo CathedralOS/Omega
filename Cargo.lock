@@ -270,6 +270,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
+ "omega-effects",
  "omega-installation-evidence",
  "omega-psi-to-abstract-operations",
  "omega-target",

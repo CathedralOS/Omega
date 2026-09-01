@@ -30,12 +30,13 @@ use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
     LinuxExitGroupI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
     ProviderPlanReportIdentity, ScalarParameterLocation, TargetBooleanControl,
-    TargetConditionalBooleanArm, TargetFunction, TargetOperation, TargetOperationPlan,
-    TargetStructuralParameter, TerminalPsiProvenance,
+    TargetConditionalBooleanArm, TargetFunction, TargetIeeeFloatFmaOperand, TargetOperation,
+    TargetOperationPlan, TargetStructuralParameter, TargetUnitBody, TargetUnitOperation,
+    TargetX86ScalarFmaSettlement, TerminalPsiProvenance,
 };
 use psi_core::{
-    BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
-    ServiceId, StructuralTypeId,
+    BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, MachineId, OperationId,
+    PlaceId, ProfileDecisionId, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     CompletionReceipt, EntryClaim, NominalAffineCleanup, SemanticFingerprint, StructuralAccess,
@@ -260,6 +261,51 @@ fn source_free_x86_fma_object_rejects_cross_profile_even_when_native_target_matc
 }
 
 #[test]
+fn ordinary_x86_fma_object_replays_semantic_operands_plan_and_mxcsr_custody() {
+    let provider = admitted_x86_fma_provider(TargetProfile::LinuxX64);
+    let baseline = semantic_x86_fma_plan(TargetProfile::LinuxX64);
+    let artifact = build_admitted_x86_fma_object_artifact(&baseline, provider)
+        .expect("ordinary semantic FMA object");
+    assert_eq!(artifact.functions()[0].x86_scalar_fma_occurrences.len(), 1);
+    assert!(artifact.functions()[0].x86_floating_control.is_some());
+
+    let mut candidates = Vec::new();
+    let mut changed = baseline.clone();
+    let left_offset = changed.functions[0].x86_scalar_fma_occurrences[0]
+        .left
+        .code_offset;
+    changed.functions[0].bytes[left_offset + 1] ^= 1;
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma_occurrences[0].provider_plan_digest = [0; 32];
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0].x86_scalar_fma_occurrences.clear();
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    changed.functions[0]
+        .x86_floating_control
+        .as_mut()
+        .unwrap()
+        .canonical_mxcsr = 0x9fc0;
+    candidates.push(changed);
+    let mut changed = baseline.clone();
+    let store_offset = changed.functions[0]
+        .x86_floating_control
+        .unwrap()
+        .canonical_store_offset;
+    changed.functions[0].bytes[store_offset + 4] ^= 1;
+    candidates.push(changed);
+
+    for candidate in candidates {
+        assert!(
+            build_admitted_x86_fma_object_artifact(&candidate, provider).is_err(),
+            "semantic, plan, and floating-control drift must fail closed"
+        );
+    }
+}
+
+#[test]
 fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
     #[derive(Debug)]
     struct ExitProvider;
@@ -345,6 +391,8 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 },
                 bytes: bytes.clone(),
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -544,6 +592,8 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             },
             bytes: bytes.clone(),
             x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
             unit_stack: Some(UnitStackEvidence {
                 frame: None,
                 aarch64_return_link: None,
@@ -2171,6 +2221,8 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 },
                 bytes: bytes.clone(),
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2455,6 +2507,8 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             },
             bytes,
             x86_scalar_fma: Vec::new(),
+            x86_scalar_fma_occurrences: Vec::new(),
+            x86_floating_control: None,
             unit_stack: None,
             unit_parameter_homes: Vec::new(),
             unit_parameters: Vec::new(),
@@ -2632,6 +2686,8 @@ fn two_function_plan() -> MachineCodePlan {
                 },
                 bytes: integer_return(3),
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2663,6 +2719,8 @@ fn two_function_plan() -> MachineCodePlan {
                 },
                 bytes: integer_return(7),
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2704,6 +2762,91 @@ fn x86_fma_plan(profile: TargetProfile, format: X86ScalarFmaFormat) -> MachineCo
     plan.functions[0].bytes = emitted.bytes.into_iter().chain([0xc3]).collect();
     plan.functions[0].x86_scalar_fma = vec![emitted.custody];
     plan
+}
+
+fn semantic_x86_fma_plan(profile: TargetProfile) -> MachineCodePlan {
+    let target = profile.native_target();
+    let provider = admitted_x86_fma_provider(profile);
+    let machine = machine_id(91);
+    let operations = [91, 92, 93, 94].map(operation_id);
+    let values = [91, 92, 93, 94].map(|value| ValueId::new(value).expect("semantic FMA value"));
+    let edge = edge_id(95);
+    let raw = [
+        IeeeFloatValue::Binary32(0x3f80_0001),
+        IeeeFloatValue::Binary32(0x3f7f_fffe),
+        IeeeFloatValue::Binary32(0xbf80_0000),
+    ];
+    let operand = |index: usize| TargetIeeeFloatFmaOperand {
+        defining_operation: operations[index],
+        source_value: values[index],
+        value: raw[index],
+    };
+    let plan = TargetOperationPlan {
+        psi: identity(),
+        target,
+        entry: machine,
+        functions: vec![TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: operations.to_vec(),
+                edges: vec![edge],
+            },
+            operation: TargetOperation::UnitBody(TargetUnitBody {
+                structural_types: Vec::new(),
+                call_plan: omega_calling_conventions::evaluate_call_plan(
+                    omega_calling_conventions::CallingPolicy::native_for_target(target),
+                    &omega_calling_conventions::CallSignature {
+                        parameters: Vec::new(),
+                        result: None,
+                    },
+                )
+                .unwrap(),
+                parameters: Vec::new(),
+                operations: vec![
+                    TargetUnitOperation::IeeeFloatConstant {
+                        psi_operation: operations[0],
+                        result: values[0],
+                        value: raw[0],
+                    },
+                    TargetUnitOperation::IeeeFloatConstant {
+                        psi_operation: operations[1],
+                        result: values[1],
+                        value: raw[1],
+                    },
+                    TargetUnitOperation::IeeeFloatConstant {
+                        psi_operation: operations[2],
+                        result: values[2],
+                        value: raw[2],
+                    },
+                    TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+                        psi_operation: operations[3],
+                        result: values[3],
+                        format: IeeeFloatFormat::Binary32,
+                        left: operand(0),
+                        right: operand(1),
+                        addend: operand(2),
+                        settlement: TargetX86ScalarFmaSettlement {
+                            terminal_operation: operations[3],
+                            provider_plan_report_identity: 0x91,
+                            provider_plan_digest: [0x91; 32],
+                            format: IeeeFloatFormat::Binary32,
+                            slot: X86ScalarFmaSlot::Binary32,
+                            provider,
+                        },
+                    },
+                    TargetUnitOperation::Return {
+                        psi_edge: edge,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            }),
+        }],
+    };
+    let assigned = omega_target_operations_to_assigned_target_operations::assign_registers(&plan)
+        .expect("semantic FMA physical assignment");
+    omega_machine_emission::emit_machine_code(&assigned).expect("semantic FMA machine emission")
 }
 
 fn admitted_x86_fma_provider(profile: TargetProfile) -> AdmittedX86ScalarFmaProvider {
@@ -2769,6 +2912,8 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 },
                 bytes: callee,
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -2800,6 +2945,8 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 },
                 bytes: caller,
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack: None,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -3943,6 +4090,8 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 },
                 bytes: x86_empty_call_bytes.clone(),
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -3987,6 +4136,8 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 },
                 bytes: vec![0xc3],
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack,
                 unit_parameter_homes: Vec::new(),
                 unit_parameters: Vec::new(),
@@ -4028,6 +4179,8 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 },
                 bytes: x86_empty_call_bytes,
                 x86_scalar_fma: Vec::new(),
+                x86_scalar_fma_occurrences: Vec::new(),
+                x86_floating_control: None,
                 unit_stack,
                 unit_parameter_homes: vec![UnitParameterHomeRecord {
                     place,

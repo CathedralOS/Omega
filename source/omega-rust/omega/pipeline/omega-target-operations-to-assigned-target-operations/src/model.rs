@@ -49,6 +49,10 @@ pub enum AssignmentError {
         operation: OperationId,
     },
     UnitScalarCallSourceMismatch(ValueId),
+    IeeeFloatFmaCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     ExpressionRegisterCannotHoldParameter {
         value: ValueId,
         register: MachineRegister,

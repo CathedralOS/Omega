@@ -19,7 +19,7 @@ pub use scalar::{
     AssignedScalarLocation, EntryRegisterSpill, ExpressionFrame,
 };
 pub use unit::{
-    AssignedAggregateCopy, AssignedNormalizedForeignScalarArgument, AssignedRankedU32Countdown,
-    AssignedUnitBody, AssignedUnitOperation, AssignedUnitScalarArgumentSource,
-    AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
+    AssignedAggregateCopy, AssignedIeeeFloatFmaOperand, AssignedNormalizedForeignScalarArgument,
+    AssignedRankedU32Countdown, AssignedUnitBody, AssignedUnitOperation,
+    AssignedUnitScalarArgumentSource, AssignedUnitScalarCallArgument, AssignedUnitScalarHome,
 };

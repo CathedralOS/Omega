@@ -12,6 +12,7 @@ pub(crate) fn lower_to_target_operations_with_settlements(
         target,
         settlement_bindings,
         None,
+        &[],
     )
 }
 
@@ -20,6 +21,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     target: NativeTarget,
     settlement_bindings: &[BoundarySettlementBinding],
     installation: Option<&dyn ProviderInstallationEvidence>,
+    ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
 ) -> Result<TargetOperationPlan, LoweringError> {
     if !plan
         .functions
@@ -64,6 +66,72 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         {
             return Err(LoweringError::UnknownBoundarySettlement(binding.boundary));
         }
+    }
+    let abstract_fma = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .filter_map(|operation| match operation {
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+                psi_operation,
+                format,
+                ..
+            } => Some((*psi_operation, *format)),
+            _ => None,
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut ieee_float_fma_by_operation = BTreeMap::new();
+    for settlement in ieee_float_fma {
+        if ieee_float_fma_by_operation.contains_key(&settlement.terminal_operation) {
+            return Err(LoweringError::DuplicateIeeeFloatFmaSettlement(
+                settlement.terminal_operation,
+            ));
+        }
+        let Some(format) = abstract_fma.get(&settlement.terminal_operation) else {
+            return Err(LoweringError::UnknownIeeeFloatFmaSettlement(
+                settlement.terminal_operation,
+            ));
+        };
+        let expected_slot = match format {
+            IeeeFloatFormat::Binary32 => omega_target::X86ScalarFmaSlot::Binary32,
+            IeeeFloatFormat::Binary64 => omega_target::X86ScalarFmaSlot::Binary64,
+        };
+        let expected_selected_requirement = expected_slot.selected_plan_requirement_identity();
+        let provider = settlement.provider;
+        let plan = settlement.provider_plan;
+        if settlement.format != *format
+            || settlement.slot != expected_slot
+            || target.architecture != Architecture::X86_64
+            || !provider.has_canonical_identity()
+            || provider.profile().native_target() != target
+            || !provider.admits(provider.requirement(), settlement.slot)
+            || plan.target != provider.profile().target_name()
+            || !matches!(plan.rows.as_slice(), [row]
+                if row.requirement_identity == expected_selected_requirement
+                    && matches!(row.binding,
+                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }))
+        {
+            return Err(LoweringError::InvalidIeeeFloatFmaSettlement(
+                settlement.terminal_operation,
+            ));
+        }
+        ieee_float_fma_by_operation.insert(
+            settlement.terminal_operation,
+            omega_target_operations::TargetX86ScalarFmaSettlement {
+                terminal_operation: settlement.terminal_operation,
+                provider_plan_report_identity: plan.report_fingerprint(),
+                provider_plan_digest: *plan.identity_digest().as_bytes(),
+                format: settlement.format,
+                slot: settlement.slot,
+                provider,
+            },
+        );
+    }
+    if let Some(missing) = abstract_fma
+        .keys()
+        .find(|operation| !ieee_float_fma_by_operation.contains_key(operation))
+    {
+        return Err(LoweringError::MissingIeeeFloatFmaSettlement(*missing));
     }
     let installed_calls = installation
         .map(|installation| {
@@ -203,6 +271,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                     &boundary_machines,
                     &settlements_by_boundary,
                     &installed_by_call,
+                    &ieee_float_fma_by_operation,
                 )?;
                 lowered.fixed_integer_scalar_abi =
                     fixed_integer_scalar_abis.get(&function.machine).cloned();

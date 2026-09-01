@@ -6,15 +6,16 @@ use omega_target_operations::{
     LinuxWriteLineRealization, MetadataOnlyPortRealization, NormalizedForeignCallBinding,
     NormalizedForeignScalarArgument, ProviderExecutionBinding, ProviderPlanReportIdentity,
     ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression, TargetCallArgument,
-    TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetFunction, TargetIntegerControl,
-    TargetIntegerExpression, TargetOperation, TargetOperationPlan, TargetScalarExpression,
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitBody, TargetUnitOperation,
+    TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetFunction,
+    TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
+    TargetOperationPlan, TargetScalarExpression, TargetStructuralArgument,
+    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TargetX86ScalarFmaSettlement,
     TerminalPsiProvenance,
 };
 use omega_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
-    BoundaryMachineId, EdgeId, MachineId, ObligationId, OperationId, PlaceId, ServiceId,
-    StructuralTypeId,
+    BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, MachineId, ObligationId,
+    OperationId, PlaceId, ServiceId, StructuralTypeId, ValueId,
 };
 
 fn proof_obligation() -> ObligationId {
@@ -29,6 +30,157 @@ use psi_terminal::{
 fn emit_machine_code(plan: &TargetOperationPlan) -> Result<MachineCodePlan, EmissionError> {
     let assigned = assign_registers(plan).expect("test target operations must assign");
     super::emit_machine_code(&assigned)
+}
+
+#[test]
+fn assigned_x86_fma_emits_raw_bits_exact_plan_custody_and_canonical_mxcsr() {
+    let target = NativeTarget::linux_x64();
+    let profile = omega_target::TargetProfile::LinuxX64;
+    let provider = omega_target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+        profile,
+        &omega_target::X86_SCALAR_FMA_REQUIRED_FEATURES,
+    )
+    .unwrap();
+    for (format, values) in [
+        (
+            IeeeFloatFormat::Binary32,
+            [
+                IeeeFloatValue::Binary32(0x3f80_0001),
+                IeeeFloatValue::Binary32(0x3f7f_fffe),
+                IeeeFloatValue::Binary32(0xbf80_0000),
+            ],
+        ),
+        (
+            IeeeFloatFormat::Binary64,
+            [
+                IeeeFloatValue::Binary64(0x3ff0_0000_0000_0001),
+                IeeeFloatValue::Binary64(0x3fef_ffff_ffff_fffe),
+                IeeeFloatValue::Binary64(0xbff0_0000_0000_0000),
+            ],
+        ),
+    ] {
+        let machine = MachineId::new(880).unwrap();
+        let operations = [881, 882, 883, 884].map(|id| OperationId::new(id).unwrap());
+        let values_id = [881, 882, 883, 884].map(|id| ValueId::new(id).unwrap());
+        let edge = EdgeId::new(885).unwrap();
+        let slot = match format {
+            IeeeFloatFormat::Binary32 => omega_target::X86ScalarFmaSlot::Binary32,
+            IeeeFloatFormat::Binary64 => omega_target::X86ScalarFmaSlot::Binary64,
+        };
+        let operand = |index: usize| TargetIeeeFloatFmaOperand {
+            defining_operation: operations[index],
+            source_value: values_id[index],
+            value: values[index],
+        };
+        let settlement = TargetX86ScalarFmaSettlement {
+            terminal_operation: operations[3],
+            provider_plan_report_identity: 0xfeed,
+            provider_plan_digest: [0xa5; 32],
+            format,
+            slot,
+            provider,
+        };
+        let plan = TargetOperationPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([0x88; 32]),
+            },
+            target,
+            entry: machine,
+            functions: vec![TargetFunction {
+                machine,
+                attachment: None,
+                fixed_integer_scalar_abi: None,
+                provenance: TerminalPsiProvenance {
+                    operations: operations.to_vec(),
+                    edges: vec![edge],
+                },
+                operation: TargetOperation::UnitBody(TargetUnitBody {
+                    structural_types: Vec::new(),
+                    call_plan: evaluate_call_plan(
+                        CallingPolicy::native_for_target(target),
+                        &CallSignature {
+                            parameters: Vec::new(),
+                            result: None,
+                        },
+                    )
+                    .unwrap(),
+                    parameters: Vec::new(),
+                    operations: vec![
+                        TargetUnitOperation::IeeeFloatConstant {
+                            psi_operation: operations[0],
+                            result: values_id[0],
+                            value: values[0],
+                        },
+                        TargetUnitOperation::IeeeFloatConstant {
+                            psi_operation: operations[1],
+                            result: values_id[1],
+                            value: values[1],
+                        },
+                        TargetUnitOperation::IeeeFloatConstant {
+                            psi_operation: operations[2],
+                            result: values_id[2],
+                            value: values[2],
+                        },
+                        TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+                            psi_operation: operations[3],
+                            result: values_id[3],
+                            format,
+                            left: operand(0),
+                            right: operand(1),
+                            addend: operand(2),
+                            settlement,
+                        },
+                        TargetUnitOperation::Return {
+                            psi_edge: edge,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }),
+            }],
+        };
+        let assigned = assign_registers(&plan).unwrap();
+        let emitted = super::emit_machine_code(&assigned).unwrap();
+        let function = &emitted.functions[0];
+        let [fragment] = function.x86_scalar_fma.as_slice() else {
+            panic!("one mechanics fragment")
+        };
+        let [occurrence] = function.x86_scalar_fma_occurrences.as_slice() else {
+            panic!("one semantic occurrence")
+        };
+        let control = function.x86_floating_control.expect("MXCSR custody");
+        assert_eq!(control.canonical_mxcsr, 0x1f80);
+        assert_eq!(occurrence.fragment_identity, fragment.identity);
+        assert_eq!(occurrence.provider_plan_digest, [0xa5; 32]);
+        assert_eq!(occurrence.left.value, values[0]);
+        assert_eq!(occurrence.right.value, values[1]);
+        assert_eq!(occurrence.addend.value, values[2]);
+        assert!(control.install_offset < occurrence.left.code_offset);
+        assert_eq!(
+            fragment.code_offset + fragment.byte_count,
+            control.restore_offset
+        );
+
+        let mut corrupted = assigned.clone();
+        let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
+            &mut corrupted.functions[0].operation
+        else {
+            unreachable!()
+        };
+        let omega_assigned_target_operations::AssignedUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+            addend,
+            ..
+        } = &mut body.operations[3]
+        else {
+            unreachable!()
+        };
+        addend.source_value = values_id[0];
+        assert!(matches!(
+            super::emit_machine_code(&corrupted),
+            Err(EmissionError::InvalidIeeeFloatFmaCustody(operation))
+                if operation == operations[3]
+        ));
+    }
 }
 
 fn admitted_foreign_stack() -> omega_task_plans::AdmittedSameStackContribution {

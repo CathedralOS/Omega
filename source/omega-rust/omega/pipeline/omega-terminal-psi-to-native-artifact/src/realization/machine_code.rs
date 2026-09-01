@@ -20,17 +20,20 @@ pub(crate) fn emit_realization_machine_code(
         ) => {
             let target = match provider_installation {
                 Some(installation) => {
-                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_and_installation(
+                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
                         &plan,
                         request.target,
                         settlements,
                         Some(&installation),
+                        request.ieee_float_fma,
                     )
                 }
-                None => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
+                None => omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_and_ieee_float_fma(
                     &plan,
                     request.target,
                     settlements,
+                    None,
+                    request.ieee_float_fma,
                 ),
             }
             .map_err(|error| realization_error("ordinary target lowering", error))?;
@@ -64,6 +67,12 @@ pub(crate) fn emit_realization_machine_code(
                 .map_err(|error| realization_error("ranked machine-code emission", error))
         }
         NativeRealizationInput::ExplicitOptimization(input) => {
+            if !request.ieee_float_fma.is_empty() {
+                return Err(realization_error(
+                    "optimized nearest-FMA custody",
+                    "retained nearest-FMA occurrences require the ordinary custody-preserving pipeline",
+                ));
+            }
             let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
                 request.optimization_selections,
             )
