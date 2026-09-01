@@ -96,7 +96,6 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),
-            requirement_obligations: Vec::new(),
         },
         OperationKind::PortWrite {
             service: ServiceId::new(1).unwrap(),

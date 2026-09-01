@@ -1269,7 +1269,6 @@ pub(super) fn lower_attached_unit_closure_including(
                                 })
                             })
                             .collect::<Result<Vec<_>, LoweringError>>()?,
-                        requirement_obligations: Vec::new(),
                     }
                 }
                 CheckedUnitEffectOperationPlan::BoundaryScalarCall {
@@ -1396,7 +1395,6 @@ pub(super) fn lower_attached_unit_closure_including(
                                 })
                             })
                             .collect::<Result<Vec<_>, LoweringError>>()?,
-                        requirement_obligations: Vec::new(),
                     };
                     let value = ValueDeclaration {
                         id: value_id(next_value_identity),

@@ -246,7 +246,6 @@ fn call_composition_ledger_fixture() -> TerminalModule {
                         claim: claim_id(1),
                         argument_index: 0,
                     }],
-                    requirement_obligations: Vec::new(),
                 },
             }],
             terminator: Terminator::ReturnUnit {

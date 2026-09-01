@@ -821,7 +821,6 @@ fn boundary_call_module() -> TerminalModule {
                             arguments: vec![value_id(1)],
                             structural_arguments: Vec::new(),
                             completion_receipts: Vec::new(),
-                            requirement_obligations: Vec::new(),
                         },
                     },
                 ],

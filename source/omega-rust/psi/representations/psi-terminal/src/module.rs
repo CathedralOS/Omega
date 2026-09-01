@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        56
+        57
     }
 }
 
@@ -1726,11 +1726,6 @@ pub enum OperationKind {
         arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
-        /// Legacy current-format slot. This must remain empty: boundary
-        /// structural-domain requirements consume carried qualifications and
-        /// have no proposition conclusion. Remove the slot, with the matching
-        /// wire payload, at the next Terminal format/vocabulary revision.
-        requirement_obligations: Vec<ObligationId>,
     },
     /// Immediate x86 port-space byte output. This first closed variant retains
     /// exactly a `u16` port and `u8` value; runtime operands are a later slice.

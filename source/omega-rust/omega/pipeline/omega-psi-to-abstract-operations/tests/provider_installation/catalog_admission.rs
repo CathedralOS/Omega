@@ -252,7 +252,6 @@ fn provider_catalog_union_rejects_a_candidate_that_reenters_its_boundary() {
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),
-            requirement_obligations: Vec::new(),
         },
     };
 

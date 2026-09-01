@@ -327,7 +327,6 @@ mod tests {
             arguments: vec![ValueId::new(2).unwrap(), ValueId::new(1).unwrap()],
             structural_arguments: Vec::new(),
             completion_receipts: Vec::new(),
-            requirement_obligations: Vec::new(),
         }
     }
 

@@ -152,7 +152,6 @@ fn projected_structural_provider_module() -> TerminalModule {
                     claim: claim_id(1),
                     argument_index: 0,
                 }],
-                requirement_obligations: Vec::new(),
             },
         },
         Operation {
@@ -170,7 +169,6 @@ fn projected_structural_provider_module() -> TerminalModule {
                     claim: claim_id(2),
                     argument_index: 0,
                 }],
-                requirement_obligations: Vec::new(),
             },
         },
     ];

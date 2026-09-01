@@ -266,7 +266,6 @@ pub(super) fn lower_boundary_scalar_return_machine(
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?,
-            requirement_obligations: Vec::new(),
         },
     };
     operations.push(operation);

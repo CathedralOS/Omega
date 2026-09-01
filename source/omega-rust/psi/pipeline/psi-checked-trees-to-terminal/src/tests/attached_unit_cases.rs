@@ -80,7 +80,6 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
         boundary,
         structural_arguments,
         completion_receipts,
-        requirement_obligations,
         ..
     } = &settlement.kind
     else {
@@ -89,7 +88,6 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
     assert_eq!(*boundary, boundary_machine_id(1));
     assert_eq!(structural_arguments[0].place, place_id(3));
     assert_eq!(completion_receipts[0].claim, claim_id(1));
-    assert!(requirement_obligations.is_empty());
     assert!(matches!(
         module.machines[0].blocks[0].terminator,
         Terminator::ReturnUnit { edge, .. } if edge == edge_id(1)

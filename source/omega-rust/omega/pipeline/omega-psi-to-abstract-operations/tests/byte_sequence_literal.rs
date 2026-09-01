@@ -145,7 +145,6 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                                 path: Vec::new(),
                             }],
                             completion_receipts: Vec::new(),
-                            requirement_obligations: Vec::new(),
                         },
                     },
                 ],
