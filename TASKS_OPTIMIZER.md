@@ -1497,12 +1497,16 @@ consumes and retains their identities through publication.
   mismatches, and a checked-i128 selected-cost sum; strict model/report codecs
   reject every custody substitution. This is plumbing and recorded-label
   agreement, not an optimization-quality claim. The explicit offline command
-  now captures one or more canonical V2 log files into a validated corpus file
-  through the same admission boundary. Its closed vocabulary, fail-closed
-  reads, create-once publication, canonical round trip, and no-overwrite
-  behavior are tested; it has no train, evaluate, compiler, process, or model-
-  execution command. Checked regression manifests, measured objective labels,
-  external trainers/models, and any compiler/model execution remain open.
+  now exposes four exact artifact routes: `capture` admits canonical V2 logs,
+  `train` consumes one validated corpus, and distinct `evaluate` and
+  `regression` commands pin their corresponding split instead of accepting an
+  open split argument. Strict corpus/model admission, independent library
+  replay, deterministic canonical bytes, foreign-corpus/model refusal, empty-
+  split refusal, create-once publication, and no-partial-output behavior are
+  tested. These routes execute only the built-in deterministic reference
+  algorithm; they have no compiler, build, process, arbitrary-model, or policy-
+  replay authority. Checked regression manifests, measured objective labels,
+  and external trainers/models remain open.
 
 ML may rank already-declared equal transformations. It cannot invent an
 unchecked rewrite or opt into lossy floating-point semantics.

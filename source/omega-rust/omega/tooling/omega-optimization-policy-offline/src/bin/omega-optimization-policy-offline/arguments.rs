@@ -4,8 +4,11 @@ use std::{ffi::OsString, path::PathBuf};
 
 use crate::error::OfflinePolicyCommandError;
 
-pub(super) const USAGE: &str =
-    "usage:\n  omega-optimization-policy-offline capture <output-corpus> <decision-log>...";
+pub(super) const USAGE: &str = "usage:
+  omega-optimization-policy-offline capture <output-corpus> <decision-log>...
+  omega-optimization-policy-offline train <input-corpus> <output-model>
+  omega-optimization-policy-offline evaluate <input-corpus> <input-model> <output-report>
+  omega-optimization-policy-offline regression <input-corpus> <input-model> <output-report>";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CaptureRequest {
@@ -14,8 +17,24 @@ pub(super) struct CaptureRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct TrainingRequest {
+    pub(super) corpus: PathBuf,
+    pub(super) output: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct EvaluationRequest {
+    pub(super) corpus: PathBuf,
+    pub(super) model: PathBuf,
+    pub(super) output: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum OfflinePolicyCommand {
     Capture(CaptureRequest),
+    Train(TrainingRequest),
+    Evaluate(EvaluationRequest),
+    Regression(EvaluationRequest),
     Help,
 }
 
@@ -31,16 +50,19 @@ pub(super) fn parse(
     if command == "--help" || command == "-h" || command == "help" {
         return no_trailing_arguments(arguments, OfflinePolicyCommand::Help);
     }
-    if command != "capture" {
-        return Err(OfflinePolicyCommandError::Usage("unknown command"));
+    match command.to_str() {
+        Some("capture") => parse_capture(arguments),
+        Some("train") => parse_training(arguments),
+        Some("evaluate") => parse_evaluation(arguments, false),
+        Some("regression") => parse_evaluation(arguments, true),
+        _ => Err(OfflinePolicyCommandError::Usage("unknown command")),
     }
+}
 
-    let output = arguments
-        .next()
-        .map(PathBuf::from)
-        .ok_or(OfflinePolicyCommandError::Usage(
-            "missing output corpus path",
-        ))?;
+fn parse_capture(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<OfflinePolicyCommand, OfflinePolicyCommandError> {
+    let output = required_path(&mut arguments, "missing output corpus path")?;
     let logs = arguments.map(PathBuf::from).collect::<Vec<_>>();
     if logs.is_empty() {
         return Err(OfflinePolicyCommandError::Usage(
@@ -51,6 +73,65 @@ pub(super) fn parse(
         output,
         logs,
     }))
+}
+
+fn parse_training(
+    mut arguments: impl Iterator<Item = OsString>,
+) -> Result<OfflinePolicyCommand, OfflinePolicyCommandError> {
+    let corpus = required_path(&mut arguments, "missing input corpus path")?;
+    let output = required_path(&mut arguments, "missing output model path")?;
+    reject_trailing(&mut arguments, "train accepts exactly two paths")?;
+    Ok(OfflinePolicyCommand::Train(TrainingRequest {
+        corpus,
+        output,
+    }))
+}
+
+fn parse_evaluation(
+    mut arguments: impl Iterator<Item = OsString>,
+    regression: bool,
+) -> Result<OfflinePolicyCommand, OfflinePolicyCommandError> {
+    let corpus = required_path(&mut arguments, "missing input corpus path")?;
+    let model = required_path(&mut arguments, "missing input model path")?;
+    let output = required_path(&mut arguments, "missing output report path")?;
+    reject_trailing(
+        &mut arguments,
+        if regression {
+            "regression accepts exactly three paths"
+        } else {
+            "evaluate accepts exactly three paths"
+        },
+    )?;
+    let request = EvaluationRequest {
+        corpus,
+        model,
+        output,
+    };
+    Ok(if regression {
+        OfflinePolicyCommand::Regression(request)
+    } else {
+        OfflinePolicyCommand::Evaluate(request)
+    })
+}
+
+fn required_path(
+    arguments: &mut impl Iterator<Item = OsString>,
+    missing: &'static str,
+) -> Result<PathBuf, OfflinePolicyCommandError> {
+    arguments
+        .next()
+        .map(PathBuf::from)
+        .ok_or(OfflinePolicyCommandError::Usage(missing))
+}
+
+fn reject_trailing(
+    arguments: &mut impl Iterator<Item = OsString>,
+    message: &'static str,
+) -> Result<(), OfflinePolicyCommandError> {
+    if arguments.next().is_some() {
+        return Err(OfflinePolicyCommandError::Usage(message));
+    }
+    Ok(())
 }
 
 fn no_trailing_arguments(

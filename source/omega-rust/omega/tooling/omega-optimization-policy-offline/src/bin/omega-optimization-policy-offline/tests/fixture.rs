@@ -11,9 +11,13 @@ use omega_optimization_core::{
     TargetCostModelIdentity,
 };
 use omega_optimization_policy::{
-    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ValidatedCandidateSummary,
+    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
+};
+use omega_optimization_policy_offline::{
+    OfflinePolicySplit, ValidatedOfflinePolicyCorpus, admit_external_decision_logs,
+    split_for_source,
 };
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -48,6 +52,48 @@ pub(super) fn arguments(output: &Path, logs: &[&Path]) -> Vec<OsString> {
         .chain([output.as_os_str().to_owned()])
         .chain(logs.iter().map(|path| path.as_os_str().to_owned()))
         .collect()
+}
+
+pub(super) fn command_arguments(command: &str, paths: &[&Path]) -> Vec<OsString> {
+    [OsString::from("tool"), OsString::from(command)]
+        .into_iter()
+        .chain(paths.iter().map(|path| path.as_os_str().to_owned()))
+        .collect()
+}
+
+pub(super) fn reference_corpus(prefix: &[u8]) -> ValidatedOfflinePolicyCorpus {
+    admit_external_decision_logs([
+        encoded_log_for_split(prefix, OfflinePolicySplit::Training),
+        encoded_log_for_split(prefix, OfflinePolicySplit::Evaluation),
+        encoded_log_for_split(prefix, OfflinePolicySplit::Regression),
+    ])
+    .unwrap()
+}
+
+pub(super) fn corpus_without(
+    prefix: &[u8],
+    omitted: OfflinePolicySplit,
+) -> ValidatedOfflinePolicyCorpus {
+    let logs = [
+        OfflinePolicySplit::Training,
+        OfflinePolicySplit::Evaluation,
+        OfflinePolicySplit::Regression,
+    ]
+    .into_iter()
+    .filter(|split| *split != omitted)
+    .map(|split| encoded_log_for_split(prefix, split));
+    admit_external_decision_logs(logs).unwrap()
+}
+
+fn encoded_log_for_split(prefix: &[u8], split: OfflinePolicySplit) -> Vec<u8> {
+    for ordinal in 0_u64..100_000 {
+        let name = [prefix, &ordinal.to_le_bytes()].concat();
+        let source = OptimizationUnitIdentity::from_canonical_bytes(&name);
+        if split_for_source(source) == split {
+            return encoded_log(&name);
+        }
+    }
+    panic!("deterministic split search exhausted")
 }
 
 pub(super) fn encoded_log(name: &[u8]) -> Vec<u8> {

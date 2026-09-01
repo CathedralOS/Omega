@@ -119,13 +119,14 @@ whole source identities into deterministic training, evaluation, and
 regression groups. It has no compiler/process/build dependency. Training,
 and independently replayed evaluation/regression reports now have one tiny
 deterministic cost-threshold reference implementation with strict identities
-and codecs. It measures recorded-action agreement only. An explicit offline
-`capture <output-corpus> <decision-log>...` command applies that same strict
-corpus admission and publishes a new artifact without overwriting an existing
-path. It has no model or compiler execution authority. Checked regression
-manifests, meaningful measured objectives, external models, and sandboxed
-compiler-side policy execution remain experimental work and are not part of
-ordinary builds.
+and codecs. It measures recorded-action agreement only. Explicit offline
+`capture`, `train`, `evaluate`, and `regression` commands apply those same
+strict admission and independent-replay boundaries and publish new artifacts
+without overwriting existing paths. Evaluation and regression are distinct
+commands with fixed splits. They run no compiler, external model, or process.
+Checked regression manifests, meaningful measured objectives, external models,
+and sandboxed compiler-side policy execution remain experimental work and are
+not part of ordinary builds.
 
 The neutral `omega-bounded-process` tooling boundary is only a prerequisite for
 external execution. It centralizes structured command preparation, concrete
