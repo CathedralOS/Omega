@@ -160,6 +160,15 @@ enablement and order.
 | Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
+Logical spill planning is deliberately absent from this rule table. It is a
+non-selectable allocation decision below
+`omega-regalloc/src/allocation/logical_spill_operations/mod.rs`. That small
+entrance coordinates `compute/` and independent `validate/` rungs; `model.rs`
+and `identity.rs` own vocabulary, while `codec/` owns versioned transport. The
+test taxonomy mirrors those boundaries, and the cross-target pipeline leaf is
+`register_allocation/logical_spill_operations.rs`. No allocation-recovery
+catalog or user-visible optimization name is duplicated for this evidence.
+
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create

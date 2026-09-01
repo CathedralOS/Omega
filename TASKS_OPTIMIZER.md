@@ -552,8 +552,17 @@ decision. Only true language-semantic questions belong in
   generic allocation-recovery publication carrier.
 - [x] x86-64 and AArch64 register-environment ABI/call-clobber corruption
   matrices.
-- [ ] Add spill choice, insertion, reload/store validation, and stack-slot
-  coloring.
+- [>] Add spill choice, insertion, reload/store validation, and stack-slot
+  coloring. Deterministic bounded spill choice now feeds a V1 independently
+  replayed logical spill-operation plan for active-resident non-address
+  unsigned-U64 instruction results. It binds selected/range/legality/choice
+  custody, records logical storage plus store-before-pressure,
+  reload-before-first-future-use, and the complete later-use rewrite suffix,
+  and has versioned transport, exact budgets, typed refusal, corruption, and
+  x86-64/AArch64 fixture coverage. It intentionally grants no physical slot,
+  offset, instruction, frame, unwind, trap, or publication authority. Physical
+  spill/reload insertion, stack-slot coloring, and downstream realization
+  remain open.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,

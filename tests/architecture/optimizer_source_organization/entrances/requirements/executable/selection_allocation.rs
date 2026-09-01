@@ -142,6 +142,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn choose_spill_victims",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/mod.rs",
+        coordination_marker: "pub fn plan_logical_spill_operations",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/compute/mod.rs",
+        coordination_marker: "action::compute_action(",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/validate/mod.rs",
+        coordination_marker: "replay::replay_action(",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocation_legality/mod.rs",
         coordination_marker: "pub fn analyze_allocation_legality",
     },

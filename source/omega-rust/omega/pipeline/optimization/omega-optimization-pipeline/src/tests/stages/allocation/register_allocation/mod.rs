@@ -4,5 +4,6 @@ mod allocation_legality;
 mod fixed_view_copies;
 mod live_ranges;
 mod liveness;
+mod logical_spill_operations;
 mod register_homes;
 mod selected_input;
