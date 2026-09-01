@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Exact arithmetic-family target replay routes.
 
 pub(crate) mod exact_add;
+pub(crate) mod exact_multiply;
 pub(crate) mod exact_subtract;
 mod reconstruction;
 mod replay;
@@ -11,10 +12,9 @@ pub(crate) mod wrapping_add;
 pub(crate) mod wrapping_multiply;
 pub(crate) mod wrapping_subtract;
 
-// Family leaves enter through these named joins; their shared ABI and
-// provenance implementation descends into `reconstruction` and then `replay`.
+// Named joins keep target leaves separate from shared ABI replay.
 pub(super) use reconstruction::{
-    reconstruct_exact_add, reconstruct_exact_subtract, reconstruct_saturating_add,
-    reconstruct_saturating_multiply, reconstruct_saturating_subtract, reconstruct_wrapping_add,
-    reconstruct_wrapping_multiply, reconstruct_wrapping_subtract,
+    reconstruct_exact_add, reconstruct_exact_multiply, reconstruct_exact_subtract,
+    reconstruct_saturating_add, reconstruct_saturating_multiply, reconstruct_saturating_subtract,
+    reconstruct_wrapping_add, reconstruct_wrapping_multiply, reconstruct_wrapping_subtract,
 };

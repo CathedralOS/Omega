@@ -5,11 +5,12 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::super::super::model::{
-    ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerSubtractParameters,
-    ReconstructedIntegerArithmeticParameters,
+    ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerMultiplyParameters,
+    ReconstructedExactIntegerSubtractParameters, ReconstructedIntegerArithmeticParameters,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
+    StraightLineExactIntegerMultiplyParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
@@ -59,6 +60,29 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_subtract
         StraightLineExactIntegerSubtractParametersTranslationError::TargetProvenance,
     )?;
     Ok(ReconstructedExactIntegerSubtractParameters {
+        arithmetic,
+        obligation: source.obligation,
+    })
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_multiply(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedExactIntegerMultiplyParameters,
+    StraightLineExactIntegerMultiplyParametersTranslationError,
+> {
+    let source =
+        super::super::super::source::integer::arithmetic::reconstruct_exact_multiply(function)?;
+    let arithmetic = super::replay::reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source.arithmetic,
+        StraightLineExactIntegerMultiplyParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedExactIntegerMultiplyParameters {
         arithmetic,
         obligation: source.obligation,
     })

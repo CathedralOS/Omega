@@ -4,6 +4,7 @@
 
 mod dispatch;
 mod model;
+mod selection;
 
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
@@ -33,6 +34,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::parameter::bitwise::INTEGER_XOR,
     dispatch::parameter::arithmetic::EXACT_INTEGER_ADD,
     dispatch::parameter::arithmetic::EXACT_INTEGER_SUBTRACT,
+    dispatch::parameter::arithmetic::EXACT_INTEGER_MULTIPLY,
     dispatch::parameter::arithmetic::SATURATING_INTEGER_ADD,
     dispatch::parameter::arithmetic::WRAPPING_INTEGER_ADD,
     dispatch::parameter::arithmetic::SATURATING_INTEGER_SUBTRACT,
@@ -49,51 +51,12 @@ pub(super) fn validate_function(
     AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetTranslationValidationError,
 > {
-    validate_function_with_catalog(
+    selection::validate(
         source,
         expected_target,
         target,
         ENABLED_TRANSLATION_FAMILIES,
     )
-}
-
-fn validate_function_with_catalog(
-    source: &AbstractFunction,
-    expected_target: NativeTarget,
-    target: &TargetFunction,
-    catalog: &[TranslationFamilyDescriptor],
-) -> Result<
-    AbstractToTargetFunctionTranslationDisposition,
-    AbstractToTargetTranslationValidationError,
-> {
-    let mut selected: Option<&TranslationFamilyDescriptor> = None;
-    for descriptor in catalog {
-        if !(descriptor.is_candidate)(source) {
-            continue;
-        }
-        if let Some(first) = selected {
-            return Err(
-                AbstractToTargetTranslationValidationError::AmbiguousFunctionFamily {
-                    machine: source.machine,
-                    first: first.family,
-                    second: descriptor.family,
-                },
-            );
-        }
-        selected = Some(descriptor);
-    }
-    let Some(descriptor) = selected else {
-        return Ok(AbstractToTargetFunctionTranslationDisposition::Uncovered);
-    };
-    (descriptor.validate)(source, expected_target, target)
-        .map(AbstractToTargetFunctionTranslationDisposition::Validated)
-        .map_err(
-            |error| AbstractToTargetTranslationValidationError::FunctionFamily {
-                machine: source.machine,
-                family: descriptor.family,
-                error,
-            },
-        )
 }
 
 #[cfg(test)]

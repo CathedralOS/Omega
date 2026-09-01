@@ -25,6 +25,13 @@ pub(in crate::validation::catalog) const EXACT_INTEGER_SUBTRACT: TranslationFami
         exact_integer_subtract,
     );
 
+pub(in crate::validation::catalog) const EXACT_INTEGER_MULTIPLY: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineExactIntegerMultiplyParameters,
+        straight_line_parameter::integer::arithmetic::exact_multiply::is_candidate,
+        exact_integer_multiply,
+    );
+
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
@@ -121,6 +128,20 @@ pub(in crate::validation::catalog::dispatch) fn exact_integer_subtract(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerSubtractParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerSubtractParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn exact_integer_multiply(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::exact_multiply::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerMultiplyParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerMultiplyParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(

@@ -15,46 +15,49 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first twenty-four families reconstruct parameterless straight-line
+replay. Its first twenty-five families reconstruct parameterless straight-line
 integer and Boolean literal returns, scalar `Crash`, direct integer and Boolean
 parameter returns, Boolean negation of a parameter, and equality of two Boolean
 parameters, equality of two same-type integer parameters, or strict/inclusive
 ordering of two same-type integer parameters, plus integer bitwise-not and
 integer-widen or proof-bearing integer exact-cast of one parameter, and integer
 bitwise-AND, bitwise-OR, bitwise-XOR, proof-bearing fixed-integer exact-add,
-proof-bearing fixed-integer exact-subtract, saturating-add, wrapping-add,
+exact-subtract, or exact-multiply, plus saturating-add, wrapping-add,
 saturating-subtract, wrapping-subtract, wrapping-multiply, or
 saturating-multiply of two same-type integer parameters, without calling
-`lowering`, `KnownScalar`, or the scalar-return helper. The
-distinct parameter families share governed source-envelope and
+`lowering`, `KnownScalar`, or the scalar-return helper. The distinct parameter
+families share governed source-envelope and
 whole-roster ABI replay rungs, which independently apply the target's calling
 policy to prove every incoming register or stack location. Parameter replay
 descends through explicit direct, unary, arithmetic, bitwise, and comparison
 rungs. Those joins bind operand/result identity and exact operation/edge
 provenance; Boolean equality, typed integer equality, and strict or inclusive
-integer ordering retain ordered
-and identical operands through recursive `ReturnBooleanExpression` receipts,
+integer ordering retain ordered and identical operands through recursive
+`ReturnBooleanExpression` receipts,
 while integer bitwise-not, bitwise-AND, bitwise-OR, bitwise-XOR, exact-add,
-exact-subtract, wrapping-add, saturating-add, saturating-subtract,
-wrapping-subtract, wrapping-multiply, and saturating-multiply retain exact-width
-operands, integer-widen retains distinct source/target types, and exact-cast
-additionally retains its proof obligation through `ReturnIntegerExpression`.
+exact-subtract, exact-multiply, wrapping-add, saturating-add,
+saturating-subtract, wrapping-subtract, wrapping-multiply, and
+saturating-multiply retain exact-width operands, integer-widen retains distinct
+source/target types, and exact-cast additionally retains its proof obligation
+through `ReturnIntegerExpression`.
 Exact-add independently retains its range-obligation identity, rejects address
 carriers, and rejects substitution with wrapping or saturating addition.
 Saturating-add independently rejects both wrapping and proof-bearing exact-add
-substitutions. Saturating-subtract likewise rejects wrapping and proof-bearing exact
-subtraction without treating operand order as commutative. Saturating-multiply
-independently rejects wrapping, proof-bearing exact, addition, and subtraction
-policy substitution. Exact-subtract retains its range-obligation identity,
-rejects address carriers and arithmetic-policy
-substitution, and never treats ordered operands as commutative. The optimized
-custody tests construct canonical exact-cast representability and exact-subtract
-range goals as machine preconditions and discharge them with real Terminal
-proof certificates; replay never substitutes fresh proof search for obligation
-identity. Its adjacent sub-100-line ordered catalog is the sole enable/disable
-inventory. Each descriptor joins one source
-classifier to one typed replay adapter; zero matches are explicitly uncovered,
-one match is retained on that function's roster row, and ambiguity fails closed.
+substitutions. Saturating-subtract likewise rejects wrapping and proof-bearing
+exact subtraction without treating operand order as commutative.
+Saturating-multiply independently rejects wrapping, proof-bearing exact,
+addition, and subtraction
+policy substitution. Exact-subtract and exact-multiply retain their exact
+range-obligation identities, reject address carriers and arithmetic-policy
+substitution, and never treat ordered-operand custody as commutative. The
+optimized custody tests construct canonical exact-cast representability,
+exact-subtract range, and exact-product range goals as machine preconditions and
+discharge them with real Terminal proof certificates; replay never substitutes
+fresh proof search for obligation identity. Its adjacent ordered catalog is the
+sole enable/disable inventory.
+Each descriptor joins one source classifier to one typed replay adapter; the
+separate selection leaf makes zero matches explicitly uncovered, retains one
+match on that function's roster row, and fails closed on ambiguity.
 The optimized target carrier retains this receipt. Its family-row roster is
 deliberately partial and therefore cannot overstate validation of other target
 operations while those rows are still being added.

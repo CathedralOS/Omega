@@ -465,10 +465,10 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Twenty-four abstract-to-target families, including
-  proof-bearing exact parameterized fixed-integer addition and subtraction plus
-  saturating parameterized integer addition, subtraction, and multiplication,
-  selected incoming u12 folds, current
+  machine-rule family. Twenty-five abstract-to-target families, including
+  proof-bearing exact parameterized fixed-integer addition, subtraction, and
+  multiplication plus saturating parameterized integer addition, subtraction,
+  and multiplication, selected incoming u12 folds, current
   machine substitutions, structural-Unit encoding, resolved layout, and
   ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
@@ -538,10 +538,13 @@ decision. Only true language-semantic questions belong in
   error/receipt, corruption, and optimized-custody leaves. Their common
   arithmetic carrier and whole-roster ABI/provenance replay are shared at the
   nearest multi-consumer ancestor.
-- [x] Add an independent proof-bearing exact-add parameter translation family.
-  Its distinct catalog row reconstructs source and ABI custody without calling
-  lowering, retains the exact overflow-obligation identity in its receipt, and
-  rejects wrapping/saturating substitution and independent obligation drift.
+- [x] Add independent proof-bearing exact-add, exact-subtract, and
+  exact-multiply parameter translation families. Their distinct catalog rows
+  reconstruct fixed-integer source and ABI custody without calling lowering,
+  retain exact range-obligation identities, reject address carriers, and fail
+  closed on wrapping/saturating substitution, ordered-operand drift, and
+  independent obligation drift. Exact-subtract and exact-multiply also cross
+  optimized-target custody with real Terminal certificates.
 - [x] Add independent saturating-add and saturating-subtract parameter
   translation families. Each exact catalog row reconstructs ordered source
   operands, whole-roster ABI placement, provenance, and its matching target

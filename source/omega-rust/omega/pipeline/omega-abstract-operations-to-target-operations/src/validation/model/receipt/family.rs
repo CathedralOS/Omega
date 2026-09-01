@@ -60,6 +60,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineExactIntegerSubtractParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineExactIntegerSubtractParameters
             }
+            Self::StraightLineExactIntegerMultiplyParameters(_) => {
+                AbstractToTargetTranslationFamily::StraightLineExactIntegerMultiplyParameters
+            }
             Self::StraightLineSaturatingIntegerAddParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters
             }
