@@ -295,10 +295,16 @@ and entry, reach plans, authority verdict, initial `Build` snapshot, exact
 target inputs, filesystem scope, and sponsor. Compiler orchestration keeps that
 carrier with the coherent base frontend, package authority/source-consumption
 verdict, and frozen transitional syntax until execution, then verifies the
-returned exact symbol. It deliberately retains the full final frontend rebuild;
-the transitional rebind now requires the exact source occurrence and normalized
-callable identity rather than a name. Continuation from the retained base and
-removal of the full rebuild/rebind remain open. Own generated outputs are now
+returned exact symbol. A bounded end-to-end continuation now accepts a
+nonempty generated suffix consisting only of plain monomorphic `data` roots,
+preserves every retained handle/table, authored-selection and symbol/source
+row, and post-typing sidecar as exact prefixes, appends only extension-owned
+symbol/source/data/member/payload/type/selection suffixes, and retains the
+selected build symbol without transitional source/callable-identity rebind.
+Unsupported generic, constrained, lifetime-bearing, const-expression,
+dynamic, or non-data suffixes return the owned base to the existing full
+rebuild/rebind. General continuation and removal of that fallback remain
+open. Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is
 consumed into the unchanged transitional combined pass without source reread or
@@ -308,9 +314,8 @@ the complete later stratum under the settled one-way visibility and duplicate
 rules. The seeded result can now retain the exact authored-selection append
 frontier and transactionally rebase only extension-owned occurrences against a
 later phase's preserved base ledger while leaving appended compiler clones of
-retained occurrences unchanged. This is a representation prerequisite only:
-wiring it into compiler orchestration and implementing seeded resolved-to-typed
-lowering remain engineering work for the retained-base continuation.
+retained occurrences unchanged. The plain-data continuation now consumes that
+carrier; broader resolved-to-typed continuation remains engineering work.
 
 Dependency compilation consumes the same output through an opaque, compiler-
 issued bundle rather than executing the dependency build again. Review

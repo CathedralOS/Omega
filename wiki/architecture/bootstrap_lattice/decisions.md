@@ -462,11 +462,17 @@ prepared program and entry together with its reach plans, authority verdict,
 initial `Build` snapshot, target inputs, filesystem scope, and sponsor. Checked
 orchestration retains that carrier beside the coherent base frontend, package
 authority/source-consumption verdict, and frozen transitional syntax, then
-consumes the carrier and verifies its returned exact symbol. The compiler still
-performs the full final frontend rebuild; its transitional rebind now requires
-the exact source occurrence and normalized callable identity rather than a
-name. Continuing final checking from the retained base and deleting that
-rebuild/rebind remain the next D18 continuation. The source-side prerequisite
+consumes the carrier and verifies its returned exact symbol. A bounded
+generated-source cohort now continues from that retained base through symbol
+resolution and typing: a nonempty extension of plain monomorphic `data` roots
+preserves every retained typed handle/table, authored-selection, symbol/source
+row, and post-typing sidecar as exact prefixes, appends only extension-owned
+symbol/source/data/member/payload/type/selection suffixes, and keeps the exact
+selected build symbol without source/callable-identity rebind. Unsupported
+generic, constrained, lifetime-bearing, const-expression, dynamic, or
+non-data shapes return the owned base to the unchanged full frontend
+rebuild/rebind fallback. General seeded typing and deletion of that fallback
+remain open. The source-side prerequisite
 is now explicit: own generated outputs are parsed once into a retained
 extension-only syntax carrier bound to the exact base source frontier, unit
 roots, bytes, and custody. The carrier feeds the unchanged transitional
@@ -475,13 +481,13 @@ syntax-to-resolved continuation is now live: it consumes the retained resolved
 base, appends extension roots and children without moving existing handles,
 preserves base service IDs and authored reach provenance, validates the exact
 retained source frontier, and applies the settled one-way visibility and same-
-stratum duplicate rules. Compiler orchestration of that continuation and
-seeded resolved-to-typed lowering remain implementation work. A bounded
-representation prerequisite now retains the exact pre-extension authored-
+stratum duplicate rules. A bounded representation prerequisite retains the
+exact pre-extension authored-
 selection frontier for every occurrence-bearing symbol-resolved store. Its
 opaque consuming carrier transactionally preserves/replaces the destination
-base ledger and shifts only the validated extension suffix; it does not itself
-admit typed continuation or remove the transitional rebuild.
+base ledger and shifts only the validated extension suffix. The plain-data
+continuation consumes that carrier; broader shapes still use the transitional
+rebuild.
 
 Package orchestration processes dependencies in deterministic dependency order
 and retains durable source bundles, commitments, and review evidence between

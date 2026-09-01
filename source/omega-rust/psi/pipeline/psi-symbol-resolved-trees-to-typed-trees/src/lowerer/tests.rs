@@ -1,7 +1,71 @@
-use super::lower_symbol_resolved_trees;
+use super::{
+    SeededPlainDataContinuationError, lower_seeded_plain_data_extension,
+    lower_symbol_resolved_trees, lower_symbol_resolved_trees_to_seeded_plain_data_base,
+};
+use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::{
+    RebasedSeededSymbolResolvedTrees, lower_syntax_extension_with_authored_selection_frontier,
+    lower_syntax_trees, lower_syntax_trees_with_sources,
+};
+use psi_tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
+use std::path::PathBuf;
+use std::sync::Arc;
+
+fn seeded_plain_data_inputs(
+    base_source: &str,
+    extension_source: &str,
+) -> (
+    super::SeededPlainDataTypingBase,
+    RebasedSeededSymbolResolvedTrees,
+) {
+    let mut base_sources = SourceMap::default();
+    let base_id = base_sources
+        .add(PathBuf::from("base.omg"), base_source.to_owned())
+        .source_id;
+    let base_syntax = parse_syntax_trees_with_id(
+        base_id,
+        &Lexer::new(base_source).tokenize().expect("tokenize base"),
+    )
+    .expect("parse base");
+    let resolved = lower_syntax_trees_with_sources(&base_syntax, Arc::new(base_sources.clone()))
+        .expect("resolve base");
+    let typing_base = lower_symbol_resolved_trees_to_seeded_plain_data_base(resolved)
+        .expect("type retained base");
+    assert_eq!(typing_base.typed().symbols.source_files().count(), 1);
+    let mut sources = base_sources;
+    let extension_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("generated.omg"),
+            extension_source.to_owned(),
+            PathBuf::from("."),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::CurrentActivationExtension,
+        )
+        .source_id;
+    let extension_syntax = parse_syntax_trees_with_id(
+        extension_id,
+        &Lexer::new(extension_source)
+            .tokenize()
+            .expect("tokenize extension"),
+    )
+    .expect("parse extension");
+    let seeded = lower_syntax_extension_with_authored_selection_frontier(
+        typing_base.resolved_base_for_extension(),
+        &extension_syntax,
+        Arc::new(sources),
+        Vec::new(),
+    )
+    .expect("resolve seeded extension");
+    let rebased = seeded
+        .rebase_authored_selections_for_typed_continuation(
+            typing_base.typed().authored_declaration_selections(),
+        )
+        .expect("rebase extension selections");
+    assert_eq!(rebased.trees().symbols.source_files().count(), 2);
+    (typing_base, rebased)
+}
 
 fn lower_source(source: &str) -> Result<psi_typed_trees::TypedTrees, psi_diagnostics::Diagnostic> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
@@ -3409,4 +3473,143 @@ fn typed_snapshot_retains_trait_owned_operator_token() {
     };
 
     assert_eq!(requirement.spelling, Some("<"));
+}
+
+#[test]
+fn seeded_plain_data_continuation_appends_named_data_and_preserves_typed_sidecars() {
+    let (mut base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; }",
+        "data Generated { base: Authored; }",
+    );
+    base.typed_mut()
+        .evidence_forwardings
+        .push(psi_typed_trees::typed_trees::EvidenceForwarding {
+            machine_symbol: psi_symbols::SymbolHandle::invalid(),
+            state_symbol: psi_symbols::SymbolHandle::invalid(),
+            statement_index: 7,
+            source_statement_index: 11,
+            target: psi_typed_trees::name::Identifier::generated_static("target"),
+            source: psi_typed_trees::name::Identifier::generated_static("source"),
+            source_conformance: None,
+        });
+    let before = base.typed().clone();
+    let before_members = before
+        .data_members
+        .iter()
+        .map(|(handle, member)| (handle, member.clone()))
+        .collect::<Vec<_>>();
+    let before_type_count = before.type_reference_table.type_reference_count();
+    let before_symbols = before
+        .symbols
+        .symbols()
+        .nodes()
+        .iter()
+        .map(|(handle, symbol)| (handle, symbol.clone()))
+        .collect::<Vec<_>>();
+    let resolved_ledger = extension.trees().authored_declaration_selections().clone();
+
+    let typed = lower_seeded_plain_data_extension(extension, base)
+        .expect("plain generated data should append");
+
+    assert_eq!(
+        typed.data_definitions().len(),
+        before.data_definitions().len() + 1
+    );
+    assert_eq!(
+        &typed.data_definitions()[..before.data_definitions().len()],
+        before.data_definitions()
+    );
+    assert_eq!(typed.evidence_forwardings, before.evidence_forwardings);
+    assert_eq!(
+        typed
+            .data_members
+            .iter()
+            .take(before_members.len())
+            .map(|(handle, member)| (handle, member.clone()))
+            .collect::<Vec<_>>(),
+        before_members
+    );
+    for arena_index in 1..=u32::try_from(before_type_count).expect("type count") {
+        let handle = psi_arena::Handle::from_arena_index(arena_index);
+        assert_eq!(
+            typed.type_reference_table.type_reference(handle),
+            before.type_reference_table.type_reference(handle)
+        );
+    }
+    assert_eq!(
+        typed
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .take(before_symbols.len())
+            .map(|(handle, symbol)| (handle, symbol.clone()))
+            .collect::<Vec<_>>(),
+        before_symbols
+    );
+    let generated = typed.data_definitions().last().expect("generated data");
+    let [psi_typed_trees::data::DataMember::Field(generated_field)] = typed.data_members(generated)
+    else {
+        panic!("one generated field")
+    };
+    assert!(generated_field.symbol.arena_index() > before.symbols.symbols().len() as u32);
+    assert!(generated_field.type_reference.arena_index() > before_type_count as u32);
+    assert!(
+        typed
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(resolved_ledger.as_slice())
+    );
+    assert!(typed.authored_declaration_selections().len() > resolved_ledger.len());
+}
+
+#[test]
+fn seeded_plain_data_continuation_returns_exact_base_for_non_data_suffix() {
+    let (base, extension) =
+        seeded_plain_data_inputs("data Authored { value: u32; }", "machine generated() {}");
+    let expected = base.typed().clone();
+
+    let (returned, error) = lower_seeded_plain_data_extension(extension, base)
+        .expect_err("non-data roots stay on the rebuild path");
+
+    assert_eq!(
+        error,
+        SeededPlainDataContinuationError::UnsupportedExtensionShape
+    );
+    assert_eq!(returned.into_typed(), expected);
+}
+
+#[test]
+fn seeded_plain_data_continuation_fences_generic_and_unresolved_named_fields() {
+    for extension_source in [
+        "data Generated { value: Generic<u32>; }",
+        "data Generated { value: Missing; }",
+    ] {
+        let (base, extension) =
+            seeded_plain_data_inputs("data Generic<T> { value: T; }", extension_source);
+        let expected = base.typed().clone();
+        let (returned, error) = lower_seeded_plain_data_extension(extension, base)
+            .expect_err("generic or unresolved named fields require the rebuild path");
+        assert_eq!(
+            error,
+            SeededPlainDataContinuationError::UnsupportedExtensionShape
+        );
+        assert_eq!(returned.into_typed(), expected);
+    }
+}
+
+#[test]
+fn seeded_plain_data_continuation_rejects_cross_paired_resolved_base_transactionally() {
+    let (left, _) = seeded_plain_data_inputs("data Left {}", "data Added {}");
+    let (_, right_extension) = seeded_plain_data_inputs("data Right {}", "data Added {}");
+    let expected = left.typed().clone();
+
+    let (returned, error) = lower_seeded_plain_data_extension(right_extension, left)
+        .expect_err("resolved and typed bases cannot be cross-paired");
+
+    assert_eq!(
+        error,
+        SeededPlainDataContinuationError::CrossPairedResolvedBase
+    );
+    assert_eq!(returned.into_typed(), expected);
 }

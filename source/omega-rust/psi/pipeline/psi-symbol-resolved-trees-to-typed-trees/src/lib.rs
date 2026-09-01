@@ -24,4 +24,8 @@ mod trait_definition;
 mod type_reference;
 mod wire;
 
-pub use lowerer::{lower_symbol_resolved_trees, lower_symbol_resolved_trees_owned};
+pub use lowerer::{
+    SeededPlainDataContinuationError, SeededPlainDataTypingBase, lower_seeded_plain_data_extension,
+    lower_symbol_resolved_trees, lower_symbol_resolved_trees_owned,
+    lower_symbol_resolved_trees_to_seeded_plain_data_base,
+};

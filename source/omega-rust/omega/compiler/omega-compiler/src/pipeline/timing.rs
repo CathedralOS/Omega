@@ -20,6 +20,14 @@ impl CompileTimings {
         stage: StageMeta,
         work: impl FnOnce() -> Result<T, Vec<Diagnostic>>,
     ) -> Result<T, Vec<Diagnostic>> {
+        self.record_result(stage, work)
+    }
+
+    pub(super) fn record_result<T, E>(
+        &mut self,
+        stage: StageMeta,
+        work: impl FnOnce() -> Result<T, E>,
+    ) -> Result<T, E> {
         let allocation_start = allocation_snapshot();
         let time_start = Instant::now();
         let result = work();
@@ -108,5 +116,16 @@ mod tests {
         assert_eq!(timings.phases()[0].allocations.allocation_calls, 4);
         assert_eq!(timings.phases()[0].allocations.allocated_bytes, 30);
         assert_eq!(timings.phases()[1].phase, SOURCE_FILES_TO_TOKENS.label());
+    }
+
+    #[test]
+    fn generic_error_measurement_preserves_the_exact_error() {
+        let mut timings = CompileTimings::default();
+        let result: Result<(), &'static str> =
+            timings.record_result(TOKENS_TO_SYNTAX_TREES, || Err("retained base"));
+
+        assert_eq!(result, Err("retained base"));
+        assert_eq!(timings.phases().len(), 1);
+        assert_eq!(timings.phases()[0].phase, TOKENS_TO_SYNTAX_TREES.label());
     }
 }

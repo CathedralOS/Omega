@@ -65,6 +65,26 @@ impl RetainedGeneratedSyntaxExtension {
         &self.generated_source_custody
     }
 
+    pub(super) fn is_nonempty_data_only(&self) -> bool {
+        self.syntax_trees.root_item_count() > 0
+            && self
+                .syntax_trees
+                .root_items()
+                .all(|item| matches!(item, psi_syntax_trees::item::Item::Data(_)))
+    }
+
+    pub(super) fn seeded_inputs(
+        &self,
+        assembled: &AssembledSyntax,
+    ) -> Result<(&SyntaxTrees, Arc<psi_source::SourceMap>), Vec<Diagnostic>> {
+        if !Arc::ptr_eq(&assembled.sources, &self.base_sources) {
+            return Err(vec![Diagnostic::error(
+                "retained generated-source extension no longer matches its base source frontier",
+            )]);
+        }
+        Ok((&self.syntax_trees, self.sources.clone()))
+    }
+
     /// Consume the retained extension into the existing whole-program route.
     /// Root handles are reminted by `SyntaxTrees::extend_from`; source-file
     /// rows are rebound to those exact appended handles in the same unit order.
