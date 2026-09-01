@@ -1110,8 +1110,8 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     }
                     psi_typed_trees::data::DataShapeKind::Mixed => {
                         // The bounded nested mixed-shape slice permits exactly
-                        // one, two, three, four, five, six, seven, eight, nine, or ten
-                        // direct record fields before the sole mixed occurrence.
+                        // one, two, three, four, five, six, seven, eight, nine, ten, or
+                        // eleven direct record fields before the sole mixed occurrence.
                         // Deeper records, case payloads, and two mixed siblings
                         // retain their fail-closed fence until their independent
                         // path and replay canaries land.
@@ -1263,6 +1263,33 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                         CheckedStructuralPredicatePathSegment::Field(_)
                                     ],
                                     [
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_)
+                                    ]
+                                ) | (
+                                    [
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_),
+                                        CheckedStructuralPredicatePathSegment::Field(_)
+                                    ],
+                                    [
+                                        CheckedStructuralPredicatePathSegment::Field(_),
                                         CheckedStructuralPredicatePathSegment::Field(_),
                                         CheckedStructuralPredicatePathSegment::Field(_),
                                         CheckedStructuralPredicatePathSegment::Field(_),
