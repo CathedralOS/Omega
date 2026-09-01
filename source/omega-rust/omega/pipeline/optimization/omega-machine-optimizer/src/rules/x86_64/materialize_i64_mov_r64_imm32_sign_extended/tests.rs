@@ -338,6 +338,9 @@ fn selects_the_exact_sign_extended_i32_domain_for_low_and_extended_registers() {
 
     assert_eq!(computed.usage.iterations, 4);
     assert_eq!(computed.usage.rule_evaluations, 11);
+    assert_eq!(computed.usage.candidates, 3);
+    assert_eq!(computed.usage.validation_steps, 3);
+    assert_eq!(computed.usage.commits, 3);
     assert_eq!(computed.attempts.len(), 11);
     assert_eq!(
         computed
@@ -446,21 +449,41 @@ fn independent_replay_exposes_action_corruption() {
 }
 
 #[test]
-fn iteration_budget_is_exact_after_one_commit() {
+fn every_work_axis_exhausts_at_its_exact_boundary() {
     let fixture = fixture();
-    let error = super::compute::compute_from_parts(
-        &fixture.selected,
-        fixture.selected_identity,
-        &fixture.source,
-        fixture.source_identity,
-        &fixture.physical,
-        OptimizationWorkBudget::new(20, 20, 20, 20, 1).unwrap(),
-    )
-    .unwrap_err();
-    assert_eq!(
-        error,
-        X86MovR64Imm32SignExtendedMaterializationError::BudgetExceeded(
-            X86MovR64Imm32SignExtendedMaterializationWorkAxis::Iterations
-        )
-    );
+    for (budget, axis) in [
+        (
+            OptimizationWorkBudget::new(10, 20, 20, 20, 20).unwrap(),
+            X86MovR64Imm32SignExtendedMaterializationWorkAxis::RuleEvaluations,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 2, 20, 20, 20).unwrap(),
+            X86MovR64Imm32SignExtendedMaterializationWorkAxis::Candidates,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 20, 2, 20, 20).unwrap(),
+            X86MovR64Imm32SignExtendedMaterializationWorkAxis::ValidationSteps,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 20, 20, 2, 20).unwrap(),
+            X86MovR64Imm32SignExtendedMaterializationWorkAxis::Commits,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 20, 20, 20, 3).unwrap(),
+            X86MovR64Imm32SignExtendedMaterializationWorkAxis::Iterations,
+        ),
+    ] {
+        assert_eq!(
+            super::compute::compute_from_parts(
+                &fixture.selected,
+                fixture.selected_identity,
+                &fixture.source,
+                fixture.source_identity,
+                &fixture.physical,
+                budget,
+            ),
+            Err(X86MovR64Imm32SignExtendedMaterializationError::BudgetExceeded(axis)),
+            "the first unit beyond the exact {axis:?} budget must fail closed",
+        );
+    }
 }

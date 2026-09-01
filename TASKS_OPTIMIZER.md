@@ -786,8 +786,18 @@ unchecked rewrite or opt into lossy floating-point semantics.
   fixtures and pins default-disabled behavior, exact roster evaluation counts,
   repeated-run and iteration-budget determinism, typed fact custody through
   declarations and manifests, exact validator/commit/ledger joins, and
-  fixed-point idempotence. The remaining operational axes and other rule
-  families are not yet complete.
+  fixed-point idempotence. The x86 sign-extending MOV-r64-imm32 rule now pins
+  exact successful usage and first-over-boundary failure across all five work
+  axes. Its direct publication path independently sums baseline and selected
+  bytes, binds the complete and phase-local selection identities, and rejects
+  authenticated one-field substitutions of all eight generic post-allocation
+  custody fields after the enclosing V9 manifest identity is recomputed. True
+  second-application idempotence remains open: the rule currently publishes an
+  immutable encoding-choice artifact, not a rewritten
+  `PostAllocationMachinePlan` that the rule can honestly consume again.
+  Repeated reconstruction remains determinism evidence and is not relabelled as
+  idempotence. The remaining operational axes and other rule families are not
+  yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The
