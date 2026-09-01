@@ -5123,9 +5123,9 @@ fn generated_erased_lifetime_data_handoff_retains_configuration_and_evidence() {
 }
 
 #[test]
-fn unsupported_generic_generated_data_uses_the_whole_program_rebuild_fallback() {
+fn generated_type_parameter_data_continues_with_build_evidence() {
     let (project, profile) = rooted_build_probe_project(
-        "generated-generic-data-fallback",
+        "generated-generic-data-continuation",
         r#"    let generated: &[u8] in Path = builder.output.resolve("generated.omg");
     self.descriptor = self.filesystem.create(generated, 438);
     self.result = self.filesystem.write(self.descriptor, "data Generated<T> { value: T; }\n");
@@ -5136,16 +5136,34 @@ fn unsupported_generic_generated_data_uses_the_whole_program_rebuild_fallback() 
     let checked = compile_rooted_probe_with_sponsored_output(
         &project,
         profile,
-        "generated-generic-data-fallback-review",
+        "generated-generic-data-continuation-review",
     )
-    .expect("unsupported seeded shape must retain the whole-program rebuild path");
-    assert!(checked.typed.data_definitions().iter().any(|definition| {
-        definition.name.as_str() == "Generated"
-            && checked.typed.data_type_parameters(definition).len() == 1
-    }));
+    .expect("owner-local generic data should continue from the retained frontend");
+    let generated = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Generated")
+        .expect("generated data");
+    let [parameter] = checked.typed.data_type_parameters(generated) else {
+        panic!("Generated has one type parameter")
+    };
+    let [psi_typed_trees::data::DataMember::Field(value)] =
+        checked.typed.data_members(generated)
+    else {
+        panic!("Generated has one value field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(value.type_reference)
+    else {
+        panic!("Generated.value remains the exact type parameter")
+    };
+    assert_eq!(*symbol, parameter.symbol);
     let selected_build = checked
         .selected_build_machine_symbol()
-        .expect("fallback compilation rebinds the selected build machine");
+        .expect("generic continuation retains its exact selected build symbol");
     assert!(
         checked
             .typed
@@ -5153,11 +5171,27 @@ fn unsupported_generic_generated_data_uses_the_whole_program_rebuild_fallback() 
             .iter()
             .any(|machine| machine.symbol == selected_build)
     );
+    let observation_count = checked
+        .build_observation_summary()
+        .expect("filesystem build retains observation evidence")
+        .filesystem_operation_attempts()
+        .len();
+    assert_eq!(observation_count, 3);
+    assert_eq!(
+        checked
+            .build_evaluation_usage()
+            .expect("filesystem build retains evaluation evidence")
+            .filesystem_operation_attempts,
+        u64::try_from(observation_count).expect("observation count")
+    );
+    checked
+        .verify_current_source_consumption()
+        .expect("generic source bytes remain tied to retained output custody");
 
     let _ = std::fs::remove_dir_all(&project);
     let _ = std::fs::remove_dir_all(rooted_build_session(
         &project,
-        "generated-generic-data-fallback-review",
+        "generated-generic-data-continuation-review",
     ));
 }
 

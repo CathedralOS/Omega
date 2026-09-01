@@ -305,9 +305,13 @@ selected build symbol without transitional source/callable-identity rebind.
 This includes erased-lifetime-only data graphs whose reference lifetimes name
 the owning data binders and whose lifetime applications select an exact zero-
 runtime-parameter data declaration at its complete arity without runtime
-arguments. Runtime-generic, constrained, invalid-lifetime, const-expression,
-dynamic, fact-bearing, quotient, zero-gated, or non-data suffixes return the
-owned base to the existing full rebuild/rebind. General continuation and
+arguments. Uninstantiated generated data with owner-local, type-only parameters
+and default bounds also continues from that retained frontend; those parameters
+may appear directly or beneath the admitted reference, slice, and literal
+fixed-array shells. Instantiated generic applications, constrained or non-type
+parameters, nondefault bounds, invalid-lifetime, const-expression, dynamic,
+fact-bearing, quotient, zero-gated, or non-data suffixes return the owned base
+to the existing full rebuild/rebind. General continuation and
 removal of that fallback remain open. Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is

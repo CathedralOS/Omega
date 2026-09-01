@@ -11694,11 +11694,16 @@ checked-result arithmetic decision listed below.
   reference lifetime must name its owning data binder, and a lifetime
   application must select an exact zero-runtime-parameter data declaration,
   supply its complete lifetime arity from the owner's binders, and carry no
-  runtime arguments. Runtime-generic, constrained, const-expression, dynamic,
-  fact-bearing, quotient, zero-gated, invalid-lifetime, and non-data shapes
-  return the retained base to the unchanged whole-program rebuild/rebind
-  fallback. Broader seeded typing and final removal of that fallback remain
-  engineering work, not a language-design blocker.
+  runtime arguments. Uninstantiated generated data with owner-local, type-only
+  parameters and default bounds now continues through that same retained
+  frontend; those parameters may appear directly or beneath the already
+  admitted reference/slice/literal-fixed-array shells. Instantiated generic
+  applications, constrained or non-type parameters, nondefault bounds,
+  const-expression, dynamic, fact-bearing, quotient, zero-gated,
+  invalid-lifetime, and non-data shapes return the retained base to the
+  unchanged whole-program rebuild/rebind fallback. Broader seeded typing and
+  final removal of that fallback remain engineering work, not a
+  language-design blocker.
 - Harden resolution with content/revision checks, archive containment, limits,
   scoped writes, receipts, and one dependency/build/trust lock. Any imported
   claim-set diff invalidates root acceptance; release providers are hermetic or
