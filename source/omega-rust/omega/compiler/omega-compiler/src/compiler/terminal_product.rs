@@ -230,6 +230,11 @@ fn project_terminal_native_realization_proposal(
         callback_placements,
         &callback_occurrences,
     )?;
+    let package_terminal_authority_permissions = checked
+        .resolved_semantic_bindings()
+        .flat_map(|binding| binding.terminal_authority_permissions())
+        .cloned()
+        .collect();
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -238,6 +243,7 @@ fn project_terminal_native_realization_proposal(
         program_entry,
         checked.selected_provider_plans().clone(),
         external_binding_rows,
+        package_terminal_authority_permissions,
         builtin_proposals,
         callback_occurrences,
         ieee_float_fma_occurrences,

@@ -2152,6 +2152,29 @@ completion: retained-Terminal realization, portable filesystem facets, and
 complete replacement of every broad legacy row remain required before the
 filename classifier is deleted.
 
+Accepted ordinary closure evidence now derives the canonical exact accepted-
+permission set only from obligations that survived fresh root-policy replay.
+Retained Terminal native proposals preserve the checked package rows. Re-entry
+first requires bijective equality with that independently accepted set and then
+requires the accepted rows unchanged in the distinct receiving policy;
+omission, substitution, and coordinated proposal/policy widening reject, while
+unrelated receiving rows remain legal. The manager-owned entrypoint consumes
+the complete package-aware Terminal report, matches its production manifest to
+the accepted root's dependency closure, source-consumption commitment, selected
+build-machine identity, deterministic evaluation usage, build-observation
+identity, and target. Evaluation equality is invocation-local: aggregate
+review-sponsor ceilings and session-wide peaks remain separate orchestration
+custody. Compiler-report replay also requires the manifest target
+and native target to equal the retained proposal. The manager derives the
+accepted set from opaque evidence rather than accepting a caller's policy as
+package admission. Direct and retained routes share the final exact accepted-
+row-to-receiving-policy validator. This closes the in-memory library join
+without embedding policy authority in target-neutral Terminal Psi. The
+production CLI still has no accepted-evidence orchestration: project
+preparation supplies raw compiler inputs only. It must recover and replay root
+policy, then invoke and cover the manager-owned route, before root-policy-to-
+native transport is complete.
+
 ## D46 — Same-process package review does not observe its executable pathname
 
 Package orchestration drives compiler review inside the same loaded `omega`

@@ -584,6 +584,27 @@ native transport and complete legacy-row replacement remain separate unfinished
 joins, so the filename classifier is still present but cannot feed the exact
 table.
 
+The in-memory transport boundary is now explicit. Accepted ordinary closure
+evidence projects a canonical exact accepted-permission set solely from
+terminal-permission obligations accepted by fresh root-policy replay. A
+retained Terminal native proposal carries the checked package rows across
+frontend destruction. Re-entry requires those rows to equal the independently
+accepted set, then checks that set against the distinct receiving policy with
+the same validator as direct native compilation. The manager-owned entrypoint
+also matches the retained report's package production manifest to the accepted
+root's exact dependency closure, source-consumption commitment, selected build-
+machine identity, deterministic invocation-local evaluation usage, build-
+observation identity, and target before it derives the set from opaque
+evidence. Aggregate review-sponsor ceilings and session-wide peaks remain
+orchestration custody rather than invocation identity. Compiler-report
+custody separately rejects a retained proposal whose profile or native target
+differs from that production subject. Thus neither a freely constructed policy
+nor a reconstructed proposal grants package admission. Terminal Psi does not
+acquire policy authority, and unrelated receiving-policy rows remain legal.
+The command-line project workflow still stops at raw package inputs; it must
+gain accepted-evidence/root-policy orchestration and invoke and cover this route
+before the join is automatic in production.
+
 ### Resources
 
 Resource bounds remain contracts on explicit resource capabilities:

@@ -232,6 +232,7 @@ pub struct TerminalNativeRealizationProposal {
     program_entry: omega_build_evaluation::SelectedCompilerProgramEntry,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
+    package_terminal_authority_permissions: Vec<omega_effects::ServiceTerminalAuthorityPermission>,
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
     ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
@@ -250,6 +251,9 @@ impl TerminalNativeRealizationProposal {
         program_entry: omega_build_evaluation::SelectedCompilerProgramEntry,
         selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
         external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
+        mut package_terminal_authority_permissions: Vec<
+            omega_effects::ServiceTerminalAuthorityPermission,
+        >,
         compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
         callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
         ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
@@ -262,6 +266,15 @@ impl TerminalNativeRealizationProposal {
                 boundary_application_demands,
                 boundary_application_realizations,
             )?;
+        package_terminal_authority_permissions.sort_by(|left, right| {
+            left.service_schema()
+                .as_bytes()
+                .cmp(right.service_schema().as_bytes())
+                .then_with(|| {
+                    left.requirement_identity()
+                        .cmp(right.requirement_identity())
+                })
+        });
         let proposal = Self {
             terminal_artifact_identity: artifact.manifest().identity(),
             target_profile,
@@ -270,6 +283,7 @@ impl TerminalNativeRealizationProposal {
             program_entry,
             selected_provider_plans,
             external_binding_rows,
+            package_terminal_authority_permissions,
             compiler_builtins,
             callback_occurrences,
             ieee_float_fma_occurrences,
@@ -316,6 +330,7 @@ impl TerminalNativeRealizationProposal {
             return Err("Terminal native proposal target, profile, and ProgramEntry disagree");
         }
         self.validate_evaluated_import_rows()?;
+        self.validate_package_terminal_authority_permissions()?;
         let mut requirements = std::collections::BTreeSet::new();
         for builtin in &self.compiler_builtins {
             if !requirements.insert(builtin.requirement_identity()) {
@@ -495,6 +510,33 @@ impl TerminalNativeRealizationProposal {
         Ok(())
     }
 
+    fn validate_package_terminal_authority_permissions(&self) -> Result<(), &'static str> {
+        let mut previous = None;
+        for permission in &self.package_terminal_authority_permissions {
+            if permission.requirement_identity().is_empty()
+                || permission
+                    .requirement_identity()
+                    .chars()
+                    .any(char::is_control)
+            {
+                return Err(
+                    "Terminal native proposal contains an invalid package terminal-authority permission requirement",
+                );
+            }
+            let coordinate = (
+                permission.service_schema(),
+                permission.requirement_identity(),
+            );
+            if previous == Some(coordinate) {
+                return Err(
+                    "Terminal native proposal repeats a package terminal-authority permission",
+                );
+            }
+            previous = Some(coordinate);
+        }
+        Ok(())
+    }
+
     fn validate_evaluated_import_rows(&self) -> Result<(), &'static str> {
         let target_name = self.target_profile.target_name();
         let mut matched_external_rows = std::collections::BTreeSet::new();
@@ -597,6 +639,16 @@ impl TerminalNativeRealizationProposal {
 
     pub fn external_binding_rows(&self) -> &[omega_calling_conventions::ExternalBindingRow] {
         &self.external_binding_rows
+    }
+
+    /// Consumer-supplied package permission rows retained before the checked
+    /// frontend was destroyed. These rows grant nothing by themselves; native
+    /// re-entry must first match them to independently accepted package
+    /// evidence and then rejoin that accepted set to the receiving policy.
+    pub fn package_terminal_authority_permissions(
+        &self,
+    ) -> &[omega_effects::ServiceTerminalAuthorityPermission] {
+        &self.package_terminal_authority_permissions
     }
 
     pub fn compiler_builtins(&self) -> &[TerminalCompilerBuiltinProposal] {

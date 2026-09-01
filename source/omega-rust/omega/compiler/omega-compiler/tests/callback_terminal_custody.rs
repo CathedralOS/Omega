@@ -447,6 +447,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
+        proposal.package_terminal_authority_permissions().to_vec(),
         proposal.compiler_builtins().to_vec(),
         vec![
             omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
@@ -490,6 +491,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
             proposal.compiler_builtins().to_vec(),
             vec![
                 omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
@@ -517,6 +519,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
             proposal.compiler_builtins().to_vec(),
             vec![occurrence.clone(), occurrence.clone()],
             proposal.ieee_float_fma_occurrences().to_vec(),
@@ -537,6 +540,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
+        proposal.package_terminal_authority_permissions().to_vec(),
         proposal.compiler_builtins().to_vec(),
         vec![
             omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
@@ -573,6 +577,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
             proposal.compiler_builtins().to_vec(),
             vec![
                 omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
@@ -605,6 +610,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
             proposal.compiler_builtins().to_vec(),
             vec![
                 omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
@@ -638,6 +644,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.program_entry().clone(),
         proposal.selected_provider_plans().clone(),
         proposal.external_binding_rows().to_vec(),
+        proposal.package_terminal_authority_permissions().to_vec(),
         proposal.compiler_builtins().to_vec(),
         Vec::new(),
         proposal.ieee_float_fma_occurrences().to_vec(),
@@ -798,6 +805,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &execution,

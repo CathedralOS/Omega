@@ -5,7 +5,7 @@ use omega_package_evidence::record::{
 };
 use omega_package_manager::admission::{
     ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION, AcceptedOrdinaryEvidenceError,
-    accept_ordinary_closure_evidence,
+    accept_ordinary_closure_evidence, accepted_terminal_authority_permission_policy,
 };
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
@@ -318,6 +318,14 @@ machine build(builder: &mut Build) {
     .expect("blocker-free closure produces accepted evidence without policy");
     assert!(evidence.root_policy().is_none());
     assert_eq!(evidence.packages().len(), 1);
+    let empty_permission_policy = accepted_terminal_authority_permission_policy(&evidence)
+        .expect("blocker-free accepted evidence projects deny-by-absence permission policy");
+    assert!(empty_permission_policy.rows().is_empty());
+    assert_eq!(
+        empty_permission_policy.identity(),
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy()
+            .identity(),
+    );
 
     remove_temporary_tree(&temporary);
 }

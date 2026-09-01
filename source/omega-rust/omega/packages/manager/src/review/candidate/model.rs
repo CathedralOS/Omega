@@ -20,6 +20,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) key: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
+    pub(super) selected_build_machine_identity: String,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
@@ -44,6 +45,12 @@ impl CompilerIssuedPackageReview {
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption_commitment
+    }
+
+    /// Canonical semantic identity of the build machine whose evaluation
+    /// produced this review.
+    pub fn selected_build_machine_identity(&self) -> &str {
+        &self.selected_build_machine_identity
     }
 
     /// Deterministic evaluator accounting from this package's checked build.

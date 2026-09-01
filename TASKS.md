@@ -9251,15 +9251,43 @@ compiler concept is introduced.
   every resolved package row to appear unchanged in the independently supplied
   receiving permission policy; omission, class substitution, and cross-binding
   duplicates reject. The receiving policy may retain unrelated rows for other
-  artifacts.
+  artifacts. Accepted ordinary closure evidence now projects a canonical exact
+  accepted-permission set solely from terminal-permission obligations that
+  survived fresh conflict reconstruction and complete root-policy replay; raw
+  semantic-binding candidates, broad risk rows, and free-standing decisions
+  cannot enter that projection. Retained Terminal native proposals preserve a
+  canonical copy of every checked package permission before destroying the
+  frontend and reject duplicate coordinates. Retained re-entry requires those
+  rows to equal the independently accepted set bijectively, then requires every
+  accepted row unchanged in the distinct receiving policy. Omission,
+  substitution, and coordinated proposal/policy widening therefore reject,
+  while the receiving policy may still carry unrelated rows. A manager-owned
+  entrypoint consumes the complete package-aware Terminal report, rejoins its
+  production manifest to the accepted root's exact dependency closure,
+  source-consumption commitment, selected build-machine identity, deterministic
+  invocation-local evaluation usage, build-observation identity, and target.
+  Aggregate review-sponsor ceilings and session-wide peaks remain review-
+  orchestration custody and do not masquerade as invocation identity. Compiler-report
+  custody independently requires the manifest target/profile to equal the
+  retained proposal target/profile. The manager then derives the accepted set
+  from opaque evidence and only then enters native realization. Terminal Psi
+  gains no package or root-policy authority. Direct and retained native routes
+  use the same exact accepted-row-to-receiving-policy check and retain the same
+  receiving-policy identity.
 
-  Remaining package work is to feed accepted root-policy rows into every native
-  and retained-Terminal realization route, migrate `FilesystemHost` and later
-  services to their exact portable facets, prove selected-closure coverage for
-  every transitional broad row, and only then remove the filename classifier
-  and broad `Process`/`Filesystem` summaries. Until those joins are complete,
-  the new exact table coexists with the legacy review classifier but never
-  derives from it.
+  Remaining package work is production orchestration: the current CLI project
+  preparation returns raw package compilation inputs and does not yet compile
+  reviews, recover/accept root policy, or feed the resulting accepted policy to
+  either native request route. Add that workflow without inferring permissions
+  in project preparation, and cover exact report/evidence success plus
+  source/observation/proposal substitution through the manager-owned entrypoint
+  once executable-root review orchestration reaches it. Then migrate
+  `FilesystemHost` and later services to
+  their exact portable facets, prove selected-closure coverage for every
+  transitional broad row, and only then remove the filename classifier and
+  broad `Process`/`Filesystem` summaries. Until those joins are complete, the
+  new exact table coexists with the legacy review classifier but never derives
+  from it.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,

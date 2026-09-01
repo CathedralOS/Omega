@@ -210,6 +210,15 @@ fn compile_resolved_package_reviews_in_session(
                     package: key.clone(),
                 }
             })?;
+        let selected_build_machine_identity = checked
+            .selected_build_machine_identity()
+            .ok_or_else(|| CompileResolvedPackageReviewsError::Projection {
+                package: key.clone(),
+                diagnostics: vec![Diagnostic::error(
+                    "package review requires one exact selected build-machine identity",
+                )],
+            })?
+            .to_owned();
         let build_observation_summary = checked.build_observation_summary().cloned();
         let build_evaluation_usage = checked.build_evaluation_usage();
         let semantic_bindings = checked.resolved_semantic_bindings().cloned().collect();
@@ -313,6 +322,7 @@ fn compile_resolved_package_reviews_in_session(
             key: key.clone(),
             resolution: custody.resolution().clone(),
             source_consumption_commitment,
+            selected_build_machine_identity,
             build_evaluation_usage,
             build_observation_summary,
             semantic_bindings,

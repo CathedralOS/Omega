@@ -143,6 +143,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             rows,
+            proposal.package_terminal_authority_permissions().to_vec(),
             proposal.compiler_builtins().to_vec(),
             proposal.callback_occurrences().to_vec(),
             proposal.ieee_float_fma_occurrences().to_vec(),

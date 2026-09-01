@@ -14,6 +14,7 @@ mod optimization;
 mod options;
 pub(crate) use omega_compilation_report as report;
 mod request;
+mod terminal_authority_permissions;
 mod terminal_native_realization;
 mod terminal_product;
 

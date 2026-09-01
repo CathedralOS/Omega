@@ -86,6 +86,7 @@ pub fn accept_ordinary_closure_evidence(
             package: package.clone(),
             resolution: selected.resolution().clone(),
             source_consumption: review.source_consumption_commitment(),
+            selected_build_machine_identity: review.selected_build_machine_identity().to_owned(),
             build_evaluation_usage: review.build_evaluation_usage(),
             build_observation: review.build_observation_summary().cloned(),
             semantic_bindings: review.semantic_bindings().to_vec(),
