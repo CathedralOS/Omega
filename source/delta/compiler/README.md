@@ -224,6 +224,13 @@ frame are checked together; a detached DCOUT frame cannot validate this column
 because it does not repeat the profile ID. `ecout-v1.tsv` retains D17 codes 1
 through 26 unchanged.
 
+These are the current D30/D33 contracts, not a presumption that the completed
+bootstrap compiler should expose a multi-profile service and detailed public
+diagnostic ABI. `BOOTSTRAP-MINIMAL-COMPILER-BOUNDARY` must settle that shape
+before the production adapters are completed. The four Delta TSVs are then
+deleted under `BOOTSTRAP-SIDECAR-RETIREMENT` unless a named non-test external
+consumer requires a registry.
+
 The compiler's exact V1 resource limits are:
 
 | Resource | Last admitted extent |
@@ -437,10 +444,10 @@ The implementation order is tracked in
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `delta_compiler.gamma` | Sole Gamma-written Delta compiler source; currently owns the strict frontend and direct Alpha payload/fixup substrate. | Replace only atomically with another implementation of the same ruled edge. |
-| `profiles-v1.tsv` | Checked projection of DCREQ profile IDs, limits, and entries. | Replace atomically with a versioned profile revision and embedded compiler constants. |
-| `dcout-v1.tsv` | Checked Delta-compiler diagnostic projection. | Replace atomically with its versioned wire contract and compiler constants. |
-| `ecout-v1.tsv` | Checked generated Epsilon-compiler diagnostic projection. | Replace atomically with its versioned wire contract and adapter constants. |
-| `conformance-observations-v1.tsv` | Closed generated-program observation mapping shared by the profile. | Replace only with a versioned observation-profile revision. |
+| `profiles-v1.tsv` | Current projection of DCREQ profile IDs, limits, and entries. | Delete if the selected bootstrap boundary has one fixed production entry; otherwise replace atomically with the selected profile contract. |
+| `dcout-v1.tsv` | Current Delta-compiler diagnostic projection. | Delete if detailed codes have no named external consumer; otherwise replace atomically with the selected wire contract. |
+| `ecout-v1.tsv` | Current generated Epsilon-compiler diagnostic projection. | Delete if detailed codes have no named external consumer; otherwise replace atomically with the selected adapter contract. |
+| `conformance-observations-v1.tsv` | Current generated-program observation mapping shared by the profile. | Move the retained semantic facts into execution semantics and delete the sidecar unless a named external consumer requires it. |
 
 ## Deletion condition
 

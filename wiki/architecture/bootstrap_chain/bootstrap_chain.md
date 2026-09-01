@@ -1,10 +1,13 @@
 # The Bootstrap Chain
 
-> **Status: fixed architecture, incomplete upper implementations.** The language
-> spine is `Alpha → Beta → Gamma → Delta → Epsilon → Omega`. Alpha tape is the canonical
-> executable form of every bootstrap compiler. Alpha is operational; current
-> Gamma now has its canonical immediate-predecessor source and direct tape;
-> its full refinement remains open, as do the upper compiler implementations.
+> **Status: fixed spine, surfaces under minimization, incomplete upper
+> implementations.** The language spine is
+> `Alpha → Beta → Gamma → Delta → Epsilon → Omega`. Alpha tape is the canonical
+> executable form of every bootstrap compiler. The existence and ordering of
+> the rungs are fixed; their instruction sets, language features, compiler
+> boundary protocols, and checker calculus are not presumed minimal. Current
+> Gamma has its canonical immediate-predecessor source and direct tape; its full
+> refinement remains open, as do the upper compiler implementations.
 
 ## The chain
 
@@ -33,6 +36,28 @@ Omega source.
 The former Gamma-written Epsilon-to-Delta translator crossed two ownership
 boundaries and is deleted with its native-publication apparatus. Git history is
 the archive; no compatibility route replaces it.
+
+## Minimize the complete chain
+
+Each intermediate language primarily exists to express one exact successor;
+Gamma additionally expresses the root checker. Present implementation and
+corpus use establish migration cost, not language merit. Every instruction,
+construct, failure distinction, profile, wire field, proof rule, and sidecar
+must justify its cost against the complete chain rather than resemble a feature
+a conventional general-purpose language or public compiler service would have.
+
+The selected objective balances semantic size, native/trusted implementation,
+successor source and tape size, proof/certificate burden, mutable state,
+checking work, and permanent validation/tooling. Lower-rung complexity is
+weighted more heavily because every later edge inherits it. Saving source bytes
+by adding an opaque compound opcode or proof axiom is not minimization.
+
+The active method and completion criteria live in
+[Bootstrap minimization](../../design_briefs/bootstrap_minimization.md). The
+ordered audit and implementation tasks are in `TASKS_BOOTSTRAP.md`. The audit
+works backward from exact successor sources, selects one whole-chain design,
+then implementation and artifact reconstruction proceed from the lowest
+changed rung upward.
 
 Beta assembly, Gamma, Delta, and Epsilon implementation source also share the
 closed textual-ASCII envelope fixed by [D15](decisions.md#d15--bootstrap-implementation-source-is-closed-textual-ascii).

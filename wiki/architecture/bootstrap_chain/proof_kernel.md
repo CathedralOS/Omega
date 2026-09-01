@@ -14,6 +14,14 @@ The proof kernel is deliberately not a language rung. Programs do not elaborate
 through it, and it adds no stage between Delta and Epsilon. It is an Alpha-owned
 service used by producers and artifact verifiers throughout the build chain.
 
+The service role is fixed; its present 271,096-byte implementation, broad
+calculus, raw-subject representation, and resource profile are not presumed
+minimal. `MINIMIZE-ROOT-DERIVATION-CHECKER` in `TASKS_BOOTSTRAP.md` derives the
+required rule set from the canonical compiler-edge propositions and prices
+checker reduction together with certificate and proposition-reconstruction
+cost. Product/Psi proof ambitions do not automatically enlarge this bootstrap
+root.
+
 Its canonical owner is `source/alpha/checker/`. The authoritative Gamma and
 untrusted executable reference implementations live under `implementations/`;
 the one retained deterministic generator and executable policy live under

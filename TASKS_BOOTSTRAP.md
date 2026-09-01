@@ -1,6 +1,6 @@
 # Direct bootstrap chain — active work
 
-Last pruned: 2026-08-30.
+Last pruned: 2026-08-31.
 
 This queue exists to construct exactly one sequence:
 
@@ -85,16 +85,67 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 | Edge | Reusable work | Missing canonical result |
 | --- | --- | --- |
-| Alpha seed | written semantics, two native seeds, checker | keep trust floor small and exact |
-| Direct Beta assembler | canonical raw tape, readable self-host source, and exact reconstruction | close its checked text-to-tape relation without adding another native binary |
-| Beta-written Gamma compiler | canonical `gamma_compiler.beta` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Gamma-written Delta compiler | canonical DCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.gamma` oracle, Delta semantics/tests, and settled D30/D33 profiles | complete semantic DCOUT judgment and production adapters, measure and publish D58's conjunctive Gamma profile, publish the standalone tape, and close refinement |
-| Delta-written Epsilon compiler | Epsilon contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56/D57, complete the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Alpha seed | written semantics, two native seeds, checker | measure and select the minimal execution/checker floor, then keep it small and exact |
+| Direct Beta assembler | canonical raw tape, readable self-host source, and exact reconstruction | minimize the assembly surface and close its checked text-to-tape relation without adding another native binary |
+| Beta-written Gamma compiler | canonical `gamma_compiler.beta` and direct tape artifact | select the minimal Gamma/compiler-boundary surface, then close remaining language/resource checks and exact source-to-tape refinement |
+| Gamma-written Delta compiler | canonical DCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.gamma` oracle, Delta semantics/tests, and current D30/D33 profiles | settle the minimal production boundary/profile before completing adapters, minimize Delta against Epsilon, publish the standalone tape, and close refinement |
+| Delta-written Epsilon compiler | Epsilon contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | minimize Epsilon against exact `D`, then implement the selected remaining semantics, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Epsilon closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
 ## 0. Make the repository tell the truth
 
+- [ ] **BOOTSTRAP-WHOLE-CHAIN-MINIMIZATION.** Execute the backward audit in
+  `wiki/design_briefs/bootstrap_minimization.md` before treating the current
+  rung surfaces as permanent. Inventory Alpha instructions and execution
+  state; Beta syntax and encoding rules; Gamma/Delta/Epsilon grammar, values,
+  control, builtins, failures, tables, and wire contracts; the exact successor
+  source constructs requiring each item; and the root checker's complete term,
+  proposition, rule, parser, subject-binding, and resource surface. Current
+  corpus use prices migration only. For every retained feature compare direct
+  expression with existing machinery, successor restructuring, and one
+  narrower lower-rung mechanism; publish comparable source/tape bytes,
+  semantic rule count, mutable tables/state, proof/certificate burden,
+  checking work, and permanent tests/tools. Select the smallest whole-chain
+  design that remains locally readable and auditable rather than minimizing
+  any one source file in isolation.
+  - [ ] Record one baseline inventory and cost report for Alpha, Beta, Gamma,
+    Delta, Epsilon, and the checker. Every row names its exact successor or
+    compiler-edge customer and deletion condition.
+  - [ ] Derive the required Gamma closure from both concrete Gamma programs:
+    `delta_compiler.gamma` and `check.gamma`. A checker use is not evidence that
+    the rule belongs in Gamma when a smaller checker design removes it.
+  - [ ] Derive Delta from the exact Epsilon compiler source, and Epsilon from
+    the exact `D` source closure. Do not preserve a feature merely because the
+    current incomplete successor happened to use it before the comparison.
+  - [ ] Convert each selected reduction into an ordered implementation/rebuild
+    task from the lowest changed rung upward. Supersede conflicting decisions
+    explicitly; do not retain compatibility syntax, adapters, or sidecars.
+- [ ] **BOOTSTRAP-MINIMAL-COMPILER-BOUNDARY.** Before completing Delta's
+  `DCOUT`/`ECOUT` adapters or adding another profile/reason table, settle the
+  smallest compiler-edge observation needed below product Omega. Preserve
+  distinct `Complete(exact tape)`, invalid-source, incomplete-capacity/support,
+  and compiler-contradiction facts, but decide whether failure publication
+  needs anything beyond those tags. State exactly which invalid-input outcomes
+  must agree across independent implementations, whether detailed reasons and
+  coordinates are private diagnostics, and whether Delta needs runtime profile
+  selection rather than one fixed Epsilon-compiler entry plus test-owned
+  conformance adapters. Keep compiler outcomes separate from execution outcomes
+  of generated programs. Price the current 40-byte `GCOUT`/`DCOUT`/`ECOUT`
+  frames, coordinate systems, reason/resource codes, and profile joins against
+  the minimal alternative, including Gamma tape rebuild and certificate churn.
+  This task does not simplify product `OCREQ`/`OCOUT` by analogy: that boundary
+  has real package/build consumers and requires its own measured case.
+- [ ] **BOOTSTRAP-SIDECAR-RETIREMENT.** After the minimal boundary is selected,
+  delete `source/gamma/compiler/outcomes-v1.tsv` and Delta's `profiles-v1.tsv`,
+  `conformance-observations-v1.tsv`, `dcout-v1.tsv`, and `ecout-v1.tsv` unless a
+  named non-test external consumer demonstrates a need for a machine-readable
+  registry. Put human-readable outcome/resource rules in the owning contract,
+  executable constants in compiler source, and behavioral controls in
+  `tests/`. Rebuild affected tapes and restate certificates atomically. Make
+  chain hygiene reject a new bootstrap ABI sidecar that has no named machine
+  consumer; a test that merely reads a manually duplicated table does not make
+  the table authoritative.
 - [x] Establish the canonical owner layout for every implementation that
   currently exists. Do not create placeholders for missing compiler edges:
 
@@ -189,6 +240,28 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 1. Alpha execution floor
 
+- [ ] **MINIMIZE-ALPHA-EXECUTION-FLOOR.** Derive the required Alpha operation,
+  memory, I/O, trap, and tape-container surface from every selected compiler
+  and checker tape, then compare the current VM/seed/specification cost with
+  smaller encodings or instruction sets. Weight Alpha semantic and native-seed
+  complexity above later source savings. Retain no opcode for familiarity or
+  hypothetical programs, but reject source-specific jets, opaque compound
+  compiler operations, and byte golf that makes the VM harder to audit. Any
+  selected change migrates both native seeds, every canonical tape, Alpha
+  semantics, conformance controls, and all exact edge subjects atomically.
+- [ ] **MINIMIZE-ROOT-DERIVATION-CHECKER.** Before producing compiler-scale
+  certificates against the present 271,096-byte checker, enumerate the exact
+  root propositions and proof shapes needed by the canonical compiler edges.
+  Compare the current first-order/equality/induction/reduction/lemma calculus
+  and raw-subject byte trees with narrower calculi and subject-binding formats.
+  Measure checker source/tape bytes, semantic rule count, parser and mutable-table
+  surface, arena/stack/fuel profile, certificate bytes, proof-production
+  complexity, and checking time. Product/Psi proof ambitions do not
+  automatically enlarge the bootstrap root. Select the smallest checker that
+  still receives independently reconstructed exact source/tape propositions;
+  then rebuild its tape, rewrite the edge certificates, and delete superseded
+  rules, formats, references, and gates together. The checker remains a
+  no-search accept/reject service beside the chain, never an obligation owner.
 - [x] Keep `source/alpha/SEMANTICS.md`, the audited seed implementations, and
   conformance tests synchronized. The canonical `.tape` is the raw Alpha
   payload; transparent seed stamping prepends its exact four-byte length inside
@@ -214,6 +287,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 2. Beta-written Gamma compiler
 
+- [ ] **MINIMIZE-BETA-ASSEMBLY-AND-GAMMA-SURFACE.** Starting from the selected
+  `gamma_compiler.beta`, `delta_compiler.gamma`, and minimized `check.gamma`,
+  derive the exact Beta and Gamma feature closures. Audit every textual
+  assembly form, Alpha encoding path, Gamma grammar/value/control/memory/I/O
+  construct, builtin, private table, and failure mode. Compare successor
+  restructuring with any lower-rung primitive; a shorter compiler is not a win
+  when it enlarges Alpha/Beta semantics or proof work. Preserve arbitrary valid
+  input only within the selected minimal language contracts, not conventional
+  general-purpose features. Rebuild the Beta assembler and Gamma compiler tapes
+  and restate both checked edges for the selected surface.
 - [ ] **ADMIT-BETA-GAMMA-COMPILER.** Audit the canonical
   `source/gamma/compiler/gamma_compiler.beta` against the complete Gamma v1
   contract. Its exact directly assembled Alpha tape is now the canonical Gamma
@@ -538,6 +621,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 3. Gamma-written Delta compiler
 
+- [ ] **MINIMIZE-DELTA-BOOTSTRAP-SURFACE.** Derive Delta's required syntax,
+  type/value model, data shapes, calls/states/transitions, storage, boundary,
+  and failure semantics backward from the exact Epsilon compiler source. Price
+  every retained construct against restructuring that one successor. Incorporate
+  the selected minimal compiler-boundary/profile contract before completing
+  adapters or publishing `delta_compiler_bytecode.tape`; do not finish D30/D33
+  machinery merely because it is partly implemented. Preserve enough general
+  input semantics to state an honest Delta language and compile the complete
+  Epsilon source, but no hypothetical application surface.
 - [ ] **BUILD-DELTA-COMPILER.** Implement D16 and
   `source/delta/LANGUAGE.md` in
   `source/delta/compiler/delta_compiler.gamma` as a standalone compiler from
@@ -1044,6 +1136,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 4. Delta-written Epsilon compiler
 
+- [ ] **MINIMIZE-EPSILON-BOOTSTRAP-SURFACE.** Derive Epsilon's required
+  language and compiler-host facilities backward from the exact full Omega
+  compiler closure `D`. Compare each systems-language feature, data/control
+  form, resource distinction, and lowering rule with restructuring `D` or a
+  narrower Delta mechanism, using the whole-chain cost model. Keep the result
+  expressive enough to implement the complete Omega compiler honestly, not to
+  serve unrelated programs. Apply the selected surface before finalizing
+  `epsilon_compiler.delta`, its tape, and the `D -> omega0` proposition.
 - [x] **FREEZE-EPSILON-V1.** D17 and `source/epsilon/LANGUAGE.md` fix one
   self-contained grammar, static semantics, execution model, boundary,
   rejection/trap taxonomy, closure presentation, and resource classification.

@@ -52,5 +52,5 @@ The active reduction and admission work is tracked in
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `compiler/` | The sole Beta-written compiler accepting Gamma, its exact Alpha tape, and closed outcome table. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
+| `compiler/` | The sole Beta-written compiler accepting Gamma, its exact Alpha tape, and current outcome sidecar. | Replace only atomically with the admitted immediate-predecessor compiler edge; retire the sidecar under the minimal-boundary task if detailed codes have no external consumer. |
 | `LANGUAGE.md`, `SEMANTICS.md`, `CALLING_CONVENTION.md` | The accepted Gamma surface, execution relation, and compiler/Alpha frame contract. | Replace only atomically with a ruled Gamma revision and synchronized compiler tests. |
