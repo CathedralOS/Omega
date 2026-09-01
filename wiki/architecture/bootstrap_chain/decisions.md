@@ -499,6 +499,18 @@ canonical value atom. Internal forwarding rejoins the exact owner const binder
 and carrier; only integer binders may supply literal-array lengths, whose
 instance fields replay the substituted value. These instances join the same
 finite dependency graph and may be later local Type arguments.
+The first exact structured-data const cohort joins that continuation. One
+generated unit may append private named-literal structured const provenance
+alongside its local data instances; public const surface growth remains outside
+this rung.
+Each bounded atom is completely decoded and replayed against the exact
+monomorphic checked record or pure-sum carrier, including declaration-ordered
+fields, selected case and ordered payload, nested literal arrays/data, and
+exact in-range integer/Boolean leaves. Recursive, mixed, empty, erased,
+boundary-opaque, generic, constrained, quotient/default-domain/zero-gated,
+custom-canonical, malformed, or display-drifted values fail closed. These
+instances participate in the same finite dependency graph and may themselves
+be Type arguments.
 The continuation rejoins exact template/argument/origin spelling, case order
 and identity, retired data/
 payload identities, declaration/parameter/field/case ownership, transitive
@@ -506,8 +518,8 @@ reachability from ordinary generated data, and common source ownership. Base-
 owned applications separately retain their exact structural generic nodes
 without local synthesis. The compiler normalizes a per-unit clone before
 seeded resolution but retains the raw parsed unit for fallback. Cross-unit
-synthesis, lifetime-bearing local instances used as Type arguments, structured-
-canonical const applications, constrained applications,
+synthesis, lifetime-bearing local instances used as Type arguments, broader or
+custom-canonical structured const applications, constrained applications,
 parameter-bearing constrained/dynamic/other composite shells, facts,
 quotients, zero gates, attached generated methods, and non-data shapes remain
 on the raw full-rebuild path. General seeded typing and deletion of that fallback remain open. The source-
