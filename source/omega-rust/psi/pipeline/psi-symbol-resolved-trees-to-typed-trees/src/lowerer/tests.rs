@@ -3683,6 +3683,79 @@ fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
 }
 
 #[test]
+fn seeded_plain_data_continuation_appends_owner_local_type_parameter_data() {
+    let (mut base, extension) = seeded_plain_data_inputs(
+        "data Authored { value: u32; }",
+        "data Generated<T> { value: T; pair: [T; 2]; }",
+    );
+    base.typed_mut()
+        .evidence_forwardings
+        .push(psi_typed_trees::typed_trees::EvidenceForwarding {
+            machine_symbol: psi_symbols::SymbolHandle::invalid(),
+            state_symbol: psi_symbols::SymbolHandle::invalid(),
+            statement_index: 19,
+            source_statement_index: 23,
+            target: psi_typed_trees::name::Identifier::generated_static("generic-target"),
+            source: psi_typed_trees::name::Identifier::generated_static("generic-source"),
+            source_conformance: None,
+        });
+    let before = base.typed().clone();
+    let resolved_ledger = extension.trees().authored_declaration_selections().clone();
+
+    let typed = lower_seeded_plain_data_extension(extension, base)
+        .expect("owner-local type-parameter data should append");
+
+    assert_eq!(
+        &typed.data_definitions()[..before.data_definitions().len()],
+        before.data_definitions()
+    );
+    assert_eq!(typed.evidence_forwardings, before.evidence_forwardings);
+    assert!(
+        typed
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(resolved_ledger.as_slice())
+    );
+
+    let generated = typed.data_definitions().last().expect("generated data");
+    let [parameter] = typed.data_type_parameters(generated) else {
+        panic!("Generated has one type parameter")
+    };
+    assert!(matches!(
+        parameter.kind,
+        psi_typed_trees::data::TypeParameterKind::Type
+    ));
+    assert_eq!(
+        parameter.bounds,
+        psi_typed_trees::data::DataProperties::default()
+    );
+    let [
+        psi_typed_trees::data::DataMember::Field(value),
+        psi_typed_trees::data::DataMember::Field(pair),
+    ] = typed.data_members(generated)
+    else {
+        panic!("Generated has value and pair fields")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        typed.type_reference_table.type_reference(value.type_reference)
+    else {
+        panic!("Generated.value remains the owner-local type parameter")
+    };
+    assert_eq!(*symbol, parameter.symbol);
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+        typed.type_reference_table.type_reference(pair.type_reference)
+    else {
+        panic!("Generated.pair remains a fixed array")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        typed.type_reference_table.type_reference(*element_type)
+    else {
+        panic!("Generated.pair element remains the owner-local type parameter")
+    };
+    assert_eq!(*symbol, parameter.symbol);
+}
+
+#[test]
 fn seeded_plain_data_continuation_returns_exact_base_for_non_data_suffix() {
     let (base, extension) =
         seeded_plain_data_inputs("data Authored { value: u32; }", "machine generated() {}");
@@ -3708,7 +3781,6 @@ fn seeded_plain_data_continuation_fences_runtime_generic_and_invalid_lifetime_fi
         "data Generated<'scope> { value: Borrowed<'scope, 'scope>; }",
         "data Generated<'scope> { value: Plain<'scope>; }",
         "data Generated<'scope> { value: Generic<'scope>; }",
-        "data Generated<T> { value: T; }",
     ] {
         let (base, extension) = seeded_plain_data_inputs(
             r#"

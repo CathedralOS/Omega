@@ -204,8 +204,18 @@ fn plain_data_extension_shape_is_supported(
             .iter()
             .skip(data_frontier)
             .all(|definition| {
-                definition.type_parameters.is_empty()
-                    && definition.generic_instance.is_none()
+                let type_parameters = source.data_type_parameters(definition.type_parameters);
+                type_parameters.iter().all(|parameter| {
+                    parameter.symbol.is_valid()
+                        && source.symbols.get(parameter.symbol).kind
+                            == psi_symbols::SymbolKind::TypeParameter
+                        && matches!(
+                            parameter.kind,
+                            psi_symbol_resolved_trees::data::TypeParameterKind::Type
+                        )
+                        && parameter.bounds
+                            == psi_symbol_resolved_trees::data::DataProperties::default()
+                }) && definition.generic_instance.is_none()
                     && definition.quotient.is_none()
                     && definition.where_facts.is_empty()
                     && !definition.zero_gated
@@ -226,6 +236,7 @@ fn plain_data_extension_shape_is_supported(
                                     source,
                                     definition.symbol,
                                     &definition.lifetime_parameters,
+                                    type_parameters,
                                     &field.type_reference,
                                 )
                             })
@@ -237,6 +248,7 @@ fn plain_type_is_supported(
     source: &SymbolResolvedTrees,
     owner: psi_symbols::SymbolHandle,
     owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
+    owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
     type_reference: &psi_symbol_resolved_trees::types::TypeReference,
 ) -> bool {
     use psi_symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
@@ -250,6 +262,9 @@ fn plain_type_is_supported(
                     && definition.type_parameters.is_empty()
                     && definition.generic_instance.is_none()
             }),
+            psi_symbols::SymbolKind::TypeParameter => owner_type_parameters
+                .iter()
+                .any(|parameter| parameter.symbol == *symbol),
             _ => false,
         },
         TypeReference::SelfType { symbol } => *symbol == owner,
@@ -263,6 +278,7 @@ fn plain_type_is_supported(
                 source,
                 owner,
                 owner_lifetimes,
+                owner_type_parameters,
                 source.child_type_reference(reference.referee),
             )
         }
@@ -270,6 +286,7 @@ fn plain_type_is_supported(
             source,
             owner,
             owner_lifetimes,
+            owner_type_parameters,
             source.child_type_reference(slice.element_type),
         ),
         TypeReference::FixedArray(array) => {
@@ -278,6 +295,7 @@ fn plain_type_is_supported(
                     source,
                     owner,
                     owner_lifetimes,
+                    owner_type_parameters,
                     source.child_type_reference(array.element_type),
                 )
         }
