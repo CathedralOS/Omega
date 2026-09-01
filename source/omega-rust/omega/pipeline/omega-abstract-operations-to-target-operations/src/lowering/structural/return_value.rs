@@ -60,6 +60,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
     if source.multiplicity != psi_terminal::StructuralMultiplicity::Linear
         || source.structural_type != result.structural_type
         || source.qualifications != result.qualifications
+        || source.projected_qualifications != result.projected_qualifications
         || source.place == result.place
         || entry_claim.input != source.place
     {

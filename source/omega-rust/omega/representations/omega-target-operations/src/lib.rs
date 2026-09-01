@@ -441,6 +441,9 @@ pub struct TargetStructuralParameter {
     pub structural_type: StructuralTypeId,
     pub multiplicity: psi_terminal::StructuralMultiplicity,
     pub access: psi_terminal::StructuralAccess,
+    /// Exact authored path qualification roster. Target lowering transports
+    /// this authority; it must never infer rows from layout or carrier shape.
+    pub projected_qualifications: Vec<psi_terminal::StructuralPathQualification>,
     pub shape: ValueShape,
     pub placement: ValuePlacement,
 }

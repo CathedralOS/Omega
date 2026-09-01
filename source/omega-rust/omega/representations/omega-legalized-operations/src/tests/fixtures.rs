@@ -33,6 +33,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 structural_type: extent_type,
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
+                projected_qualifications: Vec::new(),
                 shape,
                 placement: call_plan.parameters[position].clone(),
             },

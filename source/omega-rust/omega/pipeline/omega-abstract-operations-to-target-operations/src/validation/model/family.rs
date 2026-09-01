@@ -52,4 +52,11 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineWrappingIntegerSubtractParameters,
     StraightLineWrappingIntegerMultiplyParameters,
     StraightLineSaturatingIntegerMultiplyParameters,
+    StructuralCallReturnCaller,
+    StructuralParameterReturnCallee,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AbstractToTargetPlanTranslationFamily {
+    StructuralCallReturnProjectedQualifications,
 }

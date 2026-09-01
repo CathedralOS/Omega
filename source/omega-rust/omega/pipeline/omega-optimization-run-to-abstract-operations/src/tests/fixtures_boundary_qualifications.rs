@@ -294,12 +294,10 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
                         claim,
                         argument_index: 0,
                     }],
-                    returned_claim_transfers: vec![
-                        psi_terminal::StructuralResultClaimTransfer {
-                            callee_claim: claim,
-                            caller_claim: claim,
-                        },
-                    ],
+                    returned_claim_transfers: vec![psi_terminal::StructuralResultClaimTransfer {
+                        callee_claim: claim,
+                        caller_claim: claim,
+                    }],
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                     selected_evidence: Vec::new(),
@@ -329,7 +327,19 @@ pub(super) fn projected_structural_result_verified() -> VerifiedPsiOptimizationU
         psi_terminal::StructuralTypeDeclaration {
             id: leaf,
             identity: "test::ProjectedResultLeaf".into(),
-            shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            shape: psi_terminal::StructuralTypeShape::Record {
+                fields: vec![psi_terminal::StructuralFieldDeclaration {
+                    id: psi_core::StructuralFieldId::new(1_956).unwrap(),
+                    identity: "value".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: psi_terminal::StructuralFieldType::Scalar(
+                        psi_core::ScalarType::Integer(
+                            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
+                                .unwrap(),
+                        ),
+                    ),
+                }],
+            },
         },
     ];
     module.structural_domains = vec![psi_terminal::StructuralDomainDeclaration {

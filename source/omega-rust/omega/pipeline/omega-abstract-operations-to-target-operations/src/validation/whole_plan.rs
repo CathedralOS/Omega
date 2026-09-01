@@ -34,6 +34,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
 {
     validate_plan_identity(source, expected_target, target)?;
     validate_fma_settlement_roster(source, ieee_float_fma)?;
+    let structural_call_return = catalog::validate_plan(source, target)?;
 
     let canonical_structural_types = source
         .structural_types
@@ -85,6 +86,7 @@ pub fn validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
         expected_target,
         source.entry,
         function_roster,
+        structural_call_return,
     ))
 }
 

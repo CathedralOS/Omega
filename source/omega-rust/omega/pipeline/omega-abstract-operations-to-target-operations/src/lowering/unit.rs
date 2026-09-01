@@ -76,6 +76,7 @@ pub(super) fn lower_unit_function(
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
                 access: parameter.access,
+                projected_qualifications: parameter.projected_qualifications.clone(),
                 shape,
                 placement: placement.clone(),
             },
@@ -85,7 +86,6 @@ pub(super) fn lower_unit_function(
         .iter()
         .map(|parameter| (parameter.place, parameter))
         .collect::<BTreeMap<_, _>>();
-
     let mut operations = Vec::with_capacity(function.operations.len());
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = false;

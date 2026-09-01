@@ -280,11 +280,9 @@ fn projected_boundary_requirement_retains_exact_path_custody_through_prephysical
 #[test]
 fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_custody() {
     let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
-    let optimized = project_optimization_run(run(
-        projected_structural_result_verified(),
-        selections,
-    ))
-    .expect("projected structural results cross a no-rewrite optimizer run");
+    let optimized =
+        project_optimization_run(run(projected_structural_result_verified(), selections))
+            .expect("projected structural results cross a no-rewrite optimizer run");
     let expected = [psi_terminal::StructuralPathQualification {
         path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
         domain: psi_core::StructuralDomainId::new(1_946).unwrap(),
@@ -322,8 +320,7 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
     );
 
     let mut detached = optimized.plan().clone();
-    let AbstractOperation::CallStructural { result, .. } =
-        &mut detached.functions[0].operations[0]
+    let AbstractOperation::CallStructural { result, .. } = &mut detached.functions[0].operations[0]
     else {
         unreachable!()
     };
@@ -344,13 +341,21 @@ fn projected_function_and_call_results_cross_replay_abstract_and_prephysical_cus
         ),
         Err(OptimizedAbstractPlanProjectionError::ReconstructibleProjectionMismatch),
     );
-    assert_eq!(
-        omega_abstract_operations_to_target_operations::lower_to_target_operations(
-            optimized.plan(),
-            omega_target::NativeTarget::linux_x64(),
-        ),
-        Err(
-            omega_abstract_operations_to_target_operations::LoweringError::UnsupportedProjectedStructuralQualifications,
-        ),
-    );
+    let lowered = omega_abstract_operations_to_target_operations::lower_to_target_operations(
+        optimized.plan(),
+        omega_target::NativeTarget::linux_x64(),
+    )
+    .expect("the exact projected structural call/return closure reaches target IR");
+    let omega_target_operations::TargetOperation::ReturnStructuralCall {
+        structural_parameters,
+        operation_result,
+        result,
+        ..
+    } = &lowered.functions[0].operation
+    else {
+        panic!("the caller retains its exact structural call/return carrier")
+    };
+    assert_eq!(structural_parameters[0].projected_qualifications, expected);
+    assert_eq!(operation_result.projected_qualifications, expected);
+    assert_eq!(result.projected_qualifications, expected);
 }

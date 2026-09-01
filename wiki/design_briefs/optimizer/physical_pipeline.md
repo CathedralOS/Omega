@@ -5,17 +5,17 @@ This brief owns the lowering-to-publication path. The architecture entrance is
 
 ## Selected lowering
 
-Abstract-to-target lowering now enters through a 68-line settlement and
+Abstract-to-target lowering now enters through a small settlement and
 installation-evidence coordinator. It descends first by function result
 family, then through explicit scalar setup, special-form, conditional, and
 straight-line routes or structural direct-call and return routes. Unit,
 boundary-settlement, cleanup, and structural-layout mechanics remain named
 sibling responsibilities rather than hidden branches in one lowering file.
 
-The adjacent sub-100-line translation-validation entrance is independent of
+The adjacent 50-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-nine families reconstruct parameterless straight-line
+replay. Its function catalog reconstructs parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
@@ -209,6 +209,18 @@ stable family IDs themselves.
 The optimized target carrier retains this receipt. Its family-row roster is
 deliberately partial and therefore cannot overstate validation of other target
 operations while those rows are still being added.
+
+Projected structural qualification custody has a separate plan-family route
+because its invariant spans caller and callee. A 54-line producer fence points
+to one named `structural_call_return` leaf and rejects every other nonempty
+projected-roster shape. Independent validation descends through a plan catalog,
+source/layout/target replay, and local caller/callee leaves. The exact admitted
+shape is one owned linear parameter crossing `CallStructural;
+ReturnStructural` to a callee that returns its parameter; all six target roster
+locations, both native call plans, placements, claims/transfers, provenance,
+and structural layout are replayed on every native target. Public optimized
+custody stops at the target receipt. Legalization, allocation, machine
+selection, and publication gain no projected-qualification authority.
 
 Target legalization and instruction selection produce explicit selected forms
 over virtual registers. Fixed operands are constraints; they do not preassign
@@ -574,11 +586,18 @@ An original-victim canary is deliberately still upstream of this allocation
 boundary. The exact proposed graph is
 `r + ((r + (a + b)) + (b + r))`: its middle original remains unused at the
 epoch-two pressure point and is therefore eligible for guarded-original
-ranking. Today the artifact stops earlier because canonical Psi proof search
-cannot yet synthesize the exact-add fork/join conjunction proving the join's
-U64 upper bound, although the proof kernel can validate that evidence. The
-next prerequisite is general recursive exact-add conjunction production and
-independent replay—not a fixture-only certificate and not allocator authority.
+ranking. Canonical Psi proof production now advances that prerequisite with a
+bounded first slice: the 94-line `direct_add/mod.rs` entrance preserves the
+existing correlated, strict-targeted, and flat strategies before a named
+`conjunction/` rung combines two recursively proven affine-chain scalar
+endpoints under one shared definition/depth budget; relaxed targeted search
+remains last. Completed evidence is immediately re-admitted by the existing
+proof kernel and survives source lowering, Terminal codec round-trip, and
+independent verifier replay. An internal computed-plus-computed definition is
+still refused, so the extra outer `r +` in the proposed allocator graph remains
+outside this slice. Arbitrary exact-add DAG proof authority, the allocator
+fixture, and original-victim spill-action authority are separate unimplemented
+boundaries.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

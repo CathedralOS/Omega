@@ -318,6 +318,7 @@ pub(super) fn lower(
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
                 access: parameter.access,
+                projected_qualifications: parameter.projected_qualifications.clone(),
                 shape,
                 placement: placement.clone(),
             },

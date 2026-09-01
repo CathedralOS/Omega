@@ -2,6 +2,34 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "projected structural call-return target custody",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/structural_call_return.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/structural/direct_call_return.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/structural/return_value.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/plan.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/structural.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/model.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/layout.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/source.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/target.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/local/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/local/caller/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/local/caller/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/local/callee.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/projected_result_qualifications/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/projected_result_qualifications/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/projected_result_qualifications/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/projected_result_qualifications/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/projected_result_qualifications/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/projected_result_qualifications/fence.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/projected_structural_call_return.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/structural_projected.rs",
+        ],
+    },
+    SemanticLadder {
         family: "pre-physical optimization manifest custody tests",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/mod.rs",
@@ -108,7 +136,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "projected structural qualification target admission",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination.rs",
-            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/structural_call_return.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/model.rs",
         ],
     },

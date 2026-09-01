@@ -636,17 +636,30 @@ decision. Only true language-semantic questions belong in
   identity and independent replay, no-rewrite abstract projection, and the
   prephysical manifest retain an exact nonempty path and leaf-domain carrier.
   Missing, sibling, duplicate, unsorted, wrong-domain, detached, widened, and
-  root-path substitutions fail closed. Target lowering rejects the retained
-  projected roster explicitly until downstream carriers support it rather than
-  inferring authority from root shape or carrier equality. The paired function-
-  result and operation-result slice is now complete. Terminal declarations and
-  structural operation results carry separate exact projected rosters; calls
-  copy only the callee result roster; and return replay rejoins the declared
-  source contract. Format-56/vocabulary-59 compatibility reconstructs absent
-  rows as empty. Optimization-unit V18 identity, independent replay, abstract
-  projection, prephysical custody, and image signature codecs retain them.
-  Target lowering rejects either nonempty result roster until downstream
-  carriers support it. Join intersection remains later work because current
+  root-path substitutions fail closed. The first target-carrier closure is now
+  complete for one exact two-function structural call/return plan: an owned
+  linear parameter crosses `CallStructural; ReturnStructural`, the callee
+  returns its owned parameter, and caller parameter, call result, both declared
+  results, callee parameter, and callee source retain one identical canonical
+  nonempty projected roster. A distinct plan-family catalog and local
+  caller/callee family receipts independently reconstruct the source grammar,
+  native ABI plans and placements, structural layout, claims/transfers,
+  provenance, and all six target roster locations on every native target.
+  Missing, wrong-path, wrong-domain, duplicate, unsorted, machine, placement,
+  coordinate, and authored-access corruption fail closed; boundary/provider,
+  unrelated-function, and unrelated-result rosters remain explicitly fenced.
+  Public no-rewrite optimizer custody reaches this receipt, but legalization
+  and every later physical stage remain unsupported. The paired function-
+  result and operation-result source slice is also complete. Terminal
+  declarations and structural operation results carry separate exact projected
+  rosters; calls copy only the callee result roster; and return replay rejoins
+  the declared source contract. Format-56/vocabulary-59 compatibility
+  reconstructs absent rows as empty. Optimization-unit V18 identity,
+  independent replay, abstract projection, prephysical custody, and image
+  signature codecs retain them.
+  Target lowering admits those rosters only as part of the exact complete
+  structural call/return closure above. All other nonempty result-roster shapes
+  remain rejected. Join intersection remains later work because current
   joins and GVN have no structural result carrier or executable consumer. That
   remaining item is not an open language-semantic question.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
@@ -1036,12 +1049,19 @@ decision. Only true language-semantic questions belong in
   a fixture where an original passes the new choice proof and the corresponding
   typed action generalization remain engineering work. The intended public
   prerequisite graph is exactly `r + ((r + (a + b)) + (b + r))`, but it cannot
-  yet reach allocation honestly: canonical Psi proof production does not
-  recursively assemble the exact-add fork/join conjunction needed to prove the
-  join's U64 upper bound, even though the proof kernel can check that evidence.
-  General recursive exact-add conjunction proof search, with independent
-  replay and corruption coverage, therefore precedes this fixture; no
-  original-victim allocation claim exists until that boundary passes. A
+  yet reach allocation honestly. Canonical Psi proof production now has one
+  bounded prerequisite slice: a 94-line direct-add entrance preserves the
+  established correlated/targeted/flat precedence and may then combine two
+  recursively proven affine-chain endpoints under one shared definition/depth
+  budget. Existing kernel rules re-admit every completed proof; deterministic
+  memoization, ambiguity, cycle, type/address/overflow, exact-budget, and proof-
+  corruption tests fail closed, and a source-to-Terminal-to-codec-to-independent-
+  verifier canary pins custody. Internal computed-plus-computed definitions and
+  arbitrary exact-add DAG authority remain explicitly refused. In particular,
+  the proposed graph's extra outer `r +` still places a computed-plus-computed
+  definition below the canonical top conjunction and therefore remains outside
+  this slice. The allocator original-victim fixture still does not exist. No
+  original-victim allocation claim exists yet. A
   fourteenth independently replayed V1 artifact now integrates the validated epoch-two
   reload-victim obligations into one complete recursive logical insertion
   schedule. Its distinct stored-value type prevents a compiler-private reload

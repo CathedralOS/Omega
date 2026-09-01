@@ -418,7 +418,7 @@ The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
 
-Abstract-to-target validation follows the same entrance rule. Its 43-line
+Abstract-to-target validation follows the same entrance rule. Its 50-line
 `validation/mod.rs` exposes the module map and public validation calls;
 `whole_plan.rs` binds whole-plan roots, exact external settlement rosters,
 function order, and structural declarations before the catalog selects one
@@ -437,6 +437,27 @@ only `grammar.rs` and `replay.rs`; mirrored fixture, positive, source-
 corruption, and target-corruption leaves sit below their own test group. The
 catalog and architecture ladders register it independently from plain Boolean
 immediate and parameter Boolean-not families.
+
+Projected structural call/return custody follows a plan taxonomy because no
+single function can validate the closure. The 54-line
+`lowering/coordination/projected_qualifications/mod.rs` entrance owns only the
+global rejection fence and points to `structural_call_return.rs` for its one
+complete producer grammar. Independent validation enters through the 68-line
+`validation/structural_call_return/mod.rs`, then descends through named
+source, layout, target, and local caller/callee replay leaves. A separate plan
+catalog and structural function adapters make enablement explicit. Mirrored
+fixture, positive, source-corruption, target-corruption, and fence leaves sit
+under one registered semantic ladder, with the public optimizer-custody canary
+at its final rung.
+
+The checked-Psi exact-add proof producer uses the same navigability rule
+without pretending to be an optimizer catalog. Its 94-line `direct_add/mod.rs`
+entrance visibly owns strategy precedence and names `correlated`, `targeted`,
+`flat`, `relation`, and `conjunction` leaves. The 76-line conjunction entrance
+then names only `compute`, `definitions`, and `model`; its tests descend into
+fixture, positive, refusal, budget, and corruption leaves. An architecture
+guard fixes both entrances at 100 lines and requires every named rung, while a
+source integration canary lives outside the producer taxonomy.
 
 GVN's `expression_keys/` group owns a closed key model and three explicit
 classifiers: total, proof-certified, and directional compatible-policy. Those

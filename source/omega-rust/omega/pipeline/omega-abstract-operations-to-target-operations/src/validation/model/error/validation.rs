@@ -2,8 +2,9 @@
 
 use psi_core::{MachineId, OperationId};
 
-use super::super::AbstractToTargetTranslationFamily;
+use super::super::{AbstractToTargetPlanTranslationFamily, AbstractToTargetTranslationFamily};
 use super::AbstractToTargetTranslationFamilyError;
+use crate::validation::StructuralCallReturnProjectedQualificationValidationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {
@@ -23,6 +24,11 @@ pub enum AbstractToTargetTranslationValidationError {
     DuplicateIeeeFloatFmaSettlement(OperationId),
     UnknownIeeeFloatFmaSettlement(OperationId),
     MissingIeeeFloatFmaSettlement(OperationId),
+    AmbiguousPlanFamily,
+    PlanFamily {
+        family: AbstractToTargetPlanTranslationFamily,
+        error: StructuralCallReturnProjectedQualificationValidationError,
+    },
     AmbiguousFunctionFamily {
         machine: MachineId,
         first: AbstractToTargetTranslationFamily,

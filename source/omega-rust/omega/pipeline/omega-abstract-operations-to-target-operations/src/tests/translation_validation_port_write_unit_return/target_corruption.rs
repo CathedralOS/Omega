@@ -73,6 +73,7 @@ fn port_write_unit_return_target_envelope_corruption_fails_closed() {
                 structural_type: StructuralTypeId::new(54_125).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
+                projected_qualifications: Vec::new(),
                 shape,
                 placement,
             });

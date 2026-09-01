@@ -45,6 +45,7 @@ use arithmetic::{
 use shift::{
     ExactShiftLeftError, ExactShiftRightError, WrappingShiftLeftError, WrappingShiftRightError,
 };
+use crate::validation::StructuralCallReturnProjectedQualificationValidationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
@@ -118,4 +119,6 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineWrappingIntegerSubtractParameters(WrappingSubtractError),
     StraightLineWrappingIntegerMultiplyParameters(WrappingMultiplyError),
     StraightLineSaturatingIntegerMultiplyParameters(SaturatingMultiplyError),
+    StructuralCallReturnCaller(StructuralCallReturnProjectedQualificationValidationError),
+    StructuralParameterReturnCallee(StructuralCallReturnProjectedQualificationValidationError),
 }

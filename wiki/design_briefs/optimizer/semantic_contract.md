@@ -59,10 +59,15 @@ results, and structural operation results in addition to whole-root rosters.
 Verification binds each nonempty path to its leaf carrier, calls copy only the
 callee result's exact roster, and returns rejoin the source and declared result
 contracts. Optimizer identity, independent replay, abstract projection, and
-prephysical custody retain every row exactly. A later stage that lacks the path
-carrier rejects it explicitly rather than inferring a field qualification from
-root shape or carrier equality. Downstream target carriers remain a future
-bounded extension of the same rule.
+prephysical custody retain every row exactly. Target lowering now has one
+bounded exception to the general rejection fence: an exact two-function owned
+linear structural call/return closure retains one identical canonical nonempty
+roster across caller parameter, call result, both declared results, callee
+parameter, and callee source. Independent plan and local-function replay
+reconstruct native ABI placement and every roster location. Boundary/provider,
+unrelated, and all other projected-roster shapes still reject, and legalization
+has no authority to consume this carrier. No stage may infer a field
+qualification from root shape or carrier equality.
 
 At control-flow joins, an output may retain only qualifications carried by
 every incoming occurrence through valid establishment lineage. CSE and GVN

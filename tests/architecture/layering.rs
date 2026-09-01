@@ -1749,6 +1749,39 @@ fn first_psi_source_slice_stays_fail_closed() {
 }
 
 #[test]
+fn direct_add_proof_search_keeps_small_taxonomic_entrances() {
+    let root = workspace_root();
+    let direct_add = root.join(
+        "source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/nonzero_divisor_certificate/integer_selection/direct_add",
+    );
+    for (entrance, modules) in [
+        (
+            direct_add.join("mod.rs"),
+            &["conjunction", "correlated", "flat", "relation", "targeted"][..],
+        ),
+        (
+            direct_add.join("conjunction/mod.rs"),
+            &["compute", "definitions", "model"][..],
+        ),
+    ] {
+        let source = std::fs::read_to_string(&entrance)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", entrance.display()));
+        assert!(
+            source.lines().count() <= 100,
+            "direct-add proof entrance {} exceeds its 100-line navigation budget",
+            entrance.display()
+        );
+        for module in modules {
+            assert!(
+                source.contains(&format!("mod {module};")),
+                "direct-add proof entrance {} must name its `{module}` rung",
+                entrance.display()
+            );
+        }
+    }
+}
+
+#[test]
 fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
     let root = workspace_root();
     let typed = root.join(
@@ -3411,11 +3444,28 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_scalar_crash::validate",
         "CallingPolicy::native_for_target",
         "evaluate_call_plan",
+        "ENABLED_PLAN_TRANSLATION_FAMILIES",
+        "structural_call_return::is_candidate",
+        "structural_call_return::validate",
+        "source::reconstruct(source)?",
+        "target::replay(&closure, target)?",
         "AmbiguousFunctionFamily",
     ] {
         assert!(
             validation.contains(required),
             "abstract-to-target validation must visibly own independent `{required}` reconstruction",
+        );
+    }
+
+    let structural_replay = recursive_rust_source(&stage.join("validation/structural_call_return"));
+    for forbidden in [
+        "crate::lowering",
+        "structural_layout",
+        "lower_direct_return",
+    ] {
+        assert!(
+            !structural_replay.contains(forbidden),
+            "projected structural-call replay must not consume producer mechanics; found {forbidden}",
         );
     }
 

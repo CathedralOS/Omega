@@ -4,6 +4,7 @@
 
 mod dispatch;
 mod model;
+mod plan;
 mod selection;
 
 use omega_abstract_operations::AbstractFunction;
@@ -66,6 +67,8 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::parameter::arithmetic::WRAPPING_INTEGER_SUBTRACT,
     dispatch::parameter::arithmetic::WRAPPING_INTEGER_MULTIPLY,
     dispatch::parameter::arithmetic::SATURATING_INTEGER_MULTIPLY,
+    dispatch::structural::CALLER,
+    dispatch::structural::CALLEE,
 ];
 
 pub(super) fn validate_function(
@@ -85,6 +88,8 @@ pub(super) fn validate_function(
         ieee_float_fma,
     )
 }
+
+pub(super) use plan::validate as validate_plan;
 
 #[cfg(test)]
 mod tests;
