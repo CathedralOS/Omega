@@ -266,42 +266,7 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
 #[test]
 fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores() {
     let checked = check_dynamic_source(STRUCTURAL_INTEGER_STORE_SOURCE);
-    eprintln!("scalar expressions: {:#?}", checked.facts.values.scalar_expressions.expressions);
-    eprintln!("mutation: {:#?}", checked.facts.mutation);
     let plan = sole_direct_dynamic_plan(&checked);
-    let caller_state = checked
-        .typed
-        .machines()
-        .iter()
-        .flat_map(|machine| checked.typed.machine_states(machine))
-        .find(|state| state.symbol == plan.caller_state)
-        .expect("caller state");
-    let StatementNode::Assignment(assignment) = &checked
-        .typed
-        .statement_table
-        .statements(caller_state.statement_nodes)[0]
-    else {
-        panic!("assignment")
-    };
-    eprintln!(
-        "target type: {:#?}",
-        crate::flow::expression_type_reference_in_state(
-            &checked.typed,
-            caller_state.symbol,
-            0,
-            assignment.target,
-        )
-    );
-    eprintln!(
-        "target place: {:#?}",
-        crate::flow::canonical_place_from_expression_in_state(
-            &checked.typed,
-            caller_state.symbol,
-            0,
-            assignment.target,
-        )
-    );
-    eprintln!("parameters: {:#?}", checked.typed.state_parameters(caller_state));
     let integer_store = plan
         .caller_structural_scalar_field_store
         .as_ref()
