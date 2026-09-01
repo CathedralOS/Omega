@@ -37,7 +37,7 @@ use psi_checked_trees::{
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
     CarryPolicy, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, SemanticDomainId,
+    PermissionEventKind, PermissionEventSource, SemanticDomainId, ServiceReachSummary,
 };
 use psi_symbols::{BuiltinFunction, SymbolHandle};
 use psi_typed_trees::{
@@ -209,7 +209,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         &mut shapes,
         &boundary_machines,
     );
-    let dynamic_dispatch = build_checked_dynamic_dispatch_plans(program, facts);
+    let dynamic_dispatch = build_checked_dynamic_dispatch_plans(program, facts, &mut shapes);
 
     loop {
         let checked_symbols = candidates
@@ -299,6 +299,17 @@ pub(crate) fn build_checked_unit_effect_plans(
                     .map(|parameter| parameter.type_identity.as_str()),
             )
         }))
+        .chain(
+            dynamic_dispatch
+                .direct_scalar_calls
+                .iter()
+                .flat_map(|plan| {
+                    [
+                        plan.caller_attachment_type_identity.as_str(),
+                        plan.source_type_identity.as_str(),
+                    ]
+                }),
+        )
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained_type_identities);
 

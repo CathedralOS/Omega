@@ -27,6 +27,7 @@ pub(super) use catalog::collect_contract_services;
 pub(super) use catalog::{
     checked_unit_target_reach_matches, collect_installation_machine_contract_services,
     collect_published_contract_services, collect_service_summary, lower_root_service_reach,
+    lower_unit_structural_type_roots,
 };
 use catalog::{
     lower_program_local_root_introductions, lower_provider_candidate_service_ceiling,

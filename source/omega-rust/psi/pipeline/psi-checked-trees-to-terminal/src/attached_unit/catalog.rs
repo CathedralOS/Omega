@@ -148,7 +148,7 @@ pub(super) fn lower_unit_structural_types(
     lower_unit_structural_type_roots(checked, &roots)
 }
 
-pub(super) fn lower_unit_structural_type_roots(
+pub(crate) fn lower_unit_structural_type_roots(
     checked: &CheckedTrees,
     roots: &[String],
 ) -> Result<

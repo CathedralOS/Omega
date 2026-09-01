@@ -6,6 +6,7 @@ use psi_checked_trees::{
 
 use crate::attached_unit::{lower_attached_unit_closure, lower_composed_unit_control_machine};
 use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
+use crate::dynamic_composed_unit::lower_direct_dynamic_composed_unit_machine;
 use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
 use crate::scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
@@ -31,6 +32,9 @@ pub(super) enum SelectedMachineRoute {
         realization_machine: psi_symbols::SymbolHandle,
     },
     SelectedOperatorStructuralScalarReturn {
+        realization_machine: psi_symbols::SymbolHandle,
+    },
+    DirectDynamicComposedUnit {
         realization_machine: psi_symbols::SymbolHandle,
     },
     StructuralScalarReturn,
@@ -89,6 +93,29 @@ pub(super) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
+    let direct_dynamic_plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .direct_scalar_calls
+        .iter()
+        .filter(|plan| plan.caller_machine == selection.machine)
+        .collect::<Vec<_>>();
+    if !direct_dynamic_plans.is_empty() {
+        let [plan] = direct_dynamic_plans.as_slice() else {
+            return unsupported("direct dynamic dispatch plan is duplicated for one caller");
+        };
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("direct dynamic dispatch requires an attached caller");
+        }
+        return routed_machine(
+            lower_direct_dynamic_composed_unit_machine(checked, plan),
+            SelectedMachineRoute::DirectDynamicComposedUnit {
+                realization_machine: plan.realization_machine,
+            },
+        );
+    }
     if let Some(plan) = checked
         .facts
         .flow

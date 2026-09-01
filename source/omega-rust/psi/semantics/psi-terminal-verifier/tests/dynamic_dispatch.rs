@@ -265,6 +265,63 @@ fn admits_exact_source_free_direct_dynamic_dispatch() {
 }
 
 #[test]
+fn admits_an_unrestricted_shared_boolean_field_realization() {
+    let mut module = dynamic_dispatch_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        panic!("carrier is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: id::<psi_core::StructuralFieldId>(2),
+        identity: "ready".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    module.machines[1].blocks[0].operations[0].kind = OperationKind::BooleanStructuralField {
+        source: id::<PlaceId>(2),
+        field: id::<psi_core::StructuralFieldId>(2),
+    };
+
+    validate_module(&module).expect("an exact shared unrestricted field read is valid");
+}
+
+#[test]
+fn rejects_a_write_only_boolean_field_realization() {
+    let mut module = dynamic_dispatch_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        panic!("carrier is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: id::<psi_core::StructuralFieldId>(2),
+        identity: "ready".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+    });
+    module.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+    module.machines[1].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+    module.dynamic_dispatch.selections[0].source.access = StructuralAccess::WriteOnlyBorrow;
+    let OperationKind::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("caller contains the direct structural call")
+    };
+    structural_arguments[0].access = StructuralAccess::WriteOnlyBorrow;
+    module.machines[1].blocks[0].operations[0].kind = OperationKind::BooleanStructuralField {
+        source: id::<PlaceId>(2),
+        field: id::<psi_core::StructuralFieldId>(2),
+    };
+
+    assert_eq!(
+        validation_error(&module),
+        ModuleError::StructuralObservationRequiresReadableAccess {
+            operation: id::<OperationId>(2),
+            source: id::<PlaceId>(2),
+        }
+    );
+}
+
+#[test]
 fn rejects_conformance_subject_for_another_source_carrier() {
     let mut module = dynamic_dispatch_module();
     module.closed_conformance_applications[0].subject_identity =

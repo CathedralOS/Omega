@@ -106,6 +106,7 @@ mod conformance_applications;
 mod content_conservation;
 mod crash_routes;
 mod debug_map;
+mod dynamic_composed_unit;
 mod evidence_lowering;
 mod float_meaning_projection;
 mod machine_dispatch;
@@ -1232,6 +1233,9 @@ pub fn lower_machine(
         SelectedMachineRoute::SelectedOperatorStructuralScalarReturn {
             realization_machine,
         } => vec![selection.machine, realization_machine],
+        SelectedMachineRoute::DirectDynamicComposedUnit {
+            realization_machine,
+        } => vec![selection.machine, realization_machine],
         SelectedMachineRoute::AttachedUnit
             if checked
                 .facts
@@ -1324,7 +1328,27 @@ pub fn lower_machine(
             "outcome-specific guarantees require guarded exit and caller-arm lowering",
         );
     }
-    lower_closed_conformance_applications(checked, &source_machines, &mut lowered.semantic_module)?;
+    if matches!(
+        route,
+        SelectedMachineRoute::DirectDynamicComposedUnit { .. }
+    ) {
+        if lowered
+            .semantic_module
+            .closed_conformance_applications
+            .len()
+            != 1
+        {
+            return unsupported(
+                "direct dynamic dispatch must publish exactly one closed conformance application",
+            );
+        }
+    } else {
+        lower_closed_conformance_applications(
+            checked,
+            &source_machines,
+            &mut lowered.semantic_module,
+        )?;
+    }
     lowered.semantic_module.float_meaning_projections = checked
         .facts
         .proof
