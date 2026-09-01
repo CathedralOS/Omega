@@ -34,6 +34,7 @@ const COUNTDOWN_SOURCE: &str = r#"
     }
 "#;
 
+mod countdown_invariant_constants;
 mod counted_loop_analysis;
 
 fn countdown_input() -> (psi_terminal::TerminalModule, VerifiedPsiOptimizationInput) {
