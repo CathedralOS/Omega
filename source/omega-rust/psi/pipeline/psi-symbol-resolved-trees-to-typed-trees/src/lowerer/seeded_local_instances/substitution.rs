@@ -2,7 +2,7 @@ use super::super::exact_field_symbol;
 use psi_symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
 use psi_symbols::SymbolHandle;
 
-pub(super) fn field_matches(
+pub(super) fn member_matches(
     source: &SymbolResolvedTrees,
     template_owner: SymbolHandle,
     instance_owner: SymbolHandle,
@@ -11,13 +11,39 @@ pub(super) fn field_matches(
     template: &psi_symbol_resolved_trees::data::DataMember,
     instance: &psi_symbol_resolved_trees::data::DataMember,
 ) -> bool {
-    let (
-        psi_symbol_resolved_trees::data::DataMember::Field(template),
-        psi_symbol_resolved_trees::data::DataMember::Field(instance),
-    ) = (template, instance)
-    else {
-        return false;
-    };
+    use psi_symbol_resolved_trees::data::DataMember;
+    match (template, instance) {
+        (DataMember::Field(template), DataMember::Field(instance)) => field_matches(
+            source,
+            template_owner,
+            instance_owner,
+            substitutions,
+            validated_instances,
+            template,
+            instance,
+        ),
+        (DataMember::Variant(template), DataMember::Variant(instance)) => variant_matches(
+            source,
+            template_owner,
+            instance_owner,
+            substitutions,
+            validated_instances,
+            template,
+            instance,
+        ),
+        _ => false,
+    }
+}
+
+fn field_matches(
+    source: &SymbolResolvedTrees,
+    template_owner: SymbolHandle,
+    instance_owner: SymbolHandle,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template: &psi_symbol_resolved_trees::data::DataField,
+    instance: &psi_symbol_resolved_trees::data::DataField,
+) -> bool {
     template.identity == instance.identity
         && template.name.as_str() == instance.name.as_str()
         && template.relevance == instance.relevance
@@ -31,6 +57,51 @@ pub(super) fn field_matches(
             &template.type_reference,
             &instance.type_reference,
         )
+}
+
+fn variant_matches(
+    source: &SymbolResolvedTrees,
+    template_owner: SymbolHandle,
+    instance_owner: SymbolHandle,
+    substitutions: &[(SymbolHandle, &TypeReference)],
+    validated_instances: &[SymbolHandle],
+    template: &psi_symbol_resolved_trees::data::DataVariant,
+    instance: &psi_symbol_resolved_trees::data::DataVariant,
+) -> bool {
+    let template_payload = source.data_payload_fields(template.payload);
+    let instance_payload = source.data_payload_fields(instance.payload);
+    template.identity == instance.identity
+        && template.name.as_str() == instance.name.as_str()
+        && template.retired_payload_identities == instance.retired_payload_identities
+        && template.symbol != instance.symbol
+        && exact_variant_symbol(source, template_owner, template)
+        && exact_variant_symbol(source, instance_owner, instance)
+        && template_payload.len() == instance_payload.len()
+        && template_payload
+            .iter()
+            .zip(instance_payload)
+            .all(|(template_field, instance_field)| {
+                field_matches(
+                    source,
+                    template.symbol,
+                    instance.symbol,
+                    substitutions,
+                    validated_instances,
+                    template_field,
+                    instance_field,
+                )
+            })
+}
+
+fn exact_variant_symbol(
+    source: &SymbolResolvedTrees,
+    owner: SymbolHandle,
+    variant: &psi_symbol_resolved_trees::data::DataVariant,
+) -> bool {
+    variant.symbol.is_valid()
+        && source.symbols.get(variant.symbol).kind == psi_symbols::SymbolKind::Variant
+        && source.symbols.get(variant.symbol).parent == owner
+        && source.symbols.name(variant.symbol) == variant.name.as_str()
 }
 
 fn type_matches(

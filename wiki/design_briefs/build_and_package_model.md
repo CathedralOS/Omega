@@ -309,16 +309,19 @@ may appear directly or beneath the admitted reference, slice, and literal
 fixed-array shells. Each already-parsed generated unit is normalized
 independently into a seeded-only clone while its raw tree remains owned by the
 fallback. Within one unit, the closed-instance continuation validates a
-collection of methodless record templates, instances, ordinary records, and
-use sites without declaration-count or ordering assumptions. A template may
+collection of methodless data templates, instances, ordinary data declarations,
+and use sites without declaration-count or ordering assumptions. A template may
 have any nonzero number of Type parameters with their exact declared property
 bounds. Local template applications retain those bounds. Every synthesized
 data definition's retained `generic_instance` origin is an explicit checked-
 property-bound validation root, so closed nominal arguments that fail a
 declared property bound reject after normalization as well; seeded admission
-does not replace semantic bound checking. Direct parameter fields and parameter
-elements under literal fixed-array shells replay the retained arguments;
-direct Unit and exact named companions remain unchanged.
+does not replace semantic bound checking. Record fields and sum-case payloads
+replay direct parameters and parameter elements under literal fixed-array
+shells from the retained arguments; direct Unit and exact named companions
+remain unchanged. Pure sums and mixed field/case data retain exact case order,
+identity, symbol ownership, payload identity/relevance, and retired payload
+identities.
 Arguments may be builtins, exact nongeneric nominal data, or already-validated
 local closed instances. Finite acyclic nested-instance dependency chains are
 reconstructed in dependency order, every instance must remain transitively
@@ -328,9 +331,9 @@ any number of direct or admitted-shell ordinary-record use sites, repeated
 uses deduplicate, and ordinary nongeneric local data cycles remain graph edges
 rather than special cases. The retained continuation checks every exact
 template/argument/origin tuple, canonical instance spelling and retired
-identities, recursive field substitution, declaration/parameter/field
-ownership, same-unit source ownership, and use-site spelling. It does not infer
-an instance across generated units. Cyclic instance dependencies, lifetime/
+identities, recursive field/payload substitution, declaration/parameter/field/
+case ownership, same-unit source ownership, and use-site spelling. It does not
+infer an instance across generated units. Cyclic instance dependencies, lifetime/
 const/constrained applications, parameter-bearing reference/slice/other
 composite shells, fact-bearing, quotient, zero-gated, generated-method-bearing,
 dynamic, or non-data forms return the owned base and raw parsed extension to
@@ -350,8 +353,9 @@ constrained/dynamic arguments, invalid lifetime custody, missing or redirected
 identities, wrong arity, and broader extension roots return the untouched
 checkpoint and raw extension to the fallback. Every retained symbol/table and
 authored-selection prefix, generated-source custody row, and the selected
-build symbol remain unchanged. Broader extension-local and non-data
-continuation and removal of that fallback remain open.
+build symbol remain unchanged. Lifetime/const/constrained extension-local
+instances, generated attached methods, non-data continuation, and removal of
+that fallback remain open.
 Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is

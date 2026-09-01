@@ -4340,6 +4340,135 @@ fn seeded_nested_local_instance_gate_rejects_dependency_and_reachability_mutatio
 }
 
 #[test]
+fn seeded_local_sum_instance_gate_rejects_case_and_payload_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Maybe<T> { case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; } data Generated { value: Maybe<u32>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let template_index = index("Maybe");
+    let instance_index = index("Maybe<u32>");
+    let template_members = resolved.data_definitions[template_index].members;
+    let instance_members = resolved.data_definitions[instance_index].members;
+    let template_some = match &resolved.data_members(template_members)[1] {
+        psi_symbol_resolved_trees::data::DataMember::Variant(variant) => variant,
+        _ => panic!("Maybe::Some template case"),
+    };
+    let instance_some = match &resolved.data_members(instance_members)[1] {
+        psi_symbol_resolved_trees::data::DataMember::Variant(variant) => variant,
+        _ => panic!("Maybe<u32>::Some instance case"),
+    };
+    assert_ne!(template_some.symbol, instance_some.symbol);
+    assert_eq!(template_some.identity, instance_some.identity);
+    assert_eq!(
+        template_some.retired_payload_identities,
+        instance_some.retired_payload_identities
+    );
+
+    let mut reordered_cases = resolved.clone();
+    reordered_cases
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(instance_members)
+        .swap(0, 1);
+    assert!(
+        !plain_data_extension_shape_is_supported(&reordered_cases, frontier),
+        "case declaration order is part of the synthesized instance"
+    );
+
+    let mut wrong_case_parent = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_case_parent
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
+    else {
+        unreachable!()
+    };
+    instance_some_mut.symbol = template_some.symbol;
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_case_parent, frontier),
+        "a synthesized case cannot reuse the template case symbol"
+    );
+
+    let mut wrong_case_identity = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_case_identity
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
+    else {
+        unreachable!()
+    };
+    instance_some_mut.identity = Some(71);
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_case_identity, frontier),
+        "case identity must replay exactly"
+    );
+
+    let mut wrong_retired_payload = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_retired_payload
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
+    else {
+        unreachable!()
+    };
+    instance_some_mut.retired_payload_identities.push(72);
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_retired_payload, frontier),
+        "retired payload identities must replay exactly"
+    );
+
+    let mut wrong_payload_substitution = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &wrong_payload_substitution.data_members(instance_members)[1]
+    else {
+        unreachable!()
+    };
+    let payload = instance_some_mut.payload;
+    wrong_payload_substitution
+        .tables
+        .declarations
+        .data_payload_fields
+        .span_mut_or_empty(payload)[0]
+        .type_reference = psi_symbol_resolved_trees::types::TypeReference::Unit;
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_payload_substitution, frontier),
+        "payload substitution must replay the exact type argument"
+    );
+
+    let mut wrong_payload_parent = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Variant(instance_some_mut) =
+        &mut wrong_payload_parent
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(instance_members)[1]
+    else {
+        unreachable!()
+    };
+    instance_some_mut.payload = template_some.payload;
+    assert!(
+        !plain_data_extension_shape_is_supported(&wrong_payload_parent, frontier),
+        "a synthesized case cannot reuse template-owned payload fields"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -4397,6 +4526,18 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
         (
             "nested_bound_forwarding",
             "data Cell<T [copy]> [copy] { value: T; } data Outer<U [copy]> [copy] { cell: Cell<U>; direct: U; } data Generated { value: Outer<u32>; }",
+        ),
+        (
+            "generic_sum_instance",
+            "data Maybe<T> { case None; case Some(value: T); } data Generated { value: Maybe<u32>; }",
+        ),
+        (
+            "generic_mixed_instance",
+            "data Outcome<T> { tag: u8; case Empty; case Value(value: T); } data Generated { value: Outcome<u32>; }",
+        ),
+        (
+            "nested_generic_sum_instances",
+            "data Maybe<T> { case None; case Some(values: [T; 2]); } data Outer<T> { case Empty; case Nested(value: Maybe<T>); } data Generated { value: Outer<u32>; }",
         ),
     ] {
         let (base, extension) =

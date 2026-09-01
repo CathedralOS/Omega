@@ -478,24 +478,26 @@ data binders and whose lifetime applications select an exact zero-runtime-
 parameter data declaration at its complete arity without runtime arguments.
 Other runtime-generic, constrained, invalid-lifetime, const-expression, dynamic,
 fact-bearing, quotient, zero-gated, or non-data shapes return the owned base
-to the unchanged full frontend rebuild/rebind fallback. One exact runtime-
-generic successor now bypasses that fallback: a single generated unit may own
-one methodless record template with one default-bound Type parameter, one
-wrapper directly naming exactly two uses of one builtin-argument application,
-and the one deduplicated synthesized instance. Template companions are limited
-to direct Unit/builtin fields; wrapper companions may additionally name exact
-zero-parameter retained-base data, never extension-local data. The compiler normalizes a per-unit
-clone before seeded resolution but retains the raw parsed unit for fallback;
-the continuation independently binds the local template and builtin symbols,
-canonical instance origin/spelling/retired identities, direct field substitution,
-declaration/parameter/field symbol ownership, wrapper uses, and common source
-ownership. Base-owned or cross-unit synthesis, multiple or
-nested instances, lifetime/const/constrained/nondefault parameters, indirect
-parameter shells, facts, quotients, zero gates, and attached methods remain on
-the raw full-rebuild path. General seeded typing and deletion of that fallback
-remain open. The source-side prerequisite
-is now explicit: own generated outputs are parsed once into a retained
-extension-only syntax carrier bound to the exact base source frontier, unit
+to the unchanged full frontend rebuild/rebind fallback. Runtime-generic data in
+one generated unit now bypasses that fallback for methodless record, pure-sum,
+and mixed field/case templates with any nonzero number of ordinary Type
+parameters and their exact property bounds. Any number of closed instances,
+wrappers, and uses may compose finite acyclic nested instance graphs. Arguments
+may be builtins, exact nongeneric nominal data, or already validated local
+instances. Direct parameter substitution and literal fixed-array shells replay
+through record fields and case payloads. The continuation rejoins exact
+template/argument/origin spelling, case order and identity, retired data/
+payload identities, declaration/parameter/field/case ownership, transitive
+reachability from ordinary generated data, and common source ownership. Base-
+owned applications separately retain their exact structural generic nodes
+without local synthesis. The compiler normalizes a per-unit clone before
+seeded resolution but retains the raw parsed unit for fallback. Cross-unit
+synthesis, lifetime/const/constrained applications, parameter-bearing
+reference/slice/other composite shells, facts, quotients, zero gates, attached
+generated methods, and non-data shapes remain on the raw full-rebuild path.
+General seeded typing and deletion of that fallback remain open. The source-
+side prerequisite is now explicit: own generated outputs are parsed once into
+a retained extension-only syntax carrier bound to the exact base source frontier, unit
 roots, bytes, and custody. The carrier feeds the unchanged transitional
 combined pass without rereading or reparsing generated source. The seeded
 syntax-to-resolved continuation is now live: it consumes the retained resolved

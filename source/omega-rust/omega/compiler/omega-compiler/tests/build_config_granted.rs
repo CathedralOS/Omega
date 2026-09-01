@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -265,7 +265,7 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 4, "four deduplicated closed instances");
+    assert_eq!(instances.len(), 5, "five deduplicated closed instances");
     let instance = instances
         .iter()
         .copied()
@@ -275,6 +275,34 @@ machine build(builder: &mut Build) {{
         instance.properties, template.properties,
         "the closed instance retains the exact bounded template properties"
     );
+    let maybe_instance = instances
+        .iter()
+        .copied()
+        .find(|definition| definition.name.as_str() == "Maybe<u32>")
+        .expect("selected Maybe<u32> instance");
+    assert_eq!(maybe_instance.retired_identities, [4]);
+    let [
+        psi_typed_trees::data::DataMember::Variant(none),
+        psi_typed_trees::data::DataMember::Variant(some),
+    ] = checked.typed.data_members(maybe_instance)
+    else {
+        panic!("Maybe<u32> retains its two exact cases")
+    };
+    assert_eq!(none.identity, Some(1));
+    assert_eq!(some.identity, Some(2));
+    assert_eq!(some.retired_payload_identities, [3]);
+    let [payload] = checked.typed.data_payload_fields(some) else {
+        panic!("Maybe<u32>::Some retains its payload")
+    };
+    assert_eq!(payload.identity, Some(1));
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(payload.type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { name, .. }
+            if name.as_str() == "u32"
+    ));
     let wrapper = checked
         .typed
         .data_definitions()

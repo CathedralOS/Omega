@@ -1,4 +1,4 @@
-//! Validation of normalized, extension-local generic record instances.
+//! Validation of normalized, extension-local generic data instances.
 
 use super::exact_top_level_data_symbol;
 use psi_symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
@@ -84,12 +84,12 @@ pub(super) fn template_application_is_supported(
         })
 }
 
-/// Reconstruct every simple local instance independently and return the exact
+/// Reconstruct every admitted local instance independently and return the exact
 /// instance symbols that ordinary generated-data validation may reference.
 ///
 /// No fixed declaration or use count belongs here. The normalizer's retained
 /// origin is sufficient to rejoin each instance to one same-unit template,
-/// replay direct Type-parameter substitution, and require at least one
+/// replay Type-parameter substitution through fields or case payloads, and require at least one
 /// ordinary-data use. Unsupported synthesis shapes reject the whole candidate
 /// transactionally.
 pub(super) fn validated_symbols(
@@ -212,7 +212,7 @@ fn validate_instance(
     template_members.len() == instance_members.len()
         && template_members.iter().zip(instance_members).all(
             |(template_member, instance_member)| {
-                substitution::field_matches(
+                substitution::member_matches(
                     source,
                     template.symbol,
                     instance.symbol,
