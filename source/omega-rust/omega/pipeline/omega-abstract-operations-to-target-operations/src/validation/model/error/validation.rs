@@ -17,6 +17,9 @@ pub enum AbstractToTargetTranslationValidationError {
     FunctionAttachmentMismatch {
         machine: MachineId,
     },
+    FunctionStructuralTypeRosterMismatch {
+        machine: MachineId,
+    },
     AmbiguousFunctionFamily {
         machine: MachineId,
         first: AbstractToTargetTranslationFamily,

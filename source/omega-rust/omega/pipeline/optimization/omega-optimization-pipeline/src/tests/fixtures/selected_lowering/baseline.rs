@@ -11,6 +11,19 @@ use crate::tests::{
 };
 
 pub(crate) fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec<u8>) {
+    let (when_true_values, when_false_values) = if subtract {
+        ([13, 5], [21, 8])
+    } else {
+        ([7, 8], [11, 13])
+    };
+    conditional_exact_binary_artifact_with_values(subtract, when_true_values, when_false_values)
+}
+
+pub(crate) fn conditional_exact_binary_artifact_with_values(
+    subtract: bool,
+    when_true_values: [u128; 2],
+    when_false_values: [u128; 2],
+) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(5_001).unwrap();
     let entry = BlockId::new(5_002).unwrap();
     let when_true = BlockId::new(5_003).unwrap();
@@ -103,14 +116,14 @@ pub(crate) fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec
                             true_left_operation,
                             true_left,
                             OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(if subtract { 13 } else { 7 }),
+                                value: IntegerValue::Unsigned(when_true_values[0]),
                             },
                         ),
                         integer_operation(
                             true_right_operation,
                             true_right,
                             OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(if subtract { 5 } else { 8 }),
+                                value: IntegerValue::Unsigned(when_true_values[1]),
                             },
                         ),
                         integer_operation(
@@ -145,14 +158,14 @@ pub(crate) fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec
                             false_left_operation,
                             false_left,
                             OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(if subtract { 21 } else { 11 }),
+                                value: IntegerValue::Unsigned(when_false_values[0]),
                             },
                         ),
                         integer_operation(
                             false_right_operation,
                             false_right,
                             OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(if subtract { 8 } else { 13 }),
+                                value: IntegerValue::Unsigned(when_false_values[1]),
                             },
                         ),
                         integer_operation(

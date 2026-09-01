@@ -465,15 +465,19 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-five abstract-to-target families, including
-  proof-bearing exact parameterized fixed-integer addition, subtraction,
+  machine-rule family. Thirty-six abstract-to-target families are covered,
+  including
+  parameterless straight-line Unit return with an independently reconstructed
+  empty native call plan, exact return edge/provenance, and plan-global
+  structural-type roster custody. Coverage also includes proof-bearing exact
+  parameterized fixed-integer addition, subtraction,
   multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
   addition, subtraction, and multiplication, independently typed wrapping
   shifts and proof-bearing exact shifts, selected incoming u12 folds,
   current machine substitutions, structural-Unit encoding, resolved layout,
-  and ranked-u32 publication routes
-  are covered. The x86 zero-extending MOV-r32 materialization now also crosses
+  and ranked-u32 publication routes. The x86 zero-extending MOV-r32
+  materialization now also crosses
   fragment emission, relocation-free text/object custody, validated object
   publication, and callable-entry replay with exact source-kind, manifest, byte,
   and corruption checks. That rule also composes after active-resident
@@ -685,7 +689,11 @@ decision. Only true language-semantic questions belong in
   deterministic x86-64/AArch64, cross-target corruption, exact-budget, and
   empty-pressure coverage. It still creates no real `VirtualRegisterId` or
   instruction and grants no downstream authority. Recursive recovery still
-  needs a bounded epoch/worklist artifact; lower spill-pseudo representation,
+  needs a bounded epoch/worklist artifact. Its next honest prerequisite is an
+  x86-64/AArch64 selected-program plus allocator-availability fixture that
+  reaches reload or secondary pressure through every public validator; an
+  internal test that constructs `Validated*` receipts directly is not accepted
+  as evidence for that branch. Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
   memory insertion is owner-blocked only on the spill-access fault semantics
@@ -900,8 +908,16 @@ unchecked rewrite or opt into lossy floating-point semantics.
   axes, action-corruption refusal, and an honest validated terminal no-change
   attempt. Its transformed selected carrier is not a fresh staging input, so
   that within-run fixed point is not relabelled as second-invocation
-  idempotence. The remaining operational axes and other rule families are not
-  yet complete.
+  idempotence. The sibling incoming-u12 subtract rule now mirrors that named
+  matrix on x86-64 and AArch64: true default-disabled projection, exact-add
+  cross-rule refusal, deterministic applied execution, exact aggregate work
+  `{19, 8, 123, 6, 9}`, all five first-over budget failures, typed action
+  corruption, and an independently validated terminal no-change attempt. Its
+  semantic boundary admits the exact U12 maximum 4095 and deterministically
+  refuses 4096. Repeated reconstruction remains determinism evidence and the
+  terminal attempt remains within-run fixed-point evidence; neither is called
+  public second-invocation idempotence. The remaining operational axes and
+  other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The

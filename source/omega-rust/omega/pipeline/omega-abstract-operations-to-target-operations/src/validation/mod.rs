@@ -10,10 +10,13 @@ pub(crate) mod straight_line_boolean_immediate;
 pub(crate) mod straight_line_integer_immediate;
 pub(crate) mod straight_line_parameter;
 pub(crate) mod straight_line_scalar_crash;
+pub(crate) mod straight_line_unit_return;
+
+use std::collections::BTreeMap;
 
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_target::NativeTarget;
-use omega_target_operations::TargetOperationPlan;
+use omega_target_operations::{TargetOperation, TargetOperationPlan};
 
 pub use model::*;
 
@@ -36,6 +39,15 @@ pub fn validate_abstract_to_target_translation(
         return Err(AbstractToTargetTranslationValidationError::FunctionCountMismatch);
     }
 
+    let canonical_structural_types = source
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>()
+        .into_values()
+        .cloned()
+        .collect::<Vec<_>>();
+
     let mut function_roster = Vec::with_capacity(source.functions.len());
     for (position, (source_function, target_function)) in
         source.functions.iter().zip(&target.functions).enumerate()
@@ -48,6 +60,17 @@ pub fn validate_abstract_to_target_translation(
         if source_function.attachment != target_function.attachment {
             return Err(
                 AbstractToTargetTranslationValidationError::FunctionAttachmentMismatch {
+                    machine: source_function.machine,
+                },
+            );
+        }
+        if matches!(
+            &target_function.operation,
+            TargetOperation::UnitBody(body)
+                if body.structural_types != canonical_structural_types
+        ) {
+            return Err(
+                AbstractToTargetTranslationValidationError::FunctionStructuralTypeRosterMismatch {
                     machine: source_function.machine,
                 },
             );

@@ -2,6 +2,7 @@
 
 mod exact_add_operational;
 mod exact_immediates;
+mod exact_subtract_operational;
 mod exit_contract;
 mod named_suite;
 mod pressure_recovery;

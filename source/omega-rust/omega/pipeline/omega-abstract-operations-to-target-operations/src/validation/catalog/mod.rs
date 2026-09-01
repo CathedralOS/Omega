@@ -18,6 +18,7 @@ use model::TranslationFamilyDescriptor;
 const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::immediate::INTEGER,
     dispatch::immediate::BOOLEAN,
+    dispatch::terminal::UNIT_RETURN,
     dispatch::terminal::SCALAR_CRASH,
     dispatch::parameter::direct::INTEGER,
     dispatch::parameter::direct::BOOLEAN,

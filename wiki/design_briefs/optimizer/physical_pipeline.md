@@ -15,10 +15,10 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-five families reconstruct parameterless straight-line
-integer and Boolean literal returns, scalar `Crash`, direct integer and Boolean
-parameter returns, Boolean negation of a parameter, and equality of two Boolean
-parameters, equality of two same-type integer parameters, or strict/inclusive
+replay. Its first thirty-six families reconstruct parameterless straight-line
+Unit return, integer and Boolean literal returns, scalar `Crash`, direct integer
+and Boolean parameter returns, Boolean negation of a parameter, and equality of
+two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
 ordering of two same-type integer parameters, plus integer bitwise-not and
 integer-widen or proof-bearing integer exact-cast of one parameter, and integer
 bitwise-AND, bitwise-OR, bitwise-XOR, proof-bearing fixed-integer exact-add,
@@ -33,6 +33,13 @@ without calling
 families share governed source-envelope and whole-roster ABI replay rungs,
 which independently apply the target's calling policy to prove every incoming
 register or stack location.
+The Unit-return leaf independently requires the exact claim-free, service-free,
+single-block source shape and reconstructs the target's empty native call plan,
+empty parameter and operation provenance, exact return edge, and empty cleanup
+roster. Whole-plan admission separately binds every Unit body's canonical
+structural-type roster to the source plan so a function-local family validator
+cannot silently accept reordered, substituted, missing, or injected global
+declarations.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -343,6 +350,14 @@ function traversal; replay independently indexes logical reloads and sorts the
 closed binding set. The synthetic identity is deliberately not a selected
 `VirtualRegisterId`. Bounded recursive epochs/worklists, spill pseudos, real
 instructions, memory effects, and all frame/publication work remain absent.
+
+The next recursive-recovery rung must begin from pressure produced by the same
+publicly validated selected-program, availability, legality, spill, insertion,
+and reload-home chain. Direct construction of compiler-private `Validated*`
+receipts cannot establish that the deferred branch is reachable and is not
+accepted as worklist evidence. Until an x86-64/AArch64 fixture reaches reload
+or secondary pressure through those entrances, pressure remains a typed
+terminal failure and no epoch-one seed is published.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
