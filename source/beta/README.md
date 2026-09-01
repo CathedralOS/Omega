@@ -1,31 +1,41 @@
-# Beta bootstrap calculus
+# Beta
 
-Beta is the first language above Alpha. It is a strict, first-order,
-S-expression functional calculus for writing the Gamma compiler and small
-bootstrap tools such as the derivation checker.
+Beta is the first trusted language above Alpha. It gives Alpha instructions
+human-readable mnemonics, labels, decimal operands, and data spelling while
+remaining a deliberately small imperative tape-assembly language.
 
-The cold-start implementation will be one directly admitted Alpha evaluator
-tape. That tape is part of the audited root: it is not justified by an
-assembly-language rung or by self-hosting. Its obligation is the exact Beta
-evaluation relation in [`LANGUAGE.md`](LANGUAGE.md) under the exact first
-implementation contract in [`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md).
+[`LANGUAGE.md`](LANGUAGE.md) defines the exact deterministic relation from one
+Beta source byte sequence to one raw Alpha `.tape`. The compiler is the
+platform-independent [`compiler/beta_compiler_bytecode.tape`](compiler/beta_compiler_bytecode.tape),
+an admitted Alpha program in the trusted bootstrap chain. Its readable
+[`compiler/beta_compiler.beta`](compiler/beta_compiler.beta) source must
+reconstruct that tape byte-for-byte.
 
 ```text
-audited Alpha VM + audited Beta evaluator tape
-  + Beta source + sealed input
-    -> returned Beta value
+audited native Alpha VM
+  + beta_compiler_bytecode.tape
+  + program.beta
+    -> program.tape
 ```
 
-The canonical evaluator artifact and Beta-written Gamma compiler are currently
-open. A non-canonical executable development slice lives at
-[`../../tools/alpha/beta-evaluator/`](../../tools/alpha/beta-evaluator/) with
-its focused gate at
-[`../../tests/beta/evaluator-slice.sh`](../../tests/beta/evaluator-slice.sh).
-No former Gamma artifact or host interpreter stands in for either edge.
+The compiler is written in Beta and reconstructs its admitted tape
+byte-for-byte. The checked-in tape is the cold-start implementation; the
+reconstruction makes its source-level behavior reviewable without introducing
+a second platform-native compiler.
+
+Gamma's evaluator is written in Beta, so the Alpha-to-Beta and Beta-to-Gamma
+edges both depend on this language judgment. Successful compilation yields
+Alpha tape whose execution is governed by
+[`source/alpha/SEMANTICS.md`](../alpha/SEMANTICS.md).
 
 ## Retention inventory
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `LANGUAGE.md` | Exact Beta syntax and evaluation relation. | Replace only with a versioned contract and synchronized evaluator and customer gates. |
-| `EVALUATOR_PROFILE.md` | Exact request, observation, resource, publication, and private-representation contract for the first audited evaluator tape. | Replace only with a versioned profile and synchronized tape audit and gates. |
+| `LANGUAGE.md` | Exact Beta-source-to-Alpha-tape language relation. | Replace only with a versioned contract and synchronized compiler and edge gates. |
+| `compiler/` | Admitted compiler tape and its self-reconstruction source. | Replace only atomically with an equally direct trusted Beta implementation. |
+| `compiler/beta_compiler.beta` | Authoritative readable self-reconstruction source for the Beta compiler. | Delete only if another exact reconstruction replaces it. |
+| `compiler/beta_compiler_bytecode.tape` | Cold-start Alpha implementation of the trusted Beta compiler. | Replace atomically with its source, reconstruction, and checked relation. |
+
+Compiler tests and examples live under `tests/beta/compiler/`; host
+materialization lives under `tools/bootstrap/beta/`.

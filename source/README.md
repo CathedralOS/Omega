@@ -6,22 +6,24 @@ language.
 
 ```text
 alpha/          raw tape semantics and audited native VM seeds
-beta/           strict first-order functional bootstrap calculus
-gamma/          typed pure functional compiler language
-delta/          closed compiler-host language
+beta/           trusted imperative tape-assembly language and compiler
+gamma/          strict first-order functional bootstrap calculus
+delta/          typed pure functional compiler language
+epsilon/        closed compiler-host language
 library/        core, allocation, and standard-library source
 psi/            target-neutral Omega product-compiler phases
-omega/          Delta-written compiler D and Omega-written compiler C
+omega/          Epsilon-written compiler D and Omega-written compiler C
 omega-rust/     maintained implementation and nonauthoritative comparator
 ```
 
 The selected compiler spine is:
 
 ```text
-Alpha VM seed + directly audited Beta evaluator tape
-  -> gamma_compiler.beta -> gamma_compiler_bytecode.tape
+Alpha VM seed + beta_compiler_bytecode.tape
+  -> gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
   -> delta_compiler.gamma -> delta_compiler_bytecode.tape
-  -> omega_compiler.delta -> omega0_compiler_bytecode.tape
+  -> epsilon_compiler.delta -> epsilon_compiler_bytecode.tape
+  -> omega_compiler.epsilon -> omega0_compiler_bytecode.tape
   -> build.omg/main.omg -> omega_compiler_bytecode.tape
 ```
 
@@ -30,7 +32,7 @@ tape. Missing compilers remain explicit
 gaps—an interpreter, host script, bridge, transpiler, or native publication
 route does not stand in for one.
 
-The derivation checker is a Beta customer beside the language chain.
+The derivation checker is a Gamma customer beside the language chain.
 `source/psi/` is an internal boundary of the Omega product compiler, not a
 bootstrap language.
 `omega0` and `omega` name output tapes, not source owners.
@@ -39,9 +41,9 @@ The selected rung order follows the backward audit in
 [`bootstrap_minimization.md`](../wiki/design_briefs/bootstrap_minimization.md)
 and candidate-C comparison in
 [`bootstrap_chain_alternatives.md`](../wiki/design_briefs/bootstrap_chain_alternatives.md).
-The former Beta assembler is nonauthoritative Alpha tooling under
-`tools/alpha/tape-assembly/`; the former imperative Gamma rung is retained only
-in Git history.
+The imperative tape-assembly language is trusted Beta. The functional language
+previously called Beta is Gamma; the former Gamma and Delta owners are now
+Delta and Epsilon. The older imperative Gamma rung remains only in Git history.
 
 `source/omega-rust/` may build, compare, and accelerate development, but it
 supplies no trusted bootstrap premise. Bootstrap invocation lives under

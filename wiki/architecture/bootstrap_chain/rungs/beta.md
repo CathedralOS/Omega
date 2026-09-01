@@ -2,17 +2,19 @@
 
 [Chain overview](../bootstrap_chain.md) | Prev: [Alpha](alpha.md) | Next: [Gamma](gamma.md)
 
-Beta is a strict first-order functional S-expression calculus. One directly
-audited Alpha evaluator tape executes Beta source; the evaluator is part of the
-root rather than the product of another language rung.
+Beta is the trusted imperative tape-assembly language above Alpha. It gives
+Alpha's 21 instructions mnemonic spelling, labels, decimal words, comments, and
+a closed byte-data directive. Its semantics is the deterministic partial
+relation from Beta source to raw Alpha tape.
 
-Beta keeps checked `Int`, immutable `Bytes`, closed constructors, exhaustive
-pattern matching, `if`, single-binding `let`, first-order calls, mutual
-recursion, proper tail calls, bounded allocation profiles, sealed input, and
-returned values. It excludes mutation, raw memory, closures, higher-order
-values, macros, polymorphism, general GC, continuations, exceptions, packages,
-interactive evaluation, and ambient effects.
+The normative contract is
+[`source/beta/LANGUAGE.md`](../../../../source/beta/LANGUAGE.md). The admitted
+6,816-byte compiler tape runs on Alpha, while
+`source/beta/compiler/beta_compiler.beta` reconstructs that tape
+byte-identically. The compiler differential and strict grammar gates live under
+`tests/beta/compiler/`.
 
-Its exact contract is [`source/beta/LANGUAGE.md`](../../../../source/beta/LANGUAGE.md).
-Its customers are the Gamma compiler and explicitly justified small bootstrap
-tools. The evaluator tape and Gamma compiler source are currently absent.
+Beta's language-chain customer is the Gamma evaluator at
+`source/gamma/evaluator/gamma_evaluator.beta`. Beta self-reconstruction binds
+its readable compiler source to the cold-start tape; no later intermediate rung
+is required to self-host.

@@ -5,51 +5,60 @@
 ```text
 source/
   alpha/                         Alpha semantics and audited native VM seeds
-  beta/                          strict first-order functional calculus
-  gamma/                         typed pure functional language
-  delta/                         fixed-storage compiler-host language
+  beta/                          trusted imperative tape-assembly language
     compiler/
-      delta_compiler.gamma       incomplete Gamma-written Delta compiler
+      beta_compiler.beta         self-reconstructing source
+      beta_compiler_bytecode.tape admitted Alpha implementation
+  gamma/                         strict first-order functional calculus
+    evaluator/
+      gamma_evaluator.beta       in-progress Beta-written evaluator
+  delta/                         typed pure functional language
+  epsilon/                       fixed-storage compiler-host language
+    compiler/
+      epsilon_compiler.delta     incomplete Delta-written Epsilon compiler
   psi/                           target-neutral Omega product phases
   omega/
-    omega_compiler.delta         incomplete Delta-written Omega compiler D
+    omega_compiler.epsilon       incomplete Epsilon-written Omega compiler D
     build.omg, main.omg          Omega-written compiler C roots
   library/                       Omega libraries
   omega-rust/                    maintained comparator, never bootstrap authority
 
 tools/
-  alpha/tape-assembly/           off-chain readable Alpha tape tooling
   bootstrap/alpha/               seed selection and tape stamping
+  bootstrap/beta/                Beta compiler materialization and builds
   bootstrap/paths.sh             replaceable path registry
   bootstrap/check-chain-hygiene.sh
 
 tests/
-  alpha/                         Alpha conformance/reference and tape-tool tests
+  alpha/                         Alpha conformance and reference tests
+  beta/                          Beta reconstruction and compiler tests
+  gamma/                         Gamma evaluator tests
   bootstrap/                     cross-owner seed checks
   omega/                         Omega product language cases
 ```
 
-The future Beta evaluator belongs under `source/beta/evaluator/` because it is
-the direct implementation of Beta meaning. The future Gamma compiler belongs
-under `source/gamma/compiler/`. Empty directories are not retained merely to
-reserve those paths.
+The Gamma evaluator belongs under `source/gamma/evaluator/` because it
+implements Gamma meaning and is written in Beta. The future Delta compiler
+belongs under `source/delta/compiler/`. Empty directories are not retained
+merely to reserve those paths.
 
 ## Naming
 
-`.alphaasm` identifies off-chain Alpha Tape Assembly. `.beta`, `.gamma`,
-`.delta`, and `.omg` identify the selected source languages. `.tape` identifies
-canonical Alpha bytecode.
+`.beta`, `.gamma`, `.delta`, `.epsilon`, and `.omg` identify the selected source
+languages. `.tape` identifies canonical Alpha bytecode.
 
 A compiler owner is named by the language it accepts; its source suffix names
 the language implementing it:
 
 | Owner | Future/current source |
 | --- | --- |
-| Gamma compiler | `source/gamma/compiler/gamma_compiler.beta` |
+| Beta compiler | `source/beta/compiler/beta_compiler.beta` |
+| Gamma evaluator | `source/gamma/evaluator/gamma_evaluator.beta` |
 | Delta compiler | `source/delta/compiler/delta_compiler.gamma` |
-| Omega `D` | `source/omega/omega_compiler.delta` |
+| Epsilon compiler | `source/epsilon/compiler/epsilon_compiler.delta` |
+| Omega `D` | `source/omega/omega_compiler.epsilon` |
 | Omega `C` | `source/omega/build.omg`, `source/omega/main.omg` |
 
-There is no retired Epsilon source owner, intermediate self-host owner, generic bootstrap
-source bucket, or compatibility compiler. Cross-owner paths are checked by
+There is no intermediate self-host owner, generic bootstrap source bucket, or
+compatibility compiler. Cross-owner paths are checked by
 `tools/bootstrap/check-chain-hygiene.sh`.

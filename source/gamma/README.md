@@ -1,28 +1,32 @@
-# Gamma functional language
+# Gamma bootstrap calculus
 
-Gamma is the typed, pure functional rung above Beta. It supplies nominal
-algebraic data, exhaustive pattern matching, checked signed integers, immutable
-bytes, forward and mutual recursion, and proper tail calls. It is deliberately
-small and exists to implement the Delta compiler.
+Gamma is the strict, first-order functional rung above Beta. It is an
+S-expression calculus for writing the Delta compiler and small bootstrap tools
+such as the derivation checker.
 
-[`LANGUAGE.md`](LANGUAGE.md) is normative. The canonical edge is:
+Its evaluator is written in trusted Beta and compiled to Alpha tape by the
+admitted Beta compiler. Its obligation is the exact Gamma evaluation relation
+in [`LANGUAGE.md`](LANGUAGE.md) under the implementation contract in
+[`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md).
 
 ```text
-Beta evaluator + gamma_compiler.beta -> gamma_compiler_bytecode.tape
+audited Alpha VM + admitted Beta compiler tape
+  + gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
+  + Gamma source + sealed input
+    -> returned Gamma value
 ```
 
-The Beta-written compiler source and its Alpha tape do not exist yet. The
-former imperative Gamma compiler and the incomplete compiler previously written
-in that language were deleted rather than preserved as alternate authority.
-No old interpreter or differential oracle stands in for the direct edge.
-
-The Gamma compiler may know only Beta, Gamma, Alpha tape, and the exact Delta
-compiler application profile. It may not parse Delta source itself, invoke a
-host translator, serialize an interpreter as output, or acquire general-purpose
-runtime facilities.
+The complete evaluator artifact and Gamma-written Delta compiler are currently
+open. An executable evaluator development slice lives at
+[`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), with its
+focused gate at
+[`../../tests/gamma/evaluator-slice.sh`](../../tests/gamma/evaluator-slice.sh).
+No host interpreter stands in for either edge.
 
 ## Retention inventory
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `LANGUAGE.md` | Normative Gamma source and execution contract. | Replace only with a versioned contract and synchronized compiler/customer gates. |
+| `LANGUAGE.md` | Exact Gamma syntax and evaluation relation. | Replace only with a versioned contract and synchronized evaluator and customer gates. |
+| `EVALUATOR_PROFILE.md` | Exact request, observation, resource, publication, and private-representation contract for the first Beta-authored evaluator. | Replace only with a versioned profile and synchronized evaluator and gates. |
+| `evaluator/` | Beta source for the Gamma evaluator and its eventual Alpha tape. | Replace only atomically with the admitted Beta-to-Gamma edge. |

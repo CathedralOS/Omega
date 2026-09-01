@@ -1,8 +1,8 @@
 # Beta tests
 
-This directory owns executable gates for the Beta language and its direct Alpha
-evaluator.
+`compiler/` tests the canonical Beta-source-to-Alpha-tape implementation without
+placing host runners or fixtures beside the language and compiler artifacts.
 
 | Retained child | Role | Deletion condition |
 | --- | --- | --- |
-| `evaluator-slice.sh` | Builds and exercises the currently implemented evaluator slice, including terminal status classification. | Delete when subsumed by a complete Beta evaluator conformance gate. |
+| `compiler/` | Beta compiler reconstruction, differential, and lexical tests. | Delete only when stronger checked coverage subsumes the same relations. |

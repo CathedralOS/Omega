@@ -11,6 +11,6 @@ Alpha contains no textual language, type system, theorem prover, compiler
 framework, or higher-language primitive. Every compiler artifact is raw Alpha
 tape. Host stamping is packaging, not compilation.
 
-The selected root directly admits one future Beta evaluator tape and audits it
-against Beta semantics. Alpha Tape Assembly is useful off-chain tooling; its
-readable reconstruction does not become a language edge.
+The selected root admits the Beta compiler tape and audits it against Alpha and
+Beta semantics. Beta's readable self-reconstruction binds that cold-start tape
+to the first trusted textual language edge.

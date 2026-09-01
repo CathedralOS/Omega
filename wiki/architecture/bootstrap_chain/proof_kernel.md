@@ -6,8 +6,8 @@ The selected chain has no Alpha-owned general proof kernel. The previous
 imperative-Gamma implementation and its Alpha tape were retired with that
 language.
 
-The replacement is an ordinary Beta program executed by the directly audited
-Beta evaluator. It is a tool beside compiler edges, not a language rung. Its
+The replacement is an ordinary Gamma program executed by the Beta-authored
+Gamma evaluator. It is a tool beside compiler edges, not a language rung. Its
 question is deliberately narrow:
 
 ```text
@@ -21,8 +21,8 @@ run compilers, or decide deployment policy.
 
 ## Trust boundary
 
-Moving the checker into readable Beta source does not prove the Beta evaluator.
-The evaluator remains a directly audited root artifact. An artifact-specific
+Moving the checker into readable Gamma source does not prove the Gamma evaluator.
+The evaluator remains a trusted Beta program. An artifact-specific
 owner reconstructs the exact source/tape proposition; the checker validates the
 supplied derivation under that proposition.
 
@@ -30,7 +30,7 @@ Every retained rule needs:
 
 - one concrete compiler-edge theorem that uses it;
 - exact syntax and semantics;
-- bounded parser, value, frame, and fuel behavior;
+- bounded parser, value, and frame behavior;
 - positive and mutation controls; and
 - measured certificate-size consequences.
 
@@ -39,4 +39,4 @@ wrong-subject evidence, and resource exhaustion cannot accept. Product proof
 ambitions do not enlarge this bootstrap tool automatically.
 
 The checker source, calculus, and executable profile are currently absent.
-`TASKS_BOOTSTRAP.md` owns their implementation after the Beta evaluator exists.
+`TASKS_BOOTSTRAP.md` owns their implementation after the Gamma evaluator exists.

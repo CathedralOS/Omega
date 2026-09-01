@@ -5,9 +5,8 @@ fixed-width integer operations, bounded flat memory, branches, calls, halt, and
 trap. [`SEMANTICS.md`](SEMANTICS.md) defines the exact tape machine.
 
 Alpha has no textual source language, assembler grammar, type system, or proof
-kernel. The selected bootstrap root consists of an audited native Alpha seed
-plus one directly audited Beta evaluator tape. That evaluator tape is currently
-absent.
+kernel. The selected bootstrap floor consists of an audited native Alpha seed
+plus the admitted Beta compiler tape.
 
 ## Owned files
 
@@ -22,12 +21,12 @@ SEMANTICS.md             AlphaBootstrapV2 execution and tape semantics
 
 Host seed selection and tape stamping live under `tools/bootstrap/alpha/`.
 Conformance and the independent reference VM live under `tests/alpha/`.
-`tests/bootstrap/alpha-seed.sh` checks behavior and optional native-source
+`tests/bootstrap/alpha-beta-edge.sh` checks behavior and optional native-source
 provenance.
 
-Alpha Tape Assembly lives under `tools/alpha/tape-assembly/`. It reconstructs
-one useful assembler tape but is not a language rung or a premise of the Beta
-evaluator's authority.
+Trusted Beta lives under `source/beta/`. Its readable compiler source
+reconstructs the admitted tape byte-identically and supplies the next language
+edge to the Gamma evaluator.
 
 ## Retention inventory
 

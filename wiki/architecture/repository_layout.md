@@ -9,7 +9,7 @@ The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
 How Omega reaches its hosted compiler—the selected
-`Alpha → Beta → Gamma → Delta → Omega` trust lattice—is a build-graph property
+`Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega` trust lattice is a build-graph property
 described by [The Bootstrap Chain](bootstrap_chain/bootstrap_chain.md)
 and its [target repository structure](bootstrap_chain/repository_structure.md).
 It is not a separate source ownership domain. The completed alternatives audit
@@ -165,24 +165,24 @@ Omega/
 |       `-- tests/                                       # Cargo integration tests for that product command.
 |-- source/
 |   |-- alpha/                                             # Alpha semantics and native VM seeds.
-|   |-- beta/                                              # Strict first-order functional calculus.
-|   |-- gamma/                                             # Typed pure functional compiler language.
-|   |-- delta/                                             # Fixed-storage compiler-host language.
-|   |   `-- compiler/                                      # Incomplete Gamma-written Delta compiler.
+|   |-- beta/                                              # Trusted tape-assembly language and compiler.
+|   |-- gamma/                                             # Strict functional calculus and Beta-written evaluator.
+|   |-- delta/                                             # Typed pure functional compiler language.
+|   |-- epsilon/                                           # Fixed-storage compiler-host language.
+|   |   `-- compiler/                                      # Incomplete Delta-written Epsilon compiler.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
-|   |-- omega/                                             # Delta- and Omega-written product compiler implementations.
-|   |   |-- omega_compiler.delta                          # Delta-written full Omega compiler D.
+|   |-- omega/                                             # Epsilon- and Omega-written product compiler implementations.
+|   |   |-- omega_compiler.epsilon                         # Epsilon-written full Omega compiler D.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
 |-- tools/
-|   |-- alpha/tape-assembly/                              # Off-chain readable Alpha tape tooling.
-|   `-- bootstrap/                                        # Bootstrap invocation and path gates.
+|   `-- bootstrap/                                        # Alpha/Beta materialization and path gates.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -191,6 +191,8 @@ Omega/
 |
 |-- tests/
 |   |-- alpha/                                         # Alpha conformance and reference differential.
+|   |-- beta/                                          # Beta compiler reconstruction and differential.
+|   |-- gamma/                                         # Gamma evaluator development gate.
 |   |-- bootstrap/                                     # Tests whose subject spans multiple rungs.
 |   |-- omega/
 |   |   |-- pass/                                       # Focused Omega cases expected to check.
@@ -208,26 +210,25 @@ The displayed tree is the canonical ownership shape. The unblocked relocation
 steps are complete:
 
 ```text
-source/{alpha,beta,gamma,delta}/         canonical language rungs
+source/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root
 source/omega-rust/                     current Rust product implementation and comparator
-tests/{alpha,bootstrap,omega,fixtures}/
+tests/{alpha,beta,gamma,bootstrap,omega,fixtures}/
                                       executable validation by subject
 tools/bootstrap/                       bootstrap invocation and artifact construction
-tools/alpha/tape-assembly/             off-chain assembler and reconstruction source
 tools/                                 other repository maintenance scripts
 ```
 
 Each rung remains the semantic owner of its language and chain-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
-concept, not a second semantic owner. The root proof checker belongs to Alpha.
+concept, not a second semantic owner. The derivation checker belongs to Gamma.
 Canonical compiler sources, tapes, and closed wire tables remain together under
 `source/`; executable validation is grouped by subject under `tests/` and names
 the canonical source/artifact explicitly. Host materialization and deliberate
 artifact replacement live under `tools/bootstrap/`. The removed
-Delta-to-Gamma/native-publication tree is not a validation precedent.
+Epsilon-to-Delta/native-publication tree is not a validation precedent.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager task

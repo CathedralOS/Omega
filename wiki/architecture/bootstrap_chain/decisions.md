@@ -2908,3 +2908,47 @@ calculus required by selected compiler-edge certificates.
 No stable migration, compatibility adapter, alternate compiler, or retained
 old artifact is required. Missing new edges remain explicit until implemented;
 Git is the archive for the removed chain.
+
+## D63 — Trusted Beta replaces opaque Gamma-evaluator admission
+
+D63 supersedes D62 for live topology and reinstates D60's essential ruling:
+the imperative tape-assembly language is a trusted rung named Beta. The selected
+chain is:
+
+```text
+audited Alpha VM + admitted Beta compiler tape
+  -> Beta-written Gamma evaluator
+  -> Gamma-written Delta compiler
+  -> Delta-written Epsilon compiler
+  -> Epsilon-written Omega compiler D
+  -> Omega-written Omega compiler C
+```
+
+The implementation experiment under D62 reached a 12,716-byte Alpha tape and
+2,023 lines of readable source while still lacking declaration tables, general
+calls, constructors, `match`, and proper tail calls. That result falsifies the
+practical premise that the completed functional evaluator can be reviewed as an
+independently understandable opaque tape. Calling its readable assembly
+optional would hide, rather than remove, the source-level trust dependency.
+
+Beta therefore owns the exact deterministic source-to-Alpha-tape relation in
+`source/beta/LANGUAGE.md`. Its cold-start implementation is the admitted
+`source/beta/compiler/beta_compiler_bytecode.tape`; the authoritative readable
+`source/beta/compiler/beta_compiler.beta` reconstructs that tape
+byte-identically. Native Alpha remains the only per-platform binary.
+
+The functional language specified under D62 moves intact from Beta to Gamma.
+Its evaluator source is
+`source/gamma/evaluator/gamma_evaluator.beta`, and its request identity is
+`GAMMAREQ` v1. The former Gamma and Delta language owners move to Delta and
+Epsilon respectively. Their immediate compiler sources are
+`delta_compiler.gamma`, `epsilon_compiler.delta`, and
+`omega_compiler.epsilon`. Compiler boundary identities shift with those edges:
+the Delta edge owns `DCREQ`/`DCOUT`, and the Epsilon compiler application owns
+`ECOUT`.
+
+The Beta compiler's self-reconstruction does not prove its semantics, but it
+binds the readable trusted-language subject to the admitted Alpha tape. The
+source-to-tape relation, Alpha behavior, independent differential, and exact
+reconstruction remain separate obligations. No compatibility aliases or
+duplicate old owners are retained; Git records D62's abandoned topology.
