@@ -310,6 +310,15 @@ fn validate_floating_control(
                 .checked_add(call.byte_count)
                 .is_some_and(|end| end <= control.restore_offset)
     });
+    let foreign_calls_stay_inside_control = function.foreign_calls.iter().all(|call| {
+        call.x86_floating_control.is_some_and(|nested| {
+            nested.save_offset >= body_start
+                && nested
+                    .restore_offset
+                    .checked_add(nested.restore_byte_count)
+                    .is_some_and(|end| end <= control.restore_offset)
+        })
+    });
     if control.target != target
         || control.canonical_mxcsr != omega_isa_x86_64::OMEGA_CANONICAL_MXCSR
         || control.saved_slot_byte_offset == control.canonical_slot_byte_offset
@@ -320,6 +329,7 @@ fn validate_floating_control(
             != control.canonical_store_offset + control.canonical_store_byte_count
         || control.restore_offset <= body_start
         || !internal_calls_stay_inside_control
+        || !foreign_calls_stay_inside_control
         || !exact(control.save_offset, control.save_byte_count, &expected_save)
         || !exact(
             control.canonical_store_offset,

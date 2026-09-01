@@ -22,18 +22,7 @@ pub(super) fn assign(
     ),
     AssignmentError,
 > {
-    if binding.locator.target().native_target() != target
-        || !matches!(
-            (target.object_format, binding.locator.locator()),
-            (
-                omega_target::ObjectFormat::Elf,
-                omega_target::ForeignLocatorCandidate::ElfVersioned { .. }
-            ) | (
-                omega_target::ObjectFormat::MachO,
-                omega_target::ForeignLocatorCandidate::MachODylibSymbol { .. }
-            )
-        )
-    {
+    if binding.locator.target().native_target() != target {
         return Err(AssignmentError::ExpressionStackFrameNotEncodable);
     }
     let arguments = normalized::assign_normalized_foreign_scalar_call_for_plan(

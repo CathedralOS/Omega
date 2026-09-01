@@ -19,6 +19,7 @@ pub(super) fn validate_unit_scalar_definitions(
                 AbstractOperation::IeeeFloatConstant { .. }
                     | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
                     | AbstractOperation::CallUnit { .. }
+                    | AbstractOperation::BoundaryCall { .. }
                     | AbstractOperation::ReturnUnit { .. }
             )
         })

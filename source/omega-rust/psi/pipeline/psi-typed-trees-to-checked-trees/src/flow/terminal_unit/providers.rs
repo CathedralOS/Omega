@@ -34,6 +34,7 @@ pub(super) fn checked_provider_attachment_requirements(
             !matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                     | CheckedUnitEffectOperationPlan::ReturnUnit { .. }
             )
         })

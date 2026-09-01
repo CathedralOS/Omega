@@ -69,11 +69,13 @@ one rounding. The bounded source lane accepts a nonempty source-ordered
 sequence of immutable locals in an attached Unit machine. Each local is an
 independent selected F32/F64 FMA over three landed literal operands; aliases,
 earlier-local operands, result chaining/use, scalar parameters, and unrelated
-operations remain outside this lane. Ordinary receiver-attached zero-result internal Unit calls
-may follow those locals without leaving the lane. Checked lowering emits exact
-Terminal constants/FMA and retains a per-occurrence sidecar containing the source
-coordinate, full selected-plan commitment, requirement symbol, format, and
-emitted Terminal operation. The compiler consumes those ephemeral rows into
+operations remain outside this lane. Ordinary receiver-attached zero-result
+internal Unit calls, or the bounded zero-argument and zero-result
+source-evaluated foreign leaf, may follow those locals without leaving the
+lane. Checked lowering emits exact Terminal constants/FMA and retains a
+per-occurrence sidecar containing the source coordinate, full selected-plan
+commitment, requirement symbol, format, and emitted Terminal operation. The
+compiler consumes those ephemeral rows into
 source-free Terminal realization proposals, rejoins each exact selected plan,
 and, for x86 profiles, requires exactly one admitted profile/slot provider per
 occurrence. Proposal replay requires source-ordered one-to-one coverage of
@@ -93,9 +95,14 @@ envelope, and object replay rejects any retained internal Unit-call interval
 outside its install/restore bounds. Every returning x86 foreign call
 additionally saves the complete current MXCSR before its existing argument/call
 sequence and restores it after outbound-stack release but before scalar result
-normalization. Sequential calls
-reuse one aligned frame slot while retaining distinct ordered instruction
-intervals; object and native-artifact replay bind the exact slot and bytes.
+normalization. Sequential calls reuse one aligned frame slot while retaining
+distinct ordered instruction intervals; object and native-artifact replay bind
+the exact slot and bytes. In the bounded Windows x86 source lane, a
+source-evaluated PE leaf may follow the literal FMA locals, and object replay
+additionally requires that nested call envelope to remain inside the
+function-level FMA envelope. Normalized locator applicability remains owned
+once by target-profile normalization rather than repeated format/case
+allowlists in later stages.
 Direct syscalls receive no returning-foreign envelope. AArch64 uses the same
 conservative boundary law with a reusable eight-byte slot and exact
 `MRS`/`STR` plus `LDR`/`MSR` FPCR sequences. Wider source/control-flow shapes,
@@ -270,8 +277,10 @@ independent literal-backed immutable FMA locals now carries every selected use
 through exact Terminal constants/FMA, canonical verification/reference
 execution, Abstract IR, target legalization, assignment-owned XMM homes,
 machine emission, object construction, and final native-artifact replay.
-Ordinary receiver-attached zero-result internal Unit calls may follow those locals. One
-function-level MXCSR envelope covers every occurrence and every such call.
+Ordinary receiver-attached zero-result internal Unit calls or the bounded
+zero-argument, zero-result source-evaluated PE leaf may follow those locals.
+One function-level MXCSR envelope covers every occurrence and call; a foreign
+leaf retains its own complete nested MXCSR envelope.
 Multiply-then-add and FMA stay distinct through lowering and result-policy
 adaptation.
 
