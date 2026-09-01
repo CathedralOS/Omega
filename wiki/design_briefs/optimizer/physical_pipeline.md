@@ -420,6 +420,16 @@ separate work reconstruction. Reload pressure and later secondary pressure are
 typed failures. Recursive spill recovery, synthetic-register realization,
 memory effects, ISA lowering, and frame integration remain later boundaries.
 
+The recursive logical insertion schedule now crosses one further compiler-
+private boundary into target-neutral spill pseudos. Its small entrance assigns
+dense function-local identities to stores and reloads, retains abstract
+spill-area-relative storage, distinguishes an original selected VReg source
+from a prior reload-action source, and binds each operand rewrite to the exact
+reload pseudo that produces it. Direct traversal and an independently keyed
+replay agree before custody is issued. These pseudos are neither selected nor
+machine instructions and carry no address, memory-effect, frame, trap, unwind,
+encoding, emission, or publication authority; those remain later boundaries.
+
 Synthetic reload-value binding closes only the next namespace seam. Its V1
 artifact assigns each validated logical reload/home pair an epoch-zero ordinal
 in canonical function and logical-value order, retaining the insertion and

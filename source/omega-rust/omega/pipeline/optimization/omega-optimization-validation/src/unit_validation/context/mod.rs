@@ -81,10 +81,14 @@ pub(crate) fn validate_psi_optimization_unit_with_context(
     frontier_validation::validate_surviving_frontiers(input, unit)?;
     Ok(ranked_cycles::ValidatedOptimizerCycleComponents::new(
         cycle_admission.snapshot,
+        ranked_cycles::ValidatedOptimizerRankingCertificates::new(cycle_admission.rankings),
     ))
 }
 
 pub use ranked_cycles::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
-    ValidatedOptimizerCycleComponents,
+    OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
+    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
+    validate_psi_ranking_certificate_snapshot,
 };

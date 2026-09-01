@@ -16,6 +16,7 @@ mod recursive_spill_insertion;
 mod register_homes;
 mod reload_value_homes;
 mod selected_input;
+mod spill_pseudo_instructions;
 mod spill_recovery_actions;
 mod spill_recovery_choice;
 mod spill_recovery_worklist;

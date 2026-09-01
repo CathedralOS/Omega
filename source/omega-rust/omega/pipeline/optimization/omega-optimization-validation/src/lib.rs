@@ -56,8 +56,11 @@ pub use error::OptimizationUnitValidationError;
 pub(crate) use unit_validation::*;
 pub use unit_validation::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
-    ValidatedOptimizerCycleComponents, validate_psi_cycle_component_snapshot,
-    validate_psi_optimization_unit, validate_transformed_psi_cycle_components,
+    OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
+    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
+    validate_psi_cycle_component_snapshot, validate_psi_optimization_unit,
+    validate_psi_ranking_certificate_snapshot, validate_transformed_psi_cycle_components,
     validate_transformed_psi_optimization_unit, validate_verified_psi_cycle_components,
     validate_verified_psi_optimization_unit,
 };

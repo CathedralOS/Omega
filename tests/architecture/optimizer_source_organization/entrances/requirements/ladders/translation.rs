@@ -2,6 +2,37 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "pre-physical optimization manifest custody tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/fields.rs",
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/wire.rs",
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/wire_offsets.rs",
+            "source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations/src/tests/manifests/multipass.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "constant-widen immediate translation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_widen_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_widen_immediate/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_widen_immediate/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/tests/integer_widen_immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_widen_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_widen_immediate/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_widen_immediate/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_widen_immediate/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_widen_immediate/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/immediate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/immediate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "Terminal operation lowering",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",

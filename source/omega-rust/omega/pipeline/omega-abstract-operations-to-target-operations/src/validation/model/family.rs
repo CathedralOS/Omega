@@ -3,6 +3,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerImmediate,
+    StraightLineIntegerWidenImmediate,
     StraightLineBooleanImmediate,
     StraightLineUnitReturn,
     StraightLinePortWriteUnitReturn,

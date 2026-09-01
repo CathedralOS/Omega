@@ -169,9 +169,15 @@ internal edge roster; derived topology retains sorted members, entries, and
 exits. The opaque validated carrier freezes the component blocks, gives only
 that function a scoped cycle policy, remains attached to the verified optimizer
 session, and is rederived after each run. Bare optimization-unit validation
-remains acyclic. This is sufficient for CFG, dominator, SCC, loop, and liveness
-analysis, but grants no rewrite, execution, interpretation, native, or
-publication authority.
+remains acyclic. An adjacent analysis-only certificate independently infers the
+same exact unsigned-countdown ranking relation from Terminal and current IR,
+then joins header, rank carrier and bounds, positive guard, minus-one backedge,
+and subtract-obligation evidence under the component identity. The opaque
+certificate is available to optimizer analyses and is publicly
+reauthenticatable, but does not generalize cyclic admission. Together these
+carriers are sufficient for CFG, dominator, SCC, loop, liveness, and exact
+countdown-ranking analysis, but grant no rewrite, execution, interpretation,
+native, or publication authority.
 
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident

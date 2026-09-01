@@ -5,7 +5,7 @@ use omega_optimization_core::OptimizationWorkUsage;
 
 use super::generalized_reload_value_homes::Sources;
 
-fn sources(
+pub(super) fn sources(
     target: NativeTarget,
 ) -> (
     Sources,

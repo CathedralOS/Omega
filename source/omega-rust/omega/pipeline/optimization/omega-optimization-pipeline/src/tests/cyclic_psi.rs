@@ -4,7 +4,8 @@ use omega_abstract_operations::AbstractOperation;
 use omega_optimization_core::AnalysisKind;
 use omega_optimization_validation::{
     OptimizationUnitValidationError, OptimizerCycleComponentSnapshot,
-    validate_psi_cycle_component_snapshot, validate_psi_optimization_unit,
+    OptimizerRankingCertificateSnapshot, validate_psi_cycle_component_snapshot,
+    validate_psi_optimization_unit, validate_psi_ranking_certificate_snapshot,
     validate_transformed_psi_optimization_unit, validate_verified_psi_cycle_components,
 };
 use omega_psi_optimizer::{AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession};
@@ -232,6 +233,141 @@ fn ranked_component_snapshot_replay_rejects_every_topology_axis() {
         assert_eq!(
             validate_psi_cycle_component_snapshot(&input, &unit, &corrupted),
             Err(OptimizationUnitValidationError::RankedCycleComponentSnapshotMismatch)
+        );
+    }
+}
+
+#[test]
+fn ranked_countdown_certificate_replay_rejects_every_evidence_axis() {
+    let (_, verified) = countdown_unit();
+    let session = VerifiedPsiOptimizationSession::new(verified)
+        .expect("derive analysis-only countdown ranking certificate");
+    let [certificate] = session.ranking_certificates().certificates() else {
+        panic!("one countdown ranking certificate")
+    };
+    assert_eq!(
+        certificate.component,
+        session.cycle_components().components()[0].id
+    );
+    assert_eq!(certificate.header, certificate.guard.block);
+    assert_eq!(certificate.rank_parameter, certificate.guard.parameter);
+    assert_eq!(
+        certificate.rank_parameter,
+        certificate.descent.source_parameter
+    );
+    assert_eq!(
+        certificate.rank_parameter,
+        certificate.descent.target_parameter
+    );
+    assert_eq!(certificate.lower_bound, psi_core::IntegerValue::Unsigned(0));
+    assert!(
+        certificate
+            .component
+            .internal_edges
+            .iter()
+            .any(|edge| edge.edge == certificate.guard.edge)
+    );
+
+    let baseline = session.ranking_certificates().snapshot().clone();
+    let (input, unit) = session.into_parts();
+    validate_psi_ranking_certificate_snapshot(&input, &unit, &baseline)
+        .expect("exact ranking certificate replays");
+    let corruptions: Vec<Box<dyn Fn(&mut OptimizerRankingCertificateSnapshot)>> = vec![
+        Box::new(|snapshot| {
+            snapshot.terminal_psi.program_fingerprint =
+                psi_terminal::SemanticFingerprint::from_bytes([0xC7; 32]);
+        }),
+        Box::new(|snapshot| snapshot.certificates.clear()),
+        Box::new(|snapshot| {
+            let duplicate = snapshot.certificates[0].clone();
+            snapshot.certificates.push(duplicate);
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].component.internal_edges.pop();
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].header = snapshot.certificates[0].descent.backedge.source;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].rank_parameter = snapshot.certificates[0].guard.zero;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].rank_type =
+                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap();
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].lower_bound = psi_core::IntegerValue::Unsigned(1);
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].upper_bound = psi_core::IntegerValue::Unsigned(1);
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.block = snapshot.certificates[0].descent.backedge.source;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.edge = snapshot.certificates[0].descent.backedge.edge;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.condition = snapshot.certificates[0].guard.zero;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.parameter = snapshot.certificates[0].guard.zero;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.zero = snapshot.certificates[0].rank_parameter;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.zero_operation =
+                snapshot.certificates[0].guard.comparison_operation;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].guard.comparison_operation =
+                snapshot.certificates[0].guard.zero_operation;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.backedge.edge = snapshot.certificates[0].guard.edge;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.backedge.source = snapshot.certificates[0].header;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.backedge.target =
+                snapshot.certificates[0].descent.backedge.source;
+        }),
+        Box::new(|snapshot| snapshot.certificates[0].descent.argument_index += 1),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.argument = snapshot.certificates[0].descent.one;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.source_parameter =
+                snapshot.certificates[0].descent.one;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.target_parameter =
+                snapshot.certificates[0].descent.one;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.one = snapshot.certificates[0].rank_parameter;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.one_operation =
+                snapshot.certificates[0].descent.subtract_operation;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.subtract_operation =
+                snapshot.certificates[0].descent.one_operation;
+        }),
+        Box::new(|snapshot| {
+            snapshot.certificates[0].descent.subtract_obligation =
+                psi_core::ObligationId::new(99_901).unwrap();
+        }),
+    ];
+    for mutate in corruptions {
+        let mut corrupted = baseline.clone();
+        mutate(&mut corrupted);
+        assert_eq!(
+            validate_psi_ranking_certificate_snapshot(&input, &unit, &corrupted),
+            Err(OptimizationUnitValidationError::RankedCycleRankingCertificateSnapshotMismatch)
         );
     }
 }

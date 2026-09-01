@@ -31,3 +31,23 @@ pub enum StraightLineIntegerImmediateTranslationError {
     TargetProvenance,
     TargetOperation,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerWidenImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceConstantOutsideType,
+    SourceWidenOperand,
+    SourceWidenType,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}

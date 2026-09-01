@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-six abstract-to-target families are covered,
+  machine-rule family. Forty-seven abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -498,6 +498,16 @@ decision. Only true language-semantic questions belong in
   targets. Its operation-count grammar remains disjoint from the singleton
   integer-literal and return-only families, and optimized-target custody keeps
   the same typed sequence receipt.
+  The exact constant-widen-to-immediate family admits only parameterless
+  `[IntegerConstant, IntegerWiden, Return]`. Independent source grammar and
+  target replay retain both definition identities, the widen operand and
+  result link, source and target integer types, mathematical source and
+  materialized values, provenance, and return edge. All 18 legal native
+  fixed-integer widening relations are exercised at both carrier boundaries
+  across all five native targets. It remains disjoint from both the plain
+  integer-immediate and parameter-widen families; envelope, definition,
+  carrier, value, cleanup, provenance, and target-operation corruption fail
+  closed through optimized-target custody.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -661,10 +671,17 @@ decision. Only true language-semantic questions belong in
   separately. It rejects 25 closed/envelope wire axes and independently swaps
   all five receipt roots across real x86 rel32-to-rel8 and MOV-r32-imm32 public
   routes. The tests descend through six named leaves for fixtures, manifest
-  fields, wire axes/offsets, and receipt custody. A UEFI ProgramStorage wrapper
-  matrix remains engineering-dependent on a physical adapter/lowering path for
-  the accepted cyclic two-`Extent` linear return shape; it is not an owner
-  language-semantic question.
+  fields, wire axes/offsets, and receipt custody. The pre-physical manifest V6
+  slice now separately reauthenticates every one of its 35 mutable logical
+  fields, rejects a stale outer identity, and covers 16 exact envelope, closed-
+  tag, nested-payload, trailing, and truncation wire failures. Its seven-leaf
+  test taxonomy separates the shared fixture, positive and multipass custody,
+  logical-field matrix, wire offsets, and wire corruption. Singleton in-memory
+  stage, physical-status, and vocabulary axes are tested at their closed wire
+  tags rather than forged as impossible Rust values. A UEFI ProgramStorage
+  wrapper matrix remains engineering-dependent on a physical adapter/lowering
+  path for the accepted cyclic two-`Extent` linear return shape; it is not an
+  owner language-semantic question.
 
 ## P3 — Psi optimizer
 
@@ -690,9 +707,15 @@ decision. Only true language-semantic questions belong in
   operation graphs are reconstructed independently; exact component identity
   and topology must agree before the opaque analysis-only carrier is issued,
   retained by the verified optimizer session, and rederived after a run.
-  Mutation covers every edge coordinate and roster shape. This creates no
-  ranking certificate, unranked-progress authority, finite-work failure,
-  execution permission, cyclic rewrite permission, or publication authority.
+  Mutation covers every edge coordinate and roster shape. The adjacent exact
+  countdown-ranking boundary now independently infers the Terminal and current-
+  IR certificate keyed by that component. Its opaque analysis receipt retains
+  the header, unsigned rank parameter/type and bounds, positive guard edge and
+  operation coordinates, exact minus-one backedge transfer, and subtract proof
+  obligation; public snapshot reauthentication and field-by-field corruption
+  tests fail closed. This creates no general ranking rule, unranked-progress
+  authority, finite-work failure, execution permission, cyclic rewrite
+  permission, or publication authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
@@ -779,6 +802,10 @@ decision. Only true language-semantic questions belong in
   drift fail closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
+  - [x] Add constant-widen-to-immediate as its own exact abstract-to-target
+    family. Its independently reconstructed source grammar and target replay
+    cover all 18 native fixed-integer widening relations and preserve the
+    mathematical value without retaining a runtime extension.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
@@ -942,8 +969,18 @@ decision. Only true language-semantic questions belong in
   axis, and cross-target corruption fail closed. The 26-line entrance grants
   no selected VReg, instruction, physical slot/address, memory effect, frame,
   trap, unwind, encoding, emission, or publication authority.
-  Lower spill-pseudo representation,
-  abstract spill memory effects and ISA lowering, final frame offsets,
+  A fifteenth independently replayed boundary now lowers that recursive logical
+  schedule to target-neutral compiler-private spill pseudos. It assigns dense
+  function-local pseudo identities to every store/reload, retains typed
+  `Original(VReg)` versus `Reload { action, producer }` sources, binds each
+  rewrite to its producing reload, and carries only abstract spill-area-relative
+  storage. Direct traversal and separately keyed replay retain all five custody
+  roots, canonical order, typed source lineage, exact usage
+  `{1, 6, 23, 10, 14}`, and every representable budget axis on x86-64 and
+  AArch64. The entrance creates no
+  selected or machine instruction, address, memory effect, frame, trap, unwind,
+  encoding, emission, or publication authority. Abstract spill memory effects
+  and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
   memory insertion is owner-blocked only on the spill-access fault semantics
   recorded in `OWNER_QUESTIONS.md`; the abstract schedule, reload-home

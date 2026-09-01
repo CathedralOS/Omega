@@ -25,6 +25,7 @@ use crate::{
 };
 
 mod integer_ieee_float_literal_sequence;
+mod integer_widen_immediate;
 
 fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(51_001).unwrap();
@@ -484,6 +485,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
         ordered,
         vec![
             AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
+            AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate,
             AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
             AbstractToTargetTranslationFamily::StraightLineUnitReturn,
             AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
@@ -554,7 +556,7 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
         AbstractToTargetFunctionTranslationDisposition::Uncovered
     );
 
-    let boolean = ENABLED_TRANSLATION_FAMILIES[1];
+    let boolean = ENABLED_TRANSLATION_FAMILIES[2];
     assert!(matches!(
         selection::validate(
             source,

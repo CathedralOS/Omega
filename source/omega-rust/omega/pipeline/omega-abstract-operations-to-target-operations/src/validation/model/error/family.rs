@@ -5,6 +5,7 @@ mod shift;
 
 use super::immediate::{
     StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
+    StraightLineIntegerWidenImmediateTranslationError,
 };
 use super::parameter::{
     StraightLineBooleanEqualParametersTranslationError,
@@ -45,6 +46,7 @@ use shift::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
+    StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationError),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationError),

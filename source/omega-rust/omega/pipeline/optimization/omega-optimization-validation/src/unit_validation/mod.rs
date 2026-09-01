@@ -12,7 +12,10 @@ mod structural_catalog;
 
 pub use context::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
-    ValidatedOptimizerCycleComponents, validate_psi_cycle_component_snapshot,
+    OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
+    OptimizerUnsignedMinusOneDescent, OptimizerUnsignedPositiveGuard,
+    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
+    validate_psi_cycle_component_snapshot, validate_psi_ranking_certificate_snapshot,
     validate_transformed_psi_cycle_components, validate_transformed_psi_optimization_unit,
     validate_verified_psi_cycle_components, validate_verified_psi_optimization_unit,
 };

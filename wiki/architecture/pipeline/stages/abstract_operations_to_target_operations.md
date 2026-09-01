@@ -28,6 +28,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - `validation/straight_line_integer_immediate.rs` owns the first closed
   translation family: parameterless `[IntegerConstant, Return]` to
   `ReturnIntegerImmediate`.
+- `validation/straight_line_integer_widen_immediate/mod.rs` owns the adjacent
+  exact constant-materialization family. Its grammar independently
+  reconstructs parameterless `[IntegerConstant, IntegerWiden, Return]`; target
+  replay proves that lowering materialized the mathematical widened value as
+  `ReturnIntegerImmediate` while retaining both source definitions and their
+  ordered provenance.
 - `validation/straight_line_boolean_immediate.rs` owns its exact sibling:
   parameterless `[BooleanConstant, Return]` to `ReturnBooleanImmediate`.
 - `validation/straight_line_scalar_crash.rs` owns parameterless one-block
