@@ -333,6 +333,9 @@ fn selects_only_zero_with_every_rflags_unit_dead_and_replay_agrees() {
     );
     assert_eq!(computed.usage.iterations, 2);
     assert_eq!(computed.usage.rule_evaluations, 4);
+    assert_eq!(computed.usage.candidates, 1);
+    assert_eq!(computed.usage.validation_steps, 1);
+    assert_eq!(computed.usage.commits, 1);
     assert_eq!(computed.attempts.len(), 4);
     assert_eq!(
         computed.attempts[2].outcome,
@@ -386,27 +389,69 @@ fn independent_replay_exposes_action_corruption() {
     .unwrap();
     let mut corrupted = replayed.clone();
     corrupted.actions[0].selected_byte_count = 4;
-    assert_ne!(corrupted, replayed);
+    assert_eq!(
+        super::validate::validate_from_parts(
+            &fixture.selected,
+            fixture.selected_identity,
+            &fixture.liveness,
+            fixture.liveness_identity,
+            &fixture.source,
+            fixture.source_identity,
+            &fixture.physical,
+            &corrupted,
+        ),
+        Err(X86XorZeroMaterializationError::ArtifactMismatch)
+    );
 }
 
 #[test]
-fn iteration_budget_is_exact_after_one_commit() {
-    let fixture = fixture();
-    let error = super::compute::compute_from_parts(
-        &fixture.selected,
-        fixture.selected_identity,
-        &fixture.liveness,
-        fixture.liveness_identity,
-        &fixture.source,
-        fixture.source_identity,
-        &fixture.physical,
-        OptimizationWorkBudget::new(20, 20, 20, 20, 1).unwrap(),
-    )
-    .unwrap_err();
-    assert_eq!(
-        error,
-        X86XorZeroMaterializationError::BudgetExceeded(
-            X86XorZeroMaterializationWorkAxis::Iterations
-        )
-    );
+fn every_work_axis_exhausts_at_its_exact_boundary() {
+    let mut fixture = fixture();
+    fixture.liveness.functions[0].blocks[0].instructions[1]
+        .unit_live_out
+        .clear();
+    let successful = compute(&fixture);
+    assert_eq!(successful.usage.iterations, 3);
+    assert_eq!(successful.usage.rule_evaluations, 6);
+    assert_eq!(successful.usage.candidates, 2);
+    assert_eq!(successful.usage.validation_steps, 2);
+    assert_eq!(successful.usage.commits, 2);
+
+    for (budget, axis) in [
+        (
+            OptimizationWorkBudget::new(5, 20, 20, 20, 20).unwrap(),
+            X86XorZeroMaterializationWorkAxis::RuleEvaluations,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 1, 20, 20, 20).unwrap(),
+            X86XorZeroMaterializationWorkAxis::Candidates,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 20, 1, 20, 20).unwrap(),
+            X86XorZeroMaterializationWorkAxis::ValidationSteps,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 20, 20, 1, 20).unwrap(),
+            X86XorZeroMaterializationWorkAxis::Commits,
+        ),
+        (
+            OptimizationWorkBudget::new(20, 20, 20, 20, 2).unwrap(),
+            X86XorZeroMaterializationWorkAxis::Iterations,
+        ),
+    ] {
+        assert_eq!(
+            super::compute::compute_from_parts(
+                &fixture.selected,
+                fixture.selected_identity,
+                &fixture.liveness,
+                fixture.liveness_identity,
+                &fixture.source,
+                fixture.source_identity,
+                &fixture.physical,
+                budget,
+            ),
+            Err(X86XorZeroMaterializationError::BudgetExceeded(axis)),
+            "the first unit beyond the exact {axis:?} budget must fail closed",
+        );
+    }
 }

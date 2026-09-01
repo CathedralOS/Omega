@@ -800,10 +800,13 @@ unchecked rewrite or opt into lossy floating-point semantics.
   axes. Its direct publication path independently sums baseline and selected
   bytes, binds the complete and phase-local selection identities, and rejects
   authenticated one-field substitutions of all eight generic post-allocation
-  custody fields after the enclosing V9 manifest identity is recomputed. True
-  second-application idempotence remains open: the rule currently publishes an
-  immutable encoding-choice artifact, not a rewritten
-  `PostAllocationMachinePlan` that the rule can honestly consume again.
+  custody fields after the enclosing V9 manifest identity is recomputed. The
+  x86 XOR-zero rule now has the same exact five-axis success/boundary matrix,
+  independently rejects action corruption, and runs all eight authenticated
+  custody mutations through the shared post-allocation corruption harness.
+  True second-application idempotence remains open for both rules: each
+  publishes an immutable encoding-choice artifact, not a rewritten
+  `PostAllocationMachinePlan` that it can honestly consume again.
   Repeated reconstruction remains determinism evidence and is not relabelled as
   idempotence. The remaining operational axes and other rule families are not
   yet complete.
