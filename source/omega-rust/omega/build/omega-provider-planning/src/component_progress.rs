@@ -362,6 +362,7 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: "wait".into(),
                 requirement_identity: "Scheduler::wait#exact".into(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine_identity: "SchedulerProvider::wait".into(),
                     machine_package_identity: None,

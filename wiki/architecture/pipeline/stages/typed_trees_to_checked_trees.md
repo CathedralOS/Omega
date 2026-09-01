@@ -80,6 +80,15 @@ that evidence: a checked tree exists only after diagnostics are clear, and the
 acceptance views expose the proof, borrow, boundary, reach, invalidation, and
 call/exit evidence that made each state operation admissible.
 
+Exact `satisfies Trait<'...>::requirement` edges retain raw declaration-order
+ordinals into the realizing machine's lifetime telescope under that embedded
+typed custody. Checking requires complete in-scope target-trait applications
+and substitutes them through the requirement parameter and result types,
+including nested references and generic lifetime applications. Provider and
+package-review identity never publishes those private ordinals: it retains only
+their first-occurrence-normalized equality partition, shared by checked and
+opaque external supply.
+
 | Noun | Ownership |
 | --- | --- |
 | Places | First strongly useful place layer via `psi_facts::Place` and checked-flow `CanonicalPlace`. |

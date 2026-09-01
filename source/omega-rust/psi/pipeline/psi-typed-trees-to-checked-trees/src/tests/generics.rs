@@ -2,6 +2,141 @@ use super::{Lexer, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_
 use psi_checked_trees::{ContractProofFactKind, ContractProofFactOwner};
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
 
+fn typed_source(
+    source: &str,
+) -> Result<psi_typed_trees::TypedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])
+}
+
+#[test]
+fn exact_requirement_lifetime_application_retains_raw_machine_ordinals() {
+    let source = r#"
+        trait Pair<'left, 'right> {
+            machine choose(first: &'left [u8], second: &'right [u8]) -> &'left [u8];
+        }
+
+        machine choose<'unused, 'x, 'y>(
+            first: &'x [u8],
+            second: &'y [u8]
+        ) -> &'x [u8]
+            satisfies Pair<'x, 'y>::choose
+        {
+            first
+        }
+    "#;
+    let typed = typed_source(source).expect("typed exact requirement application");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose")
+        .expect("realizing machine");
+    let [realization] = typed.machine_trait_conformances(machine) else {
+        panic!("one exact requirement realization")
+    };
+    assert_eq!(realization.trait_lifetime_arguments, [1, 2]);
+    assert_eq!(
+        psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+            &realization.trait_lifetime_arguments,
+        ),
+        [0, 1],
+    );
+    lower_typed_trees(typed).expect("declared lifetime substitution should validate");
+}
+
+#[test]
+fn exact_requirement_lifetime_application_accepts_repeated_realizer_binder() {
+    let source = r#"
+        trait Pair<'left, 'right> {
+            machine consume(first: &'left [u8], second: &'right [u8]);
+        }
+
+        machine consume<'x>(first: &'x [u8], second: &'x [u8])
+            satisfies Pair<'x, 'x>::consume
+        {
+        }
+    "#;
+    let typed = typed_source(source).expect("typed repeated lifetime application");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "consume")
+        .expect("realizing machine");
+    let [realization] = typed.machine_trait_conformances(machine) else {
+        panic!("one exact requirement realization")
+    };
+    assert_eq!(realization.trait_lifetime_arguments, [0, 0]);
+    assert_eq!(
+        psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+            &realization.trait_lifetime_arguments,
+        ),
+        [0, 0],
+    );
+    lower_typed_trees(typed).expect("repeated lifetime substitution should validate");
+}
+
+#[test]
+fn exact_requirement_lifetime_application_rejects_signature_substitution_drift() {
+    let source = r#"
+        trait Pair<'left, 'right> {
+            machine choose(first: &'left [u8], second: &'right [u8]) -> &'left [u8];
+        }
+
+        machine choose<'x, 'y>(first: &'x [u8], second: &'y [u8]) -> &'x [u8]
+            satisfies Pair<'y, 'x>::choose
+        {
+            first
+        }
+    "#;
+    let typed = typed_source(source).expect("typed mismatched lifetime application");
+    let diagnostics = lower_typed_trees(typed).expect_err("lifetime drift must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("lifetime application does not match the declared `satisfies` edge")
+    }));
+}
+
+#[test]
+fn exact_requirement_lifetime_application_requires_complete_in_scope_arguments() {
+    let missing = r#"
+        trait Reads<'view> {
+            machine read(value: &'view [u8]) -> &'view [u8];
+        }
+        machine read<'scope>(value: &'scope [u8]) -> &'scope [u8]
+            satisfies Reads::read
+        {
+            value
+        }
+    "#;
+    let typed = typed_source(missing).expect("typing retains missing application for validation");
+    let diagnostics = lower_typed_trees(typed).expect_err("missing lifetime must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("expects 1 target-trait lifetime argument(s), got 0")
+    }));
+
+    let foreign = r#"
+        trait Reads<'view> {
+            machine read(value: &'view [u8]) -> &'view [u8];
+        }
+        machine read<'scope>(value: &'scope [u8]) -> &'scope [u8]
+            satisfies Reads<'foreign>::read
+        {
+            value
+        }
+    "#;
+    let tokens = Lexer::new(foreign).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let error = lower_symbol_resolved_trees(&resolved)
+        .expect_err("foreign lifetime argument must reject during typed lowering");
+    assert!(error.message.contains("outside its lifetime telescope"));
+}
+
 #[test]
 fn concrete_subjectless_conformance_checks_as_carrierless_evidence() {
     let source = r#"

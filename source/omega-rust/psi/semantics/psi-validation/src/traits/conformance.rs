@@ -525,6 +525,26 @@ pub(crate) fn validate_machine_trait_conformances(
             )));
             continue;
         };
+        let expected_lifetime_arguments = trait_definition.lifetime_parameters.len();
+        if conformance.trait_lifetime_arguments.len() != expected_lifetime_arguments {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance to trait `{}` expects {expected_lifetime_arguments} target-trait lifetime argument(s), got {}",
+                machine.name,
+                trait_definition.name,
+                conformance.trait_lifetime_arguments.len(),
+            )));
+            continue;
+        }
+        if conformance.trait_lifetime_arguments.iter().any(|ordinal| {
+            usize::try_from(*ordinal)
+                .map_or(true, |ordinal| ordinal >= machine.lifetime_parameters.len())
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` conformance to trait `{}` retains a target-trait lifetime outside its machine telescope",
+                machine.name, trait_definition.name,
+            )));
+            continue;
+        }
         let explicit_type_arguments = program
             .type_reference_table
             .type_reference_handles(conformance.arguments);
@@ -565,6 +585,7 @@ pub(crate) fn validate_machine_trait_conformances(
             requirement_name,
             conformance.requirement_symbol,
             conformance.alias.as_ref().map(|alias| alias.as_str()),
+            &conformance.trait_lifetime_arguments,
             explicit_type_arguments,
             diagnostics,
         );
@@ -583,6 +604,12 @@ fn validate_machine_top_level_requirement_conformance(
         "provider machine `{}` for top-level boundary requirement `{requirement_identity}`",
         machine.name
     );
+    if !conformance.trait_lifetime_arguments.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "{label} supplies target-trait lifetime arguments to a non-trait requirement"
+        )));
+        return;
+    }
     if conformance.requirement_symbol != requirement.symbol {
         diagnostics.push(Diagnostic::error(format!(
             "{label} does not retain the exact selected requirement symbol"
@@ -1690,6 +1717,14 @@ fn validate_machine_operator_conformance(
         return false;
     }
 
+    if !conformance.trait_lifetime_arguments.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` supplies target-trait lifetime arguments to operator requirement `{}::{}`",
+            machine.name, namespace, requirement_name,
+        )));
+        return true;
+    }
+
     if !program
         .type_reference_table
         .type_reference_handles(conformance.arguments)
@@ -1766,6 +1801,7 @@ fn validate_machine_single_requirement(
     requirement_name: &psi_typed_trees::name::Identifier,
     settled_requirement_symbol: psi_symbols::SymbolHandle,
     conformance_alias: Option<&str>,
+    trait_lifetime_arguments: &[u32],
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -1836,6 +1872,7 @@ fn validate_machine_single_requirement(
         entry_state,
         trait_definition,
         requirement,
+        Some(trait_lifetime_arguments),
         explicit_type_arguments,
         diagnostics,
     );
@@ -2115,6 +2152,7 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     state: &State,
     trait_definition: &TraitDefinition,
     requirement: &StateSignature,
+    trait_lifetime_arguments: Option<&[u32]>,
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -2378,6 +2416,32 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
         );
     }
 
+    if let Some(trait_lifetime_arguments) = trait_lifetime_arguments {
+        for (index, (actual, required)) in actual_parameters
+            .iter()
+            .zip(required_parameters.iter())
+            .enumerate()
+        {
+            if !type_reference_lifetimes_match_requirement_application(
+                program,
+                actual.type_reference,
+                required.type_reference,
+                trait_definition,
+                machine,
+                trait_lifetime_arguments,
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` does not satisfy trait `{}` machine `{}` parameter {}: lifetime application does not match the declared `satisfies` edge",
+                    machine.name,
+                    state.name,
+                    trait_definition.name,
+                    requirement.name,
+                    index,
+                )));
+            }
+        }
+    }
+
     if !type_references_match_with_trait_bindings(
         program,
         state.return_type,
@@ -2393,6 +2457,21 @@ pub(super) fn validate_machine_state_satisfies_trait_signature_with_arguments(
             requirement.name,
             type_reference_label(program, requirement.return_type),
             type_reference_label(program, state.return_type)
+        )));
+    }
+    if let Some(trait_lifetime_arguments) = trait_lifetime_arguments
+        && !type_reference_lifetimes_match_requirement_application(
+            program,
+            state.return_type,
+            requirement.return_type,
+            trait_definition,
+            machine,
+            trait_lifetime_arguments,
+        )
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: return lifetime application does not match the declared `satisfies` edge",
+            machine.name, state.name, trait_definition.name, requirement.name,
         )));
     }
 
@@ -2703,6 +2782,171 @@ fn type_references_match_with_trait_bindings(
             }),
         _ => type_references_match(program, actual, required),
     }
+}
+
+/// Recheck the part of a requirement type erased by ordinary runtime type
+/// equality. Only lifetimes owned by the target trait are substituted here;
+/// callable-local lifetime semantics remain with their existing owner.
+fn type_reference_lifetimes_match_requirement_application(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+    trait_definition: &TraitDefinition,
+    machine: &Machine,
+    raw_application: &[u32],
+) -> bool {
+    if !actual.is_valid() || !required.is_valid() {
+        return actual.is_valid() == required.is_valid();
+    }
+    match (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(required),
+    ) {
+        (
+            TypeReferenceNode::Reference {
+                referee: actual_referee,
+                lifetime: actual_lifetime,
+                ..
+            },
+            TypeReferenceNode::Reference {
+                referee: required_referee,
+                lifetime: required_lifetime,
+                ..
+            },
+        ) => {
+            requirement_lifetime_matches(
+                actual_lifetime.as_ref(),
+                required_lifetime.as_ref(),
+                trait_definition,
+                machine,
+                raw_application,
+            ) && type_reference_lifetimes_match_requirement_application(
+                program,
+                *actual_referee,
+                *required_referee,
+                trait_definition,
+                machine,
+                raw_application,
+            )
+        }
+        (
+            TypeReferenceNode::Constrained {
+                base_type: actual_base,
+                ..
+            },
+            TypeReferenceNode::Constrained {
+                base_type: required_base,
+                ..
+            },
+        ) => type_reference_lifetimes_match_requirement_application(
+            program,
+            *actual_base,
+            *required_base,
+            trait_definition,
+            machine,
+            raw_application,
+        ),
+        (
+            TypeReferenceNode::FixedArray {
+                element_type: actual_element,
+                ..
+            },
+            TypeReferenceNode::FixedArray {
+                element_type: required_element,
+                ..
+            },
+        )
+        | (
+            TypeReferenceNode::Slice {
+                element_type: actual_element,
+            },
+            TypeReferenceNode::Slice {
+                element_type: required_element,
+            },
+        ) => type_reference_lifetimes_match_requirement_application(
+            program,
+            *actual_element,
+            *required_element,
+            trait_definition,
+            machine,
+            raw_application,
+        ),
+        (
+            TypeReferenceNode::Generic {
+                lifetime_arguments: actual_lifetimes,
+                arguments: actual_arguments,
+                ..
+            },
+            TypeReferenceNode::Generic {
+                lifetime_arguments: required_lifetimes,
+                arguments: required_arguments,
+                ..
+            },
+        ) => {
+            actual_lifetimes.len() == required_lifetimes.len()
+                && actual_lifetimes.iter().zip(required_lifetimes).all(
+                    |(actual_lifetime, required_lifetime)| {
+                        requirement_lifetime_matches(
+                            Some(actual_lifetime),
+                            Some(required_lifetime),
+                            trait_definition,
+                            machine,
+                            raw_application,
+                        )
+                    },
+                )
+                && actual_arguments.count() == required_arguments.count()
+                && program
+                    .type_reference_table
+                    .type_reference_handles(*actual_arguments)
+                    .iter()
+                    .zip(
+                        program
+                            .type_reference_table
+                            .type_reference_handles(*required_arguments),
+                    )
+                    .all(|(actual_argument, required_argument)| {
+                        type_reference_lifetimes_match_requirement_application(
+                            program,
+                            *actual_argument,
+                            *required_argument,
+                            trait_definition,
+                            machine,
+                            raw_application,
+                        )
+                    })
+        }
+        _ => true,
+    }
+}
+
+fn requirement_lifetime_matches(
+    actual: Option<&psi_typed_trees::name::Identifier>,
+    required: Option<&psi_typed_trees::name::Identifier>,
+    trait_definition: &TraitDefinition,
+    machine: &Machine,
+    raw_application: &[u32],
+) -> bool {
+    let Some(required) = required else {
+        return true;
+    };
+    let Some(trait_ordinal) = trait_definition
+        .lifetime_parameters
+        .iter()
+        .position(|parameter| parameter.as_str() == required.as_str())
+    else {
+        return true;
+    };
+    let Some(machine_ordinal) = raw_application
+        .get(trait_ordinal)
+        .and_then(|ordinal| usize::try_from(*ordinal).ok())
+    else {
+        return false;
+    };
+    let Some(expected) = machine.lifetime_parameters.get(machine_ordinal) else {
+        return false;
+    };
+    actual.is_some_and(|actual| actual.as_str() == expected.as_str())
 }
 
 fn fixed_array_lengths_match_with_trait_bindings(

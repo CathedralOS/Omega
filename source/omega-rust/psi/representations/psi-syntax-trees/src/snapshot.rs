@@ -211,6 +211,8 @@ pub enum ItemSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SatisfiesClauseSnapshot {
     pub trait_name: IdentifierSnapshot,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_arguments: Vec<IdentifierSnapshot>,
     pub arguments: Vec<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requirement: Option<IdentifierSnapshot>,
@@ -1524,6 +1526,11 @@ fn snapshot_satisfies_clause(
 ) -> SatisfiesClauseSnapshot {
     SatisfiesClauseSnapshot {
         trait_name: snapshot_identifier(&clause.trait_name),
+        lifetime_arguments: clause
+            .lifetime_arguments
+            .iter()
+            .map(snapshot_identifier)
+            .collect(),
         arguments: syntax_trees
             .type_references
             .type_reference_handles(clause.arguments)

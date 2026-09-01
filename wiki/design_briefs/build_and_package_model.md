@@ -2183,9 +2183,10 @@ dependency obligations compose upward, while open obligations remain visible
 at every parent and are re-evaluated under each consumer's policy. A producer's
 admission decision never settles a downstream consumer's decision. The first
 accepted-evidence boundary requires exact semantic-schema identity; a mismatch
-forces complete local reconstruction and fresh admission. A checked pairwise
-migration may be added only for a concrete adjacent schema transition. Outer
-encoding-only revisions remain codec concerns.
+forces complete local reconstruction and fresh admission. Accepted locks are
+exact-current generated artifacts: current admission has no semantic-schema
+migration registry or compatibility classifier. Outer encoding-only revisions
+remain codec concerns until they change the accepted payload contract.
 
 The compiler-issued envelope also carries a separate canonical commitment to
 the reconciled package/alias input graph and every exact package or toolchain
@@ -2207,18 +2208,14 @@ rehash into one opaque source receipt. The public snapshot cannot be assembled
 or mutated by callers. Package review and lock admission remain separate from
 successful source resolution.
 
-The envelope separately identifies the producer executable file bytes observed
-before and after closure review, rejecting if those observations differ and
-retaining one verified commitment on every emitted row. That commitment stays
-outside capability/API comparison bytes. It is useful provenance for exact
-comparison and replay policy, but is not compiler certification, compiler-source
-identity, a reproducible-build receipt, or proof of the executable image already
-loaded by the operating system. No stronger producer-pedigree join seals a
-`PackageInstance`: direct source-and-artifact checking does. Reproducible builds,
-toolchain closures, signatures, and execution measurements may remain separate
-supply-chain or incident-response metadata. An admission may cite an exact
-artifact solely to scope the semantic obligation being assumed; the artifact's
-pedigree never proves that obligation.
+The envelope identifies the explicit semantic and evidence-encoding contracts
+that produced it. Bytes reread through the running process's executable path are
+excluded from review rows, closure commitments, conflicts, locks, and admission:
+they neither identify the image already loaded by the operating system nor seal
+a `PackageInstance`. Reproducible builds, toolchain closures, signatures, and
+execution measurements may remain separate supply-chain or incident-response
+metadata. An admission may cite an exact artifact solely to scope the semantic
+obligation being assumed; the artifact's pedigree never proves that obligation.
 
 Ratified 2026-08-26: the implementation should read each fact from the earliest
 coherent compiler-owned representation in which its semantics are established.

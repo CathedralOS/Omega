@@ -703,6 +703,10 @@ impl Default for ProofMembershipFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SatisfiesClause {
     pub trait_name: Identifier,
+    /// Complete explicit target-trait lifetime application, in trait-binder
+    /// order. These remain source names until the realizing machine telescope
+    /// is available during typed lowering.
+    pub lifetime_arguments: Vec<Identifier>,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     pub requirement: Option<Identifier>,
     pub alias: Option<Identifier>,

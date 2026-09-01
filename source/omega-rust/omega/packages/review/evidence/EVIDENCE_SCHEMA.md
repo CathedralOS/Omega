@@ -1,8 +1,18 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 118 and row schema version 76. This file
+The canonical review schema is version 119 and row schema version 77. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
+
+Schema v119 / row v77 implements D55 exact-requirement lifetime applications.
+Checked and external realization edges retain raw machine-lifetime ordinals for
+compiler substitution, while provider and package identity expose only the
+first-occurrence-normalized equality partition in target-trait parameter order.
+Complete arity, in-telescope custody, repeated binders, signature borrow
+substitution, exact selected-plan replay, and checked/external equality are
+rechecked. Implementation binder renaming, reordering, and insertion of unused
+binders remain stable; changing the equality partition changes canonical
+evidence. No foreign implementation proof or runtime lifetime claim is minted.
 
 Schema v118 / row v76 projects ordinary evaluated `via` imports into canonical
 package review. Before projection, review requires an exact bijection between

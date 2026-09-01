@@ -477,6 +477,7 @@ impl SyntaxTrees {
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
                 |this, clause| crate::item::SatisfiesClause {
                     trait_name: clause.trait_name,
+                    lifetime_arguments: clause.lifetime_arguments,
                     arguments: this.copy_type_reference_handle_span(other, clause.arguments),
                     requirement: clause.requirement,
                     alias: clause.alias,

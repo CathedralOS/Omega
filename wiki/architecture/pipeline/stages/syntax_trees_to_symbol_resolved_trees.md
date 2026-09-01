@@ -54,6 +54,10 @@ Must own:
   application while preserving that application's own argument pack separately
   from the enclosing machine telescope. This stage does not infer missing
   arguments or decide that the application satisfies an evidence binder.
+- Preserving each exact machine-requirement edge's authored target-trait
+  lifetime names beside its resolved trait and requirement selection. Binder
+  membership and declaration-order ordinals settle only when the realizing
+  machine telescope is available to typed lowering.
 - Recording each exact source-backed static conformance argument as an authored
   declaration selection at the argument path's span. Nested static applications
   are walked recursively; this records explicit source choice, not an inferred

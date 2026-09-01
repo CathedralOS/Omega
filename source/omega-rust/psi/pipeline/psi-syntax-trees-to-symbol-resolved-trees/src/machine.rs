@@ -515,6 +515,11 @@ fn lower_machine_trait_conformances(
                 TraitConformance {
                     symbol: SymbolHandle::invalid(),
                     name: crate::name::lower_name(&clause.trait_name),
+                    lifetime_arguments: clause
+                        .lifetime_arguments
+                        .iter()
+                        .map(crate::name::lower_name)
+                        .collect(),
                     arguments,
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),

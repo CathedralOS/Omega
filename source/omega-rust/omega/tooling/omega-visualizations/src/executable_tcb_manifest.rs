@@ -538,6 +538,7 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: "read".into(),
                 requirement_identity: "Storage::read".into(),
+                requirement_lifetime_partition: Vec::new(),
                 binding,
             }],
             origin_package_identity: None,

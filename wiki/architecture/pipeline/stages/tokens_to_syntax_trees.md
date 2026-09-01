@@ -63,7 +63,10 @@ The Psi product role owns this stage; its hosted source belongs under
 - `parser/machine/clauses.rs` owns machine `satisfies`, external-realization
   `via <Binding>`, `terminates [by ...]`, `reaches`, `invokes`, `suspends`,
   `blocks`, `crashes`, `requires`, and `ensures`
-  clauses. Every authored `reaches` keyword is retained independently from its
+  clauses. An exact requirement path retains its complete target-trait
+  application; lifetime arguments precede type, const, and machine arguments
+  and remain authored names at this stage. Every authored `reaches` keyword is
+  retained independently from its
   member span, including a memberless clause, so later stages can distinguish
   explicit empty publication from omission without reparsing source text.
   Every authored `suspends` and `blocks` keyword is likewise retained on

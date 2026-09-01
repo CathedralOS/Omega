@@ -711,6 +711,7 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: method.into(),
                 requirement_identity: format!("{name}Service::{method}"),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine_identity: format!("{name}Provider::{method}"),
                     machine_package_identity: None,
@@ -1385,6 +1386,7 @@ mod tests {
         overloaded.rows.push(ProviderPlanRow {
             method: "convert".into(),
             requirement_identity: second_identity.into(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CheckedAdapter {
                 machine_identity: "ConvertProvider::convert".into(),
                 machine_package_identity: None,

@@ -1417,6 +1417,10 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
                 plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
                     requirement_identity: requirement_identity.clone(),
+                    requirement_lifetime_partition:
+                        psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+                            &clause.trait_lifetime_arguments,
+                        ),
                     binding: row_binding.clone(),
                 });
                 plans[position]
@@ -1594,6 +1598,7 @@ fn derive_top_level_requirement_plans_with_provenance(
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: schema_method.name.clone(),
                 requirement_identity,
+                requirement_lifetime_partition: Vec::new(),
                 binding,
             });
             plans[position]
@@ -1816,6 +1821,7 @@ fn derive_boundary_operator_plans_with_provenance(
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
                 requirement_identity: schema.methods[0].requirement_identity.clone(),
+                requirement_lifetime_partition: Vec::new(),
                 binding,
             });
             plans[position]
@@ -2410,7 +2416,62 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
+    validate_exact_requirement_lifetime_partition(typed, plan, row, adapter)?;
     Ok(adapter)
+}
+
+fn validate_exact_requirement_lifetime_partition(
+    typed: &TypedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    realization: &psi_typed_trees::machine::Machine,
+) -> Result<(), psi_diagnostics::Diagnostic> {
+    let matching = typed
+        .machine_trait_conformances(realization)
+        .iter()
+        .filter_map(|conformance| {
+            let psi_typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            } = psi_typed_trees::machine::resolve_satisfied_declaration(
+                typed,
+                realization,
+                conformance,
+            )?
+            else {
+                return None;
+            };
+            (typed
+                .normalized_trait_requirement_overload_identity(definition, requirement)
+                .identity()
+                == row.requirement_identity)
+                .then_some(conformance)
+        })
+        .collect::<Vec<_>>();
+    match matching.as_slice() {
+        [] if row.requirement_lifetime_partition.is_empty() => Ok(()),
+        [conformance]
+            if psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+                &conformance.trait_lifetime_arguments,
+            ) == row.requirement_lifetime_partition =>
+        {
+            Ok(())
+        }
+        [] => Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` retains a requirement lifetime partition without one exact trait realization edge",
+            plan.name, row.requirement_identity,
+        ))),
+        [_] => Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` requirement lifetime partition differs from its exact realization edge",
+            plan.name, row.requirement_identity,
+        ))),
+        _ => Err(psi_diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` resolves to {} exact trait realization lifetime applications",
+            plan.name,
+            row.requirement_identity,
+            matching.len(),
+        ))),
+    }
 }
 
 fn exact_top_level_external_realization<'typed>(

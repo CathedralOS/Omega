@@ -623,6 +623,7 @@ fn selected_interrupt_completion_for(
         rows: vec![ProviderPlanRow {
             method: "complete".into(),
             requirement_identity: requirement_identity.clone(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CheckedAdapter {
                 machine_identity: machine_identity.into(),
                 machine_package_identity: None,
@@ -6151,6 +6152,7 @@ fn progress_installation_fixture() -> (
         rows: vec![ProviderPlanRow {
             method: "wait".into(),
             requirement_identity: "Scheduler::wait#exact".into(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CompilerIntrinsic {
                 machine: "TestScheduler::wait".into(),
             },
@@ -6182,6 +6184,7 @@ fn progress_installation_fixture() -> (
         rows: vec![ProviderPlanRow {
             method: "grant_weak_fair".into(),
             requirement_identity: route.requirement_identity.clone(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CompilerIntrinsic {
                 machine: "TestSchedulerAdmission::grant_weak_fair".into(),
             },

@@ -728,6 +728,63 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
 }
 
 #[test]
+fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
+    let source = r#"
+        trait Reads<'scope, Item> {
+            machine read(value: &'scope Item) -> &'scope Item;
+        }
+
+        machine read<'view, Item>(value: &'view Item) -> &'view Item
+            satisfies Reads<'view, Item>::read
+        {
+            value
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let parsed = parse_syntax_trees(&tokens).expect("parse exact requirement application");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "read" => {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("realizing machine");
+    let [clause] = parsed.items.satisfies_clauses(machine.satisfies) else {
+        panic!("one exact requirement application")
+    };
+    assert_eq!(
+        clause
+            .lifetime_arguments
+            .iter()
+            .map(|argument| argument.as_str())
+            .collect::<Vec<_>>(),
+        ["view"],
+    );
+    assert_eq!(
+        parsed
+            .type_references
+            .type_reference_handles(clause.arguments)
+            .len(),
+        1
+    );
+
+    let misplaced = Lexer::new(
+        "machine read<'view, Item>(value: &'view Item) satisfies Reads<Item, 'view>::read {}",
+    )
+    .tokenize()
+    .expect("tokenize misplaced lifetime");
+    let error = parse_syntax_trees(&misplaced)
+        .expect_err("a target-trait lifetime after a type argument must reject");
+    assert!(
+        error
+            .message
+            .contains("lifetime arguments precede type, const, and machine arguments")
+    );
+}
+
+#[test]
 fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
     let source = r#"
         boundary trait Kernel32Requirements {

@@ -554,6 +554,7 @@ fn selected_storage_plan() -> ProviderPlan {
         rows: vec![ProviderPlanRow {
             method: "transfer".to_owned(),
             requirement_identity: "StorageBase::transfer".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CheckedAdapter {
                 machine_identity: "StorageProvider::transfer".to_owned(),
                 machine_package_identity: None,

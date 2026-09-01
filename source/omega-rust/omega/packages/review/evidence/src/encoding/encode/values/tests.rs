@@ -217,10 +217,26 @@ pub(crate) fn normalized_import_row(
     omega_effects::provider_plan::ProviderPlanRow {
         method: "write".to_owned(),
         requirement_identity: "Console::write#exact".to_owned(),
+        requirement_lifetime_partition: Vec::new(),
         binding: ProviderBinding::Import {
             evaluated: evaluated_import(locator, 11),
         },
     }
+}
+
+#[test]
+fn provider_row_encoding_distinguishes_requirement_lifetime_partitions() {
+    let mut distinct = normalized_import_row(b"WriteFile");
+    distinct.requirement_lifetime_partition = vec![0, 1];
+    let mut repeated = distinct.clone();
+    repeated.requirement_lifetime_partition = vec![0, 0];
+
+    let encode_row = |row| {
+        let mut encoder = Encoder::bounded(4096);
+        encode_provider_row(&mut encoder, row).expect("encode provider row");
+        encoder.finish().expect("bounded provider row")
+    };
+    assert_ne!(encode_row(&distinct), encode_row(&repeated));
 }
 
 fn evaluated_import(
@@ -302,6 +318,7 @@ fn macho_import_review_encoding_retains_raw_atomic_coordinates() {
         let row = omega_effects::provider_plan::ProviderPlanRow {
             method: "write".to_owned(),
             requirement_identity: "Console::write#exact".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Import {
                 evaluated: evaluated_import(
                     omega_effects::normalize_foreign_locator(

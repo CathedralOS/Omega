@@ -79,6 +79,7 @@ fn missing_trait_plan() -> ProviderPlan {
         rows: vec![ProviderPlanRow {
             method: "missing".to_owned(),
             requirement_identity: "MissingBoundary::missing".to_owned(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::VtableSlot { index: 0 },
         }],
         origin_package_identity: None,

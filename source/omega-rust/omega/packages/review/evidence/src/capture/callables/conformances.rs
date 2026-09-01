@@ -400,9 +400,14 @@ pub(super) fn project_callable_conformances(
                 machine.name, trait_definition.name
             ))]);
         }
-        if !trait_definition.lifetime_parameters.is_empty() {
+        if conformance.trait_lifetime_arguments.len() != trait_definition.lifetime_parameters.len()
+            || conformance.trait_lifetime_arguments.iter().any(|ordinal| {
+                usize::try_from(*ordinal)
+                    .map_or(true, |ordinal| ordinal >= machine.lifetime_parameters.len())
+            })
+        {
             return Err(vec![Diagnostic::error(format!(
-                "reviewed callable `{}` realizes lifetime-parameterized trait `{}` without retained conformance lifetime arguments",
+                "reviewed callable `{}` has an incomplete target-trait lifetime application for `{}`",
                 machine.name, trait_definition.name
             ))]);
         }
@@ -441,6 +446,10 @@ pub(super) fn project_callable_conformances(
                 trait_definition,
                 requirement,
             )?,
+            requirement_lifetime_partition:
+                psi_typed_trees::machine::normalize_requirement_lifetime_partition(
+                    &conformance.trait_lifetime_arguments,
+                ),
             arguments: compilation
                 .type_reference_table
                 .type_reference_handles(conformance.arguments)

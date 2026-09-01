@@ -225,6 +225,7 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: "apply".into(),
                 requirement_identity: "IndexedRequirement::apply".into(),
+                requirement_lifetime_partition: Vec::new(),
                 binding: ProviderBinding::CheckedAdapter {
                     machine_identity: "IndexedProvider::apply".into(),
                     machine_package_identity: None,

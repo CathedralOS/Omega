@@ -216,6 +216,7 @@ fn add_bootstrap_row(fixture: &mut Fixture) {
     fixture.plans[0].rows.push(ProviderPlanRow {
         method: METHOD_NAME.to_owned(),
         requirement_identity: fixture.requirement_identity.clone(),
+        requirement_lifetime_partition: Vec::new(),
         binding: ProviderBinding::StringBackedImportBootstrap {
             library: "retained-library".to_owned(),
             symbol: "retained-symbol".to_owned(),
@@ -423,6 +424,7 @@ fn normalized_locator_survives_provider_selection_and_host_abi_bridge_atomically
     fixture.plans[0].rows.push(ProviderPlanRow {
         method: METHOD_NAME.to_owned(),
         requirement_identity: fixture.requirement_identity.clone(),
+        requirement_lifetime_partition: Vec::new(),
         binding: ProviderBinding::Import {
             evaluated: evaluated_import(locator.clone()),
         },
