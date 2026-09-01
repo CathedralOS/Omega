@@ -4,6 +4,7 @@ mod codec;
 mod compute;
 mod identity;
 mod model;
+mod pattern;
 mod validate;
 
 pub use codec::Aarch64CbnzFusionDecodeError;

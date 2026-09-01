@@ -16,6 +16,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "declarative terminal-pair matching",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/registers.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/instruction.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/liveness.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/pattern.rs",
+        ],
+    },
+    SemanticLadder {
         family: "AArch64 MOVN proposal",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/materialize_i64_movn/compute/mod.rs",

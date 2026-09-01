@@ -149,7 +149,7 @@ enablement and order.
 | Psi | `omega-psi-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `passes/<exact-pass>/` |
 | Selected lowering | `omega-regalloc/src/rules/selected_lowering/mod.rs` | adjacent `catalog.rs` | `literal_fold/` |
 | Allocation recovery | `omega-regalloc/src/rules/allocation_recovery/mod.rs` | adjacent `catalog.rs` | `fixed_view_copy/`, `pressure_rematerialization/` |
-| Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/<isa>/<exact-rule>/` |
+| Post-allocation machine | `omega-machine-optimizer/src/rules/mod.rs` | `rules/catalog.rs` | `rules/peephole_matching/`, then `rules/<isa>/<exact-rule>/` |
 | Function-relative layout | `omega-optimization-pipeline/src/stages/layout/x86_branch_relaxation/mod.rs` | adjacent `catalog.rs` | compute and independent validation |
 
 Removing a catalog row disables that exact rule. Adding a row must make
@@ -159,6 +159,15 @@ a proxy schedule or repeat the rule-name match. Post-allocation machine
 composition therefore carries `PostAllocationMachineRuleCatalogEntry`; the
 execution rung switches on its closed rule kind and contains no exact
 `Optimization` names.
+
+The machine peephole rung is itself navigable: `peephole_matching/mod.rs`
+coordinates one immutable terminal-pair input through `instruction.rs`,
+`registers.rs`, and `liveness.rs`, with vocabulary in `model.rs`. Exact pattern
+data stays with its rule, currently
+`aarch64/compare_zero_branch_nonzero/pattern.rs`. The shared rung owns neither
+enablement nor rewriting, and validators do not import it. This keeps the path
+catalog row -> exact rule entrance -> exact pattern -> named matcher mechanics
+visible without creating a proxy rule schedule.
 
 Psi has one additional local rung. `rules/catalog.rs` orders the selected
 passes, while `passes/<exact-pass>/mod.rs` visibly orders that pass's local

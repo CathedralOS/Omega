@@ -48,6 +48,23 @@ tests.rs     # positive, negative, boundary, and corruption cases
 `mod.rs` is meaningful: it joins proposal to independent validation. It does
 not contain either implementation.
 
+Post-allocation peepholes have one narrower shared rung at
+`rules/peephole_matching/mod.rs`. Its small entrance takes an immutable
+terminal-pair descriptor, resolves named architectural register-unit sets,
+matches the two exact symbolic/machine footprints, and checks their liveness
+boundary. Instruction, register, and liveness mechanics live in separately
+named leaves below it. The first descriptor belongs to the exact AArch64 CBNZ
+leaf; the central machine catalog remains the sole enable/order authority.
+This first vocabulary intentionally describes only a body-tail instruction
+followed by its terminator. It does not speculate an arbitrary pattern AST,
+rewrite language, cost policy, or ML interface.
+
+The matcher only proposes. CBNZ acceptance continues to reconstruct the same
+preconditions in its independent validator without calling the matcher, so a
+producer-interpreter defect cannot attest to itself. The plan codec, identity,
+attempt ordering, budget charges, and public error vocabulary remain those of
+the exact rule.
+
 Two exact rules may share a non-executable semantic family when they consume
 the same custody mechanics without sharing one execution point. Adjacent and
 non-adjacent block merging follow this pattern: each retains its stable

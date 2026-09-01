@@ -263,6 +263,16 @@ plan, accounting, and custody receipt. Encoding dispatches on that typed plan;
 the complete compiler route does not grow a new parallel carrier family for
 each rule.
 
+CBNZ is the first rule whose producer consumes a declarative symbolic
+terminal-pair descriptor. That descriptor states the exact compare and branch
+alternative keys; operand and allocatable `x0..x30` view shape; named `nzcv`
+and `pc` unit sets; memory, stack, trap, and control effects; compare-to-branch
+liveness continuity; and flags-dead-after eligibility. The shared matcher is
+partitioned into instruction, register, and liveness leaves under one small
+coordination entrance. The rule's independent validator deliberately retains
+its separate replay logic. Other materialization rules remain rule-local
+selection until a genuinely shared pattern vocabulary is demonstrated.
+
 Direct homes and homes after selected lowering enter one
 `StagedPostAllocationMachineFunctionRelativeRealization`. CBNZ, MOVN,
 XOR-zero, and MOV-r32-imm32 therefore share the same encoding, layout, exit,
