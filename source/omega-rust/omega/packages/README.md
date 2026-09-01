@@ -20,7 +20,8 @@ build.omg declaration
     -> sources acquires immutable source custody
     -> compiler checks the selected closure
     -> review records and compares compiler-issued facts
-    -> manager applies root-owned policy and transaction rules
+    -> manager admission rechecks custody, evidence, and root-owned policy
+    -> operations apply transaction rules
 ```
 
 No supporting crate admits a package. Source custody does not imply trust,

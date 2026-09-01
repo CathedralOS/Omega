@@ -2169,6 +2169,25 @@ requires exact conflict bijections for all three row kinds. No producer
 decision, certificate, accepted-lock state, or `PackageInstance` route is
 representable in these types.
 
+The manager now owns the first authority-bearing promotion boundary for that
+exact implemented subset. `AcceptedOrdinaryClosureEvidence` cannot be assembled
+from decoded questions, review baselines, fingerprints, or a caller-supplied
+partial result. Its sole gate revalidates every live resolver snapshot and
+selection, reruns source-to-obligation reconstruction and transitive
+composition, rederives the fresh conflict set, and replays the complete root
+policy. For every package it then binds the exact immutable resolution,
+compiler-consumed source commitment, current ordinary obligation ledger as the
+ordinary produced artifact, locally reconstructed result set, build evaluation
+and observation provenance, and generated-source bundle under accepted-
+evidence schema v1. Dependency obligations retain their package owner and no
+producer policy composes upward. A blocker-free closure carries no synthetic
+policy; missing, rejecting, stale, or foreign policy and post-review source
+drift reject. This value is deliberately in-memory: it has no codec, accepted-
+lock mutation route, audit receipt, or `PackageInstance` constructor. Current
+result lanes remain explicitly open root admissions, so no empty generic
+certificate framework is invented before a concrete compiler-owned certificate
+route exists.
+
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
 cleanup requirements, and contract guarantees; each row retains exact owner,

@@ -16,7 +16,13 @@ const PACKAGE_CRATES: &[&str] = &[
     "sources/acquisition",
     "sources/execution",
 ];
-const MANAGER_OWNERS: &[&str] = &["declarations", "operations", "resolution", "review"];
+const MANAGER_OWNERS: &[&str] = &[
+    "admission",
+    "declarations",
+    "operations",
+    "resolution",
+    "review",
+];
 const EVIDENCE_OWNERS: &[&str] = &["capture", "encoding", "ledger", "record"];
 const MAX_PRODUCTION_LEAF_LINES: usize = 525;
 const MAX_TEST_LEAF_LINES: usize = 800;
