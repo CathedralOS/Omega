@@ -8,7 +8,7 @@ use omega_optimization_unit::{
 
 use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
 
-use super::{model::IntegerBinaryKind, shapes, witness};
+use super::{evaluation, model::IntegerBinaryKind, shapes, witness};
 use crate::rules::passes::sparse_conditional_constant_propagation::constant_evaluation::integer::integer_constant;
 
 pub(super) fn propose(
@@ -44,7 +44,7 @@ pub(super) fn propose(
                 else {
                     continue;
                 };
-                let Some(constant) = shape.evaluate(left_value, right_value) else {
+                let Some(constant) = evaluation::evaluate(&shape, left_value, right_value) else {
                     continue;
                 };
                 let location = NodeLocation {
