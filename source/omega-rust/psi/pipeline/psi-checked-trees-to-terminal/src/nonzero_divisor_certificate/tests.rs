@@ -4882,15 +4882,15 @@ fn exact_division_goal_proves_two_definition_affine_safe_divisor() {
 }
 
 #[test]
-fn exact_division_goal_proves_three_through_nine_definition_affine_safe_divisors() {
+fn exact_division_goal_proves_three_through_ten_definition_affine_safe_divisors() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let context = PropositionContext::from_value_types((1..=12).map(|id| {
+    let context = PropositionContext::from_value_types((1..=13).map(|id| {
         (
             ValueId::new(id).expect("value id"),
             ScalarType::Integer(signed),
         )
     }))
-    .expect("twelve i8 values");
+    .expect("thirteen i8 values");
     let exact_division_goal = |divisor: ScalarTerm| {
         Proposition::Disjunction(vec![
             Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
@@ -4909,6 +4909,7 @@ fn exact_division_goal_proves_three_through_nine_definition_affine_safe_divisors
     let eight_step_goal = exact_division_goal(value(10, signed));
     let nine_step_goal = exact_division_goal(value(11, signed));
     let ten_step_goal = exact_division_goal(value(12, signed));
+    let eleven_step_goal = exact_division_goal(value(13, signed));
     let three_step_root_bound = Proposition::LessOrEqual(integer(signed, -2), value(3, signed));
     let four_step_root_bound = Proposition::LessOrEqual(integer(signed, -3), value(3, signed));
     let five_step_root_bound = Proposition::LessOrEqual(integer(signed, -4), value(3, signed));
@@ -4917,6 +4918,7 @@ fn exact_division_goal_proves_three_through_nine_definition_affine_safe_divisors
     let eight_step_root_bound = Proposition::LessOrEqual(integer(signed, -7), value(3, signed));
     let nine_step_root_bound = Proposition::LessOrEqual(integer(signed, -8), value(3, signed));
     let ten_step_root_bound = Proposition::LessOrEqual(integer(signed, -9), value(3, signed));
+    let eleven_step_root_bound = Proposition::LessOrEqual(integer(signed, -10), value(3, signed));
     let definitions = [
         Proposition::Equal(
             value(4, signed),
@@ -4967,6 +4969,11 @@ fn exact_division_goal_proves_three_through_nine_definition_affine_safe_divisors
             value(12, signed),
             ScalarTerm::exact_integer_add(signed, value(11, signed), integer(signed, 1))
                 .expect("tenth exact add"),
+        ),
+        Proposition::Equal(
+            value(13, signed),
+            ScalarTerm::exact_integer_add(signed, value(12, signed), integer(signed, 1))
+                .expect("eleventh exact add"),
         ),
     ];
 
@@ -5379,15 +5386,104 @@ fn exact_division_goal_proves_three_through_nine_definition_affine_safe_divisors
         "a nine-definition certificate cannot replay against stale definition evidence",
     );
 
+    let ten_step_proof = prove_canonical_integer_proposition(
+        &context,
+        &ten_step_goal,
+        std::slice::from_ref(&ten_step_root_bound),
+        &definitions,
+    )
+    .expect("ten-definition affine word proves the positive divisor arm");
+    let ProofRule::DisjunctionIntroduction { disjunct, index } = &ten_step_proof.rule else {
+        panic!("ten-definition affine divisor selects one canonical arm")
+    };
+    assert_eq!(*index, 1);
+    let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
+        panic!("ten-definition affine divisor uses the affine-bound rule")
+    };
+    assert_eq!(witness.root, value(3, signed));
+    assert_eq!(witness.target, value(12, signed));
+    assert_eq!(
+        witness.definition_axioms,
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    accept_certificate(
+        &context,
+        &ten_step_goal,
+        std::slice::from_ref(&ten_step_root_bound),
+        &definitions,
+        &ten_step_proof,
+    )
+    .expect("the checker independently replays the ten-definition certificate");
+
     assert!(
         prove_canonical_integer_proposition(
             &context,
             &ten_step_goal,
             std::slice::from_ref(&ten_step_root_bound),
+            &definitions[..9],
+        )
+        .is_none(),
+        "an incomplete ten-definition word cannot prove divisor safety",
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &ten_step_goal,
+            std::slice::from_ref(&ten_step_root_bound),
+            &[
+                definitions[9].clone(),
+                definitions[8].clone(),
+                definitions[7].clone(),
+                definitions[6].clone(),
+                definitions[5].clone(),
+                definitions[4].clone(),
+                definitions[3].clone(),
+                definitions[2].clone(),
+                definitions[1].clone(),
+                definitions[0].clone(),
+            ],
+        )
+        .is_none(),
+        "a reversed ten-definition word cannot claim canonical custody",
+    );
+
+    let mut redirected_definitions = definitions[..10].to_vec();
+    redirected_definitions[9] = Proposition::Equal(
+        value(13, signed),
+        ScalarTerm::exact_integer_add(signed, value(11, signed), integer(signed, 1))
+            .expect("redirected tenth exact add"),
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &ten_step_goal,
+            std::slice::from_ref(&ten_step_root_bound),
+            &redirected_definitions,
+        )
+        .is_none(),
+        "a redirected tenth definition cannot complete the target word",
+    );
+    assert!(
+        accept_certificate(
+            &context,
+            &ten_step_goal,
+            std::slice::from_ref(&ten_step_root_bound),
+            &redirected_definitions,
+            &ten_step_proof,
+        )
+        .is_err(),
+        "a ten-definition certificate cannot replay against stale definition evidence",
+    );
+
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &eleven_step_goal,
+            std::slice::from_ref(&eleven_step_root_bound),
             &definitions,
         )
         .is_none(),
-        "a ten-definition word remains outside the bounded certificate frontier",
+        "an eleven-definition word remains outside the bounded certificate frontier",
     );
 }
 
