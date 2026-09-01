@@ -741,6 +741,11 @@ pub enum TargetOperation {
     /// One verified terminal-Psi Boolean convergence tree whose value leaves
     /// join one physical return/cleanup tail.
     ReturnBooleanSharedConvergence {
+        /// Exact true-before-false DFS roster of source return edges reaching
+        /// the shared native tail. A source-level convergence block therefore
+        /// contributes one edge, while distinct uniform return leaves retain
+        /// every edge without duplicating the physical cleanup.
+        return_edges: Vec<EdgeId>,
         psi_edge: EdgeId,
         control: TargetBooleanControl,
     },

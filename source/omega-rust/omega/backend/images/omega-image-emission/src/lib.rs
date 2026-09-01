@@ -658,6 +658,8 @@ fn build_object_artifact_with_x86_feature_profile(
                     function.machine,
                     &function.bytes,
                     &function.internal_calls,
+                    &function.provenance,
+                    &function.semantic_code_attribution,
                     stack,
                     function.scalar_affine_cleanup.as_ref(),
                     &function.scalar_control_affine_cleanups,

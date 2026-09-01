@@ -1,132 +1,21 @@
 use super::cleanup::validate_scalar_cleanup_frontier;
 use super::shared::*;
 
-pub(super) fn shared_boolean_cleanup_convergence_return_edge(
-    function: &AbstractFunction,
-) -> Option<EdgeId> {
-    let mut conditional_count = 0_usize;
-    let mut jump_target = None;
-    let mut jump_bindings = Vec::new();
-    let mut return_edge = None;
-    for operation in &function.operations {
-        match operation {
-            AbstractOperation::Conditional { .. } => conditional_count += 1,
-            AbstractOperation::Jump {
-                target, bindings, ..
-            } => {
-                if bindings.len() != 1 || jump_target.is_some_and(|existing| existing != *target) {
-                    return None;
-                }
-                jump_target = Some(*target);
-                jump_bindings.push(bindings[0]);
-            }
-            AbstractOperation::Return {
-                psi_edge,
-                value,
-                scalar_type: ScalarType::Boolean,
-                cleanup_actions,
-                ..
-            } if !cleanup_actions.is_empty() => {
-                if return_edge.replace((*psi_edge, *value)).is_some() {
-                    return None;
-                }
-            }
-            AbstractOperation::BooleanConstant { .. }
-            | AbstractOperation::BooleanStructuralField { .. }
-            | AbstractOperation::BooleanNot { .. }
-            | AbstractOperation::IntegerConstant { .. }
-            | AbstractOperation::IntegerEqual { .. }
-            | AbstractOperation::IntegerLessThan { .. }
-            | AbstractOperation::IntegerLessOrEqual { .. }
-            | AbstractOperation::IntegerBitwiseNot { .. }
-            | AbstractOperation::IntegerWiden { .. }
-            | AbstractOperation::IntegerExactCast { .. }
-            | AbstractOperation::IntegerBitwiseAnd { .. }
-            | AbstractOperation::IntegerBitwiseOr { .. }
-            | AbstractOperation::IntegerBitwiseXor { .. }
-            | AbstractOperation::WrappingIntegerShiftLeft { .. }
-            | AbstractOperation::WrappingIntegerShiftRight { .. }
-            | AbstractOperation::ExactIntegerShiftLeft { .. }
-            | AbstractOperation::ExactIntegerShiftRight { .. }
-            | AbstractOperation::WrappingIntegerAdd { .. }
-            | AbstractOperation::ExactIntegerAdd { .. }
-            | AbstractOperation::SaturatingIntegerAdd { .. }
-            | AbstractOperation::WrappingIntegerSubtract { .. }
-            | AbstractOperation::ExactIntegerSubtract { .. }
-            | AbstractOperation::SaturatingIntegerSubtract { .. }
-            | AbstractOperation::WrappingIntegerMultiply { .. }
-            | AbstractOperation::ExactIntegerMultiply { .. }
-            | AbstractOperation::SaturatingIntegerMultiply { .. }
-            | AbstractOperation::ExactIntegerDivide { .. }
-            | AbstractOperation::ExactIntegerRemainder { .. } => {}
-            _ => return None,
-        }
-    }
-    let target = jump_target?;
-    let (edge, returned_value) = return_edge?;
-    if conditional_count == 0
-        || Some(jump_bindings.len()) != conditional_count.checked_add(1)
-        || jump_bindings.iter().any(|binding| {
-            binding.parameter != returned_value || binding.scalar_type != ScalarType::Boolean
-        })
-    {
-        return None;
-    }
-    let target_entry = function
-        .block_entries
-        .iter()
-        .position(|entry| entry.block == target)?;
-    let start = function.block_entries[target_entry].operation_offset;
-    let end = function
-        .block_entries
-        .get(target_entry + 1)
-        .map_or(function.operations.len(), |entry| entry.operation_offset);
-    matches!(
-        function.operations.get(start..end),
-        Some([AbstractOperation::Return { psi_edge, .. }]) if *psi_edge == edge
-    )
-    .then_some(edge)
-}
-
-pub(super) fn shared_boolean_control_return_edge(control: &TargetBooleanControl) -> Option<EdgeId> {
-    match control {
-        TargetBooleanControl::ReturnImmediate {
-            psi_return_edge, ..
-        } => Some(*psi_return_edge),
-        TargetBooleanControl::Conditional {
-            when_true,
-            when_false,
-            ..
-        }
-        | TargetBooleanControl::ConditionalExpression {
-            when_true,
-            when_false,
-            ..
-        } => {
-            let when_true = shared_boolean_control_return_edge(&when_true.control)?;
-            let when_false = shared_boolean_control_return_edge(&when_false.control)?;
-            (when_true == when_false).then_some(when_true)
-        }
-        TargetBooleanControl::Crash { .. }
-        | TargetBooleanControl::ReturnParameter { .. }
-        | TargetBooleanControl::ReturnNotParameter { .. }
-        | TargetBooleanControl::ReturnExpression { .. } => None,
-    }
-}
-
-pub(super) fn finite_boolean_cleanup_return_edges(
+fn collect_finite_boolean_cleanup_return_edges(
     control: &TargetBooleanControl,
+    immediate_only: bool,
 ) -> Option<Vec<EdgeId>> {
     fn collect(
         control: &TargetBooleanControl,
+        immediate_only: bool,
         decision_count: &mut usize,
         return_edges: &mut Vec<EdgeId>,
     ) -> Option<()> {
         match control {
             TargetBooleanControl::ReturnImmediate {
                 psi_return_edge, ..
-            }
-            | TargetBooleanControl::ReturnParameter {
+            } => return_edges.push(*psi_return_edge),
+            TargetBooleanControl::ReturnParameter {
                 psi_return_edge, ..
             }
             | TargetBooleanControl::ReturnNotParameter {
@@ -134,7 +23,7 @@ pub(super) fn finite_boolean_cleanup_return_edges(
             }
             | TargetBooleanControl::ReturnExpression {
                 psi_return_edge, ..
-            } => return_edges.push(*psi_return_edge),
+            } if !immediate_only => return_edges.push(*psi_return_edge),
             TargetBooleanControl::Conditional {
                 when_true,
                 when_false,
@@ -146,24 +35,61 @@ pub(super) fn finite_boolean_cleanup_return_edges(
                 ..
             } => {
                 *decision_count = decision_count.checked_add(1)?;
-                collect(&when_true.control, decision_count, return_edges)?;
-                collect(&when_false.control, decision_count, return_edges)?;
+                collect(
+                    &when_true.control,
+                    immediate_only,
+                    decision_count,
+                    return_edges,
+                )?;
+                collect(
+                    &when_false.control,
+                    immediate_only,
+                    decision_count,
+                    return_edges,
+                )?;
             }
-            TargetBooleanControl::Crash { .. } => return None,
+            TargetBooleanControl::Crash { .. }
+            | TargetBooleanControl::ReturnParameter { .. }
+            | TargetBooleanControl::ReturnNotParameter { .. }
+            | TargetBooleanControl::ReturnExpression { .. } => return None,
         }
         Some(())
     }
 
     let mut decision_count = 0;
     let mut return_edges = Vec::new();
-    collect(control, &mut decision_count, &mut return_edges)?;
-    if decision_count == 0
-        || return_edges.len() < 2
-        || return_edges.iter().copied().collect::<BTreeSet<_>>().len() != return_edges.len()
-    {
+    collect(
+        control,
+        immediate_only,
+        &mut decision_count,
+        &mut return_edges,
+    )?;
+    if decision_count == 0 || return_edges.len() < 2 {
         return None;
     }
     Some(return_edges)
+}
+
+pub(super) fn shared_boolean_cleanup_return_edges(
+    control: &TargetBooleanControl,
+) -> Option<Vec<EdgeId>> {
+    let mut return_edges = collect_finite_boolean_cleanup_return_edges(control, true)?;
+    let unique_edges = return_edges.iter().copied().collect::<BTreeSet<_>>();
+    if unique_edges.len() != 1 && unique_edges.len() != return_edges.len() {
+        return None;
+    }
+    if unique_edges.len() == 1 {
+        return_edges.truncate(1);
+    }
+    Some(return_edges)
+}
+
+pub(super) fn finite_boolean_cleanup_return_edges(
+    control: &TargetBooleanControl,
+) -> Option<Vec<EdgeId>> {
+    let return_edges = collect_finite_boolean_cleanup_return_edges(control, false)?;
+    (return_edges.iter().copied().collect::<BTreeSet<_>>().len() == return_edges.len())
+        .then_some(return_edges)
 }
 
 pub(super) fn uniform_conditional_cleanup(

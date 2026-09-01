@@ -128,6 +128,7 @@ pub(crate) fn top_level_integer_conditional_evidence(
 pub(crate) fn emit_boolean_shared_convergence(
     architecture: Architecture,
     control: &AssignedBooleanControl,
+    return_edges: &[psi_core::EdgeId],
 ) -> Result<(Vec<u8>, ScalarControlFlowEvidence), EmissionError> {
     let mut emitted = emit_boolean_shared_convergence_tree(architecture, control)?;
     if emitted.decisions.is_empty()
@@ -139,6 +140,28 @@ pub(crate) fn emit_boolean_shared_convergence(
         .joins
         .pop()
         .ok_or(EmissionError::ConditionalBranchEncodingInvalid)?;
+    let physical_return_edges = emitted
+        .joins
+        .iter()
+        .map(|join| join.return_edge)
+        .chain(std::iter::once(fallthrough.return_edge))
+        .collect::<Vec<_>>();
+    if physical_return_edges != emitted.return_edges {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
+    let mut canonical_return_edges = physical_return_edges;
+    let unique_return_edges = canonical_return_edges
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    if unique_return_edges.len() == 1 {
+        canonical_return_edges.truncate(1);
+    } else if unique_return_edges.len() != canonical_return_edges.len() {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
+    if canonical_return_edges != return_edges {
+        return Err(EmissionError::UnsupportedScalarCleanup);
+    }
     if fallthrough.join_offset + fallthrough.join_byte_count != emitted.bytes.len() {
         return Err(EmissionError::ConditionalBranchEncodingInvalid);
     }
@@ -183,6 +206,8 @@ pub(crate) fn emit_boolean_shared_convergence(
         ScalarControlFlowEvidence::BooleanSharedConvergence {
             decisions: emitted.decisions,
             joins: emitted.joins,
+            return_edges: canonical_return_edges,
+            fallthrough_return_edge: fallthrough.return_edge,
             structural_conditions: emitted.structural_conditions,
             merge_offset,
         },
@@ -193,6 +218,7 @@ struct BooleanSharedConvergenceEmission {
     bytes: Vec<u8>,
     decisions: Vec<ScalarConditionalBranchEvidence>,
     joins: Vec<ScalarJoinBranchEvidence>,
+    return_edges: Vec<psi_core::EdgeId>,
     structural_conditions: Vec<BooleanStructuralConditionEvidence>,
 }
 
@@ -230,6 +256,7 @@ impl BooleanSharedConvergenceEmission {
         self.bytes.append(&mut child.bytes);
         self.decisions.append(&mut child.decisions);
         self.joins.append(&mut child.joins);
+        self.return_edges.append(&mut child.return_edges);
         self.structural_conditions
             .append(&mut child.structural_conditions);
         Ok(())
@@ -315,7 +342,11 @@ fn emit_boolean_shared_convergence_tree(
                 structural_reads,
             )
         }
-        AssignedBooleanControl::ReturnImmediate { value, .. } => {
+        AssignedBooleanControl::ReturnImmediate {
+            psi_return_edge,
+            value,
+            ..
+        } => {
             let mut bytes = match architecture {
                 Architecture::X86_64 => emit_x86_64_boolean_return(*value),
                 Architecture::Aarch64 => emit_aarch64_boolean_return(*value),
@@ -342,9 +373,11 @@ fn emit_boolean_shared_convergence_tree(
                 bytes,
                 decisions: Vec::new(),
                 joins: vec![ScalarJoinBranchEvidence {
+                    return_edge: *psi_return_edge,
                     join_offset,
                     join_byte_count,
                 }],
+                return_edges: vec![*psi_return_edge],
                 structural_conditions: Vec::new(),
             });
         }
@@ -407,6 +440,7 @@ fn emit_boolean_shared_convergence_tree(
             false_arm_offset,
         }],
         joins: Vec::new(),
+        return_edges: Vec::new(),
         structural_conditions,
     };
     emitted.append(when_true)?;

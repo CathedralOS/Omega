@@ -11,8 +11,8 @@ mod structural_call;
 
 use super::cleanup::validate_scalar_cleanup_frontier;
 use super::conditional_cleanup::{
-    finite_boolean_cleanup_return_edges, shared_boolean_cleanup_convergence_return_edge,
-    shared_boolean_control_return_edge, uniform_conditional_cleanup,
+    finite_boolean_cleanup_return_edges, shared_boolean_cleanup_return_edges,
+    uniform_conditional_cleanup,
 };
 use super::shared::*;
 use super::structural_layout::{direct_boolean_field_offset, structural_shape};

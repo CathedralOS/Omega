@@ -29,7 +29,9 @@ use omega_target::{
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, CompletionClaimSource,
     LinuxExitGroupI32Realization, MetadataOnlyPortRealization, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, TerminalPsiProvenance,
+    ProviderPlanReportIdentity, ScalarParameterLocation, TargetBooleanControl,
+    TargetConditionalBooleanArm, TargetFunction, TargetOperation, TargetOperationPlan,
+    TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ProfileDecisionId,
@@ -3003,6 +3005,215 @@ fn scalar_three_leaf_cleanup_plan() -> MachineCodePlan {
         )
         .collect();
     plan
+}
+
+fn shared_three_leaf_cleanup_plan(target: NativeTarget) -> MachineCodePlan {
+    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueLocation, ValueShape};
+
+    let scalar_shape = ValueShape::integer(1, 1);
+    let structural_shape = ValueShape::integer(8, 8);
+    let call_plan = omega_calling_conventions::evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![scalar_shape, structural_shape],
+            result: Some(scalar_shape),
+        },
+    )
+    .expect("shared cleanup ABI");
+    let [ValueLocation::Register { register, .. }] = call_plan.parameters[0].locations.as_slice()
+    else {
+        panic!("Boolean source has one register home")
+    };
+    let location = ScalarParameterLocation::Register(*register);
+    let leaf = |edge: u64, value: bool| TargetBooleanControl::ReturnImmediate {
+        psi_return_edge: edge_id(edge),
+        source_value: psi_core::ValueId::new(edge).unwrap(),
+        value,
+    };
+    let arm = |edge: u64, control| TargetConditionalBooleanArm {
+        psi_edge: edge_id(edge),
+        control: Box::new(control),
+    };
+    let nested = TargetBooleanControl::Conditional {
+        condition_source: psi_core::ValueId::new(1).unwrap(),
+        condition_parameter_index: 0,
+        condition_location: location,
+        when_true: arm(4, leaf(10, true)),
+        when_false: arm(5, leaf(11, false)),
+    };
+    let place = PlaceId::new(1).unwrap();
+    let structural_type = psi_terminal::StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "test::Token".into(),
+        shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+    };
+    let return_edges = [10, 11, 12].map(edge_id).to_vec();
+    let target_plan = TargetOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([31; 32]),
+        },
+        target,
+        entry: machine_id(1),
+        functions: vec![TargetFunction {
+            machine: machine_id(1),
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: Vec::new(),
+                edges: (1..=5).chain(10..=12).map(edge_id).collect(),
+            },
+            operation: TargetOperation::ScalarReturnWithCleanup {
+                scalar: Box::new(TargetOperation::ReturnBooleanSharedConvergence {
+                    return_edges: return_edges.clone(),
+                    psi_edge: return_edges[0],
+                    control: TargetBooleanControl::Conditional {
+                        condition_source: psi_core::ValueId::new(1).unwrap(),
+                        condition_parameter_index: 0,
+                        condition_location: location,
+                        when_true: arm(2, nested),
+                        when_false: arm(3, leaf(12, true)),
+                    },
+                }),
+                structural_types: vec![structural_type],
+                call_plan: call_plan.clone(),
+                structural_parameters: vec![TargetStructuralParameter {
+                    place,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Affine,
+                    access: StructuralAccess::Owned,
+                    shape: structural_shape,
+                    placement: call_plan.parameters[1].clone(),
+                }],
+                cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+                psi_edge: return_edges[0],
+            },
+        }],
+    };
+    let assigned =
+        omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+            .expect("shared cleanup assigns");
+    omega_machine_emission::emit_machine_code(&assigned).expect("shared cleanup emits")
+}
+
+fn assert_shared_cleanup_object_replay_binds_leaf_edges_and_one_physical_tail(
+    target: NativeTarget,
+) {
+    let plan = shared_three_leaf_cleanup_plan(target);
+    let artifact = build_object_artifact(&plan).expect("shared cleanup object");
+    let function = &artifact.functions()[0];
+    assert!(function.scalar_affine_cleanup.is_some());
+    assert!(function.scalar_control_affine_cleanups.is_empty());
+    assert_eq!(function.scalar_stack.unwrap().local_peak_bytes, 16);
+    assert_eq!(
+        artifact
+            .semantic_code_attribution()
+            .iter()
+            .filter(|row| row.machine == function.machine)
+            .count(),
+        3
+    );
+
+    let rejects = |mutated: MachineCodePlan| {
+        assert!(matches!(
+            build_object_artifact(&mutated),
+            Err(ObjectError::InvalidScalarConditionalEvidence { .. })
+                | Err(ObjectError::InvalidUnitAffineCleanupEvidence(_))
+                | Err(ObjectError::NonCanonicalSemanticCodeAttributionOrder(_))
+        ));
+    };
+
+    let mut reordered = plan.clone();
+    let ScalarControlFlowEvidence::BooleanSharedConvergence { return_edges, .. } = &mut reordered
+        .functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .control_flow
+    else {
+        unreachable!()
+    };
+    return_edges.swap(0, 1);
+    rejects(reordered);
+
+    // This is deliberately a mismatched substitution. The native join/fallthrough
+    // anchors remain unchanged; source edge-role classification belongs to the
+    // upstream Terminal provenance and artifact-custody boundary.
+    let mut mismatched_edge_attribution = plan.clone();
+    let ScalarControlFlowEvidence::BooleanSharedConvergence { return_edges, .. } =
+        &mut mismatched_edge_attribution.functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("scalar evidence")
+            .control_flow
+    else {
+        unreachable!()
+    };
+    return_edges[1] = edge_id(4);
+    mismatched_edge_attribution.functions[0].semantic_code_attribution[1].site =
+        SemanticCodeSite::Edge(edge_id(4));
+    rejects(mismatched_edge_attribution);
+
+    let mut drifted_leaf_anchor = plan.clone();
+    let ScalarControlFlowEvidence::BooleanSharedConvergence { joins, .. } =
+        &mut drifted_leaf_anchor.functions[0]
+            .scalar_stack
+            .as_mut()
+            .expect("scalar evidence")
+            .control_flow
+    else {
+        unreachable!()
+    };
+    joins[0].return_edge = edge_id(4);
+    rejects(drifted_leaf_anchor);
+
+    let mut drifted_fallthrough_anchor = plan.clone();
+    let ScalarControlFlowEvidence::BooleanSharedConvergence {
+        fallthrough_return_edge,
+        ..
+    } = &mut drifted_fallthrough_anchor.functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .control_flow
+    else {
+        unreachable!()
+    };
+    *fallthrough_return_edge = edge_id(4);
+    rejects(drifted_fallthrough_anchor);
+
+    let mut drifted_attribution_order = plan.clone();
+    drifted_attribution_order.functions[0].semantic_code_attribution[1].operation_ordinal = 0;
+    rejects(drifted_attribution_order);
+
+    let mut duplicate = plan.clone();
+    let ScalarControlFlowEvidence::BooleanSharedConvergence { return_edges, .. } = &mut duplicate
+        .functions[0]
+        .scalar_stack
+        .as_mut()
+        .expect("scalar evidence")
+        .control_flow
+    else {
+        unreachable!()
+    };
+    return_edges[1] = return_edges[0];
+    rejects(duplicate);
+
+    let image = emit_executable_image(&artifact, 1).expect("shared cleanup image");
+    let installation =
+        build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+            .expect("installation");
+    validate_installation_record(&installation, &image).expect("installed shared cleanup replay");
+    let encoded = encode_installation_record(&installation).expect("encode installation");
+    let decoded = decode_installation_record(&encoded).expect("decode installation");
+    assert_eq!(decoded, installation);
+}
+
+#[test]
+fn shared_cleanup_object_replay_binds_leaf_edges_and_one_physical_tail() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        assert_shared_cleanup_object_replay_binds_leaf_edges_and_one_physical_tail(target);
+    }
 }
 
 fn scalar_expression_two_return_conditional_plan(target: NativeTarget) -> MachineCodePlan {

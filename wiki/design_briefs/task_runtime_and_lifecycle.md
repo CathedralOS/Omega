@@ -461,6 +461,19 @@ have no child edge in the current stack domain. It composes the maximum live
 chain rather than summing sequential callees and retains the exact validated
 frame and admission identities behind the sealed result.
 
+The bounded shared-cleanup native rung applies the same maximum rule to one
+finite nested Boolean tree with immediate-value leaves and a uniform affine
+frontier. Exact source return edges remain ordered in physical DFS leaf order
+and are independently joined to the emitted unconditional branches or final
+fallthrough. The shared result preservation and cleanup suffix is therefore
+counted once on each mutually exclusive path, not once globally and not as a
+sum of duplicated leaf copies.
+The source edge roles remain carried Terminal provenance and artifact custody;
+the source-free object replay does not reconstruct the Terminal control-flow
+graph or independently classify a coordinated source-identity retarget. This
+does not admit arbitrary CFG reconvergence, nonuniform cleanup frontiers,
+cycles, or suspension edges.
+
 A callback requirement carries its own `Calling<C>` entry plan. A named static
 Omega machine satisfying that requirement enters through the generated thunk.
 The plan chooses provider-stack continuation, provider-stack preflight against

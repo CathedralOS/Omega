@@ -7,8 +7,10 @@
 
 use omega_machine_code::{
     ScalarControlAffineCleanupRecord, ScalarControlFlowEvidence, ScalarStackEvidence,
+    SemanticCodeAttribution,
 };
 use omega_target::Architecture;
+use omega_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
 
 use super::scalar_call_stack::validate_scalar_call_stack;
@@ -27,6 +29,8 @@ pub(super) fn validate_scalar_stack(
     machine: MachineId,
     bytes: &[u8],
     calls: &[omega_machine_code::InternalCallRelocation],
+    provenance: &TerminalPsiProvenance,
+    attribution: &[SemanticCodeAttribution],
     evidence: &ScalarStackEvidence,
     scalar_affine_cleanup: Option<&omega_machine_code::UnitAffineCleanupRecord>,
     scalar_control_affine_cleanups: &[ScalarControlAffineCleanupRecord],
@@ -41,6 +45,8 @@ pub(super) fn validate_scalar_stack(
     if let ScalarControlFlowEvidence::BooleanSharedConvergence {
         decisions,
         joins,
+        return_edges,
+        fallthrough_return_edge,
         structural_conditions,
         merge_offset,
     } = &evidence.control_flow
@@ -53,9 +59,13 @@ pub(super) fn validate_scalar_stack(
             machine,
             bytes,
             calls,
+            provenance,
+            attribution,
             evidence,
             decisions,
             joins,
+            return_edges,
+            *fallthrough_return_edge,
             structural_conditions,
             *merge_offset,
             scalar_affine_cleanup,

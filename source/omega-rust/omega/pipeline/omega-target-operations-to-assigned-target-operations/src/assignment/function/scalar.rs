@@ -82,12 +82,15 @@ pub(super) fn assign(
             parameter_index: *parameter_index,
             location: assign_direct_location(*source_value, *location, architecture)?,
         },
-        TargetOperation::ReturnBooleanSharedConvergence { psi_edge, control } => {
-            AssignedOperation::ReturnBooleanSharedConvergence {
-                psi_edge: *psi_edge,
-                control: assign_boolean_control(control, architecture)?,
-            }
-        }
+        TargetOperation::ReturnBooleanSharedConvergence {
+            return_edges,
+            psi_edge,
+            control,
+        } => AssignedOperation::ReturnBooleanSharedConvergence {
+            return_edges: return_edges.clone(),
+            psi_edge: *psi_edge,
+            control: assign_boolean_control(control, architecture)?,
+        },
         TargetOperation::ReturnBooleanExpression {
             psi_edge,
             source_value,

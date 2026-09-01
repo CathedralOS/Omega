@@ -431,7 +431,25 @@ acyclic conditional-control trees use one depth-independent physical decision
 list and DFS terminal bitmap. Object construction reconstructs every nested
 region, replays its expression prefix and return/crash leaves, and partitions
 the ordered x86 division-diamond ledger across those exact regions; AArch64
-retains the branch-free evidence. Genuine reconvergence remains excluded. The
+retains the branch-free evidence. One bounded genuine-reconvergence shape is
+also retained: a finite nested Boolean tree whose immediate-value returning
+leaves have the same complete affine cleanup frontier. Its true-before-false
+source return edges are bound independently to the native jump leaves and final
+fallthrough; all leaves materialize only their result, then reach one physical
+preservation, cleanup, and return suffix. Object construction reconstructs the
+leaf roster, validates every actual unconditional join and the final
+fallthrough, replays the common cleanup suffix/actions and stack mutations once
+per reachable path, and takes the maximum rather than summing mutually
+exclusive leaves. Executable nominal cleanup calls continue to use the generic
+cleanup-call relocation replay. Multiple semantic edge-attribution rows
+deliberately name that same interval in DFS roster order.
+Parameter, negated-parameter, and expression leaves retain the existing
+per-control cleanup carrier rather than claiming this shared tail. Partial
+duplicate rosters, mismatched edge/attribution rows, nonuniform cleanup
+frontiers, crash leaves, and arbitrary CFG joins remain excluded. Source
+edge-role classification remains upstream carried Terminal provenance and
+artifact custody: object replay has no Terminal control-flow graph and does not
+independently reject a fully coordinated source-identity retarget. The
 conditional theorem also admits crash leaves. Evidence binds their exact set and
 object construction validates every exact native `UD2`/`BRK` terminal before
 installation; any returning arm stays directly accountable. Ordered x86

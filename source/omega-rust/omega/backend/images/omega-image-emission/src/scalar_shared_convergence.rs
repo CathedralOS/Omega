@@ -8,9 +8,10 @@
 use omega_calling_conventions::ValueLocation;
 use omega_machine_code::{
     ScalarConditionalBranchEvidence, ScalarConditionalCondition, ScalarJoinBranchEvidence,
-    ScalarStackEvidence,
+    ScalarStackEvidence, SemanticCodeAttribution, SemanticCodeSite,
 };
 use omega_target::Architecture;
+use omega_target_operations::TerminalPsiProvenance;
 use psi_core::MachineId;
 
 use super::scalar_conditional_regions::collect_conditional_tree_regions;
@@ -29,9 +30,13 @@ pub(super) fn validate_boolean_shared_convergence_stack(
     machine: MachineId,
     bytes: &[u8],
     calls: &[omega_machine_code::InternalCallRelocation],
+    provenance: &TerminalPsiProvenance,
+    attribution: &[SemanticCodeAttribution],
     evidence: &ScalarStackEvidence,
     decisions: &[ScalarConditionalBranchEvidence],
     joins: &[ScalarJoinBranchEvidence],
+    return_edges: &[psi_core::EdgeId],
+    fallthrough_return_edge: psi_core::EdgeId,
     structural_conditions: &[omega_machine_code::BooleanStructuralConditionEvidence],
     merge_offset: usize,
     cleanup: Option<&omega_machine_code::UnitAffineCleanupRecord>,
@@ -61,6 +66,57 @@ pub(super) fn validate_boolean_shared_convergence_stack(
         return Err(invalid());
     }
     let shared_cleanup = cleanup.ok_or_else(invalid)?;
+    let physical_return_edges = joins
+        .iter()
+        .map(|join| join.return_edge)
+        .chain(std::iter::once(fallthrough_return_edge))
+        .collect::<Vec<_>>();
+    let mut canonical_return_edges = physical_return_edges.clone();
+    let physical_unique = physical_return_edges
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    if physical_unique.len() == 1 {
+        canonical_return_edges.truncate(1);
+    } else if physical_unique.len() != physical_return_edges.len() {
+        return Err(invalid());
+    }
+    let cleanup_attribution = attribution
+        .iter()
+        .filter(|row| {
+            row.code_offset == shared_cleanup.code_offset
+                && row.byte_count == shared_cleanup.byte_count
+                && matches!(row.site, SemanticCodeSite::Edge(_))
+        })
+        .collect::<Vec<_>>();
+    if canonical_return_edges != return_edges
+        || return_edges.is_empty()
+        || return_edges[0] != shared_cleanup.psi_edge
+        || return_edges
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != return_edges.len()
+        || return_edges.iter().any(|edge| {
+            provenance
+                .edges
+                .iter()
+                .filter(|candidate| *candidate == edge)
+                .count()
+                != 1
+        })
+        || cleanup_attribution.len() != return_edges.len()
+        || cleanup_attribution
+            .iter()
+            .zip(return_edges)
+            .enumerate()
+            .any(|(ordinal, (row, edge))| {
+                row.site != SemanticCodeSite::Edge(*edge) || row.operation_ordinal != ordinal
+            })
+    {
+        return Err(invalid());
+    }
     let mut structural_types = std::collections::BTreeMap::new();
     if shared_cleanup.structural_types.is_empty()
         || shared_cleanup
