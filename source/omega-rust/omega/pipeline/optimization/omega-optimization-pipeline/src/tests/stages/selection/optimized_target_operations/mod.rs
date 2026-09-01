@@ -15,6 +15,7 @@ mod direct;
 mod immediate;
 mod locations;
 mod shift;
+mod structural_projected;
 mod terminal;
 mod unary;
 mod unit;

@@ -8,6 +8,7 @@ use psi_proof_admission::ProofNode;
 use super::affine_custody::DefinitionIndex;
 
 mod bound;
+mod direct_add;
 mod dispatch;
 mod exact;
 mod forbidden_root;

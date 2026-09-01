@@ -77,6 +77,7 @@ fn unit_return_call_plan_parameters_and_return_corruption_fails_closed() {
                 structural_type: StructuralTypeId::new(53_010).unwrap(),
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
+                projected_qualifications: Vec::new(),
                 shape,
                 placement,
             });

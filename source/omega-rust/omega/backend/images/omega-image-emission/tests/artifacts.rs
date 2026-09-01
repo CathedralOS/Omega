@@ -3229,6 +3229,7 @@ fn shared_three_leaf_cleanup_plan(target: NativeTarget) -> MachineCodePlan {
                     structural_type: StructuralTypeId::new(1).unwrap(),
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
+                    projected_qualifications: Vec::new(),
                     shape: structural_shape,
                     placement: call_plan.parameters[1].clone(),
                 }],

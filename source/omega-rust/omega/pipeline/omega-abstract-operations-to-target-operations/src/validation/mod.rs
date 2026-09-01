@@ -25,9 +25,16 @@ pub(crate) mod straight_line_scalar_crash;
 pub(crate) mod straight_line_trivial_affine_local_unit_return;
 pub(crate) mod straight_line_unit_call_return;
 pub(crate) mod straight_line_unit_return;
+pub(crate) mod structural_call_return;
 mod whole_plan;
 
 pub use model::*;
+pub use structural_call_return::{
+    StructuralCallReturnProjectedQualificationReceipt,
+    StructuralCallReturnProjectedQualificationValidationError,
+    StructuralCallReturnRosterLocation, StructuralCallReturnCallerTranslationReceipt,
+    StructuralParameterReturnCalleeTranslationReceipt,
+};
 pub use whole_plan::validate_abstract_to_target_translation_with_ieee_float_fma_settlements;
 
 /// Validate the evidence-free translation surface. Source containing an FMA

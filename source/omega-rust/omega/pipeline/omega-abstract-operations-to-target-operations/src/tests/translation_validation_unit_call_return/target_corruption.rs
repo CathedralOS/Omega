@@ -63,6 +63,7 @@ fn unit_call_target_envelope_corruption_fails_closed() {
                 structural_type: argument.structural_type,
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
+                projected_qualifications: Vec::new(),
                 shape: argument.shape,
                 placement: argument.source,
             });

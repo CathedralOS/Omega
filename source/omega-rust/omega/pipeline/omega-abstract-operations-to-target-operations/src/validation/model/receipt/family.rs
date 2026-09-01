@@ -102,6 +102,12 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerBitwiseXorParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
             }
+            Self::StructuralCallReturnCaller(_) => {
+                AbstractToTargetTranslationFamily::StructuralCallReturnCaller
+            }
+            Self::StructuralParameterReturnCallee(_) => {
+                AbstractToTargetTranslationFamily::StructuralParameterReturnCallee
+            }
             receipt @ (Self::StraightLineWrappingIntegerShiftLeftParameters(_)
             | Self::StraightLineWrappingIntegerShiftRightParameters(_)
             | Self::StraightLineExactIntegerShiftLeftParameters(_)

@@ -1,12 +1,12 @@
-//! Fail-closed target fence for projected structural result qualifications.
+//! Explicit fences for unrelated result and operation-result rosters.
 
-use super::scalar::constant_conditional_plan;
+use super::super::scalar::constant_conditional_plan;
 use super::*;
 
 #[test]
-fn projected_function_and_operation_result_rosters_fail_closed_before_target_lowering() {
+fn unrelated_function_and_operation_result_rosters_fail_closed() {
     let row = psi_terminal::StructuralPathQualification {
-        path: vec![psi_terminal::StructuralPathSegment::Field("payload".into())],
+        path: vec![StructuralPathSegment::Field("payload".into())],
         domain: psi_core::StructuralDomainId::new(900).unwrap(),
     };
     let mut function_result = constant_conditional_plan(true);

@@ -151,6 +151,7 @@ pub(super) fn target_structural_parameter() -> TargetStructuralParameter {
         structural_type: StructuralTypeId::new(56_052).unwrap(),
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::Owned,
+        projected_qualifications: Vec::new(),
         shape,
         placement,
     }

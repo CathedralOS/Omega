@@ -49,6 +49,10 @@ use shift::{
     ExactShiftLeftReceipt, ExactShiftRightReceipt, WrappingShiftLeftReceipt,
     WrappingShiftRightReceipt,
 };
+use crate::validation::{
+    StructuralCallReturnCallerTranslationReceipt,
+    StructuralParameterReturnCalleeTranslationReceipt,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetFunctionTranslationReceipt {
@@ -130,4 +134,6 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineWrappingIntegerSubtractParameters(WrappingSubtractReceipt),
     StraightLineWrappingIntegerMultiplyParameters(WrappingMultiplyReceipt),
     StraightLineSaturatingIntegerMultiplyParameters(SaturatingMultiplyReceipt),
+    StructuralCallReturnCaller(StructuralCallReturnCallerTranslationReceipt),
+    StructuralParameterReturnCallee(StructuralParameterReturnCalleeTranslationReceipt),
 }

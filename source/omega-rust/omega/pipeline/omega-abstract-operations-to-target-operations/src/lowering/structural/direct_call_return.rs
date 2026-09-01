@@ -73,6 +73,7 @@ pub(in crate::lowering) fn lower_direct_return(
         || parameter.position != 0
         || parameter.is_self
         || parameter.multiplicity != StructuralMultiplicity::Linear
+        || parameter.access != StructuralAccess::Owned
         || argument.place != parameter.place
         || argument.access != StructuralAccess::Owned
         || !argument.path.is_empty()
@@ -84,6 +85,7 @@ pub(in crate::lowering) fn lower_direct_return(
         || operation_result.structural_type != function_result.structural_type
         || operation_result.multiplicity != StructuralMultiplicity::Linear
         || operation_result.qualifications != function_result.qualifications
+        || operation_result.projected_qualifications != function_result.projected_qualifications
         || result_claim.claim != entry_claim.claim
         || !result_claim.path.is_empty()
         || returned_transfer.caller_claim != entry_claim.claim
@@ -124,11 +126,15 @@ pub(in crate::lowering) fn lower_direct_return(
         || callee_parameter.position != 0
         || callee_parameter.is_self
         || callee_parameter.multiplicity != StructuralMultiplicity::Linear
+        || callee_parameter.access != StructuralAccess::Owned
         || callee_parameter.structural_type != parameter.structural_type
         || callee_parameter.qualifications != parameter.qualifications
+        || callee_parameter.projected_qualifications != parameter.projected_qualifications
         || callee_result.structural_type != function_result.structural_type
         || callee_result.multiplicity != StructuralMultiplicity::Linear
         || callee_result.qualifications != function_result.qualifications
+        || callee_result.projected_qualifications != function_result.projected_qualifications
+        || parameter.projected_qualifications != function_result.projected_qualifications
         || callee_entry_claim.input != callee_parameter.place
         || !callee_entry_claim.path.is_empty()
         || *callee_source != callee_parameter.place
@@ -191,6 +197,7 @@ pub(in crate::lowering) fn lower_direct_return(
         structural_type: parameter.structural_type,
         multiplicity: parameter.multiplicity,
         access: StructuralAccess::Owned,
+        projected_qualifications: parameter.projected_qualifications.clone(),
         shape,
         placement: source_placement.clone(),
     };

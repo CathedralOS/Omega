@@ -2,4 +2,5 @@
 
 pub(super) mod immediate;
 pub(super) mod parameter;
+pub(super) mod structural;
 pub(super) mod terminal;

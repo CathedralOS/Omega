@@ -222,6 +222,7 @@ fn boolean_cleanup_plan(target: NativeTarget) -> TargetOperationPlan {
                     structural_type: StructuralTypeId::new(1).unwrap(),
                     multiplicity: StructuralMultiplicity::Affine,
                     access: psi_terminal::StructuralAccess::Owned,
+                    projected_qualifications: Vec::new(),
                     shape: structural_shape,
                     placement: call_plan.parameters[1].clone(),
                 }],

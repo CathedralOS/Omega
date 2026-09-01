@@ -1293,6 +1293,7 @@ fn executable_nominal_cleanup_plan(
         place: receiver_place,
         structural_type: receiver_type,
         multiplicity: StructuralMultiplicity::Affine,
+        projected_qualifications: Vec::new(),
         shape: receiver_shape,
         placement: root_call_plan.parameters[0].clone(),
     };
@@ -2539,6 +2540,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
             place,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
+            projected_qualifications: Vec::new(),
             shape,
             placement: call_plan.parameters[0].clone(),
         };
@@ -2618,6 +2620,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
         place,
         structural_type: ty,
         multiplicity: StructuralMultiplicity::Unrestricted,
+        projected_qualifications: Vec::new(),
         shape,
         placement: call_plan.parameters[index].clone(),
     };
@@ -2722,6 +2725,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
         place,
         structural_type: ty,
         multiplicity: StructuralMultiplicity::Unrestricted,
+        projected_qualifications: Vec::new(),
         shape,
         placement: call_plan.parameters[index].clone(),
     };
@@ -2855,6 +2859,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                 place: PlaceId::new(index as u64 + 1).unwrap(),
                 structural_type: ty,
                 multiplicity: StructuralMultiplicity::Unrestricted,
+                projected_qualifications: Vec::new(),
                 shape: *shape,
                 placement: call_plan.parameters[index].clone(),
             })
@@ -2964,6 +2969,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                 place,
                 structural_type: ty,
                 multiplicity: StructuralMultiplicity::Unrestricted,
+                projected_qualifications: Vec::new(),
                 shape,
                 placement: call_plan.parameters[0].clone(),
             };

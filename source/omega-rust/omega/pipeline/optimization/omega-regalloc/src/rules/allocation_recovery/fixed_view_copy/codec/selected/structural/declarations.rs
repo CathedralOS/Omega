@@ -294,6 +294,7 @@ fn decode_target_parameter(
         structural_type: decode_id(cursor, StructuralTypeId::new)?,
         multiplicity: decode_multiplicity(cursor)?,
         access: decode_access(cursor)?,
+        projected_qualifications: Vec::new(),
         shape: decode_shape(cursor)?,
         placement: decode_placement(cursor)?,
     })

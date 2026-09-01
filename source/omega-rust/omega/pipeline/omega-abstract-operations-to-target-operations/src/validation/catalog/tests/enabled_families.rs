@@ -63,6 +63,8 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyParameters,
+            AbstractToTargetTranslationFamily::StructuralCallReturnCaller,
+            AbstractToTargetTranslationFamily::StructuralParameterReturnCallee,
         ]
     );
     let identities = ordered.iter().copied().collect::<BTreeSet<_>>();

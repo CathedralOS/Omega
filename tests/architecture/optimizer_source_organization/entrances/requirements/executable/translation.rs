@@ -70,6 +70,22 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
+        coordination_marker: "pub(super) fn reject_unsupported",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/mod.rs",
+        coordination_marker: "pub(crate) fn validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/local/caller/mod.rs",
+        coordination_marker: "pub(crate) fn validate",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/structural_call_return/local/callee.rs",
+        coordination_marker: "pub(crate) fn validate",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_widen_immediate/mod.rs",
         coordination_marker: "grammar::reconstruct(source)?",
     },

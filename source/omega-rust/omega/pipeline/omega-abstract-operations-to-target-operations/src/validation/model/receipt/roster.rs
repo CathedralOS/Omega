@@ -5,6 +5,7 @@ use psi_core::{MachineId, StructuralTypeId};
 use psi_terminal::TerminalPsiIdentity;
 
 use super::AbstractToTargetFunctionTranslationReceipt;
+use crate::validation::StructuralCallReturnProjectedQualificationReceipt;
 
 /// Independent source-to-target validation retained at the lowering boundary.
 ///
@@ -17,6 +18,7 @@ pub struct AbstractToTargetTranslationValidationReceipt {
     target: NativeTarget,
     entry: MachineId,
     function_roster: Vec<AbstractToTargetFunctionRosterReceipt>,
+    structural_call_return: Option<StructuralCallReturnProjectedQualificationReceipt>,
 }
 
 impl AbstractToTargetTranslationValidationReceipt {
@@ -25,12 +27,14 @@ impl AbstractToTargetTranslationValidationReceipt {
         target: NativeTarget,
         entry: MachineId,
         function_roster: Vec<AbstractToTargetFunctionRosterReceipt>,
+        structural_call_return: Option<StructuralCallReturnProjectedQualificationReceipt>,
     ) -> Self {
         Self {
             psi,
             target,
             entry,
             function_roster,
+            structural_call_return,
         }
     }
 
@@ -52,6 +56,12 @@ impl AbstractToTargetTranslationValidationReceipt {
 
     pub fn function_roster(&self) -> &[AbstractToTargetFunctionRosterReceipt] {
         &self.function_roster
+    }
+
+    pub const fn structural_call_return(
+        &self,
+    ) -> Option<&StructuralCallReturnProjectedQualificationReceipt> {
+        self.structural_call_return.as_ref()
     }
 }
 
