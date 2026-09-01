@@ -1,5 +1,4 @@
 //! Optimizer module role: stage group. Canonical, domain-separated optimization identities.
-//!
 //! Shared digest framing routes into rule/fact, stage, artifact, decision, and bundle ownership.
 
 use sha2::{Digest, Sha256};
@@ -91,10 +90,10 @@ pub use rules_and_facts::{
     ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 pub use stages::{
-    FunctionRelativeOptimizationRealizationManifestIdentity,
-    NativeOptimizationProjectionIdentity, OptimizedAbstractPlanProjectionIdentity,
-    OptimizedBoundaryOccurrenceIdentity, PostAllocationOptimizationManifestIdentity,
-    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, NativeOptimizationProjectionIdentity,
+    OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
 };
 
 #[cfg(test)]
