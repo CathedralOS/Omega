@@ -468,6 +468,11 @@ same-type four-operation grammar and independent Boolean-immediate replay.
 Mirrored fixture, positive, source-corruption, and target-corruption leaves,
 plus a dedicated catalog adapter/canary and optimized-custody leaf, keep it
 separate from parameter integer equality and every plain immediate family.
+Constant integer-less-than immediate translation mirrors that taxonomy under
+`straight_line_integer_less_than_immediate/`. The 27-line entrance exposes an
+exact ordered source grammar and independent Boolean-immediate replay; its own
+fixture/corruption group, catalog adapter/canary, and optimized-custody leaf
+keep constant ordering separate from equality and parameter comparison.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line
