@@ -1419,7 +1419,7 @@ fn statement_call_preserves_transparent_result(
 /// A complete bounded call tree may supply an assignment value without
 /// perturbing a separately returned place only when its root result is proven
 /// non-reference. A direct primitive scalar value may wrap complete
-/// caller-isolated call producers in up to twenty-two unary, binary, primitive-cast,
+/// caller-isolated call producers in up to twenty-three unary, binary, primitive-cast,
 /// member-projection, or indexing shells. One
 /// primitive-only record, selected-case, or fixed-array literal may
 /// independently contain such a tree in each direct field/element, and up to
@@ -1430,7 +1430,7 @@ fn statement_call_preserves_transparent_result(
 const TRANSPARENT_ASSIGNMENT_VALUE_CALL_DEPTH: usize = 4;
 const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_AGGREGATE_DEPTH: usize = 3;
 const TRANSPARENT_ASSIGNMENT_VALUE_PROJECTED_AGGREGATE_DEPTH: usize = 2;
-const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH: usize = 22;
+const TRANSPARENT_ASSIGNMENT_VALUE_DIRECT_COMPUTED_DEPTH: usize = 23;
 const TRANSPARENT_ASSIGNMENT_VALUE_AGGREGATE_COMPUTED_DEPTH: usize = 2;
 
 fn value_expression_assignment_preserves_transparent_result(
@@ -1635,8 +1635,8 @@ fn array_value_assignment_preserves_transparent_result(
 /// direct member projection may additionally select from one concrete literal
 /// whose effectful fields are bounded direct-call trees, and may itself sit
 /// below one further computation shell. Concrete literals retain that separate
-/// two-shell frontier instead of inheriting the twenty-two direct-scalar shells.
-/// Aggregate fields remain at two shells as well, and a twenty-third direct-scalar
+/// two-shell frontier instead of inheriting the twenty-three direct-scalar shells.
+/// Aggregate fields remain at two shells as well, and a twenty-fourth direct-scalar
 /// computation shell fails closed.
 #[allow(clippy::too_many_arguments)]
 fn primitive_computed_assignment_value_preserves_transparent_result(
