@@ -277,10 +277,13 @@ Must own:
   specialization per distinct application. Each specialization retains the
   exact closed operator realization and commits it with its template,
   substitutions, selected conformances, and machine contracts. Package review
-  rejoins that custody to the strong selected plan. This is the local direct-
-  call checked-body semantic cohort only: nested calls, fixed-token generic,
-  external generic, symbolic cross-artifact, Terminal companion, and D32
-  physical-child work remain fail-closed.
+  rejoins that custody to the strong selected plan. Canonical-empty
+  checked-adapter applications use the same exact join for named and fixed-
+  token uses in ordinary value machines; an attached-`Unit` plan supplies an
+  independent consistency derivation when present. Nested machine applications
+  remain rejected by language checking rather than becoming package-review
+  work. Fixed-token generic, external generic, symbolic cross-artifact,
+  Terminal companion, and D32 physical-child work remain fail-closed.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked

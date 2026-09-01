@@ -864,8 +864,17 @@ mod tests {
             panic!("fixture must derive one attached-Unit application row")
         };
         assert_eq!(row.authored_use_kind, CheckedOperatorAuthoredUseKind::Named,);
-        assert_eq!(row.call_coordinate.statement_index, 0);
-        assert_eq!(row.call_coordinate.call_ordinal, 0);
+        assert!(matches!(
+            row.application_site,
+            psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                origin: CheckedValueOrigin::StateStatement {
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                    ..
+                },
+                ..
+            }
+        ));
         assert_eq!(
             row.requirement_operator,
             operator_use.selected_operator_symbol

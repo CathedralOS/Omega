@@ -16,6 +16,12 @@ satisfies CheckedMath::subtract
 {
     left
 }
+
+pub machine exercise(left: i32, right: i32) -> i32
+requires 0i32 <= right, right <= left, left <= 100i32
+{
+    left - right
+}
 "#;
 
 fn compile_fixture(source: &str) -> omega_compiler::CheckedCompilation {
@@ -76,6 +82,17 @@ fn review_admits_binary_fixed_token_boundary_checked_adapter() {
         row.binding,
         omega_effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
     ));
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact fixed-token application realization")
+    };
+    assert_eq!(
+        application.application(),
+        PackageReviewBoundaryApplication::Empty
+    );
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody
+    );
 }
 
 #[test]

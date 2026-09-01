@@ -64,6 +64,13 @@ stop the item on one precise owner question before adding machinery.
   compatibility uses the explicit semantic and evidence-encoding identities;
   it never substitutes the bytes readable through `current_exe()`.
 
+  Canonical-empty checked-adapter applications now project from ordinary
+  value-machine expressions as well as the attached-`Unit` plan lane. Named
+  and fixed-token uses rejoin the exact authored selection, selected plan,
+  checked realization, and independently rederived body contract; the two
+  lanes must agree when both exist. Generic final substitution, cross-artifact
+  symbolic demand, and D32 physical-child completion remain open.
+
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
   fixed native resources, or profiles requesting final-code replay. Keep
