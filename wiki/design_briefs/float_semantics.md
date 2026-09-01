@@ -77,7 +77,7 @@ source-free Terminal realization proposals, rejoins each exact selected plan,
 and, for x86 profiles, requires exactly one admitted profile/slot provider per
 occurrence. Proposal replay requires source-ordered one-to-one coverage of
 every canonical Terminal FMA operation. Abstract IR and optimizer identities
-also preserve the operations. For the bounded no-call attached-Unit lane, the
+also preserve the operations. For the bounded attached-Unit source lane, the
 ordinary Abstract -> Target -> Assigned -> machine path consumes that proposal
 without a side channel. Target legalization retains the exact selected-plan
 digest and admitted provider while remaining address-free; assignment owns the
@@ -87,8 +87,16 @@ exceptions and FTZ/DAZ disabled, emits the admitted scalar FMA, and restores
 the saved value. Object construction independently decodes the operand loads,
 control-state sequence, and FMA bytes. Final native-artifact validation rejoins
 those records to the canonical Terminal value graph and exact selected
-`ProviderPlan`. Wider source/control-flow shapes, call/foreign-code control-
-state preservation, non-x86/software realizations, and native differential-
+`ProviderPlan`. Internal x86 calls execute within the function-level canonical
+envelope. Every returning x86 foreign call additionally saves the complete
+current MXCSR before its existing argument/call sequence and restores it after
+outbound-stack release but before scalar result normalization. Sequential calls
+reuse one aligned frame slot while retaining distinct ordered instruction
+intervals; object and native-artifact replay bind the exact slot and bytes.
+Direct syscalls receive no returning-foreign envelope. AArch64 uses the same
+conservative boundary law with a reusable eight-byte slot and exact
+`MRS`/`STR` plus `LDR`/`MSR` FPCR sequences. Wider source/control-flow shapes,
+callback-entry custody, non-x86/software realizations, and native differential-
 execution receipts remain pending; unsupported and optimized-direct paths fail
 closed rather than losing occurrence custody.
 
@@ -265,10 +273,12 @@ adaptation.
 
 The bounded x86 FMA function saves the complete incoming MXCSR, installs
 Omega's canonical controls for its body, and restores the saved value before
-return. Ordinary returning foreign calls and callback entries do not yet carry
-the corresponding MXCSR/FPCR envelope in the maintained pipeline; the calling-
-convention policy predicate records the requirement but is not execution
-evidence. Direct syscalls require no returning-foreign envelope.
+return. Ordinary returning foreign calls carry a nested complete-MXCSR or
+complete-FPCR save/restore envelope in the maintained x86 and AArch64
+pipelines, with independently replayed machine/object/native custody. Inbound
+callback entries do not yet establish and restore the corresponding canonical
+controls; their calling-convention policy predicate is a requirement, not
+execution evidence. Direct syscalls require no returning-foreign envelope.
 Provider-plan identity, semantic edge cases, interpreter/native agreement, and
 cross-target builds are retained as executable evidence rather than copied here
 as per-cohort hashes. Remaining provider coverage is tracked in `TASKS.md`.

@@ -567,12 +567,21 @@ mod tests {
                                 <= pair[1].save_offset
                     }));
                 }
-                TargetProfile::LinuxArm64 => assert!(
-                    artifact
+                TargetProfile::LinuxArm64 => {
+                    let controls = artifact
                         .foreign_calls()
                         .iter()
-                        .all(|call| call.x86_floating_control.is_none())
-                ),
+                        .map(|call| {
+                            assert_eq!(call.x86_floating_control, None);
+                            call.aarch64_floating_control.expect("AArch64 FPCR custody")
+                        })
+                        .collect::<Vec<_>>();
+                    assert!(controls.windows(2).all(|pair| {
+                        pair[0].saved_slot_byte_offset == pair[1].saved_slot_byte_offset
+                            && pair[0].restore_offset + pair[0].restore_byte_count
+                                <= pair[1].save_offset
+                    }));
+                }
                 _ => unreachable!(),
             }
             let first = emit_dynamic_elf_image(&artifact, interpreter(target)).unwrap();
@@ -716,6 +725,54 @@ mod tests {
             substituted_interval.functions[0].foreign_calls[1].x86_floating_control;
         assert!(matches!(
             build_object_artifact(&substituted_interval),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut missing_aarch64_control = machine_code_plan(TargetProfile::LinuxArm64);
+        missing_aarch64_control.functions[0].foreign_calls[0].aarch64_floating_control = None;
+        assert!(matches!(
+            build_object_artifact(&missing_aarch64_control),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut wrong_aarch64_slot = machine_code_plan(TargetProfile::LinuxArm64);
+        let control = {
+            let control = wrong_aarch64_slot.functions[0].foreign_calls[0]
+                .aarch64_floating_control
+                .as_mut()
+                .unwrap();
+            control.saved_slot_byte_offset = 8;
+            *control
+        };
+        wrong_aarch64_slot.functions[0].bytes
+            [control.save_offset..control.save_offset + control.save_byte_count]
+            .copy_from_slice(&omega_isa_aarch64::encode_save_fpcr_to_sp_displacement(8).unwrap());
+        wrong_aarch64_slot.functions[0].bytes
+            [control.restore_offset..control.restore_offset + control.restore_byte_count]
+            .copy_from_slice(
+                &omega_isa_aarch64::encode_restore_fpcr_from_sp_displacement(8).unwrap(),
+            );
+        assert!(matches!(
+            build_object_artifact(&wrong_aarch64_slot),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut mutated_aarch64_save = machine_code_plan(TargetProfile::LinuxArm64);
+        let save_offset = mutated_aarch64_save.functions[0].foreign_calls[0]
+            .aarch64_floating_control
+            .unwrap()
+            .save_offset;
+        mutated_aarch64_save.functions[0].bytes[save_offset] ^= 1;
+        assert!(matches!(
+            build_object_artifact(&mutated_aarch64_save),
+            Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
+        ));
+
+        let mut substituted_aarch64_interval = machine_code_plan(TargetProfile::LinuxArm64);
+        substituted_aarch64_interval.functions[0].foreign_calls[0].aarch64_floating_control =
+            substituted_aarch64_interval.functions[0].foreign_calls[1].aarch64_floating_control;
+        assert!(matches!(
+            build_object_artifact(&substituted_aarch64_interval),
             Err(crate::ObjectError::InvalidForeignCallFloatingControl { .. })
         ));
     }

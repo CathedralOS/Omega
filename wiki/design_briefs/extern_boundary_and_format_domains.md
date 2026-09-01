@@ -798,13 +798,17 @@ The settled first outbound realization is conservative by mechanism: every
 returning import or indirect vtable/table call receives an aligned trampoline
 that saves and restores the caller's complete MXCSR/FPCR around the existing
 call sequence. Direct syscalls do not execute a returning user-space
-counterparty and receive no envelope. The maintained ordinary backend has not
-yet implemented or retained that returning-foreign trampoline; its existing
-policy predicate is a requirement, not proof that the envelope ran. Once
-implemented, the target call layout remains unchanged inside the trampoline,
-and relocation planning rebases its existing fixups by the exact target prefix
-width. An admitted per-binding preservation proof may
-later select a zero-envelope optimization.
+counterparty and receive no envelope. The maintained x86 backend implements
+this for ordinary returning foreign calls: it saves complete MXCSR before
+outbound allocation and argument staging, preserves the existing call layout,
+releases outbound stack, restores MXCSR, and only then normalizes a scalar
+result. The maintained AArch64 backend applies the same ordering with an
+eight-byte reusable frame slot and exact `MRS`/`STR` plus `LDR`/`MSR` FPCR
+sequences. Machine, object, and native-artifact replay retain each target's
+exact slot, per-call intervals, and bytes. Inbound callback envelopes remain
+unimplemented; their policy predicates are requirements, not execution
+evidence. An admitted per-binding preservation proof may later select a
+zero-envelope optimization.
 
 ## Foreign execution and stack accounting
 

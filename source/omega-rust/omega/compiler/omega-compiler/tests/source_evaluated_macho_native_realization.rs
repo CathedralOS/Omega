@@ -222,6 +222,18 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     artifact.validate().expect("native artifact replays");
     assert_eq!(artifact.target(), omega_target::NativeTarget::macos_arm64());
     assert_eq!(artifact.provider_executions().len(), 1);
+    let [foreign_call] = artifact.object().foreign_calls() else {
+        panic!("one retained Mach-O foreign call expected")
+    };
+    assert_eq!(foreign_call.x86_floating_control, None);
+    let control = foreign_call
+        .aarch64_floating_control
+        .expect("source-evaluated Mach-O call preserves complete FPCR");
+    assert_eq!(control.target, omega_target::NativeTarget::macos_arm64());
+    assert_eq!(control.save_byte_count, 8);
+    assert_eq!(control.restore_byte_count, 8);
+    assert!(control.save_offset < foreign_call.text_offset);
+    assert!(foreign_call.text_offset + 4 <= control.restore_offset);
     assert_eq!(artifact.image().output().format, "mach-o-arm64-executable");
     assert_eq!(artifact.image().output().final_image_imports, 1);
     let [normalized] = artifact

@@ -184,7 +184,14 @@ fn validate_home_roster(
             }
         }
         Architecture::Aarch64 => {
-            let link_offset = align(cursor, 8).ok_or_else(invalid)?;
+            let floating_control_slot = align(cursor, 8).ok_or_else(invalid)?;
+            let link_offset = floating_control_slot
+                .checked_add(if function.foreign_calls.is_empty() {
+                    0
+                } else {
+                    8
+                })
+                .ok_or_else(invalid)?;
             if function
                 .unit_stack
                 .and_then(|evidence| evidence.aarch64_return_link)
@@ -192,7 +199,8 @@ fn validate_home_roster(
             {
                 return Err(invalid());
             }
-            align(link_offset.checked_add(8).ok_or_else(invalid)?, 16).ok_or_else(invalid)?
+            let frame_end = link_offset.checked_add(8).ok_or_else(invalid)?;
+            align(frame_end, 16).ok_or_else(invalid)?
         }
     };
     if expected_frame != stack.frame_bytes {

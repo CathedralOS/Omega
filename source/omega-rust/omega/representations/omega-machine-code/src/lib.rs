@@ -154,12 +154,26 @@ pub struct ForeignCallRelocation {
     /// placement and stored in a durable attached-Unit scalar home.
     pub scalar_result: Option<ForeignCallScalarResultRecord>,
     /// Complete MXCSR preservation around this returning x86 foreign call.
-    /// AArch64 retains `None` until equivalent FPCR custody is implemented.
     pub x86_floating_control: Option<X86ForeignCallFloatingControlRecord>,
+    /// Complete FPCR preservation around this returning AArch64 foreign call.
+    pub aarch64_floating_control: Option<Aarch64ForeignCallFloatingControlRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.
     pub unit_stack: UnitCallStackEvidence,
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+}
+
+/// Per-call proof that one returning AArch64 foreign boundary preserved the
+/// caller's complete FPCR. The slot may be reused by sequential calls, while
+/// each call retains distinct save/restore instruction intervals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Aarch64ForeignCallFloatingControlRecord {
+    pub target: omega_target::NativeTarget,
+    pub saved_slot_byte_offset: u32,
+    pub save_offset: usize,
+    pub save_byte_count: usize,
+    pub restore_offset: usize,
+    pub restore_byte_count: usize,
 }
 
 /// Exact source-free custody for one normalized foreign scalar result.

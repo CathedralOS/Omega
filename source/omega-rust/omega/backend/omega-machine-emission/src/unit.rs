@@ -7,13 +7,14 @@ use omega_calling_conventions::{
     IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_machine_code::{
-    Aarch64ReturnLinkEvidence, BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord,
-    ForeignCallRelocation, ForeignCallScalarArgumentRecord, InternalCallRelocation,
-    InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord,
-    InternalUnitScalarCallRecord, PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite,
-    StackAdjustmentPair, UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
-    X86FloatingControlRecord, X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat,
-    X86ScalarFmaOccurrenceRecord, X86ScalarFmaOperandRecord, derive_completion_provider_custody,
+    Aarch64ForeignCallFloatingControlRecord, Aarch64ReturnLinkEvidence,
+    BoundaryByteSequenceArgumentRecord, BoundarySettlementRecord, ForeignCallRelocation,
+    ForeignCallScalarArgumentRecord, InternalCallRelocation, InternalUnitCallArgumentRecord,
+    InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord,
+    PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
+    UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence, X86FloatingControlRecord,
+    X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat, X86ScalarFmaOccurrenceRecord,
+    X86ScalarFmaOperandRecord, derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
@@ -550,6 +551,7 @@ pub(super) fn emit_unit_body(
     let mut aarch64_homes = Vec::new();
     let mut aarch64_frame_bytes = 0;
     let mut aarch64_lr_offset = 0;
+    let mut aarch64_foreign_floating_control_slot = None;
     let mut frame_allocation = None;
     let mut frame_release = None;
     let mut aarch64_link_store = None;
@@ -657,8 +659,19 @@ pub(super) fn emit_unit_body(
             }
         }
         Architecture::Aarch64 => {
-            let (homes, frame_bytes, lr_offset) =
+            let (homes, mut frame_bytes, mut lr_offset) =
                 aarch64_unit_parameter_homes(body, &assigned_scalar_homes)?;
+            if has_normalized_foreign_call {
+                let slot = lr_offset;
+                lr_offset = slot
+                    .checked_add(8)
+                    .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                frame_bytes = lr_offset
+                    .checked_add(8)
+                    .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)
+                    .and_then(|size| align_u32(size, 16))?;
+                aarch64_foreign_floating_control_slot = Some(slot);
+            }
             aarch64_homes = homes;
             aarch64_frame_bytes = frame_bytes;
             aarch64_lr_offset = lr_offset;
@@ -1060,6 +1073,27 @@ pub(super) fn emit_unit_body(
                     }
                     Architecture::Aarch64 => None,
                 };
+                let mut aarch64_call_floating_control = match target.architecture {
+                    Architecture::X86_64 => None,
+                    Architecture::Aarch64 => {
+                        let saved_slot_byte_offset = aarch64_foreign_floating_control_slot
+                            .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                        let save_offset = bytes.len();
+                        let save = omega_isa_aarch64::encode_save_fpcr_to_sp_displacement(
+                            saved_slot_byte_offset,
+                        )
+                        .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                        bytes.extend_from_slice(&save);
+                        Some(Aarch64ForeignCallFloatingControlRecord {
+                            target,
+                            saved_slot_byte_offset,
+                            save_offset,
+                            save_byte_count: save.len(),
+                            restore_offset: 0,
+                            restore_byte_count: 0,
+                        })
+                    }
+                };
                 let mut allocation = None;
                 if outbound != 0 {
                     match target.architecture {
@@ -1171,6 +1205,15 @@ pub(super) fn emit_unit_body(
                     bytes.extend_from_slice(&restore);
                     control.restore_byte_count = restore.len();
                 }
+                if let Some(control) = &mut aarch64_call_floating_control {
+                    control.restore_offset = bytes.len();
+                    let restore = omega_isa_aarch64::encode_restore_fpcr_from_sp_displacement(
+                        control.saved_slot_byte_offset,
+                    )
+                    .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                    bytes.extend_from_slice(&restore);
+                    control.restore_byte_count = restore.len();
+                }
                 let scalar_result = result_home
                     .map(|home| {
                         scalar_call::emit_unit_scalar_result(
@@ -1193,6 +1236,7 @@ pub(super) fn emit_unit_body(
                     scalar_arguments: emitted_scalar_arguments,
                     scalar_result,
                     x86_floating_control: x86_call_floating_control,
+                    aarch64_floating_control: aarch64_call_floating_control,
                     unit_stack: UnitCallStackEvidence {
                         outbound: stack_adjustment_pair(outbound, allocation, release),
                     },

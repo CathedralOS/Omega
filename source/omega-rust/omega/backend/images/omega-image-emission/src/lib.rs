@@ -412,6 +412,10 @@ pub struct ObjectForeignCall {
     /// Absolute object-text intervals proving complete MXCSR preservation for
     /// this returning x86 foreign call.
     pub x86_floating_control: Option<omega_machine_code::X86ForeignCallFloatingControlRecord>,
+    /// Absolute object-text intervals proving complete FPCR preservation for
+    /// this returning AArch64 foreign call.
+    pub aarch64_floating_control:
+        Option<omega_machine_code::Aarch64ForeignCallFloatingControlRecord>,
     /// Absolute offset of the mutable relocation field in object `.text`.
     pub text_offset: usize,
 }
@@ -651,27 +655,42 @@ fn build_object_artifact_with_x86_feature_profile(
                 call,
             )?;
             validate_foreign_call_floating_control(plan.target, function, call)?;
-            if let Some(control) = call.x86_floating_control {
+            let control = match plan.target.architecture {
+                Architecture::X86_64 => call.x86_floating_control.map(|control| {
+                    (
+                        control.saved_slot_byte_offset,
+                        control.save_offset,
+                        control.restore_offset,
+                        control.restore_byte_count,
+                    )
+                }),
+                Architecture::Aarch64 => call.aarch64_floating_control.map(|control| {
+                    (
+                        control.saved_slot_byte_offset,
+                        control.save_offset,
+                        control.restore_offset,
+                        control.restore_byte_count,
+                    )
+                }),
+            };
+            if let Some((slot, save_offset, restore_offset, restore_byte_count)) = control {
                 if foreign_floating_control_slot
-                    .replace(control.saved_slot_byte_offset)
-                    .is_some_and(|slot| slot != control.saved_slot_byte_offset)
-                    || prior_foreign_floating_control_end
-                        .is_some_and(|end| end > control.save_offset)
+                    .replace(slot)
+                    .is_some_and(|prior| prior != slot)
+                    || prior_foreign_floating_control_end.is_some_and(|end| end > save_offset)
                 {
                     return Err(ObjectError::InvalidForeignCallFloatingControl {
                         caller: function.machine,
                         owner: call.owner,
                     });
                 }
-                prior_foreign_floating_control_end = Some(
-                    control
-                        .restore_offset
-                        .checked_add(control.restore_byte_count)
-                        .ok_or(ObjectError::InvalidForeignCallFloatingControl {
+                prior_foreign_floating_control_end =
+                    Some(restore_offset.checked_add(restore_byte_count).ok_or(
+                        ObjectError::InvalidForeignCallFloatingControl {
                             caller: function.machine,
                             owner: call.owner,
-                        })?,
-                );
+                        },
+                    )?);
             }
             validate_foreign_scalar_arguments(plan.target, function, call)?;
         }
@@ -1594,6 +1613,18 @@ fn build_object_artifact_with_x86_feature_profile(
                     Ok(control)
                 })
                 .transpose()?;
+            let aarch64_floating_control = call
+                .aarch64_floating_control
+                .map(|mut control| {
+                    control.save_offset = text_offset
+                        .checked_add(control.save_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    control.restore_offset = text_offset
+                        .checked_add(control.restore_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    Ok(control)
+                })
+                .transpose()?;
             foreign_calls.push(ObjectForeignCall {
                 machine: function.machine,
                 owner: call.owner,
@@ -1603,6 +1634,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 same_stack_contribution: call.same_stack_contribution.clone(),
                 scalar_result,
                 x86_floating_control,
+                aarch64_floating_control,
                 text_offset: text_offset
                     .checked_add(call.offset)
                     .ok_or(ObjectError::TextSizeOverflow)?,
@@ -1863,44 +1895,106 @@ fn validate_foreign_call_floating_control(
         caller: function.machine,
         owner: call.owner,
     };
-    let Some(control) = call.x86_floating_control else {
-        return (target.architecture != Architecture::X86_64)
-            .then_some(())
-            .ok_or_else(invalid);
+    let (
+        saved_slot_byte_offset,
+        slot_byte_count,
+        save_offset,
+        save_byte_count,
+        restore_offset,
+        restore_byte_count,
+        expected_save,
+        expected_restore,
+    ) = match target.architecture {
+        Architecture::X86_64 => {
+            let Some(control) = call.x86_floating_control else {
+                return Err(invalid());
+            };
+            if call.aarch64_floating_control.is_some() || control.target != target {
+                return Err(invalid());
+            }
+            (
+                control.saved_slot_byte_offset,
+                4,
+                control.save_offset,
+                control.save_byte_count,
+                control.restore_offset,
+                control.restore_byte_count,
+                omega_isa_x86_64::encode_stmxcsr_rsp_displacement(control.saved_slot_byte_offset)
+                    .map_err(|_| invalid())?,
+                omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(control.saved_slot_byte_offset)
+                    .map_err(|_| invalid())?,
+            )
+        }
+        Architecture::Aarch64 => {
+            let Some(control) = call.aarch64_floating_control else {
+                return Err(invalid());
+            };
+            if call.x86_floating_control.is_some() || control.target != target {
+                return Err(invalid());
+            }
+            (
+                control.saved_slot_byte_offset,
+                8,
+                control.save_offset,
+                control.save_byte_count,
+                control.restore_offset,
+                control.restore_byte_count,
+                omega_isa_aarch64::encode_save_fpcr_to_sp_displacement(
+                    control.saved_slot_byte_offset,
+                )
+                .map_err(|_| invalid())?
+                .to_vec(),
+                omega_isa_aarch64::encode_restore_fpcr_from_sp_displacement(
+                    control.saved_slot_byte_offset,
+                )
+                .map_err(|_| invalid())?
+                .to_vec(),
+            )
+        }
     };
-    if target.architecture != Architecture::X86_64 || control.target != target {
-        return Err(invalid());
-    }
     let frame = function
         .unit_stack
         .and_then(|stack| stack.frame)
         .ok_or_else(invalid)?;
-    if control
-        .saved_slot_byte_offset
-        .checked_add(4)
+    let expected_slot = match target.architecture {
+        Architecture::X86_64 => frame
+            .byte_size
+            .checked_sub(16)
+            .and_then(|base| {
+                base.checked_add(if function.x86_floating_control.is_some() {
+                    8
+                } else {
+                    0
+                })
+            })
+            .ok_or_else(invalid)?,
+        Architecture::Aarch64 => function
+            .unit_stack
+            .and_then(|stack| stack.aarch64_return_link)
+            .and_then(|link| link.frame_byte_offset.checked_sub(8))
+            .ok_or_else(invalid)?,
+    };
+    if saved_slot_byte_offset
+        .checked_add(slot_byte_count)
         .is_none_or(|end| end > frame.byte_size)
+        || saved_slot_byte_offset != expected_slot
         || function.x86_floating_control.is_some_and(|outer| {
-            control.saved_slot_byte_offset == outer.saved_slot_byte_offset
-                || control.saved_slot_byte_offset == outer.canonical_slot_byte_offset
+            saved_slot_byte_offset == outer.saved_slot_byte_offset
+                || saved_slot_byte_offset == outer.canonical_slot_byte_offset
         })
     {
         return Err(invalid());
     }
-    let expected_save =
-        omega_isa_x86_64::encode_stmxcsr_rsp_displacement(control.saved_slot_byte_offset)
-            .map_err(|_| invalid())?;
-    let expected_restore =
-        omega_isa_x86_64::encode_ldmxcsr_rsp_displacement(control.saved_slot_byte_offset)
-            .map_err(|_| invalid())?;
-    let save_end = control
-        .save_offset
-        .checked_add(control.save_byte_count)
+    let save_end = save_offset
+        .checked_add(save_byte_count)
         .ok_or_else(invalid)?;
-    let restore_end = control
-        .restore_offset
-        .checked_add(control.restore_byte_count)
+    let restore_end = restore_offset
+        .checked_add(restore_byte_count)
         .ok_or_else(invalid)?;
-    let call_start = call.offset.checked_sub(1).ok_or_else(invalid)?;
+    let call_start = match target.architecture {
+        Architecture::X86_64 => call.offset.checked_sub(1).ok_or_else(invalid)?,
+        Architecture::Aarch64 => call.offset,
+    };
     let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
     let pre_call_start = call.unit_stack.outbound.map_or_else(
         || {
@@ -1917,15 +2011,14 @@ fn validate_foreign_call_floating_control(
             .ok_or_else(invalid)?,
         None => call_end,
     };
-    if control.save_byte_count != expected_save.len()
-        || control.restore_byte_count != expected_restore.len()
-        || function.bytes.get(control.save_offset..save_end) != Some(expected_save.as_slice())
-        || function.bytes.get(control.restore_offset..restore_end)
-            != Some(expected_restore.as_slice())
+    if save_byte_count != expected_save.len()
+        || restore_byte_count != expected_restore.len()
+        || function.bytes.get(save_offset..save_end) != Some(expected_save.as_slice())
+        || function.bytes.get(restore_offset..restore_end) != Some(expected_restore.as_slice())
         || save_end != pre_call_start
-        || control.save_offset >= call_start
-        || control.restore_offset != post_call_end
-        || control.restore_offset < call_end
+        || save_offset >= call_start
+        || restore_offset != post_call_end
+        || restore_offset < call_end
         || call
             .scalar_result
             .as_ref()
@@ -2022,26 +2115,45 @@ fn validate_foreign_scalar_arguments(
         return Err(invalid());
     };
     let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
-    let operation_start = call.x86_floating_control.map_or_else(
-        || {
-            call.unit_stack.outbound.map_or_else(
-                || {
-                    call.scalar_arguments
-                        .first()
-                        .map_or(call_start, |argument| argument.code_offset)
-                },
-                |outbound| outbound.allocation_offset,
-            )
-        },
-        |control| control.save_offset,
-    );
+    let operation_start = match target.architecture {
+        Architecture::X86_64 => call.x86_floating_control.map(|control| control.save_offset),
+        Architecture::Aarch64 => call
+            .aarch64_floating_control
+            .map(|control| control.save_offset),
+    }
+    .unwrap_or_else(|| {
+        call.unit_stack.outbound.map_or_else(
+            || {
+                call.scalar_arguments
+                    .first()
+                    .map_or(call_start, |argument| argument.code_offset)
+            },
+            |outbound| outbound.allocation_offset,
+        )
+    });
+    let post_save = match target.architecture {
+        Architecture::X86_64 => call.x86_floating_control.map(|control| {
+            control
+                .save_offset
+                .checked_add(control.save_byte_count)
+                .ok_or_else(invalid)
+        }),
+        Architecture::Aarch64 => call.aarch64_floating_control.map(|control| {
+            control
+                .save_offset
+                .checked_add(control.save_byte_count)
+                .ok_or_else(invalid)
+        }),
+    }
+    .transpose()?
+    .unwrap_or(operation_start);
     let mut argument_cursor = if let Some(outbound) = call.unit_stack.outbound {
         outbound
             .allocation_offset
             .checked_add(outbound.allocation_byte_count)
             .ok_or_else(invalid)?
     } else {
-        operation_start
+        post_save
     };
     let post_call = if let Some(outbound) = call.unit_stack.outbound {
         if outbound.release_offset != call_end {
@@ -2054,13 +2166,22 @@ fn validate_foreign_scalar_arguments(
     } else {
         call_end
     };
-    let post_control = match call.x86_floating_control {
-        Some(control) => control
-            .restore_offset
-            .checked_add(control.restore_byte_count)
-            .ok_or_else(invalid)?,
-        None => post_call,
-    };
+    let post_control = match target.architecture {
+        Architecture::X86_64 => call.x86_floating_control.map(|control| {
+            control
+                .restore_offset
+                .checked_add(control.restore_byte_count)
+                .ok_or_else(invalid)
+        }),
+        Architecture::Aarch64 => call.aarch64_floating_control.map(|control| {
+            control
+                .restore_offset
+                .checked_add(control.restore_byte_count)
+                .ok_or_else(invalid)
+        }),
+    }
+    .transpose()?
+    .unwrap_or(post_call);
     let operation_end = if let Some(result) = &call.scalar_result {
         let expected_shape = result.home.shape;
         if result.code_offset != post_control
