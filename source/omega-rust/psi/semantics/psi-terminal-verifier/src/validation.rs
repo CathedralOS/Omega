@@ -1030,31 +1030,31 @@ fn validate_boolean_structural_field(
         source,
         field,
     };
-    if machine.id != module.entry {
-        return Err(invalid());
-    }
     let parameter = machine
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source)
-        .filter(|parameter| {
-            parameter.multiplicity == StructuralMultiplicity::Affine
-                && parameter.qualifications.is_empty()
-        })
+        .filter(|parameter| parameter.qualifications.is_empty())
         .ok_or_else(invalid)?;
     if parameter.access == StructuralAccess::WriteOnlyBorrow {
         return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
     }
-    if machine
-        .entry_claims
-        .iter()
-        .any(|claim| claim.input == source)
-        || !machine.content_entry_claims.is_empty()
-        || !machine
+    let affine_entry_observation = machine.id == module.entry
+        && parameter.multiplicity == StructuralMultiplicity::Affine
+        && machine
             .parameters
             .iter()
             .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
-        || !affine_cleanup::every_scalar_return_nominally_cleans(machine, source)
+        && affine_cleanup::every_scalar_return_nominally_cleans(machine, source);
+    let unrestricted_shared_observation = parameter.multiplicity
+        == StructuralMultiplicity::Unrestricted
+        && parameter.access == StructuralAccess::SharedBorrow;
+    if (!affine_entry_observation && !unrestricted_shared_observation)
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == source)
+        || !machine.content_entry_claims.is_empty()
         || machine
             .blocks
             .iter()

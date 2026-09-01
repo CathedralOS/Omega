@@ -314,6 +314,13 @@ pub(super) fn validate_structural_frontier(
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
             if let OperationKind::BooleanStructuralField { source, .. } = operation.kind
+                && machine
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == source)
+                    .is_none_or(|parameter| {
+                        parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    })
                 && (!frontier.owned_places.contains_key(&source)
                     || frontier.partial_custody_paths.contains_key(&source))
             {
@@ -748,10 +755,9 @@ pub(super) fn validate_structural_frontier(
                     .result
                     .structural()
                     .expect("control validation requires a structural result");
-                let source_signature = super::structural_result_contracts::source_signature(
-                    machine, *source,
-                )
-                    .expect("control validation requires a structural source declaration");
+                let source_signature =
+                    super::structural_result_contracts::source_signature(machine, *source)
+                        .expect("control validation requires a structural source declaration");
                 let exact_unrestricted_parameter_return = source_signature.multiplicity
                     == StructuralMultiplicity::Unrestricted
                     && super::structural_result_contracts::has_empty_qualification_rosters(

@@ -10,16 +10,20 @@ use super::*;
 pub(super) fn build_checked_dynamic_dispatch_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
 ) -> psi_checked_trees::CheckedDynamicDispatchPlans {
     psi_checked_trees::CheckedDynamicDispatchPlans {
-        direct_scalar_calls: build_checked_direct_dynamic_scalar_call_transaction(program, facts)
-            .unwrap_or_default(),
+        direct_scalar_calls: build_checked_direct_dynamic_scalar_call_transaction(
+            program, facts, shapes,
+        )
+        .unwrap_or_default(),
     }
 }
 
 fn build_checked_direct_dynamic_scalar_call_transaction(
     program: &TypedTrees,
     facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Option<Vec<psi_checked_trees::CheckedDirectDynamicScalarCallPlan>> {
     let binding_facts = facts.dynamic_conformances.binding_facts();
     let mut plans = Vec::new();
@@ -56,6 +60,7 @@ fn build_checked_direct_dynamic_scalar_call_transaction(
                     state,
                     flow_call,
                     call_site,
+                    shapes,
                 )?);
             }
         }
@@ -98,6 +103,7 @@ fn build_checked_direct_dynamic_scalar_call(
     state: &psi_typed_trees::state::State,
     flow_call: &psi_checked_trees::FlowCallFact,
     call_site: crate::CallSite<'_>,
+    shapes: &mut ShapeCollector<'_>,
 ) -> Option<psi_checked_trees::CheckedDirectDynamicScalarCallPlan> {
     let crate::CallSite::Expression { expression, call } = call_site else {
         return None;
@@ -202,10 +208,28 @@ fn build_checked_direct_dynamic_scalar_call(
     let selection = (*selection).clone();
     let selected_conformance = selection.conformance.filter(|symbol| symbol.is_valid())?;
 
-    let (source_parameter_position, source_access) =
+    let (source_parameter_position, caller_parameter_access, source_access) =
         checked_source_argument(program, facts, state, statements, &selection)?;
+    let attachments = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == machine.attached_data_symbol)
+        .collect::<Vec<_>>();
+    let [attachment] = attachments.as_slice() else {
+        return None;
+    };
+    let caller_attachment_type_identity =
+        shapes.add_attached_data(attachment, &machine_binders(program, machine))?;
     let (source_field, source_path, source_type_identity) =
         checked_self_attachment_source(program, machine, &selection)?;
+    let source_definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == selection.source_data)
+        .collect::<Vec<_>>();
+    let [source_definition] = source_definitions.as_slice() else {
+        return None;
+    };
 
     let target_traits = program
         .traits()
@@ -342,10 +366,25 @@ fn build_checked_direct_dynamic_scalar_call(
     }
     let checked_call_service_reach =
         checked_call_service_reach(facts, state.symbol, flow_call, coordinate)?;
+    let caller_contract = facts.contract_plans.for_machine(machine.symbol)?;
+    if caller_contract.report_fingerprint == 0 || caller_contract.commitment.is_zero() {
+        return None;
+    }
+    let caller_reach_fact = facts.service_reaches.for_machine(machine.symbol)?;
+    let caller_service_reach = ServiceReachSummary {
+        direct: caller_reach_fact.inferred_direct,
+        transitive: caller_reach_fact.inferred_transitive,
+    };
 
     Some(psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
         caller_machine: machine.symbol,
         caller_state: state.symbol,
+        caller_attachment_type_identity,
+        caller_multiplicity: attachment.properties.multiplicity,
+        caller_parameter_access,
+        caller_contract_report_fingerprint: caller_contract.report_fingerprint,
+        caller_contract_commitment: caller_contract.commitment,
+        caller_service_reach,
         coordinate,
         result_binding: result_local.symbol,
         result,
@@ -356,6 +395,7 @@ fn build_checked_direct_dynamic_scalar_call(
         source_field,
         source_path,
         source_type_identity,
+        source_multiplicity: source_definition.properties.multiplicity,
         target_trait: target_trait.symbol,
         selected_conformance,
         declaring_trait: row.declaring_trait,
@@ -377,7 +417,7 @@ fn checked_source_argument(
     state: &psi_typed_trees::state::State,
     statements: &[StatementNode],
     selection: &psi_checked_trees::DynamicConformanceBindingFact,
-) -> Option<(u32, CheckedStructuralAccess)> {
+) -> Option<(u32, CheckedStructuralAccess, CheckedStructuralAccess)> {
     let self_parameters = program
         .state_parameters(state)
         .iter()
@@ -492,7 +532,7 @@ fn checked_source_argument(
         return None;
     }
 
-    Some((source_parameter_position, cast_access))
+    Some((source_parameter_position, root_access, cast_access))
 }
 
 fn checked_self_attachment_source(
