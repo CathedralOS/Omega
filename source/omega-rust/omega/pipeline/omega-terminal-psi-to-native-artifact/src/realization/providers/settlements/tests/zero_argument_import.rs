@@ -1,4 +1,6 @@
 use super::*;
+use crate::realization::providers::settlements::validate_source_evaluated_import_coverage;
+use crate::{NativeBoundaryRealization, NativeProviderSettlement};
 
 #[test]
 fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets() {
@@ -124,6 +126,43 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             requirement: requirement.into(),
             provider_plan_report_identity: report_identity,
         };
+        let selected_plans = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![
+            selected_plan.clone(),
+        ])
+        .unwrap();
+        let exact_plan = &selected_plans.plans()[0];
+        let normalized_settlement = NativeProviderSettlement {
+            provider_execution: &evidence,
+            provider_plan: exact_plan,
+            realization: NativeBoundaryRealization::NormalizedForeignCall(&same_stack),
+        };
+        validate_source_evaluated_import_coverage(
+            &abstract_plan,
+            &selected_plans,
+            &[normalized_settlement],
+        )
+        .expect("the demanded evaluated import has one normalized settlement");
+        assert!(
+            validate_source_evaluated_import_coverage(&abstract_plan, &selected_plans, &[],)
+                .is_err(),
+            "a demanded evaluated import cannot omit its settlement",
+        );
+        let builtin_substitution = NativeProviderSettlement {
+            provider_execution: &evidence,
+            provider_plan: exact_plan,
+            realization: NativeBoundaryRealization::Builtin(
+                omega_target_operations::LinuxExitGroupI32Realization.into(),
+            ),
+        };
+        assert!(
+            validate_source_evaluated_import_coverage(
+                &abstract_plan,
+                &selected_plans,
+                &[builtin_substitution],
+            )
+            .is_err(),
+            "a demanded evaluated import cannot fall back to a builtin realization",
+        );
         let target_plan = omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
             &abstract_plan,
             target,
