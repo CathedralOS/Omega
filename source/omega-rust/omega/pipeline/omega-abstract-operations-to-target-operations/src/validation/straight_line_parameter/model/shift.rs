@@ -1,7 +1,10 @@
-//! Independently typed value/count carriers for integer shift replay.
+//! Optimizer module role: stage group. Independently typed value/count carriers for integer shift replay.
 
 use omega_target_operations::ScalarParameterLocation;
 use psi_core::{EdgeId, IntegerType, OperationId, ValueId};
+
+mod proof_bearing;
+pub(in crate::validation::straight_line_parameter) use proof_bearing::*;
 
 pub(in crate::validation::straight_line_parameter) struct IntegerShiftParametersSource {
     pub(in crate::validation::straight_line_parameter) operation: OperationId,

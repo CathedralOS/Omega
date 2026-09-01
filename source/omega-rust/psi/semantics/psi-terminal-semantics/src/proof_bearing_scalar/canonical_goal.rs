@@ -602,14 +602,16 @@ fn exact_shift_count_proposition(
         );
     }
 
-    let mut bounds = Vec::with_capacity(2);
-    if count_type.sign() == IntegerSign::Signed {
-        bounds.push(Proposition::LessOrEqual(
+    let lower_bound = if count_type.sign() == IntegerSign::Signed {
+        Some(Proposition::LessOrEqual(
             ScalarTerm::integer(count_type, IntegerValue::Signed(0))
                 .map_err(OperationSemanticError::InvalidProposition)?,
             count.clone(),
-        ));
-    }
+        ))
+    } else {
+        None
+    };
+    let mut bounds = Vec::with_capacity(2);
     let maximum = u128::from(value_type.bits() - 1);
     let maximum = match count_type.sign() {
         IntegerSign::Signed => i128::try_from(maximum).ok().map(IntegerValue::Signed),
@@ -626,6 +628,12 @@ fn exact_shift_count_proposition(
             ScalarTerm::integer(count_type, maximum)
                 .map_err(OperationSemanticError::InvalidProposition)?,
         ));
+    }
+    // A value-leading upper bound precedes a literal-leading lower bound in
+    // canonical proposition order. Keep the semantic producer's conjunction
+    // directly encodable rather than relying on a downstream reorder.
+    if let Some(lower_bound) = lower_bound {
+        bounds.push(lower_bound);
     }
     Ok(match bounds.len() {
         0 => Proposition::Truth,
@@ -1066,12 +1074,12 @@ mod tests {
             .kernel_proposition(),
             Ok(Proposition::Conjunction(vec![
                 Proposition::LessOrEqual(
-                    ScalarTerm::integer(signed_count_type, IntegerValue::Signed(0)).unwrap(),
                     signed_count.clone(),
+                    ScalarTerm::integer(signed_count_type, IntegerValue::Signed(63)).unwrap(),
                 ),
                 Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed_count_type, IntegerValue::Signed(0)).unwrap(),
                     signed_count,
-                    ScalarTerm::integer(signed_count_type, IntegerValue::Signed(63)).unwrap(),
                 ),
             ])),
         );
@@ -1755,12 +1763,12 @@ mod tests {
             .kernel_proposition(),
             Ok(Proposition::Conjunction(vec![
                 Proposition::LessOrEqual(
-                    ScalarTerm::integer(count_type, IntegerValue::Signed(0)).unwrap(),
-                    ScalarTerm::value(count_id, ScalarType::Integer(count_type)),
-                ),
-                Proposition::LessOrEqual(
                     ScalarTerm::value(count_id, ScalarType::Integer(count_type)),
                     ScalarTerm::integer(count_type, IntegerValue::Signed(7)).unwrap(),
+                ),
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(count_type, IntegerValue::Signed(0)).unwrap(),
+                    ScalarTerm::value(count_id, ScalarType::Integer(count_type)),
                 ),
                 Proposition::IntegerMathLessOrEqual(
                     IntegerMathTerm::literal(IntegerValue::Signed(-128)),

@@ -60,6 +60,9 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   that retains independently typed value/count operands and ABI locations;
   right shift preserves unsigned fixed/address zero-fill and signed fixed
   sign-fill after canonical modulo-width count reduction.
+  Proof-bearing exact shift-right shares that carrier only after independently
+  rejecting address value/count types, and additionally retains its canonical
+  count-range obligation through the target expression and receipt.
 - `validation/model/{error,receipt}/mod.rs` are the small family maps above
   immediate, terminal, roster, and parameter-specific vocabulary leaves.
 - `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
