@@ -8,6 +8,15 @@ mod boolean_literals;
 mod integer_comparisons;
 mod rule_identity;
 
+#[cfg(test)]
+pub(crate) use integer_comparisons::{
+    ValidatedIntegerRangeComparisonKind, ValidatedIntegerRangePairComparisonKind,
+    independently_evaluate_integer_range_comparison,
+    independently_evaluate_integer_range_pair_comparison,
+    independently_validated_integer_range_comparison_kind,
+    independently_validated_integer_range_pair_comparison_kind,
+};
+
 use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_core::OptimizationSafetyClass;
 use omega_optimization_unit::{

@@ -4,10 +4,12 @@ use super::*;
 
 mod binary;
 mod boolean;
+mod range;
 mod unary;
 
 pub(crate) use binary::*;
 pub(crate) use boolean::*;
+pub(in crate::rules::passes) use range::*;
 pub(crate) use unary::*;
 
 pub(crate) fn policy_add_unit(saturating: bool) -> PsiOptimizationUnit {
@@ -401,143 +403,4 @@ pub(crate) fn goal_free_unary_unit(widen: bool) -> PsiOptimizationUnit {
         FuelScheduleIdentity::new(1).unwrap(),
     )
     .unwrap()
-}
-
-pub(crate) fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
-    let machine = id(361, MachineId::new);
-    let block = id(362, BlockId::new);
-    let left_value = id(363, ValueId::new);
-    let right_value = id(364, ValueId::new);
-    let left_count = id(365, ValueId::new);
-    let right_count = id(366, ValueId::new);
-    let left_shift = id(367, ValueId::new);
-    let right_shift = id(368, ValueId::new);
-    let result = id(369, ValueId::new);
-    let left_operation = id(370, OperationId::new);
-    let right_operation = id(371, OperationId::new);
-    let left_obligation = id(372, ObligationId::new);
-    let right_obligation = id(373, ObligationId::new);
-    let one_bit = IntegerType::new(IntegerSign::Unsigned, 1).unwrap();
-    let eight_bit = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let unit = reconstruct_psi_optimization_unit_seed(
-        &AbstractOperationPlan {
-            psi: TerminalPsiIdentity {
-                vocabulary_marker: VocabularyMarker::CURRENT,
-                program_fingerprint: SemanticFingerprint::from_bytes([18; 32]),
-            },
-            entry: machine,
-            structural_types: Vec::new(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            functions: vec![AbstractFunction {
-                machine,
-                attachment: None,
-                entry: block,
-                parameters: vec![
-                    AbstractParameter {
-                        value: left_value,
-                        scalar_type: ScalarType::Integer(one_bit),
-                    },
-                    AbstractParameter {
-                        value: right_value,
-                        scalar_type: ScalarType::Integer(eight_bit),
-                    },
-                    AbstractParameter {
-                        value: left_count,
-                        scalar_type: ScalarType::Integer(eight_bit),
-                    },
-                    AbstractParameter {
-                        value: right_count,
-                        scalar_type: ScalarType::Integer(eight_bit),
-                    },
-                ],
-                structural_parameters: Vec::new(),
-                result: AbstractFunctionResult::Scalar(AbstractResult {
-                    value: result,
-                    scalar_type: ScalarType::Boolean,
-                }),
-                entry_claims: Vec::new(),
-                published_service_ceiling: Vec::new(),
-                block_entries: vec![AbstractBlockEntry {
-                    block,
-                    parameters: Vec::new(),
-                    operation_offset: 0,
-                }],
-                operations: vec![
-                    AbstractOperation::ExactIntegerShiftRight {
-                        psi_operation: left_operation,
-                        obligation: left_obligation,
-                        result: left_shift,
-                        value_type: one_bit,
-                        count_type: eight_bit,
-                        value: left_value,
-                        count: left_count,
-                    },
-                    AbstractOperation::ExactIntegerShiftRight {
-                        psi_operation: right_operation,
-                        obligation: right_obligation,
-                        result: right_shift,
-                        value_type: eight_bit,
-                        count_type: eight_bit,
-                        value: right_value,
-                        count: right_count,
-                    },
-                    AbstractOperation::IntegerLessOrEqual {
-                        psi_operation: id(374, OperationId::new),
-                        result,
-                        left: left_count,
-                        right: right_count,
-                    },
-                    AbstractOperation::Return {
-                        psi_edge: id(375, EdgeId::new),
-                        result,
-                        value: result,
-                        scalar_type: ScalarType::Boolean,
-                        cleanup_actions: Vec::new(),
-                    },
-                ],
-            }],
-        },
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
-    let proof_bundle_fingerprint = [30; 32];
-    let rows = [
-        (left_operation, left_obligation, one_bit, left_count),
-        (right_operation, right_obligation, eight_bit, right_count),
-    ];
-    let mut facts = Vec::new();
-    let mut questions = Vec::new();
-    for (operation, obligation, value_type, count) in rows {
-        let proposition = psi_terminal_semantics::CanonicalScalarGoal::ExactShiftCount {
-            value_type,
-            count_type: eight_bit,
-            count: psi_core::ScalarTerm::value(count, ScalarType::Integer(eight_bit)),
-        }
-        .kernel_proposition()
-        .unwrap();
-        let proposition =
-            psi_terminal_codec::canonical_proposition_order_key(&proposition).unwrap();
-        facts.push(AcceptedObligationFact::new(
-            unit.psi,
-            proof_bundle_fingerprint,
-            machine,
-            operation,
-            obligation,
-            proposition.clone(),
-        ));
-        questions.push(ProofQuestion::new(
-            unit.psi,
-            proof_bundle_fingerprint,
-            ProofQuestionOwner::Operation { machine, operation },
-            obligation,
-            ProofQuestionClass::Derivable,
-            proposition,
-            Vec::new(),
-            Vec::new(),
-            true,
-        ));
-    }
-    let unit = attach_accepted_obligation_facts(unit, facts).unwrap();
-    attach_proof_questions(unit, questions).unwrap()
 }

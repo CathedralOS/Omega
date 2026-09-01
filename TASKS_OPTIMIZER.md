@@ -615,8 +615,16 @@ unchecked rewrite or opt into lossy floating-point semantics.
   cross-contract relabellings, unknown-rule refusal, per-rule result
   corruption, and unary/binary witness and fact corruption. Their independent
   validator now separates literal, range/constant, and range/range evidence
-  and binds literal operation shapes to exact rule identities. The remaining
-  operational axes and other rule families are not yet complete.
+  and binds literal operation shapes to exact rule identities. All nine
+  proof-certified integer-range comparison rules now have direct proof-derived
+  fixtures covering true, false, and indeterminate results, signed and unsigned
+  bounds, both range/literal orientations, all three same-value range/range
+  outcomes, every cross-operation producer refusal, every same-family contract
+  relabelling, unknown identities, foreign range facts, corrupted results, and
+  exact contracts at roster positions 30--38. Validation now rejects analysis
+  and invalidation supersets instead of accepting a contract that merely
+  contains the expected analyses. The remaining operational axes and other
+  rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.
