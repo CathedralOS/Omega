@@ -158,4 +158,32 @@ impl StagedOptimizedX86BranchRelaxation {
     pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         &self.layout
     }
+
+    /// Test-only authenticated corruption. This grants no production
+    /// construction, validation, layout, emission, or publication authority.
+    #[cfg(test)]
+    pub(crate) fn corrupt_first_action_bytes_and_reauthenticate_for_test(&mut self) {
+        self.actions
+            .first_mut()
+            .expect("the rel8 corruption fixture must contain one action")
+            .new_bytes[0] ^= 1;
+        let roots = super::identity::RevisionRoots {
+            source: self.source,
+            selected: self.selected,
+            machine: self.machine,
+            pre_layout: self.pre_layout,
+            target: self.target,
+        };
+        self.identity = super::identity::artifact_identity(
+            roots,
+            self.policy,
+            self.budget,
+            self.usage,
+            self.output,
+            self.output_revision,
+            &self.attempts,
+            &self.actions,
+            self.layout.functions(),
+        );
+    }
 }

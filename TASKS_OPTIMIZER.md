@@ -809,13 +809,24 @@ unchecked rewrite or opt into lossy floating-point semantics.
   and crosses that shared eight-field authenticated-custody harness as well.
   AArch64 MOVN now pins exact successful usage and the first-over-boundary
   failure on all five work axes, independently rejects authenticated action
-  corruption, and crosses the same shared eight-field custody harness. True
-  second-application idempotence remains open for all four rules: each
+  corruption, and crosses the same shared eight-field custody harness. A
+  two-fusion AArch64 CBNZ fixture now pins a nonzero exact-success and
+  first-over-boundary matrix for all five work axes; reauthenticated action
+  corruption is independently refused in its named operational leaf, and its
+  direct publication crosses all eight shared custody mutations. True
+  second-application idempotence remains open for all five rules: each
   publishes an immutable encoding-choice artifact, not a rewritten
   `PostAllocationMachinePlan` that it can honestly consume again.
   Repeated reconstruction remains determinism evidence and is not relabelled as
-  idempotence. The remaining operational axes and other rule families are not
-  yet complete.
+  idempotence. The exact x86 rel32-to-rel8 layout rule now pins exact successful
+  usage and first-over-boundary failure on all five work axes with a
+  two-relaxation fixture. Reauthenticated action-byte corruption is
+  independently rejected at the public realization boundary; direct
+  publication rejects substitutions of all five function-relative layout
+  custody fields plus authenticated phase-local selection, baseline/final
+  layout, relaxation-identity, and rel8 exit-custody mutations. Its immutable
+  replacement layout is likewise not reconsumable as the baseline input. The
+  remaining operational axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The
@@ -833,7 +844,14 @@ unchecked rewrite or opt into lossy floating-point semantics.
   admitted selected-lowering constant definition; the corpus does not claim an
   unsupported composed carrier.
 - [ ] Add supported target/OS allocator, encoding, unwind, object, and callable
-  matrices.
+  matrices. The first applied selected-lowering publication matrix now covers
+  exact incoming-u12 add and subtract on Linux x64, Windows x64, Linux Arm64,
+  and macOS Arm64. Every row forces two literal-fold commits and runs twice
+  while pinning target and phase selections, encoding, ELF/COFF/Mach-O object
+  form and text bytes, callable ABI, frameless exit policy, codecs, manifests,
+  and deterministic container bytes. This does not claim unwind coverage:
+  physical spill insertion, final frame layout, and unwind authority remain
+  compiler prerequisites under P5 rather than an owner language decision.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
 - [x] Publish exact-rule release notes and rollback procedures. The versioned
   V1 inventory names all 16 canonical exact rules, phases, target

@@ -205,4 +205,33 @@ impl ValidatedWholeFunctionExitContract {
     pub(crate) fn contract_mut(&mut self) -> &mut WholeFunctionExitContract {
         &mut self.contract
     }
+
+    /// Test-only rel8 custody mutation with a valid enclosing identity. This
+    /// grants no production construction, validation, or publication authority.
+    #[cfg(test)]
+    pub(crate) fn corrupt_rel8_boundary_and_reauthenticate_for_test(
+        &mut self,
+        boundary: Rel8ExitBoundaryForTest,
+    ) {
+        match boundary {
+            Rel8ExitBoundaryForTest::LayoutCustody => {
+                self.contract.layout_custody =
+                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                        relaxation: X86BranchRelaxationIdentity::from_bytes([0xb1; 32]),
+                    };
+            }
+            Rel8ExitBoundaryForTest::ResolvedLayout => {
+                self.contract.resolved_layout =
+                    ResolvedSelectedFormLayoutIdentity::from_bytes([0xb2; 32]);
+            }
+        }
+        self.contract.identity = super::identity::contract_identity(&self.contract);
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Rel8ExitBoundaryForTest {
+    ResolvedLayout,
+    LayoutCustody,
 }

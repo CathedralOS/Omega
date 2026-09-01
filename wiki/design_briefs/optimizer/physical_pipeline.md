@@ -559,6 +559,15 @@ Microsoft structural-Unit call row. This does not claim general call-crossing
 allocation coverage: general scalar calls are not yet represented in the
 selected CFG.
 
+Applied selected-lowering publication coverage crosses both exact incoming-u12
+rules with every hosted target: Linux x64, Windows x64, Linux Arm64, and macOS
+Arm64. Each row retains two literal-fold actions through encoding, fragment,
+text, ELF/COFF/Mach-O object construction, and ordinary-callable admission;
+repeated runs compare every serialized manifest, record, text span, and object
+container. UEFI and unwind are not implied by this matrix. The former lacks
+publication authority, while physical frames and unwind carriers remain P5
+prerequisites.
+
 Ranked countdown coverage proves ordinary executable-image and installation
 custody on Linux x64 and Linux Arm64, including exact final bytes and semantic-
 code attribution.

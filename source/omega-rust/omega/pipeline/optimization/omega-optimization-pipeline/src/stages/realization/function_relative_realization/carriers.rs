@@ -194,6 +194,10 @@ impl StagedFunctionRelativeLayoutOptimizationRealization {
     pub const fn relaxation(&self) -> &StagedOptimizedX86BranchRelaxation {
         &self.relaxation
     }
+    #[cfg(test)]
+    pub(crate) fn relaxation_mut(&mut self) -> &mut StagedOptimizedX86BranchRelaxation {
+        &mut self.relaxation
+    }
     pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
         self.relaxation.layout()
     }
@@ -215,6 +219,51 @@ impl StagedFunctionRelativeLayoutOptimizationRealization {
     ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
         &mut self.manifest
     }
+
+    #[cfg(test)]
+    pub(crate) fn exit_contract_mut(&mut self) -> &mut ValidatedWholeFunctionExitContract {
+        &mut self.exit_contract
+    }
+
+    /// Test-only receipt corruption. The donor is already staged through the
+    /// same public route; this method grants no construction or publication
+    /// authority for either nested receipt.
+    #[cfg(test)]
+    pub(crate) fn corrupt_publication_custody_for_test(
+        &mut self,
+        field: FunctionRelativeLayoutPublicationCustodyFieldForTest,
+        donor: &Self,
+    ) {
+        match field {
+            FunctionRelativeLayoutPublicationCustodyFieldForTest::Source => {
+                self.custody.source = donor.custody.source;
+            }
+            FunctionRelativeLayoutPublicationCustodyFieldForTest::Machine => {
+                self.custody.machine = donor.custody.machine.clone();
+            }
+            FunctionRelativeLayoutPublicationCustodyFieldForTest::Relaxation => {
+                self.custody.relaxation = X86BranchRelaxationIdentity::from_bytes([0xa1; 32]);
+            }
+            FunctionRelativeLayoutPublicationCustodyFieldForTest::ExitContract => {
+                self.custody.exit_contract =
+                    WholeFunctionExitContractIdentity::from_bytes([0xa2; 32]);
+            }
+            FunctionRelativeLayoutPublicationCustodyFieldForTest::Realization => {
+                self.custody.realization =
+                    FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes([0xa3; 32]);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum FunctionRelativeLayoutPublicationCustodyFieldForTest {
+    Source,
+    Machine,
+    Relaxation,
+    ExitContract,
+    Realization,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
