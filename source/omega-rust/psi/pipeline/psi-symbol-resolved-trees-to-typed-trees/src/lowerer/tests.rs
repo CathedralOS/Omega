@@ -4564,6 +4564,117 @@ fn seeded_lifetime_instance_gate_rejects_binder_and_application_mutations() {
 }
 
 #[test]
+fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Borrowed<'left, 'right, T> { left: &'left T; right: &'right T; } data Nested<'outer, 'inner, T> { value: Borrowed<'inner, 'outer, T>; } data Generated<'one, 'two> { value: Nested<'one, 'two, u32>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let index = |name: &str| {
+        (frontier..resolved.data_definitions.len())
+            .find(|index| resolved.data_definitions[*index].name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let nested_template_index = index("Nested");
+    let nested_instance_index = index("Nested<u32>");
+    let borrowed_instance_index = index("Borrowed<u32>");
+    let nested_template_members = resolved.data_definitions[nested_template_index].members;
+    let nested_instance_members = resolved.data_definitions[nested_instance_index].members;
+    let borrowed_instance_symbol = resolved.data_definitions[borrowed_instance_index].symbol;
+    let nested_instance_symbol = resolved.data_definitions[nested_instance_index].symbol;
+    let nested_instance_name = resolved.data_definitions[nested_instance_index]
+        .name
+        .clone();
+
+    let mut unknown_template_lifetime = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut unknown_template_lifetime
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(nested_template_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
+    else {
+        unreachable!()
+    };
+    application.lifetime_arguments[0] =
+        psi_symbol_resolved_trees::name::DiagnosticName::generated("other");
+    assert!(
+        !plain_data_extension_shape_is_supported(&unknown_template_lifetime, frontier),
+        "a nested template application can name only an owning lifetime binder"
+    );
+
+    let mut missing_instance_lifetime = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut missing_instance_lifetime
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(nested_instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
+    else {
+        unreachable!()
+    };
+    application.lifetime_arguments.clear();
+    assert!(
+        !plain_data_extension_shape_is_supported(&missing_instance_lifetime, frontier),
+        "the synthesized nested edge must retain its exact lifetime arity"
+    );
+
+    let mut reordered_instance_lifetimes = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) =
+        &mut reordered_instance_lifetimes
+            .tables
+            .declarations
+            .data_members
+            .span_mut_or_empty(nested_instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
+    else {
+        unreachable!()
+    };
+    application.lifetime_arguments.swap(0, 1);
+    assert!(
+        !plain_data_extension_shape_is_supported(&reordered_instance_lifetimes, frontier),
+        "the synthesized nested edge must retain exact lifetime argument order"
+    );
+
+    let mut redirected_instance = resolved;
+    let psi_symbol_resolved_trees::data::DataMember::Field(field) = &mut redirected_instance
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(nested_instance_members)[0]
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut field.type_reference
+    else {
+        unreachable!()
+    };
+    assert_eq!(application.base_symbol, borrowed_instance_symbol);
+    application.base_symbol = nested_instance_symbol;
+    application.base_name = nested_instance_name;
+    assert!(
+        !plain_data_extension_shape_is_supported(&redirected_instance, frontier),
+        "a nested lifetime edge cannot be redirected to another validated instance"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -4641,6 +4752,18 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
         (
             "lifetime_bearing_reference_instance",
             "data Borrowed<'scope, T> { value: &'scope T; } data Generated<'scope> { value: Borrowed<'scope, u32>; }",
+        ),
+        (
+            "nested_lifetime_instance_graph",
+            "data Borrowed<'scope, T> { value: &'scope T; } data Nested<'scope, T> { value: Borrowed<'scope, T>; } data Generated<'scope> { value: Nested<'scope, u32>; }",
+        ),
+        (
+            "deep_permuted_lifetime_instance_graph",
+            "data Borrowed<'left, 'right, T> { left: &'left T; right: &'right T; } data Middle<'outer, 'inner, T> { values: [Borrowed<'inner, 'outer, T>; 2]; } data Outer<'first, 'second, T> { value: Middle<'second, 'first, T>; } data Generated<'one, 'two> { value: Outer<'one, 'two, u32>; }",
+        ),
+        (
+            "nested_lifetime_sum_payload",
+            "data Borrowed<'scope, T> { value: &'scope T; } data MaybeBorrow<'scope, T> { case None; case Some(value: Borrowed<'scope, T>); } data Generated<'scope> { value: MaybeBorrow<'scope, u32>; }",
         ),
     ] {
         let (base, extension) =

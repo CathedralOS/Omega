@@ -169,23 +169,41 @@ fn type_matches(
             )
         }
         TypeReference::Generic(template_generic) => {
-            let TypeReference::Named { symbol, name } = instance else {
-                return false;
+            let (symbol, name) = match instance {
+                TypeReference::Named { symbol, name }
+                    if template_generic.lifetime_arguments.is_empty() =>
+                {
+                    (*symbol, name)
+                }
+                TypeReference::Generic(instance_generic)
+                    if instance_generic.lifetime_arguments
+                        == template_generic.lifetime_arguments
+                        && source
+                            .child_type_references(instance_generic.arguments)
+                            .is_empty() =>
+                {
+                    (instance_generic.base_symbol, &instance_generic.base_name)
+                }
+                _ => return false,
             };
-            name.as_str() == source.symbols.name(*symbol)
-                && validated_instances.contains(symbol)
+            symbol.is_valid()
+                && name.as_str() == source.symbols.name(symbol)
+                && validated_instances.contains(&symbol)
                 && source
                     .data_definitions
                     .iter()
-                    .find(|definition| definition.symbol == *symbol)
-                    .and_then(|definition| definition.generic_instance.as_ref())
-                    .is_some_and(|origin| {
-                        let TypeReference::Generic(origin) = origin else {
+                    .find(|definition| definition.symbol == symbol)
+                    .is_some_and(|definition| {
+                        let Some(TypeReference::Generic(origin)) =
+                            definition.generic_instance.as_ref()
+                        else {
                             return false;
                         };
-                        origin.base_symbol == template_generic.base_symbol
+                        definition.lifetime_parameters.len()
+                            == template_generic.lifetime_arguments.len()
+                            && origin.base_symbol == template_generic.base_symbol
                             && origin.base_name.as_str() == template_generic.base_name.as_str()
-                            && origin.lifetime_arguments == template_generic.lifetime_arguments
+                            && origin.lifetime_arguments.is_empty()
                             && {
                                 let template_arguments =
                                     source.child_type_references(template_generic.arguments);

@@ -352,6 +352,7 @@ fn plain_type_is_supported(
                 source,
                 data_frontier,
                 owner,
+                owner_lifetimes,
                 owner_type_parameters,
                 generic,
             ) || seeded_type_application::is_supported(
