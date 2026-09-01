@@ -1,6 +1,7 @@
 //! Exact receipt-to-family identity projection.
 
 mod arithmetic;
+mod shift;
 
 use super::AbstractToTargetFunctionTranslationReceipt;
 use crate::validation::model::AbstractToTargetTranslationFamily;
@@ -55,6 +56,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             }
             Self::StraightLineIntegerBitwiseXorParameters(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
+            }
+            receipt @ Self::StraightLineWrappingIntegerShiftLeftParameters(_) => {
+                shift::family(receipt)
             }
             receipt @ (Self::StraightLineExactIntegerAddParameters(_)
             | Self::StraightLineExactIntegerSubtractParameters(_)

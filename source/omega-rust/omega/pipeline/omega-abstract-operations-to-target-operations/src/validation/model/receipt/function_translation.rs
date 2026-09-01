@@ -1,6 +1,7 @@
 //! Closed tagged carrier for one independently replayed function family.
 
 mod arithmetic;
+mod shift;
 
 use super::immediate::{
     StraightLineBooleanImmediateTranslationReceipt, StraightLineIntegerImmediateTranslationReceipt,
@@ -28,6 +29,7 @@ use arithmetic::{
     WrappingDivideReceipt, WrappingMultiplyReceipt, WrappingRemainderReceipt,
     WrappingSubtractReceipt,
 };
+use shift::WrappingShiftLeftReceipt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetFunctionTranslationReceipt {
@@ -57,6 +59,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerBitwiseXorParameters(
         StraightLineIntegerBitwiseXorParametersTranslationReceipt,
     ),
+    StraightLineWrappingIntegerShiftLeftParameters(WrappingShiftLeftReceipt),
     StraightLineExactIntegerAddParameters(ExactAddReceipt),
     StraightLineExactIntegerSubtractParameters(ExactSubtractReceipt),
     StraightLineExactIntegerMultiplyParameters(ExactMultiplyReceipt),

@@ -4,4 +4,5 @@ pub(in crate::validation::catalog) mod arithmetic;
 pub(in crate::validation::catalog) mod bitwise;
 pub(in crate::validation::catalog) mod comparison;
 pub(in crate::validation::catalog) mod direct;
+pub(in crate::validation::catalog) mod shift;
 pub(in crate::validation::catalog) mod unary;

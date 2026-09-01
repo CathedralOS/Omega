@@ -6,12 +6,14 @@ mod arithmetic;
 mod bitwise;
 mod comparison;
 mod direct;
+mod shift;
 mod unary;
 
 pub(super) use arithmetic::*;
 pub(super) use bitwise::*;
 pub(super) use comparison::*;
 pub(super) use direct::*;
+pub(super) use shift::*;
 pub(super) use unary::*;
 
 pub(super) fn integer_type(sign: IntegerSign, bits: u16) -> IntegerType {
