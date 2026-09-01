@@ -182,9 +182,9 @@ use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
     integer_landing_scalar_type, integer_scalar_type, integer_value,
     lower_checked_scalar_expression, lower_checked_scalar_expression_at,
-    prepare_scalar_graph_machine, prepare_selected_scalar_graph_machine,
-    staged_short_circuit_bindings_terminator, terminal_scalar_type,
-    validate_boolean_parameter_types, validate_direct_parameter_types,
+    lower_selected_scalar_graph_machine, prepare_scalar_graph_machine,
+    prepare_selected_scalar_graph_machine, staged_short_circuit_bindings_terminator,
+    terminal_scalar_type, validate_boolean_parameter_types, validate_direct_parameter_types,
 };
 use scalar_graph_module::build_scalar_graph_module;
 use shared_runtime_parameters::{
@@ -225,6 +225,24 @@ pub struct LoweredTerminalPsi {
     /// plan handles remain outside the canonical Terminal artifact; Omega must
     /// consume these rows while both representations are alive.
     pub selected_ieee_float_fma_occurrences: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
+}
+
+/// Exact checked-to-Terminal join for the first bounded callback body cohort.
+/// Source handles remain target-owned sidecar evidence; they are never encoded
+/// into the canonical Terminal artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CallbackTerminalLoweringReceipt {
+    pub source_machine: psi_symbols::SymbolHandle,
+    pub source_entry: psi_symbols::SymbolHandle,
+    pub terminal_machine: MachineId,
+    pub terminal_entry: BlockId,
+}
+
+/// Isolated callback body and the exact checked coordinate that produced it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredCallbackTerminalPsi {
+    pub terminal: LoweredTerminalPsi,
+    pub receipt: CallbackTerminalLoweringReceipt,
 }
 
 /// One exact checked source call joined to its emitted Terminal operation.
@@ -1363,6 +1381,75 @@ pub fn lower_machine(
         None
     };
     Ok(lowered)
+}
+
+/// Lower the exact first callback-body cohort without treating a nominally
+/// attached static machine as an attached Unit program root.
+///
+/// This entry point is deliberately narrower than general machine lowering:
+/// one checked `u64 -> u64` scalar graph, one selected entry, no local
+/// operations, and an identity return. The callback placement separately owns
+/// its satisfaction and ABI evidence; this producer owns only executable body
+/// semantics and the checked-to-Terminal coordinate join.
+pub fn lower_bounded_callback_identity_machine(
+    checked: &CheckedTrees,
+    source_machine: psi_symbols::SymbolHandle,
+    source_entry: psi_symbols::SymbolHandle,
+) -> Result<LoweredCallbackTerminalPsi, LoweringError> {
+    let matching_selection_count = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|selection| selection.machine == source_machine)
+        .count();
+    if matching_selection_count != 1 {
+        return unsupported(
+            "bounded callback body must name one exact checked Terminal machine selection",
+        );
+    }
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(source_machine)
+        .ok_or(LoweringError::Unsupported(
+            "bounded callback body has no checked scalar graph",
+        ))?;
+    let [state] = graph.states.as_slice() else {
+        return unsupported("bounded callback body must contain exactly one checked state");
+    };
+    if state.state != source_entry
+        || state.parameter_types.as_slice() != [PrimitiveType::U64]
+        || state.result_type != PrimitiveType::U64
+        || !state.bindings.is_empty()
+        || !matches!(
+            state.terminator,
+            CheckedScalarStateTerminator::Return {
+                statement_ordinal: 0
+            }
+        )
+    {
+        return unsupported(
+            "bounded callback body must be the exact one-state u64 identity-return cohort",
+        );
+    }
+    let lowered = lower_selected_scalar_graph_machine(checked, source_machine, graph)?;
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .map_err(LoweringError::InvalidTerminalModule)?;
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        return unsupported("bounded callback lowering did not produce one Terminal machine");
+    };
+    Ok(LoweredCallbackTerminalPsi {
+        receipt: CallbackTerminalLoweringReceipt {
+            source_machine,
+            source_entry,
+            terminal_machine: machine.id,
+            terminal_entry: machine.entry,
+        },
+        terminal: lowered,
+    })
 }
 
 fn retain_selected_placed_view_inputs(

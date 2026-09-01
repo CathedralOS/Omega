@@ -47,6 +47,7 @@ pub(super) fn produce_retained_terminal_artifact(
     verify_terminal_artifact(&artifact, profile)?;
     let native_realization_proposal = project_terminal_native_realization_proposal(
         checked,
+        profile,
         &artifact,
         checked_boundary_operator_scope,
         &callback_placements,
@@ -63,6 +64,7 @@ pub(super) fn produce_retained_terminal_artifact(
 
 fn project_terminal_native_realization_proposal(
     checked: &crate::pipeline::CheckedCompilation,
+    profile: &psi_proof_admission::AdmissionProfile,
     artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
     checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
@@ -131,6 +133,8 @@ fn project_terminal_native_realization_proposal(
                             "callback placement {placement_index} cannot derive one valid callback-thunk identity",
                         ))]
                     })?;
+            let callback_thunk_artifact =
+                produce_callback_thunk_artifact(checked, profile, placement)?;
             Ok(omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 occurrence.terminal_operation,
@@ -143,6 +147,7 @@ fn project_terminal_native_realization_proposal(
                             .clone()
                     }),
                 callback_thunk_identity,
+                callback_thunk_artifact,
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
@@ -235,6 +240,123 @@ fn project_terminal_native_realization_proposal(
         checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn produce_callback_thunk_artifact(
+    checked: &crate::pipeline::CheckedCompilation,
+    profile: &psi_proof_admission::AdmissionProfile,
+    placement: &omega_backend_plan::BoundNominalCallbackPlacement,
+) -> Result<omega_compilation_report::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
+    let matching = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|selection| selection.machine == placement.selected_machine)
+        .collect::<Vec<_>>();
+    let [_selection] = matching.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "callback selection resolves to {} Terminal-lowerable machines; exactly one is required",
+            matching.len(),
+        ))]);
+    };
+    let lowered = psi_checked_trees_to_terminal::lower_bounded_callback_identity_machine(
+        checked,
+        placement.selected_machine,
+        placement.selected_entry,
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk Terminal lowering failed: {error}",
+        ))]
+    })?;
+    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.terminal.semantic_module,
+        &lowered.terminal.proof_bundle,
+        lowered.terminal.debug_map.as_ref(),
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk canonicalization failed: {error}",
+        ))]
+    })?;
+    verify_terminal_artifact(&artifact, profile)?;
+    validate_direct_callback_thunk_shape(&artifact, placement)?;
+    omega_compilation_report::TerminalCallbackThunkArtifact::new(
+        omega_backend_plan::canonical_callback_private_symbol(placement),
+        artifact,
+        lowered.receipt,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn validate_direct_callback_thunk_shape(
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    placement: &omega_backend_plan::BoundNominalCallbackPlacement,
+) -> Result<(), Vec<Diagnostic>> {
+    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk shape replay could not decode canonical semantics: {error}",
+        ))]
+    })?;
+    let [machine] = module.machines.as_slice() else {
+        return Err(vec![Diagnostic::error(
+            "direct callback thunk currently requires exactly one Terminal machine",
+        )]);
+    };
+    let ([parameter], psi_terminal::TerminalMachineResult::Scalar(result), [block]) = (
+        machine.parameters.as_slice(),
+        &machine.result,
+        machine.blocks.as_slice(),
+    ) else {
+        return Err(vec![Diagnostic::error(
+            "direct callback thunk currently requires one scalar parameter, one scalar result, and one block",
+        )]);
+    };
+    let expected_type = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64)
+        .expect("u64 is a valid fixed integer type");
+    let is_exact_leaf = module.entry == machine.id
+        && machine.entry == block.id
+        && machine.structural_parameters.is_empty()
+        && machine.structural_places.is_empty()
+        && machine.ranked_scc.is_none()
+        && block.parameters.is_empty()
+        && block.operations.is_empty()
+        && parameter.scalar_type == psi_core::ScalarType::Integer(expected_type)
+        && result.scalar_type == parameter.scalar_type
+        && matches!(
+            &block.terminator,
+            psi_terminal::Terminator::Return {
+                value,
+                cleanup_actions,
+                ..
+            } if *value == parameter.id && cleanup_actions.is_empty()
+        );
+    if !is_exact_leaf {
+        return Err(vec![Diagnostic::error(
+            "direct callback thunk currently admits only the exact u64-to-u64 identity leaf",
+        )]);
+    }
+    let signature = omega_calling_conventions::CallSignature {
+        parameters: vec![omega_calling_conventions::ValueShape::integer(8, 8)],
+        result: Some(omega_calling_conventions::ValueShape::integer(8, 8)),
+    };
+    let validated = omega_calling_conventions::validate_boundary_entry_plan(
+        placement.boundary_entry_plan.clone(),
+        &signature,
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "callback thunk boundary entry plan does not match its Terminal body: {error}",
+        ))]
+    })?;
+    if validated.plan() != &placement.boundary_entry_plan {
+        return Err(vec![Diagnostic::error(
+            "callback thunk boundary entry plan changed during canonical validation",
+        )]);
+    }
+    Ok(())
 }
 
 pub(super) fn project_terminal_boundary_application_coverage(

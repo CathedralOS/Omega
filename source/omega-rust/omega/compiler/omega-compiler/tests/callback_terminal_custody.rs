@@ -273,6 +273,51 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         Some(callback_thunk_identity),
         omega_backend_plan::canonical_callback_thunk_identity(0, placement)
     );
+    let thunk = occurrence.callback_thunk_artifact();
+    assert_eq!(
+        thunk.private_symbol(),
+        &omega_backend_plan::canonical_callback_private_symbol(placement)
+    );
+    let receipt = thunk.lowering_receipt();
+    assert_eq!(receipt.source_machine, placement.selected_machine);
+    assert_eq!(receipt.source_entry, placement.selected_entry);
+    let thunk_module = psi_terminal_codec::decode_module(thunk.artifact().semantic_bytes())
+        .expect("decode canonical callback thunk semantics");
+    let [thunk_machine] = thunk_module.machines.as_slice() else {
+        panic!("the bounded callback thunk must contain one Terminal machine");
+    };
+    let (
+        [thunk_parameter],
+        psi_terminal::TerminalMachineResult::Scalar(thunk_result),
+        [thunk_block],
+    ) = (
+        thunk_machine.parameters.as_slice(),
+        &thunk_machine.result,
+        thunk_machine.blocks.as_slice(),
+    )
+    else {
+        panic!("the bounded callback thunk must retain one scalar parameter/result block");
+    };
+    let u64_type =
+        psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 64).expect("u64 Terminal type");
+    assert_eq!(thunk_module.entry, receipt.terminal_machine);
+    assert_eq!(thunk_machine.id, receipt.terminal_machine);
+    assert_eq!(thunk_machine.entry, receipt.terminal_entry);
+    assert_eq!(
+        thunk_parameter.scalar_type,
+        psi_core::ScalarType::Integer(u64_type)
+    );
+    assert_eq!(thunk_result.scalar_type, thunk_parameter.scalar_type);
+    assert!(thunk_block.parameters.is_empty());
+    assert!(thunk_block.operations.is_empty());
+    assert!(matches!(
+        &thunk_block.terminator,
+        psi_terminal::Terminator::Return {
+            value,
+            cleanup_actions,
+            ..
+        } if *value == thunk_parameter.id && cleanup_actions.is_empty()
+    ));
     let application = occurrence
         .direct_parameter_application()
         .expect("direct callback occurrence retains its target-closed telescope row");
@@ -319,6 +364,46 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         .validate()
         .expect("direct callback occurrence replays against its artifact");
 
+    let drifted_thunk = omega_compilation_report::TerminalCallbackThunkArtifact::new(
+        std::sync::Arc::from("__omega_callback_drifted"),
+        replay_copy_terminal_artifact(thunk.artifact()),
+        receipt,
+    )
+    .expect("a canonical thunk artifact can carry a mutation-test symbol");
+    let drifted_thunk_proposal = omega_compilation_report::TerminalNativeRealizationProposal::new(
+        retained.artifact(),
+        proposal.target_profile(),
+        proposal.native_target(),
+        proposal.subsystem(),
+        proposal.program_entry().clone(),
+        proposal.selected_provider_plans().clone(),
+        proposal.external_binding_rows().to_vec(),
+        proposal.compiler_builtins().to_vec(),
+        vec![
+            omega_compilation_report::TerminalCallbackOccurrenceProposal::new(
+                0,
+                occurrence.terminal_operation(),
+                Some(application.clone()),
+                callback_thunk_identity,
+                drifted_thunk,
+            ),
+        ],
+        proposal.ieee_float_fma_occurrences().to_vec(),
+        proposal.boundary_application_demands().clone(),
+        proposal.boundary_application_realizations().clone(),
+        proposal.checked_boundary_operator_scope().clone(),
+    )
+    .expect("artifact-local proposal replay does not own checked placement spelling");
+    assert!(
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            replay_copy_terminal_artifact(retained.artifact()),
+            retained.callback_placements().to_vec(),
+            drifted_thunk_proposal,
+        )
+        .is_err(),
+        "retained-product replay must reject callback private-symbol drift",
+    );
+
     let wrong_operation = module
         .machines
         .iter()
@@ -343,6 +428,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                     wrong_operation,
                     Some(application.clone()),
                     callback_thunk_identity,
+                    occurrence.callback_thunk_artifact().clone(),
                 )
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),
@@ -389,6 +475,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 occurrence.terminal_operation(),
                 Some(drifted_application),
                 callback_thunk_identity,
+                occurrence.callback_thunk_artifact().clone(),
             ),
         ],
         proposal.ieee_float_fma_occurrences().to_vec(),
@@ -424,6 +511,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                     occurrence.terminal_operation(),
                     Some(application.clone()),
                     placement_index_drift,
+                    occurrence.callback_thunk_artifact().clone(),
                 ),
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),
@@ -455,6 +543,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                     occurrence.terminal_operation(),
                     Some(application.clone()),
                     continuation_drift,
+                    occurrence.callback_thunk_artifact().clone(),
                 ),
             ],
             proposal.ieee_float_fma_occurrences().to_vec(),

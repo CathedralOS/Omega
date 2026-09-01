@@ -161,6 +161,33 @@ pub(super) fn lower_scalar_graph_machine(
     Ok(lowered)
 }
 
+/// Lower one scalar realization whose contract/satisfaction is retained by an
+/// enclosing target-owned admission rather than reconstructed as a closed
+/// standalone scalar contract.
+pub(super) fn lower_selected_scalar_graph_machine(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    graph: &CheckedScalarMachineGraph,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let prepared = prepare_selected_scalar_graph_machine(checked, machine, graph)?;
+    let machine_ids = [(machine, machine_id(1))];
+    let requirement_counts = [(machine, usize::from(prepared.contract_value.is_some()))];
+    let mut lowered = build_scalar_graph_module(
+        &prepared.states,
+        prepared.result_type,
+        prepared.contract_value,
+        prepared.crash_routes,
+        prepared.identity_reshuffles,
+        prepared.partition_compositions,
+        machine_id(1),
+        0,
+        &machine_ids,
+        &requirement_counts,
+    )?;
+    finalize_operation_proofs(&mut lowered)?;
+    Ok(lowered)
+}
+
 pub(super) fn prepare_scalar_graph_machine(
     checked: &CheckedTrees,
     machine: psi_symbols::SymbolHandle,

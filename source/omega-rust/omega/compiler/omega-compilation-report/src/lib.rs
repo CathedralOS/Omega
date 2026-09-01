@@ -10,9 +10,9 @@ pub use production_manifest::{
     ProductionCompilationManifestIdentity, ProductionCompilationSubject,
 };
 pub use terminal_product::{
-    RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCompilerBuiltinProposal,
-    TerminalIeeeFloatFmaOccurrenceProposal, TerminalNativeRealizationProposal,
-    TerminalX86ScalarFmaAdmission,
+    RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
+    TerminalCompilerBuiltinProposal, TerminalIeeeFloatFmaOccurrenceProposal,
+    TerminalNativeRealizationProposal, TerminalX86ScalarFmaAdmission,
 };
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output

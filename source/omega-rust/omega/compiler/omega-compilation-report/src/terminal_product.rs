@@ -8,6 +8,61 @@ pub struct TerminalCompilerBuiltinProposal {
     execution: omega_target_operations::CompilerBuiltinExecution,
 }
 
+/// Source-free executable body retained for one compiler-private callback
+/// thunk. The canonical artifact is independently replayable and the symbol
+/// is derived from the exact checked placement rather than source spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalCallbackThunkArtifact {
+    private_symbol: std::sync::Arc<str>,
+    artifact: std::sync::Arc<psi_terminal_codec::CanonicalTerminalArtifact>,
+    lowering_receipt: psi_checked_trees_to_terminal::CallbackTerminalLoweringReceipt,
+}
+
+impl TerminalCallbackThunkArtifact {
+    pub fn new(
+        private_symbol: std::sync::Arc<str>,
+        artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+        lowering_receipt: psi_checked_trees_to_terminal::CallbackTerminalLoweringReceipt,
+    ) -> Result<Self, &'static str> {
+        if private_symbol.is_empty() {
+            return Err("Terminal callback thunk has an empty private symbol");
+        }
+        artifact
+            .validate()
+            .map_err(|_| "Terminal callback thunk contains an invalid canonical artifact")?;
+        let module = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+            .map_err(|_| "Terminal callback thunk semantics could not be decoded")?;
+        let [machine] = module.machines.as_slice() else {
+            return Err("Terminal callback thunk artifact must contain exactly one machine");
+        };
+        if module.entry != lowering_receipt.terminal_machine
+            || machine.id != lowering_receipt.terminal_machine
+            || machine.entry != lowering_receipt.terminal_entry
+        {
+            return Err("Terminal callback thunk lowering receipt drifted from its artifact");
+        }
+        Ok(Self {
+            private_symbol,
+            artifact: std::sync::Arc::new(artifact),
+            lowering_receipt,
+        })
+    }
+
+    pub fn private_symbol(&self) -> &std::sync::Arc<str> {
+        &self.private_symbol
+    }
+
+    pub fn artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub const fn lowering_receipt(
+        &self,
+    ) -> psi_checked_trees_to_terminal::CallbackTerminalLoweringReceipt {
+        self.lowering_receipt
+    }
+}
+
 /// Exact join from one retained callback placement to the canonical Terminal
 /// boundary-call operation produced from its authored registrar occurrence.
 /// The source handles used to establish this row do not cross the Psi/Omega
@@ -18,6 +73,7 @@ pub struct TerminalCallbackOccurrenceProposal {
     terminal_operation: psi_core::OperationId,
     direct_parameter_application: Option<omega_calling_conventions::NativeParameterApplication>,
     callback_thunk_identity: omega_function_identity::MachineFunctionIdentity,
+    callback_thunk_artifact: TerminalCallbackThunkArtifact,
 }
 
 impl TerminalCallbackOccurrenceProposal {
@@ -26,12 +82,14 @@ impl TerminalCallbackOccurrenceProposal {
         terminal_operation: psi_core::OperationId,
         direct_parameter_application: Option<omega_calling_conventions::NativeParameterApplication>,
         callback_thunk_identity: omega_function_identity::MachineFunctionIdentity,
+        callback_thunk_artifact: TerminalCallbackThunkArtifact,
     ) -> Self {
         Self {
             placement_index,
             terminal_operation,
             direct_parameter_application,
             callback_thunk_identity,
+            callback_thunk_artifact,
         }
     }
 
@@ -53,6 +111,10 @@ impl TerminalCallbackOccurrenceProposal {
         &self,
     ) -> omega_function_identity::MachineFunctionIdentity {
         self.callback_thunk_identity
+    }
+
+    pub const fn callback_thunk_artifact(&self) -> &TerminalCallbackThunkArtifact {
+        &self.callback_thunk_artifact
     }
 }
 
@@ -320,6 +382,11 @@ impl TerminalNativeRealizationProposal {
             if !callback_thunk_identities.insert(occurrence.callback_thunk_identity) {
                 return Err("Terminal native proposal repeats a callback-thunk identity");
             }
+            occurrence
+                .callback_thunk_artifact
+                .artifact()
+                .validate()
+                .map_err(|_| "Terminal callback occurrence contains an invalid thunk artifact")?;
             if !callback_operations.insert(occurrence.terminal_operation) {
                 return Err("Terminal native proposal repeats a callback registrar operation");
             }
@@ -692,6 +759,24 @@ impl RetainedTerminalArtifact {
                 if occurrence.callback_thunk_identity() != expected_thunk {
                     return Err(
                         "Terminal callback occurrence thunk continuation drifted from its retained placement",
+                    );
+                }
+                let expected_symbol = omega_backend_plan::canonical_callback_private_symbol(
+                    &self.callback_placements[placement_index],
+                );
+                if occurrence.callback_thunk_artifact().private_symbol() != &expected_symbol {
+                    return Err(
+                        "Terminal callback occurrence private symbol drifted from its retained placement",
+                    );
+                }
+                let receipt = occurrence.callback_thunk_artifact().lowering_receipt();
+                if receipt.source_machine
+                    != self.callback_placements[placement_index].selected_machine
+                    || receipt.source_entry
+                        != self.callback_placements[placement_index].selected_entry
+                {
+                    return Err(
+                        "Terminal callback occurrence lowering receipt drifted from its retained placement",
                     );
                 }
             }
