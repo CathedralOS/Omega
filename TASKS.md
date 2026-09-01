@@ -9064,14 +9064,18 @@ state through a raw address.
     Installation-bound internal machines publish the conservative bound only
     inside their Terminal closure; ordinary private effectful machines still
     reject without an authored ceiling. Neither lowering nor verification
-    reconstructs concrete reach by subtracting bounds.
-  - **Remaining:** reject unresolved rows escaping ordinary callable package
-    or component contracts when that export/interface carrier lands. Do not
-    reject internal inferred callers globally: the installed-root closure is
-    their legitimate resolution scope. The other current structural root
-    producers contain no service-bearing boundary operation, so there is no
-    additional producer row to populate today; verifier reconstruction remains
-    the fail-closed fence if one gains such an operation.
+    reconstructs concrete reach by subtracting bounds. Ordinary public package
+    callables now reject during package-review projection if their checked
+    closure still carries any unresolved installation requirement. Explicit
+    boundary declarations continue to retain their symbolic row and bound, and
+    private/internal propagation remains valid inside the installation closure.
+  - **Remaining:** enforce the same unresolved-row fence on component
+    contracts when that interface carrier lands. Do not reject internal
+    inferred callers globally: the installed-root closure is their legitimate
+    resolution scope. The other current structural root producers contain no
+    service-bearing boundary operation, so there is no additional producer row
+    to populate today; verifier reconstruction remains the fail-closed fence if
+    one gains such an operation.
     Exact checked satisfiers and typed provider selection now close explicit
     top-level requirement dependencies. External satisfiers and the final
     carrier-owned invocation path remain under

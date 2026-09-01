@@ -254,6 +254,18 @@ pub(in crate::capture) fn project_callable(
     };
     let realized_synchronous_invocations =
         project_synchronous_invocations(compilation, &checked_invocation.checked_inferred_targets)?;
+    let unresolved_installation_reaches =
+        project_installation_reaches(compilation, &service_reach.unresolved_installation_reaches)?;
+    if role == PackageReviewCallableRole::Public && !unresolved_installation_reaches.is_empty() {
+        let requirements = unresolved_installation_reaches
+            .iter()
+            .map(|reach| format!("`{}`", reach.requirement().path()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(vec![Diagnostic::error(format!(
+            "ordinary public callable `{subject}` cannot export unresolved installation-reach requirement(s) {requirements}; bind each provider before crossing the package boundary"
+        ))]);
+    }
     let mut capability_flows = realized
         .capabilities
         .iter()
@@ -295,10 +307,7 @@ pub(in crate::capture) fn project_callable(
             contracts,
             declared_service_reach,
             checked_service_reach,
-            unresolved_installation_reaches: project_installation_reaches(
-                compilation,
-                &service_reach.unresolved_installation_reaches,
-            )?,
+            unresolved_installation_reaches,
             declared_synchronous_invocations,
             realized_synchronous_invocations,
             capability_flows,
