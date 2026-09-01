@@ -12224,9 +12224,14 @@ checked-result arithmetic decision listed below.
   one unit, the continuation now validates a collection of methodless record
   templates, closed instances, ordinary records, and use sites independently
   of declaration counts or ordering. A template may have any nonzero number of
-  default-bound Type parameters. Direct parameter fields and parameter elements
-  beneath literal fixed-array shells are replayed from the retained origin
-  arguments, while direct Unit and exact named companions remain unchanged.
+  Type parameters with their exact declared property bounds. Those bounds stay
+  on local template applications. Every synthesized data definition's retained
+  `generic_instance` origin is now an explicit checked property-bound
+  validation root, so a closed nominal argument that fails a declared property
+  bound rejects after normalization as well; the seeded gate does not replace
+  semantic bound checking. Direct parameter fields and parameter elements beneath literal
+  fixed-array shells are replayed from the retained origin arguments, while
+  direct Unit and exact named companions remain unchanged.
   Arguments may be builtins, exact nongeneric nominal data, or an already-
   validated local closed instance. Finite acyclic nested-instance dependency
   chains are reconstructed in dependency order; every instance must remain
@@ -12239,10 +12244,10 @@ checked-result arithmetic decision listed below.
   parameter/field ownership, same-source ownership, and use-site spelling
   while retaining every base prefix, sidecar, selected build symbol, generated
   byte, and package custody. Cross-generated-unit synthesis, cyclic instance
-  dependencies, lifetime/const/constrained applications, nondefault bounds,
-  parameter-bearing reference/slice/other composite shells, facts, quotients,
-  zero gates, attached generated methods, and other non-data shapes return the
-  retained base to the unchanged raw whole-program rebuild/rebind fallback.
+  dependencies, lifetime/const/constrained applications, parameter-bearing
+  reference/slice/other composite shells, facts, quotients, zero gates,
+  attached generated methods, and other non-data shapes return the retained
+  base to the unchanged raw whole-program rebuild/rebind fallback.
   Base-owned type applications no longer inherit that incidental local-
   synthesis restriction. Any number of generated data roots
   may retain any number of differently argued and recursively nested

@@ -4390,6 +4390,14 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             "nested_fixpoint_and_indirect_substitution",
             "data Cell<T> { values: [T; 2]; } data Outer<T> { inner: Cell<T>; direct: T; } data Generated { nested: Outer<u32>; repeated: Outer<u32>; }",
         ),
+        (
+            "nondefault_bound",
+            "data Cell<T [copy]> [copy] { value: T; } data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "nested_bound_forwarding",
+            "data Cell<T [copy]> [copy] { value: T; } data Outer<U [copy]> [copy] { cell: Cell<U>; direct: U; } data Generated { value: Outer<u32>; }",
+        ),
     ] {
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
@@ -4418,10 +4426,6 @@ fn seeded_plain_data_continuation_fences_unsupported_normalized_generic_instance
         (
             "constrained_argument",
             "data Cell<T> { value: T; } data Generated { value: Cell<u32 in Wrapping>; }",
-        ),
-        (
-            "nondefault_bound",
-            "data Cell<T [copy]> { value: T; } data Generated { value: Cell<u32>; }",
         ),
         (
             "attached_method",

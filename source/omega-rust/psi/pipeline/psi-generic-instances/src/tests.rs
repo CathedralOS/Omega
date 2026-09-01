@@ -3,18 +3,27 @@ use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
+use psi_source::SourceMap;
 use psi_source_files_to_tokens::Lexer;
 use psi_syntax_trees::expression::ExpressionNode;
 use psi_syntax_trees::item::{DataMember, Item};
 use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::TypeReferenceNode;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
+use std::{path::PathBuf, sync::Arc};
 
 fn checked(source: &str) -> Result<CheckedTrees, Vec<Diagnostic>> {
+    let mut sources = SourceMap::default();
+    let source_id = sources
+        .add(PathBuf::from("generic-instances.omg"), source.to_owned())
+        .source_id;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+    let mut syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
     desugar_generic_data_instances(&mut syntax)?;
-    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)?;
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
+        &syntax,
+        Arc::new(sources),
+    )?;
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])?;
     psi_typed_trees_to_checked_trees::lower_typed_trees(typed)
@@ -51,6 +60,18 @@ fn fixed_range_loans(
             Some((loan.kind.clone(), *start, *end))
         })
         .collect()
+}
+
+#[test]
+fn closed_data_instance_rejects_unsatisfied_property_bound() {
+    rejected(
+        r#"
+            data Linear { value: u8; }
+            data Cell<T [copy]> { value: T; }
+            data Generated { value: Cell<Linear>; }
+        "#,
+        "does not satisfy `[copy]`",
+    );
 }
 
 #[test]

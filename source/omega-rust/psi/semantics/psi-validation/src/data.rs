@@ -2,7 +2,7 @@ use crate::proof_facts::{ProofFactOwner, validate_proof_facts};
 use crate::symbols::TopLevelSymbols;
 use crate::type_references::{
     TypeReferenceOwner, type_reference_label, type_references_match,
-    validate_type_reference_handle_with_type_parameters,
+    validate_generic_instance_argument_bounds, validate_type_reference_handle_with_type_parameters,
 };
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
@@ -35,6 +35,7 @@ pub(crate) fn validate_data_field_types(
         }
         let data_members = program.data_members(data_definition);
         let type_parameters = program.data_type_parameters(data_definition);
+        validate_generic_instance_argument_bounds(program, data_definition, symbols, diagnostics);
         validate_data_member_names(data_definition, data_members, diagnostics);
         validate_data_shape(program, data_definition, data_members, diagnostics);
         validate_data_default_domain(program, data_definition, data_members, diagnostics);

@@ -311,9 +311,14 @@ independently into a seeded-only clone while its raw tree remains owned by the
 fallback. Within one unit, the closed-instance continuation validates a
 collection of methodless record templates, instances, ordinary records, and
 use sites without declaration-count or ordering assumptions. A template may
-have any nonzero number of default-bound Type parameters. Direct parameter
-fields and parameter elements under literal fixed-array shells replay the
-retained arguments; direct Unit and exact named companions remain unchanged.
+have any nonzero number of Type parameters with their exact declared property
+bounds. Local template applications retain those bounds. Every synthesized
+data definition's retained `generic_instance` origin is an explicit checked-
+property-bound validation root, so closed nominal arguments that fail a
+declared property bound reject after normalization as well; seeded admission
+does not replace semantic bound checking. Direct parameter fields and parameter
+elements under literal fixed-array shells replay the retained arguments;
+direct Unit and exact named companions remain unchanged.
 Arguments may be builtins, exact nongeneric nominal data, or already-validated
 local closed instances. Finite acyclic nested-instance dependency chains are
 reconstructed in dependency order, every instance must remain transitively
@@ -326,10 +331,10 @@ template/argument/origin tuple, canonical instance spelling and retired
 identities, recursive field substitution, declaration/parameter/field
 ownership, same-unit source ownership, and use-site spelling. It does not infer
 an instance across generated units. Cyclic instance dependencies, lifetime/
-const/constrained applications, nondefault bounds, parameter-bearing reference/
-slice/other composite shells, fact-bearing, quotient, zero-gated, generated-
-method-bearing, dynamic, or non-data forms return the owned base and raw parsed
-extension to the existing full rebuild/rebind. Retained-base type applications
+const/constrained applications, parameter-bearing reference/slice/other
+composite shells, fact-bearing, quotient, zero-gated, generated-method-bearing,
+dynamic, or non-data forms return the owned base and raw parsed extension to
+the existing full rebuild/rebind. Retained-base type applications
 are structural and do not require cross-unit synthesis. Any number of generated
 data roots may carry any number of differently argued or recursively nested
 applications of retained-base data. The continuation checks the exact base

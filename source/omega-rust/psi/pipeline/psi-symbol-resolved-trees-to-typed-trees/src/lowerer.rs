@@ -224,8 +224,6 @@ fn plain_data_extension_shape_is_supported(
                                 parameter.kind,
                                 psi_symbol_resolved_trees::data::TypeParameterKind::Type
                             )
-                            && parameter.bounds
-                                == psi_symbol_resolved_trees::data::DataProperties::default()
                     })
                     && definition.quotient.is_none()
                     && definition.where_facts.is_empty()
