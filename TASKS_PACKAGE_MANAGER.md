@@ -388,8 +388,9 @@ explicitly.
   - migrate remaining package-aware fixtures to explicit std dependency edges;
     the compiler product, parser package, all 140 std-consuming sample
     packages, all 14 packaged time canaries, all 24 packaged filesystem
-    canaries, eight packaged backend/borrow/constants/error canaries, and all
-    17 packaged operator/type canaries already
+    canaries, eight packaged backend/borrow/constants/error canaries, all 17
+    packaged operator/type canaries, and 12 packaged ownership/reference
+    canaries already
     declare ordinary `omega-language-std` edges and import through its derived
     alias; the
     package-aware sample sweep introduces no failures beyond the seven
@@ -403,7 +404,7 @@ explicitly.
     bare call in `runtime_const_array_length_bare_call_arm_exit` as a late-bound
     authored `CheckedCall`; finish that compiler-owned selection finalization
     before migrating the cohort; the
-    freestanding UEFI package remains dependency-free, the two proof-only
+    freestanding UEFI package roots remain dependency-free, the two proof-only
     sample sources remain standalone, and other standalone source fixtures stay
     on the compatibility path until they acquire real package roots;
   - replace the remaining standalone std/alloc `Toolchain` compatibility

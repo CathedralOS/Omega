@@ -6,7 +6,7 @@
 // the named instance -- no aliasing. a.value=5, b.slot=9; reads back 5 and 9,
 // exits with b's value.
 // Expected exit: 9
-use omega::language::std::console;
+use omega_language_std::console;
 data BoxI { value: i32; }
 machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
 data CellI { slot: i32; }

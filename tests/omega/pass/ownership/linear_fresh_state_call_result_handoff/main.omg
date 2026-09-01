@@ -1,7 +1,7 @@
 // PASS canary: a state-local linear obligation returned through a state call
 // keeps its original provenance when the caller binds and later consumes it.
 // The receiving continuation must not mint an unrelated caller-side claim.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}

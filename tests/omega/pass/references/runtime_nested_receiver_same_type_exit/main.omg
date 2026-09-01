@@ -4,7 +4,7 @@
 // the inline route: the spliced callee resolves against `p.b`'s storage
 // via the receiver-path walk (["p", "b"] -> the nested descent), where
 // the by-type walk read the FIRST BoxI (`a` = 5). y must be b's 9.
-use omega::language::std::console;
+use omega_language_std::console;
 data BoxI { value: i32; }
 machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
 data PairD { a: BoxI; b: BoxI; }

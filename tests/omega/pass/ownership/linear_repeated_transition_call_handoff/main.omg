@@ -3,7 +3,7 @@
 // ordinals and backend realization must keep both handoffs distinct even though
 // target-symbol filtering alone cannot distinguish them.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
