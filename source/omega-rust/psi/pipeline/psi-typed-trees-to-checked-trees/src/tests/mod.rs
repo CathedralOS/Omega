@@ -39,6 +39,7 @@ mod cleanup;
 mod content;
 mod contracts;
 mod domain_identity;
+mod dynamic_conformances;
 mod flow;
 mod generics;
 mod multiplicity;
