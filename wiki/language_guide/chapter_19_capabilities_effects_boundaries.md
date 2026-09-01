@@ -2068,7 +2068,7 @@ the foreign protocol carries an explicit context token or a checked
 generational handle into package-owned state.
 
 The current compiler carries a direct callback through private native-function
-emission, relocation, final-image replay, and canonical installation format 50.
+emission, relocation, final-image replay, and canonical installation format 51.
 That installation row preserves identity, source Psi, ABI, and final text
 interval but grants no runtime registration authority. The earlier callback-
 specific deployment pending/live carrier was removed; generic installed-code

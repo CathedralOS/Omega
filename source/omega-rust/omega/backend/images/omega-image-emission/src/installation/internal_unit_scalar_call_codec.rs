@@ -123,7 +123,7 @@ fn decode_internal_unit_scalar_call(
     })
 }
 
-fn encode_argument_source(
+pub(super) fn encode_argument_source(
     bytes: &mut Vec<u8>,
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
@@ -148,7 +148,7 @@ fn encode_argument_source(
     Ok(())
 }
 
-fn decode_argument_source(
+pub(super) fn decode_argument_source(
     reader: &mut Reader<'_>,
 ) -> Result<InternalUnitScalarArgumentSourceRecord, InstallationError> {
     let tag = reader.u8()?;
@@ -171,7 +171,7 @@ fn decode_argument_source(
     }
 }
 
-fn encode_offset(bytes: &mut Vec<u8>, value: usize) -> Result<(), InstallationError> {
+pub(super) fn encode_offset(bytes: &mut Vec<u8>, value: usize) -> Result<(), InstallationError> {
     push_u64(
         bytes,
         u64::try_from(value)
@@ -180,7 +180,7 @@ fn encode_offset(bytes: &mut Vec<u8>, value: usize) -> Result<(), InstallationEr
     Ok(())
 }
 
-fn decode_offset(reader: &mut Reader<'_>) -> Result<usize, InstallationError> {
+pub(super) fn decode_offset(reader: &mut Reader<'_>) -> Result<usize, InstallationError> {
     usize::try_from(reader.u64()?)
         .map_err(|_| InstallationError::InstalledScalarOffsetNotRepresentable)
 }

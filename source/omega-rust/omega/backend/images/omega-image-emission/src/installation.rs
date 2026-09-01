@@ -49,6 +49,7 @@ mod structural_scalar_codec;
 mod structural_signature_codec;
 mod trivial_affine_local_codec;
 mod unit_scalar_codec;
+mod unit_structural_scalar_field_store_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
@@ -59,6 +60,7 @@ use installation_header_codec::{
 };
 use installed_unit_scalar_transport::{
     installed_function_scalar_transport_is_canonical, validate_installed_unit_scalar_calls,
+    validate_installed_unit_structural_scalar_field_stores,
 };
 use internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls};
 use internal_unit_scalar_call_codec::{
@@ -78,7 +80,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 50;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 51;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -315,6 +317,8 @@ pub struct InstalledFunction {
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub unit_structural_scalar_field_stores:
+        Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     /// Canonical true-before-false DFS cleanup leaves for the exact bounded
@@ -554,6 +558,9 @@ where
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_scalar_homes: function.unit_scalar_homes.clone(),
                 unit_integer_constants: function.unit_integer_constants.clone(),
+                unit_structural_scalar_field_stores: function
+                    .unit_structural_scalar_field_stores
+                    .clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
                 scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
                 scalar_control_affine_cleanups: function
@@ -985,6 +992,8 @@ pub fn validate_installation_record(
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
                     || installed.unit_scalar_homes != emitted.unit_scalar_homes
                     || installed.unit_integer_constants != emitted.unit_integer_constants
+                    || installed.unit_structural_scalar_field_stores
+                        != emitted.unit_structural_scalar_field_stores
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
                     || installed.scalar_affine_cleanup != emitted.scalar_affine_cleanup
                     || !installed_scalar_control_cleanups_match_object(
@@ -1179,6 +1188,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.fixed_integer_scalar_abi.is_none()
                 && function.unit_scalar_homes.is_empty()
                 && function.unit_integer_constants.is_empty()
+                && function.unit_structural_scalar_field_stores.is_empty()
                 && record.structural_returns.is_empty()
                 && record.internal_unit_calls.is_empty()
                 && record.internal_unit_scalar_calls.is_empty()
@@ -1669,6 +1679,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
     validate_installed_unit_scalar_calls(record, &function_by_machine)?;
+    validate_installed_unit_structural_scalar_field_stores(record, &function_by_machine)?;
     let mut previous_return = None;
     for installed in &record.structural_returns {
         let function = function_by_machine.get(&installed.machine).ok_or(
@@ -2861,6 +2872,8 @@ pub enum InstallationError {
     TooManyScalarCallPlanRegisters,
     TooManyUnitScalarHomes,
     TooManyUnitIntegerConstants,
+    TooManyUnitStructuralScalarFieldStores,
+    TooManyUnitStructuralScalarFieldStoreBytes,
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
     TooManyStructuralReturnCleanups,
@@ -2936,6 +2949,7 @@ pub enum InstallationError {
     InvalidStructuralReturn(MachineId),
     InvalidInternalUnitCall(MachineId),
     InvalidInternalUnitScalarCall(MachineId),
+    InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),
     SemanticCodeAttributionMachineMissing(MachineId),
@@ -3056,6 +3070,7 @@ mod resource_tests {
             unit_parameter_homes: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),

@@ -816,16 +816,7 @@ fn emit_aarch64_structural_field(
         .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
     if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
         let base = match *pointer {
-            IndirectPointerLocation::Register(register) => {
-                let base = aarch64_unit_register(register)?;
-                if base == 0 {
-                    return Err(EmissionError::ExpressionScratchRegisterConflict {
-                        value: source_value,
-                        register,
-                    });
-                }
-                base
-            }
+            IndirectPointerLocation::Register(register) => aarch64_unit_register(register)?,
             IndirectPointerLocation::Stack {
                 stack_byte_offset, ..
             } => {
@@ -876,12 +867,6 @@ fn emit_aarch64_structural_field(
             ..
         } => {
             let register = aarch64_unit_register(register)?;
-            if register == 0 {
-                return Err(EmissionError::ExpressionScratchRegisterConflict {
-                    value: source_value,
-                    register: MachineRegister::Aarch64X(0),
-                });
-            }
             let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
             instructions.push(0xd340_fc00 | (shift << 16) | (u32::from(register) << 5));
             Ok(())

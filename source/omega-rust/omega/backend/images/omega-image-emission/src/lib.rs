@@ -44,6 +44,7 @@ mod unit_affine_cleanup;
 mod unit_call_custody;
 mod unit_scalar_call_custody;
 mod unit_stack;
+mod unit_structural_scalar_field_store;
 mod x86_fma;
 
 pub use dynamic_elf::{
@@ -84,6 +85,7 @@ use unit_stack::{
     validate_complete_unit_stack_evidence, validate_foreign_unit_call_stack,
     validate_unit_call_stack, validate_unit_function_stack,
 };
+use unit_structural_scalar_field_store::validate_unit_structural_scalar_field_stores;
 
 use omega_machine_code::{
     BoundarySettlementRecord, CompilerPrivateMachineCodeFunction, MachineCodePlan,
@@ -235,6 +237,8 @@ pub struct ObjectFunction {
     pub internal_unit_scalar_calls: Vec<omega_machine_code::InternalUnitScalarCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub unit_structural_scalar_field_stores:
+        Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
@@ -1100,6 +1104,7 @@ fn build_object_artifact_with_x86_feature_profile(
             validated_function_stack.as_ref(),
             &validated_call_stacks,
         )?;
+        validate_unit_structural_scalar_field_stores(plan.target, function)?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
                 function.machine,
@@ -1759,6 +1764,9 @@ fn build_object_artifact_with_x86_feature_profile(
             internal_unit_scalar_calls: function.internal_unit_scalar_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
+            unit_structural_scalar_field_stores: function
+                .unit_structural_scalar_field_stores
+                .clone(),
             unit_parameters: function.unit_parameters.clone(),
             unit_parameter_homes: function.unit_parameter_homes.clone(),
             unit_affine_cleanup: function.unit_affine_cleanup.clone(),
@@ -3103,6 +3111,7 @@ pub enum ObjectError {
     },
     InvalidInternalUnitCallEvidence(MachineId),
     InvalidInternalUnitScalarCallEvidence(MachineId),
+    InvalidUnitStructuralScalarFieldStoreEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),
     InternalCallOperationNotInProvenance {
         caller: MachineId,

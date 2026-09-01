@@ -49,6 +49,14 @@ pub enum AssignmentError {
         operation: OperationId,
     },
     UnitScalarCallSourceMismatch(ValueId),
+    StructuralScalarFieldStoreCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    StructuralScalarCallCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     IeeeFloatFmaCustodyMismatch {
         machine: MachineId,
         operation: OperationId,

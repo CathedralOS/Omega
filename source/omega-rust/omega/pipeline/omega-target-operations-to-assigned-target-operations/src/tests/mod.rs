@@ -6,3 +6,4 @@ mod expression_homes;
 mod native_callback;
 mod ranked_countdown;
 mod structural_calls;
+mod structural_scalar_unit;

@@ -1,16 +1,18 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
-    BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
+    AbstractResult, BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
     CompletionClaimSource, MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
     TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
-    MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
+    MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralFieldId, StructuralTypeId,
+    ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashRouteBucket, StructuralArgument, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    ClaimTransfer, CompletionReceipt, CrashRouteBucket, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 use crate::AssignedCallDestination;
@@ -136,6 +138,15 @@ pub enum AssignedUnitOperation {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    StructuralScalarFieldStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        destination_placement: ValuePlacement,
+        field_byte_offset: u32,
+        source: AssignedUnitScalarArgumentSource,
+    },
     IeeeFloatConstant {
         psi_operation: OperationId,
         result: ValueId,
@@ -174,6 +185,16 @@ pub enum AssignedUnitOperation {
         call_plan: CallPlan,
         result_home: AssignedUnitScalarHome,
         arguments: Vec<AssignedUnitScalarCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    StructuralScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        call_plan: CallPlan,
+        copies: Vec<AssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

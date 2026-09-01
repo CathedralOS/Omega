@@ -4,3 +4,4 @@ mod callback_custody;
 mod construction_prefix;
 mod custody_corruption;
 mod entry_settlement;
+mod structural_scalar_unit;

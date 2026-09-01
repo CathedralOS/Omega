@@ -210,6 +210,7 @@ fn emit_function(
     let mut internal_unit_scalar_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
+    let mut unit_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
     let mut x86_floating_control = None;
@@ -243,6 +244,7 @@ fn emit_function(
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
             semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
@@ -260,6 +262,7 @@ fn emit_function(
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
             semantic_code_attribution = emitted.semantic_code_attribution;
             unit_stack = Some(emitted.stack);
             unit_parameter_homes = emitted.parameter_homes;
@@ -448,13 +451,20 @@ fn emit_function(
             bytes
         }
         AssignedOperation::UnitBody(body) => {
-            let emitted = emit_unit_body(body, target, functions, native_callbacks)?;
+            let emitted = emit_unit_body(
+                body,
+                function.attachment,
+                target,
+                functions,
+                native_callbacks,
+            )?;
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
             x86_scalar_fma = emitted.x86_scalar_fma;
             x86_scalar_fma_occurrences = emitted.x86_scalar_fma_occurrences;
             x86_floating_control = emitted.x86_floating_control;
@@ -847,6 +857,7 @@ fn emit_function(
         internal_unit_scalar_calls,
         unit_scalar_homes,
         unit_integer_constants,
+        unit_structural_scalar_field_stores,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
@@ -1081,6 +1092,8 @@ pub enum EmissionError {
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,
     InvalidUnitScalarCallCustody(psi_core::OperationId),
+    InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
+    InvalidStructuralScalarCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,
     AggregatePlacementCoverageMismatch,
@@ -1174,3 +1187,7 @@ mod tests;
 #[cfg(test)]
 #[path = "tests/unit_scalar_calls.rs"]
 mod unit_scalar_call_tests;
+
+#[cfg(test)]
+#[path = "tests/structural_scalar_unit.rs"]
+mod unit_structural_scalar_tests;

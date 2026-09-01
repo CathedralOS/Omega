@@ -21,7 +21,7 @@ pub use model::{
 use omega_abstract_operations::AbstractOperationPlan;
 use omega_legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
 use omega_optimization_unit::PsiOptimizationUnit;
-use omega_target_operations::{TargetOperation, TargetOperationPlan};
+use omega_target_operations::{TargetOperation, TargetOperationPlan, TargetUnitOperation};
 
 use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;
@@ -32,6 +32,7 @@ pub fn legalize_target_operations(
     unit: &PsiOptimizationUnit,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     reject_ranked_countdown(target)?;
+    reject_attached_unit_structural_scalar(target)?;
     let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
@@ -57,6 +58,7 @@ pub fn validate_legalized_operations(
     plan: LegalizedOperationPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     reject_ranked_countdown(target)?;
+    reject_attached_unit_structural_scalar(target)?;
     let (decomposition_count, projected_structural_call_return) =
         replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
     let receipt = LegalizationValidationReceipt {
@@ -84,6 +86,35 @@ fn reject_ranked_countdown(target: &TargetOperationPlan) -> Result<(), Legalizat
         return Err(LegalizationError::RankedCountdownNotYetSelectable {
             machine: function.machine,
         });
+    }
+    Ok(())
+}
+
+fn reject_attached_unit_structural_scalar(
+    target: &TargetOperationPlan,
+) -> Result<(), LegalizationError> {
+    for function in &target.functions {
+        let TargetOperation::UnitBody(body) = &function.operation else {
+            continue;
+        };
+        if let Some(operation) = body
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                TargetUnitOperation::StructuralScalarFieldStore { psi_operation, .. }
+                | TargetUnitOperation::StructuralScalarCall { psi_operation, .. } => {
+                    Some(*psi_operation)
+                }
+                _ => None,
+            })
+        {
+            return Err(
+                LegalizationError::AttachedUnitStructuralScalarNotYetSelectable {
+                    machine: function.machine,
+                    operation,
+                },
+            );
+        }
     }
     Ok(())
 }

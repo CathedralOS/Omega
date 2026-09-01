@@ -383,6 +383,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -579,6 +580,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             internal_unit_scalar_calls: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -2213,6 +2215,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2313,7 +2316,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "9d84ffd05b7d722202462a1e9966011c192f373331c0fae3bcc74126f44a0ed6"
+        "44a55d6611b9ef1416b828a7d79f2eec4e859e59148161ed3c7cb5ce50161d7c"
     );
 
     let mut changed_plan = plan;
@@ -2499,6 +2502,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             internal_unit_scalar_calls: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
             machine: machine_id(1),
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -2678,6 +2682,7 @@ fn two_function_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(1),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2711,6 +2716,7 @@ fn two_function_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(2),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2904,6 +2910,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(1),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2937,6 +2944,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(2),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -4083,6 +4091,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(1),
                 attachment: Some(structural_type),
                 provenance: TerminalPsiProvenance {
@@ -4129,6 +4138,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(2),
                 attachment: Some(StructuralTypeId::new(2).expect("helper type")),
                 provenance: TerminalPsiProvenance {
@@ -4172,6 +4182,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 internal_unit_scalar_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_structural_scalar_field_stores: Vec::new(),
                 machine: machine_id(3),
                 attachment: None,
                 provenance: TerminalPsiProvenance {

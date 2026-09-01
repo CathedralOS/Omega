@@ -7,6 +7,7 @@
 mod foreign_call;
 mod operation;
 mod scalar_call;
+mod structural_scalar;
 
 use crate::assignment::shared::*;
 
@@ -36,6 +37,8 @@ pub(super) fn assign(
             };
             operation::assign(
                 function.machine,
+                function.attachment,
+                body,
                 operation,
                 &body.operations[..operation_index],
                 target,

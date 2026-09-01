@@ -59,3 +59,31 @@ This decision blocks only conversion of the validated abstract spill schedule
 into real memory operations and frame/probing code. Logical spill choice,
 abstract slot coloring, reload-value allocation, and non-authoritative frame
 planning may proceed without making a trap claim.
+
+## Q2 — Mutable structural-parameter native identity
+
+Omega structural parameters currently select a native ABI from their value
+shape without incorporating `MutableBorrow` or `WriteOnlyBorrow`. A small
+record can therefore arrive directly in registers and be staged into a local
+Unit-frame home. A verified field store updates that local carrier and an
+immediately following projected call observes it, but a caller or alias cannot
+observe the mutation after return. That bounded closed-use route is not a
+general realization of borrowed mutable identity.
+
+Choose the native identity contract for mutable structural parameters:
+
+- mutable and write-only structural borrows are always represented by an
+  indirect referent placement, while owned values retain shape-selected
+  by-value ABI treatment;
+- a checked copy-in/copy-out contract is added with explicit alias, partial
+  write, crash, and return-path semantics; or
+- Omega defines these structural parameters as invocation-local value
+  carriers despite their borrow spelling, which would require reconciling the
+  language-level meaning of mutation and aliases.
+
+The first option is the proposed direction. Treating a staged copy as though it
+were the referent is tempting but wrong; ordinary post-return or concurrent
+alias observation would distinguish them. This decision blocks general native
+structural-field stores and writeback. It does not block the explicitly bounded
+direct named-dynamic fixture whose stored value is consumed by the following
+projected call before the Unit returns.
