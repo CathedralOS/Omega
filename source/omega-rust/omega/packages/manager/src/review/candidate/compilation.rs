@@ -6,6 +6,10 @@ use super::ledger::{
     retained_obligation_ledger_bytes,
 };
 use super::rows::ReviewOnlyCanonicalRow;
+use super::semantic_bindings::{
+    ConsumerScopedSemanticBindingReviewInput, candidate_semantic_binding_inputs,
+    semantic_bindings_by_consumer,
+};
 use super::session::ReviewBuildSession;
 use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
@@ -15,9 +19,7 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::resolution::{package_compilation_inputs_for, reachable_package_keys};
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
-use omega_package_compilation::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputError,
-};
+use omega_package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
 use omega_package_evidence::ledger::{
     ordinary_package_obligation_ledger_from_compiler_rows,
     ordinary_package_obligation_results_from_projection,
@@ -26,33 +28,8 @@ use omega_package_evidence::ledger::{
 use omega_package_evidence::project_checked_package_review;
 use psi_checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use psi_diagnostics::Diagnostic;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
-
-/// One consumer-scoped semantic-binding policy input for candidate review.
-///
-/// The consumer is an exact package key in the resolver-owned closure. The
-/// binding is policy authority supplied to that consumer's compilation; this
-/// input is not proof of an audit, an audit receipt, or package admission.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConsumerScopedSemanticBindingReviewInput {
-    consumer: PackageKey,
-    binding: AcceptedSemanticBinding,
-}
-
-impl ConsumerScopedSemanticBindingReviewInput {
-    pub fn new(consumer: PackageKey, binding: AcceptedSemanticBinding) -> Self {
-        Self { consumer, binding }
-    }
-
-    pub fn consumer(&self) -> &PackageKey {
-        &self.consumer
-    }
-
-    pub fn binding(&self) -> &AcceptedSemanticBinding {
-        &self.binding
-    }
-}
 
 /// Compile every package in an exact resolver-owned closure and project its
 /// review material locally.
@@ -67,6 +44,29 @@ pub fn compile_resolved_package_reviews(
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     compile_resolved_package_reviews_with_semantic_bindings(closure, target, build_root, &[])
+}
+
+/// Compile one install/update candidate through semantic-binding discovery.
+///
+/// The preliminary pass can only propose exact package-owned surfaces. Any
+/// proposal is recompiled as consumer-scoped policy input so the compiler must
+/// consume it and the final review exposes every resulting policy blocker.
+pub fn compile_resolved_package_candidate_reviews(
+    closure: &ResolvedPackageSourceClosure,
+    target: &str,
+    build_root: &Path,
+) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    let preliminary = compile_resolved_package_reviews(closure, target, build_root)?;
+    let semantic_binding_inputs = candidate_semantic_binding_inputs(&preliminary)?;
+    if semantic_binding_inputs.is_empty() {
+        return Ok(preliminary);
+    }
+    compile_resolved_package_reviews_with_semantic_bindings(
+        closure,
+        target,
+        build_root,
+        &semantic_binding_inputs,
+    )
 }
 
 /// Compile candidate reviews with explicit consumer-policy semantic bindings.
@@ -93,40 +93,6 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
         &semantic_bindings_by_consumer,
     );
     build_session.dispose(result)
-}
-
-fn semantic_bindings_by_consumer(
-    closure: &ResolvedPackageSourceClosure,
-    inputs: &[ConsumerScopedSemanticBindingReviewInput],
-) -> Result<BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>, CompileResolvedPackageReviewsError>
-{
-    let mut seen_roles = BTreeSet::<(PackageKey, AcceptedSemanticBindingRole)>::new();
-    let mut bindings_by_consumer = BTreeMap::<PackageKey, Vec<AcceptedSemanticBinding>>::new();
-    for input in inputs {
-        let consumer = input.consumer();
-        let role = input.binding().role();
-        if closure.custody(consumer).is_none() {
-            return Err(
-                CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent {
-                    consumer: consumer.clone(),
-                    role,
-                },
-            );
-        }
-        if !seen_roles.insert((consumer.clone(), role)) {
-            return Err(
-                CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole {
-                    consumer: consumer.clone(),
-                    role,
-                },
-            );
-        }
-        bindings_by_consumer
-            .entry(consumer.clone())
-            .or_default()
-            .push(input.binding().clone());
-    }
-    Ok(bindings_by_consumer)
 }
 
 fn compile_resolved_package_reviews_in_session(

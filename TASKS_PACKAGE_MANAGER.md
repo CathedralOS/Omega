@@ -435,9 +435,13 @@ explicitly.
   compiler-resolved row after fresh policy accepts all resulting blockers.
   Missing consumers, duplicate consumer roles, foreign provider packages,
   stale schemas, stale plans, ambiguous matches, and unused bindings reject.
-  Remaining sequencing is to derive the candidate binding inside the
-  install/update review transaction and then remove the package-aware
-  Toolchain Console fallback and bundled std mount atomically.
+  The install/update candidate entrance now owns discovery: it performs a
+  non-authoritative preliminary review, proposes only the supported exact
+  package-owned Console role, and recompiles with that consumer-scoped row.
+  The compiler remains the exact validator, and only the final bound review
+  reaches conflict and root-policy handling. Remaining sequencing is to remove
+  the package-aware Toolchain Console fallback and bundled std mount
+  atomically.
 
   The remaining stale std-specific consumers are the legacy Toolchain Console
   lane and mount, UEFI physical-entry recognition, FilesystemHost dangerous-
@@ -450,6 +454,15 @@ explicitly.
   package-aware `omega::language::std` mount and Toolchain Console lane
   atomically after the real ordinary-std dependency path supplies this binding.
   This is engineering sequencing, not an owner question.
+
+  Before that atomic removal, make the std source tree reviewable as an
+  ordinary library, replace its bundled self-imports, and migrate package-aware
+  product, parser, sample, and fixture consumers to explicit dependencies.
+  Separate target-independent Process risk recognition from the Linux-only
+  exit-group realization role; then add exact Filesystem and UEFI physical-
+  contract bindings for their real consumers. Accepted-lock replay must feed
+  those admitted bindings into normal package-aware compilation. Standalone
+  compilation may retain its bundled compatibility path during this migration.
 
 - [ ] Complete the remaining generic exact-application work for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic
