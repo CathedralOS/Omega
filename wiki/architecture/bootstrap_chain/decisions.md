@@ -490,7 +490,14 @@ slice, and literal-fixed-array shells in record fields and case payloads.
 Lifetime-bearing templates and instances may form finite acyclic field or
 case-payload dependency graphs through those same shells. Every synthesized
 definition retains the exact erased binder roster, while every internal and
-ordinary edge retains exact owner-local lifetime arity and ordering.
+ordinary edge retains exact owner-local lifetime arity and ordering. An
+already-validated lifetime-bearing local closed instance may also be a Type
+argument to a later local instance when it forwards that later template's
+complete lifetime application positionally. Concrete use-site lifetime names
+are rebound to the later template's own exact binder roster in the retained
+origin and substituted members, so nested chains share one stable synthesized
+identity without invented binders. Permuted, subset, or extra lifetime routing
+remains outside this exact cohort.
 Scalar const binders retain exact compiler-owned signed/unsigned integer,
 address, or Boolean carriers. Closed integer arguments use canonical in-range
 decimal leaves; already-normalized expressions share that identity. Closed
@@ -518,11 +525,12 @@ reachability from ordinary generated data, and common source ownership. Base-
 owned applications separately retain their exact structural generic nodes
 without local synthesis. The compiler normalizes a per-unit clone before
 seeded resolution but retains the raw parsed unit for fallback. Cross-unit
-synthesis, lifetime-bearing local instances used as Type arguments, broader or
-custom-canonical structured const applications, constrained applications,
-parameter-bearing constrained/dynamic/other composite shells, facts,
-quotients, zero gates, attached generated methods, and non-data shapes remain
-on the raw full-rebuild path. General seeded typing and deletion of that fallback remain open. The source-
+synthesis, permuted/subset/extra lifetime routing through extension-local Type
+arguments, broader or custom-canonical structured const applications,
+constrained applications, parameter-bearing constrained/dynamic/other composite
+shells, facts, quotients, zero gates, attached generated methods, and non-data
+shapes remain on the raw full-rebuild path. General seeded typing and deletion
+of that fallback remain open. The source-
 side prerequisite is now explicit: own generated outputs are parsed once into
 a retained extension-only syntax carrier bound to the exact base source frontier, unit
 roots, bytes, and custody. The carrier feeds the unchanged transitional
