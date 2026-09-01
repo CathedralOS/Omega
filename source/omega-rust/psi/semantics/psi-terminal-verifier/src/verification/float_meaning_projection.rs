@@ -6,7 +6,8 @@ use psi_numerics::{
     float_semantics::{FloatFormat, FloatMeaning},
 };
 use psi_terminal::{
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource, ProofOnlyValueType,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+    FloatProjectionContractIdentity, ProofOnlyValueType,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,7 +19,21 @@ pub struct ReconstructedFloatMeaningProjection {
     /// source coordinates cannot populate this field.
     pub literal_meaning: Option<FloatMeaning>,
     pub operation: FloatMeaningProjectionOperation,
+    pub contract: FloatProjectionContractIdentity,
     pub rule: FloatProjectionRule,
+}
+
+fn terminal_contract_identity(
+    operation: FloatProjectionOperation,
+) -> FloatProjectionContractIdentity {
+    let contract = operation.contract_identity();
+    FloatProjectionContractIdentity {
+        format: contract.format,
+        operation: contract.operation,
+        declaration: contract.declaration,
+        catalog_version: contract.catalog_version,
+        commitment: contract.commitment,
+    }
 }
 
 /// Reconstruct one projection only from source-independent Terminal fields and
@@ -34,6 +49,10 @@ pub fn reconstruct_float_meaning_projection(
         FloatMeaningProjectionOperation::Meaning64 => FloatProjectionOperation::Meaning64,
     };
     let rule = catalog_operation.rule();
+    let expected_contract = terminal_contract_identity(catalog_operation);
+    if projection.contract != expected_contract {
+        return Err(FloatMeaningProjectionVerificationError::ContractIdentityMismatch);
+    }
     let source_format = match projection.source.format() {
         IeeeFloatFormat::Binary32 => FloatFormat::BINARY32,
         IeeeFloatFormat::Binary64 => FloatFormat::BINARY64,
@@ -63,6 +82,7 @@ pub fn reconstruct_float_meaning_projection(
         source_format: projection.source.format(),
         literal_meaning,
         operation: projection.operation,
+        contract: projection.contract,
         rule,
     })
 }
@@ -72,6 +92,8 @@ pub enum FloatMeaningProjectionVerificationError {
     ResultTypeMismatch,
     SourceFormatMismatch,
     IncompleteProjectionLaw,
+    ContractIdentityMismatch,
+    EqualityCarrierMismatch,
 }
 
 #[cfg(test)]
@@ -93,6 +115,7 @@ mod tests {
                 format: IeeeFloatFormat::Binary32,
             }),
             operation: FloatMeaningProjectionOperation::Meaning32,
+            contract: terminal_contract_identity(FloatProjectionOperation::Meaning32),
         }
     }
 
@@ -117,7 +140,7 @@ mod tests {
         tampered.operation = FloatMeaningProjectionOperation::Meaning64;
         assert_eq!(
             reconstruct_float_meaning_projection(&tampered),
-            Err(FloatMeaningProjectionVerificationError::SourceFormatMismatch)
+            Err(FloatMeaningProjectionVerificationError::ContractIdentityMismatch)
         );
 
         tampered = projection();

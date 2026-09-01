@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "psi_numerics"
 path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10"

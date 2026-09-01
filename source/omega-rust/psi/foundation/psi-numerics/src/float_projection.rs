@@ -5,6 +5,7 @@
 //! retained by the public proof carrier.
 
 use crate::float_semantics::{FloatFormat, FloatMeaning};
+use sha2::{Digest, Sha256};
 
 /// Toolchain source that owns the closed public float-projection declarations.
 /// A declaration with the same path and signature in any other source has no
@@ -12,6 +13,24 @@ use crate::float_semantics::{FloatFormat, FloatMeaning};
 pub const FLOAT_PROJECTION_CORE_SOURCE: &str = "float_operations.omg";
 /// Toolchain source that owns the proof-only projection result carrier.
 pub const FLOAT_MEANING_CORE_SOURCE: &str = "float_meaning.omg";
+/// Immutable version of the closed numeric laws consumed by D40 projection
+/// reconstruction. This is semantic identity, not a display or codec version.
+pub const FLOAT_PROJECTION_CATALOG_VERSION: u16 = 1;
+pub const FLOAT_MEANING_RESULT_IDENTITY: &str = "toolchain::FloatMeaning";
+const FLOAT_PROJECTION_CONTRACT_DOMAIN: &[u8] = b"psi-float-projection-contract\0";
+
+/// Source-free identity of one sealed toolchain projection declaration and
+/// the numeric catalog against which its complete signature was checked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FloatProjectionContractIdentity {
+    pub format: u16,
+    pub operation: u8,
+    /// Rooted-checker declaration tag for the complete recognized operation,
+    /// toolchain ownership, parameter shape, and FloatMeaning result contract.
+    pub declaration: u8,
+    pub catalog_version: u16,
+    pub commitment: [u8; 32],
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FloatProjectionOperation {
@@ -29,6 +48,42 @@ pub struct FloatProjectionRule {
 }
 
 impl FloatProjectionOperation {
+    pub fn contract_identity(self) -> FloatProjectionContractIdentity {
+        let (format, operation, declaration, source_carrier) = match self {
+            Self::Meaning32 => (32_u16, 1_u8, 1_u8, "f32"),
+            Self::Meaning64 => (64_u16, 2_u8, 2_u8, "f64"),
+        };
+        let operator_identity = format!(
+            "toolchain::{}::{}",
+            self.source_namespace(),
+            self.source_name(),
+        );
+        let mut hasher = Sha256::new();
+        hasher.update(FLOAT_PROJECTION_CONTRACT_DOMAIN);
+        hasher.update(format.to_le_bytes());
+        hasher.update([operation]);
+        hasher.update([declaration]);
+        hasher.update(FLOAT_PROJECTION_CATALOG_VERSION.to_le_bytes());
+        for owner in [
+            FLOAT_PROJECTION_CORE_SOURCE,
+            FLOAT_MEANING_CORE_SOURCE,
+            operator_identity.as_str(),
+            "private-contract-free-ordinary-tokenless-one-parameter",
+            source_carrier,
+            FLOAT_MEANING_RESULT_IDENTITY,
+        ] {
+            hasher.update((owner.len() as u64).to_le_bytes());
+            hasher.update(owner.as_bytes());
+        }
+        FloatProjectionContractIdentity {
+            format,
+            operation,
+            declaration,
+            catalog_version: FLOAT_PROJECTION_CATALOG_VERSION,
+            commitment: hasher.finalize().into(),
+        }
+    }
+
     pub const fn source_namespace(self) -> &'static str {
         "Float"
     }
@@ -121,6 +176,26 @@ mod tests {
         assert_eq!(
             FloatProjectionOperation::from_source_identity("Float", "meaning"),
             None,
+        );
+        assert_ne!(
+            FloatProjectionOperation::Meaning32.contract_identity(),
+            FloatProjectionOperation::Meaning64.contract_identity(),
+        );
+        assert_eq!(
+            FloatProjectionOperation::Meaning32
+                .contract_identity()
+                .catalog_version,
+            FLOAT_PROJECTION_CATALOG_VERSION,
+        );
+        let binary32 = FloatProjectionOperation::Meaning32.contract_identity();
+        assert_eq!(
+            (binary32.format, binary32.operation, binary32.declaration),
+            (32, 1, 1),
+        );
+        let binary64 = FloatProjectionOperation::Meaning64.contract_identity();
+        assert_eq!(
+            (binary64.format, binary64.operation, binary64.declaration),
+            (64, 2, 2),
         );
     }
 

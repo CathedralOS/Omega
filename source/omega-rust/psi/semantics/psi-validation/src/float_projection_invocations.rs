@@ -5,6 +5,7 @@
 //! them with dense, plan-local identities.
 
 use psi_diagnostics::Diagnostic;
+use psi_numerics::float_projection::FloatProjectionContractIdentity;
 use psi_numerics::float_projection::FloatProjectionOperation;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
@@ -22,6 +23,7 @@ pub struct ValidatedFloatMeaningProjectionInvocation {
     pub selected_operator_symbol: SymbolHandle,
     pub source_primitive: PrimitiveType,
     pub operation: FloatProjectionOperation,
+    pub contract: FloatProjectionContractIdentity,
 }
 
 /// One validated proof-position equality between two exact projection calls.
@@ -35,17 +37,23 @@ pub struct ValidatedFloatMeaningEqualityProposition {
 fn exact_projection_operation(
     program: &TypedTrees,
     call: &TableCallExpression,
-) -> Option<(SymbolHandle, PrimitiveType, FloatProjectionOperation)> {
+) -> Option<(
+    SymbolHandle,
+    PrimitiveType,
+    FloatProjectionOperation,
+    FloatProjectionContractIdentity,
+)> {
     let operator = resolve_projection_call(program, call)?;
     let [namespace, name] = program.operator_path_members(operator.name) else {
         return None;
     };
     let operation =
         FloatProjectionOperation::from_source_identity(namespace.as_str(), name.as_str())?;
-    let primitive = crate::float_projection_bindings::exact_toolchain_float_projection_primitive(
-        program, operator, operation,
-    )?;
-    Some((operator.symbol, primitive, operation))
+    let (primitive, contract) =
+        crate::float_projection_bindings::exact_toolchain_float_projection_contract(
+            program, operator, operation,
+        )?;
+    Some((operator.symbol, primitive, operation, contract))
 }
 
 fn requested_projection_operation(
@@ -114,14 +122,23 @@ fn walk_expression(
         ExpressionNode::Binary(binary) => {
             walk_expression(program, binary.left, visited, projections, equalities)?;
             walk_expression(program, binary.right, visited, projections, equalities)?;
+            let float_meaning_operands = (|| {
+                let left = projections
+                    .iter()
+                    .find(|projection| projection.invocation == binary.left)?;
+                let right = projections
+                    .iter()
+                    .find(|projection| projection.invocation == binary.right)?;
+                Some((left, right))
+            })();
             if binary.operator == BinaryOperator::Equal
-                && projections
-                    .iter()
-                    .any(|projection| projection.invocation == binary.left)
-                && projections
-                    .iter()
-                    .any(|projection| projection.invocation == binary.right)
+                && let Some((left, right)) = float_meaning_operands
             {
+                if left.operation != right.operation || left.contract != right.contract {
+                    return Err(Diagnostic::error(
+                        "FloatMeaningEqual requires two projections with the same exact format and projection contract",
+                    ));
+                }
                 equalities.push(ValidatedFloatMeaningEqualityProposition {
                     expression,
                     left: binary.left,
@@ -138,7 +155,7 @@ fn walk_expression(
                 walk_expression(program, *argument, visited, projections, equalities)?;
             }
             if let Some(requested_operation) = requested_projection_operation(program, call) {
-                let Some((selected_operator_symbol, source_primitive, operation)) =
+                let Some((selected_operator_symbol, source_primitive, operation, contract)) =
                     exact_projection_operation(program, call)
                 else {
                     return Err(Diagnostic::error(
@@ -175,6 +192,7 @@ fn walk_expression(
                     selected_operator_symbol,
                     source_primitive,
                     operation,
+                    contract,
                 });
             }
         }

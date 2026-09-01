@@ -1699,9 +1699,13 @@ resolved symbol has the exact toolchain-owned `Float::meaning32` or
 `float_operations.omg` source, with the exact toolchain `FloatMeaning` result
 owned by `float_meaning.omg`. Checked binding independently repeats these
 joins. A local same-path, same-signature operator or result lookalike therefore
-cannot mint facts or receive already validated facts. Carrying the exact
-declaration/catalog tuple into artifact-relative proof ownership remains
-separate engineering.
+cannot mint facts or receive already validated facts. The checked and Terminal
+projection rows now carry the rooted-checker tuple `(format, operation,
+declaration, catalog-version)` and a domain-separated commitment to the exact
+owners, hermetic identity, private contract-free ordinary signature, source
+carrier, and nominal result. Independent replay rejects component or
+commitment drift. Artifact-aware contract/result, Terminal-value, and
+structural-leaf source coordinates remain separate engineering.
 
 The compiler canonicalizes equal tuples to one proof value before equality is
 formed. Multiple authored occurrences may therefore reference the same
@@ -1717,6 +1721,9 @@ Projection authority binds both the exact compiler-recognized core
 numeric-catalog identity/version that realizes its meaning. The verifier
 reconstructs that join. Matching namespace, spelling, signature, format label,
 fingerprint, or a locally declared lookalike grants no projection semantics.
+The two current closed descriptors are `(32, 1, 1, 1)` and `(64, 2, 2, 1)`;
+`FloatMeaningEqual` additionally requires both operands to carry the same
+format, operation, and exact contract descriptor.
 
 These terms and propositions are PCC metadata. They are erased before runtime
 and add no runtime `FloatMeaning` object, conversion, comparison, branch, or
