@@ -70,6 +70,26 @@ pub enum StraightLineIntegerEqualImmediateTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerLessThanImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceIntegerType,
+    SourceConstantOutsideType,
+    SourceLessThanOperands,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineIntegerImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,
