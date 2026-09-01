@@ -58,10 +58,14 @@ omega-effects = { path = "../../source/omega-rust/omega/representations/omega-ef
 
 [dev-dependencies]
 omega-effects = { path = "../../source/omega-rust/omega/representations/omega-effects" }
+omega-isa-aarch64 = { path = "../../source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../source/omega-rust/omega/backend/instruction_set_architectures/omega-isa-x86_64" }
 omega-optimization-run-to-abstract-operations = { path = "../../source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations" }
 omega-optimization-core = { path = "../../source/omega-rust/omega/representations/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../../source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline" }
 omega-psi-optimizer = { path = "../../source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer" }
+omega-regalloc = { path = "../../source/omega-rust/omega/pipeline/optimization/omega-regalloc" }
+omega-register-model = { path = "../../source/omega-rust/omega/representations/omega-register-model" }
 omega-optimization-unit = { path = "../../source/omega-rust/omega/representations/omega-optimization-unit" }
 omega-optimization-validation = { path = "../../source/omega-rust/omega/pipeline/optimization/omega-optimization-validation" }
 omega-selected-instructions = { path = "../../source/omega-rust/omega/representations/omega-selected-instructions" }
@@ -70,3 +74,4 @@ psi-symbol-resolved-trees-to-typed-trees = { path = "../../source/omega-rust/psi
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../source/omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
 psi-tokens-to-syntax-trees = { path = "../../source/omega-rust/psi/pipeline/psi-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees" }
+sha2 = "0.10.9"

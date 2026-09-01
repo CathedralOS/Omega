@@ -684,7 +684,19 @@ unchecked rewrite or opt into lossy floating-point semantics.
   remaining operational axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
-- [ ] Add randomized valid-Psi and selected-machine differential corpora.
+- [x] Add randomized valid-Psi and selected-machine differential corpora. The
+  versioned V1 corpus deterministically generates 64 target-paired records from
+  one fixed seed, verifies its checked-in shape and record digest, independently
+  interprets both Boolean paths of every valid Terminal-Psi artifact, and runs
+  each lane twice while comparing optimizer identities, pass manifests,
+  commits, ledgers, pre/post-physical manifests, custody receipts, selected
+  bytes, and resolved layouts. The Psi lane exercises exact wrapping-add SCCP;
+  the separately interpreted selected-machine lane exercises x86-64
+  zero-extended `MOV r32, imm32` and AArch64 shortest `MOVN` materialization
+  with independent ISA decoders/validators. `OMEGA_OPTIMIZER_CORPUS_CASE=<n>`
+  replays one fully printed record. This separation is explicit because folded
+  SCCP source provenance is not yet an admitted selected-lowering constant
+  definition; the corpus does not claim an unsupported composed carrier.
 - [ ] Add supported target/OS allocator, encoding, unwind, object, and callable
   matrices.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.

@@ -1,0 +1,9 @@
+format=omega.optimizer-corpus.v1
+generator=omega-test-lcg64-v1
+seed=0x4f4d4547415f4f50
+case_count=64
+psi_shape=boolean_conditional_identical_wrapping_add_leaves
+selected_machine_shape=boolean_conditional_identical_immediate_leaves
+x86_lane=nonzero_zero_extended_u32
+aarch64_lane=single_complemented_u16_chunk
+records_sha256=f36d2c6940ba6819e919c523358699ac6034c0462ec047e4a655bc77c98e8e42

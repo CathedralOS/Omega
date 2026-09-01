@@ -82,6 +82,14 @@ owners. The optimized semantic program-entry/wrapper subtrees and complete
 selected/assigned representation crates are governed alongside the lowering
 stages that consume them.
 
+The randomized differential corpus follows the same entrance contract outside
+the production crates. `tests/native-differential/tests/optimizer_corpus.rs`
+owns admission and replay dispatch in one small file, then points directly to
+the adjacent `optimizer_corpus/` leaves: `generator.rs`, `manifest.rs`,
+`psi.rs`, and `selected_machine.rs`. The checked-in V1 corpus identity lives
+under `tests/native-differential/corpora/optimizer/v1/`; it is data custody, not
+a second schedule or rule registry.
+
 `omega-image-emission/ranked_u32_countdown` is deliberately outside this
 guard. It independently replays a language-level ranked execution carrier but
 owns no optimization selection, catalog, proposal, or optimized stage result.
