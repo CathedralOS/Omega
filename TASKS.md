@@ -9399,9 +9399,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to twenty-five unary, binary, primitive-cast,
+  call producers in up to twenty-six unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  twenty-sixth direct scalar shell remains fenced; aggregate fields and projected
+  twenty-seventh direct scalar shell remains fenced; aggregate fields and projected
   concrete record, selected-case, or fixed-array literals retain their
   separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9445,7 +9445,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a twenty-sixth direct scalar computed shell,
+  aggregate/literal computed shell, a twenty-seventh direct scalar computed shell,
   other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
@@ -10019,11 +10019,22 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-seventeen root and exact sixteen-operation/one-edge fuel ordinals.
   Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
-  artifact mutations reject; `[T; 18]` and wider prefixes remain fail closed
+  artifact mutations reject; other prefix drift remains fail closed
+  without runtime liveness state or a loop.
+
+  The next bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 18]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]` and ordinary
+  cleanup `[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-eighteen root and exact seventeen-operation/one-edge fuel ordinals.
+  Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
+  artifact mutations reject; `[T; 19]` and wider prefixes remain fail closed
   without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 17]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 18]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
