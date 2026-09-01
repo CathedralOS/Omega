@@ -12,9 +12,7 @@ use crate::rules::peephole_matching::{
 };
 
 const EMPTY: UnitSetPattern = UnitSetPattern::EMPTY;
-const X30: UnitSetPattern = UnitSetPattern::named(&["x30"]);
-const PC: UnitSetPattern = UnitSetPattern::named(&["pc"]);
-
+const NZCV: UnitSetPattern = UnitSetPattern::named(&["nzcv"]);
 const SOURCE: OperandCoordinate = OperandCoordinate {
     instruction: PairInstruction::First,
     operand: 0,
@@ -23,17 +21,15 @@ const DESTINATION: OperandCoordinate = OperandCoordinate {
     instruction: PairInstruction::First,
     operand: 1,
 };
-const RETURNED: OperandCoordinate = OperandCoordinate {
+const COMPARED: OperandCoordinate = OperandCoordinate {
     instruction: PairInstruction::Second,
     operand: 0,
 };
-
 const X_REGISTER: ViewPattern = ViewPattern::IndexedAllocatable {
     prefix: 'x',
     maximum_index: 30,
     bits: 64,
 };
-
 const COPY_OPERANDS: [OperandPattern; 2] = [
     OperandPattern {
         operand: 0,
@@ -56,30 +52,25 @@ const COPY_OPERANDS: [OperandPattern; 2] = [
         early_clobber: false,
     },
 ];
-
-const RETURN_OPERANDS: [OperandPattern; 1] = [OperandPattern {
+const COMPARE_OPERANDS: [OperandPattern; 1] = [OperandPattern {
     operand: 0,
     access: RegisterOperandAccess::Use,
     read: OperandReadPattern::StorageUnits,
     write: OperandWritePattern::Empty,
-    view: ViewPattern::Named {
-        name: "x0",
-        bits: 64,
-    },
-    fixed_view: FixedViewPattern::Named("x0"),
+    view: X_REGISTER,
+    fixed_view: FixedViewPattern::None,
     tied_to: None,
     early_clobber: false,
 }];
-
 const RELATIONS: [OperandRelation; 2] = [
     OperandRelation::SamePhysicalViewAndStorageUnits(SOURCE, DESTINATION),
-    OperandRelation::SameVirtualRegister(DESTINATION, RETURNED),
+    OperandRelation::SameVirtualRegister(DESTINATION, COMPARED),
 ];
 
-pub(crate) const AARCH64_SAME_VIEW_COPY_BEFORE_RETURN_V1: InstructionPairPattern =
+pub(crate) const AARCH64_SAME_VIEW_COPY_BEFORE_COMPARE_ZERO_V1: InstructionPairPattern =
     InstructionPairPattern::new(
-        InstructionPairPatternId::Aarch64SameViewCopyI64BeforeReturnV1,
-        InstructionPairTopology::BodyTailAndTerminatorV1,
+        InstructionPairPatternId::Aarch64SameViewCopyI64BeforeCompareZeroV1,
+        InstructionPairTopology::AdjacentBodyInstructionsV1,
         InstructionPattern {
             semantic: MachineSemanticKind::CopyI64,
             selected_operand_count: 2,
@@ -97,23 +88,23 @@ pub(crate) const AARCH64_SAME_VIEW_COPY_BEFORE_RETURN_V1: InstructionPairPattern
             operands: &COPY_OPERANDS,
         },
         InstructionPattern {
-            semantic: MachineSemanticKind::ReturnI64,
+            semantic: MachineSemanticKind::CompareI64Zero,
             selected_operand_count: 1,
-            family: MachineAlternativeFamily::ReturnI64,
+            family: MachineAlternativeFamily::CompareI64Zero,
             variant: 0,
-            external_reads: &[],
+            external_reads: &[0],
             external_writes: &[],
-            implicit_uses: X30,
-            implicit_defs: PC,
+            implicit_uses: EMPTY,
+            implicit_defs: NZCV,
             implicit_clobbers: EMPTY,
             memory: MachineEncodedMemoryEffect::NoneV1,
             stack: MachineEncodedStackEffect::UnchangedV1,
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            control: ControlPattern::ReturnIndirectNamed("x30"),
-            operands: &RETURN_OPERANDS,
+            trap: MachineEncodedTrapBehavior::NeverV1,
+            control: ControlPattern::Exact(MachineEncodedControlEffect::FallThroughV1),
+            operands: &COMPARE_OPERANDS,
         },
         EMPTY,
         EMPTY,
         &RELATIONS,
-        &[RETURNED],
+        &[COMPARED],
     );

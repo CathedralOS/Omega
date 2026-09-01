@@ -1,8 +1,9 @@
 //! Optimizer module role: executable entrance. Declarative symbolic peephole matching.
 //!
-//! A rule supplies a [`TerminalPairPattern`]. This entrance resolves named
+//! A rule supplies a bounded [`InstructionPairPattern`]. This entrance resolves named
 //! register sets, matches each instruction footprint, and then checks the
-//! cross-instruction liveness contract. It proposes matches only; independent
+//! cross-instruction liveness contract for the descriptor's exact topology. It
+//! proposes matches only; independent
 //! rule validators retain replay authority.
 
 mod instruction;
@@ -12,10 +13,10 @@ mod registers;
 mod relations;
 
 pub(crate) use model::{
-    ControlPattern, FixedViewPattern, InstructionPattern, MatchedPhysicalRead, OperandCoordinate,
-    OperandPattern, OperandReadPattern, OperandRelation, OperandWritePattern, PairInstruction,
-    TerminalPairMatch, TerminalPairMatchError, TerminalPairPattern, TerminalPairPatternId,
-    UnitSetPattern, ViewPattern,
+    ControlPattern, FixedViewPattern, InstructionPairMatch, InstructionPairMatchError,
+    InstructionPairPattern, InstructionPairPatternId, InstructionPairTopology, InstructionPattern,
+    MatchedPhysicalRead, OperandCoordinate, OperandPattern, OperandReadPattern, OperandRelation,
+    OperandWritePattern, PairInstruction, UnitSetPattern, ViewPattern,
 };
 
 use omega_regalloc::{BlockLiveness, InstructionLiveness};
@@ -25,8 +26,9 @@ use omega_selected_instructions::SelectedInstruction;
 use crate::PostAllocationMachineInstruction;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn match_terminal_pair(
-    pattern: &TerminalPairPattern,
+pub(crate) fn match_instruction_pair(
+    pattern: &InstructionPairPattern,
+    topology: InstructionPairTopology,
     first: &SelectedInstruction,
     second: &SelectedInstruction,
     machine_first: &PostAllocationMachineInstruction,
@@ -35,7 +37,10 @@ pub(crate) fn match_terminal_pair(
     live_second: &InstructionLiveness,
     live_block: &BlockLiveness,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<TerminalPairMatch, TerminalPairMatchError> {
+) -> Result<InstructionPairMatch, InstructionPairMatchError> {
+    if pattern.topology() != topology {
+        return Err(InstructionPairMatchError::Topology);
+    }
     let named = registers::resolve_named_sets(pattern, physical)?;
     let first_reads = instruction::match_instruction(
         pattern.first(),
@@ -65,7 +70,7 @@ pub(crate) fn match_terminal_pair(
         &first_reads,
         &second_reads,
     )?;
-    Ok(TerminalPairMatch::new(
+    Ok(InstructionPairMatch::new(
         first_reads,
         second_reads,
         failed_relations,

@@ -25,7 +25,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
-        family: "declarative terminal-pair matching",
+        family: "declarative bounded instruction-pair matching",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/mod.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/model.rs",
@@ -34,6 +34,20 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/liveness.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/peephole_matching/relations.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/pattern.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/pattern.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "AArch64 non-terminal same-view copy elision",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/pattern.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/validate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/validate/roots.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/validate/footprints.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/validate/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/elide_same_view_copy_before_compare_zero/tests.rs",
         ],
     },
     SemanticLadder {

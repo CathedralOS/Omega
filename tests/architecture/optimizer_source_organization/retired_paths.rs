@@ -247,11 +247,11 @@ pub(crate) fn check(audit: &mut Audit) {
     let cbnz_validate = format!("{cbnz_root}/validate.rs");
     match fs::read_to_string(repository.join(&cbnz_compute)) {
         Ok(contents)
-            if !contents.contains("match_terminal_pair")
-                || !contents.contains("AARCH64_CBNZ_TERMINAL_PAIR_V1") =>
+            if !contents.contains("match_instruction_pair")
+                || !contents.contains("AARCH64_CBNZ_INSTRUCTION_PAIR_V1") =>
         {
             violations.insert(format!(
-                "CBNZ producer no longer enters through its declarative terminal-pair contract: {cbnz_compute}"
+                "CBNZ producer no longer enters through its declarative instruction-pair contract: {cbnz_compute}"
             ));
         }
         Ok(_) => {}
@@ -261,7 +261,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
     match fs::read_to_string(repository.join(&cbnz_validate)) {
         Ok(contents)
-            if contents.contains("match_terminal_pair")
+            if contents.contains("match_instruction_pair")
                 || contents.contains("peephole_matching")
                 || contents.contains("compute::") =>
         {

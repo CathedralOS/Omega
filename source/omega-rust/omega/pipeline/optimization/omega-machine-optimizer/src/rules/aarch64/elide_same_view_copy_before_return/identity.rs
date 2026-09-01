@@ -6,8 +6,8 @@ use crate::{
     QualifiedPhysicalOperand,
 };
 
-const IDENTITY_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-before-return-elision.v1\0";
-const REVISION_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-before-return-elision-revision.v1\0";
+const IDENTITY_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-elision.v2\0";
+const REVISION_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-elision-revision.v2\0";
 
 pub fn aarch64_same_view_copy_elision_identity(
     plan: &Aarch64SameViewCopyElisionPlan,
@@ -44,7 +44,12 @@ pub(super) fn encode_content(plan: &Aarch64SameViewCopyElisionPlan) -> Vec<u8> {
     bytes.extend_from_slice(&plan.liveness.bytes());
     encode_target(&mut bytes, plan.target);
     bytes.extend_from_slice(&plan.physical_register_model.bytes());
-    bytes.push(0);
+    bytes.push(match plan.policy {
+        crate::Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeReturnV1 => 0,
+        crate::Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 => {
+            1
+        }
+    });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     bytes.extend_from_slice(&plan.output_revision.bytes());
@@ -55,11 +60,11 @@ pub(super) fn encode_content(plan: &Aarch64SameViewCopyElisionPlan) -> Vec<u8> {
         bytes.extend_from_slice(&attempt.machine.get().to_le_bytes());
         bytes.extend_from_slice(&attempt.block.0.to_le_bytes());
         bytes.extend_from_slice(&attempt.copy.0.to_le_bytes());
-        bytes.extend_from_slice(&attempt.return_instruction.0.to_le_bytes());
+        bytes.extend_from_slice(&attempt.consumer.0.to_le_bytes());
         bytes.push(match attempt.outcome {
             crate::Aarch64SameViewCopyElisionAttemptOutcome::AlreadyElided => 0,
             crate::Aarch64SameViewCopyElisionAttemptOutcome::DifferentPhysicalStorage => 1,
-            crate::Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotReturned => 2,
+            crate::Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotConsumed => 2,
             crate::Aarch64SameViewCopyElisionAttemptOutcome::SemanticProvenance => 3,
             crate::Aarch64SameViewCopyElisionAttemptOutcome::SelectedForElision => 4,
         });
@@ -72,10 +77,10 @@ pub(super) fn encode_content(plan: &Aarch64SameViewCopyElisionPlan) -> Vec<u8> {
         bytes.extend_from_slice(&action.machine.get().to_le_bytes());
         bytes.extend_from_slice(&action.block.0.to_le_bytes());
         bytes.extend_from_slice(&action.copy.0.to_le_bytes());
-        bytes.extend_from_slice(&action.return_instruction.0.to_le_bytes());
+        bytes.extend_from_slice(&action.consumer.0.to_le_bytes());
         encode_operand(&mut bytes, &action.source);
         encode_operand(&mut bytes, &action.destination);
-        encode_operand(&mut bytes, &action.returned);
+        encode_operand(&mut bytes, &action.consumed);
         bytes.extend_from_slice(&action.source_value.get().to_le_bytes());
     }
     encode_functions_to_bytes(&mut bytes, &plan.functions);

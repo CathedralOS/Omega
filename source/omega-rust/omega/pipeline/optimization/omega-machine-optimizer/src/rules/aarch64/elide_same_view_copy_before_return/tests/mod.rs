@@ -2,6 +2,6 @@
 
 mod codec;
 mod corruption;
-mod fixture;
+pub(crate) mod fixture;
 mod matching;
 mod operational;

@@ -60,7 +60,7 @@ pub(super) fn validate_optimization_custody(
         StagedOptimizedPostAllocationMachineOptimization::Aarch64SameViewCopyElision(staged) => {
             let receipt = staged.custody();
             let actions = u64::try_from(receipt.action_count()).ok();
-            normalized.optimization() == Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1
+            normalized.optimization() == receipt.optimization()
                 && normalized.artifact_identity() == receipt.elision().bytes()
                 && normalized.selections() == receipt.selections()
                 && normalized.post_allocation_machine_selections()

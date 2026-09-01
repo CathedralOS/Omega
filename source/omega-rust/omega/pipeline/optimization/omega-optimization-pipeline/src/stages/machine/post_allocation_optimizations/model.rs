@@ -201,9 +201,7 @@ impl StagedOptimizedPostAllocationMachineOptimization {
             Self::Aarch64Movn(_) => {
                 Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1
             }
-            Self::Aarch64SameViewCopyElision(_) => {
-                Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1
-            }
+            Self::Aarch64SameViewCopyElision(staged) => staged.custody().optimization(),
             Self::X86XorZero(_) => Optimization::X86SelectXorZeroI64MaterializationV1,
             Self::X86MovR32Imm32(_) => {
                 Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1

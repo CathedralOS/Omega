@@ -1,7 +1,9 @@
 use omega_machine_optimizer::{
     Aarch64SameViewCopyElisionIdentity, ValidatedAarch64SameViewCopyElision,
+    optimize_aarch64_same_view_copy_i64_before_compare_zero,
     optimize_aarch64_same_view_copy_i64_before_return, require_post_allocation_machine_rule,
     validate_aarch64_same_view_copy_elision,
+    validate_aarch64_same_view_copy_i64_before_compare_zero,
 };
 use omega_optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
@@ -36,6 +38,7 @@ impl StagedOptimizedAarch64SameViewCopyElision {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
+    optimization: Optimization,
     selections: OptimizationSelectionIdentity,
     post_allocation_machine_selections: OptimizationSelectionIdentity,
     source: omega_machine_optimizer::PostAllocationMachineIdentity,
@@ -44,6 +47,9 @@ pub struct StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
 }
 
 impl StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
+    pub const fn optimization(self) -> Optimization {
+        self.optimization
+    }
     pub const fn selections(self) -> OptimizationSelectionIdentity {
         self.selections
     }
@@ -80,6 +86,30 @@ pub fn stage_optimized_aarch64_same_view_copy_elision(
         selected_stage.register_environment().physical(),
         optimized.selections(),
         optimized.budget_per_pass(),
+        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+    )
+}
+
+pub fn stage_optimized_aarch64_same_view_copy_before_compare_zero_elision(
+    source: &StagedOptimizedRegisterHomes,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+) -> Result<
+    StagedOptimizedAarch64SameViewCopyElision,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    validate_optimized_post_allocation_machine_plan_custody(source, machine)
+        .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
+    let ranges = source.legality_stage().live_range_stage();
+    let selected_stage = ranges.liveness_stage().selected_stage();
+    let optimized = selected_stage.optimized_target().optimized();
+    stage_with_inputs(
+        selected_stage.selected(),
+        ranges.liveness_stage().liveness(),
+        machine,
+        selected_stage.register_environment().physical(),
+        optimized.selections(),
+        optimized.budget_per_pass(),
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
     )
 }
 
@@ -133,6 +163,7 @@ pub fn stage_optimized_aarch64_same_view_copy_elision_after_selected_lowering(
             selected_stage.register_environment().physical(),
             optimized.selections(),
             optimized.budget_per_pass(),
+            Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
         ),
         None => stage_with_inputs(
             selected_stage.selected(),
@@ -144,6 +175,50 @@ pub fn stage_optimized_aarch64_same_view_copy_elision_after_selected_lowering(
             selected_stage.register_environment().physical(),
             optimized.selections(),
             optimized.budget_per_pass(),
+            Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+        ),
+    }
+}
+
+pub fn stage_optimized_aarch64_same_view_copy_before_compare_zero_elision_after_selected_lowering(
+    source: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+) -> Result<
+    StagedOptimizedAarch64SameViewCopyElision,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
+        source, machine,
+    )
+    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
+    let run = source.selected_lowering_run();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let optimized = selected_stage.optimized_target().optimized();
+    match run.steps().last() {
+        Some(step) => stage_with_inputs(
+            step.fold(),
+            step.liveness(),
+            machine,
+            selected_stage.register_environment().physical(),
+            optimized.selections(),
+            optimized.budget_per_pass(),
+            Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
+        ),
+        None => stage_with_inputs(
+            selected_stage.selected(),
+            run.source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .liveness(),
+            machine,
+            selected_stage.register_environment().physical(),
+            optimized.selections(),
+            optimized.budget_per_pass(),
+            Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
         ),
     }
 }
@@ -199,24 +274,39 @@ fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
+    optimization: Optimization,
 ) -> Result<
     StagedOptimizedAarch64SameViewCopyElision,
     OptimizedPostAllocationMachineOptimizationError,
 > {
     let phase = require_post_allocation_machine_rule(
         selections,
-        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+        optimization,
         machine.machine().plan().target.architecture,
     )?;
-    let elision = optimize_aarch64_same_view_copy_i64_before_return(
-        selected,
-        liveness,
-        machine.machine(),
-        physical,
-        budget,
-    )
+    let elision = match optimization {
+        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1 => {
+            optimize_aarch64_same_view_copy_i64_before_return(
+                selected,
+                liveness,
+                machine.machine(),
+                physical,
+                budget,
+            )
+        }
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 => {
+            optimize_aarch64_same_view_copy_i64_before_compare_zero(
+                selected,
+                liveness,
+                machine.machine(),
+                physical,
+                budget,
+            )
+        }
+        _ => unreachable!("catalog dispatch supplies an exact same-view copy rule"),
+    }
     .map_err(OptimizedPostAllocationMachineOptimizationError::SameViewCopyElision)?;
-    let custody = custody_receipt(selections, &phase, &elision);
+    let custody = custody_receipt(optimization, selections, &phase, &elision);
     Ok(StagedOptimizedAarch64SameViewCopyElision { elision, custody })
 }
 
@@ -235,24 +325,38 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
 > {
     let phase = require_post_allocation_machine_rule(
         selections,
-        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+        staged.custody.optimization,
         machine.machine().plan().target.architecture,
     )?;
     if staged.elision.plan().budget != budget {
         return Err(OptimizedPostAllocationMachineOptimizationError::ReceiptMismatch);
     }
-    let replayed = validate_aarch64_same_view_copy_elision(
-        selected,
-        liveness,
-        machine.machine(),
-        physical,
-        staged.elision.plan().clone(),
-    )
+    let replayed = match staged.custody.optimization {
+        Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1 => {
+            validate_aarch64_same_view_copy_elision(
+                selected,
+                liveness,
+                machine.machine(),
+                physical,
+                staged.elision.plan().clone(),
+            )
+        }
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 => {
+            validate_aarch64_same_view_copy_i64_before_compare_zero(
+                selected,
+                liveness,
+                machine.machine(),
+                physical,
+                staged.elision.plan().clone(),
+            )
+        }
+        _ => return Err(OptimizedPostAllocationMachineOptimizationError::ReceiptMismatch),
+    }
     .map_err(OptimizedPostAllocationMachineOptimizationError::SameViewCopyElision)?;
     if replayed.receipt() != staged.elision.receipt() {
         return Err(OptimizedPostAllocationMachineOptimizationError::ReceiptMismatch);
     }
-    let custody = custody_receipt(selections, &phase, &replayed);
+    let custody = custody_receipt(staged.custody.optimization, selections, &phase, &replayed);
     if custody != staged.custody {
         return Err(OptimizedPostAllocationMachineOptimizationError::ReceiptMismatch);
     }
@@ -260,12 +364,14 @@ fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
 }
 
 fn custody_receipt(
+    optimization: Optimization,
     selections: &OptimizationSelections,
     phase: &OptimizationSelections,
     elision: &ValidatedAarch64SameViewCopyElision,
 ) -> StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
     let receipt = elision.receipt();
     StagedOptimizedAarch64SameViewCopyElisionCustodyReceipt {
+        optimization,
         selections: selections.identity(),
         post_allocation_machine_selections: phase.identity(),
         source: receipt.source(),

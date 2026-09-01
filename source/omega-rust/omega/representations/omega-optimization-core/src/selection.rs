@@ -2,8 +2,8 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 12;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v12\0";
+const SELECTION_ENCODING_VERSION: u32 = 13;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v13\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -78,7 +78,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    17;
+    18;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -162,6 +162,11 @@ optimization_vocabulary! {
     Aarch64ElideSameViewCopyI64BeforeReturnV1 = 17 => {
         case: "Aarch64ElideSameViewCopyI64BeforeReturnV1",
         counter: "aarch64_elide_same_view_copy_i64_before_return_v1",
+        phase: PostAllocationMachine
+    },
+    Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 = 18 => {
+        case: "Aarch64ElideSameViewCopyI64BeforeCompareZeroV1",
+        counter: "aarch64_elide_same_view_copy_i64_before_compare_zero_v1",
         phase: PostAllocationMachine
     },
 }

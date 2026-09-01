@@ -58,6 +58,7 @@ fn decode_content(
     let physical_register_model = PhysicalRegisterModelIdentity::from_bytes(cursor.array()?);
     let policy = match cursor.byte()? {
         0 => Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+        1 => Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
         _ => return Err(Aarch64SameViewCopyElisionDecodeError::InvalidField),
     };
     let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
@@ -94,11 +95,11 @@ fn decode_attempts(
             machine: machine(cursor)?,
             block: SelectedBlockId(cursor.u32()?),
             copy: SelectedInstructionId(cursor.u32()?),
-            return_instruction: SelectedInstructionId(cursor.u32()?),
+            consumer: SelectedInstructionId(cursor.u32()?),
             outcome: match cursor.byte()? {
                 0 => Aarch64SameViewCopyElisionAttemptOutcome::AlreadyElided,
                 1 => Aarch64SameViewCopyElisionAttemptOutcome::DifferentPhysicalStorage,
-                2 => Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotReturned,
+                2 => Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotConsumed,
                 3 => Aarch64SameViewCopyElisionAttemptOutcome::SemanticProvenance,
                 4 => Aarch64SameViewCopyElisionAttemptOutcome::SelectedForElision,
                 _ => return Err(Aarch64SameViewCopyElisionDecodeError::InvalidField),
@@ -121,10 +122,10 @@ fn decode_actions(
             machine: machine(cursor)?,
             block: SelectedBlockId(cursor.u32()?),
             copy: SelectedInstructionId(cursor.u32()?),
-            return_instruction: SelectedInstructionId(cursor.u32()?),
+            consumer: SelectedInstructionId(cursor.u32()?),
             source: decode_operand(cursor)?,
             destination: decode_operand(cursor)?,
-            returned: decode_operand(cursor)?,
+            consumed: decode_operand(cursor)?,
             source_value: ValueId::new(cursor.u64()?)
                 .ok_or(Aarch64SameViewCopyElisionDecodeError::InvalidField)?,
         });

@@ -3,13 +3,13 @@ use std::collections::BTreeSet;
 use omega_register_model::{RegisterUnitId, ValidatedPhysicalRegisterModel};
 
 use super::{
-    TerminalPairMatchError, TerminalPairPattern, UnitSetPattern, model::ResolvedNamedUnitSet,
+    InstructionPairMatchError, InstructionPairPattern, UnitSetPattern, model::ResolvedNamedUnitSet,
 };
 
 pub(super) fn resolve_named_sets(
-    pattern: &TerminalPairPattern,
+    pattern: &InstructionPairPattern,
     physical: &ValidatedPhysicalRegisterModel,
-) -> Result<Vec<ResolvedNamedUnitSet>, TerminalPairMatchError> {
+) -> Result<Vec<ResolvedNamedUnitSet>, InstructionPairMatchError> {
     let mut names = BTreeSet::new();
     for unit_pattern in instruction_unit_patterns(pattern)
         .into_iter()
@@ -23,7 +23,7 @@ pub(super) fn resolve_named_sets(
             let view = physical
                 .model()
                 .view_named(name)
-                .ok_or(TerminalPairMatchError::MissingArchitecturalView(name))?;
+                .ok_or(InstructionPairMatchError::MissingArchitecturalView(name))?;
             Ok(ResolvedNamedUnitSet {
                 name,
                 units: view.units.clone(),
@@ -51,7 +51,7 @@ pub(super) fn units_for(
         .collect()
 }
 
-fn instruction_unit_patterns(pattern: &TerminalPairPattern) -> [UnitSetPattern; 6] {
+fn instruction_unit_patterns(pattern: &InstructionPairPattern) -> [UnitSetPattern; 6] {
     [
         pattern.first().implicit_uses,
         pattern.first().implicit_defs,

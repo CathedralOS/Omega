@@ -18,6 +18,7 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
             Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
             Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
             Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
+            Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
         ]
     );
     let declared = Optimization::ALL

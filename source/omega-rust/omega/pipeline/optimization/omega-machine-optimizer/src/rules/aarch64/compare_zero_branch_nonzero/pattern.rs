@@ -5,8 +5,9 @@ use omega_selected_instructions::{
 };
 
 use crate::rules::peephole_matching::{
-    ControlPattern, FixedViewPattern, InstructionPattern, OperandPattern, OperandReadPattern,
-    OperandWritePattern, TerminalPairPattern, TerminalPairPatternId, UnitSetPattern, ViewPattern,
+    ControlPattern, FixedViewPattern, InstructionPairPattern, InstructionPairPatternId,
+    InstructionPairTopology, InstructionPattern, OperandPattern, OperandReadPattern,
+    OperandWritePattern, UnitSetPattern, ViewPattern,
 };
 
 const EMPTY: UnitSetPattern = UnitSetPattern::EMPTY;
@@ -29,56 +30,60 @@ const COMPARE_OPERANDS: [OperandPattern; 1] = [OperandPattern {
     early_clobber: false,
 }];
 
-pub(crate) const AARCH64_CBNZ_TERMINAL_PAIR_V1: TerminalPairPattern = TerminalPairPattern::new(
-    TerminalPairPatternId::Aarch64CompareI64ZeroBranchNonZeroV1,
-    InstructionPattern {
-        semantic: MachineSemanticKind::CompareI64Zero,
-        selected_operand_count: 1,
-        family: MachineAlternativeFamily::CompareI64Zero,
-        variant: 0,
-        external_reads: &[0],
-        external_writes: &[],
-        implicit_uses: EMPTY,
-        implicit_defs: NZCV,
-        implicit_clobbers: EMPTY,
-        memory: MachineEncodedMemoryEffect::NoneV1,
-        stack: MachineEncodedStackEffect::UnchangedV1,
-        trap: MachineEncodedTrapBehavior::NeverV1,
-        control: ControlPattern::Exact(MachineEncodedControlEffect::FallThroughV1),
-        operands: &COMPARE_OPERANDS,
-    },
-    InstructionPattern {
-        semantic: MachineSemanticKind::ConditionalBranchNonZero,
-        selected_operand_count: 0,
-        family: MachineAlternativeFamily::ConditionalBranchNonZero,
-        variant: 0,
-        external_reads: &[],
-        external_writes: &[],
-        implicit_uses: NZCV_AND_PC,
-        implicit_defs: PC,
-        implicit_clobbers: EMPTY,
-        memory: MachineEncodedMemoryEffect::NoneV1,
-        stack: MachineEncodedStackEffect::UnchangedV1,
-        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        control: ControlPattern::Exact(MachineEncodedControlEffect::ConditionalRelativeBranchV1),
-        operands: &[],
-    },
-    NZCV,
-    NZCV,
-    &[],
-    &[],
-);
+pub(crate) const AARCH64_CBNZ_INSTRUCTION_PAIR_V1: InstructionPairPattern =
+    InstructionPairPattern::new(
+        InstructionPairPatternId::Aarch64CompareI64ZeroBranchNonZeroV1,
+        InstructionPairTopology::BodyTailAndTerminatorV1,
+        InstructionPattern {
+            semantic: MachineSemanticKind::CompareI64Zero,
+            selected_operand_count: 1,
+            family: MachineAlternativeFamily::CompareI64Zero,
+            variant: 0,
+            external_reads: &[0],
+            external_writes: &[],
+            implicit_uses: EMPTY,
+            implicit_defs: NZCV,
+            implicit_clobbers: EMPTY,
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::NeverV1,
+            control: ControlPattern::Exact(MachineEncodedControlEffect::FallThroughV1),
+            operands: &COMPARE_OPERANDS,
+        },
+        InstructionPattern {
+            semantic: MachineSemanticKind::ConditionalBranchNonZero,
+            selected_operand_count: 0,
+            family: MachineAlternativeFamily::ConditionalBranchNonZero,
+            variant: 0,
+            external_reads: &[],
+            external_writes: &[],
+            implicit_uses: NZCV_AND_PC,
+            implicit_defs: PC,
+            implicit_clobbers: EMPTY,
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            control: ControlPattern::Exact(
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1,
+            ),
+            operands: &[],
+        },
+        NZCV,
+        NZCV,
+        &[],
+        &[],
+    );
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn descriptor_names_the_complete_terminal_pair_contract() {
-        let pattern = AARCH64_CBNZ_TERMINAL_PAIR_V1;
+    fn descriptor_names_the_complete_instruction_pair_contract() {
+        let pattern = AARCH64_CBNZ_INSTRUCTION_PAIR_V1;
         assert_eq!(
             pattern.id,
-            TerminalPairPatternId::Aarch64CompareI64ZeroBranchNonZeroV1
+            InstructionPairPatternId::Aarch64CompareI64ZeroBranchNonZeroV1
         );
         let compare = pattern.first();
         assert_eq!(compare.semantic, MachineSemanticKind::CompareI64Zero);

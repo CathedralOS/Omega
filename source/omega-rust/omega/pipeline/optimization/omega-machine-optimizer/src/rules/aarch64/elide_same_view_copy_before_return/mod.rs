@@ -13,9 +13,10 @@ mod pattern;
 mod validate;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use identity::aarch64_same_view_copy_elision_identity;
+pub(crate) use identity::revision_identity;
 pub use model::*;
 pub use validate::validate_aarch64_same_view_copy_elision;
 
