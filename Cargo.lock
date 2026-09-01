@@ -1055,6 +1055,7 @@ version = "0.1.0"
 dependencies = [
  "omega-build-declarations",
  "omega-build-output",
+ "omega-effects",
  "omega-target",
  "psi-build-time-evaluation",
  "psi-checked-interpreter",
@@ -1316,6 +1317,7 @@ name = "omega-selected-dispatch"
 version = "0.1.0"
 dependencies = [
  "omega-effects",
+ "omega-package-compilation",
  "omega-provider-planning",
  "psi-arena",
  "psi-checked-trees",

@@ -34,6 +34,66 @@ fn identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
 }
 
+fn accepted_console_binding(package: PackageKeyIdentity, marker: u8) -> AcceptedSemanticBinding {
+    AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        package,
+        "Console",
+        omega_effects::provider_plan::ServiceSchemaDigest::from_digest([marker; 32]),
+        omega_effects::provider_plan::ProviderPlanDigest::from_digest([marker.wrapping_add(1); 32]),
+    )
+    .expect("valid accepted semantic binding")
+}
+
+#[test]
+fn accepted_semantic_bindings_are_unique_and_closed_over_the_package_graph() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root)],
+        Vec::new(),
+    )
+    .expect("root-only graph");
+
+    let accepted = inputs
+        .clone()
+        .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(1), 7)])
+        .expect("binding to the exact root package should attach");
+    assert_eq!(
+        accepted
+            .accepted_semantic_binding(AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32)
+            .expect("accepted Console binding")
+            .package(),
+        identity(1),
+    );
+
+    let duplicate = inputs
+        .clone()
+        .with_accepted_semantic_bindings(vec![
+            accepted_console_binding(identity(1), 7),
+            accepted_console_binding(identity(1), 8),
+        ])
+        .expect_err("one consumer role cannot accept two declarations");
+    assert!(matches!(
+        duplicate.as_slice(),
+        [PackageCompilationInputError::DuplicateSemanticBindingRole {
+            role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        }]
+    ));
+
+    let foreign = inputs
+        .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(2), 7)])
+        .expect_err("accepted binding cannot name a package outside the closure");
+    assert!(matches!(
+        foreign.as_slice(),
+        [PackageCompilationInputError::ForeignSemanticBindingPackage {
+            role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+            package,
+        }] if *package == identity(2)
+    ));
+}
+
 #[test]
 fn compiler_inputs_retain_application_root_role_and_reject_workspace_role() {
     let tree = TempTree::new();

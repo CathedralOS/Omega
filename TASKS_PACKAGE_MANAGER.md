@@ -385,19 +385,27 @@ explicitly.
 
   The Toolchain-origin audit is complete. Generic provenance consumers already
   follow the frontend classification, and exact core vocabulary checks remain
-  legitimate. The remaining stale std-specific consumers are Linux Console
-  intrinsic selection, UEFI physical-entry recognition, FilesystemHost/Console
+  legitimate. The first accepted-closure consumer binding is now implemented
+  for Linux `Console::exit_process(i32) -> Unit`. It binds exact package and
+  nominal identity, a collision-resistant normalized service-schema digest,
+  and the complete selected-provider-plan digest; compiler settlement rejects
+  foreign, stale, ambiguous, or unused rows and retains the resolved exact
+  declaration symbol for independent package-review replay. The row is
+  consumer policy, not proof that an audit occurred. Its current normalization
+  is intentionally claimed only for Console's compiler-primitive signature and
+  self reach, not arbitrary package-owned nominal carrier types.
+
+  The remaining stale std-specific consumers are the legacy Toolchain Console
+  lane and mount, UEFI physical-entry recognition, FilesystemHost/Console
   dangerous-authority classification, checked-interpreter FilesystemHost
   dispatch, whole-library source-frontier admission, and standalone std/alloc
-  source classification. Migrate those only after the accepted-closure binding
-  carries the consumer-approved exact nominal declaration and normalized schema
-  fingerprint. A package name, source path, alias, repository, or bare
-  `PackageKeyIdentity` is not a substitute and must not be introduced as an
-  interim recognition rule. The legacy package-aware `omega::language::std`
-  mount remains only because the current Linux physical-evidence lane still
-  consumes its Console selection; remove both atomically after that selection
-  uses an accepted binding. This is engineering sequencing, not an owner
-  question.
+  source classification. Migrate each through a consumer-approved exact nominal
+  declaration and normalized schema commitment. A package name, source path,
+  alias, repository, or bare `PackageKeyIdentity` is not a substitute and must
+  not be introduced as an interim recognition rule. Remove the legacy
+  package-aware `omega::language::std` mount and Toolchain Console lane
+  atomically after the real ordinary-std dependency path supplies this binding.
+  This is engineering sequencing, not an owner question.
 
 - [ ] Complete the remaining generic exact-application work for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic
