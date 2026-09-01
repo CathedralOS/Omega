@@ -13,3 +13,4 @@ mod wrapping_divide;
 mod wrapping_multiply;
 mod wrapping_remainder;
 mod wrapping_subtract;
+mod wrapping_subtract_immediate;

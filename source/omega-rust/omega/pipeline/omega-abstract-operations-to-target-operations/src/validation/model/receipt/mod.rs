@@ -21,6 +21,7 @@ pub use immediate::{
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
     StraightLineWrappingIntegerAddImmediateTranslationReceipt,
+    StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
 };
 pub use parameter::{
     StraightLineBooleanEqualParametersTranslationReceipt,
