@@ -424,7 +424,7 @@ fn encode_reborrow_restored_call_use(
     writer.id(use_row.operation);
     writer.u8(match use_row.restoration_class {
         TerminalReborrowRestorationClass::ExclusiveReactivation => 1,
-        TerminalReborrowRestorationClass::SoleSharedFreezeRestoration => 2,
+        TerminalReborrowRestorationClass::SharedFreezeRestoration => 2,
     });
     encode_borrow_boundary(writer, &use_row.call_boundary)?;
     writer.id(use_row.call_target_machine);
@@ -479,7 +479,7 @@ fn decode_reborrow_restored_call_use(
         operation: reader.id("OperationId")?,
         restoration_class: match reader.u8()? {
             1 => TerminalReborrowRestorationClass::ExclusiveReactivation,
-            2 => TerminalReborrowRestorationClass::SoleSharedFreezeRestoration,
+            2 => TerminalReborrowRestorationClass::SharedFreezeRestoration,
             tag => {
                 return Err(CodecError::InvalidTag(
                     "TerminalReborrowRestorationClass",

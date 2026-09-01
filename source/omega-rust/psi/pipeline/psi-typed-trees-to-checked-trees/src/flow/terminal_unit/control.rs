@@ -1057,7 +1057,27 @@ pub(super) fn build_checked_machine(
                         )
                     })
         );
-        if carries_primitive && calls.is_empty() && !exact_write_only_primitive_sink {
+        let source_parameters = program.state_parameters(state);
+        let exact_shared_primitive_observer = statements.is_empty()
+            && calls.is_empty()
+            && entry_claims.is_empty()
+            && matches!(structural_parameters.as_slice(), [left, right]
+                if left.multiplicity == Multiplicity::Unrestricted
+                    && right.multiplicity == Multiplicity::Unrestricted
+                    && left.access == CheckedStructuralAccess::SharedBorrow
+                    && right.access == CheckedStructuralAccess::SharedBorrow
+                    && left.qualifications.is_empty()
+                    && right.qualifications.is_empty()
+                    && left.type_identity == right.type_identity)
+            && source_parameters.len() == 2
+            && source_parameters
+                .iter()
+                .all(|parameter| !parameter.is_self && !parameter.is_const);
+        if carries_primitive
+            && calls.is_empty()
+            && !exact_write_only_primitive_sink
+            && !exact_shared_primitive_observer
+        {
             return None;
         }
     }
@@ -1250,7 +1270,8 @@ pub(super) fn build_checked_machine(
     })
 }
 
-/// Recognize only the two erased reference aliases named by the checked
+/// Recognize only the erased parent alias and the one- or two-child roster
+/// named by the checked
 /// post-reactivation certificate. These source bindings carry borrow
 /// lifetimes, not independent Terminal runtime places; every other reference
 /// local continues to reject through the ordinary affine-local path.
@@ -1261,15 +1282,41 @@ fn reborrow_restored_call_alias_prefix(
     state: &psi_typed_trees::state::State,
     statements: &[StatementNode],
 ) -> Option<usize> {
-    let [
-        StatementNode::LocalData(parent_local),
-        StatementNode::LocalData(child_local),
-        ..,
-    ] = statements
-    else {
+    let StatementNode::LocalData(parent_local) = statements.first()? else {
         return None;
     };
-    if parent_local.is_mutable || child_local.is_mutable {
+    let child_count = facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .filter_map(|(_, certificate)| {
+            (certificate.machine_symbol == machine.symbol
+                && certificate.state_symbol == state.symbol)
+                .then_some(())?;
+            facts
+                .borrow
+                .reborrow_disposition_events
+                .is_valid(certificate.disposition)
+                .then(|| {
+                    facts
+                        .borrow
+                        .reborrow_disposition_events
+                        .get(certificate.disposition)
+                        .shared_cohort
+                        .len()
+                        .max(1)
+                })
+        })
+        .find(|count| matches!(count, 1 | 2))?;
+    let child_locals = statements
+        .get(1..=child_count)?
+        .iter()
+        .map(|statement| match statement {
+            StatementNode::LocalData(local) if !local.is_mutable => Some(local),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if parent_local.is_mutable {
         return None;
     }
     let ExpressionNode::Borrow(parent_borrow) = program
@@ -1278,12 +1325,15 @@ fn reborrow_restored_call_alias_prefix(
     else {
         return None;
     };
-    let ExpressionNode::Borrow(child_borrow) = program
-        .expression_table
-        .expression(child_local.initial_value)
-    else {
-        return None;
-    };
+    let child_borrows = child_locals
+        .iter()
+        .map(
+            |local| match program.expression_table.expression(local.initial_value) {
+                ExpressionNode::Borrow(borrow) => Some(borrow),
+                _ => None,
+            },
+        )
+        .collect::<Option<Vec<_>>>()?;
     if parent_borrow.access != psi_language_semantics::ReferenceAccess::Mutable {
         return None;
     }
@@ -1294,12 +1344,18 @@ fn reborrow_restored_call_alias_prefix(
         0,
         parent_borrow.target,
     )?;
-    let child_source = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        1,
-        child_borrow.target,
-    )?;
+    let child_sources = child_borrows
+        .iter()
+        .enumerate()
+        .map(|(offset, borrow)| {
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                offset + 1,
+                borrow.target,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
     let candidates = facts
         .borrow
         .reborrow_restored_call_use_certificates
@@ -1312,8 +1368,10 @@ fn reborrow_restored_call_alias_prefix(
                 || parent_source.root
                     != psi_facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol)
                 || parent_source.segments != certificate.restored_place.segments
-                || child_source.root != psi_facts::PlaceRoot::Symbol(parent_local.symbol)
-                || !child_source.segments.is_empty()
+                || child_sources.iter().any(|source| {
+                    source.root != psi_facts::PlaceRoot::Symbol(parent_local.symbol)
+                        || !source.segments.is_empty()
+                })
                 || !facts
                     .borrow
                     .reborrow_loan_resources
@@ -1327,25 +1385,50 @@ fn reborrow_restored_call_alias_prefix(
                 .reborrow_loan_resources
                 .get(certificate.child_resource);
             let call = facts.flow.control.calls.get(certificate.call);
-            child.owner_symbol == child_local.symbol
-                && child_borrow.access
-                    == match child.access {
-                        psi_checked_trees::BorrowAccessKind::Mutable => {
-                            psi_language_semantics::ReferenceAccess::Mutable
-                        }
-                        psi_checked_trees::BorrowAccessKind::WriteOnly => {
-                            psi_language_semantics::ReferenceAccess::WriteOnly
-                        }
-                        psi_checked_trees::BorrowAccessKind::Read => {
-                            psi_language_semantics::ReferenceAccess::Shared
-                        }
-                    }
-                && call.statement_index == 2
+            let disposition = facts
+                .borrow
+                .reborrow_disposition_events
+                .get(certificate.disposition);
+            let roster = if disposition.shared_cohort.is_empty() {
+                vec![certificate.child_resource]
+            } else {
+                disposition.shared_cohort.clone()
+            };
+            roster.len() == child_count
+                && child_locals
+                    .iter()
+                    .zip(&child_borrows)
+                    .all(|(local, borrow)| {
+                        roster.iter().any(|resource| {
+                            if !facts.borrow.reborrow_loan_resources.is_valid(*resource) {
+                                return false;
+                            }
+                            let member = facts.borrow.reborrow_loan_resources.get(*resource);
+                            member.owner_symbol == local.symbol
+                                && borrow.access
+                                    == match member.access {
+                                        psi_checked_trees::BorrowAccessKind::Mutable => {
+                                            psi_language_semantics::ReferenceAccess::Mutable
+                                        }
+                                        psi_checked_trees::BorrowAccessKind::WriteOnly => {
+                                            psi_language_semantics::ReferenceAccess::WriteOnly
+                                        }
+                                        psi_checked_trees::BorrowAccessKind::Read => {
+                                            psi_language_semantics::ReferenceAccess::Shared
+                                        }
+                                    }
+                        })
+                    })
+                && roster.contains(&certificate.child_resource)
+                && child_locals
+                    .iter()
+                    .any(|local| local.symbol == child.owner_symbol)
+                && call.statement_index == child_count + usize::from(child_count == 2) + 1
                 && call.call_ordinal == 0
                 && call.target_symbol == certificate.target_symbol
         })
         .count();
-    (candidates == 1).then_some(2)
+    (candidates == 1).then_some(child_count + 1)
 }
 
 fn checked_unit_scalar_result_local(

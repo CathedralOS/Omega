@@ -5,6 +5,13 @@
 //! execution state; no source or checked-tree representation crosses this
 //! boundary.
 
+mod semantic_value_comparison;
+
+pub use semantic_value_comparison::{
+    TerminalTraceScalarComparisonError, TerminalTraceScalarValueSide,
+    compare_terminal_trace_scalar_values,
+};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{

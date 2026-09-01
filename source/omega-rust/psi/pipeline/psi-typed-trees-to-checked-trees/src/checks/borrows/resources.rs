@@ -676,12 +676,110 @@ fn plan_reborrow_containment_certificates(
     Ok(certificates)
 }
 
+fn exact_two_shared_cohort_observation(
+    program: &psi_typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    flow: &FlowFacts,
+    flow_state: &psi_checked_trees::FlowStateFact,
+    borrow_state: &psi_checked_trees::StateBorrowFact,
+    cohort: &[(usize, &CheckedReborrowLoanResourceDraft)],
+    mutation_statement_index: usize,
+) -> bool {
+    if mutation_statement_index != cohort.len() + 2
+        || !cohort.iter().enumerate().all(|(offset, (_, member))| {
+            member.activation_source
+                == FlowInvalidationSource::Statement {
+                    statement_index: offset + 1,
+                }
+        })
+    {
+        return false;
+    }
+    let Some(observation_statement_index) = mutation_statement_index.checked_sub(1) else {
+        return false;
+    };
+    let observation_calls = flow
+        .control
+        .calls
+        .span_or_empty(flow_state.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == observation_statement_index && call.call_ordinal == 0
+        })
+        .collect::<Vec<_>>();
+    let [observation] = observation_calls.as_slice() else {
+        return false;
+    };
+    let Some(target_state) = crate::semantic_calls::find_state(program, observation.target_symbol)
+    else {
+        return false;
+    };
+    let Some(target_machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == target_state.symbol)
+    }) else {
+        return false;
+    };
+    if target_machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+        || !program
+            .statement_table
+            .statements(target_state.statement_nodes)
+            .is_empty()
+        || program.state_parameters(target_state).len() != 2
+        || program
+            .state_parameters(target_state)
+            .iter()
+            .any(|parameter| {
+                parameter.is_self
+                    || !matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        psi_typed_trees::types::TypeReferenceNode::Reference {
+                            access: psi_language_semantics::ReferenceAccess::Shared,
+                            ..
+                        }
+                    )
+            })
+        || (observation.has_receiver
+            && target_machine.attached_data_symbol != observation.receiver_symbol)
+    {
+        return false;
+    }
+    let matching_borrow_calls = borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .filter(|borrow_call| {
+            borrow_call.statement_index == observation.statement_index
+                && borrow_call.call_ordinal == observation.call_ordinal
+                && borrow_call.target_symbol == observation.target_symbol
+                && borrow_call.receiver_symbol == observation.receiver_symbol
+                && borrow_call.has_receiver == observation.has_receiver
+                && borrow_call.accesses == observation.accesses
+        })
+        .collect::<Vec<_>>();
+    let [borrow_call] = matching_borrow_calls.as_slice() else {
+        return false;
+    };
+    let accesses = borrow.argument_accesses.span_or_empty(borrow_call.accesses);
+    accesses.len() == 2
+        && cohort.len() == 2
+        && accesses.iter().zip(cohort).all(|(access, (_, member))| {
+            access.root_symbol == member.owner_symbol
+                && borrow.access_segments(access).is_empty()
+                && access.kind == psi_checked_trees::BorrowAccessKind::Read
+        })
+}
+
 /// Retain the first deliberately narrow post-restoration use shapes: one direct
-/// exclusive child, or the sole member of one shared-freeze cohort, ends by
-/// last use immediately before one receiver-free call mutates the whole
-/// restored mutable parent carrier. Earlier fully ended sequential exclusive
-/// siblings do not invalidate that exact per-child event; the shared form is
-/// fenced to exactly one child occurrence for the direct parent.
+/// exclusive child, or every member of one complete shared-freeze cohort of at
+/// most two children, ends by last use immediately before one receiver-free
+/// call mutates the whole restored mutable parent carrier. Earlier fully ended
+/// sequential exclusive siblings do not invalidate that exact per-child event;
+/// the shared form requires the restoration event's exact complete roster.
 /// Unsupported shapes remain unclassified rather than receiving inferred
 /// authority.
 #[allow(clippy::too_many_arguments)]
@@ -714,19 +812,31 @@ fn plan_reborrow_restored_call_uses(
                 | psi_checked_trees::BorrowAccessKind::WriteOnly
         ) && child.access_effect
             == CheckedReborrowAccessEffect::ExclusiveSuspension;
-        let sole_shared_freeze = child.access == psi_checked_trees::BorrowAccessKind::Read
-            && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
-            && reborrows
-                .iter()
-                .filter(|candidate| candidate.parent_loan == parent.loan)
-                .count()
-                == 1;
+        let shared_cohort = reborrows
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| candidate.parent_loan == parent.loan)
+            .collect::<Vec<_>>();
+        let bounded_shared_freeze = matches!(shared_cohort.len(), 1 | 2)
+            && shared_cohort.iter().all(|(_, member)| {
+                member.access == psi_checked_trees::BorrowAccessKind::Read
+                    && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
+                    && member.machine_symbol == child.machine_symbol
+                    && member.state_symbol == child.state_symbol
+                    && member.parent_lexical_status == ParentLexicalStatusAtChildEnd::LivePastChild
+                    && member.weakening_reason
+                        == psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                    && member.weakening_source == child.weakening_source
+                    && !reborrows
+                        .iter()
+                        .any(|candidate| candidate.parent_loan == member.loan)
+            });
         if parent.loan != child.parent_loan
             || parent.machine_symbol != child.machine_symbol
             || parent.state_symbol != child.state_symbol
             || parent.access != psi_checked_trees::BorrowAccessKind::Mutable
             || !parent.owner_path.is_empty()
-            || (!exclusive_reactivation && !sole_shared_freeze)
+            || (!exclusive_reactivation && !bounded_shared_freeze)
             || child.parent_lexical_status != ParentLexicalStatusAtChildEnd::LivePastChild
             || child.weakening_reason
                 != psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
@@ -756,8 +866,12 @@ fn plan_reborrow_restored_call_uses(
                         == DispositionTargetIndex::ParentResource(ParentResourceIndex::Direct(
                             parent_index,
                         ))
-                    && if sole_shared_freeze {
-                        disposition.shared_cohort.as_slice() == [child_index]
+                    && if bounded_shared_freeze {
+                        disposition.shared_cohort
+                            == shared_cohort
+                                .iter()
+                                .map(|(index, _)| *index)
+                                .collect::<Vec<_>>()
                             && disposition.disposition
                                 == CheckedReborrowResourceDisposition::RestoreSharedCohort
                     } else {
@@ -779,7 +893,7 @@ fn plan_reborrow_restored_call_uses(
                     && containment.child_loan == child.loan
                     && containment.parent_loan == parent.loan
                     && containment.parent_resource == ParentResourceIndex::Direct(parent_index)
-                    && if sole_shared_freeze {
+                    && if bounded_shared_freeze {
                         containment.access_effect == CheckedReborrowAccessEffect::SharedFreeze
                             && containment.containment
                                 == CheckedReborrowContainmentKind::SharedFreeze
@@ -859,6 +973,20 @@ fn plan_reborrow_restored_call_uses(
         let [borrow_state] = matching_borrow_states.as_slice() else {
             continue;
         };
+        if bounded_shared_freeze
+            && shared_cohort.len() == 2
+            && !exact_two_shared_cohort_observation(
+                program,
+                borrow,
+                flow,
+                flow_state,
+                borrow_state,
+                &shared_cohort,
+                statement_index,
+            )
+        {
+            continue;
+        }
         let borrow_calls = borrow
             .calls
             .span_or_empty(borrow_state.calls)
@@ -954,8 +1082,10 @@ fn plan_reborrow_restored_call_uses(
         let child_constraint_count = constraints
             .iter()
             .filter(|constraint| {
-                constraint.kind
-                    == psi_checked_trees::FlowConstraintKind::BorrowLoan { loan: child.loan }
+                shared_cohort.iter().any(|(_, member)| {
+                    constraint.kind
+                        == psi_checked_trees::FlowConstraintKind::BorrowLoan { loan: member.loan }
+                })
             })
             .count();
         let [borrow_call_constraint] = borrow_call_constraints.as_slice() else {

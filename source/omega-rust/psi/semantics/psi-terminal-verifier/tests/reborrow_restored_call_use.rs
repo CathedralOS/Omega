@@ -213,7 +213,7 @@ fn exact_restored_parent_call_use_validates() {
         module.reborrow_restored_call_uses[0].child_access = child_access;
         module.reborrow_restored_call_uses[0].restoration_class =
             if child_access == StructuralAccess::SharedBorrow {
-                TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
+                TerminalReborrowRestorationClass::SharedFreezeRestoration
             } else {
                 TerminalReborrowRestorationClass::ExclusiveReactivation
             };
@@ -230,6 +230,175 @@ fn exact_restored_parent_call_use_validates() {
         }
         validate_module(&module).expect("exact restored-parent call use");
     }
+}
+
+#[test]
+fn exact_two_member_shared_freeze_cohort_validates_and_fences_roster_drift() {
+    let mut module = restored_call_use_module();
+    let observer = id(3, MachineId::new);
+    let observer_left_place = id(3, PlaceId::new);
+    let observer_right_place = id(4, PlaceId::new);
+    let structural_type = module.structural_types[0].id;
+    let caller_place = module.machines[0].structural_parameters[0].place;
+    module.machines[0].blocks[0].operations.insert(
+        0,
+        Operation {
+            id: id(2, OperationId::new),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: observer,
+                structural_arguments: vec![
+                    StructuralArgument {
+                        place: caller_place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    StructuralArgument {
+                        place: caller_place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                ],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        },
+    );
+    let shared_parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+    };
+    module.machines.push(TerminalMachine {
+        id: observer,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![
+            shared_parameter(observer_left_place, 0),
+            shared_parameter(observer_right_place, 1),
+        ],
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: observer_left_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: observer_right_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            },
+        ],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: id(3, BlockId::new),
+        blocks: vec![Block {
+            id: id(3, BlockId::new),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: id(3, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: id(3, ContractId::new),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    });
+    {
+        let row = &mut module.reborrow_restored_call_uses[0];
+        row.restoration_class = TerminalReborrowRestorationClass::SharedFreezeRestoration;
+        row.child_access = StructuralAccess::SharedBorrow;
+        row.call_boundary = TerminalBorrowBoundarySource::Call {
+            statement_index: 4,
+            call_ordinal: 0,
+            target_identity: borrow_identity('f'),
+        };
+        row.child_weakening = statement(4);
+        row.direct_root_weakening = statement(6);
+        let primary = TerminalReborrowSharedCohortMember {
+            child_owner_identity: row.child_owner_identity.clone(),
+            child_owner_path: row.child_owner_path.clone(),
+            child_place: row.child_place.clone(),
+            child_access: row.child_access,
+            child_activation: row.child_activation.clone(),
+            child_weakening: row.child_weakening.clone(),
+        };
+        let mut sibling = primary.clone();
+        sibling.child_owner_identity = borrow_identity('9');
+        sibling.child_activation = statement(2);
+        row.shared_cohort = vec![primary, sibling];
+    }
+    validate_module(&module).expect("exact two-member shared-freeze cohort");
+
+    let mut third = module.clone();
+    let mut member = third.reborrow_restored_call_uses[0].shared_cohort[1].clone();
+    member.child_owner_identity = borrow_identity('8');
+    third.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .push(member);
+    assert!(matches!(
+        validate_module(&third),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut duplicate = module.clone();
+    duplicate.reborrow_restored_call_uses[0].shared_cohort[1] =
+        duplicate.reborrow_restored_call_uses[0].shared_cohort[0].clone();
+    assert!(matches!(
+        validate_module(&duplicate),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut missing_observation = module.clone();
+    missing_observation.machines[0].blocks[0]
+        .operations
+        .remove(0);
+    assert!(matches!(
+        validate_module(&missing_observation),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut reordered = module.clone();
+    reordered.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .swap(0, 1);
+    assert!(matches!(
+        validate_module(&reordered),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut same_activation = module.clone();
+    same_activation.reborrow_restored_call_uses[0].shared_cohort[1].child_activation = statement(1);
+    assert!(matches!(
+        validate_module(&same_activation),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut mismatched = module;
+    mismatched.reborrow_restored_call_uses[0].shared_cohort[1].child_weakening = statement(3);
+    assert!(matches!(
+        validate_module(&mismatched),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
 }
 
 #[test]
@@ -293,13 +462,13 @@ fn restored_parent_call_use_rejects_identity_and_lineage_substitution() {
     });
     assert_invalid(|module| {
         module.reborrow_restored_call_uses[0].restoration_class =
-            TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+            TerminalReborrowRestorationClass::SharedFreezeRestoration;
     });
 
     let mut shared = restored_call_use_module();
     {
         let row = &mut shared.reborrow_restored_call_uses[0];
-        row.restoration_class = TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+        row.restoration_class = TerminalReborrowRestorationClass::SharedFreezeRestoration;
         row.child_access = StructuralAccess::SharedBorrow;
         row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
             child_owner_identity: row.child_owner_identity.clone(),

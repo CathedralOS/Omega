@@ -111,6 +111,14 @@ exactly two through a recursively literal fixed array, only when every bound is
 static and the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic,
 range, third-index, and aggregate-leaf projections remain outside that rung.
 
+Post-restoration call evidence now admits one direct exclusive child, one
+shared child, or one exact two-member concurrent shared-freeze cohort. The
+two-member form must use both borrow-only aliases together in one empty
+two-shared-parameter observation call and mutate the whole restored parent in
+the immediately following statement. Checked and Terminal replay every cohort
+member independently; three-member, sequential, projected, reordered, or
+intervening-call forms remain fail closed.
+
 The first bounded whole-root primitive store accepts a landed integer literal
 or Boolean literal and preserves its complete write-only parameter row and
 preceding exact-typed scalar use through target-neutral abstract operations and
@@ -440,7 +448,18 @@ zero-ABI element occurrences in order
 `[14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`; Terminal and every native
 artifact layer independently retain the common length-sixteen root and
 fifteen operation plus one return-edge fuel units. Missing or reordered
-establishments, root/index/length drift, cleanup-order drift, and length-seventeen
+establishments, root/index/length drift, cleanup-order drift, and other prefix
+drift remain fail closed without runtime liveness state or a
+cleanup loop.
+
+The following bounded successor admits `[T; 17]` under the same restrictions
+and establishes literal indices `0`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`,
+`9`, `10`, `11`, `12`, `13`, `14`, then `15`. Ordinary abandonment cleans the
+sixteen zero-ABI element occurrences in order
+`[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`; Terminal and every
+native artifact layer independently retain the common length-seventeen root
+and sixteen operation plus one return-edge fuel units. Missing or reordered
+establishments, root/index/length drift, cleanup-order drift, and length-eighteen
 or wider prefixes remain fail closed without runtime liveness state or a
 cleanup loop.
 

@@ -39,7 +39,7 @@ impl VocabularyMarker {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalReborrowRestorationClass {
     ExclusiveReactivation,
-    SoleSharedFreezeRestoration,
+    SharedFreezeRestoration,
 }
 
 /// One exact member of the closed shared-freeze cohort restored by a bounded
@@ -331,9 +331,9 @@ pub struct TerminalReborrowRootHandoff {
 }
 
 /// Closed publication of one exact use after one direct exclusive child, or
-/// the sole member of one shared-freeze cohort, has restored its mutable
+/// an exact one- or two-member shared-freeze cohort, has restored its mutable
 /// parent. The canonical operation identifies the sole authorized use. Access,
-/// restoration class, source call, and the sole shared roster are explicit;
+/// restoration class, source call, and the exact shared roster are explicit;
 /// carrier-read and restored-place facts fixed by these bounded forms remain
 /// verifier rules. This vocabulary cannot express cleanup, transfer, or
 /// discharge.

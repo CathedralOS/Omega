@@ -122,8 +122,9 @@ pub struct TerminalTraceV1Rows {
 ///
 /// This bounded rung contains the root, crash-site roster, and every ordinary
 /// `BoundaryCall` and `PortWrite` event. Its canonical codec still includes a
-/// zero terminal-external count; runtime trace values and refinement are
-/// separate later rungs.
+/// zero terminal-external count. The interpreter may consume its exact scalar
+/// schemas for the bounded semantic-value comparator; runtime trace
+/// construction and refinement are separate later rungs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TerminalTraceV1Profile {
     pub schema: TerminalObservationSchema,

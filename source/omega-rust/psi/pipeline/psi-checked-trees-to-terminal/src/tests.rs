@@ -138,6 +138,30 @@ fn shared_reborrow_restored_call_source() -> psi_checked_trees::CheckedTrees {
     )
 }
 
+fn two_shared_reborrow_restored_call_source() -> psi_checked_trees::CheckedTrees {
+    two_shared_reborrow_restored_call_source_with_observations("Sink::observe(left, right);")
+}
+
+fn two_shared_reborrow_restored_call_source_with_observations(
+    observations: &str,
+) -> psi_checked_trees::CheckedTrees {
+    checked_source(&format!(
+        r#"
+            data Harness {{}}
+            data Sink {{}}
+            machine Sink::observe(left: &i32, right: &i32) {{}}
+            machine Sink::mutate(value: &mut i32) {{ value = 2; }}
+            machine Harness::exercise(root: &mut i32) {{
+                let parent: &mut i32 = &mut root;
+                let left: &i32 = &parent;
+                let right: &i32 = &parent;
+                {observations}
+                Sink::mutate(parent);
+            }}
+        "#
+    ))
+}
+
 fn multihop_reborrow_source(
     middle_access: &str,
     leaf_access: &str,
@@ -273,7 +297,7 @@ fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children
         assert_eq!(
             use_row.restoration_class,
             if expected_access == psi_terminal::StructuralAccess::SharedBorrow {
-                psi_terminal::TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
+                psi_terminal::TerminalReborrowRestorationClass::SharedFreezeRestoration
             } else {
                 psi_terminal::TerminalReborrowRestorationClass::ExclusiveReactivation
             }
@@ -365,6 +389,112 @@ fn terminal_reborrow_restored_call_use_lowers_exclusive_and_sole_shared_children
         assert_eq!(
             psi_terminal_codec::decode_module(&encoded).expect("restored call use decodes"),
             lowered.semantic_module
+        );
+    }
+}
+
+#[test]
+fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
+    let checked = two_shared_reborrow_restored_call_source();
+    let exercise = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| checked.typed.symbols.name(plan.machine) == "Harness::exercise")
+        .expect("the exact alias-erased exercise plan");
+    let [
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: observation_coordinate,
+            structural_arguments: observation_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: mutation_coordinate,
+            structural_arguments: mutation_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = exercise.operations.as_slice()
+    else {
+        panic!("one observation call, one restored mutation, and Unit return")
+    };
+    assert_eq!(observation_coordinate.statement_index, 3);
+    assert_eq!(mutation_coordinate.statement_index, 4);
+    assert_eq!(observation_arguments.len(), 2);
+    assert!(observation_arguments.iter().all(|argument| {
+        argument.source_parameter_index == 0
+            && argument.path.is_empty()
+            && argument.access == psi_checked_trees::CheckedStructuralAccess::SharedBorrow
+    }));
+    let [mutation_argument] = mutation_arguments.as_slice() else {
+        panic!("one restored whole-parent mutation argument")
+    };
+    assert_eq!(mutation_argument.source_parameter_index, 0);
+    assert!(mutation_argument.path.is_empty());
+    assert_eq!(
+        mutation_argument.access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    let lowered = lower_machine(&checked, "Harness::exercise")
+        .expect("two-member shared cohort lowers to Terminal Psi");
+    let [row] = lowered
+        .semantic_module
+        .reborrow_restored_call_uses
+        .as_slice()
+    else {
+        panic!("one restored-parent call publication")
+    };
+    assert_eq!(
+        row.restoration_class,
+        psi_terminal::TerminalReborrowRestorationClass::SharedFreezeRestoration
+    );
+    let [left, right] = row.shared_cohort.as_slice() else {
+        panic!("the exact two-member shared-freeze roster")
+    };
+    assert_ne!(left, right);
+    for member in [left, right] {
+        assert_eq!(
+            member.child_access,
+            psi_terminal::StructuralAccess::SharedBorrow
+        );
+        assert_eq!(member.child_weakening, row.child_weakening);
+    }
+    assert!(row.shared_cohort.iter().any(|member| {
+        member.child_owner_identity == row.child_owner_identity
+            && member.child_owner_path == row.child_owner_path
+            && member.child_place == row.child_place
+            && member.child_activation == row.child_activation
+    }));
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("two-member restored call use verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("two-member restored call use encodes");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("two-member restored call use decodes"),
+        lowered.semantic_module
+    );
+}
+
+#[test]
+fn terminal_two_shared_restored_call_aliasing_fences_reordered_and_extra_observations() {
+    for observations in [
+        "Sink::observe(right, left);",
+        "Sink::observe(left, right); Sink::observe(left, right);",
+    ] {
+        let checked = two_shared_reborrow_restored_call_source_with_observations(observations);
+        assert!(
+            checked
+                .facts
+                .borrow
+                .reborrow_restored_call_use_certificates
+                .is_empty(),
+            "unsupported shared observation layout must not gain checked authority"
+        );
+        assert!(
+            lower_machine(&checked, "Harness::exercise").is_err(),
+            "unsupported shared observation layout must remain outside the Unit plan"
         );
     }
 }
