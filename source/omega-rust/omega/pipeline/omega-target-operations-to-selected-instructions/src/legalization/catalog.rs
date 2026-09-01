@@ -25,6 +25,7 @@ pub(super) enum ScalarLegalizationMatcherKind {
     WidenedU8ExactSubtractImmediate,
     ActiveResidentExactAddChain,
     ActiveResidentExactAddBridgeChain,
+    ActiveResidentExactAddOriginalVictimChain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +58,7 @@ pub(super) enum ScalarLegalizationValidatorKind {
     WidenedU8ExactSubtractImmediate,
     ActiveResidentExactAddChain,
     ActiveResidentExactAddBridgeChain,
+    ActiveResidentExactAddOriginalVictimChain,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -204,7 +206,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 13] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 14] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -292,6 +294,17 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 13] = [
         12,
         0,
         ScalarLegalizationValidatorKind::ActiveResidentExactAddBridgeChain,
+    ),
+    scalar_form(
+        LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
+        ScalarLegalizationMatcherKind::ActiveResidentExactAddOriginalVictimChain,
+        [0, 1, 10],
+        12,
+        [9, 2],
+        1,
+        13,
+        0,
+        ScalarLegalizationValidatorKind::ActiveResidentExactAddOriginalVictimChain,
     ),
     unit_form(),
     structural_unit_form(

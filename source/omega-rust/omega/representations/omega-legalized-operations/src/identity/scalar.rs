@@ -160,6 +160,17 @@ pub(super) fn encode_leaf(bytes: &mut Vec<u8>, leaf: &LegalizedLeaf) {
             encode_exact_add(bytes, &chain.bridge);
             encode_exact_add(bytes, &chain.result);
         }
+        LegalizedLeafValue::ActiveResidentExactAddOriginalVictimChain(chain) => {
+            bytes.push(8);
+            encode_immediate(bytes, &chain.resident);
+            encode_immediate(bytes, &chain.left);
+            encode_immediate(bytes, &chain.right);
+            encode_exact_add(bytes, &chain.inner);
+            encode_exact_add(bytes, &chain.middle);
+            encode_exact_add(bytes, &chain.bridge);
+            encode_exact_add(bytes, &chain.join);
+            encode_exact_add(bytes, &chain.result);
+        }
     }
 }
 

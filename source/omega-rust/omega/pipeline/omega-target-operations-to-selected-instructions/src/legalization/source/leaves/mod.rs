@@ -2,6 +2,7 @@
 
 mod active_resident_exact_add_bridge_chain;
 mod active_resident_exact_add_chain;
+mod active_resident_exact_add_original_victim_chain;
 mod context;
 mod direct_exact_binary;
 mod entry_parameter;
@@ -17,6 +18,7 @@ use context::{DerivedValue, LeafContext};
 
 pub(super) use exact_add::{
     is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
+    is_active_resident_exact_add_original_victim_chain,
 };
 pub(super) use fuel::exact_edge_fuel;
 pub(super) use operation_projection::source_operations;

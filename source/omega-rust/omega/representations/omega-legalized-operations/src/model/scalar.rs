@@ -101,6 +101,9 @@ pub enum LegalizedLeafValue {
     },
     ActiveResidentExactAddChain(Box<LegalizedActiveResidentExactAddChain>),
     ActiveResidentExactAddBridgeChain(Box<LegalizedActiveResidentExactAddBridgeChain>),
+    ActiveResidentExactAddOriginalVictimChain(
+        Box<LegalizedActiveResidentExactAddOriginalVictimChain>,
+    ),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +124,18 @@ pub struct LegalizedActiveResidentExactAddBridgeChain {
     pub inner: LegalizedExactAdd,
     pub middle: LegalizedExactAdd,
     pub bridge: LegalizedExactAdd,
+    pub result: LegalizedExactAdd,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LegalizedActiveResidentExactAddOriginalVictimChain {
+    pub resident: LegalizedImmediate,
+    pub left: LegalizedImmediate,
+    pub right: LegalizedImmediate,
+    pub inner: LegalizedExactAdd,
+    pub middle: LegalizedExactAdd,
+    pub bridge: LegalizedExactAdd,
+    pub join: LegalizedExactAdd,
     pub result: LegalizedExactAdd,
 }
 

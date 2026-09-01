@@ -3,11 +3,11 @@ use omega_optimization_core::OptimizationValidatorIdentity;
 
 pub fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v11",
+        b"omega.terminal-target-legalization-independent-replay.v12",
     )
 }
 
-/// Opaque custody of the canonical V10 target-legal projection.
+/// Opaque custody of the canonical target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
