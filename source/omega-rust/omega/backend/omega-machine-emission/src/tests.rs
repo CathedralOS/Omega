@@ -15,7 +15,7 @@ use omega_target_operations::{
 use omega_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, MachineId, ObligationId,
-    OperationId, PlaceId, ServiceId, StructuralTypeId, ValueId,
+    OperationId, PlaceId, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 
 fn proof_obligation() -> ObligationId {
@@ -3121,6 +3121,100 @@ fn emits_aarch64_return_immediate() {
         emitted.functions[0].bytes,
         [0xe0, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6]
     );
+}
+
+fn integer_structural_field_plan(
+    target: NativeTarget,
+    integer_type: IntegerType,
+) -> TargetOperationPlan {
+    let pointer = match target.architecture {
+        Architecture::X86_64 => MachineRegister::X86Rdi,
+        Architecture::Aarch64 => MachineRegister::Aarch64X(1),
+    };
+    let source_value = ValueId::new(9).expect("structural field value");
+    TargetOperationPlan {
+        psi: identity(),
+        target,
+        entry: MachineId::new(1).expect("machine"),
+        functions: vec![TargetFunction {
+            fixed_integer_scalar_abi: None,
+            machine: MachineId::new(1).expect("machine"),
+            attachment: None,
+            provenance: TerminalPsiProvenance::default(),
+            operation: TargetOperation::ReturnIntegerExpression {
+                psi_edge: EdgeId::new(1).expect("edge"),
+                source_value,
+                scalar_type: integer_type,
+                expression: TargetIntegerExpression::StructuralField {
+                    psi_operation: OperationId::new(8).expect("field read"),
+                    source_value,
+                    source: PlaceId::new(7).expect("structural source"),
+                    field: StructuralFieldId::new(6).expect("field identity"),
+                    source_placement: ValuePlacement {
+                        shape: ValueShape::integer(24, 8),
+                        locations: vec![ValueLocation::Indirect {
+                            pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                                pointer,
+                            ),
+                            copy_stack_byte_offset: None,
+                            byte_size: 24,
+                            alignment: 8,
+                        }],
+                    },
+                    field_byte_offset: 12,
+                    integer_type,
+                },
+            },
+        }],
+    }
+}
+
+#[test]
+fn emits_signed_i32_structural_field_reads_for_native_targets() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let x86 = emit_machine_code(&integer_structural_field_plan(
+        NativeTarget::linux_x64(),
+        integer_type,
+    ))
+    .expect("emit x86-64 structural integer field");
+    assert_eq!(
+        x86.functions[0].bytes,
+        [0x40, 0x8b, 0x47, 0x0c, 0x48, 0x63, 0xc0, 0xc3]
+    );
+
+    let aarch64 = emit_machine_code(&integer_structural_field_plan(
+        NativeTarget::linux_arm64(),
+        integer_type,
+    ))
+    .expect("emit AArch64 structural integer field");
+    assert_eq!(
+        aarch64_instructions(&aarch64.functions[0].bytes),
+        [0xb940_0c20, 0x9340_7c00, 0xd65f_03c0]
+    );
+}
+
+#[test]
+fn rejects_structural_field_integer_type_drift_before_emission() {
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    let mut plan = integer_structural_field_plan(NativeTarget::linux_x64(), i32_type);
+    let TargetOperation::ReturnIntegerExpression { expression, .. } =
+        &mut plan.functions[0].operation
+    else {
+        unreachable!()
+    };
+    let TargetIntegerExpression::StructuralField { integer_type, .. } = expression else {
+        unreachable!()
+    };
+    *integer_type = u32_type;
+    assert!(matches!(
+        emit_machine_code(&plan),
+        Err(EmissionError::StructuralIntegerTypeMismatch {
+            expected,
+            actual,
+            ..
+        }) if expected == i32_type && actual == u32_type
+    ));
 }
 
 #[test]

@@ -139,9 +139,9 @@ fn aligned_frame_size(used_bytes: u32) -> Result<u32, AssignmentError> {
 fn integer_expression_contains_call(expression: &TargetIntegerExpression) -> bool {
     match expression {
         TargetIntegerExpression::Call { .. } => true,
-        TargetIntegerExpression::Immediate { .. } | TargetIntegerExpression::Parameter { .. } => {
-            false
-        }
+        TargetIntegerExpression::Immediate { .. }
+        | TargetIntegerExpression::Parameter { .. }
+        | TargetIntegerExpression::StructuralField { .. } => false,
         TargetIntegerExpression::BitwiseNot { operand, .. }
         | TargetIntegerExpression::IntegerWiden { operand, .. }
         | TargetIntegerExpression::IntegerExactCast { operand, .. } => {

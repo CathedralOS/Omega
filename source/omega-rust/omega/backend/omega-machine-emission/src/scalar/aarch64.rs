@@ -623,11 +623,12 @@ fn emit_aarch64_boolean_expression_node(
             field_byte_offset,
         } => {
             let code_offset = instructions.len() * 4;
-            emit_aarch64_boolean_structural_field(
+            emit_aarch64_structural_field(
                 instructions,
                 *source_value,
                 source_placement,
                 *field_byte_offset,
+                1,
                 frame,
                 stack_depth,
             )?;
@@ -800,17 +801,19 @@ fn emit_aarch64_boolean_expression_node(
     Ok(())
 }
 
-fn emit_aarch64_boolean_structural_field(
+fn emit_aarch64_structural_field(
     instructions: &mut Vec<u32>,
     source_value: ValueId,
     placement: &ValuePlacement,
     field_byte_offset: u32,
+    field_byte_size: u16,
     frame: &ExpressionFrame,
     stack_depth: u32,
 ) -> Result<(), EmissionError> {
-    if field_byte_offset >= u32::from(placement.shape.byte_size) {
-        return Err(EmissionError::UnsupportedAggregatePlacement);
-    }
+    let field_end = field_byte_offset
+        .checked_add(u32::from(field_byte_size))
+        .filter(|end| *end <= u32::from(placement.shape.byte_size))
+        .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
     if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
         let base = match *pointer {
             IndirectPointerLocation::Register(register) => {
@@ -838,11 +841,11 @@ fn emit_aarch64_boolean_structural_field(
             }
         };
         instructions.push(aarch64_unit_memory_access(
-            aarch64_load_base(1)?,
+            aarch64_load_base(field_byte_size)?,
             0,
             base,
             field_byte_offset,
-            1,
+            field_byte_size,
         )?);
         return Ok(());
     }
@@ -861,7 +864,7 @@ fn emit_aarch64_boolean_structural_field(
                 ..
             } => {
                 let start = u32::from(*value_byte_offset);
-                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+                field_byte_offset >= start && field_end <= start + u32::from(*byte_size)
             }
             ValueLocation::Indirect { .. } => false,
         })
@@ -899,10 +902,10 @@ fn emit_aarch64_boolean_structural_field(
                     byte_offset: stack_byte_offset,
                 })?;
             instructions.push(aarch64_unit_stack_access(
-                aarch64_load_base(1)?,
+                aarch64_load_base(field_byte_size)?,
                 0,
                 incoming,
-                1,
+                field_byte_size,
             )?);
             Ok(())
         }
@@ -1029,6 +1032,32 @@ fn emit_aarch64_expression_node(
                 byte_offset,
             )?); // ldr x0, [sp, #value]
             emit_aarch64_normalize(instructions, scalar_type);
+        }
+        AssignedIntegerExpression::StructuralField {
+            source_value,
+            source_placement,
+            field_byte_offset,
+            integer_type,
+            ..
+        } => {
+            if integer_type != &scalar_type {
+                return Err(EmissionError::StructuralIntegerTypeMismatch {
+                    value: *source_value,
+                    expected: scalar_type,
+                    actual: *integer_type,
+                });
+            }
+            let field_byte_size = require_native_integer_width(*source_value, *integer_type)? / 8;
+            emit_aarch64_structural_field(
+                instructions,
+                *source_value,
+                source_placement,
+                *field_byte_offset,
+                field_byte_size,
+                frame,
+                stack_depth,
+            )?;
+            emit_aarch64_normalize(instructions, *integer_type);
         }
         AssignedIntegerExpression::BitwiseNot { operand, .. } => {
             emit_aarch64_expression_node(

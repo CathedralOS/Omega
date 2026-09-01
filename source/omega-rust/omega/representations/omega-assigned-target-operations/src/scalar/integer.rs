@@ -1,4 +1,7 @@
-use psi_core::{ClaimId, EdgeId, IntegerType, IntegerValue, OperationId, ValueId};
+use omega_calling_conventions::ValuePlacement;
+use psi_core::{
+    ClaimId, EdgeId, IntegerType, IntegerValue, OperationId, PlaceId, StructuralFieldId, ValueId,
+};
 use psi_terminal::{CrashCause, CrashPredicateTerm};
 
 use crate::{
@@ -59,6 +62,15 @@ pub enum AssignedIntegerExpression {
         source_value: ValueId,
         parameter_index: usize,
         location: AssignedScalarLocation,
+    },
+    StructuralField {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        field: StructuralFieldId,
+        source_placement: ValuePlacement,
+        field_byte_offset: u32,
+        integer_type: IntegerType,
     },
     BitwiseNot {
         psi_operation: OperationId,

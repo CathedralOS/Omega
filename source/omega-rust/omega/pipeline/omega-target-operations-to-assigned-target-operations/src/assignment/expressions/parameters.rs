@@ -21,7 +21,8 @@ pub(super) fn expression_parameter_locations(
                     merge_expression_locations(locations, nested)?;
                 }
             }
-            TargetIntegerExpression::Immediate { .. } => {}
+            TargetIntegerExpression::Immediate { .. }
+            | TargetIntegerExpression::StructuralField { .. } => {}
             TargetIntegerExpression::Parameter {
                 source_value,
                 parameter_index,

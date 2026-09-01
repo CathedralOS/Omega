@@ -115,6 +115,29 @@ pub(super) fn direct_boolean_field_offset(
     field: StructuralFieldId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<u32, LoweringError> {
+    direct_scalar_field_offset(structural_type, field, ScalarType::Boolean, declarations)
+}
+
+pub(super) fn direct_integer_field_offset(
+    structural_type: StructuralTypeId,
+    field: StructuralFieldId,
+    scalar_type: psi_core::IntegerType,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<u32, LoweringError> {
+    direct_scalar_field_offset(
+        structural_type,
+        field,
+        ScalarType::Integer(scalar_type),
+        declarations,
+    )
+}
+
+fn direct_scalar_field_offset(
+    structural_type: StructuralTypeId,
+    field: StructuralFieldId,
+    expected_type: ScalarType,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<u32, LoweringError> {
     let declaration = declarations
         .get(&structural_type)
         .copied()
@@ -158,7 +181,7 @@ pub(super) fn direct_boolean_field_offset(
         offset = checked_align_up_u32(offset, u32::from(shape.alignment))
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
         if candidate.id == field {
-            return (candidate.field_type == StructuralFieldType::Scalar(ScalarType::Boolean))
+            return (candidate.field_type == StructuralFieldType::Scalar(expected_type))
                 .then_some(offset)
                 .ok_or(LoweringError::UnknownStructuralType(structural_type));
         }

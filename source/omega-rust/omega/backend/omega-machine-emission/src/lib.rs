@@ -27,8 +27,8 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
 use omega_target_operations::MachineRegister;
 #[cfg(test)]
-use psi_core::{IntegerSign, IntegerType, IntegerValue};
-use psi_core::{MachineId, ValueId};
+use psi_core::{IntegerSign, IntegerValue};
+use psi_core::{IntegerType, MachineId, ValueId};
 
 mod unit;
 use unit::{emit_aarch64_unit_call, emit_unit_body, emit_x86_64_unit_call};
@@ -1110,6 +1110,11 @@ pub enum EmissionError {
     },
     IntegerOutsideType(ValueId),
     IntegerSignMismatch(ValueId),
+    StructuralIntegerTypeMismatch {
+        value: ValueId,
+        expected: IntegerType,
+        actual: IntegerType,
+    },
     ParameterRegisterArchitectureMismatch {
         value: ValueId,
         register: MachineRegister,
