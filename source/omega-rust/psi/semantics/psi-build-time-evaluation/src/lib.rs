@@ -85,7 +85,9 @@ pub use plan_laid::{
     PlanLaidRecord, compute_plan_laid_layouts, compute_plan_laid_layouts_with_authority,
     desugar_plan_laid_value_types,
 };
-pub use psi_checked_interpreter::{EvaluationUsage, MeasuredEvaluation};
+pub use psi_checked_interpreter::{
+    CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, MeasuredEvaluation,
+};
 pub use wire_plans::{compute_wire_plans, compute_wire_plans_with_authority};
 
 /// Target-neutral syntax elaboration that must finish before name resolution.

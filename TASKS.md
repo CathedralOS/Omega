@@ -10706,12 +10706,19 @@ boundary without its corresponding checked law.
   binder, fixed-byte-array width, and nominal source owner. Psi now also
   exposes exact-symbol measured result evaluation plus the exact admitted
   checked-machine closure, so Omega never has to reselect a producer by
-  spelling. The compiler does not yet invoke that evaluator from `via`, decode
-  the returned value, atomically pair its normalized locator with a durable
-  producer/evaluator/materialization receipt, or install that evaluated import
-  in provider-plan and package-review identity. `Syscall` and `VtableField`
-  remain on their visibly segregated legacy carriers until their own ordinary
-  typed value vocabularies exist.
+  spelling. The compiler now evaluates every exact ordinary `via` producer
+  before provider derivation, validates the exact toolchain-owned closed
+  `Binding` vocabulary and const widths, decodes all four atomic import cases,
+  normalizes them against the selected target, and installs only the exact
+  table row as `ProviderBinding::Import`. Its durable receipt commits the
+  producer package/callable/source closure, evaluator semantics and complete
+  usage, evaluated value, materializer schema, vocabulary source, target,
+  widths, and normalized locator. The complete table remains on the checked
+  compilation so package review can cover unselected/private leaves; wiring
+  those rows into canonical package-review capture and replacing the current
+  top-level-only provider provenance replay remain open. `Syscall` and
+  `VtableField` remain on their visibly segregated legacy carriers until their
+  own ordinary typed value vocabularies exist.
   One sealed target-bound carrier validates and fingerprints atomic `PeByName`,
   `PeByOrdinal`, `ElfVersioned`, and `MachODylibSymbol` candidates, rejecting
   empty/NUL coordinates, zero PE ordinals, UEFI/PE conflation, non-Linux
