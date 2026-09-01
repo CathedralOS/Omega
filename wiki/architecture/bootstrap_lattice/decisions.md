@@ -1183,7 +1183,7 @@ token. A view is admitted only as an outer parameter or local type; a forbidden
 view is `EscapingView` at its outermost forbidden `&`, and that structural
 placement failure suppresses defects nested beneath it. `Console` is a sealed
 entry capability admitted only at exact `Main.console`. Every other occurrence
-belongs to the entry-shape judgment and is `InvalidEntry`; `InvalidBoundary`
+belongs to D56's entry-shape judgment and is `InvalidEntry`; `InvalidBoundary`
 remains declaration-collection-only.
 
 Type formation derives all shape, placement, recursion, and unknown-type
@@ -2439,6 +2439,55 @@ constants are later added, every declared trait lifetime slot remains explicit
 and the argument identity becomes a closed binder-or-constant sum; a lifetime
 fixed directly in a trait requirement and absent from its telescope requires no
 application argument.
+
+## D56 — Delta entry diagnostics close inside type formation
+
+Delta's accepted entry shape remains unchanged: one exact `Console` boundary
+signature set, a record `Main` with one sealed `console: Console` field plus
+ordinary program fields, and one `machine Main::main(&mut self)` with no value
+parameters or return. This ruling totals rejection taxonomy and coordinates; it
+does not redesign entry execution.
+
+Entry closure is the final whole-program subjudgment of the existing type-
+formation phase. It is not a sixth checking phase and it never merges with the
+later body/control candidate carrier. A type-formation rejection therefore
+precedes every body/control rejection by phase, irrespective of coordinates;
+the separate `DeltaTypeFormationCandidate` and `DeltaFinalCandidate` carriers
+make cross-phase coordinate comparison unrepresentable.
+
+The entry premise gate is an authored owner/name candidate for `Main::main`, not
+a signature-valid entry. If no such declaration candidate exists, the sole
+entry verdict is `MissingEntry` at source extent. Missing `Main`, `Console`, or
+`Main.console` does not contribute another candidate in that branch. Once an
+authored `Main::main` candidate exists, absence is no longer a possible verdict:
+a wrong receiver, parameters, result, duplicate or competing entry declaration,
+or malformed supporting component is `InvalidEntry`.
+
+Supporting-component shape checks consume that entry-name premise. An authored
+offending boundary declaration/member, `Main` declaration/field, field type, or
+entry declaration anchors `InvalidEntry` at the first byte of the offending
+construct. A required but absent supporting component anchors `InvalidEntry` at
+source extent. Multiple absent components therefore derive the same reason and
+coordinate and merge into one candidate. `Console` boundary members form an
+unordered exact identity/signature set; parameter binder spellings are
+diagnostic only. Member order and binder renaming never change validity.
+
+Within type formation, candidate identity is exactly `(packed offset, reject
+reason)`. Repeated derivation of the same pair is one candidate; distinct
+reasons at one offset are a compiler contradiction and produce outer
+`InternalFailure`. The current Gamma source carries a separately authored
+integer `kind` beside each reason. Although every existing call site maintains
+a reason/kind bijection, that convention is redundant and unenforced. The D56
+implementation deletes the `kind` parameter and derives equality centrally from
+the existing total reason-to-DCOUT-code bijection. Codes are compared only for
+equality; numeric code order never selects a rejection.
+
+Source extent is the only omission coordinate. Delta introduces no synthetic
+coordinates for missing entry components. The retained Delta corpus currently
+contains no entry-bearing program and therefore does not exercise this
+judgment. Implementation must author dedicated entry fixtures before publishing
+golden coordinates, covering absent, malformed, duplicate, reordered, renamed,
+and body-error-adjacent forms without treating corpus silence as evidence.
 
 ## Dependency order
 

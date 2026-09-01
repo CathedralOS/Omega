@@ -425,8 +425,8 @@
 ; rediscovering declaration ownership or assigning opaque numeric node ids.
 ; Each row retains one original top-level syntax value. Fields, cases, boundary
 ; members, and states stay inside that owner instead of becoming a second flat
-; tree. Pending entry candidates and all body/control candidates remain later
-; facts.
+; tree. D56 keeps the final entry-shape candidates in type formation;
+; body/control candidates remain later facts in their separate carrier.
 (data DeltaCatalogMachineOwner
   (DeltaCatalogUnqualifiedMachine)
   (DeltaCatalogDataMachineOwner DeltaDeclaration)
@@ -475,9 +475,9 @@
   (NoDeltaFinalReasons)
   (MoreDeltaFinalReasons DeltaRejectReason DeltaFinalReasonList))
 
-; Equal-coordinate final-phase reasons are retained as a bucket. The pending
-; entry-shape ruling must total entry/body composition before this can select
-; one public rejection. D36 owns
+; Equal-coordinate body/control reasons are retained as a bucket. D56 keeps
+; entry closure in the earlier type-formation carrier, so this carrier never
+; composes or compares coordinates with entry candidates. D36 owns
 ; the earlier receiver grammar and callable-name census; D37 deduplicates one
 ; body reason/coordinate and makes distinct same-coordinate reasons an internal
 ; contradiction.
@@ -3752,8 +3752,9 @@
       (DeltaTypeFormationCandidateAt 6 TypeMismatch start))
     (DeltaReturnTypePlacement
       (DeltaTypeFormationCandidateAt 6 TypeMismatch start))
-    ; This placement is structurally stored. The later entry-shape judgment
-    ; owns a `Main.console` field whose type is not the sealed capability.
+    ; This placement is structurally stored. D56's final type-formation
+    ; entry-shape subjudgment owns a `Main.console` field whose type is not the
+    ; sealed capability.
     (DeltaMainConsoleTypePlacement NoDeltaTypeFormationCandidate)
     (DeltaNestedTypePlacement NoDeltaTypeFormationCandidate)))
 

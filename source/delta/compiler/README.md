@@ -55,9 +55,9 @@ D38's source-backed `.as_slice` receiver/result facts and separate extra-call
 rejection for the resulting array view are implemented; their lowering and
 executable controls remain.
 AST-to-symbolic-Alpha lowering, `main`, and final publication remain
-implementation gaps. Q3 blocks promotion of the incomplete entry-diagnostic
-judgment. D31's profile-independent structural type-formation judgment is now
-implemented; its
+implementation gaps. D56 settles the still-unimplemented entry-diagnostic
+subjudgment and removal of the redundant type-candidate `kind`. D31's profile-
+independent structural type-formation judgment is now implemented; its
 physical storage realization remains later than complete checking, with D34
 now fixing its over-`Int` demand representation. The existing source is
 therefore not yet a compiler edge and no validation may describe it as one.
@@ -90,11 +90,12 @@ so `data X {}` is concretely a zero-field record, plus all direct data-
 containment edges. Recursion checks each edge with a visited-owner graph walk,
 marking every edge in a value cycle at its named-reference coordinate without
 expanding every path through a shared acyclic graph. The winning candidate is
-now promoted after successful census. Remaining expression typing and the
-body/control judgments are the next semantic phase. Entry facts may be retained
-alongside them, but Q3 must total
-their reasons, anchors, and ties before the shared final-phase candidate is
-promoted.
+now promoted after successful census. D56 requires a final type-formation entry
+subjudgment before that promotion: no authored `Main::main` owner/name candidate
+yields only `MissingEntry` at source extent; once one exists, every malformed or
+absent supporting component is `InvalidEntry`. Entry facts do not enter the
+later body/control candidate carrier. Remaining expression typing and
+body/control judgments are the next semantic phase.
 
 The resolution catalog retains one row per formed top-level declaration and
 keeps members, cases, bodies, and states inside their original AST owner. It
@@ -286,7 +287,7 @@ direct static-machine spelling.
 | Source and lexical phase | all permitted ASCII/trivia; every keyword/operator boundary; decoded character and string escapes | each of the six lexical reasons; first invalid byte/opening token; a lexical failure wins over every parse or later-phase defect |
 | Syntax | every type, expression, statement, terminal, transition, boundary/data/machine/state form; comments between tokens; exact nonempty EOF | `UnexpectedToken` at the offending token, including `&` where an unqualified machine parameter must begin, and `UnexpectedEnd` at source extent; empty source; missing/trailing delimiters; positive, array-length, and postfix-decorated `2147483648`, while direct unary `-2147483648` parses |
 | Declaration census | owner/unqualified-machine spelling reuse; qualified versus unqualified machine distinction; case/receiver-method spelling reuse; member/local reuse; local reuse across entry, distinct states, and sibling transition arms | boundary/data owner collision; duplicate exact machine/member/payload/parameter/state/let/transition binder; active machine/state/local/binder shadowing; globally earliest declaration-start coordinate across `DuplicateName` and `InvalidBoundary`; ambiguous owner contributes no inferred boundary kind |
-| Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; complete scalar and sum transitions | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
+| Type and body checking | forward owners/machines/states; empty and nonempty records; finite sums/arrays; views only in admitted positions; unordered exact `Console` member signatures; complete scalar and sum transitions | D31 zero-array, mixed-data, misplaced-`never`, escaping-view, and sealed-`Console` cases; D56 absent/malformed/duplicate/competing entry shapes; every reason from `UnknownType` through `NonexhaustiveSum`, at its exact structural anchor; no reason-table tie-break |
 | Symbolic Alpha encoding | exact vectors for all 21 instructions; zero/forward/backward labels and aliases; payload at the exact 1,048,572-byte `AlphaBootstrapV2` cap | empty IR, bad register/label, missing/duplicate label, target at payload end/interior, unknown/truncated replay opcode, and the first instruction crossing the cap; no partial tape |
 
 The payload row describes the current `AlphaBootstrapV2` profile selected by
@@ -336,6 +337,15 @@ remain exact; larger demands use D34's `INT64_MAX` witness. Both storage
 refusals require `requested > limit` and publish no tape. Adjacent controls
 exercise zero-sized multiplication, exact `INT64_MAX`, and the first larger
 demand without taking a Gamma trap.
+
+D56 entry controls begin with the first authored entry-bearing Delta fixtures.
+They cover no `Main::main`, a present wrong signature, missing/duplicate/wrong-
+type `Main.console`, missing or malformed `Main`/`Console`, competing entries,
+member reordering, binder renaming, several absent supporting components, and
+an entry defect beside a body defect. They assert source-extent omission,
+authored-construct anchors, same-reason deduplication, direct reason equality
+without the redundant `kind`, and the absence of any type/body coordinate
+merge.
 
 Resolution-catalog, local-resolution, and expression-fact controls remain
 planned, not claimed execution: forward data

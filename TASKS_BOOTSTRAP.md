@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment, resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53 and resolve Q3/Q4 diagnostics, complete transition-pattern negatives and coverage plus the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56 and resolve Q3 transition-pattern diagnostics, complete transition-pattern negatives and coverage plus the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1195,7 +1195,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and nested array/view element positions, but reject an exact outer
       parameter, local, or return as `TypeMismatch` at its type token. Treat
       `Main.console` as structurally stored and leave its required sealed type
-      to Q3's entry-shape judgment. This enforces D17's existing storage-only
+      to D56's entry-shape judgment. This enforces D17's existing storage-only
       rule rather than creating a new Delta decision.
   - [x] **D31 OUTCOME-SCHEMA PLUMBING.** Retain the two source-owned
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
@@ -1209,22 +1209,24 @@ code, discover a closure, manufacture proof premises, or decide admission.
     array structurally by outermost then packed coordinate. Composition-only
     excess remains aggregate with no coordinate. Reserved frame bytes stay
     zero and no refusal publishes tape bytes.
-  - [ ] **OWNER-BLOCKED — Q3 DELTA ENTRY-SHAPE TOTALITY.** The accepted
-    `Console`/`Main`/`Main::main` headline is fixed, but `MissingEntry` versus
-    `InvalidEntry`, absent-component and malformed-component coordinates,
-    boundary member order/binder-name sensitivity, and ties with ordinary
-    body/control failures are not total. Retain entry candidates for the final
-    phase, but do not promote a rejection or publish golden coordinates until
-    Q3 settles them. This does not block the independent expression, statement,
-    state, transition, and return judgments.
+  - [ ] **IMPLEMENTATION — D56 DELTA ENTRY-SHAPE TOTALITY.** Add the final
+    whole-program subjudgment inside type formation. Gate supporting-component
+    checks on an authored `Main::main` owner/name candidate; emit only
+    `MissingEntry` at source extent when absent, otherwise emit `InvalidEntry`
+    for malformed, competing, or missing supporting shapes at D56's exact
+    anchors. Treat `Console` members as an unordered signature set and binder
+    names as nonsemantic. Delete the redundant integer `kind` from
+    `DeltaTypeFormationCandidateAt`, derive same-reason equality centrally from
+    the closed reason/code bijection without ordering by code, and author the
+    first entry-bearing fixtures before publishing golden coordinates.
   - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
     type owner, callable, constructor, field, state, and control target against
     the complete census and formed shape graph. Check ordered initialization,
     value/place/call classification, arity and type equality, terminal and
     return obligations, duplicate patterns, and sum exhaustiveness. Accumulate
-    all final-phase candidates by packed coordinate and merge the eventual Q3
-    entry candidates before accepting one resolved program; traversal and wire
-    reason order must not select the diagnostic.
+    all final-phase body/control candidates by packed coordinate after D56's
+    independent type-formation entry gate succeeds; traversal and wire reason
+    order must not select the diagnostic.
   - [x] **IMPLEMENTATION — DELTA RESOLUTION-CATALOG FOUNDATION.** Build one
     source-ordered row per already formed top-level declaration while retaining
     the original AST owner for boundary members, fields/cases, machine bodies,
@@ -1233,9 +1235,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     owner, unqualified/qualified machine, boundary-member, data-member, and
     machine-local state lookups consume those rows without numeric node IDs or
     a second flattened syntax tree. Structural type equality compares nominal
-    names and semantic array lengths, and a neutral final-phase bucket retains
-    every reason tied at the smallest coordinate until Q3 settles final-phase
-    composition. D36 separately requires the earlier callable collision census,
+    names and semantic array lengths, and a neutral body/control bucket retains
+    every reason tied at the smallest coordinate under D37. D56 keeps entry
+    candidates in the distinct earlier type-formation carrier. D36 separately
+    requires the earlier callable collision census,
     and D37 fixes body/control premise-DAG composition.
     The foundation type-checks through the real Gamma frontend;
     it claims no completed body judgment or behavioral execution.
@@ -1291,16 +1294,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     coverage row as complete, missing, or unresolved after all arms. Unknown
     owners/cases keep their settled name diagnostics, but category, payload-
     arity, duplicate, wildcard-placement, and missing-coverage rejections wait
-    for Q4's total premise order. D53 separately owns local block exits.
+    for Q3's total premise order. D53 separately owns local block exits.
     The Gamma gate establishes source formation only until the real compiler
     edge exists.
-  - [ ] **OWNER-BLOCKED — Q4 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.** The
+  - [ ] **OWNER-BLOCKED — Q3 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.** The
     language does not order category, payload-arity, and duplicate relations
     that can share one pattern coordinate; it also assigns no total rejection
     to a single nonfinal `_`, no precedence for repeated wildcards, and no
     coordinate to `NonexhaustiveSum`. Retain the exact positive subject,
     resolved-pattern, complete-binder, and coverage facts above; do not invent
-    public rejections while Q4 is unresolved.
+    public rejections while Q3 is unresolved.
   - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Enforce D36 without
     merging the retained constructor and machine catalog rows or choosing a
     callable by lookup order, arity, expected type, statement context, or
