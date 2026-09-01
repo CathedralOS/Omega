@@ -469,7 +469,11 @@ decision. Only true language-semantic questions belong in
   proof-bearing exact addition and saturating parameterized integer addition
   and subtraction, selected incoming u12 folds, current machine substitutions,
   structural-Unit encoding, resolved layout, and ranked-u32 publication routes
-  are covered; the remaining source families and publication routes are not.
+  are covered. The x86 zero-extending MOV-r32 materialization now also crosses
+  fragment emission, relocation-free text/object custody, validated object
+  publication, and callable-entry replay with exact source-kind, manifest, byte,
+  and corruption checks. The remaining source families and publication routes
+  are not yet complete.
 - [x] Extend abstract ordinary, Unit, and structural-scalar call operations and
   downstream identities/codecs/lowering to retain Terminal
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
