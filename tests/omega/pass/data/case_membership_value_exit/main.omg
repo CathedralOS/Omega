@@ -4,7 +4,7 @@
 // value wider than the tag, so a compare that reads payload bytes misses
 // the match and exits 71. Exits 70 only when the tag test hits.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case None;

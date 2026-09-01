@@ -3,7 +3,7 @@
 // -- `measure("hello")` reads the slice length 5 through the domain. Verifies the
 // literal-as-`&[u8]` backend lowering before the corpus sweep relies on it.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

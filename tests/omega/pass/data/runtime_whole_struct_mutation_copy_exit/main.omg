@@ -8,7 +8,7 @@
 // `copy places`. Exit 71 = a base patched to the wrong region's symbol
 // (reads land in the wrong storage), the exact failure the per-side site
 // tags exist to prevent.
-use omega::language::std::console;
+use omega_language_std::console;
 data Pair { a: i64; b: i64; }
 data Main { console: Console; spot: Pair; scratch: Pair; }
 machine Main::main(&mut self) {

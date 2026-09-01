@@ -7,7 +7,7 @@
 // value is the SECOND union member, so a lowering that drops union arms
 // exits 71.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case None;

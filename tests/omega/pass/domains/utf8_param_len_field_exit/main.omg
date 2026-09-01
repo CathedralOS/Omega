@@ -15,7 +15,7 @@ data Main {
     result: u64;
 }
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 machine Main::store(&mut self, text: &[u8] in Utf8) {
     self.result = text.len;

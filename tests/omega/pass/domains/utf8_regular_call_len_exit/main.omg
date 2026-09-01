@@ -14,7 +14,7 @@ data Main {
     console: Console;
 }
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 machine Main::check(&self, text: &[u8] in Utf8) {
     transition text.len == 5 {

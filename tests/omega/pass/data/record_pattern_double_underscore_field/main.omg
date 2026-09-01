@@ -1,7 +1,7 @@
 // Internal destructure-marker delimiters must not split a legal field name
 // containing repeated underscores. Exhaustiveness sees exactly the two
 // authored fields; the bound value remains 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Pair {
     left__value: i32;
     right: i32;

@@ -27,7 +27,7 @@ requires
 // ("ok", not "hi") so it cannot accidentally ride the record literal's data
 // object.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data LabelMessage {
     #0 count: u32;

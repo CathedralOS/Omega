@@ -4,7 +4,7 @@
 // `Holder` declares `[copy]` and stores a `Point`, which qualifies
 // only because `Point` declares the properties itself.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point [copy] {
     x: i32;

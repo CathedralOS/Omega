@@ -2,7 +2,7 @@
 // every intermediate struct. Each level's byte offset must compose correctly for both the write and
 // the read. Two leaf fields (v, w) plus a decoy `tag` at a sibling level discriminate the offsets.
 // v + w = 30 + 40 = 70. Exits 70 iff the deep access resolves to the right storage.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data L4 { v: i32 in Wrapping; w: i32 in Wrapping; }
 data L3 { l4: L4; tag: i32 in Wrapping; }

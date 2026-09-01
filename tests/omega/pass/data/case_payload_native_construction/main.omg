@@ -5,7 +5,7 @@
 // binding reads the payload member back out as the target state's argument.
 // Exits 70 when construction, tag dispatch, and the payload read all work.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case None;

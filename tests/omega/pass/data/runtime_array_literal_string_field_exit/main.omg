@@ -17,7 +17,7 @@ requires
 // as element 0's. A cross check (element 0 against element 1's literal) pins
 // that the compare is content-honest rather than vacuously true.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     number: u32;
