@@ -140,6 +140,65 @@ requires 0i32 <= right, right <= left, left <= 100i32
 }
 
 #[test]
+fn review_projects_fixed_token_const_generic_checked_adapter_application() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let checked = compile_fixture(
+        r#"pub data Vector<const Count: u64> {
+    value: u8
+}
+
+pub data ConstMath {}
+pub boundary operator + ConstMath::combine<const Count: u64>(
+    left: Vector<Count>,
+    right: Vector<Count>
+) -> Vector<Count>;
+
+pub data ConstMathProvider {}
+pub machine ConstMathProvider::combine<const Length: u64>(
+    left: Vector<Length>,
+    right: Vector<Length>
+) -> Vector<Length>
+satisfies ConstMath::combine
+{ left }
+
+pub machine exercise(left: Vector<4>, right: Vector<4>) -> Vector<4> {
+    left + right
+}
+"#,
+    );
+    let review = project_checked_package_review(&checked)
+        .expect("fixed-token const-generic checked adapter application should project");
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact fixed-token const-generic application")
+    };
+    let PackageReviewBoundaryApplication::Exact(arguments) = application.application() else {
+        panic!("fixed-token const-generic use has a nonempty application")
+    };
+    let [
+        PackageReviewBoundaryApplicationArgument::Const {
+            binder_ordinal,
+            declared_carrier,
+            value_type,
+            value_encoding,
+        },
+    ] = arguments.as_slice()
+    else {
+        panic!("fixed-token const-generic use retains one const argument")
+    };
+    assert_eq!(*binder_ordinal, 0);
+    assert!(declared_carrier.canonical().contains("u64"));
+    let expected = psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4);
+    assert_eq!(value_type, &expected.type_name);
+    assert_eq!(value_encoding, &expected.encoding);
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
+    );
+}
+
+#[test]
 fn fixed_token_checked_adapter_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;

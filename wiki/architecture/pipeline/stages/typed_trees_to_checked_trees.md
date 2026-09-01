@@ -282,11 +282,11 @@ Must own:
   token uses in ordinary value machines; an attached-`Unit` plan supplies an
   independent consistency derivation when present. Nested machine applications
   remain rejected by language checking rather than becoming package-review
-  work. Fixed-token generic type applications enter the same authoritative
-  specialization and exact package-review join as their named counterparts.
-  External generic, symbolic cross-artifact, remaining unsupported telescope
-  categories, Terminal companion, and D32 physical-child work remain
-  fail-closed.
+  work. Fixed-token generic type and const applications enter the same
+  authoritative specialization and exact package-review join as their named
+  counterparts. External generic, symbolic cross-artifact, remaining
+  unsupported telescope categories, Terminal companion, and D32 physical-child
+  work remain fail-closed.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked
