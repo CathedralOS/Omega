@@ -48,13 +48,15 @@ fn has_exact_toolchain_float_projection_owner(
             })
 }
 
-fn has_exact_toolchain_float_meaning_result(
+/// Recognize the sealed proof-only `FloatMeaning` carrier by exact toolchain
+/// identity and source ownership. Callers must not grant D40 semantics from a
+/// local same-named data declaration.
+pub fn is_exact_toolchain_float_meaning_type(
     program: &TypedTrees,
-    operator: &OperatorDefinition,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } = program
-        .type_reference_table
-        .type_reference(operator.return_type)
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } =
+        program.type_reference_table.type_reference(type_reference)
     else {
         return false;
     };
@@ -88,6 +90,13 @@ fn has_exact_toolchain_float_meaning_result(
             .data_definitions()
             .iter()
             .any(|data| data.symbol == *symbol && data.name.as_str() == "FloatMeaning")
+}
+
+fn has_exact_toolchain_float_meaning_result(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+) -> bool {
+    is_exact_toolchain_float_meaning_type(program, operator.return_type)
 }
 
 /// Recognize one complete sealed float-projection declaration and return its

@@ -9,14 +9,19 @@ struct TempProject(PathBuf);
 
 impl TempProject {
     fn new(build: &str) -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "omega-build-target-activation-{}-{}",
-            std::process::id(),
-            NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&path).expect("create temporary Omega project");
-        fs::write(path.join("main.omg"), "const ANSWER: u32 = 42;\n")
-            .expect("write temporary Omega source");
+        Self::with_main("const ANSWER: u32 = 42;\n", build)
+    }
+
+    fn with_main(main: &str, build: &str) -> Self {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../../target/omega-test-projects")
+            .join(format!(
+                "omega-build-target-activation-{}-{}",
+                std::process::id(),
+                NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
+            ));
+        fs::create_dir_all(&path).expect("create temporary in-repository Omega project");
+        fs::write(path.join("main.omg"), main).expect("write temporary Omega source");
         fs::write(path.join("build.omg"), build).expect("write temporary Omega build source");
         Self(path)
     }
@@ -33,9 +38,20 @@ impl Drop for TempProject {
 }
 
 fn exact_target_build(body: &str) -> String {
+    exact_profile_build("windows_x86_64", body)
+}
+
+fn exact_profile_build(target: &str, body: &str) -> String {
     format!(
-        "target windows_x86_64 {{ }}\nmachine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
+        "target {target} {{ }}\nmachine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
     )
+}
+
+fn pass_canary_main(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../../tests/omega/pass")
+        .join(name)
+        .join("main.omg")
 }
 
 fn diagnostic_text(project: &TempProject) -> String {
@@ -188,6 +204,139 @@ fn exact_x86_build_must_opt_in_before_fma_admission_exists() {
         provider.deployment().features(),
         &omega_target::X86_SCALAR_FMA_REQUIRED_FEATURES
     );
+    assert!(
+        checked.x86_scalar_fma_plan_associations().is_empty(),
+        "feature admission without source demand must not fabricate an association"
+    );
+}
+
+#[test]
+fn exact_x86_fma_demand_fails_closed_without_feature_admission() {
+    let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
+    for target in ["linux_x86_64", "windows_x86_64"] {
+        let diagnostics = compile_to_checked(&main, Some(target))
+            .expect_err("an exact-profile x86 FMA demand requires explicit deployment admission")
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            diagnostics.contains("requires explicit AVX+FMA3 admission"),
+            "unexpected {target} diagnostics: {diagnostics}"
+        );
+        assert!(
+            diagnostics.contains("F32::fused_multiply_add")
+                && diagnostics.contains("F64::fused_multiply_add"),
+            "each exact semantic slot must fail closed: {diagnostics}"
+        );
+    }
+}
+
+#[test]
+fn admitted_x86_fma_demand_retains_exact_plan_associations() {
+    for (target, profile, other_profile) in [
+        (
+            "linux_x86_64",
+            omega_target::TargetProfile::LinuxX64,
+            omega_target::TargetProfile::WindowsX64,
+        ),
+        (
+            "windows_x86_64",
+            omega_target::TargetProfile::WindowsX64,
+            omega_target::TargetProfile::LinuxX64,
+        ),
+    ] {
+        let main = pass_canary_main("float/x86_fma_plan_association");
+        let checked = compile_to_checked(&main, Some(target))
+            .unwrap_or_else(|diagnostics| panic!("{target} FMA admission failed: {diagnostics:?}"));
+        let provider = checked
+            .x86_scalar_fma_provider()
+            .expect("explicit feature selection must retain one provider");
+        let associations = checked.x86_scalar_fma_plan_associations();
+        assert_eq!(
+            associations.len(),
+            2,
+            "repeated calls deduplicate while F32 and F64 remain distinct"
+        );
+        assert_eq!(
+            associations
+                .iter()
+                .map(|association| association.slot())
+                .collect::<Vec<_>>(),
+            vec![
+                omega_target::X86ScalarFmaSlot::Binary32,
+                omega_target::X86ScalarFmaSlot::Binary64,
+            ]
+        );
+        assert_eq!(
+            associations
+                .iter()
+                .map(|association| association.selected_builtin())
+                .collect::<Vec<_>>(),
+            vec![
+                psi_symbols::BuiltinFunction::FloatFusedMultiplyAddF32,
+                psi_symbols::BuiltinFunction::FloatFusedMultiplyAddF64,
+            ]
+        );
+        for association in associations {
+            assert_eq!(association.selected_plan().target, target);
+            assert_eq!(association.admitted_provider(), provider);
+            assert!(
+                association.matches_checked_inputs(checked.selected_provider_plans(), provider)
+            );
+        }
+        assert_ne!(
+            associations[0].selected_plan_digest(),
+            associations[1].selected_plan_digest(),
+            "F32 and F64 require distinct exact plans"
+        );
+        assert!(
+            checked
+                .selected_provider_plans()
+                .plans()
+                .iter()
+                .any(|plan| plan.schema.trait_name.contains("F32::multiply_then_add")),
+            "the fixture must select multiply-then-add while the FMA association excludes it"
+        );
+
+        let wrong_profile_provider =
+            omega_target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                other_profile,
+                &omega_target::X86_SCALAR_FMA_REQUIRED_FEATURES,
+            )
+            .expect("canonical cross-profile provider fixture");
+        assert!(
+            associations.iter().all(|association| !association
+                .matches_checked_inputs(checked.selected_provider_plans(), wrong_profile_provider)),
+            "a provider for another policy profile must not substitute"
+        );
+
+        let mut substituted_plans = checked.selected_provider_plans().plans().to_vec();
+        let associated_digest = associations[0].selected_plan_digest();
+        substituted_plans
+            .iter_mut()
+            .find(|plan| plan.identity_digest() == associated_digest)
+            .expect("associated plan must remain in the selected closure")
+            .name
+            .push_str(".substituted");
+        let substituted =
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(substituted_plans)
+                .expect("structurally valid substituted closure");
+        assert!(
+            !associations[0].matches_checked_inputs(&substituted, provider),
+            "compact coordinates cannot authorize an exact-plan substitution"
+        );
+        assert_eq!(provider.profile(), profile);
+    }
+}
+
+#[test]
+fn aarch64_fma_demand_is_not_an_x86_feature_association() {
+    let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
+    let checked = compile_to_checked(&main, Some("linux_arm64"))
+        .expect("AArch64 FMA remains admitted by its own target realization");
+    assert_eq!(checked.x86_scalar_fma_provider(), None);
+    assert!(checked.x86_scalar_fma_plan_associations().is_empty());
 }
 
 #[test]

@@ -46,6 +46,34 @@ pub(super) fn checked_member_target_from_exact_owner(
     target
 }
 
+/// Recover one expression type from the exact checked owner environments that
+/// contain it. Contract copies can intentionally leave parameter/result path
+/// symbols unresolved; the retained checked contract owner is the authority
+/// for those bindings.
+pub(super) fn checked_expression_type_reference_from_exact_owner(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    owner_expression: ExpressionHandle,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let mut retained = None;
+    for environment in exact_owner_environments(program, facts, owner_expression)? {
+        let InferredType::TypeReference(candidate) =
+            infer_expression_type(program, expression, &environment, &mut Vec::new())?
+        else {
+            return None;
+        };
+        if let Some(existing) = retained
+            && program.normalized_type_identity(existing)
+                != program.normalized_type_identity(candidate)
+        {
+            return None;
+        }
+        retained = Some(candidate);
+    }
+    retained
+}
+
 pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
     program: &TypedTrees,
     facts: &CheckFacts,

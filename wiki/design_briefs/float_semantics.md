@@ -54,9 +54,14 @@ the only route by which the existing source-free custody seam may enter final
 image emission. Exact-target `build.omg` activation now selects the closed
 `Baseline` or `AvxFma3` deployment value and retains an admitted provider on the
 checked compilation, with targetless, non-x86, and cross-profile substitution
-failing closed. This is not native execution evidence and does not widen the
-generic SSE2 x86-64 targets: source ProviderPlan selection and compiler/native
-lowering that consume the retained admission remain pending.
+failing closed. Linux and Windows x86 target sources now publish the two
+nearest-FMA satisfiers, and checked compilation joins each actual source use's
+complete selected `ProviderPlan` and exact compiler-intrinsic provenance to the
+matching admitted provider. Repeated uses deduplicate, F32/F64 remain separate,
+and multiply-then-add or non-x86 plans cannot borrow the admission. This is
+checked custody, not native execution evidence, and does not widen the generic
+SSE2 x86-64 targets: compiler/native lowering that consumes the association
+remains pending.
 
 **Names mean formats, permanently.** `f32` = IEEE binary32 on every target
 that provides it, forever; `p32` = posit32 if it ever ships. A
@@ -215,11 +220,13 @@ uses through both interpreter and native lowering.
 All native target families select exact F32/F64 plans for primitive arithmetic,
 comparison, classification, conversion, square root, minimum/maximum, negate,
 and multiply-then-add. AArch64 additionally has fused and directed-rounding
-realizations. Generic x86-64 remains SSE2-baseline. The first explicit
-feature-qualified carrier now exists for source-free x86 FMA custody and final
-image replay, and ordinary exact-target build selection retains that carrier
-on the checked compilation. Source ProviderPlan selection and compiler/native
-lowering that consume it are still pending.
+realizations. Generic x86-64 remains SSE2-baseline. The explicit
+feature-qualified x86 FMA carrier supports source-free custody and final-image
+replay, and ordinary exact-target build selection retains that carrier on the
+checked compilation. Linux and Windows target sources now select nearest-FMA
+plans, and each actual checked use is associated with the exact admitted
+provider by full-plan/profile/slot replay. Compiler/native lowering that
+consumes this association is still pending.
 Multiply-then-add and FMA stay distinct through lowering and result-policy
 adaptation.
 

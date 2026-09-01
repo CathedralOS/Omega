@@ -20,6 +20,7 @@ mod stage;
 mod target_machines;
 pub(crate) use omega_provider_planning::task_plans;
 mod timing;
+pub(crate) mod x86_fma_plan_association;
 
 pub(crate) use crate::compiler::CompileOptions;
 pub(crate) use checked_entry::CheckedCompilation;

@@ -24,6 +24,7 @@ pub use pipeline::checked_entry::{
     compile_to_checked_with_packages_in_sponsored_build_session,
     compile_to_checked_with_replay_record,
 };
+pub use pipeline::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation;
 pub(crate) use psi_source as source;
 pub(crate) use psi_source_files_to_tokens as lexer;
 pub(crate) use psi_tokens_to_syntax_trees as parser;

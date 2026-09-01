@@ -32,6 +32,8 @@ pub struct CheckedCompilation {
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     x86_scalar_fma_provider: Option<omega_target::AdmittedX86ScalarFmaProvider>,
+    x86_scalar_fma_plan_associations:
+        Vec<super::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     selected_program_entry: Option<omega_build_evaluation::SelectedCompilerProgramEntry>,
     selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
     selected_build_machine_identity: Option<String>,
@@ -75,6 +77,7 @@ impl PartialEq for CheckedCompilation {
             && self.selected_target_profile == other.selected_target_profile
             && self.selected_native_target == other.selected_native_target
             && self.x86_scalar_fma_provider == other.x86_scalar_fma_provider
+            && self.x86_scalar_fma_plan_associations == other.x86_scalar_fma_plan_associations
             && self.selected_program_entry == other.selected_program_entry
             && self.selected_build_machine_symbol == other.selected_build_machine_symbol
             && self.selected_build_machine_identity == other.selected_build_machine_identity
@@ -304,6 +307,15 @@ impl CheckedCompilation {
         &self,
     ) -> Option<omega_target::AdmittedX86ScalarFmaProvider> {
         self.x86_scalar_fma_provider
+    }
+
+    /// Exact source-selected nearest-FMA plans joined to this compilation's
+    /// admitted x86 provider. Empty means the source demanded no x86 FMA;
+    /// admission alone never fabricates source demand or execution evidence.
+    pub fn x86_scalar_fma_plan_associations(
+        &self,
+    ) -> &[super::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation] {
+        &self.x86_scalar_fma_plan_associations
     }
 
     /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
@@ -1285,6 +1297,14 @@ fn compile_to_checked_inner_with_replay(
             }),
         },
     )?;
+    let x86_scalar_fma_plan_associations =
+        super::x86_fma_plan_association::bind_checked_x86_scalar_fma_plan_associations(
+            &selected_execution_settlement.program,
+            &selected_execution_settlement.selected_provider_plan_facts,
+            &selected_execution_settlement.selected_provider_provenance,
+            x86_scalar_fma_provider,
+            selected_target_profile,
+        )?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).
@@ -1325,6 +1345,7 @@ fn compile_to_checked_inner_with_replay(
         selected_target_profile,
         selected_native_target,
         x86_scalar_fma_provider,
+        x86_scalar_fma_plan_associations,
         selected_program_entry,
         selected_build_machine_symbol,
         selected_build_machine_identity,
