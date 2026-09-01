@@ -10757,11 +10757,23 @@ Remaining N6/N8 work:
   Checked deduplication and Terminal format 50 / vocabulary 53 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
-  operands to share that exact format and contract carrier. Resolved symbols
-  and other nonliteral typed expressions still use an explicitly transitional
-  lowering-local coordinate. Still open are artifact-aware source carriers for
-  contract parameters/results, Terminal values, and structural float leaves, plus
-  production proof-ledger discharge.
+  operands to share that exact format and contract carrier. The first
+  checked-only nonliteral prerequisite is also live. A direct resolved
+  `f32`/`f64` parameter used by a top-level contract of its owning machine
+  retains the exact owner-machine symbol, parameter symbol, primitive format,
+  and a fallback transitional input. Checked binding independently rejoins the
+  symbol to that owner's entry-state parameter table, excludes results, nested
+  state-contract parameters, locals, members, casts, const parameters,
+  non-floats, and foreign owners from direct provenance, and deduplicates only
+  the exact owner/parameter/format tuple. Exact literals remain unchanged, and
+  every other nonliteral source remains
+  transitional. Checked-to-Terminal deliberately erases this checked-only
+  provenance through its unchanged fallback input; Terminal format 50 /
+  vocabulary 53 does not change. Artifact-aware parameter binding remains an
+  engineering prerequisite because Terminal intentionally has no general float
+  scalar parameter representation. Still open are that Terminal carrier,
+  artifact-aware carriers for contract results, Terminal values, and structural
+  float leaves, plus production proof-ledger discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

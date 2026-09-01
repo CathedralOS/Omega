@@ -938,8 +938,16 @@ Current ownership is:
   the rooted tuple `(32, 1, 1, 1)` or `(64, 2, 2, 1)` plus its canonical
   commitment; deduplication and equality replay include that exact descriptor,
   and cross-format equality rejects before emission.
-  Other source forms remain explicitly transitional pending their artifact-
-  relative carriers.
+  A checked-only prerequisite now distinguishes one nonliteral cohort: a direct
+  resolved `f32`/`f64` parameter in a top-level contract owned by the parameter's
+  machine retains exact owner-machine and parameter symbols plus its primitive
+  format and fallback transitional input. Binding rejoins the symbol to the
+  owner's entry-state parameter table and keys deduplication by owner,
+  parameter, and format. Results, nested state-contract parameters, locals,
+  members, casts, const parameters, non-floats, and foreign owners remain
+  transitional. The next lowering intentionally emits the retained fallback
+  rather than exporting source handles. Other source forms remain explicitly
+  transitional pending artifact-relative carriers.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:
   `obligations.rs` owns explicit proof obligations, `contracts.rs` owns
   contract proof facts/call/exit indexes, and `roots.rs` owns the grouped

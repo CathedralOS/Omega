@@ -206,8 +206,15 @@ The closed artifact contract retains rooted-checker tuples `(32, 1, 1, 1)` and
 identity, private contract-free ordinary signature, source carrier, nominal
 result identity, and immutable catalog version. Same-format equality is
 required independently during source validation, checked projection, and
-Terminal replay. Nonliteral source carriers remain transitional rather than
-production proof-ledger evidence.
+Terminal replay. The checked plan now retains exact owner-machine and parameter
+symbols for a direct primitive `f32`/`f64` parameter in its owning top-level
+machine contract, after replaying entry-state membership and primitive format.
+That provenance deliberately lowers through its fallback transitional ID:
+Terminal has no general float scalar parameter carrier, so this prerequisite
+does not widen execution or artifact trust. Results, nested state-contract
+parameters, locals, members, casts, const parameters, non-floats,
+foreign-owner sources, and other nonliteral forms remain transitional rather
+than production proof-ledger evidence.
 
 ## Crash routes
 

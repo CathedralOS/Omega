@@ -3342,9 +3342,16 @@ operators and producer-supplied IDs confer no meaning.
 The exact-bit-literal source form is now encoded as raw binary32 or binary64
 bits rather than a producer ID. The verifier independently reconstructs its
 format, closed catalog operation, and payload-erased meaning; canonical
-validation rejects duplicate tuples and cross-format substitution. Contract,
-Terminal-value, and structural-leaf sources still use the explicit
-transitional coordinate and confer no artifact-aware correspondence yet.
+validation rejects duplicate tuples and cross-format substitution. Checked
+lowering now retains exact source-level owner and parameter symbols for direct
+primitive `f32`/`f64` parameters used by their owning machine's top-level
+contracts. This is checked-only provenance: because Terminal deliberately has
+no general float scalar parameter representation, checked-to-Terminal lowers
+the row through its unchanged dense fallback input. No Terminal schema,
+format, vocabulary, verifier authority, or executable float support changes.
+Contract results, Terminal values, structural leaves, and every other
+nonliteral source still use the explicit transitional coordinate and confer no
+artifact-aware correspondence yet.
 Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
@@ -3355,8 +3362,11 @@ the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier
 reconstructs that descriptor independently, and `FloatMeaningEqual` requires
 both operands to share its exact format/operation/contract carrier. This is not
-yet a production proof-ledger claim: nonliteral source coordinates remain
-transitional until artifact-relative carriers land.
+yet a production proof-ledger claim: direct parameter provenance remains
+checked-only and nonliteral Terminal source coordinates remain transitional
+until artifact-relative carriers land. Landing the parameter carrier is an
+engineering prerequisite on a truthful Terminal float-parameter
+representation, not a language-design question.
 
 The relation is structural equality of the already payload-erased
 `FloatMeaning` sum, not IEEE comparison: NaN is reflexive and signed zero is
