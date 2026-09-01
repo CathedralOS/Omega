@@ -12,7 +12,7 @@ use omega_package_evidence::record::{
 use omega_package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V17\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V18\n";
 
 pub(super) trait ConflictRenderOutput {
     fn push_str(&mut self, value: &str);
@@ -413,6 +413,7 @@ pub(super) const fn source_location_role_tag(role: PackageReviewSourceLocationRo
         PackageReviewSourceLocationRole::CallableParameter => 24,
         PackageReviewSourceLocationRole::BoundaryApplicationUse => 26,
         PackageReviewSourceLocationRole::QuotientOperationDeclaration => 27,
+        PackageReviewSourceLocationRole::RepresentationSelection => 28,
     }
 }
 
@@ -456,5 +457,6 @@ pub(super) const fn source_location_role_token(
         PackageReviewSourceLocationRole::QuotientOperationDeclaration => {
             "quotient_operation_declaration"
         }
+        PackageReviewSourceLocationRole::RepresentationSelection => "representation_selection",
     }
 }

@@ -3751,13 +3751,21 @@ activation-wide opaque-representation selection collection in the checked
 compilation, including an unused selection and its selecting-machine/source
 provenance. Checked compilation also retains every exact validated boundary
 calling-plan realization and exposes its compiler-derived opaque uses; an
-unused selection does not appear in those use rows. Package review separately
-publishes exact public opaque/conformance/carrier candidates as producer
-availability without accepting any selection. `Unbound` may coexist because it
-means only that this compilation has no active consumer demand. Consumer demand
-remains absent until the complete D26 row can rejoin canonical nominal identity
-and the retained use with the independent shape, movement, and boundary-plan
-commitments described above.
+unused selection does not appear in those use rows. For a copyable opaque, the
+compiler reharvests the exact selection from the final typed graph and admits
+the property only when the complete inert carrier graph is structurally
+copyable. Package review retains that target-independent application as an
+audit-recommended selected copy receipt owned by the selecting package, even
+when the opaque declaration is dependency-owned or the selection is unused.
+Its versioned strong commitment binds the named conformance application, inert
+lifecycle, and copy disposition; selecting source remains provenance. This is
+neither target ABI movement nor D26 consumer demand. Package review separately publishes exact
+public opaque/conformance/carrier candidates as producer availability without
+accepting any selection. `Unbound` may coexist because it means only that this
+compilation has no active consumer demand. Consumer demand remains absent until
+the complete D26 row can rejoin canonical nominal identity and the retained use
+with the independent shape, movement, and boundary-plan commitments described
+above.
 
 Accepted propositions, boundary/provider guarantees, authority establishment,
 executable mechanisms, and derived dangerous reach remain independent

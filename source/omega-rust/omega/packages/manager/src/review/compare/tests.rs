@@ -31,6 +31,18 @@ fn provider_grant_source_role_has_stable_review_rendering_identity() {
 }
 
 #[test]
+fn representation_selection_source_role_has_stable_review_rendering_identity() {
+    assert_eq!(
+        source_location_role_tag(PackageReviewSourceLocationRole::RepresentationSelection),
+        28
+    );
+    assert_eq!(
+        source_location_role_token(PackageReviewSourceLocationRole::RepresentationSelection),
+        "representation_selection"
+    );
+}
+
+#[test]
 fn proof_only_quotient_review_rows_have_stable_comparison_identities() {
     assert_eq!(
         row_kind_tag(PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence),

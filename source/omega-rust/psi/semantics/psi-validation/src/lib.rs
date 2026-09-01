@@ -119,8 +119,9 @@ pub use placed_views::{
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{
-    DeclaredPropertyRequirement, declared_property_requirements, effective_data_carry_policy,
-    effective_type_carry_policy, type_satisfies_declared_property,
+    DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,
+    declared_property_requirements, effective_data_carry_policy, effective_type_carry_policy,
+    type_satisfies_declared_property,
 };
 pub use proposition_entailment::select_subjectless_evidence_conformance;
 use psi_diagnostics::Diagnostic;
@@ -232,7 +233,7 @@ pub fn collect_contract_entailment_stand_downs(
 }
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    validate_program_internal(program, false).map(|_| ())
+    validate_program_internal(program, false, &[], false).map(|_| ())
 }
 
 /// Recheck one already-resolved checked-body operator realization at a
@@ -272,13 +273,32 @@ pub fn checked_operator_contract_snapshot(
 pub fn validate_program_after_generic_contract_entailment(
     program: &TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_program_internal(program, true).map(|_| ())
+    validate_program_internal(program, true, &[], false).map(|_| ())
 }
 
 pub fn validate_program_after_generic_contract_entailment_with_facts(
     program: &TypedTrees,
 ) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
-    validate_program_internal(program, true)
+    validate_program_internal(program, true, &[], false)
+}
+
+/// Final validation with exact compiler-derived opaque-property receipts.
+/// Ordinary callers use the receipt-free entry points above and remain
+/// fail-closed for `[copy] boundary data`.
+pub fn validate_program_after_generic_contract_entailment_with_facts_and_opaque_property_receipts(
+    program: &TypedTrees,
+    receipts: &[OpaqueDataPropertyReceipt],
+) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
+    validate_program_internal(program, true, receipts, false)
+}
+
+/// Preliminary build-authority checking may leave opaque `[copy]` claims
+/// pending. The resulting checked surface is not final evidence; final
+/// lowering must supply exact receipts and repeats all validation.
+pub fn validate_preliminary_program_after_generic_contract_entailment_with_facts(
+    program: &TypedTrees,
+) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
+    validate_program_internal(program, true, &[], true)
 }
 
 /// Prove machine-generic contracts before specialization. Static selections
@@ -307,6 +327,8 @@ pub fn validate_generic_machine_contract_entailment(
 fn validate_program_internal(
     program: &TypedTrees,
     generic_contract_entailment_prevalidated: bool,
+    opaque_property_receipts: &[OpaqueDataPropertyReceipt],
+    allow_pending_opaque_copy: bool,
 ) -> Result<ProgramValidationFacts, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut boundary_operator_applications = Vec::new();
@@ -359,7 +381,13 @@ fn validate_program_internal(
     // admission; erased proof-only SCCs instead require strict structural descent.
     let proof_recursive_components =
         call_cycles::validate_machine_call_cycles(program, &symbols, &mut diagnostics);
-    properties::validate_data_properties(program, &symbols, &mut diagnostics);
+    properties::validate_data_properties(
+        program,
+        &symbols,
+        opaque_property_receipts,
+        allow_pending_opaque_copy,
+        &mut diagnostics,
+    );
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
     // psi-symbol-resolved-trees-to-typed-trees/src/equality.rs.

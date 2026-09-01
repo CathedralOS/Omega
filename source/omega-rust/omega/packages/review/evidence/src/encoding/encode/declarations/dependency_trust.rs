@@ -51,6 +51,7 @@ pub(crate) fn encode_representation_tcb_key(
             encoder.byte(1);
             encode_nominal(encoder, conformance)?;
         }
+        PackageReviewRepresentationTcbKind::SelectedCopyReceipt { .. } => encoder.byte(2),
     }
     Ok(())
 }
@@ -60,8 +61,36 @@ pub(crate) fn encode_representation_tcb(
     row: &PackageReviewRepresentationTcb,
 ) -> Result<(), PackageReviewEncodingError> {
     encode_representation_tcb_key(encoder, row)?;
-    if let PackageReviewRepresentationTcbKind::ProducerAvailability { carrier, .. } = &row.kind {
-        encode_nominal(encoder, carrier)?;
+    match &row.kind {
+        PackageReviewRepresentationTcbKind::Unbound => {}
+        PackageReviewRepresentationTcbKind::ProducerAvailability { carrier, .. } => {
+            encode_nominal(encoder, carrier)?;
+        }
+        PackageReviewRepresentationTcbKind::SelectedCopyReceipt {
+            conformance,
+            carrier,
+            representation_schema_version,
+            origin,
+            lifecycle,
+            copy_disposition,
+            conformance_application_commitment,
+            selected_application_commitment,
+        } => {
+            encode_nominal(encoder, conformance)?;
+            encode_nominal(encoder, carrier)?;
+            encoder.u16(*representation_schema_version);
+            encoder.byte(match origin {
+                crate::record::PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance => 1,
+            });
+            encoder.byte(match lifecycle {
+                crate::record::PackageReviewOpaqueRepresentationLifecycleDisposition::Inert => 1,
+            });
+            encoder.byte(match copy_disposition {
+                crate::record::PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
+            });
+            encoder.fixed_bytes(conformance_application_commitment);
+            encoder.fixed_bytes(selected_application_commitment);
+        }
     }
     Ok(())
 }

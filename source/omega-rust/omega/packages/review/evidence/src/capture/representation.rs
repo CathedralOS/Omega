@@ -4,7 +4,10 @@ use crate::capture::source::{
     ProjectedNestedSourceLocation, ProjectedReviewRow, ProjectedSemanticDependencyRow,
 };
 use crate::record::{
-    PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewRepresentationTcb,
+    PackageReviewConformanceShape, PackageReviewConformanceSubject,
+    PackageReviewOpaqueRepresentationApplicationOrigin,
+    PackageReviewOpaqueRepresentationCopyDisposition,
+    PackageReviewOpaqueRepresentationLifecycleDisposition, PackageReviewRepresentationTcb,
     PackageReviewRepresentationTcbKind, PackageReviewSemanticDependency,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewSourceLocationRole,
@@ -118,6 +121,94 @@ pub(crate) fn project_representation_tcb(
             declaration: definition.symbol,
             nested_source_locations: Vec::new(),
         });
+    }
+
+    if let Some(first_selection) = compilation.opaque_representation_selections().first() {
+        let selections = omega_representation_planning::rederive_opaque_representation_selections(
+            &compilation.typed,
+            Some(first_selection.selecting_machine()),
+            compilation.opaque_representation_selections(),
+        )?;
+        let selecting_machine = nominal_identity(compilation, first_selection.selecting_machine())?;
+        let selection_owned_by_package = reviewed_package_owns(&selecting_machine, package)?;
+        for selection in selections.iter().filter(|selection| {
+            selection_owned_by_package
+                && selection.copy_disposition()
+                    == omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
+        }) {
+            let opaque_definitions = compilation
+                .data_definitions()
+                .iter()
+                .filter(|definition| definition.symbol == selection.opaque())
+                .collect::<Vec<_>>();
+            let [opaque_definition] = opaque_definitions.as_slice() else {
+                return Err(vec![Diagnostic::error(format!(
+                    "selected opaque copy receipt maps to {} declarations; expected one",
+                    opaque_definitions.len(),
+                ))]);
+            };
+            let declaration = nominal_identity(compilation, opaque_definition.symbol)?;
+            if selection.schema_version()
+                != omega_representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
+                || selection.selected_application_commitment() == [0; 32]
+                || selection.selected_application_commitment()
+                    != selection.rederived_selected_application_commitment()
+            {
+                return Err(vec![Diagnostic::error(
+                    "selected opaque copy receipt has stale application custody",
+                )]);
+            }
+            let conformance = nominal_identity(compilation, selection.application().declaration)?;
+            let carrier = nominal_identity(compilation, selection.carrier())?;
+            let mut nested_source_locations = vec![ProjectedNestedSourceLocation {
+                source_span: selection.source_span(),
+                role: PackageReviewSourceLocationRole::RepresentationSelection,
+            }];
+            nested_source_locations.push(project_nested_declaration_source_location(
+                compilation,
+                selection.opaque(),
+                PackageReviewSourceLocationRole::Declaration,
+                "opaque copy receipt declaration",
+            )?);
+            nested_source_locations.push(project_nested_declaration_source_location(
+                compilation,
+                selection.application().declaration,
+                PackageReviewSourceLocationRole::Declaration,
+                "opaque copy receipt conformance",
+            )?);
+            nested_source_locations.push(project_nested_declaration_source_location(
+                compilation,
+                selection.carrier(),
+                PackageReviewSourceLocationRole::Declaration,
+                "opaque copy receipt carrier",
+            )?);
+            rows.push(ProjectedReviewRow {
+                row: PackageReviewRepresentationTcb {
+                    declaration,
+                    kind: PackageReviewRepresentationTcbKind::SelectedCopyReceipt {
+                        conformance,
+                        carrier,
+                        representation_schema_version: selection.schema_version(),
+                        origin: match selection.origin() {
+                            omega_representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance => PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance,
+                        },
+                        lifecycle: match selection.lifecycle() {
+                            omega_representation_planning::OpaqueRepresentationLifecycleDisposition::Inert => PackageReviewOpaqueRepresentationLifecycleDisposition::Inert,
+                        },
+                        copy_disposition:
+                            PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
+                        conformance_application_commitment: selection
+                            .application()
+                            .commitment
+                            .as_bytes(),
+                        selected_application_commitment: selection
+                            .selected_application_commitment(),
+                    },
+                },
+                declaration: selection.selecting_machine(),
+                nested_source_locations,
+            });
+        }
     }
 
     for conformance in compilation.conformances().iter().filter(|conformance| {

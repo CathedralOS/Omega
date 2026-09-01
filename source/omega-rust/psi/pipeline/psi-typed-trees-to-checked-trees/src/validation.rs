@@ -10,13 +10,23 @@ pub(crate) struct ValidatedTypedProgram<'program> {
     pub(crate) validation_facts: psi_validation::ProgramValidationFacts,
 }
 
-pub(crate) fn validate_typed_program(
-    program: &TypedTrees,
-) -> Result<ValidatedTypedProgram<'_>, Vec<Diagnostic>> {
+pub(crate) fn validate_typed_program<'program>(
+    program: &'program TypedTrees,
+    opaque_property_receipts: &[psi_validation::OpaqueDataPropertyReceipt],
+    allow_pending_opaque_copy: bool,
+) -> Result<ValidatedTypedProgram<'program>, Vec<Diagnostic>> {
     validate_atomic_result_custody(program)?;
 
-    let validation_facts =
-        psi_validation::validate_program_after_generic_contract_entailment_with_facts(program)?;
+    let validation_facts = if allow_pending_opaque_copy {
+        psi_validation::validate_preliminary_program_after_generic_contract_entailment_with_facts(
+            program,
+        )?
+    } else {
+        psi_validation::validate_program_after_generic_contract_entailment_with_facts_and_opaque_property_receipts(
+            program,
+            opaque_property_receipts,
+        )?
+    };
 
     let proof_plan = psi_proof::obligations::build_proof_plan(program);
     psi_proof::checker::check_proof_plan(&proof_plan)?;

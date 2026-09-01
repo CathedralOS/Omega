@@ -66,6 +66,7 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
 pub(super) struct TypedToCheckedSettlementInput<'a> {
     pub(super) native_target: Option<omega_target::NativeTarget>,
     pub(super) package_inputs: Option<&'a crate::pipeline::PackageCompilationInputs>,
+    pub(super) selected_build_machine: Option<psi_symbols::SymbolHandle>,
     pub(super) boundary_calling_plan_realizations:
         &'a mut [crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization],
     pub(super) opaque_representation_selections:
@@ -148,15 +149,31 @@ pub(super) fn typed_trees_to_checked_trees(
                 &typed,
                 &settlement.selected_provider_plan_facts,
             )?;
+        let rederived_opaque_representation_selections =
+            omega_representation_planning::rederive_opaque_representation_selections(
+                &typed,
+                settlement.selected_build_machine,
+                settlement.opaque_representation_selections,
+            )?;
+        let opaque_property_receipts = rederived_opaque_representation_selections
+            .iter()
+            .filter_map(|selection| {
+                (selection.copy_disposition()
+                    == omega_representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy)
+                    .then(|| psi_validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
+            })
+            .collect::<Vec<_>>();
         let mut program = if settlement.package_inputs.is_some() {
             psi_typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(
                 typed,
                 &selected_generic_operator_providers,
+                &opaque_property_receipts,
             )?
         } else {
             psi_typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
                 typed,
                 &selected_generic_operator_providers,
+                &opaque_property_receipts,
             )?
         };
         crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;

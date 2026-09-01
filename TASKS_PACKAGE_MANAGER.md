@@ -89,9 +89,10 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
-  Complete target-ABI movement closure and the copyable inert-carrier receipt
-  route. Do not publish a partial demand row from calling-convention shape or
-  size/alignment alone. Add canaries proving that
+  Carry the retained selected copy receipt into eventual D26 consumer demand
+  and complete target-ABI movement closure. Do not publish a partial demand row
+  from the copy receipt, calling-convention shape, or size/alignment alone. Add
+  canaries proving that
   independently reviewed dependencies may retain different historical
   selections while one later source consumer selects its own application. The
   future `PackageInstance` composition canary must reject unequal commitments

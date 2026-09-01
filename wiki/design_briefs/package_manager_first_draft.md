@@ -2074,6 +2074,15 @@ Unchanged rows remain visible without requiring repeated blanket approval.
 Deployment policy may elevate an exact compiler-owned mechanism to blocking
 when that mechanism is intrinsically dangerous.
 
+A copyable opaque additionally requires a target-independent selected copy
+receipt. Final validation reharvests the authoritative build selection and
+accepts `[copy] boundary data` only when its complete inert carrier graph is
+structurally copyable. Package review retains the schema-versioned application,
+closed-conformance and selected-application commitments, and exact selecting
+source custody as a selecting-package-owned, audit-recommended row, including
+when the opaque declaration is dependency-owned or the selection is unused.
+This receipt does not create a by-value demand or claim target movement.
+
 Accepted propositions, boundary or provider guarantees, qualification/
 authority establishment, executable mechanisms, and dangerous derived reach
 remain separate blocking or dangerous-authority rows. A public ABI change may

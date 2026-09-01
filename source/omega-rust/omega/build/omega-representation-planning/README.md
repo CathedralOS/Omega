@@ -25,10 +25,25 @@ implements that invariant. `CheckedCompilation` retains the complete validated
 collection unchanged, including unused selections, so downstream work need not
 rediscover an application from syntax or a calling-plan digest; completed
 build-configuration validation must keep it fail-closed if orchestration later
-admits more than one. This custody is not a package-review availability row,
-consumer demand, or physical ABI commitment. Dependency builds publish
-generated-source bundles and their selections are not imported as consumer
-policy.
+admits more than one. Dependency builds publish generated-source bundles and
+their selections are not imported as consumer policy.
+
+Copy admission is target-independent but receipt-gated. A copyable opaque is
+admitted only when the complete inert carrier graph is structurally `[copy]`.
+The preliminary build-authority pass may leave that claim pending, but ordinary
+Psi validation never accepts `[copy] boundary data` without an exact
+compiler-owned receipt. After build evaluation, the compiler reharvests every
+selection from the final typed graph and supplies only the exact matching
+receipt to final validation. Missing, duplicated, stale, wrong-declaration, or
+wrong-property receipts reject.
+
+The selected-application commitment is schema-versioned and binds the named
+conformance application commitment, `Inert` lifecycle, and either
+`PlacementOnly` or `CheckedSemanticCopy`. Build-machine identity and source
+span remain audit provenance rather than semantic identity. Package review
+projects each `CheckedSemanticCopy` selection as an audit-recommended selected
+copy receipt, including an unused selection; this is distinct from producer
+availability, D26 consumer demand, target movement, and a physical ABI claim.
 
 Downstream target consumers derive physical shape from the retained carrier.
 Calling-policy closure and general target layout now consume the same exact
@@ -47,9 +62,10 @@ commitments at their real by-value composition edges.
 `CheckedCompilation` now retains every exact validated boundary calling-plan
 realization. Its materialized signature exposes the compiler-derived
 `BoundaryOpaqueRepresentationUse` rows for actual by-value crossings, while an
-unused selection remains absent from that use list. Package review now rejoins
-public producer candidates to canonical opaque, conformance, and carrier
-identities without selecting them. Consumer demand still requires the complete
-D26/D44 movement and inert-finalization commitment plus the boundary-plan join.
-General size/alignment substitution alone is deliberately not published as
+unused selection remains absent from that use list even when it has a selected
+copy receipt. Package review rejoins public producer candidates to canonical
+opaque, conformance, and carrier identities without selecting them. Consumer
+demand still requires the complete D26/D44 movement and inert-finalization
+commitment plus the boundary-plan join. General size/alignment substitution or
+the target-independent copy receipt alone is deliberately not published as
 demand evidence.

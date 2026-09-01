@@ -25,6 +25,41 @@ pub enum DeclaredPropertyRequirement {
     Carry(psi_language_semantics::CarryPolicy),
 }
 
+/// Closed property admitted for one exact opaque data declaration by an
+/// external compiler-owned representation receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpaqueDataPropertyReceiptKind {
+    Copy,
+}
+
+/// Exact input to final opaque-property validation.
+///
+/// Construction grants nothing by itself. The orchestration owner must derive
+/// this row from independently rechecked representation custody; validation
+/// rejects missing, duplicate, stale, wrong-kind, and wrong-declaration rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpaqueDataPropertyReceipt {
+    declaration: psi_symbols::SymbolHandle,
+    kind: OpaqueDataPropertyReceiptKind,
+}
+
+impl OpaqueDataPropertyReceipt {
+    pub const fn copy(declaration: psi_symbols::SymbolHandle) -> Self {
+        Self {
+            declaration,
+            kind: OpaqueDataPropertyReceiptKind::Copy,
+        }
+    }
+
+    pub const fn declaration(self) -> psi_symbols::SymbolHandle {
+        self.declaration
+    }
+
+    pub const fn kind(self) -> OpaqueDataPropertyReceiptKind {
+        self.kind
+    }
+}
+
 impl std::fmt::Display for DeclaredPropertyRequirement {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -38,13 +73,21 @@ impl std::fmt::Display for DeclaredPropertyRequirement {
 pub(crate) fn validate_data_properties(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
+    opaque_property_receipts: &[OpaqueDataPropertyReceipt],
+    allow_pending_opaque_copy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_opaque_property_receipts(program, opaque_property_receipts, diagnostics);
     for data_definition in program.data_definitions() {
         let properties = data_definition.properties;
 
         if data_definition.supply_mode == psi_language_semantics::DataSupplyMode::BoundaryOpaque {
-            validate_opaque_data_properties(data_definition, diagnostics);
+            validate_opaque_data_properties(
+                data_definition,
+                opaque_property_receipts,
+                allow_pending_opaque_copy,
+                diagnostics,
+            );
             continue;
         }
 
@@ -152,10 +195,18 @@ use carry_derivation::{CarryDerivation, for_each_stored_field};
 /// ordinary admission/receipt spine. Until that consumer lands, fail closed.
 fn validate_opaque_data_properties(
     data_definition: &DataDefinition,
+    receipts: &[OpaqueDataPropertyReceipt],
+    allow_pending_copy: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let properties = data_definition.properties;
-    if properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted {
+    if properties.multiplicity == psi_language_semantics::Multiplicity::Unrestricted
+        && !allow_pending_copy
+        && !receipts.iter().any(|receipt| {
+            receipt.declaration == data_definition.symbol
+                && receipt.kind == OpaqueDataPropertyReceiptKind::Copy
+        })
+    {
         diagnostics.push(Diagnostic::error(format!(
             "opaque boundary data `{}` cannot claim `[copy]` without an admitted property receipt",
             data_definition.name
@@ -169,6 +220,49 @@ fn validate_opaque_data_properties(
             "opaque boundary data `{}` cannot relax its carry policy without an admitted property receipt",
             data_definition.name
         )));
+    }
+}
+
+fn validate_opaque_property_receipts(
+    program: &TypedTrees,
+    receipts: &[OpaqueDataPropertyReceipt],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (index, receipt) in receipts.iter().enumerate() {
+        if receipts[..index].contains(receipt) {
+            diagnostics.push(Diagnostic::error(
+                "opaque data property receipts repeat one exact declaration and property",
+            ));
+            continue;
+        }
+        let definitions = program
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.symbol == receipt.declaration)
+            .collect::<Vec<_>>();
+        let [definition] = definitions.as_slice() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "opaque data property receipt maps to {} declarations; expected one",
+                definitions.len(),
+            )));
+            continue;
+        };
+        if definition.supply_mode != psi_language_semantics::DataSupplyMode::BoundaryOpaque {
+            diagnostics.push(Diagnostic::error(format!(
+                "opaque data property receipt targets non-opaque declaration `{}`",
+                definition.name,
+            )));
+            continue;
+        }
+        match receipt.kind {
+            OpaqueDataPropertyReceiptKind::Copy
+                if definition.properties.multiplicity
+                    == psi_language_semantics::Multiplicity::Unrestricted => {}
+            OpaqueDataPropertyReceiptKind::Copy => diagnostics.push(Diagnostic::error(format!(
+                "opaque data property receipt grants `[copy]` to `{}`, but that declaration does not claim `[copy]`",
+                definition.name,
+            ))),
+        }
     }
 }
 
