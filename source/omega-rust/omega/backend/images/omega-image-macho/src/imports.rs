@@ -6,88 +6,74 @@ use omega_calling_conventions::{
 };
 use omega_image::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImportPlan,
-    FinalImageLayout, FinalImageSection,
+    FinalImageLayout, FinalImageSection, FinalImageSymbolHandle,
 };
+use omega_object_file::SymbolKind;
+use omega_target::{ForeignLocatorCandidate, NormalizedForeignLocator, TargetProfile};
 use psi_diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachoImportThunk {
+    /// Object-local spelling retained only for diagnostics and region labels.
     pub(crate) symbol: String,
+    /// Exact dyld symbol spelling. This may not be UTF-8 and is never rebuilt
+    /// from `symbol` for normalized imports.
+    pub(crate) bind_symbol: Vec<u8>,
     pub(crate) text_offset: usize,
     pub(crate) data_offset: usize,
     /// The install name of the dylib this symbol binds against — selects the
-    /// bind-info dylib ordinal (`macho_dylib_list` position + 1).
-    pub(crate) library: &'static str,
+    /// bind-info dylib ordinal (load-command roster position + 1).
+    pub(crate) library: Vec<u8>,
+    pub(crate) dylib_ordinal: u8,
 }
 
-/// The ordered, de-duplicated dylibs this image links against. libSystem is ALWAYS
-/// first (ordinal 1) — dyld requires the C runtime and every program links it —
-/// then any others (e.g. libobjc) in first-appearance order. A thunk's dylib
-/// ordinal is its library's index here, plus 1.
-pub(crate) fn macho_dylib_list(thunks: &[MachoImportThunk]) -> Vec<MachoDylib> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InstalledMachoImports {
+    pub(crate) thunks: Vec<MachoImportThunk>,
+    pub(crate) dylibs: Vec<MachoDylib>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PreparedMachoImport {
+    symbol_handle: FinalImageSymbolHandle,
+    symbol: String,
+    bind_symbol: Vec<u8>,
+    library: Vec<u8>,
+    legacy_objc_registration: bool,
+}
+
+fn ensure_dylib(dylibs: &mut Vec<MachoDylib>, path: &[u8]) {
+    if !dylibs.iter().any(|dylib| dylib.path.as_ref() == path) {
+        dylibs.push(MachoDylib::from_install_name(path.to_vec()));
+    }
+}
+
+/// Derive the exact image-local dylib roster before any image state is changed.
+/// libSystem remains ordinal 1 for compatibility; normalized install names are
+/// de-duplicated by exact raw bytes in first-reference order.
+fn plan_dylibs(imports: &[PreparedMachoImport]) -> Result<Vec<MachoDylib>, Diagnostic> {
     let mut dylibs = vec![MachoDylib::LIBSYSTEM];
-    let mut uses_objc = false;
-    for thunk in thunks {
-        if thunk.library == DARWIN_LIBOBJC_PATH {
-            uses_objc = true;
-        }
-        // Every imported symbol's library must carry a load command (CoreGraphics
-        // `_CG*` calls, libobjc, …). libSystem is already present; an unknown path
-        // is a wiring bug (a symbol mapped to a dylib with no spec) — skipped so no
-        // malformed load command is emitted.
-        ensure_dylib(&mut dylibs, thunk.library);
+    let uses_legacy_objc = imports.iter().any(|import| import.legacy_objc_registration);
+    for import in imports {
+        ensure_dylib(&mut dylibs, &import.library);
     }
-    // A program that touches the Objective-C runtime needs the Cocoa frameworks
-    // LOADED so their classes REGISTER — `objc_getClass("NSString"/"NSWindow")`
-    // only sees classes from loaded dylibs (libobjc alone provides just `NSObject`
-    // + the runtime). These carry NO imported symbols; they are loaded purely for
-    // their class-registration side effect (appended AFTER libobjc so libobjc
-    // keeps ordinal 2 and existing binds are unaffected). See D-objc-load.
-    // `ensure_dylib` de-dups, so a directly-called CoreGraphics is not doubled.
-    if uses_objc {
-        ensure_dylib(&mut dylibs, MachoDylib::FOUNDATION.path);
-        ensure_dylib(&mut dylibs, MachoDylib::APPKIT.path);
-        ensure_dylib(&mut dylibs, MachoDylib::COREGRAPHICS.path);
+    if uses_legacy_objc {
+        ensure_dylib(&mut dylibs, MachoDylib::FOUNDATION.path.as_ref());
+        ensure_dylib(&mut dylibs, MachoDylib::APPKIT.path.as_ref());
+        ensure_dylib(&mut dylibs, MachoDylib::COREGRAPHICS.path.as_ref());
     }
-    dylibs
-}
-
-/// Append the `MachoDylib` spec for `path` if it is not already loaded. An unknown
-/// path (no matching spec) is skipped — a symbol mapped to a dylib with no spec is
-/// a wiring bug, and emitting a malformed load command would be worse.
-fn ensure_dylib(dylibs: &mut Vec<MachoDylib>, path: &str) {
-    if dylibs.iter().any(|dylib| dylib.path == path) {
-        return;
+    if dylibs.len() > 15 {
+        return Err(Diagnostic::error(format!(
+            "Mach-O image requires {} dylib ordinals, but the current canonical bind encoding supports at most 15",
+            dylibs.len(),
+        )));
     }
-    if let Some(spec) = dylib_spec_for(path) {
-        dylibs.push(spec);
-    }
-}
-
-/// The `MachoDylib` spec (path + versions) for a known install-name path.
-fn dylib_spec_for(path: &str) -> Option<MachoDylib> {
-    [
-        MachoDylib::LIBSYSTEM,
-        MachoDylib::LIBOBJC,
-        MachoDylib::FOUNDATION,
-        MachoDylib::APPKIT,
-        MachoDylib::COREGRAPHICS,
-    ]
-    .into_iter()
-    .find(|spec| spec.path == path)
-}
-
-fn dylib_ordinal(dylibs: &[MachoDylib], library: &str) -> u8 {
-    dylibs
-        .iter()
-        .position(|dylib| dylib.path == library)
-        .map(|index| index as u8 + 1)
-        .unwrap_or(1)
+    Ok(dylibs)
 }
 
 pub(crate) fn install_import_thunks(
     image: &mut FinalImage,
-) -> Result<Vec<MachoImportThunk>, Diagnostic> {
+) -> Result<InstalledMachoImports, Diagnostic> {
     // The host-ABI binding catalog registers an import symbol for EVERY binding,
     // but a program calls only a few. Only a REFERENCED import (a host-call `bl`
     // targets its thunk through a relocation) needs a thunk + bind entry; the rest
@@ -102,34 +88,131 @@ pub(crate) fn install_import_thunks(
         .map(|(_, relocation)| relocation.symbol_handle)
         .filter(|handle| image.symbol_table.symbols.is_valid(*handle))
         .collect();
-    let imports = image
-        .symbol_table
-        .imports
-        .iter()
-        .filter_map(|(_, import)| {
-            (image.symbol_table.symbols.is_valid(import.symbol_handle)
-                && referenced.contains(&import.symbol_handle))
-            .then_some((import.symbol_handle, import.import.clone()))
-        })
-        .collect::<Vec<_>>();
-    let mut thunks = Vec::new();
-
-    for (symbol_handle, import) in imports {
-        match &import {
-            FinalImageImportPlan::StringBackedBootstrap { .. } => {}
+    let mut import_handles = Vec::new();
+    let mut normalized_imports = Vec::<(FinalImageSymbolHandle, NormalizedForeignLocator)>::new();
+    let mut prepared = Vec::new();
+    for (_, import) in image.symbol_table.imports.iter() {
+        if import_handles.contains(&import.symbol_handle) {
+            return Err(Diagnostic::error(
+                "Mach-O final image retains duplicate import rows for one symbol handle",
+            ));
+        }
+        import_handles.push(import.symbol_handle);
+        let symbol = image
+            .symbol_table
+            .symbols
+            .is_valid(import.symbol_handle)
+            .then(|| image.symbol_table.symbols.get(import.symbol_handle))
+            .ok_or_else(|| {
+                Diagnostic::error("Mach-O final image import names an invalid symbol handle")
+            })?;
+        if symbol.kind != SymbolKind::Import
+            || symbol.section != FinalImageSection::None
+            || symbol.offset != 0
+            || symbol.size != 0
+        {
+            return Err(Diagnostic::error(format!(
+                "Mach-O import `{}` is not an unresolved zero-width import symbol",
+                symbol.name
+            )));
+        }
+        let (library, bind_symbol, legacy_objc_registration) = match &import.import {
+            FinalImageImportPlan::StringBackedBootstrap { .. } => {
+                // Preserve the legacy bootstrap's target catalog mapping. Its
+                // retained library string is a basename compatibility field,
+                // not the raw LC_LOAD_DYLIB identity introduced by D45.
+                let library = darwin_import_library(&symbol.name).as_bytes().to_vec();
+                if symbol.name.is_empty() || symbol.name.as_bytes().contains(&0) {
+                    return Err(Diagnostic::error(format!(
+                        "Mach-O bootstrap import `{}` lacks a canonical library/symbol spelling",
+                        symbol.name
+                    )));
+                }
+                let uses_objc = library == DARWIN_LIBOBJC_PATH.as_bytes();
+                (library, symbol.name.as_bytes().to_vec(), uses_objc)
+            }
             FinalImageImportPlan::Normalized(locator) => {
-                return Err(Diagnostic::error(format!(
-                    "normalized foreign locator 0x{:016x} cannot be reconstructed through Mach-O symbol spellings",
-                    locator.non_authoritative_compatibility_fingerprint(),
-                )));
+                let ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name,
+                    symbol,
+                } = locator.locator()
+                else {
+                    return Err(Diagnostic::error(format!(
+                        "normalized non-Mach-O foreign locator 0x{:016x} reached Mach-O image planning",
+                        locator.non_authoritative_compatibility_fingerprint(),
+                    )));
+                };
+                if locator.target() != TargetProfile::MacosArm64
+                    || locator.target().native_target() != image.target
+                {
+                    return Err(Diagnostic::error(format!(
+                        "Mach-O foreign locator 0x{:016x} targets `{}` but image planning targets {:?}",
+                        locator.non_authoritative_compatibility_fingerprint(),
+                        locator.target().target_name(),
+                        image.target,
+                    )));
+                }
+                if let Some((earlier_handle, earlier_locator)) = normalized_imports
+                    .iter()
+                    .find(|(_, earlier)| earlier.identity_digest() == locator.identity_digest())
+                {
+                    let detail = if earlier_locator == locator {
+                        "the same exact locator is attached to more than one import symbol"
+                    } else {
+                        "distinct locators collide on one normalized identity"
+                    };
+                    return Err(Diagnostic::error(format!(
+                        "Mach-O normalized import identity 0x{:016x} is ambiguous between symbol handles {:?} and {:?}: {detail}",
+                        locator.non_authoritative_compatibility_fingerprint(),
+                        earlier_handle,
+                        import.symbol_handle,
+                    )));
+                }
+                normalized_imports.push((import.symbol_handle, locator.clone()));
+                (install_name.clone(), symbol.clone(), false)
             }
             FinalImageImportPlan::None => {
-                return Err(Diagnostic::error(
-                    "Mach-O import has no retained string-backed bootstrap plan",
-                ));
+                return Err(Diagnostic::error(format!(
+                    "Mach-O import `{}` has no retained physical import plan",
+                    symbol.name
+                )));
             }
+        };
+        if referenced.contains(&import.symbol_handle) {
+            prepared.push(PreparedMachoImport {
+                symbol_handle: import.symbol_handle,
+                symbol: symbol.name.clone(),
+                bind_symbol,
+                library,
+                legacy_objc_registration,
+            });
         }
-        let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
+    }
+    for (_, relocation) in image.relocation_table.relocations.iter() {
+        if !image
+            .symbol_table
+            .symbols
+            .is_valid(relocation.symbol_handle)
+        {
+            continue;
+        }
+        let symbol = image.symbol_table.symbols.get(relocation.symbol_handle);
+        if symbol.kind == SymbolKind::Import && !import_handles.contains(&relocation.symbol_handle)
+        {
+            return Err(Diagnostic::error(format!(
+                "Mach-O relocation references import `{}` without one exact import row",
+                symbol.name
+            )));
+        }
+    }
+
+    // This is the transaction boundary: every import row, target, raw locator,
+    // identity, and image-local ordinal is settled before any mutation below.
+    let dylibs = plan_dylibs(&prepared)?;
+    let mut thunks = Vec::with_capacity(prepared.len());
+    for prepared_import in prepared {
+        let symbol_handle = prepared_import.symbol_handle;
+        let symbol = prepared_import.symbol;
         let text_offset = image.memory.text.len();
         image
             .memory
@@ -152,16 +235,22 @@ pub(crate) fn install_import_thunks(
             footprint: None,
         });
 
-        let library = darwin_import_library(&symbol);
+        let dylib_ordinal = dylibs
+            .iter()
+            .position(|dylib| dylib.path.as_ref() == prepared_import.library)
+            .map(|index| u8::try_from(index + 1).expect("preflighted Mach-O dylib ordinal"))
+            .expect("preflighted Mach-O import library must be in load-command roster");
         thunks.push(MachoImportThunk {
             symbol,
+            bind_symbol: prepared_import.bind_symbol,
             text_offset,
             data_offset,
-            library,
+            library: prepared_import.library,
+            dylib_ordinal,
         });
     }
 
-    Ok(thunks)
+    Ok(InstalledMachoImports { thunks, dylibs })
 }
 
 pub(crate) fn patch_import_thunks(
@@ -250,18 +339,21 @@ pub(crate) fn validate_import_thunk_footprints(
     Ok(())
 }
 
-pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk], dylibs: &[MachoDylib]) -> Vec<u8> {
+pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
     let mut bytes = Vec::new();
 
     for thunk in thunks {
         // BIND_OPCODE_SET_DYLIB_ORDINAL_IMM | ordinal — which LC_LOAD_DYLIB this
         // symbol resolves through (1 = libSystem, 2 = libobjc, …). Ordinals ≤ 15
         // fit the immediate; the ordinal comes from `macho_dylib_list` order.
-        let ordinal = dylib_ordinal(dylibs, thunk.library);
-        debug_assert!(ordinal <= 0xf, "Mach-O dylib ordinal {ordinal} exceeds IMM");
-        bytes.push(0x10 | ordinal);
+        debug_assert!(
+            thunk.dylib_ordinal <= 0xf,
+            "Mach-O dylib ordinal {} exceeds IMM",
+            thunk.dylib_ordinal,
+        );
+        bytes.push(0x10 | thunk.dylib_ordinal);
         bytes.push(0x40); // SET_SYMBOL_TRAILING_FLAGS_IMM | 0
-        bytes.extend(thunk.symbol.as_bytes());
+        bytes.extend(&thunk.bind_symbol);
         bytes.push(0);
         bytes.push(0x51); // SET_TYPE_IMM | BIND_TYPE_POINTER
         bytes.push(0x72); // SET_SEGMENT_AND_OFFSET_ULEB | segment 2 (__DATA)
@@ -349,18 +441,25 @@ fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagno
 
 #[cfg(test)]
 mod tests {
-    use super::{install_import_thunks, patch_import_thunks, validate_import_thunk_footprints};
+    use super::{
+        install_import_thunks, macho_bind_info, patch_import_thunks,
+        validate_import_thunk_footprints,
+    };
+    use crate::load_commands::write_macho_load_dylib_command;
     use omega_calling_conventions::MachineRegister;
     use omega_image::{
         FinalExecutableRegionOrigin, FinalImage, FinalImageImport, FinalImageImportPlan,
         FinalImageLayout, FinalImageRelocation, FinalImageSymbol,
     };
-    use omega_target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+    use omega_object_file::SymbolKind;
+    use omega_target::{
+        ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator,
+    };
     use psi_arena::Handle;
 
     fn image_with_referenced_import() -> FinalImage {
         let mut image = FinalImage::with_capacity(
-            FinalImage::default().target,
+            NativeTarget::macos_arm64(),
             Default::default(),
             Handle::invalid(),
             1,
@@ -369,6 +468,7 @@ mod tests {
         );
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
             name: "_write".into(),
+            kind: SymbolKind::Import,
             ..FinalImageSymbol::default()
         });
         image.symbol_table.imports.insert(FinalImageImport {
@@ -384,6 +484,41 @@ mod tests {
                 symbol_handle: symbol,
                 ..FinalImageRelocation::default()
             });
+        image
+    }
+
+    fn image_with_normalized_import(
+        install_name: Vec<u8>,
+        bind_symbol: Vec<u8>,
+        diagnostic_symbol: &str,
+    ) -> FinalImage {
+        let mut image = image_with_referenced_import();
+        let symbol_handle = image
+            .symbol_table
+            .imports
+            .iter()
+            .next()
+            .expect("one import symbol")
+            .1
+            .symbol_handle;
+        image.symbol_table.symbols.get_mut(symbol_handle).name = diagnostic_symbol.into();
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name,
+                symbol: bind_symbol,
+            },
+            TargetProfile::MacosArm64,
+        )
+        .expect("valid structural Mach-O locator");
+        let import_handle = image
+            .symbol_table
+            .imports
+            .iter()
+            .next()
+            .expect("one referenced import")
+            .0;
+        image.symbol_table.imports.get_mut(import_handle).import =
+            FinalImageImportPlan::Normalized(locator);
         image
     }
 
@@ -404,12 +539,12 @@ mod tests {
     fn installed_import_thunks_enter_the_executable_region_inventory() {
         let mut image = image_with_referenced_import();
 
-        let thunks = install_import_thunks(&mut image).expect("valid bootstrap import");
-        patch_test_thunks(&mut image, &thunks);
-        validate_import_thunk_footprints(&mut image, &thunks)
+        let imports = install_import_thunks(&mut image).expect("valid bootstrap import");
+        patch_test_thunks(&mut image, &imports.thunks);
+        validate_import_thunk_footprints(&mut image, &imports.thunks)
             .expect("patched Mach-O thunk bytes should validate");
 
-        assert_eq!(thunks.len(), 1);
+        assert_eq!(imports.thunks.len(), 1);
         assert_eq!(image.executable_regions.len(), 1);
         assert_eq!(
             image.executable_regions[0].origin,
@@ -431,45 +566,207 @@ mod tests {
     #[test]
     fn mutated_import_thunk_opcode_rejects_final_validation() {
         let mut image = image_with_referenced_import();
-        let thunks = install_import_thunks(&mut image).expect("valid bootstrap import");
-        patch_test_thunks(&mut image, &thunks);
+        let imports = install_import_thunks(&mut image).expect("valid bootstrap import");
+        patch_test_thunks(&mut image, &imports.thunks);
         image.memory.text[9] = 0;
 
-        let diagnostic = validate_import_thunk_footprints(&mut image, &thunks)
+        let diagnostic = validate_import_thunk_footprints(&mut image, &imports.thunks)
             .expect_err("mutated Mach-O thunk opcode must reject");
         assert!(diagnostic.message.contains("ADRP X16"));
     }
 
     #[test]
-    fn normalized_macho_locator_stays_fail_closed_before_image_mutation() {
-        let mut image = image_with_referenced_import();
-        let locator = normalize_foreign_locator(
+    fn normalized_macho_locator_emits_exact_raw_load_and_bind_bytes() {
+        let install_name = b"/tmp/lib\xffomega.dylib".to_vec();
+        let bind_symbol = b"_raw_\xfe_entry".to_vec();
+        let mut image = image_with_normalized_import(
+            install_name.clone(),
+            bind_symbol.clone(),
+            "unrelated diagnostic label",
+        );
+
+        let imports = install_import_thunks(&mut image).expect("normalized Mach-O import");
+
+        assert_eq!(imports.thunks.len(), 1);
+        assert_eq!(imports.thunks[0].symbol, "unrelated diagnostic label");
+        assert_eq!(imports.thunks[0].bind_symbol, bind_symbol);
+        assert_eq!(imports.thunks[0].library, install_name);
+        assert_eq!(imports.thunks[0].dylib_ordinal, 2);
+        assert_eq!(imports.dylibs.len(), 2);
+        let mut load_command = Vec::new();
+        write_macho_load_dylib_command(&mut load_command, &imports.dylibs[1]);
+        assert_eq!(
+            &load_command[24..24 + install_name.len()],
+            install_name.as_slice()
+        );
+        let bind_info = macho_bind_info(&imports.thunks);
+        let mut expected_prefix = vec![0x12, 0x40];
+        expected_prefix.extend(&bind_symbol);
+        expected_prefix.push(0);
+        assert!(bind_info.starts_with(&expected_prefix));
+    }
+
+    #[test]
+    fn normalized_macho_imports_deduplicate_raw_install_names_and_share_ordinal() {
+        let install_name = b"/tmp/libomega-custom.dylib".to_vec();
+        let mut image = image_with_normalized_import(
+            install_name.clone(),
+            b"_first".to_vec(),
+            "first diagnostic",
+        );
+        let second_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "second diagnostic".into(),
+            kind: SymbolKind::Import,
+            ..FinalImageSymbol::default()
+        });
+        let second_locator = normalize_foreign_locator(
             ForeignLocatorCandidate::MachODylibSymbol {
-                install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
-                symbol: b"_write".to_vec(),
+                install_name: install_name.clone(),
+                symbol: b"_second".to_vec(),
             },
             TargetProfile::MacosArm64,
         )
-        .expect("valid structural Mach-O locator");
-        let import_handle = image
+        .expect("second normalized locator");
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: second_symbol,
+            import: FinalImageImportPlan::Normalized(second_locator),
+        });
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                symbol_handle: second_symbol,
+                ..FinalImageRelocation::default()
+            });
+
+        let imports = install_import_thunks(&mut image).expect("two normalized imports");
+
+        assert_eq!(imports.dylibs.len(), 2);
+        assert_eq!(imports.dylibs[1].path.as_ref(), install_name);
+        assert_eq!(
+            imports
+                .thunks
+                .iter()
+                .map(|thunk| thunk.dylib_ordinal)
+                .collect::<Vec<_>>(),
+            vec![2, 2]
+        );
+    }
+
+    #[test]
+    fn wrong_normalized_locator_case_rejects_without_image_mutation() {
+        let mut image = image_with_referenced_import();
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::PeByName {
+                library: b"KERNEL32.dll".to_vec(),
+                export: b"ExitProcess".to_vec(),
+            },
+            TargetProfile::WindowsX64,
+        )
+        .expect("valid PE locator");
+        let import_handle = image.symbol_table.imports.iter().next().unwrap().0;
+        image.symbol_table.imports.get_mut(import_handle).import =
+            FinalImageImportPlan::Normalized(locator);
+        let before = image.clone();
+
+        let diagnostic = install_import_thunks(&mut image)
+            .expect_err("non-Mach-O normalized locator must reject");
+
+        assert!(diagnostic.message.contains("non-Mach-O"));
+        assert_eq!(image, before);
+    }
+
+    #[test]
+    fn duplicate_import_row_rejects_without_image_mutation() {
+        let mut image = image_with_referenced_import();
+        let duplicate = image.symbol_table.imports.iter().next().unwrap().1.clone();
+        image.symbol_table.imports.insert(duplicate);
+        let before = image.clone();
+
+        let diagnostic =
+            install_import_thunks(&mut image).expect_err("duplicate import row must reject");
+
+        assert!(diagnostic.message.contains("duplicate import rows"));
+        assert_eq!(image, before);
+    }
+
+    #[test]
+    fn repeated_normalized_identity_rejects_without_image_mutation() {
+        let mut image = image_with_normalized_import(
+            b"/tmp/libomega.dylib".to_vec(),
+            b"_same".to_vec(),
+            "first",
+        );
+        let locator = image
             .symbol_table
             .imports
             .iter()
             .next()
-            .expect("one referenced import")
-            .0;
-        image.symbol_table.imports.get_mut(import_handle).import =
-            FinalImageImportPlan::Normalized(locator);
+            .and_then(|(_, import)| match &import.import {
+                FinalImageImportPlan::Normalized(locator) => Some(locator.clone()),
+                _ => None,
+            })
+            .unwrap();
+        let second_symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+            name: "second".into(),
+            kind: SymbolKind::Import,
+            ..FinalImageSymbol::default()
+        });
+        image.symbol_table.imports.insert(FinalImageImport {
+            symbol_handle: second_symbol,
+            import: FinalImageImportPlan::Normalized(locator),
+        });
+        let before = image.clone();
 
         let diagnostic = install_import_thunks(&mut image)
-            .expect_err("normalized Mach-O realization remains fail closed");
-        assert!(
-            diagnostic
-                .message
-                .contains("cannot be reconstructed through Mach-O symbol spellings")
+            .expect_err("one normalized identity cannot name two import symbols");
+
+        assert!(diagnostic.message.contains("same exact locator"));
+        assert_eq!(image, before);
+    }
+
+    #[test]
+    fn excessive_dylib_ordinals_reject_before_image_mutation() {
+        let mut image = FinalImage::with_capacity(
+            NativeTarget::macos_arm64(),
+            Default::default(),
+            Handle::invalid(),
+            15,
+            15,
+            15,
         );
-        assert!(image.memory.text.is_empty());
-        assert!(image.memory.data.is_empty());
-        assert!(image.executable_regions.is_empty());
+        for index in 0..15 {
+            let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: format!("diagnostic-{index}"),
+                kind: SymbolKind::Import,
+                ..FinalImageSymbol::default()
+            });
+            let locator = normalize_foreign_locator(
+                ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: format!("/tmp/libomega-{index}.dylib").into_bytes(),
+                    symbol: format!("_entry_{index}").into_bytes(),
+                },
+                TargetProfile::MacosArm64,
+            )
+            .expect("valid distinct locator");
+            image.symbol_table.imports.insert(FinalImageImport {
+                symbol_handle: symbol,
+                import: FinalImageImportPlan::Normalized(locator),
+            });
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    symbol_handle: symbol,
+                    ..FinalImageRelocation::default()
+                });
+        }
+        let before = image.clone();
+
+        let diagnostic = install_import_thunks(&mut image)
+            .expect_err("sixteen image-local dylib ordinals exceed IMM encoding");
+
+        assert!(diagnostic.message.contains("supports at most 15"));
+        assert_eq!(image, before);
     }
 }

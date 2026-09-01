@@ -1,6 +1,6 @@
 # Design Brief: Extern Boundaries And Foreign Formats
 
-Current as of 2026-08-28. This brief defines the durable extern model. Concrete
+Current as of 2026-08-31. This brief defines the durable extern model. Concrete
 binding/layout grammar remains subject to the referenced subsystem briefs.
 
 ## Abstract API, target binding
@@ -162,6 +162,15 @@ carry the atomic locator and render exact raw coordinates without text
 reconstruction, rejecting target drift before report installation. The calling
 bridge, ordinary authored machine validation, object locator side table,
 relocation replay, and PE name/ordinal emission retain that same atomic value.
+Mach-O AArch64 final emission now consumes `MachODylibSymbol` without decoding
+either coordinate as text. A whole-import preflight validates exact target and
+case, unresolved symbol shape, normalized-identity uniqueness, the exact raw
+install-name roster, and the current fifteen-ordinal encoding limit before any
+thunk, symbol, data, or executable-region mutation. `LC_LOAD_DYLIB` payloads and
+dyld bind symbols use the retained raw bytes; load commands deduplicate by exact
+install name in first-reference order, and their image-local ordinals remain
+derived layout data rather than locator identity. The object-local symbol name
+survives only as a diagnostic and executable-region label.
 Versioned ELF rows now reach a canonical final-image request
 with exact raw object/symbol/version coordinates and relocation sites. The
 first dependency-light loader-plan input rung only seals one exact

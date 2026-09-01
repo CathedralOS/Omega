@@ -4,6 +4,7 @@ use crate::constants::{
     MACHO_MAIN_COMMAND_SIZE,
 };
 use crate::layout::align_to;
+use std::borrow::Cow;
 
 pub(crate) fn write_macho_load_dylinker_command(bytes: &mut Vec<u8>) {
     let start = bytes.len();
@@ -36,12 +37,12 @@ pub(crate) fn write_macho_executable_build_version_command(bytes: &mut Vec<u8>) 
 }
 
 /// A dylib this image links against, in `LC_LOAD_DYLIB` order (index + 1 is the
-/// bind-info dylib ordinal). `path` is the absolute install name; the version
+/// bind-info dylib ordinal). `path` is the exact raw install name; the version
 /// fields are what the executable claims/requires (dyld checks the loaded dylib's
 /// current_version >= our `compatibility_version`, so keep the latter low).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct MachoDylib {
-    pub(crate) path: &'static str,
+    pub(crate) path: Cow<'static, [u8]>,
     pub(crate) timestamp: u32,
     pub(crate) current_version: u32,
     pub(crate) compatibility_version: u32,
@@ -51,7 +52,7 @@ impl MachoDylib {
     /// libSystem — ALWAYS ordinal 1. Exact fields preserved so images that import
     /// only libc/libm produce byte-identical load commands to before multi-dylib.
     pub(crate) const LIBSYSTEM: MachoDylib = MachoDylib {
-        path: "/usr/lib/libSystem.B.dylib",
+        path: Cow::Borrowed(b"/usr/lib/libSystem.B.dylib"),
         timestamp: 2,
         current_version: 1351 << 16,
         compatibility_version: 1 << 16,
@@ -59,7 +60,7 @@ impl MachoDylib {
     /// The Objective-C runtime. compat_version 1.0.0 so the dyld version check
     /// passes against any installed libobjc.
     pub(crate) const LIBOBJC: MachoDylib = MachoDylib {
-        path: "/usr/lib/libobjc.A.dylib",
+        path: Cow::Borrowed(b"/usr/lib/libobjc.A.dylib"),
         timestamp: 2,
         current_version: 1 << 16,
         compatibility_version: 1 << 16,
@@ -70,7 +71,9 @@ impl MachoDylib {
     /// imported from it; it is loaded purely for class registration. compat_version
     /// 1.0.0 so the dyld check passes against any installed Foundation.
     pub(crate) const FOUNDATION: MachoDylib = MachoDylib {
-        path: "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
+        path: Cow::Borrowed(
+            b"/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
+        ),
         timestamp: 2,
         current_version: 1 << 16,
         compatibility_version: 1 << 16,
@@ -79,14 +82,16 @@ impl MachoDylib {
     /// `NSImageView`, …). Transitively pulls Foundation + CoreGraphics, but we load
     /// them explicitly too. Loaded for class registration; no symbol imported.
     pub(crate) const APPKIT: MachoDylib = MachoDylib {
-        path: "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+        path: Cow::Borrowed(b"/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit"),
         timestamp: 2,
         current_version: 1 << 16,
         compatibility_version: 1 << 16,
     };
     /// CoreGraphics — the `CGImage`/`CGColorSpace`/`CGContext` C API for the blit.
     pub(crate) const COREGRAPHICS: MachoDylib = MachoDylib {
-        path: "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
+        path: Cow::Borrowed(
+            b"/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
+        ),
         timestamp: 2,
         current_version: 1 << 16,
         compatibility_version: 1 << 16,
@@ -97,6 +102,30 @@ impl MachoDylib {
     /// the historical `MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE`.)
     pub(crate) fn command_size(&self) -> usize {
         align_to(24 + self.path.len() + 1, 8)
+    }
+
+    /// Construct the load-command row for an exact normalized install name.
+    /// Known system libraries retain their historical version fields; an
+    /// arbitrary install name uses the emitter's deliberately weak 1.0
+    /// compatibility floor. The raw path is never decoded as text.
+    pub(crate) fn from_install_name(path: Vec<u8>) -> Self {
+        for known in [
+            Self::LIBSYSTEM,
+            Self::LIBOBJC,
+            Self::FOUNDATION,
+            Self::APPKIT,
+            Self::COREGRAPHICS,
+        ] {
+            if known.path.as_ref() == path {
+                return known;
+            }
+        }
+        Self {
+            path: Cow::Owned(path),
+            timestamp: 2,
+            current_version: 1 << 16,
+            compatibility_version: 1 << 16,
+        }
     }
 }
 
@@ -110,7 +139,7 @@ pub(crate) fn write_macho_load_dylib_command(bytes: &mut Vec<u8>, dylib: &MachoD
     write_u32(bytes, dylib.timestamp);
     write_u32(bytes, dylib.current_version);
     write_u32(bytes, dylib.compatibility_version);
-    bytes.extend(dylib.path.as_bytes());
+    bytes.extend(dylib.path.as_ref());
     bytes.push(0);
     bytes.resize(start + command_size, 0);
 }
@@ -144,7 +173,7 @@ mod tests {
                 u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
                 0xc
             );
-            assert!(bytes[24..].starts_with(dylib.path.as_bytes()));
+            assert!(bytes[24..].starts_with(dylib.path.as_ref()));
             assert_eq!(bytes[24 + dylib.path.len()], 0);
         }
     }

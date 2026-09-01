@@ -6633,7 +6633,8 @@ Owners:
   honest `PrimitiveScalar` structural referent plus a Unit
   `WriteOnlyPrimitiveStore` naming the destination place and preceding SSA
   value. Codec replay and independent verification require exact scalar type,
-  dominating value, parameter-root place, `WriteOnlyBorrow` access,
+  dominating value, parameter-root place, `MutableBorrow` or
+  `WriteOnlyBorrow` access,
   unrestricted multiplicity, and empty qualifications/claims. The reference
   interpreter mutates exact-typed stable target-neutral backing shared across call frames;
   fuel is charged before mutation, so exhaustion and resume neither partially
@@ -9198,8 +9199,14 @@ compiler concept is introduced.
   without path or text reconstruction. Both coordinates enter normalized,
   provider-plan, selected-plan, package-review, trust-report, and manifest
   identity atomically. PE emission rejects this distinct object-format case;
-  Mach-O realization remains fail closed until it consumes the structural row
-  directly. The first ordinary-source carrier rung is now live: `via` retains
+  Mach-O AArch64 final emission now consumes the structural row directly. One
+  immutable preflight validates every retained import row, exact target/case,
+  unresolved symbol shape, normalized-identity uniqueness, raw install-name
+  roster, and image-local ordinal before changing image state. Load commands
+  and bind rows use the locator's raw bytes rather than the object-local
+  diagnostic spelling; dylibs deduplicate by exact install-name bytes in first-
+  reference order, and unsupported ordinal counts reject transactionally. The
+  first ordinary-source carrier rung is now live: `via` retains
   one exact typed producer-call expression through syntax, resolution, and
   typing without fabricating an import identity, while the legacy closed
   string binding remains explicitly segregated. Validation currently admits
@@ -10798,8 +10805,14 @@ boundary without its corresponding checked law.
   lookup tables; malformed coordinates, duplicate rows, and target drift reject
   before mutation. The Mach-O row now survives representation, provider,
   selected-plan, package-review, trust-report, and manifest identity with exact
-  raw coordinates. Versioned ELF and Mach-O final realization remain explicit
-  fail-closed boundaries rather than being reconstructed as text. Ordinary
+  raw coordinates. Mach-O AArch64 final realization now emits the exact raw
+  install name and dyld symbol after a mutation-free whole-import preflight;
+  duplicate handles, reused normalized identities, wrong locator cases/targets,
+  unresolved-symbol drift, missing plans, and more than fifteen load-command
+  ordinals reject before thunk installation. Image-local dylib ordinals derive
+  from the exact de-duplicated raw install-name roster and never enter locator
+  identity. Versioned ELF runnable final realization remains an explicit fail-
+  closed boundary rather than being reconstructed as text. Ordinary
   authored outbound machine emission now retains the complete `HostImportLocator`
   in all seven scalar/float/aggregate validation variants, and final instruction
   replay joins normalized calls to the exact object-side locator handle. Raw
