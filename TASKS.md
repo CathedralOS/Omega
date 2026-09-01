@@ -12114,6 +12114,14 @@ checked-result arithmetic decision listed below.
   lives in a private test child. The 3,864-line production owner retains all 43
   production functions, all 19 public projection entry points, exact module
   paths, diagnostics, and the complete 27-test crate behavior unchanged.
+  The matching 10,497-line Psi materialization owner is now a 4,109-line public
+  carrier/replay facade over private byte-derivation (4,940 lines), report-
+  identity (1,091 lines), and bounded sum-reachability (374 lines) owners. All
+  27 public carrier types, all 15 public validation entry points, all 48
+  production types, the complete function/method inventory, sibling
+  `SumReachability` import path, diagnostics, and the 31-test crate behavior are
+  unchanged. This is module ownership only; the fixed-depth reports and their
+  exact shallower/deeper rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
   twelve records, plural paths deeper than twelve records, mixed common-field/case
   shapes,
