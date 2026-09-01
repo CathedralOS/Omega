@@ -639,8 +639,17 @@ unchecked rewrite or opt into lossy floating-point semantics.
   safety, and wrong cost. The seven producers now live in a mirrored test
   taxonomy with isolated fixed-point coverage for shift-zero and wrapping
   multiply-zero, plus runtime-disabled, deterministic, and budgeted pass
-  canaries. The remaining operational axes and other rule families are not yet
-  complete.
+  canaries. GVN roster positions 0--8 now also bind all nine scalar
+  common-subexpression rules to exact scope-specific analysis and invalidation
+  sets, safety, `-1` cost, and validator identity. Their corruption matrix
+  rejects all 72 directed cross-rule relabellings plus unknown identities,
+  analysis/invalidation supersets and subsets, wrong safety, and wrong cost.
+  One nine-fixture pass matrix proves default-disabled execution, exact
+  manifest/fact and ledger/commit custody, repeated-run determinism,
+  deterministic budget exhaustion, and idempotence for every row; direct
+  missing-evidence and corruption refusals now cover the previously weaker
+  proof-certified and compatible-policy dominating rows. The remaining
+  operational axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

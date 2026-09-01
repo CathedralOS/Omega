@@ -17,26 +17,25 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
             OptimizationSafetyClass::ProofCertified
         }
     };
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
+    let expected_required = match scope {
+        ScalarCseScope::SameBlock => {
+            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries])
+        }
+        ScalarCseScope::Dominating => AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ]),
+    };
+    if candidate.required_analyses() != expected_required
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
         || candidate.safety_class() != expected_safety
-        || (scope == ScalarCseScope::Dominating
-            && (!candidate
-                .required_analyses()
-                .contains(AnalysisKind::ControlFlowGraph)
-                || !candidate
-                    .required_analyses()
-                    .contains(AnalysisKind::Dominators)))
+        || candidate.predicted_cost_delta() != -1
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }

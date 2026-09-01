@@ -5,9 +5,6 @@
 
 use super::*;
 
-mod compatible_policy;
-mod dominating;
 mod expression_vocabulary;
-mod phi_translated;
-mod same_block;
+mod scalar_common_subexpression;
 mod total_scalar_identity;
