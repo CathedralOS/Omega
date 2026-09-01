@@ -5,7 +5,7 @@
 // feeds a bitwise AND -- both in value position. 42 = 0b00101010, so the output bytes are
 // exactly "00101010". The digit range is runtime-derived, so the final byte
 // narrowing is explicitly trapping. All eight checked -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8

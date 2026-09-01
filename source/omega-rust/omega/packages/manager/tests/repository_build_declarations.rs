@@ -519,6 +519,16 @@ fn wire_canaries_declare_only_their_consumed_standard_library_edges() {
 }
 
 #[test]
+fn text_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/text"),
+        79,
+        72,
+        &[],
+    );
+}
+
+#[test]
 fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
         [("capabilities", 8, 1), ("control_flow", 53, 48)]

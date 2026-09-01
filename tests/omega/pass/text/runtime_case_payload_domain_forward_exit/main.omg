@@ -10,7 +10,7 @@ requires
 // case-payload producer + the guarded-transition fallthrough fix this rejected
 // `consume: cmd.<payload> in Utf8`.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Command {
     case First(text: &[u8] in Utf8);

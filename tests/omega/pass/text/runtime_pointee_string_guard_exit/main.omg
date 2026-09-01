@@ -12,7 +12,7 @@ requires
 // slot's own raw bytes as if they were the text descriptor, an always-unequal
 // compare (the match regime took the false arm). Both the local-alias shape
 // and the called-machine `&mut Room` PARAMETER shape are covered.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     label: &[u8] in Utf8;

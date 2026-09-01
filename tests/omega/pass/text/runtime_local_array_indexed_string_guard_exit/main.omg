@@ -11,7 +11,7 @@ requires
 // Before the TextEqualsLiteral selection covered base-indexed places, this
 // guard shape selected NO compare at all and the first transition arm was
 // taken unconditionally -- an empty field "equalled" any literal.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     label: &[u8] in Utf8;

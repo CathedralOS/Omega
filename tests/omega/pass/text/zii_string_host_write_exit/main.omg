@@ -2,7 +2,7 @@
 // UTF-8 carrier is empty `{len, bytes}` text when passed through the host-write
 // adapter. This pins the carrier-to-borrowed-view boundary path independently
 // of bounded-carrier equality.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 16]::Utf8
 requires

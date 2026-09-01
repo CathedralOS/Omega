@@ -5,7 +5,7 @@
 // carrier byte READS used as arithmetic operands (the read-side complement of
 // runtime_number_to_decimal_exit's writes). Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8

@@ -6,7 +6,7 @@
 // field (the resume idiom). The carrier index is guarded against `.len` directly, and the
 // count digit is computed into a field before the carrier write (a computed value can't be
 // the inline write source). Six output bytes checked -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8

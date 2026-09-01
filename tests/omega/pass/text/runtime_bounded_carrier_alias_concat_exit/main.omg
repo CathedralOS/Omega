@@ -15,7 +15,7 @@ requires
 domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Formatter {
     label: [u8; 8] in Utf8;

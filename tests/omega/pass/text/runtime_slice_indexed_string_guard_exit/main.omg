@@ -9,7 +9,7 @@ requires
 // Before the TextEqualsLiteral guard selection existed, this guard shape
 // selected NO compare at all and the first transition arm was taken
 // unconditionally -- an empty field "equalled" any literal.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     name: &[u8] in Utf8;

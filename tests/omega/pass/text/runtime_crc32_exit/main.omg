@@ -5,7 +5,7 @@
 // polynomial 0xEDB88320 (3988292384). For each input byte, XOR it into the low byte of the
 // running CRC, then for eight bits: shift right one, and XOR the polynomial whenever the
 // bit shifted out was set. CRC-32 of "abc" is 891568578 (verified against zlib). Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

@@ -5,7 +5,7 @@
 // ASCII protocol tokens, and every other byte sequence routes to Invalid.
 // This keeps inbound validation honest while exercising the standard Console
 // surface with no `String`.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 32]::Utf8
 requires

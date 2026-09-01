@@ -2,7 +2,7 @@
 // each echoed back. The second read overwrites the carrier's inline bytes + length
 // (a leading-delimiter is skipped so CRLF is one terminator), so line buffering is
 // per-read with no `String`.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 64]::Utf8
 requires
