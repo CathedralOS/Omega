@@ -1495,6 +1495,151 @@ fn checked_termination_plans_record_summaries_and_resolved_views() {
 }
 
 #[test]
+fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
+    let source = r#"
+    data ProofTree {
+        case Leaf;
+        case Branch(first: ProofTree, second: ProofTree);
+    }
+
+    data Main {}
+    machine Main::main(&mut self) {}
+
+    machine left(n: ProofTree)
+    terminates by n;
+    -> ProofTree
+    {
+        transition n {
+            ProofTree::Leaf -> ProofTree::Leaf
+            ProofTree::Branch { first, second } -> ProofTree::Branch {
+                first: right(first),
+                second: right(second),
+            }
+        }
+    }
+
+    machine right(n: ProofTree)
+    terminates by n;
+    -> ProofTree
+    {
+        transition n {
+            ProofTree::Leaf -> ProofTree::Leaf
+            ProofTree::Branch { first, second } -> ProofTree::Branch {
+                first: left(first),
+                second: left(second),
+            }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let machine_symbol = |name: &str| {
+        typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap_or_else(|| panic!("machine {name}"))
+            .symbol
+    };
+    let left = machine_symbol("left");
+    let right = machine_symbol("right");
+    let checked = lower_typed_trees(typed).expect("measured proof SCC should check");
+
+    let [component] = checked
+        .facts
+        .termination
+        .proof_recursive_components
+        .as_slice()
+    else {
+        panic!("one proof SCC should be retained")
+    };
+    assert_eq!(
+        component.ranking_relation,
+        psi_checked_trees::CheckedProofRankingRelation::StructuralSubterm
+    );
+    assert!(component.rank_type_identity.contains("ProofTree"));
+    assert_eq!(
+        component
+            .members
+            .iter()
+            .map(|member| member.machine)
+            .collect::<Vec<_>>(),
+        vec![left, right]
+    );
+    assert_eq!(component.edges.len(), 4);
+    assert_eq!(
+        component
+            .edges
+            .iter()
+            .filter(|edge| edge.caller == left && edge.callee == right)
+            .count(),
+        2,
+        "two exact calls between the same machine pair must not collapse"
+    );
+    assert_eq!(
+        component
+            .edges
+            .iter()
+            .filter(|edge| edge.caller == right && edge.callee == left)
+            .count(),
+        2,
+        "the reverse pair must retain both exact calls too"
+    );
+    assert!(component.edges.iter().all(|edge| matches!(
+        edge.site,
+        psi_checked_trees::CheckedProofRecursiveCallSite::Expression { .. }
+    )));
+    let exact_sites = component
+        .edges
+        .iter()
+        .map(|edge| match edge.site {
+            psi_checked_trees::CheckedProofRecursiveCallSite::Expression {
+                state,
+                statement_index,
+                expression_ordinal,
+            } => (
+                state.arena_index(),
+                state.generation(),
+                statement_index,
+                expression_ordinal,
+            ),
+            _ => unreachable!("all retained sites are expression calls"),
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        exact_sites.len(),
+        4,
+        "checked coordinates must distinguish every recursive call without arena expression handles"
+    );
+    assert!(
+        component
+            .edges
+            .iter()
+            .all(|edge| edge.strict_member_path.len() == 1)
+    );
+    let unique_paths = component
+        .edges
+        .iter()
+        .map(|edge| {
+            edge.strict_member_path
+                .iter()
+                .map(|member| (member.arena_index(), member.generation()))
+                .collect::<Vec<_>>()
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        unique_paths.len(),
+        2,
+        "the two payload declarations must remain distinct exact witnesses"
+    );
+}
+
+#[test]
 fn inferred_completion_never_publishes_a_promise() {
     use psi_language_semantics::TerminationGuarantee;
 
