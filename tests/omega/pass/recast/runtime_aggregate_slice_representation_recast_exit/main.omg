@@ -5,7 +5,7 @@
 // same bit-pattern set in both directions. The trailing bool leaves one byte
 // of native padding per element, so success also proves element stride rather
 // than densely repacking scalar leaves.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Narrow {
     signed_value: i16 [0..=100];

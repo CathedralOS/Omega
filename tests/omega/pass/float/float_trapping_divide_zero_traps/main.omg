@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     one: f32 in Trapping;

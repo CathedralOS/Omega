@@ -4,7 +4,7 @@
 // literal offset and tiles the remaining eight bytes as two four-byte records.
 // Both descriptors retain the backing address through state forwarding and
 // mutable projected writes.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair {
     low: u16;

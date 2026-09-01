@@ -10,7 +10,7 @@
 // is strictly stronger than `off < 12`); nested reads inside the offset
 // expression keep their own obligations. A weaker guard (`self.k <= 9`)
 // refuses at the recast (fail/recast/guarded_offset_footprint_rejected).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; buf: [u8; 12]; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.buf[4] = 1;

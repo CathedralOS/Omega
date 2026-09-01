@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70) + interpreter differential. An unsized slice recast
 // derives its element count from exact byte tiling, and its descriptor keeps
 // pointer identity so indexed writes reach the original byte array.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

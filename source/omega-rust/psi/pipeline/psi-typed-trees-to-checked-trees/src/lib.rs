@@ -29,6 +29,17 @@ pub fn typed_operator_has_no_authored_selection(
     authored_selections::typed_operator_has_no_authored_selection(program, expression)
 }
 
+/// Conservative declaration candidates for an operator before checked
+/// selection is final. Build-time authority uses this set only to prove that
+/// every possible authored meaning is already within the package's admitted
+/// source graph; ordinary checked lowering still chooses the exact meaning.
+pub fn typed_operator_authored_selection_candidates(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Vec<psi_symbols::SymbolHandle> {
+    authored_selections::typed_operator_authored_selection_candidates(program, expression)
+}
+
 pub fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {

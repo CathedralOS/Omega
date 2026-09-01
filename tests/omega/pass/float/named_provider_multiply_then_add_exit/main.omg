@@ -4,7 +4,7 @@
 // a fused operation would preserve a positive residual.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -2,7 +2,7 @@
 // view must observe runtime writes to its backing bytes. Constant folding may
 // know the displacement, but it must not replace the view's field reads with
 // values from the zero-initialized static image.
-use omega::language::std::console;
+use omega_language_std::console;
 data Desc { a: u32; b: u64; }
 data Main { console: Console; buf: [u8; 24]; }
 

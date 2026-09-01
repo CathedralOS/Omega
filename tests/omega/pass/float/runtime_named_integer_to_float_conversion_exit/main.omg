@@ -2,7 +2,7 @@
 // unsigned sources prove extension identity; large values pin nearest-even at
 // the binary32/binary64 precision boundary and the upper half of u64.
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; }
 

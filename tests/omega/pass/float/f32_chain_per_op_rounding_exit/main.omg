@@ -11,7 +11,7 @@ use omega::language::core::float_operations;
 // interpreter (71 vs 70). The classifier now reads the literal's landing;
 // the whole chain plans `addss`. Exit 71 = a double-width intermediate
 // (or a width-mismatched nested op) crept back into an f32 chain.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let big: f32 = 16777216.0;

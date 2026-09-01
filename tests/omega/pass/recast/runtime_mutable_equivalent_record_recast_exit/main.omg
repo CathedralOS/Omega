@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // geometry and each corresponding leaf admits the same stored bit patterns.
 // The field names deliberately differ: representation, not nominal spelling,
 // owns the judgment.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data SignedRecord {
     signed_value: i16 [0..=100];

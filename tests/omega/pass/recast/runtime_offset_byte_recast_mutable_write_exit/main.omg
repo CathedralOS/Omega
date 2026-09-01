@@ -3,7 +3,7 @@
 // 0x04030201 through `&mut u32` updates bytes k..k+4 little-endian, leaves the
 // surrounding sentinels untouched, and a subsequent view read observes the
 // same bits. The declared offset range proves k + 4 <= 8.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

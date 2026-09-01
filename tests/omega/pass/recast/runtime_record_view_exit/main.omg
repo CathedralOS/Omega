@@ -11,7 +11,7 @@
 // d.b everywhere -- a drift in any copy reads garbage and this canary
 // goes loud. Footprint refusals:
 // fail/recast/record_view_footprint_rejected.
-use omega::language::std::console;
+use omega_language_std::console;
 data Desc { a: u32; b: u64; }
 data Main { console: Console; buf: [u8; 24]; k: u32 [0..=8]; out: i32; }
 machine Main::main(&mut self) {

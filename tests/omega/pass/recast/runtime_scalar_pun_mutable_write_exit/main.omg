@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // pattern 0x3F800000 through the view makes the f32 source read as 1.0, and a
 // subsequent view read still observes the raw bits. This distinguishes write-through
 // from the shared scalar recast's content snapshot.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

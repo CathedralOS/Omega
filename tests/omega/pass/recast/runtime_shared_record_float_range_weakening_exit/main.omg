@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // RUN CANARY (exit 70) + interpreter differential. Record-wide shared recasts
 // apply the scalar implication law leaf by leaf: the same f32 carrier's 0..=1
 // interval establishes the wider 0..=2 target fact without changing bytes.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data NarrowReading {
     value: f32 [0..=1];

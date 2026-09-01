@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // RETURN and runtime-float-local ARG delivery are still open (pinned in
 // pending/calls/float_value_call_*_divergence), and this canary isolates
 // the guard face from those.
-use omega::language::std::console;
+use omega_language_std::console;
 machine finite_probe(x: f64) -> bool {
     let d: f64 = x - x;
     transition d == 0.0 { true -> yes() _ -> no() }

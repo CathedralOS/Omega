@@ -16,7 +16,7 @@ use omega::language::core::float_operations;
 // the engines fork, so native and interpreter agree bit-for-bit.
 // exit 78/79/80 = the respective face still taking the old
 // f64-then-narrow route.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Sample [copy] { x: f32; }
 

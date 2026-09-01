@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // f32 format metadata through static-local substitution and nested native value
 // operands. The third uses a field-backed chain, pinning the interpreter's
 // expression-width propagation and per-op rounding against native runtime f32.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

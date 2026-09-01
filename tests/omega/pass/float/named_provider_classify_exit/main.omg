@@ -3,7 +3,7 @@
 // also pin the overlaid bool payload at byte 4 of the native enum carrier.
 
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -11,7 +11,7 @@
 // too-wide offset range refuses at the declaration
 // (fail/recast/runtime_offset_footprint_rejected). Record targets
 // (EfiMemoryDescriptor) are the remaining C2 rung.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; buf: [u8; 12]; k: u32 [0..=8]; out: i32; }
 machine Main::main(&mut self) {
     self.buf[4] = 1;

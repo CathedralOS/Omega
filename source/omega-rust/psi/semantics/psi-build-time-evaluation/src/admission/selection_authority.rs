@@ -192,6 +192,13 @@ fn expression_selection_violation(
                     )
                 {
                     continue;
+                } else if binding
+                    == psi_typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
+                    && unresolved_operator_candidates_are_confined(
+                        program, expression, requester, authority,
+                    )
+                {
+                    continue;
                 } else {
                     match late_bound_selection_symbol(
                         program,
@@ -287,6 +294,28 @@ fn expression_selection_violation(
         }
     }
     None
+}
+
+fn unresolved_operator_candidates_are_confined(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    requester: PackageCustody,
+    authority: &dyn BuildTimeSelectionAuthority,
+) -> bool {
+    let candidates = psi_typed_trees_to_checked_trees::typed_operator_authored_selection_candidates(
+        program, expression,
+    );
+    !candidates.is_empty()
+        && candidates.into_iter().all(|candidate| {
+            require_selection(
+                program,
+                requester,
+                package_for_symbol(program, candidate),
+                authority,
+                "candidate for an unresolved build-time operator selection",
+            )
+            .is_none()
+        })
 }
 
 fn unresolved_spelling_is_confined(

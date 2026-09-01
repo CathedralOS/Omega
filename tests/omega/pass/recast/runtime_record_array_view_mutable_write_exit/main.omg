@@ -5,7 +5,7 @@
 // `i` is deliberately a four-byte slot adjacent to later frame data: native
 // address lowering must read exactly its declared width rather than splicing
 // neighboring bytes into the index.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair {
     low: u16;

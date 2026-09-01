@@ -1,7 +1,7 @@
 // The named Trapping overload must reject a finite value whose toward-zero
 // result is outside the destination interval.
 use omega::language::core::float_operations;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main { console: Console; value: f64; }
 

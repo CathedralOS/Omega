@@ -2,7 +2,7 @@
 // inside a later ASSIGNMENT VALUE must retain its address-bearing slot. The
 // nested projected u16 read, widening cast, and bitmask mirror the portable
 // filesystem copy path's `StatView.value.mode` permission decode.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data StatValue { mode: u16; }
 data StatView { tag: u32; value: StatValue; }

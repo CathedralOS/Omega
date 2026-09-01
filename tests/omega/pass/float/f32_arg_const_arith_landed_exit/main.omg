@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // 2^-24, so exact `1 + x` rounds UP to 1 + 2^-23. This deliberately differs
 // from an explicitly f32-landed/runtime tree, whose operations round per-op.
 // Guards the validation argument landing (target params zipped with args).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; expected: f32; }
 machine Main::main(&mut self) {
     self.expected = 1.00000011920928955078125;
