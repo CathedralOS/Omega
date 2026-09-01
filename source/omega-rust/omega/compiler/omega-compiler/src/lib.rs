@@ -2,7 +2,6 @@
 //!
 //! The rooted API is [`Compiler`]. Domain models are imported from their
 //! owning subsystem crates rather than republished here.
-
 mod compiler;
 mod pipeline;
 
