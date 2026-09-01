@@ -7,7 +7,7 @@
 // word 0x00200001). StretchDIBits returns the copied SOURCE scanline count (probed natively:
 // full-height even into the memory DC's default 1x1 bitmap); the interpreter's virtual GDI
 // reports the same. Handles are opaque: branch on != 0 only. Exit 70. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Gui {
     machine dc_create() -> u64;
     machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [u32; 64], info: [u32; 11]) -> u32;

@@ -404,6 +404,7 @@ fn filesystem_canaries_declare_ordinary_standard_library_edges() {
 #[test]
 fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
     for (category, expected_count) in [
+        ("atomics", 8),
         ("backend", 2),
         ("borrow", 3),
         ("comptime", 4),
@@ -461,6 +462,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("termination", 4, 4),
         ("range", 6, 6),
         ("core", 10, 7),
+        ("host", 9, 8),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),

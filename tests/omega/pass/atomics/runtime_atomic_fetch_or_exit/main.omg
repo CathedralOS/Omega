@@ -2,7 +2,7 @@
 // atomically ORs the cell. X86_64 uses a locked CMPXCHG retry loop; AArch64
 // uses ordering-selected LDSET.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
