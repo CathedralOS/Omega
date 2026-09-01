@@ -68,6 +68,57 @@ fn successful_checking_finalizes_authored_call_occurrences() {
 }
 
 #[test]
+fn successful_checking_finalizes_wire_codec_calls_as_exact_intrinsics() {
+    let source = r#"
+        data CounterMessage { #0 counter: u32; }
+        data CounterSample { counter: u32; }
+        data WireVerdict { case Invalid; case Sound; }
+        data Main {
+            buffer: [u8; 64];
+            written: u64;
+            read: u64;
+            verdict: WireVerdict;
+        }
+
+        machine Main::main(&mut self) {
+            let source: CounterSample = CounterSample { counter: 300 };
+            CounterMessage::encode(&source, &mut self.buffer, &mut self.written);
+            let decoded: CounterSample = CounterSample { counter: 0 };
+            CounterMessage::decode(
+                &mut decoded,
+                &self.buffer,
+                &mut self.read,
+                &mut self.verdict
+            );
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let calls = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::Call)
+        .collect::<Vec<_>>();
+
+    assert!(calls.iter().any(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::WireEncode,
+            )
+    }));
+    assert!(calls.iter().any(|selection| {
+        selection.target()
+            == AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::WireDecode,
+            )
+    }));
+    assert!(checked.authored_declaration_selections().all_finalized());
+}
+
+#[test]
 fn successful_checking_finalizes_nominal_calls_in_proof_owned_expressions() {
     let source = r#"
         data Packet [copy] { value: u32; }

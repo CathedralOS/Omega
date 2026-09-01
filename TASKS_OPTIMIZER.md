@@ -173,7 +173,12 @@ decision. Only true language-semantic questions belong in
    coordinates, leaving named-transition call facts in topology custody. A
    provider prefix plus provider-backed leaves verifies and codec-replays;
    deleting either the scalar row or provider requirements rejects. A smaller
-   recurring custody class leaves
+   declaration-custody blocker is also closed: checked wire-schema
+   `encode`/`decode` statements now finalize as distinct compiler-owned
+   intrinsics, while their separately retained schema/type selections own
+   nominal authority. The struct-literal String-field canary therefore passes
+   checked package admission and now stops honestly at the remaining attached-
+   Unit executable-coverage gap. A recurring custody class still leaves
    `CheckedStructLiteralType`, `CheckedOperator`, or compiler-derived member
    access unresolved. Independent failures remain in the legacy `Pair` layout
    fixture, one generic erased-record instance, nominal-affine
