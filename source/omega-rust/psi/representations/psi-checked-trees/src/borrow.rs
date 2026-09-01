@@ -612,7 +612,8 @@ pub struct BorrowFacts {
     /// suspension or freeze row.
     pub reborrow_containment_certificates: Arena<CheckedReborrowContainmentCertificate>,
     /// Narrow one-hop certificates for a directly restored mutable parent used
-    /// by the exact next receiver-free, single-argument mutating call.
+    /// by the exact next receiver-free, single-argument mutating call. Shared
+    /// restoration admits an exact one- or two-member freeze cohort.
     pub reborrow_restored_call_use_certificates: Arena<CheckedReborrowRestoredCallUseCertificate>,
 }
 

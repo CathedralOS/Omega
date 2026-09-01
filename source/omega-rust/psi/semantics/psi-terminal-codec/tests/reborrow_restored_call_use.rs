@@ -214,7 +214,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
     let mut shared = restored_call_use_module();
     shared.reborrow_restored_call_uses[0].child_access = StructuralAccess::SharedBorrow;
     shared.reborrow_restored_call_uses[0].restoration_class =
-        TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+        TerminalReborrowRestorationClass::SharedFreezeRestoration;
     {
         let row = &mut shared.reborrow_restored_call_uses[0];
         row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
@@ -230,6 +230,126 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
     assert_eq!(decode_module(&encoded_shared), Ok(shared.clone()));
     assert_ne!(
         semantic_fingerprint(&shared).expect("shared restoration fingerprints"),
+        original
+    );
+
+    let mut two_member_shared = shared;
+    let mut sibling = two_member_shared.reborrow_restored_call_uses[0].shared_cohort[0].clone();
+    sibling.child_owner_identity = borrow_identity('8');
+    sibling.child_activation = statement(2);
+    two_member_shared.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .push(sibling);
+    {
+        let row = &mut two_member_shared.reborrow_restored_call_uses[0];
+        row.call_boundary = TerminalBorrowBoundarySource::Call {
+            statement_index: 4,
+            call_ordinal: 0,
+            target_identity: borrow_identity('f'),
+        };
+        row.child_weakening = statement(4);
+        row.direct_root_weakening = statement(6);
+        for member in &mut row.shared_cohort {
+            member.child_weakening = statement(4);
+        }
+    }
+    let observer = id(3, MachineId::new);
+    let structural_type = two_member_shared.structural_types[0].id;
+    let caller_place = two_member_shared.machines[0].structural_parameters[0].place;
+    two_member_shared.machines[0].blocks[0].operations.insert(
+        0,
+        Operation {
+            id: id(2, OperationId::new),
+            result: OperationResult::Unit,
+            kind: OperationKind::CallUnit {
+                callee: observer,
+                structural_arguments: vec![
+                    StructuralArgument {
+                        place: caller_place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    StructuralArgument {
+                        place: caller_place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                ],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        },
+    );
+    let observer_left_place = id(3, PlaceId::new);
+    let observer_right_place = id(4, PlaceId::new);
+    let shared_parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+    };
+    two_member_shared.machines.push(TerminalMachine {
+        id: observer,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: vec![
+            shared_parameter(observer_left_place, 0),
+            shared_parameter(observer_right_place, 1),
+        ],
+        ranked_scc: None,
+        result: TerminalMachineResult::Unit,
+        structural_places: vec![
+            StructuralPlaceDeclaration {
+                id: observer_left_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            },
+            StructuralPlaceDeclaration {
+                id: observer_right_place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: 1,
+                    is_self: false,
+                },
+            },
+        ],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: id(3, BlockId::new),
+        blocks: vec![Block {
+            id: id(3, BlockId::new),
+            parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::ReturnUnit {
+                edge: id(3, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+        }],
+        contract: MachineContract {
+            id: id(3, ContractId::new),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    });
+    let encoded_two_member =
+        encode_module(&two_member_shared).expect("two-member shared freeze should encode");
+    assert_eq!(
+        decode_module(&encoded_two_member),
+        Ok(two_member_shared.clone())
+    );
+    assert_ne!(
+        semantic_fingerprint(&two_member_shared)
+            .expect("two-member shared restoration fingerprints"),
         original
     );
 
@@ -260,7 +380,7 @@ fn restored_call_use_encoding_fails_closed_on_substitution() {
 
     let mut wrong_class = restored_call_use_module();
     wrong_class.reborrow_restored_call_uses[0].restoration_class =
-        TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+        TerminalReborrowRestorationClass::SharedFreezeRestoration;
     assert!(matches!(
         encode_module(&wrong_class),
         Err(CodecError::InvalidModule(
@@ -309,7 +429,7 @@ fn restored_call_use_encoding_fails_closed_on_substitution() {
     let mut shared = restored_call_use_module();
     {
         let row = &mut shared.reborrow_restored_call_uses[0];
-        row.restoration_class = TerminalReborrowRestorationClass::SoleSharedFreezeRestoration;
+        row.restoration_class = TerminalReborrowRestorationClass::SharedFreezeRestoration;
         row.child_access = StructuralAccess::SharedBorrow;
         row.shared_cohort = vec![TerminalReborrowSharedCohortMember {
             child_owner_identity: row.child_owner_identity.clone(),

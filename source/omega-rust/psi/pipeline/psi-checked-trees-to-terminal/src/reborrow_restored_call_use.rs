@@ -138,14 +138,156 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             BorrowAccessKind::Mutable | BorrowAccessKind::WriteOnly
         ) && child.access_effect
             == CheckedReborrowAccessEffect::ExclusiveSuspension;
-        let sole_shared_freeze = child.access == BorrowAccessKind::Read
+        let shared_freeze_cohort = child.access == BorrowAccessKind::Read
             && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
-            && borrow
+            && matches!(disposition.shared_cohort.len(), 1 | 2);
+
+        let mut shared_cohort = Vec::new();
+        let exact_shared_cohort = if shared_freeze_cohort {
+            let roster_is_complete = borrow
                 .reborrow_loan_resources
                 .iter()
                 .filter(|(_, candidate)| candidate.parent_loan == parent.loan)
                 .count()
+                == disposition.shared_cohort.len();
+            let roster_is_unique = disposition.shared_cohort.len() == 1
+                || disposition.shared_cohort[0] != disposition.shared_cohort[1];
+            let primary_occurs_once = disposition
+                .shared_cohort
+                .iter()
+                .filter(|member| **member == certificate.child_resource)
+                .count()
                 == 1;
+            let mut exact = roster_is_complete && roster_is_unique && primary_occurs_once;
+            for member_handle in &disposition.shared_cohort {
+                if !borrow.reborrow_loan_resources.is_valid(*member_handle) {
+                    exact = false;
+                    continue;
+                }
+                let member = borrow.reborrow_loan_resources.get(*member_handle);
+                if !flow
+                    .borrow_lifetimes
+                    .activations
+                    .is_valid(member.parent_suspension.child_activation)
+                    || !flow
+                        .borrow_lifetimes
+                        .weakenings
+                        .is_valid(member.parent_end_status.child_weakening)
+                    || !flow
+                        .borrow_lifetimes
+                        .weakenings
+                        .is_valid(member.parent_end_status.parent_weakening)
+                    || !flow
+                        .contexts
+                        .constraint_refs
+                        .is_valid(member.parent_suspension.parent_entry_constraint)
+                {
+                    exact = false;
+                    continue;
+                }
+                let member_activation = flow
+                    .borrow_lifetimes
+                    .activations
+                    .get(member.parent_suspension.child_activation);
+                let member_weakening = flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get(member.parent_end_status.child_weakening);
+                let member_parent_weakening = flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get(member.parent_end_status.parent_weakening);
+                let member_parent_constraint = flow
+                    .contexts
+                    .constraint_refs
+                    .get(member.parent_suspension.parent_entry_constraint);
+                let member_containments = borrow
+                    .reborrow_containment_certificates
+                    .iter()
+                    .filter(|(_, candidate)| candidate.child_resource == *member_handle)
+                    .map(|(_, candidate)| candidate)
+                    .collect::<Vec<_>>();
+                let [member_containment] = member_containments.as_slice() else {
+                    exact = false;
+                    continue;
+                };
+                let exact_member = member.machine_symbol == certificate.machine_symbol
+                    && member.state_symbol == certificate.state_symbol
+                    && member.parent_loan == parent.loan
+                    && member.parent_resource
+                        == CheckedParentBorrowResource::DirectRoot {
+                            resource: certificate.parent_resource,
+                        }
+                    && member.access == BorrowAccessKind::Read
+                    && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
+                    && member.parent_end_status.status
+                        == psi_checked_trees::ParentLexicalStatusAtChildEnd::LivePastChild
+                    && member.weakening_reason == FlowBorrowWeakeningReason::LastUseExpired
+                    && member.weakening_source == child.weakening_source
+                    && member.loan == member_activation.loan
+                    && member.loan == member_weakening.loan
+                    && member.parent_suspension.child_loan == member.loan
+                    && member.parent_suspension.parent_loan == parent.loan
+                    && member.parent_suspension.parent_resource == member.parent_resource
+                    && member.parent_suspension.source == member.activation_source
+                    && member_parent_constraint.kind
+                        == FlowConstraintKind::BorrowLoan { loan: parent.loan }
+                    && member.parent_end_status.child_loan == member.loan
+                    && member.parent_end_status.parent_loan == parent.loan
+                    && member.parent_end_status.parent_resource == member.parent_resource
+                    && member_parent_weakening.loan == parent.loan
+                    && member.restoration.child_weakening_source == member.weakening_source
+                    && member.restoration.child_weakening_reason == member.weakening_reason
+                    && !borrow.reborrow_loan_resources.iter().any(|(_, candidate)| {
+                        candidate.parent_resource
+                            == CheckedParentBorrowResource::Reborrow {
+                                resource: *member_handle,
+                            }
+                    })
+                    && member_containment.machine_symbol == member.machine_symbol
+                    && member_containment.state_symbol == member.state_symbol
+                    && member_containment.child_loan == member.loan
+                    && member_containment.child_resource == *member_handle
+                    && member_containment.parent_loan == parent.loan
+                    && member_containment.parent_resource == member.parent_resource
+                    && member_containment.parent_access == parent.access
+                    && member_containment.child_access == member.access
+                    && member_containment.access_effect == member.access_effect
+                    && member_containment.child_activation
+                        == member.parent_suspension.child_activation
+                    && member_containment.parent_entry_constraint
+                        == member.parent_suspension.parent_entry_constraint
+                    && member_containment.formation_source == member.activation_source
+                    && member_containment.child_weakening
+                        == member.parent_end_status.child_weakening
+                    && member_containment.child_weakening_source == member.weakening_source
+                    && member_containment.child_weakening_reason == member.weakening_reason
+                    && member_containment.parent_weakening
+                        == member.parent_end_status.parent_weakening
+                    && member_containment.parent_place == parent.captured_place
+                    && member_containment.child_place == member.captured_place
+                    && member
+                        .captured_place
+                        .segments
+                        .starts_with(&parent.captured_place.segments)
+                    && member_containment.projection_remainder
+                        == member.captured_place.segments[parent.captured_place.segments.len()..]
+                    && member_containment.containment
+                        == CheckedReborrowContainmentKind::SharedFreeze;
+                exact &= exact_member;
+                shared_cohort.push(TerminalReborrowSharedCohortMember {
+                    child_owner_identity: identity(checked, member.owner_symbol)?,
+                    child_owner_path: owner_path(checked, &member.owner_path)?,
+                    child_place: place(checked, &member.captured_place)?,
+                    child_access: access(member.access.clone()),
+                    child_activation: boundary(checked, member_activation.source)?,
+                    child_weakening: boundary(checked, member_weakening.source)?,
+                });
+            }
+            exact
+        } else {
+            disposition.shared_cohort.is_empty()
+        };
         let exact_resource = certificate.machine_symbol == child.machine_symbol
             && certificate.machine_symbol == parent.machine_symbol
             && certificate.state_symbol == child.state_symbol
@@ -159,7 +301,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 }
             && parent.access == BorrowAccessKind::Mutable
             && parent.owner_path.is_empty()
-            && (exclusive_reactivation || sole_shared_freeze)
+            && (exclusive_reactivation || shared_freeze_cohort)
             && child.weakening_reason == FlowBorrowWeakeningReason::LastUseExpired
             && child.loan == child_activation.loan
             && child.loan == child_weakening.loan
@@ -203,8 +345,8 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 == CheckedBorrowResourceDispositionTarget::ParentResource(
                     child.parent_resource.clone(),
                 )
-            && if sole_shared_freeze {
-                disposition.shared_cohort.as_slice() == [certificate.child_resource]
+            && if shared_freeze_cohort {
+                exact_shared_cohort
                     && disposition.disposition
                         == CheckedReborrowResourceDisposition::RestoreSharedCohort
             } else {
@@ -237,7 +379,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             && containment.projection_remainder
                 == child.captured_place.segments[parent.captured_place.segments.len()..]
             && containment.containment
-                == if sole_shared_freeze {
+                == if shared_freeze_cohort {
                     CheckedReborrowContainmentKind::SharedFreeze
                 } else {
                     CheckedReborrowContainmentKind::ExclusiveSuspension
@@ -347,22 +489,11 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
         let child_access = access(child.access.clone());
         let child_activation = boundary(checked, child_activation.source)?;
         let child_weakening = boundary(checked, child_weakening.source)?;
-        let shared_cohort = sole_shared_freeze
-            .then(|| TerminalReborrowSharedCohortMember {
-                child_owner_identity: child_owner_identity.clone(),
-                child_owner_path: child_owner_path.clone(),
-                child_place: child_place.clone(),
-                child_access,
-                child_activation: child_activation.clone(),
-                child_weakening: child_weakening.clone(),
-            })
-            .into_iter()
-            .collect();
         rows.push(TerminalReborrowRestoredCallUse {
             machine: terminal_machine,
             operation: occurrence.terminal_operation,
-            restoration_class: if sole_shared_freeze {
-                TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
+            restoration_class: if shared_freeze_cohort {
+                TerminalReborrowRestorationClass::SharedFreezeRestoration
             } else {
                 TerminalReborrowRestorationClass::ExclusiveReactivation
             },

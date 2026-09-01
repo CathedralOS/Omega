@@ -128,6 +128,7 @@ pub(super) fn build_affine_array_construction_prefix(
         13 => 14,
         14 => 15,
         15 => 16,
+        16 => 17,
         _ => return None,
     };
     if !local.is_mutable
@@ -1409,7 +1410,20 @@ pub(super) fn structural_call_arguments(
             caller_state.symbol,
             call,
             &authored_place,
-        );
+        )
+        .or_else(|| {
+            reborrow_restored_shared_cohort_observation_alias_target(
+                program,
+                facts,
+                caller_machine.symbol,
+                caller_state,
+                target_machine,
+                target_state,
+                call,
+                call_site,
+                &authored_place,
+            )
+        });
         let place = restored_alias
             .clone()
             .unwrap_or_else(|| authored_place.clone());
@@ -1631,6 +1645,127 @@ fn reborrow_restored_call_alias_target(
     Some(place.clone())
 }
 
+/// Translate either member of the exact two-child shared-freeze cohort for
+/// its final observation call. The checked restoration certificate remains
+/// the authority: both bare child aliases must occur exactly once in the call,
+/// both target parameters must be shared references, and the certified
+/// whole-parent mutation must be the immediately following statement.
+fn reborrow_restored_shared_cohort_observation_alias_target(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    caller_state: &psi_typed_trees::state::State,
+    target_machine: &psi_typed_trees::machine::Machine,
+    target_state: &psi_typed_trees::state::State,
+    call: &psi_checked_trees::FlowCallFact,
+    call_site: &crate::CallSite<'_>,
+    authored_place: &crate::flow::CanonicalPlace,
+) -> Option<crate::flow::CanonicalPlace> {
+    let psi_facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
+        return None;
+    };
+    if !authored_place.segments.is_empty() || call.call_ordinal != 0 {
+        return None;
+    }
+
+    let target_parameters = program.state_parameters(target_state);
+    if target_machine.supply_mode != MachineSupplyMode::CheckedBody
+        || !program
+            .statement_table
+            .statements(target_state.statement_nodes)
+            .is_empty()
+        || !is_unit(program, target_state.return_type)
+        || target_parameters.len() != 2
+        || target_parameters.iter().any(|parameter| {
+            parameter.is_self
+                || structural_access_for_type_reference(program, parameter.type_reference)
+                    != Some(CheckedStructuralAccess::SharedBorrow)
+        })
+    {
+        return None;
+    }
+    let arguments = crate::call_site_argument_expressions(program, call_site);
+    if arguments.len() != 2 {
+        return None;
+    }
+    let argument_roots = arguments
+        .iter()
+        .map(|expression| {
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                program,
+                caller_state.symbol,
+                call.statement_index,
+                *expression,
+            )?;
+            let psi_facts::PlaceRoot::Symbol(root) = place.root else {
+                return None;
+            };
+            place.segments.is_empty().then_some(root)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if argument_roots[0] == argument_roots[1] {
+        return None;
+    }
+
+    let candidates = facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .filter_map(|(_, certificate)| {
+            if certificate.machine_symbol != machine
+                || certificate.state_symbol != caller_state.symbol
+                || certificate.target_symbol == call.target_symbol
+                || !facts.flow.control.calls.is_valid(certificate.call)
+                || !facts
+                    .borrow
+                    .reborrow_disposition_events
+                    .is_valid(certificate.disposition)
+            {
+                return None;
+            }
+            let certified_call = facts.flow.control.calls.get(certificate.call);
+            let disposition = facts
+                .borrow
+                .reborrow_disposition_events
+                .get(certificate.disposition);
+            if certified_call.statement_index != call.statement_index.checked_add(1)?
+                || certified_call.call_ordinal != 0
+                || disposition.shared_cohort.len() != 2
+            {
+                return None;
+            }
+            let member_roots = disposition
+                .shared_cohort
+                .iter()
+                .map(|member| {
+                    if !facts.borrow.reborrow_loan_resources.is_valid(*member) {
+                        return None;
+                    }
+                    let member = facts.borrow.reborrow_loan_resources.get(*member);
+                    (member.machine_symbol == machine
+                        && member.state_symbol == caller_state.symbol
+                        && member.access == psi_checked_trees::BorrowAccessKind::Read)
+                        .then_some(member.owner_symbol)
+                })
+                .collect::<Option<Vec<_>>>()?;
+            if member_roots[0] == member_roots[1]
+                || argument_roots != member_roots
+                || !member_roots.contains(&authored_root)
+            {
+                return None;
+            }
+            Some(crate::flow::CanonicalPlace {
+                root: psi_facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol),
+                segments: certificate.restored_place.segments.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let [place] = candidates.as_slice() else {
+        return None;
+    };
+    Some(place.clone())
+}
+
 fn exact_structural_argument_access(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -1833,6 +1968,38 @@ fn structural_signature_with_affine_pair(
         .find(|data| data.name == *attached_name)?;
     let attachment_type_identity = shapes.add_attached_data(attached, binders)?;
     let attachment_multiplicity = attached.properties.multiplicity;
+    let shared_primitive_observer_type = (machine.supply_mode == MachineSupplyMode::CheckedBody
+        && program
+            .statement_table
+            .statements(state.statement_nodes)
+            .is_empty()
+        && parameters.len() == 2)
+        .then(|| {
+            let TypeReferenceNode::Reference { referee, .. } = program
+                .type_reference_table
+                .type_reference(parameters[0].type_reference)
+            else {
+                return None;
+            };
+            let primitive = program.primitive_type_reference(*referee)?;
+            parameters
+                .iter()
+                .all(|parameter| {
+                    let TypeReferenceNode::Reference { referee, .. } = program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    else {
+                        return false;
+                    };
+                    !parameter.is_self
+                        && !parameter.is_const
+                        && program.primitive_type_reference(*referee) == Some(primitive)
+                        && structural_access_for_type_reference(program, parameter.type_reference)
+                            == Some(CheckedStructuralAccess::SharedBorrow)
+                })
+                .then_some(primitive)
+        })
+        .flatten();
     let mut structural_parameters = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
         if parameter.is_const {
@@ -1852,9 +2019,9 @@ fn structural_signature_with_affine_pair(
             // structural parameter or ABI carrier.
             continue;
         }
-        // Primitive values remain in the scalar namespace. Only a reference
-        // to a primitive may become a structural place for the bounded
-        // write-only store/call closure.
+        // Primitive values remain in the scalar namespace. A reference to a
+        // primitive may become a structural place only for the bounded
+        // write-only store/call closure or the exact two-shared-observer leaf.
         if !parameter.is_self
             && program
                 .primitive_type_reference(parameter.type_reference)
@@ -1891,7 +2058,8 @@ fn structural_signature_with_affine_pair(
             || !matches!(
                 access,
                 CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-            ))
+            ) && !(shared_primitive_observer_type.is_some()
+                && access == CheckedStructuralAccess::SharedBorrow))
         {
             return None;
         }

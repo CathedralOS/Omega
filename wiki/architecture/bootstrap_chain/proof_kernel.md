@@ -270,6 +270,14 @@ padded, or unclassified observable sites reject. Equality of two instance
 commitments proves only equality of observers; the exact subject-bound
 refinement derivation remains mandatory.
 
+The first runtime-value join is deliberately smaller than that refinement
+proof. An interpreter-owned scalar comparator accepts only values matching one
+exact verifier-derived Boolean, fixed-integer, binary32, or binary64 schema;
+address-carrier schemas and malformed integer payloads reject, and IEEE
+equality is raw interchange-bit equality. The helper returns only scalar
+equality and carries no structural,
+trace, forgetting-projection, or refinement authority.
+
 Every certificate and bridge records the exact subject/model/theory identity,
 semantics version, observation profile, target capsule, admitted premises, and
 bridge dependencies. No transitive join is inferred merely because two roots

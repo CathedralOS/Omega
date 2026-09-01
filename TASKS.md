@@ -3961,8 +3961,15 @@ Remaining:
   internal. This adds no Terminal module field, operation, format, vocabulary,
   runtime outcome, or fuel charge.
 
-  Continue D39 with canonical terminal-external rows; exact
-  runtime semantic value comparison; maximal finite and infinite trace
+  The first runtime semantic-value comparison rung is also live for scalar
+  schemas. The interpreter-owned comparator requires both values to match the
+  verifier-derived exact Boolean, fixed-integer, binary32, or binary64 schema;
+  address-carrier schemas and malformed fixed integers reject, ordinary
+  unequal values return unequal, and
+  IEEE values compare retained interchange bits so signed zero and NaN payloads
+  remain distinct. Structural comparison, trace construction, and refinement
+  authority remain absent. Continue D39 with canonical terminal-external rows;
+  structural exact runtime comparison; maximal finite and infinite trace
   refinement; and checked forgetting projections before any cross-profile
   replay. Every new operation classification and any producer-supplied
   weakening must remain fail closed. Carry an explicit checked
@@ -6877,25 +6884,31 @@ Owners:
 
   The first checked post-restoration use certificate is now live for one
   direct-root `Mutable` parent and either an exact `Mutable`/`WriteOnly`
-  exclusive child or one exact `Read` child occurrence with no sibling for the
-  parent. Other non-overlapping sequential exclusive siblings may occur. The
-  exclusive form requires exact `Reactivate` and `ExclusiveSuspension`; the
-  shared form requires `RestoreSharedCohort`, exact roster `[child]`, and
-  `SharedFreeze`. Both end by `LastUseExpired` immediately before one runtime-
-  receiver-free call with one exact mutable-reference parameter takes the bare
-  parent carrier and mutates the complete restored referent. Nominal static
+  exclusive child, one exact `Read` child, or one exact two-member concurrent
+  `Read` cohort for the parent. Other non-overlapping sequential exclusive
+  siblings may occur. The exclusive form requires exact `Reactivate` and
+  `ExclusiveSuspension`; the
+  shared form requires `RestoreSharedCohort`, exact roster `[child]` or
+  `[left, right]`, and independently replayed `SharedFreeze` evidence for every
+  member. A two-member cohort must make its last uses together in one exact
+  empty, receiver-free, two-shared-parameter observation call; that call's two
+  borrow-only aliases erase to the same checked parent place, and the whole-
+  parent mutation must be the immediately following statement. All forms end
+  by `LastUseExpired` before one runtime-receiver-free call with one exact
+  mutable-reference parameter takes the bare parent carrier and mutates the
+  complete restored referent. Nominal static
   qualification such as `Sink::mutate(parent)` is permitted and does not count
   as a runtime receiver. The certificate rejoins the exact child and parent
   resources, weakening, disposition, containment, flow and borrow call rows,
   carrier-read access, parent-loan entry constraint, captured places, restored
-  access, and target. Independent replay is transactional. Multi-member or
-  sequential shared cohorts, multihop children, concurrent siblings,
+  access, and target. Independent replay is transactional. Three-member or
+  sequential shared cohorts, multihop children, other concurrent siblings,
   state-exit closure, projected
   arguments, direct assignment, receiver calls, extra parameters, and
   nonmutating targets retain no such row. Terminal independently replays this
   exact join and publishes one canonical row naming the sole `CallUnit` use,
   canonical ordinal-zero source call coordinate, bound callee, direct-root
-  lifetime, child interval, explicit restoration class, and sole-shared cohort
+  lifetime, child interval, explicit restoration class, and exact shared-cohort
   roster. The canonical target identity is committed source custody rather than
   a target identity reconstructed from machine bytes. The producer proves the
   selected checked cohort complete; Terminal replays exact roster cardinality
@@ -6920,7 +6933,7 @@ Owners:
 
   Extend the settled reborrow-restoration model beyond the now-published
   one-hop whole-parent call and linear state-exit root custody only after
-  independent replay. Multi-member or sequential shared-freeze cohorts,
+  independent replay. Three-member or sequential shared-freeze cohorts,
   multihop or branching restored use, projected/direct-assignment use, and
   non-state-exit root custody remain
   outside the current Terminal rung.
@@ -9995,11 +10008,22 @@ reach or trust, and private proof improvements do not change public identity.
   object/image validation, and installation replay retain the common
   length-sixteen root and exact fifteen-operation/one-edge fuel ordinals.
   Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
-  artifact mutations reject; `[T; 17]` and wider prefixes remain fail closed
+  artifact mutations reject; other prefix drift remains fail closed
+  without runtime liveness state or a loop.
+
+  The following bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 17]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]` and ordinary cleanup
+  `[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`. Checked
+  production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-seventeen root and exact sixteen-operation/one-edge fuel ordinals.
+  Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
+  artifact mutations reject; `[T; 18]` and wider prefixes remain fail closed
   without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 16]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 17]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content

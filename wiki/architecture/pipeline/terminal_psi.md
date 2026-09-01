@@ -706,25 +706,29 @@ no cleanup, transfer, or linear-discharge authority to the borrow layer.
 
 A sibling checked post-restoration row now retains the first exact later use.
 One direct mutable parent lends either an exact mutable/write-only exclusive
-child or one exact shared child occurrence with no sibling for that parent.
+child, one exact shared child, or one exact two-member concurrent shared cohort.
 Other non-overlapping sequential exclusive siblings may occur. The exclusive
 form binds matching `Reactivate` and `ExclusiveSuspension`; the shared form
-binds `RestoreSharedCohort`, exact roster `[child]`, and `SharedFreeze`. Both
-end by `LastUseExpired`, and the same boundary enters one
+binds `RestoreSharedCohort`, exact roster `[child]` or `[left, right]`, and one
+independently replayed `SharedFreeze` row per member. The two-member form makes
+both final uses in one exact empty, receiver-free, two-shared-parameter
+observation call. Its borrow-only aliases erase to the same certified parent
+place, and the whole-parent mutation is the immediately following statement.
+All admitted forms end by `LastUseExpired` before one
 runtime-receiver-free call with one exact mutable-reference parameter over the
 bare parent carrier whose mutation summary covers the complete restored
 referent. Nominal static qualification such as `Sink::mutate(parent)` is not a
 runtime receiver. Transactional replay
 rejoins both resources, weakening, disposition, containment, flow and borrow
 calls, carrier-read access, parent-loan entry constraint, captured places,
-restored access, and target identity. Multi-member or sequential shared,
-multihop, concurrent-sibling, state-exit, projected, receiver, extra-parameter,
+restored access, and target identity. Three-member or sequential shared,
+multihop, other concurrent-sibling, state-exit, projected, receiver, extra-parameter,
 direct-assignment,
 partial-mutation, and nonmutating shapes remain absent. Terminal independently
 replays the checked join, the caller's exact `CallUnit`, and the receiver-free
 callee shape, then publishes one canonical row binding that operation to its
 ordinal-zero source call coordinate, bound callee, direct-root lifetime,
-explicit restoration class, child interval, and sole-shared cohort roster.
+explicit restoration class, child interval, and exact shared-cohort roster.
 The canonical target identity is committed source custody, not an identity
 reconstructed from machine bytes. The producer transactionally proves the
 selected checked cohort complete; the verifier replays exact roster cardinality
@@ -745,7 +749,7 @@ vocabulary 56 round-trip the complete lineage and restored-use publication.
 Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
-there is no cleanup, transfer, or linear-discharge vocabulary. Multi-member or
+there is no cleanup, transfer, or linear-discharge vocabulary. Three-member or
 sequential shared restored-use cohorts, multihop or branching restored use,
 projected or direct-assignment restored
 use, non-state-exit root custody, and broader branching remain outside this
@@ -1309,8 +1313,18 @@ as `[14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the verifier,
 codec, interpreter, Omega lowering, native emission, object/image replay, and
 installation encoding retain the common root plus exact sixteen fuel units.
 Missing/reordered operations or cleanup, changed indices/root length, and
-length-seventeen or wider prefixes reject; no runtime liveness bitmap or cleanup
-loop is introduced.
+other prefix drift rejects; no runtime liveness bitmap or cleanup loop is
+introduced.
+
+The following bounded carrier admits the same shape at length seventeen with
+establishments `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]`.
+Terminal publishes sixteen ordered zero-ABI local places, the Unit return
+discards them as `[15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and
+the verifier, codec, interpreter, Omega lowering, native emission, object/image
+replay, and installation encoding retain the common root plus exact seventeen
+fuel units. Missing/reordered operations or cleanup, changed indices/root
+length, and length-eighteen or wider prefixes reject; no runtime liveness bitmap
+or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
 finite nonempty list of claim-free, unqualified affine parameters whose records
@@ -3240,7 +3254,12 @@ classification admits only the two known ordinary event kinds and cannot make
 a future Terminal operation internal by default. This carrier changes no
 Terminal module format, vocabulary, runtime outcome, or fuel schedule.
 Terminal-external completion, runtime trace values/refinement, and forgetting
-projections remain later D39 slices.
+projections remain later D39 slices. The first bounded runtime-value helper now
+compares two scalar values against one verifier-derived exact schema. It rejects
+type drift, address-carrier schemas, and malformed fixed integers, compares
+Boolean and fixed-integer values directly, and compares binary32/binary64
+interchange bits without host-float equality. It does not construct a trace,
+compare structural values, or issue a refinement result.
 
 A terminal-external event requires an explicit checked boundary completion
 identity. `never` alone proves no normal return but cannot distinguish

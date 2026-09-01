@@ -405,7 +405,7 @@ fn validate_reborrow_restored_call_uses(
                     Some(row.call_target_machine),
                 )
         );
-        let sole_compatible_mutating_call = machine.is_some_and(|caller| {
+        let unique_compatible_mutating_call = machine.is_some_and(|caller| {
             caller
                 .blocks
                 .iter()
@@ -459,26 +459,99 @@ fn validate_reborrow_restored_call_uses(
                         | psi_terminal::StructuralAccess::WriteOnlyBorrow
                 ) && row.shared_cohort.is_empty()
             }
-            psi_terminal::TerminalReborrowRestorationClass::SoleSharedFreezeRestoration => {
-                let [member] = row.shared_cohort.as_slice() else {
+            psi_terminal::TerminalReborrowRestorationClass::SharedFreezeRestoration => {
+                if !matches!(row.shared_cohort.len(), 1 | 2) {
                     return Err(ModuleError::InvalidReborrowRestoredCallUse {
                         machine: row.machine,
                         operation: row.operation,
                     });
+                }
+                let cohort_is_unique =
+                    row.shared_cohort.len() == 1 || row.shared_cohort[0] != row.shared_cohort[1];
+                let cohort_owner_order = match row.shared_cohort.as_slice() {
+                    [_] => true,
+                    [left, right] => {
+                        (left.child_owner_identity.as_str(), &left.child_owner_path)
+                            != (right.child_owner_identity.as_str(), &right.child_owner_path)
+                            && matches!(
+                                (&left.child_activation, &right.child_activation),
+                                (
+                                    psi_terminal::TerminalBorrowBoundarySource::Statement {
+                                        statement_index: left_start,
+                                    },
+                                    psi_terminal::TerminalBorrowBoundarySource::Statement {
+                                        statement_index: right_start,
+                                    },
+                                ) if left_start < right_start
+                            )
+                    }
+                    _ => false,
                 };
+                let primary_count = row
+                    .shared_cohort
+                    .iter()
+                    .filter(|member| {
+                        member.child_owner_identity == row.child_owner_identity
+                            && member.child_owner_path == row.child_owner_path
+                            && member.child_place == row.child_place
+                            && member.child_access == row.child_access
+                            && member.child_activation == row.child_activation
+                            && member.child_weakening == row.child_weakening
+                    })
+                    .count();
+                let cohort_is_exact = row.shared_cohort.iter().all(|member| {
+                    let member_segments = &member.child_place.segments;
+                    let member_lifecycle = matches!(
+                        (
+                            &row.direct_root_activation,
+                            &member.child_activation,
+                            &member.child_weakening,
+                            &row.direct_root_weakening,
+                        ),
+                        (
+                            psi_terminal::TerminalBorrowBoundarySource::Statement {
+                                statement_index: parent_start,
+                            },
+                            psi_terminal::TerminalBorrowBoundarySource::Statement {
+                                statement_index: child_start,
+                            },
+                            psi_terminal::TerminalBorrowBoundarySource::Statement {
+                                statement_index: child_end,
+                            },
+                            psi_terminal::TerminalBorrowBoundarySource::Statement {
+                                statement_index: parent_end,
+                            },
+                        ) if parent_start < child_start
+                            && child_start <= child_end
+                            && child_end < parent_end
+                    );
+                    is_canonical_borrow_identity(&member.child_owner_identity)
+                        && is_canonical_borrow_identity(&member.child_place.root_identity)
+                        && valid_owner_path(&member.child_owner_path)
+                        && member_segments.iter().all(valid_place_segment)
+                        && member.child_access == psi_terminal::StructuralAccess::SharedBorrow
+                        && member.child_place.root_identity == row.direct_root_place.root_identity
+                        && member_segments.starts_with(root_segments)
+                        && member.child_weakening == row.child_weakening
+                        && valid_borrow_boundary(&member.child_activation)
+                        && valid_borrow_boundary(&member.child_weakening)
+                        && member_lifecycle
+                });
                 row.child_access == psi_terminal::StructuralAccess::SharedBorrow
-                    && member.child_owner_identity == row.child_owner_identity
-                    && member.child_owner_path == row.child_owner_path
-                    && member.child_place == row.child_place
-                    && member.child_access == row.child_access
-                    && member.child_activation == row.child_activation
-                    && member.child_weakening == row.child_weakening
+                    && cohort_is_unique
+                    && cohort_owner_order
+                    && primary_count == 1
+                    && cohort_is_exact
+                    && (row.shared_cohort.len() == 1
+                        || machine.is_some_and(|caller| {
+                            exact_two_shared_cohort_observation(caller, machines, row.operation)
+                        }))
             }
         };
         let invalid = !exact_mutating_call
             || (row.restoration_class
-                == psi_terminal::TerminalReborrowRestorationClass::SoleSharedFreezeRestoration
-                && !sole_compatible_mutating_call)
+                == psi_terminal::TerminalReborrowRestorationClass::SharedFreezeRestoration
+                && !unique_compatible_mutating_call)
             || !exact_call_boundary
             || !exact_restoration_class
             || !is_canonical_borrow_identity(&row.source_machine_identity)
@@ -516,6 +589,99 @@ fn validate_reborrow_restored_call_uses(
         return Err(ModuleError::NonCanonicalReborrowRestoredCallUseOrder);
     }
     Ok(())
+}
+
+fn exact_two_shared_cohort_observation(
+    caller: &TerminalMachine,
+    machines: &BTreeMap<psi_core::MachineId, &TerminalMachine>,
+    mutation: psi_core::OperationId,
+) -> bool {
+    let locations = caller
+        .blocks
+        .iter()
+        .filter_map(|block| {
+            block
+                .operations
+                .iter()
+                .position(|operation| operation.id == mutation)
+                .map(|index| (block, index))
+        })
+        .collect::<Vec<_>>();
+    let [(block, mutation_index)] = locations.as_slice() else {
+        return false;
+    };
+    let Some(observation_index) = mutation_index.checked_sub(1) else {
+        return false;
+    };
+    let mutation_operation = &block.operations[*mutation_index];
+    let OperationKind::CallUnit {
+        structural_arguments: mutation_arguments,
+        ..
+    } = &mutation_operation.kind
+    else {
+        return false;
+    };
+    let [mutation_argument] = mutation_arguments.as_slice() else {
+        return false;
+    };
+    let observation = &block.operations[observation_index];
+    let OperationKind::CallUnit {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = &observation.kind
+    else {
+        return false;
+    };
+    let [left, right] = structural_arguments.as_slice() else {
+        return false;
+    };
+    let Some(observer) = machines.get(callee) else {
+        return false;
+    };
+    let Some(caller_parameter) = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == mutation_argument.place)
+    else {
+        return false;
+    };
+    let [observer_left, observer_right] = observer.structural_parameters.as_slice() else {
+        return false;
+    };
+    let [observer_block] = observer.blocks.as_slice() else {
+        return false;
+    };
+    observation.result == OperationResult::Unit
+        && left.place == mutation_argument.place
+        && right.place == mutation_argument.place
+        && left.path.is_empty()
+        && right.path.is_empty()
+        && left.access == StructuralAccess::SharedBorrow
+        && right.access == StructuralAccess::SharedBorrow
+        && claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && observer.parameters.is_empty()
+        && observer.result == TerminalMachineResult::Unit
+        && observer_left.position == 0
+        && observer_right.position == 1
+        && !observer_left.is_self
+        && !observer_right.is_self
+        && observer_left.access == StructuralAccess::SharedBorrow
+        && observer_right.access == StructuralAccess::SharedBorrow
+        && observer_left.structural_type == caller_parameter.structural_type
+        && observer_right.structural_type == caller_parameter.structural_type
+        && observer_block.operations.is_empty()
+        && matches!(
+            &observer_block.terminator,
+            Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards.is_empty()
+        )
 }
 
 fn exact_restored_mutating_call(

@@ -261,7 +261,7 @@ fn mutable_shared_siblings_form_one_checked_cohort_and_restore_once() {
             .borrow
             .reborrow_restored_call_use_certificates
             .is_empty(),
-        "a two-member shared cohort remains outside restored-call publication"
+        "a shared cohort with no later compatible restored-parent call stays unpublished"
     );
 }
 
@@ -1120,6 +1120,23 @@ fn mutable_parent_sole_shared_child_restored_use() -> psi_checked_trees::Checked
     )
 }
 
+fn mutable_parent_two_shared_children_restored_use() -> psi_checked_trees::CheckedTrees {
+    lower(
+        r#"
+        data Main { value: i32; }
+        machine observe(left: &i32, right: &i32) {}
+        machine mutate(value: &mut i32) { value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut i32 = &mut self.value;
+            let left: &i32 = &parent;
+            let right: &i32 = &parent;
+            observe(left, right);
+            mutate(parent);
+        }
+        "#,
+    )
+}
+
 #[test]
 fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call() {
     let mut checked = mutable_parent_sole_shared_child_restored_use();
@@ -1170,6 +1187,99 @@ fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call
     );
     crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
         .expect("sole shared restored call use independently replays");
+}
+
+#[test]
+fn two_shared_children_restore_one_exact_complete_cohort_at_the_next_mutating_call() {
+    let mut checked = mutable_parent_two_shared_children_restored_use();
+    let certificates = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .collect::<Vec<_>>();
+    let [(_, certificate)] = certificates.as_slice() else {
+        panic!("one two-member shared-cohort restored-use certificate")
+    };
+    let disposition = checked
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get(certificate.disposition);
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+    );
+    let [left, right] = disposition.shared_cohort.as_slice() else {
+        panic!("the exact two-member shared cohort")
+    };
+    assert_ne!(left, right);
+    for member in [left, right] {
+        let child = checked.facts.borrow.reborrow_loan_resources.get(*member);
+        assert_eq!(child.parent_loan, certificate.parent_loan);
+        assert_eq!(child.access, psi_checked_trees::BorrowAccessKind::Read);
+        assert_eq!(
+            child.access_effect,
+            psi_checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+        );
+        assert_eq!(child.weakening_source, disposition.boundary_source);
+        assert_eq!(
+            child.weakening_reason,
+            psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+        );
+    }
+    assert!(
+        disposition
+            .shared_cohort
+            .contains(&certificate.child_resource)
+    );
+    crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+        .expect("two-member shared restored call use independently replays");
+}
+
+#[test]
+fn two_shared_children_reject_incomplete_duplicate_and_mismatched_restoration() {
+    let baseline = mutable_parent_two_shared_children_restored_use();
+    let certificate = baseline
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .next()
+        .expect("two-member shared restored use")
+        .1;
+    for mutation in 0..4 {
+        let mut checked = baseline.clone();
+        let disposition = checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .get_mut(certificate.disposition);
+        match mutation {
+            0 => {
+                disposition.shared_cohort.pop();
+            }
+            1 => {
+                disposition.shared_cohort.push(disposition.shared_cohort[0]);
+            }
+            2 => disposition.shared_cohort.swap(0, 1),
+            3 => {
+                disposition.child_resource = disposition.shared_cohort[0];
+                disposition.child_loan = checked
+                    .facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .get(disposition.child_resource)
+                    .loan;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .is_err(),
+            "two-member restoration mutation {mutation} must reject"
+        );
+    }
 }
 
 #[test]
