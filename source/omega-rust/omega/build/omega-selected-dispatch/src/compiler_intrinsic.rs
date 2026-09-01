@@ -173,6 +173,58 @@ fn linux_console_exit_row(
         return Ok(false);
     }
 
+    console_exit_process_i32_row_shape(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+    )
+}
+
+/// Rejoin the target-independent Console semantic role to one exact package-
+/// owned selected row. This recognizes Process authority; it does not claim
+/// that the selected target has a closed compiler lowering.
+pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    binding: &omega_package_compilation::AcceptedSemanticBinding,
+) -> Result<bool, Diagnostic> {
+    if !accepted_binding_matches_selected_row_identity(
+        checked,
+        plan,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        binding,
+    ) {
+        return Ok(false);
+    }
+    console_exit_process_i32_row_shape(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+    )
+}
+
+fn console_exit_process_i32_row_shape(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+) -> Result<bool, Diagnostic> {
+    let typed = &checked.typed;
+
     let traits = typed
         .traits()
         .iter()
@@ -305,8 +357,7 @@ pub(crate) fn accepted_binding_matches_selected_row_identity(
     binding: &omega_package_compilation::AcceptedSemanticBinding,
 ) -> bool {
     let typed = &checked.typed;
-    binding.role()
-        == omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32
+    binding.role() == omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32
         && [trait_symbol, requirement_symbol, realization_symbol]
             .into_iter()
             .all(|symbol| typed.symbols.symbol_package_identity(symbol) == Some(binding.package()))

@@ -1,6 +1,7 @@
 use omega_package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use omega_package_evidence::record::{
-    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+    PackageReviewCompilerIntrinsicExecution, PackageReviewDangerousAuthorityClass,
+    PackageReviewNominalOwner,
 };
 use omega_package_manager::admission::accept_ordinary_closure_evidence;
 use omega_package_manager::declarations::{PackageKey, PackageName};
@@ -63,6 +64,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     write_file(
         console.join("build.omg"),
         r#"target linux_x86_64 { }
+target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.package("ordinary-console");
@@ -80,11 +82,15 @@ pub data ConsoleNativeProvider { }
 linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via Binding::CompilerIntrinsic;
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
 "#,
     );
     write_file(
         application.join("build.omg"),
         r#"target linux_x86_64 { }
+target windows_x86_64 { }
 
 machine build(builder: &mut Build) {
     builder.package("console-consumer");
@@ -148,7 +154,7 @@ invokes console;
         panic!("ordinary Console declaration must retain its exact package owner")
     };
     let binding = AcceptedSemanticBinding::new(
-        AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         console_package,
         provider.schema_declaration().path(),
         provider.schema().identity_digest(),
@@ -175,7 +181,7 @@ invokes console;
         ),
         Err(CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent {
             consumer,
-            role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+            role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         }) if consumer == absent_consumer
     ));
     assert!(matches!(
@@ -188,7 +194,7 @@ invokes console;
         Err(
             CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole {
                 consumer,
-                role: AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             }
         ) if consumer == root_key
     ));
@@ -250,4 +256,52 @@ invokes console;
         .find(|package| package.package() == &root_key)
         .expect("accepted evidence retains selected root");
     assert_eq!(root_evidence.semantic_bindings(), &[binding]);
+
+    let windows_storage =
+        SourceResolverStorage::for_hardened_base(temporary.0.join("windows-resolved"))
+            .expect("create Windows semantic-binding resolver storage");
+    let windows_closure = resolve_external_local_package_closure_with_storage(
+        &application,
+        ExternalSourceContext::derive(b"target-independent-console-binding"),
+        omega_target::TargetProfile::WindowsX64,
+        &windows_storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve ordinary Windows Console closure");
+    let windows_reviews = compile_resolved_package_candidate_reviews(
+        &windows_closure,
+        "windows_x86_64",
+        &temporary.0.join("windows-build"),
+    )
+    .expect("bind target-independent Console semantics on Windows");
+    let windows_root = windows_reviews
+        .review(windows_closure.graph().root())
+        .expect("Windows root review");
+    assert_eq!(windows_root.semantic_bindings().len(), 1);
+    assert_eq!(
+        windows_root.semantic_bindings()[0].role(),
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32
+    );
+    let [windows_authority] = windows_root.projection().dangerous_authorities() else {
+        panic!("Windows Console binding must expose Process authority")
+    };
+    assert_eq!(
+        windows_authority.class(),
+        PackageReviewDangerousAuthorityClass::Process
+    );
+    let windows_console = windows_root
+        .projection()
+        .selected_providers()
+        .iter()
+        .find(|provider| provider.service_schema() == "Console")
+        .expect("Windows review retains selected Console provider");
+    assert!(
+        windows_console
+            .row_declarations()
+            .iter()
+            .all(|row| row.compiler_intrinsic_execution()
+                != Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32)),
+        "semantic recognition must not mint Linux physical execution on Windows",
+    );
 }

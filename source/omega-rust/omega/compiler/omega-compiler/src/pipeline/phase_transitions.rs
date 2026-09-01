@@ -53,7 +53,7 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
         Vec<crate::pipeline::provider_plans::SelectedProviderReviewProvenance>,
     pub(super) opaque_representation_selections:
         &'a [omega_representation_planning::OpaqueRepresentationSelection],
-    pub(super) accepted_linux_console_binding:
+    pub(super) accepted_console_binding:
         Option<&'a omega_package_compilation::AcceptedSemanticBinding>,
 }
 
@@ -278,7 +278,7 @@ pub(super) fn settle_selected_execution(
         &mut checked.program,
         &checked.selected_provider_plan_facts,
     )?;
-    let resolved_linux_console_binding =
+    let resolved_console_binding =
         omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
             &checked.program,
             &checked.selected_provider_plan_facts,
@@ -286,7 +286,7 @@ pub(super) fn settle_selected_execution(
             settlement
                 .selected_target_profile
                 .map(omega_target::TargetProfile::target_name),
-            settlement.accepted_linux_console_binding,
+            settlement.accepted_console_binding,
         )?;
     omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked.program,
@@ -307,7 +307,7 @@ pub(super) fn settle_selected_execution(
         accepted_template_classifications: checked.accepted_template_classifications,
         contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
         selected_provider_provenance: settlement.selected_provider_provenance,
-        resolved_semantic_bindings: resolved_linux_console_binding.into_iter().collect(),
+        resolved_semantic_bindings: resolved_console_binding.into_iter().collect(),
         component_progress,
         task_activations,
     })

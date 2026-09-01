@@ -636,7 +636,7 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         .find(|(plan, _)| plan.schema.trait_name == "Console")
         .expect("candidate retains its exact Console plan");
     let accepted = omega_package_compilation::AcceptedSemanticBinding::new(
-        omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         console_package,
         candidate
             .typed

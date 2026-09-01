@@ -36,7 +36,7 @@ pub(crate) fn project_compiler_intrinsic_execution(
             realization_symbol,
             selected_target,
             compilation.resolved_semantic_binding(
-                omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+                omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
             ),
         )
         .map_err(|diagnostic| vec![diagnostic])?;

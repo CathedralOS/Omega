@@ -419,16 +419,17 @@ explicitly.
   The Toolchain-origin audit is complete. Generic provenance consumers already
   follow the frontend classification, and exact core vocabulary checks remain
   legitimate. The first accepted-closure consumer binding is now implemented
-  for Linux `Console::exit_process(i32) -> Unit`. It binds exact package and
-  nominal identity, a collision-resistant normalized service-schema digest,
-  and the complete selected-provider-plan digest; compiler settlement rejects
-  foreign, stale, ambiguous, or unused rows and retains the resolved exact
-  declaration symbol for independent package-review replay. The row is
-  consumer policy, not proof that an audit occurred. Its current normalization
-  is intentionally claimed only for Console's compiler-primitive signature and
-  self reach, not arbitrary package-owned nominal carrier types. Package review
-  now also classifies the resolved exact declaration as Process authority;
-  package spelling alone remains inert.
+  for `Console::exit_process(i32) -> Unit`. It binds exact package and nominal
+  identity, a collision-resistant normalized service-schema digest, and the
+  complete selected-provider-plan digest; compiler settlement rejects foreign,
+  stale, ambiguous, or unused rows and retains the resolved exact declaration
+  symbol for independent package-review replay. The semantic role and Process
+  risk classification are target-independent. Linux x86-64 and AArch64 alone
+  currently close the distinct `exit_group(i32)` physical execution identity;
+  other targets gain no lowering claim. The row is consumer policy, not proof
+  that an audit occurred. Its current normalization is intentionally claimed
+  only for Console's compiler-primitive signature and self reach, not arbitrary
+  package-owned nominal carrier types. Package spelling alone remains inert.
 
   Manager review compilation now carries that binding only for its exact
   consuming `PackageKey`, and accepted ordinary evidence retains the exact
@@ -458,11 +459,10 @@ explicitly.
   Before that atomic removal, make the std source tree reviewable as an
   ordinary library, replace its bundled self-imports, and migrate package-aware
   product, parser, sample, and fixture consumers to explicit dependencies.
-  Separate target-independent Process risk recognition from the Linux-only
-  exit-group realization role; then add exact Filesystem and UEFI physical-
-  contract bindings for their real consumers. Accepted-lock replay must feed
-  those admitted bindings into normal package-aware compilation. Standalone
-  compilation may retain its bundled compatibility path during this migration.
+  Add exact Filesystem and UEFI physical-contract bindings for their real
+  consumers. Accepted-lock replay must feed those admitted bindings into normal
+  package-aware compilation. Standalone compilation may retain its bundled
+  compatibility path during this migration.
 
 - [ ] Complete the remaining generic exact-application work for
   **BOUNDARY-OPERATOR-FAMILY-SELECTION**: close artifact-qualified symbolic
