@@ -1320,13 +1320,12 @@ the exact occurrence, spans, byte digests, and either direct-instruction or
 resolved-internal-call relocation custody. Nearest-FMA applications exercise
 the direct-byte path end to end; checked-body call replay additionally binds
 the Terminal callee and semantic relocation owner, target, zero addend, kind,
-and changed-byte interval. Ordinary Linux lowering currently rejects the
-reviewed checked-operator-plus-exit shape before that checked-body path can be
-exercised end to end. Explicit optimization, port effects, normalized foreign
-calls, admitted native providers, and other unsupported executable roles
-produce no partial D32 evidence. Checked-body backend enablement,
-admitted-provider parents, and non-identity optimization projections remain
-open.
+and changed-byte interval. A one-block checked call followed by an independent
+immediate Linux exit now exercises that path end to end without widening the
+exit settlement to dynamic or multi-block arguments. Explicit optimization,
+port effects, normalized foreign calls, admitted native providers, and other
+unsupported executable roles produce no partial D32 evidence. Admitted-
+provider parents and non-identity optimization projections remain open.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
