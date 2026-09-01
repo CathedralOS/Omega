@@ -43,6 +43,12 @@ pub(crate) fn structural_shape(
                             let field_alignment = size.next_power_of_two().min(16);
                             ValueShape::integer(size, field_alignment)
                         }
+                        StructuralFieldType::Scalar(ScalarType::IeeeFloat(
+                            IeeeFloatFormat::Binary32,
+                        )) => ValueShape::float(4),
+                        StructuralFieldType::Scalar(ScalarType::IeeeFloat(
+                            IeeeFloatFormat::Binary64,
+                        )) => ValueShape::float(8),
                         StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => {
                             ValueShape::float(4)
                         }
@@ -129,6 +135,12 @@ pub(super) fn direct_boolean_field_offset(
                 let size = integer.bits().div_ceil(8);
                 ValueShape::integer(size, size.next_power_of_two().min(16))
             }
+            StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
+                ValueShape::float(4)
+            }
+            StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => {
+                ValueShape::float(8)
+            }
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
             StructuralFieldType::ByteSequence(carrier) => {
@@ -186,6 +198,12 @@ pub(super) fn resolve_structural_field_path(
                 StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                     let size = integer.bits().div_ceil(8);
                     ValueShape::integer(size, size.next_power_of_two().min(16))
+                }
+                StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
+                    ValueShape::float(4)
+                }
+                StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)) => {
+                    ValueShape::float(8)
                 }
                 StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
                 StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),

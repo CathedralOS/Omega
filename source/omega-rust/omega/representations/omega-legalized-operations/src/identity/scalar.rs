@@ -252,6 +252,13 @@ pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: psi_core::Sca
             });
             bytes.extend_from_slice(&integer.bits().to_le_bytes());
         }
+        psi_core::ScalarType::IeeeFloat(format) => {
+            bytes.push(2);
+            bytes.push(match format {
+                psi_core::IeeeFloatFormat::Binary32 => 0,
+                psi_core::IeeeFloatFormat::Binary64 => 1,
+            });
+        }
     }
 }
 

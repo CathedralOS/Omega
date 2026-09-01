@@ -34,6 +34,11 @@ pub(super) fn lower_conditional(
                 ScalarType::Boolean => {
                     lower_boolean_conditional(function, &values, target, functions)
                 }
+                ScalarType::IeeeFloat(_) => {
+                    return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                        function.machine,
+                    ));
+                }
             }
             .map(Some);
         }

@@ -437,8 +437,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     );
 
     let selected_execution_dispatches = [
-        "omega_selected_dispatch::settle_selected_operator_adapter_dispatch(",
-        "omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(",
+        "omega_selected_dispatch::settle_selected_execution_dispatch(",
         "omega_selected_dispatch::retain_selected_compiler_intrinsic_review_identities(",
         "omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(",
     ];
@@ -448,7 +447,6 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
         selected_execution_dispatches[0],
         selected_execution_dispatches[1],
         selected_execution_dispatches[2],
-        selected_execution_dispatches[3],
         "elaborate_task_activation_plans(",
     ] {
         let offset = ordered_transition_suffix

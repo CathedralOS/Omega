@@ -11,6 +11,27 @@ pub(super) fn validate_operation_operands(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
+    if let OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+        left,
+        right,
+        addend,
+    } = operation.kind
+    {
+        let expected = operation.result.expect_scalar().scalar_type;
+        for operand in [left, right, addend] {
+            require_defined(operand, value_types, defined)?;
+            let actual = value_types[&operand];
+            if actual != expected {
+                return Err(ModuleError::IeeeFloatFusedMultiplyAddOperandTypeMismatch {
+                    operation: operation.id,
+                    operand,
+                    expected,
+                    actual,
+                });
+            }
+        }
+        return Ok(());
+    }
     if let OperationKind::WriteOnlyPrimitiveStore { destination, value } = operation.kind {
         require_defined(value, value_types, defined)?;
         let structural_type = machine
@@ -453,6 +474,8 @@ pub(super) fn validate_operation_operands(
         }
         OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
+        | OperationKind::IeeeFloatConstant { .. }
+        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }

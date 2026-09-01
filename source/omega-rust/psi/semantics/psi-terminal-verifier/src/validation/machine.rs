@@ -346,6 +346,27 @@ pub(super) fn validate_machine(
                         ));
                     }
                 }
+                OperationKind::IeeeFloatConstant { value } => {
+                    let expected = ScalarType::IeeeFloat(value.format());
+                    let actual = operation.result.expect_scalar().scalar_type;
+                    if actual != expected {
+                        return Err(ModuleError::IeeeFloatConstantResultTypeMismatch {
+                            operation: operation.id,
+                            expected,
+                            actual,
+                        });
+                    }
+                }
+                OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
+                    if !matches!(
+                        operation.result.expect_scalar().scalar_type,
+                        ScalarType::IeeeFloat(_)
+                    ) {
+                        return Err(ModuleError::IeeeFloatFusedMultiplyAddRequiresFloatResult(
+                            operation.id,
+                        ));
+                    }
+                }
                 OperationKind::BooleanStructuralField { source, field } => {
                     if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
                         return Err(ModuleError::BooleanStructuralFieldRequiresBooleanResult(

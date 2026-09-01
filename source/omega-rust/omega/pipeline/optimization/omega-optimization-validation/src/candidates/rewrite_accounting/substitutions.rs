@@ -47,6 +47,16 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             replace(left);
             replace(right);
         }
+        O::NearestIeeeFloatFusedMultiplyAdd {
+            left,
+            right,
+            addend,
+            ..
+        } => {
+            replace(left);
+            replace(right);
+            replace(addend);
+        }
         O::WrappingIntegerShiftLeft { value, count, .. }
         | O::WrappingIntegerShiftRight { value, count, .. }
         | O::ExactIntegerShiftLeft { value, count, .. }
@@ -73,6 +83,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::ReturnUnit { .. }

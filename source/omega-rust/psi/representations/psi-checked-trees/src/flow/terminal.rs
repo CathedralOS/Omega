@@ -1181,6 +1181,19 @@ pub enum CheckedUnitEffectOperationPlan {
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedScalarExpression>,
     },
+    /// Execute one exact nearest-even IEEE fused multiply-add selected from a
+    /// compiler-intrinsic ProviderPlan. Unlike a checked-body adapter this has
+    /// no synthetic callee: Terminal lowering publishes the target-neutral
+    /// scalar operation directly while retaining the exact selected-plan join.
+    SelectedIeeeFloatFusedMultiplyAdd {
+        coordinate: CheckedUnitCallCoordinate,
+        result: CheckedUnitScalarResultBindingPlan,
+        requirement_operator: SymbolHandle,
+        provider_plan_report_fingerprint: u64,
+        provider_plan_commitment: crate::CheckedProviderPlanCommitment,
+        format: psi_core::IeeeFloatFormat,
+        operands: Vec<CheckedScalarExpression>,
+    },
     PortWrite {
         coordinate: CheckedUnitCallCoordinate,
         port: u16,

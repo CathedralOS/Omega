@@ -1100,5 +1100,6 @@ pub(super) fn build_scalar_graph_module(
         },
         debug_map: None,
         source_call_occurrences: all_operations.source_calls,
+        selected_ieee_float_fma_occurrences: all_operations.selected_ieee_float_fmas,
     })
 }

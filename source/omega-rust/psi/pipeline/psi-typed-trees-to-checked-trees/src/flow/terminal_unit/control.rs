@@ -925,6 +925,7 @@ pub(super) fn build_checked_machine(
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
     selected_operator_applications: &[crate::SelectedOperatorUnitApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> Option<CheckedUnitEffectMachinePlan> {
     let [state] = program.machine_states(machine) else {
         return None;
@@ -968,12 +969,23 @@ pub(super) fn build_checked_machine(
         statements,
         selected_operator_applications,
     );
-    let scalar_result_local = selected_scalar_result_local
-        .is_none()
-        .then(|| checked_unit_scalar_result_local(program, statements))
-        .flatten();
-    let has_scalar_result_local =
-        scalar_result_local.is_some() || selected_scalar_result_local.is_some();
+    let selected_ieee_float_fma_result_local = selected_ieee_float_fma_result_local(
+        program,
+        machine,
+        state,
+        statements,
+        selected_ieee_float_fma_applications,
+    );
+    if selected_scalar_result_local.is_some() && selected_ieee_float_fma_result_local.is_some() {
+        return None;
+    }
+    let scalar_result_local = (selected_scalar_result_local.is_none()
+        && selected_ieee_float_fma_result_local.is_none())
+    .then(|| checked_unit_scalar_result_local(program, statements))
+    .flatten();
+    let has_scalar_result_local = scalar_result_local.is_some()
+        || selected_scalar_result_local.is_some()
+        || selected_ieee_float_fma_result_local.is_some();
     if has_scalar_result_local && (write_only_store.is_some() || construction.is_some()) {
         return None;
     }
@@ -1100,6 +1112,15 @@ pub(super) fn build_checked_machine(
     } else {
         let call_offset = if let Some((application, result)) = selected_scalar_result_local {
             operations.push(build_selected_operator_scalar_call(
+                program,
+                facts,
+                state,
+                application,
+                result,
+            )?);
+            0
+        } else if let Some((application, result)) = selected_ieee_float_fma_result_local {
+            operations.push(build_selected_ieee_float_fma(
                 program,
                 facts,
                 state,

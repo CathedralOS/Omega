@@ -546,6 +546,22 @@ pub(super) fn emit_direct_expression(
             });
             id
         }
+        LoweredDirectExpression::IeeeFloatLiteral { value } => {
+            let id = value_id(*next_value_identity);
+            *next_value_identity = next_value_identity
+                .checked_add(1)
+                .expect("generated value identity advances after an IEEE float literal");
+            let operation = operations.allocate();
+            operations.push(Operation {
+                id: operation,
+                result: psi_terminal::OperationResult::Scalar(ValueDeclaration {
+                    id,
+                    scalar_type: ScalarType::IeeeFloat(value.format()),
+                }),
+                kind: OperationKind::IeeeFloatConstant { value: *value },
+            });
+            id
+        }
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,

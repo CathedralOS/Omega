@@ -78,6 +78,16 @@ fn encode_internal_unit_call(
             bytes.push(0);
             push_u16(bytes, integer.bits());
         }
+        Some(psi_core::ScalarType::IeeeFloat(format)) => {
+            bytes.extend_from_slice(&[3, 0, 0, 0]);
+            push_u16(
+                bytes,
+                match format {
+                    psi_core::IeeeFloatFormat::Binary32 => 32,
+                    psi_core::IeeeFloatFormat::Binary64 => 64,
+                },
+            );
+        }
     }
     push_u64(
         bytes,
@@ -287,6 +297,12 @@ fn decode_internal_unit_call(
                 )
             }
             .map_err(|_| InstallationError::InvalidInternalUnitCall(machine))?,
+        )),
+        3 if !is_address && !signed && bits == 32 => Some(psi_core::ScalarType::IeeeFloat(
+            psi_core::IeeeFloatFormat::Binary32,
+        )),
+        3 if !is_address && !signed && bits == 64 => Some(psi_core::ScalarType::IeeeFloat(
+            psi_core::IeeeFloatFormat::Binary64,
         )),
         _ => return Err(InstallationError::InvalidInternalUnitCall(machine)),
     };

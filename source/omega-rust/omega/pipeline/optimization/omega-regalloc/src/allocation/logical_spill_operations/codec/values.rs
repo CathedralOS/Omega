@@ -1,6 +1,8 @@
 use omega_optimization_unit::ValueDefinitionSite;
 use omega_selected_instructions::{SelectedInstructionId, VirtualRegisterOrigin};
-use psi_core::{BlockId, IntegerCarrier, IntegerSign, IntegerType, ScalarType, ValueId};
+use psi_core::{
+    BlockId, IeeeFloatFormat, IntegerCarrier, IntegerSign, IntegerType, ScalarType, ValueId,
+};
 
 use super::super::LogicalSpillOperationDecodeError;
 use super::cursor::Cursor;
@@ -27,6 +29,13 @@ pub(super) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
                 IntegerSign::Unsigned => 1,
             });
             bytes.extend_from_slice(&integer.bits().to_le_bytes());
+        }
+        ScalarType::IeeeFloat(format) => {
+            bytes.push(2);
+            bytes.push(match format {
+                IeeeFloatFormat::Binary32 => 0,
+                IeeeFloatFormat::Binary64 => 1,
+            });
         }
     }
 }
@@ -60,6 +69,11 @@ pub(super) fn decode_scalar_type(
             .map_err(|_| LogicalSpillOperationDecodeError::InvalidIntegerType)?;
             Ok(ScalarType::Integer(integer))
         }
+        2 => match cursor.byte()? {
+            0 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
+            1 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
+            tag => Err(LogicalSpillOperationDecodeError::UnknownScalarType(tag)),
+        },
         tag => Err(LogicalSpillOperationDecodeError::UnknownScalarType(tag)),
     }
 }

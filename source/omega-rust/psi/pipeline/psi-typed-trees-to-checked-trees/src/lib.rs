@@ -89,6 +89,21 @@ pub struct SelectedOperatorUnitApplication {
     pub operands: Vec<psi_typed_trees::expression::ExpressionHandle>,
 }
 
+/// One compiler-intrinsic nearest IEEE FMA selected for an attached Unit
+/// local initializer. This is intentionally disjoint from checked-body
+/// operator adapters: no bodyless call or fabricated realization machine is
+/// introduced into checked Psi.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedIeeeFloatFmaUnitApplication {
+    pub expression: psi_typed_trees::expression::ExpressionHandle,
+    pub origin: psi_checked_trees::CheckedValueOrigin,
+    pub requirement_operator: psi_symbols::SymbolHandle,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    pub format: psi_core::IeeeFloatFormat,
+    pub operands: Vec<psi_typed_trees::expression::ExpressionHandle>,
+}
+
 /// Rebuild the bounded Unit-effect roster with exact selected boundary-
 /// operator applications available during planning. This is a compiler-
 /// internal phase seam, not a public checked-IR contract.
@@ -96,8 +111,23 @@ pub fn rebuild_checked_unit_effect_plans_with_selected_operators(
     program: &mut CheckedTrees,
     applications: &[SelectedOperatorUnitApplication],
 ) {
-    program.facts.flow.terminal_unit_effects =
-        flow::build_checked_unit_effect_plans(&program.typed, &program.facts, applications);
+    rebuild_checked_unit_effect_plans_with_selected_execution(program, applications, &[]);
+}
+
+/// Rebuild attached Unit plans once from the complete selected execution
+/// roster. Keeping adapter calls and compiler-intrinsic scalar operations in
+/// one transaction prevents either settlement pass from erasing the other.
+pub fn rebuild_checked_unit_effect_plans_with_selected_execution(
+    program: &mut CheckedTrees,
+    operator_applications: &[SelectedOperatorUnitApplication],
+    ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
+) {
+    program.facts.flow.terminal_unit_effects = flow::build_checked_unit_effect_plans(
+        &program.typed,
+        &program.facts,
+        operator_applications,
+        ieee_float_fma_applications,
+    );
 }
 
 /// Rederive the complete, canonically ordered checked semantic-dependency

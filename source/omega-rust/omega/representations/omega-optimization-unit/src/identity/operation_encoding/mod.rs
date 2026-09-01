@@ -28,6 +28,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),
 
         O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
+        | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::BooleanNot { .. }

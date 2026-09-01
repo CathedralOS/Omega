@@ -396,6 +396,7 @@ pub(super) fn finish_module(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences,
+        selected_ieee_float_fma_occurrences: Vec::new(),
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

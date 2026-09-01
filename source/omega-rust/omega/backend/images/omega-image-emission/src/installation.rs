@@ -76,7 +76,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 48;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 49;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -1791,8 +1791,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     let bytes = match result {
                         psi_core::ScalarType::Boolean => 1,
                         psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
+                        psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => 4,
+                        psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => 8,
                     };
-                    Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+                    Some(match result {
+                        psi_core::ScalarType::IeeeFloat(_) => ValueShape::float(bytes),
+                        _ => ValueShape::integer(bytes, bytes.next_power_of_two().min(8)),
+                    })
                 } else if custody.structural_result.is_some() {
                     custody.arguments.first().map(|argument| argument.shape)
                 } else {
@@ -3213,7 +3218,7 @@ mod resource_tests {
     }
 
     #[test]
-    fn ieee_structural_field_formats_round_trip_in_installations() {
+    fn ieee_structural_and_scalar_field_formats_round_trip_in_installations() {
         let declarations = vec![psi_terminal::StructuralTypeDeclaration {
             id: StructuralTypeId::new(1).expect("structural type"),
             identity: "Samples".into(),
@@ -3233,6 +3238,22 @@ mod resource_tests {
                         relevance: psi_terminal::BindingRelevance::Relevant,
                         field_type: psi_terminal::StructuralFieldType::IeeeFloat(
                             psi_core::IeeeFloatFormat::Binary64,
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(3).expect("scalar f32 field"),
+                        identity: "scalar_single".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                            psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
+                        ),
+                    },
+                    psi_terminal::StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(4).expect("scalar f64 field"),
+                        identity: "scalar_double".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::Scalar(
+                            psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64),
                         ),
                     },
                 ],

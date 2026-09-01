@@ -2,9 +2,9 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentConservation,
     ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
     ContentStructuralPlace, ContentTerm, ContractId, DomainSemanticId, EdgeId, EvidenceTermId,
-    IeeeFloatFormat, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
-    Proposition, PropositionId, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
-    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, PropositionId, ScalarType, ServiceId, StructuralCaseId,
+    StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_language_core::BindingRelevance;
 use sha2::{Digest, Sha256};
@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        54
+        55
     }
 }
 
@@ -570,8 +570,7 @@ pub struct StructuralFieldDeclaration {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralFieldType {
     Scalar(ScalarType),
-    /// Relevant IEEE leaf retained for structural identity and predicates,
-    /// without claiming general Terminal scalar execution support.
+    /// Relevant IEEE leaf retained for structural identity and predicates.
     IeeeFloat(IeeeFloatFormat),
     ByteSequence(ByteSequenceCarrier),
     Structural(StructuralTypeId),
@@ -1725,6 +1724,17 @@ pub enum OperationKind {
     },
     BooleanConstant {
         value: bool,
+    },
+    /// Establish one exact runtime IEEE scalar from its interchange bits.
+    IeeeFloatConstant {
+        value: IeeeFloatValue,
+    },
+    /// Compute `round_nearest_even(left * right + addend)` in the result's
+    /// exact IEEE format. This remains distinct from multiply-then-add.
+    NearestIeeeFloatFusedMultiplyAdd {
+        left: ValueId,
+        right: ValueId,
+        addend: ValueId,
     },
     /// Read one direct relevant Boolean field from an entry structural
     /// parameter. The canonical field identity, rather than an authored name

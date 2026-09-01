@@ -8,9 +8,9 @@
 //! `ExpressionHandle`, source statement, target register, or storage choice.
 
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarType, ServiceId,
-    StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, IeeeFloatFormat,
+    IeeeFloatValue, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    Proposition, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
@@ -373,6 +373,19 @@ pub enum AbstractOperation {
         result: ValueId,
         scalar_type: ScalarType,
         value: IntegerValue,
+    },
+    IeeeFloatConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: IeeeFloatValue,
+    },
+    NearestIeeeFloatFusedMultiplyAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        format: IeeeFloatFormat,
+        left: ValueId,
+        right: ValueId,
+        addend: ValueId,
     },
     BooleanConstant {
         psi_operation: OperationId,

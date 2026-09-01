@@ -33,8 +33,15 @@ pub(crate) fn assign(
     let result_bytes = match scalar_type {
         psi_core::ScalarType::Boolean => 1,
         psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
+        psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => 4,
+        psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => 8,
     };
-    let result_shape = ValueShape::integer(result_bytes, result_bytes.next_power_of_two().min(8));
+    let result_shape = match scalar_type {
+        psi_core::ScalarType::IeeeFloat(_) => ValueShape::float(result_bytes),
+        psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_) => {
+            ValueShape::integer(result_bytes, result_bytes.next_power_of_two().min(8))
+        }
+    };
     let expected_caller_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {

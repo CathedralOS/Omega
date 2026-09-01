@@ -274,6 +274,11 @@ fn lower_structural_member_term(
         ScalarType::Integer(integer_type) => {
             ScalarTerm::integer_field_path(root, terminal_path, integer_type)
         }
+        ScalarType::IeeeFloat(_) => {
+            return unsupported(
+                "generic scalar crash terms do not carry IEEE float structural fields",
+            );
+        }
     })
 }
 
@@ -2101,6 +2106,9 @@ fn lowered_direct_scalar_term(
                 target_type: *target_type,
                 operand: Box::new(operand),
             }
+        }
+        LoweredDirectExpression::IeeeFloatLiteral { .. } => {
+            return unsupported("generic scalar crash terms do not carry IEEE float literals");
         }
         LoweredDirectExpression::Boolean { expression } => {
             return checked_boolean_scalar_term_from_lowered(expression, values);

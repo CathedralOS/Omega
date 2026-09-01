@@ -55,6 +55,7 @@ mod composed_control;
 pub(crate) mod control;
 mod providers;
 pub(crate) mod returns;
+mod selected_ieee_float;
 mod selected_operator;
 pub(crate) mod shared_convergence;
 pub(super) mod types;
@@ -65,6 +66,7 @@ use composed_control::*;
 use control::*;
 use providers::*;
 use returns::*;
+use selected_ieee_float::*;
 use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
 use types::*;
@@ -165,6 +167,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     selected_operator_applications: &[crate::SelectedOperatorUnitApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
     let mut boundary_machines = program
@@ -193,6 +196,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 &mut shapes,
                 machine,
                 selected_operator_applications,
+                selected_ieee_float_fma_applications,
             )
         })
         .collect::<Vec<_>>();
@@ -222,7 +226,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                 }
                 // Exact realization custody was already joined by selected
                 // execution before this plan was minted.
-                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. } => true,
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => true,
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

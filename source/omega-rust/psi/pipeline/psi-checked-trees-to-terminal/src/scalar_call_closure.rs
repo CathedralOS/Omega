@@ -250,6 +250,7 @@ pub(super) fn lower_scalar_call_closure(
     let mut machines = Vec::with_capacity(prepared.len());
     let mut evidence = Vec::new();
     let mut source_call_occurrences = Vec::new();
+    let mut selected_ieee_float_fma_occurrences = Vec::new();
     for (index, machine) in prepared.into_iter().enumerate() {
         let terminal_machine = machine_ids[index].1;
         let identity_base = u64::try_from(index)
@@ -276,6 +277,8 @@ pub(super) fn lower_scalar_call_closure(
         machines.push(terminal_machine.clone());
         evidence.append(&mut lowered.proof_bundle.evidence);
         source_call_occurrences.append(&mut lowered.source_call_occurrences);
+        selected_ieee_float_fma_occurrences
+            .append(&mut lowered.selected_ieee_float_fma_occurrences);
     }
     let mut lowered = LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -307,6 +310,7 @@ pub(super) fn lower_scalar_call_closure(
         },
         debug_map: None,
         source_call_occurrences,
+        selected_ieee_float_fma_occurrences,
     };
     finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)

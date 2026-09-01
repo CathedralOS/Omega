@@ -340,6 +340,8 @@ operation_semantic_rows! {
         goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerLiteral, Denotation::IntegerConstant)),
     BooleanConstant => ("schema:operation:boolean-constant", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::Boolean, Operands::BooleanLiteral, Denotation::BooleanConstant)),
+    IeeeFloatConstant => ("schema:operation:ieee-float-constant", LeafDenotation, None),
+    NearestIeeeFloatFusedMultiplyAdd => ("schema:operation:nearest-ieee-float-fused-multiply-add", LeafDenotation, None),
     BooleanStructuralField => ("schema:operation:boolean-structural-field", LeafDenotation, None),
     BooleanNot => ("schema:operation:boolean-not", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::Boolean, Operands::UnaryBoolean, Denotation::BooleanNot)),
@@ -470,7 +472,7 @@ fn value_term(
 fn integer_type(term: &ScalarTerm) -> Option<psi_core::IntegerType> {
     match term.scalar_type() {
         ScalarType::Integer(integer_type) => Some(integer_type),
-        ScalarType::Boolean => None,
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
     }
 }
 

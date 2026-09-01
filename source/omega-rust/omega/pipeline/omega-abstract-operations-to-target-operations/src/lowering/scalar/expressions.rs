@@ -85,6 +85,9 @@ pub(super) fn lower_call(
                 crash_continuations: crash_continuations.to_vec(),
             }),
         },
+        ScalarType::IeeeFloat(_) => {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(callee));
+        }
     })
 }
 
@@ -110,6 +113,12 @@ pub(in crate::lowering) fn scalar_shape(
                 return Err(LoweringError::ParameterWidthNotNativelySupported { value, bits });
             }
             bits.div_ceil(8)
+        }
+        ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => {
+            return Ok(ValueShape::float(4));
+        }
+        ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => {
+            return Ok(ValueShape::float(8));
         }
     };
     Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
@@ -431,6 +440,8 @@ pub(super) fn conditional_provenance(
             | AbstractOperation::PortWrite { psi_operation, .. }
             | AbstractOperation::Call { psi_operation, .. }
             | AbstractOperation::IntegerConstant { psi_operation, .. }
+            | AbstractOperation::IeeeFloatConstant { psi_operation, .. }
+            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
             | AbstractOperation::BooleanConstant { psi_operation, .. }
             | AbstractOperation::BooleanStructuralField { psi_operation, .. }
             | AbstractOperation::BooleanNot { psi_operation, .. }

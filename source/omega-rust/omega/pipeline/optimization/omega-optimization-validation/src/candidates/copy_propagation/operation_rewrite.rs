@@ -56,6 +56,16 @@ pub(crate) fn rewrite_block_parameter_operation(
             replace(left);
             replace(right);
         }
+        O::NearestIeeeFloatFusedMultiplyAdd {
+            left,
+            right,
+            addend,
+            ..
+        } => {
+            replace(left);
+            replace(right);
+            replace(addend);
+        }
         O::WrappingIntegerShiftLeft { value, count, .. }
         | O::WrappingIntegerShiftRight { value, count, .. }
         | O::ExactIntegerShiftLeft { value, count, .. }
@@ -95,6 +105,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
+        | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
         | O::ReturnUnit { .. }

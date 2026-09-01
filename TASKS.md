@@ -11326,9 +11326,12 @@ Owner: `wiki/design_briefs/float_semantics.md`.
 
 Remaining F7 work:
 
-- wire compiler lowering into the ordinary build-selected, admitted
-  feature-qualified x86-64 FMA carrier, or add a checked binary32/binary64
-  software implementation;
+- consume the retained per-occurrence nearest-FMA proposal in ordinary
+  Abstract -> Target -> Assigned -> machine lowering, establish canonical
+  x86 floating control state, and enter the already admitted feature-qualified
+  x86-64 carrier (or add a checked binary32/binary64 software implementation);
+- extend the checked source lane beyond its first bounded attached-Unit shape
+  (a first immutable local initialized directly from three landed literals);
 - complete the wider proof/`Real` connection under N6/N8.
 
 The mechanical x86-64 prerequisite is live: `omega-isa-x86_64` owns exact
@@ -11366,6 +11369,25 @@ association is checked custody only: ordinary compiler/native lowering that
 consumes it and native differential execution receipts remain engineering
 work. Generic Linux/Windows x86-64 semantics remain SSE2 baseline unless that
 explicit deployment input is selected.
+
+The next target-neutral compiler rung is now live. `ScalarType` carries exact
+binary32/binary64 formats, Terminal Psi has raw-interchange-bit constants and a
+distinct nearest-even fused-multiply-add operation, and canonical codec,
+verifier, fuel, and reference-interpreter paths preserve and execute that
+meaning without integer laundering. The bounded source producer recognizes a
+first immutable attached-Unit local initialized directly by a selected FMA
+over three landed literals. It retains the exact checked requirement, complete
+ProviderPlan commitment, source coordinate, Terminal operation identity, and
+format as an ephemeral occurrence row. Terminal-product construction consumes
+that row into a source-free proposal joined to the exact selected plan and, on
+x86, exactly one admitted profile/slot provider. Proposal replay requires
+complete one-to-one coverage of canonical Terminal FMA operations and rejects
+missing, duplicate, cross-format, cross-profile, or non-x86 admission drift.
+Abstract operations and optimization identities now preserve the exact
+constant/FMA vocabulary; target lowering remains explicitly unsupported, and
+optimized direct realization rejects retained occurrences rather than
+discarding their custody. This is a checked semantic and association
+milestone, not native FMA execution.
 
 The generic Linux and Windows x86-64 baselines now retain target-specific
 semantic-edge suites. Each checked half pins the exact 36 nearest arithmetic,

@@ -341,6 +341,6 @@ pub(crate) fn validator_integer_value_type(
 ) -> Option<psi_core::IntegerType> {
     scalar_value_definition(function, value).and_then(|definition| match definition.scalar_type {
         ScalarType::Integer(integer) => Some(integer),
-        ScalarType::Boolean => None,
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
     })
 }

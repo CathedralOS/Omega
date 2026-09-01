@@ -4,7 +4,10 @@
 //! framing, semantic validation, and recursive term structure remain in the
 //! parent codec.
 
-use psi_core::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ScalarType};
+use psi_core::{
+    IeeeFloatFormat, IeeeFloatValue, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
+    ScalarType,
+};
 
 use super::CodecError;
 use super::wire::{Reader, Writer};
@@ -16,7 +19,31 @@ pub(super) fn encode_scalar_type(writer: &mut Writer, scalar_type: ScalarType) {
             writer.u8(2);
             encode_integer_type(writer, integer_type);
         }
+        ScalarType::IeeeFloat(format) => {
+            writer.u8(3);
+            encode_ieee_float_format(writer, format);
+        }
     }
+}
+
+pub(super) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue) {
+    match value {
+        IeeeFloatValue::Binary32(bits) => {
+            writer.u8(1);
+            writer.u32(bits);
+        }
+        IeeeFloatValue::Binary64(bits) => {
+            writer.u8(2);
+            writer.u64(bits);
+        }
+    }
+}
+
+fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
+    writer.u8(match format {
+        IeeeFloatFormat::Binary32 => 1,
+        IeeeFloatFormat::Binary64 => 2,
+    });
 }
 
 pub(super) fn encode_integer_type(writer: &mut Writer, integer_type: IntegerType) {
@@ -48,7 +75,26 @@ pub(super) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, 
     Ok(match reader.u8()? {
         1 => ScalarType::Boolean,
         2 => ScalarType::Integer(decode_integer_type(reader)?),
+        3 => ScalarType::IeeeFloat(decode_ieee_float_format(reader)?),
         tag => return Err(CodecError::InvalidTag("ScalarType", tag)),
+    })
+}
+
+pub(super) fn decode_ieee_float_value(
+    reader: &mut Reader<'_>,
+) -> Result<IeeeFloatValue, CodecError> {
+    Ok(match reader.u8()? {
+        1 => IeeeFloatValue::Binary32(reader.u32()?),
+        2 => IeeeFloatValue::Binary64(reader.u64()?),
+        tag => return Err(CodecError::InvalidTag("IeeeFloatValue", tag)),
+    })
+}
+
+fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
+    Ok(match reader.u8()? {
+        1 => IeeeFloatFormat::Binary32,
+        2 => IeeeFloatFormat::Binary64,
+        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
     })
 }
 

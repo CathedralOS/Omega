@@ -110,6 +110,13 @@ fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
             });
             bytes.extend_from_slice(&integer.bits().to_le_bytes());
         }
+        ScalarType::IeeeFloat(format) => {
+            bytes.push(4);
+            bytes.push(match format {
+                psi_core::IeeeFloatFormat::Binary32 => 0,
+                psi_core::IeeeFloatFormat::Binary64 => 1,
+            });
+        }
     }
 }
 

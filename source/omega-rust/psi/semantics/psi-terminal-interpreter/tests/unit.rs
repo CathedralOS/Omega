@@ -1,8 +1,8 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IntegerSign,
-    IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition,
-    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralTypeId,
-    ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, EvidenceIdentity, IeeeFloatFormat,
+    IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
+    StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
@@ -29,7 +29,9 @@ use psi_terminal_interpreter::{
     interpret_terminal_artifact_measured, interpret_terminal_artifact_with_effect_handler_measured,
     interpret_terminal_artifact_with_structural_primitive_values_measured,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+use psi_terminal_verifier::{
+    ModuleError, ObligationEvidence, ProofBundle, VerificationError, verify_module,
+};
 
 #[test]
 fn unit_artifact_interprets_as_a_value_less_normal_result() {
@@ -47,6 +49,88 @@ fn unit_artifact_interprets_as_a_value_less_normal_result() {
             .unwrap()
             .units(),
         1
+    );
+}
+
+#[test]
+fn nearest_ieee_fma_executes_one_rounding_for_both_interchange_formats() {
+    let cases = [
+        (
+            [
+                IeeeFloatValue::Binary32(0x3f80_0001),
+                IeeeFloatValue::Binary32(0x3f7f_fffe),
+                IeeeFloatValue::Binary32(0xbf80_0000),
+            ],
+            IeeeFloatValue::Binary32(0xa880_0000),
+        ),
+        (
+            [
+                IeeeFloatValue::Binary64(0x3ff0_0000_0000_0001),
+                IeeeFloatValue::Binary64(0x3fef_ffff_ffff_fffe),
+                IeeeFloatValue::Binary64(0xbff0_0000_0000_0000),
+            ],
+            IeeeFloatValue::Binary64(0xb970_0000_0000_0000),
+        ),
+    ];
+
+    for (operands, expected) in cases {
+        let module = nearest_fma_module(operands);
+        let semantic = encode_module(&module).expect("nearest-FMA semantics encode");
+        let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+        let measured = interpret_terminal_artifact_measured(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+        )
+        .expect("verified nearest-FMA executes");
+
+        assert_eq!(
+            measured.value(),
+            TerminalExecutionResult::Scalar(TerminalScalarValue::IeeeFloat(expected)),
+        );
+        assert_ne!(
+            expected,
+            match expected {
+                IeeeFloatValue::Binary32(_) => IeeeFloatValue::Binary32(0),
+                IeeeFloatValue::Binary64(_) => IeeeFloatValue::Binary64(0),
+            }
+        );
+        assert_eq!(measured.usage().total_units(), 5);
+    }
+}
+
+#[test]
+fn verifier_rejects_nearest_fma_with_a_mixed_format_operand() {
+    let mut module = nearest_fma_module([
+        IeeeFloatValue::Binary32(0x3f80_0000),
+        IeeeFloatValue::Binary32(0x4000_0000),
+        IeeeFloatValue::Binary32(0x4040_0000),
+    ]);
+    let wrong = &mut module.machines[0].blocks[0].operations[1];
+    wrong.result = OperationResult::Scalar(ValueDeclaration {
+        id: value_id(2),
+        scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    });
+    wrong.kind = OperationKind::IeeeFloatConstant {
+        value: IeeeFloatValue::Binary64(0x4000_0000_0000_0000),
+    };
+
+    let Err(error) = verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    ) else {
+        panic!("mixed-format nearest-FMA must reject")
+    };
+    assert_eq!(
+        error,
+        VerificationError::Module(ModuleError::IeeeFloatFusedMultiplyAddOperandTypeMismatch {
+            operation: operation_id(4),
+            operand: value_id(2),
+            expected: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            actual: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+        }),
     );
 }
 
@@ -2726,6 +2810,50 @@ fn unit_module() -> TerminalModule {
             },
         }],
     }
+}
+
+fn nearest_fma_module(operands: [IeeeFloatValue; 3]) -> TerminalModule {
+    let format = operands[0].format();
+    assert!(operands.iter().all(|operand| operand.format() == format));
+    let mut module = unit_module();
+    let operand_ids = [value_id(1), value_id(2), value_id(3)];
+    let result = ValueDeclaration {
+        id: value_id(4),
+        scalar_type: ScalarType::IeeeFloat(format),
+    };
+    let machine = &mut module.machines[0];
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: value_id(5),
+        scalar_type: result.scalar_type,
+    });
+    machine.blocks[0].operations = operands
+        .into_iter()
+        .zip(operand_ids)
+        .enumerate()
+        .map(|(index, (value, id))| Operation {
+            id: operation_id(index as u64 + 1),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id,
+                scalar_type: ScalarType::IeeeFloat(format),
+            }),
+            kind: OperationKind::IeeeFloatConstant { value },
+        })
+        .chain(std::iter::once(Operation {
+            id: operation_id(4),
+            result: OperationResult::Scalar(result),
+            kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                left: operand_ids[0],
+                right: operand_ids[1],
+                addend: operand_ids[2],
+            },
+        }))
+        .collect();
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: result.id,
+        cleanup_actions: Vec::new(),
+    };
+    module
 }
 
 fn write_only_primitive_call_module() -> TerminalModule {

@@ -74,7 +74,7 @@ enum StagedNamedFloatExecution {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct StagedNamedFloatRewrite {
+pub(super) struct StagedNamedFloatRewrite {
     expression: psi_typed_trees::expression::ExpressionHandle,
     realization: NamedFloatRealization,
     execution: StagedNamedFloatExecution,
@@ -84,16 +84,10 @@ pub fn settle_selected_float_intrinsic_dispatch(
     checked: &mut Arc<CheckedTrees>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let rewrites = plan_selected_float_intrinsic_rewrites(checked, selected_provider_plans)?;
-    if rewrites.is_empty() {
-        return Ok(());
-    }
-
-    apply_selected_float_intrinsic_rewrites(Arc::make_mut(checked), rewrites);
-    Ok(())
+    super::settle_selected_execution_dispatch(checked, selected_provider_plans)
 }
 
-fn plan_selected_float_intrinsic_rewrites(
+pub(super) fn plan_selected_float_intrinsic_rewrites(
     checked: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<StagedNamedFloatRewrite>, Vec<Diagnostic>> {
@@ -142,7 +136,7 @@ fn plan_selected_float_intrinsic_rewrites(
     Ok(rewrites)
 }
 
-fn apply_selected_float_intrinsic_rewrites(
+pub(super) fn apply_selected_float_intrinsic_rewrites(
     checked: &mut CheckedTrees,
     rewrites: Vec<StagedNamedFloatRewrite>,
 ) {
@@ -198,6 +192,153 @@ fn apply_selected_float_intrinsic_rewrites(
             .expression_table
             .expression_mut(rewrite.expression) = replacement;
     }
+}
+
+pub(super) fn selected_ieee_float_fma_unit_applications(
+    checked: &CheckedTrees,
+    rewrites: &[StagedNamedFloatRewrite],
+) -> Result<Vec<psi_typed_trees_to_checked_trees::SelectedIeeeFloatFmaUnitApplication>, Diagnostic>
+{
+    let mut applications = Vec::new();
+    for rewrite in rewrites {
+        let format = match rewrite.realization {
+            NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F32) => {
+                psi_core::IeeeFloatFormat::Binary32
+            }
+            NamedFloatRealization::FusedMultiplyAdd(FloatFormat::F64) => {
+                psi_core::IeeeFloatFormat::Binary64
+            }
+            _ => continue,
+        };
+        let uses = checked
+            .facts
+            .operators
+            .named_uses
+            .iter()
+            .map(|(_, operator_use)| operator_use)
+            .filter(|operator_use| operator_use.expression == rewrite.expression)
+            .collect::<Vec<_>>();
+        let Some(operator_use) = uses.first().copied() else {
+            return Err(Diagnostic::error(format!(
+                "selected nearest FMA expression {:?} retains no checked named use",
+                rewrite.expression,
+            )));
+        };
+        if uses.iter().any(|candidate| {
+            candidate.selected_operator_symbol != operator_use.selected_operator_symbol
+                || candidate.policy_adapter != operator_use.policy_adapter
+                || candidate.provider_plan_report_fingerprint
+                    != operator_use.provider_plan_report_fingerprint
+                || candidate.provider_plan_commitment != operator_use.provider_plan_commitment
+        }) {
+            return Err(Diagnostic::error(format!(
+                "selected nearest FMA expression {:?} carries contradictory checked named-use custody",
+                rewrite.expression,
+            )));
+        }
+        let mut local_initializer_origins = Vec::new();
+        for candidate in &uses {
+            if matches!(
+                candidate.origin,
+                psi_checked_trees::CheckedValueOrigin::StateStatement {
+                    role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
+                    ..
+                }
+            ) && !local_initializer_origins.contains(&candidate.origin)
+            {
+                local_initializer_origins.push(candidate.origin);
+            }
+        }
+        let origin = match local_initializer_origins.as_slice() {
+            [] => continue,
+            [origin] => *origin,
+            origins => {
+                return Err(Diagnostic::error(format!(
+                    "selected nearest FMA expression {:?} is attributed to {} distinct local initializers",
+                    rewrite.expression,
+                    origins.len(),
+                )));
+            }
+        };
+        let ExpressionNode::Call(call) = checked
+            .typed
+            .expression_table
+            .expression(rewrite.expression)
+        else {
+            return Err(Diagnostic::error(format!(
+                "selected nearest FMA expression {:?} lost its checked call shape",
+                rewrite.expression,
+            )));
+        };
+        applications.push(
+            psi_typed_trees_to_checked_trees::SelectedIeeeFloatFmaUnitApplication {
+                expression: rewrite.expression,
+                origin,
+                requirement_operator: operator_use.selected_operator_symbol,
+                provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
+                provider_plan_commitment: operator_use.provider_plan_commitment,
+                format,
+                operands: checked
+                    .typed
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .to_vec(),
+            },
+        );
+    }
+    Ok(applications)
+}
+
+pub(super) fn validate_selected_ieee_float_fma_unit_applications(
+    checked: &CheckedTrees,
+    applications: &[psi_typed_trees_to_checked_trees::SelectedIeeeFloatFmaUnitApplication],
+) -> Result<(), Diagnostic> {
+    for application in applications {
+        let psi_checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
+        } = application.origin
+        else {
+            continue;
+        };
+        let matches = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .filter(|machine| {
+                machine.machine == machine_symbol && machine.state == state_symbol
+            })
+            .flat_map(|machine| &machine.operations)
+            .filter(|operation| {
+                matches!(
+                    operation,
+                    psi_checked_trees::CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
+                        coordinate,
+                        requirement_operator,
+                        provider_plan_report_fingerprint,
+                        provider_plan_commitment,
+                        format,
+                        ..
+                    } if usize::try_from(coordinate.statement_index).ok() == Some(statement_index)
+                        && *requirement_operator == application.requirement_operator
+                        && *provider_plan_report_fingerprint == application.provider_plan_report_fingerprint
+                        && *provider_plan_commitment == application.provider_plan_commitment
+                        && *format == application.format
+                )
+            })
+            .count();
+        if matches > 1 {
+            return Err(Diagnostic::error(format!(
+                "selected nearest FMA at {:?} retained {matches} exact checked Unit operations; expected at most one",
+                application.origin,
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn resolve_selected_float_intrinsic_call(

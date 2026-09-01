@@ -481,8 +481,12 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
     without_certificate
         .borrow
         .reborrow_restored_call_use_certificates = psi_arena::Arena::new();
-    let rebuilt =
-        crate::flow::build_checked_unit_effect_plans(&checked.typed, &without_certificate, &[]);
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &without_certificate,
+        &[],
+        &[],
+    );
     assert!(
         rebuilt
             .for_machine(machine_named(&checked, "Harness::exercise"))
@@ -534,8 +538,12 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
     without_certificate
         .borrow
         .reborrow_restored_call_use_certificates = psi_arena::Arena::new();
-    let rebuilt =
-        crate::flow::build_checked_unit_effect_plans(&checked.typed, &without_certificate, &[]);
+    let rebuilt = crate::flow::build_checked_unit_effect_plans(
+        &checked.typed,
+        &without_certificate,
+        &[],
+        &[],
+    );
     assert!(
         rebuilt
             .for_machine(machine_named(&checked, "Harness::exercise"))

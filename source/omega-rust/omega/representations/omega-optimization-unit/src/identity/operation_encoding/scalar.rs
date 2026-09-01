@@ -18,6 +18,44 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_scalar_type(bytes, *scalar_type);
             encode_integer_value(bytes, *value);
         }
+        O::IeeeFloatConstant {
+            psi_operation,
+            result,
+            value,
+        } => {
+            bytes.u8(42);
+            bytes.id(*psi_operation);
+            bytes.id(*result);
+            match value {
+                psi_core::IeeeFloatValue::Binary32(bits) => {
+                    bytes.u8(0);
+                    bytes.u32(*bits);
+                }
+                psi_core::IeeeFloatValue::Binary64(bits) => {
+                    bytes.u8(1);
+                    bytes.u64(*bits);
+                }
+            }
+        }
+        O::NearestIeeeFloatFusedMultiplyAdd {
+            psi_operation,
+            result,
+            format,
+            left,
+            right,
+            addend,
+        } => {
+            bytes.u8(43);
+            bytes.id(*psi_operation);
+            bytes.id(*result);
+            bytes.u8(match format {
+                psi_core::IeeeFloatFormat::Binary32 => 0,
+                psi_core::IeeeFloatFormat::Binary64 => 1,
+            });
+            bytes.id(*left);
+            bytes.id(*right);
+            bytes.id(*addend);
+        }
         O::BooleanConstant {
             psi_operation,
             result,

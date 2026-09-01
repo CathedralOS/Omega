@@ -11,7 +11,8 @@ pub use production_manifest::{
 };
 pub use terminal_product::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCompilerBuiltinProposal,
-    TerminalNativeRealizationProposal,
+    TerminalIeeeFloatFmaOccurrenceProposal, TerminalNativeRealizationProposal,
+    TerminalX86ScalarFmaAdmission,
 };
 
 /// Complete non-clonable Terminal-Psi native artifact retained before output

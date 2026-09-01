@@ -76,6 +76,75 @@ impl TerminalCompilerBuiltinProposal {
     }
 }
 
+/// Admitted x86 carrier for one retained target-neutral nearest-FMA
+/// occurrence. The provider is immutable deployment evidence; this row does
+/// not itself select or emit an instruction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalX86ScalarFmaAdmission {
+    slot: omega_target::X86ScalarFmaSlot,
+    provider: omega_target::AdmittedX86ScalarFmaProvider,
+}
+
+impl TerminalX86ScalarFmaAdmission {
+    pub const fn new(
+        slot: omega_target::X86ScalarFmaSlot,
+        provider: omega_target::AdmittedX86ScalarFmaProvider,
+    ) -> Self {
+        Self { slot, provider }
+    }
+
+    pub const fn slot(&self) -> omega_target::X86ScalarFmaSlot {
+        self.slot
+    }
+
+    pub const fn provider(&self) -> omega_target::AdmittedX86ScalarFmaProvider {
+        self.provider
+    }
+}
+
+/// Source-free join from one canonical Terminal nearest-FMA operation to the
+/// exact selected plan that authored it and, on x86, its admitted deployment
+/// carrier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalIeeeFloatFmaOccurrenceProposal {
+    terminal_operation: psi_core::OperationId,
+    provider_plan_index: usize,
+    format: psi_core::IeeeFloatFormat,
+    x86_admission: Option<TerminalX86ScalarFmaAdmission>,
+}
+
+impl TerminalIeeeFloatFmaOccurrenceProposal {
+    pub const fn new(
+        terminal_operation: psi_core::OperationId,
+        provider_plan_index: usize,
+        format: psi_core::IeeeFloatFormat,
+        x86_admission: Option<TerminalX86ScalarFmaAdmission>,
+    ) -> Self {
+        Self {
+            terminal_operation,
+            provider_plan_index,
+            format,
+            x86_admission,
+        }
+    }
+
+    pub const fn terminal_operation(&self) -> psi_core::OperationId {
+        self.terminal_operation
+    }
+
+    pub const fn provider_plan_index(&self) -> usize {
+        self.provider_plan_index
+    }
+
+    pub const fn format(&self) -> psi_core::IeeeFloatFormat {
+        self.format
+    }
+
+    pub const fn x86_admission(&self) -> Option<TerminalX86ScalarFmaAdmission> {
+        self.x86_admission
+    }
+}
+
 /// Exact target-constrained proposal retained beside a target-neutral
 /// Terminal artifact.
 ///
@@ -94,6 +163,7 @@ pub struct TerminalNativeRealizationProposal {
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
+    ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
     checked_boundary_operator_scope:
         psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
 }
@@ -110,6 +180,7 @@ impl TerminalNativeRealizationProposal {
         external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
         compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
         callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
+        ieee_float_fma_occurrences: Vec<TerminalIeeeFloatFmaOccurrenceProposal>,
         checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     ) -> Result<Self, &'static str> {
         let proposal = Self {
@@ -122,6 +193,7 @@ impl TerminalNativeRealizationProposal {
             external_binding_rows,
             compiler_builtins,
             callback_occurrences,
+            ieee_float_fma_occurrences,
             checked_boundary_operator_scope,
         };
         proposal.validate_for_artifact(artifact)?;
@@ -200,6 +272,89 @@ impl TerminalNativeRealizationProposal {
                 psi_terminal::OperationKind::BoundaryCall { .. }
             ) {
                 return Err("Terminal callback occurrence does not name a boundary call");
+            }
+        }
+        let terminal_fma_operations = module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    psi_terminal::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        if terminal_fma_operations.len() != self.ieee_float_fma_occurrences.len() {
+            return Err(
+                "Terminal native proposal does not retain every nearest-FMA occurrence exactly once",
+            );
+        }
+        let x86_target = self.native_target.architecture == omega_target::Architecture::X86_64;
+        let mut fma_operation_ids = std::collections::BTreeSet::new();
+        for occurrence in &self.ieee_float_fma_occurrences {
+            if !fma_operation_ids.insert(occurrence.terminal_operation) {
+                return Err("Terminal native proposal repeats a nearest-FMA occurrence");
+            }
+            if self
+                .selected_provider_plans
+                .plans()
+                .get(occurrence.provider_plan_index)
+                .is_none()
+            {
+                return Err("Terminal nearest-FMA occurrence names an absent selected plan");
+            }
+            let matching = terminal_fma_operations
+                .iter()
+                .filter(|operation| operation.id == occurrence.terminal_operation)
+                .collect::<Vec<_>>();
+            let [operation] = matching.as_slice() else {
+                return Err(
+                    "Terminal nearest-FMA occurrence does not name one exact canonical operation",
+                );
+            };
+            let Some(result) = operation.result.scalar() else {
+                return Err("Terminal nearest-FMA occurrence has no scalar result");
+            };
+            let psi_core::ScalarType::IeeeFloat(format) = result.scalar_type else {
+                return Err("Terminal nearest-FMA occurrence has a non-float result");
+            };
+            if format != occurrence.format {
+                return Err("Terminal nearest-FMA occurrence changed its IEEE format");
+            }
+            match (x86_target, occurrence.x86_admission) {
+                (true, Some(admission)) => {
+                    let expected_slot = match occurrence.format {
+                        psi_core::IeeeFloatFormat::Binary32 => {
+                            omega_target::X86ScalarFmaSlot::Binary32
+                        }
+                        psi_core::IeeeFloatFormat::Binary64 => {
+                            omega_target::X86ScalarFmaSlot::Binary64
+                        }
+                    };
+                    let provider = admission.provider;
+                    if admission.slot != expected_slot
+                        || !provider.has_canonical_identity()
+                        || provider.profile() != self.target_profile
+                        || !provider.admits(provider.requirement(), admission.slot)
+                    {
+                        return Err(
+                            "Terminal nearest-FMA occurrence has invalid x86 admission custody",
+                        );
+                    }
+                }
+                (true, None) => {
+                    return Err(
+                        "x86 Terminal nearest-FMA occurrence lacks admitted deployment custody",
+                    );
+                }
+                (false, Some(_)) => {
+                    return Err(
+                        "non-x86 Terminal nearest-FMA occurrence carries an x86 deployment admission",
+                    );
+                }
+                (false, None) => {}
             }
         }
         Ok(())
@@ -315,6 +470,10 @@ impl TerminalNativeRealizationProposal {
 
     pub fn callback_occurrences(&self) -> &[TerminalCallbackOccurrenceProposal] {
         &self.callback_occurrences
+    }
+
+    pub fn ieee_float_fma_occurrences(&self) -> &[TerminalIeeeFloatFmaOccurrenceProposal] {
+        &self.ieee_float_fma_occurrences
     }
 
     /// Non-caller-authored checked D29 scope retained before the checked

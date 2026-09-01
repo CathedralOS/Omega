@@ -122,6 +122,8 @@ pub(super) fn append_operation(
         | OperationKind::SaturatingIntegerMultiply { .. } => {
             unreachable!("goal-free scalar rows return before specialized reconstruction")
         }
+        OperationKind::IeeeFloatConstant { .. }
+        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishPayloadlessCase { .. }

@@ -496,7 +496,8 @@ fn shared_integer_runtime_inputs_with_shells(
                     )
                 })
         }
-        CheckedScalarExpression::Parameter { .. }
+        CheckedScalarExpression::IeeeFloatLiteral { .. }
+        | CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IntegerBinary { .. }
         | CheckedScalarExpression::IntegerBitwiseNot { .. }

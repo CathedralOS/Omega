@@ -930,6 +930,7 @@ fn wrapping_shift_count(width: u16, count: IntegerValue) -> Option<u32> {
 pub enum ScalarType {
     Boolean,
     Integer(IntegerType),
+    IeeeFloat(IeeeFloatFormat),
 }
 
 /// One canonical step below a terminal structural root in a scalar
@@ -943,14 +944,30 @@ pub enum CanonicalStructuralPathSegment {
     Case(StructuralCaseId),
 }
 
-/// Exact IEEE interchange format retained by target-neutral structural
-/// predicates. This is deliberately separate from [`ScalarType`]: the current
-/// Terminal execution vocabulary does not claim general floating-point scalar
-/// evaluation.
+/// Exact IEEE interchange format retained by target-neutral scalar execution
+/// and structural predicates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IeeeFloatFormat {
     Binary32,
     Binary64,
+}
+
+/// One exact runtime IEEE interchange value. Raw bits are semantic payload:
+/// signed zero and NaN representation are not reconstructed through a host
+/// floating-point conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IeeeFloatValue {
+    Binary32(u32),
+    Binary64(u64),
+}
+
+impl IeeeFloatValue {
+    pub const fn format(self) -> IeeeFloatFormat {
+        match self {
+            Self::Binary32(_) => IeeeFloatFormat::Binary32,
+            Self::Binary64(_) => IeeeFloatFormat::Binary64,
+        }
+    }
 }
 
 /// Source IEEE comparison retained without mathematical-equality laws.

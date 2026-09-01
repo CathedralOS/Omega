@@ -529,6 +529,7 @@ pub(super) fn lower_unit_services(
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
             }

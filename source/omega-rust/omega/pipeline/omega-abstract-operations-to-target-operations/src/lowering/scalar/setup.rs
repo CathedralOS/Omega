@@ -132,6 +132,11 @@ pub(super) fn prepare_scalar_lowering(
                     location,
                 }),
             },
+            ScalarType::IeeeFloat(_) => {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
         };
         insert_value(&mut values, parameter.value, value)?;
     }

@@ -140,11 +140,18 @@ pub(super) fn validate_internal_unit_call_custody(
                 let bytes = match result {
                     psi_core::ScalarType::Boolean => 1,
                     psi_core::ScalarType::Integer(integer) => integer.bits().div_ceil(8),
+                    psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32) => 4,
+                    psi_core::ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary64) => 8,
                 };
-                Some(omega_calling_conventions::ValueShape::integer(
-                    bytes,
-                    bytes.next_power_of_two().min(8),
-                ))
+                Some(match result {
+                    psi_core::ScalarType::IeeeFloat(_) => {
+                        omega_calling_conventions::ValueShape::float(bytes)
+                    }
+                    _ => omega_calling_conventions::ValueShape::integer(
+                        bytes,
+                        bytes.next_power_of_two().min(8),
+                    ),
+                })
             } else if custody.structural_result.is_some() {
                 custody.arguments.first().map(|argument| argument.shape)
             } else {

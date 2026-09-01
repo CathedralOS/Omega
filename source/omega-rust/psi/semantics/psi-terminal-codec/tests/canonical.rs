@@ -2,10 +2,10 @@ use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
     ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
     ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, Proposition, PropositionId, ScalarTerm, ScalarType, ServiceId,
-    StructuralCaseId, StructuralDomainId, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
-    ValueId,
+    ContractId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId, ScalarTerm,
+    ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
@@ -39,7 +39,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 51_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 52_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -47,12 +47,58 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "0b88b4a1d2340d6fcdd1454aed4ba054971590f62fd1433fa3a331c699871a5e"
+        "45e43cafb390afb71246d91267e78231bc27e627dab763c62ff75a729ce57e20"
     );
     assert_eq!(
         identity.program_fingerprint,
         semantic_fingerprint(&module).unwrap()
     );
+}
+
+#[test]
+fn ieee_float_constants_and_nearest_fma_round_trip_exact_interchange_bits() {
+    let mut module = unit_fixture();
+    let binary32 = ValueDeclaration {
+        id: value_id(901),
+        scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+    };
+    let binary64 = ValueDeclaration {
+        id: value_id(902),
+        scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    };
+    module.machines[0].blocks[0].operations = vec![
+        Operation {
+            id: operation_id(901),
+            result: OperationResult::Scalar(binary32),
+            kind: OperationKind::IeeeFloatConstant {
+                value: IeeeFloatValue::Binary32(0x8000_0000),
+            },
+        },
+        Operation {
+            id: operation_id(902),
+            result: OperationResult::Scalar(binary64),
+            kind: OperationKind::IeeeFloatConstant {
+                value: IeeeFloatValue::Binary64(0x7ff8_0000_0000_0042),
+            },
+        },
+        Operation {
+            id: operation_id(903),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value_id(903),
+                scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            }),
+            kind: OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                left: binary32.id,
+                right: binary32.id,
+                addend: binary32.id,
+            },
+        },
+    ];
+
+    let bytes = encode_module(&module).expect("IEEE scalar module encodes");
+    let decoded = decode_module(&bytes).expect("IEEE scalar module decodes");
+    assert_eq!(decoded, module);
+    assert_eq!(encode_module(&decoded).unwrap(), bytes);
 }
 
 #[test]
@@ -96,7 +142,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 51_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 52_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -469,7 +515,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 51_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 52_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -482,7 +528,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 51_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 52_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -517,7 +563,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 51_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 52_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -2157,10 +2203,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&52_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&53_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(52))
+        Err(CodecError::UnsupportedFormatMarker(53))
     );
 
     let mut stale_format = bytes.clone();
@@ -2908,7 +2954,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 51_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 52_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()

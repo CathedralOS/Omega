@@ -47,6 +47,7 @@ pub enum LoweringError {
     VerifiedIntegerExactCastMalformed(psi_core::OperationId),
     VerifiedWrappingShiftMalformed(psi_core::OperationId),
     VerifiedExactShiftMalformed(psi_core::OperationId),
+    VerifiedIeeeFloatMalformed(psi_core::OperationId),
 }
 
 impl std::fmt::Display for LoweringError {

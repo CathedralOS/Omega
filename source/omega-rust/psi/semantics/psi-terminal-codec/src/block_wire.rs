@@ -20,7 +20,9 @@ use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
 use super::proof_declaration_wire::{decode_evidence_interface, encode_evidence_interface};
-use super::scalar_wire::{decode_integer_value, encode_integer_value};
+use super::scalar_wire::{
+    decode_ieee_float_value, decode_integer_value, encode_ieee_float_value, encode_integer_value,
+};
 use super::wire::{Reader, Writer};
 use super::{
     CodecError, decode_affine_cleanup_action, decode_counted, decode_ids, decode_optional_id,
@@ -262,6 +264,20 @@ pub(super) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), Cod
             OperationKind::BooleanConstant { value } => {
                 writer.u8(2);
                 writer.u8(u8::from(value));
+            }
+            OperationKind::IeeeFloatConstant { value } => {
+                writer.u8(44);
+                encode_ieee_float_value(writer, value);
+            }
+            OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                left,
+                right,
+                addend,
+            } => {
+                writer.u8(45);
+                writer.id(left);
+                writer.id(right);
+                writer.id(addend);
             }
             OperationKind::BooleanStructuralField { source, field } => {
                 writer.u8(38);
@@ -668,6 +684,14 @@ pub(super) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError>
             },
             2 => OperationKind::BooleanConstant {
                 value: reader.boolean()?,
+            },
+            44 => OperationKind::IeeeFloatConstant {
+                value: decode_ieee_float_value(reader)?,
+            },
+            45 => OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                left: reader.id("ValueId")?,
+                right: reader.id("ValueId")?,
+                addend: reader.id("ValueId")?,
             },
             38 => OperationKind::BooleanStructuralField {
                 source: reader.id("PlaceId")?,

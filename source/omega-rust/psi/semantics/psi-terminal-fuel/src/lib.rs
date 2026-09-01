@@ -47,6 +47,8 @@ impl TerminalFuelSchedule {
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::IntegerConstant { .. }
+            | OperationKind::IeeeFloatConstant { .. }
+            | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::BooleanNot { .. }
