@@ -45,6 +45,30 @@ impl NativeRealizationInput {
             Self::ExplicitOptimization(input) => input.plan(),
         }
     }
+
+    pub(crate) fn physical_evidence_scope(
+        &self,
+        checked_scope: Option<
+            &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+        >,
+    ) -> omega_native_artifact::NativePhysicalEvidenceScope {
+        let application_count = match checked_scope {
+            Some(scope) => scope.application_count(),
+            None => usize::MAX,
+        };
+        physical_evidence_scope(matches!(self, Self::Unoptimized(_)), application_count)
+    }
+}
+
+const fn physical_evidence_scope(
+    unoptimized: bool,
+    boundary_operator_application_count: usize,
+) -> omega_native_artifact::NativePhysicalEvidenceScope {
+    if unoptimized && boundary_operator_application_count == 0 {
+        omega_native_artifact::NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications
+    } else {
+        omega_native_artifact::NativePhysicalEvidenceScope::Unavailable
+    }
 }
 
 /// Provider-supplied realization input for one Terminal boundary. The exact
@@ -101,5 +125,27 @@ impl SettledNativeArtifact {
 
     pub fn into_parts(self) -> (NativeArtifact, ValidatedNativeProgramEntrySettlement) {
         (self.artifact, self.program_entry)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::physical_evidence_scope;
+    use omega_native_artifact::NativePhysicalEvidenceScope;
+
+    #[test]
+    fn physical_evidence_requires_both_unoptimized_and_exact_empty_d29_scope() {
+        assert_eq!(
+            physical_evidence_scope(true, 0),
+            NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
+        );
+        assert_eq!(
+            physical_evidence_scope(false, 0),
+            NativePhysicalEvidenceScope::Unavailable,
+        );
+        assert_eq!(
+            physical_evidence_scope(true, 1),
+            NativePhysicalEvidenceScope::Unavailable,
+        );
     }
 }

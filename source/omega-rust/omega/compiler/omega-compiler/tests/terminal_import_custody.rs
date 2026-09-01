@@ -145,6 +145,7 @@ fn terminal_proposal_rejoins_every_evaluated_import_exactly_once() {
             rows,
             proposal.compiler_builtins().to_vec(),
             proposal.callback_occurrences().to_vec(),
+            proposal.checked_boundary_operator_scope().clone(),
         )
     };
 

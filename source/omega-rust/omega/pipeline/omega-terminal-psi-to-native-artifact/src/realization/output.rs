@@ -2,8 +2,9 @@ use crate::realization::diagnostics::realization_error;
 use crate::realization::model::NativeRealizationRequest;
 use omega_machine_code::MachineCodePlan;
 use omega_native_artifact::{
-    NativeArtifact, NativeArtifactParts, NativeProviderExecution,
+    NativeArtifact, NativeArtifactEmissionParts, NativeProviderExecution,
     NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -11,6 +12,7 @@ pub(crate) fn assemble_native_artifact(
     psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     machine_code: &MachineCodePlan,
     provider_executions: Vec<NativeProviderExecution>,
+    physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
     let object = omega_image_emission::build_object_artifact(machine_code)
@@ -25,6 +27,7 @@ pub(crate) fn assemble_native_artifact(
         .map(|plan| {
             NativeSelectedProviderPlan::new(
                 plan.report_fingerprint(),
+                NativeSelectedProviderPlanDigest::from_digest(*plan.identity_digest().as_bytes()),
                 plan.rows
                     .iter()
                     .map(|row| row.requirement_identity.clone())
@@ -33,7 +36,7 @@ pub(crate) fn assemble_native_artifact(
         })
         .collect::<Vec<_>>();
     selected_provider_plans.sort_by_key(NativeSelectedProviderPlan::report_identity);
-    NativeArtifact::from_replayed_parts(NativeArtifactParts {
+    NativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
         target: request.target,
         psi_artifact,
         object,
@@ -46,6 +49,7 @@ pub(crate) fn assemble_native_artifact(
         ),
         selected_provider_plans,
         provider_executions,
+        physical_evidence_scope,
     })
     .map_err(|error| realization_error("native artifact replay", error))
 }

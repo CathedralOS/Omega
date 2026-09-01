@@ -164,6 +164,22 @@ or role-swapped child; a verified optimizer elimination alone permits omission.
 Semantic settlement and native physical coverage stay distinct even when one
 envelope carries both.
 
+The implemented first slice covers the no-optimization identity projection
+when every executable boundary occurrence is the Linux ELF
+`CompilerBuiltin(LinuxExitGroupI32)` lane. The compiler positively establishes
+that its complete checked D29 boundary-operator demand roster is empty; the
+Terminal companion retains a non-caller-authored scope receipt bound to the
+exact Terminal artifact, and an explicit optimizer handoff never
+enters this scope. Fresh emission derives one child per occurrence on x86-64
+and AArch64; standalone artifact replay independently rederives the Terminal
+occurrence roster, exact D41 parent, selected-plan digest, scalar ABI custody,
+direct instruction bytes, and all three spans. An artifact with a nonempty D29
+roster, port effect, normalized foreign call, admitted native provider, or
+another executable evidence role remains usable but carries no D32 evidence,
+so later final-realization admission fails closed instead of mistaking partial
+coverage for a complete child set. D29, admitted-provider, and non-identity
+optimized projections remain explicit follow-on lanes.
+
 Cross-field product admission precedes that frontend. The request owner
 consumes `CompileRequest` into a private validated request and rejects a
 nonempty optimization rollback unless the selected product is

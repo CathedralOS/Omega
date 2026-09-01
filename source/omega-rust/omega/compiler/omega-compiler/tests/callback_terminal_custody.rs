@@ -287,6 +287,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                     Some(application.clone()),
                 )
             ],
+            proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),
         "a non-boundary Terminal operation cannot replace the registrar call",
@@ -302,6 +303,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
             proposal.external_binding_rows().to_vec(),
             proposal.compiler_builtins().to_vec(),
             vec![occurrence.clone(), occurrence.clone()],
+            proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),
         "duplicate placement occurrence rows must reject",
@@ -324,6 +326,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
                 Some(drifted_application),
             ),
         ],
+        proposal.checked_boundary_operator_scope().clone(),
     )
     .expect("artifact-local replay cannot infer the checked native telescope");
     assert!(
@@ -345,6 +348,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         proposal.external_binding_rows().to_vec(),
         proposal.compiler_builtins().to_vec(),
         Vec::new(),
+        proposal.checked_boundary_operator_scope().clone(),
     )
     .expect("artifact-local replay permits an empty occurrence catalog");
     let (artifact, placements, _) = retained.into_parts();

@@ -40,6 +40,6 @@ pub(in crate::tests) fn hosted_custody() -> (
         source.identity().bytes(),
     )
     .expect("ProgramEntry Terminal artifact");
-    let (artifact, receipt) = produced.into_parts();
+    let (artifact, receipt, _) = produced.into_parts();
     (artifact, receipt, source)
 }

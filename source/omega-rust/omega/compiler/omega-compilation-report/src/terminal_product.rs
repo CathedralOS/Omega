@@ -94,6 +94,8 @@ pub struct TerminalNativeRealizationProposal {
     external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
     compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
     callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
+    checked_boundary_operator_scope:
+        psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
 }
 
 impl TerminalNativeRealizationProposal {
@@ -108,6 +110,7 @@ impl TerminalNativeRealizationProposal {
         external_binding_rows: Vec<omega_calling_conventions::ExternalBindingRow>,
         compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
         callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
+        checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     ) -> Result<Self, &'static str> {
         let proposal = Self {
             terminal_artifact_identity: artifact.manifest().identity(),
@@ -119,6 +122,7 @@ impl TerminalNativeRealizationProposal {
             external_binding_rows,
             compiler_builtins,
             callback_occurrences,
+            checked_boundary_operator_scope,
         };
         proposal.validate_for_artifact(artifact)?;
         Ok(proposal)
@@ -134,6 +138,8 @@ impl TerminalNativeRealizationProposal {
         if self.terminal_artifact_identity != artifact.manifest().identity() {
             return Err("Terminal native proposal belongs to a different canonical artifact");
         }
+        self.checked_boundary_operator_scope
+            .validate_for_artifact(artifact)?;
         if self.target_profile.native_target() != self.native_target
             || self.program_entry.source_signature().target_slot().owner != self.target_profile
         {
@@ -309,6 +315,14 @@ impl TerminalNativeRealizationProposal {
 
     pub fn callback_occurrences(&self) -> &[TerminalCallbackOccurrenceProposal] {
         &self.callback_occurrences
+    }
+
+    /// Non-caller-authored checked D29 scope retained before the checked
+    /// frontend was destroyed.
+    pub const fn checked_boundary_operator_scope(
+        &self,
+    ) -> &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope {
+        &self.checked_boundary_operator_scope
     }
 }
 

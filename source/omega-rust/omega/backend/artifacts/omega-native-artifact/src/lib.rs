@@ -13,7 +13,18 @@ pub use omega_image_emission::BoundaryExecutionRecord;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v1\0";
+mod physical;
+
+use physical::derive_physical_evidence;
+pub use physical::{
+    BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeByteSpan,
+    NativeCompilerBuiltinCatalogIdentity, NativeIdentityOptimizationProjection,
+    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
+    NativePhysicalEvidenceParts, OptimizedBoundaryOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition,
+};
+
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v2\0";
 
 /// Collision-resistant identity of one complete, validated native artifact.
 ///
@@ -64,6 +75,34 @@ impl NativeSelectedProviderClosureDigest {
     }
 }
 
+/// Strong source-free projection of one exact normalized provider-plan
+/// digest. Unlike the compact report coordinate, these bytes bind every plan
+/// field and can be carried into D41 physical-parent custody.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NativeSelectedProviderPlanDigest([u8; 32]);
+
+impl NativeSelectedProviderPlanDigest {
+    pub const fn from_digest(digest: [u8; 32]) -> Self {
+        Self(digest)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// Exact upstream scope under which this artifact may derive D32 evidence.
+///
+/// The positive variant means the compiler supplied an unoptimized Terminal
+/// handoff whose complete checked boundary-operator demand roster was empty.
+/// It does not make unsupported boundary/provider mechanisms disappear: those
+/// still produce no evidence during native replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativePhysicalEvidenceScope {
+    Unavailable,
+    UnoptimizedNoBoundaryOperatorApplications,
+}
+
 /// One selected provider plan projected into source-free native-artifact
 /// reporting. Requirements are exact, canonical, strictly ordered, and
 /// complete for this selected plan; the compact plan coordinate is not
@@ -71,21 +110,31 @@ impl NativeSelectedProviderClosureDigest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSelectedProviderPlan {
     report_identity: u64,
+    plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
 }
 
 impl NativeSelectedProviderPlan {
-    pub fn new(report_identity: u64, mut requirement_identities: Vec<String>) -> Self {
+    pub fn new(
+        report_identity: u64,
+        plan_digest: NativeSelectedProviderPlanDigest,
+        mut requirement_identities: Vec<String>,
+    ) -> Self {
         requirement_identities.sort();
         requirement_identities.dedup();
         Self {
             report_identity,
+            plan_digest,
             requirement_identities,
         }
     }
 
     pub const fn report_identity(&self) -> u64 {
         self.report_identity
+    }
+
+    pub const fn plan_digest(&self) -> NativeSelectedProviderPlanDigest {
+        self.plan_digest
     }
 
     pub fn requirement_identities(&self) -> &[String] {
@@ -181,6 +230,8 @@ pub struct NativeArtifact {
     selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
+    physical_evidence_scope: NativePhysicalEvidenceScope,
+    physical_evidence: Option<NativePhysicalEvidence>,
     identity: NativeArtifactIdentity,
 }
 
@@ -194,6 +245,24 @@ pub struct NativeArtifactParts {
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
+    pub physical_evidence_scope: NativePhysicalEvidenceScope,
+    pub physical_evidence: Option<NativePhysicalEvidence>,
+}
+
+/// Fresh machine/image emission inputs. Physical evidence is deliberately
+/// absent: this owner derives it from the exact Terminal, object, image, and
+/// selected-plan custody before constructing a replayable artifact.
+#[derive(Debug)]
+pub struct NativeArtifactEmissionParts {
+    pub target: omega_target::NativeTarget,
+    pub psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    pub object: omega_image_emission::ObjectArtifact,
+    pub image: omega_image_emission::ExecutableImage,
+    pub selected_provider_closure_report_identity: u64,
+    pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
+    pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
+    pub provider_executions: Vec<NativeProviderExecution>,
+    pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
 type ProviderExecutionReportKey = (String, u64, u64, u64, u64, u64);
@@ -268,6 +337,32 @@ fn validate_provider_execution_reports(
 }
 
 impl NativeArtifact {
+    /// Complete fresh native emission by deriving the identity optimization
+    /// projection and every currently supported physical child.
+    pub fn from_emitted_parts(parts: NativeArtifactEmissionParts) -> Result<Self, &'static str> {
+        let physical_evidence = derive_physical_evidence(
+            parts.physical_evidence_scope,
+            &parts.psi_artifact,
+            parts.target,
+            &parts.object,
+            &parts.image,
+            &parts.selected_provider_plans,
+        )?;
+        Self::from_replayed_parts(NativeArtifactParts {
+            target: parts.target,
+            psi_artifact: parts.psi_artifact,
+            object: parts.object,
+            image: parts.image,
+            selected_provider_closure_report_identity: parts
+                .selected_provider_closure_report_identity,
+            selected_provider_closure_digest: parts.selected_provider_closure_digest,
+            selected_provider_plans: parts.selected_provider_plans,
+            provider_executions: parts.provider_executions,
+            physical_evidence_scope: parts.physical_evidence_scope,
+            physical_evidence,
+        })
+    }
+
     /// Rejoin already verified proof admission with target artifacts while
     /// replaying every source-free identity and byte relation retained here.
     pub fn from_replayed_parts(parts: NativeArtifactParts) -> Result<Self, &'static str> {
@@ -281,6 +376,8 @@ impl NativeArtifact {
             selected_provider_closure_digest: parts.selected_provider_closure_digest,
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
+            physical_evidence_scope: parts.physical_evidence_scope,
+            physical_evidence: parts.physical_evidence,
             identity: NativeArtifactIdentity([0; 32]),
         };
         artifact.identity = artifact.recomputed_identity();
@@ -336,6 +433,19 @@ impl NativeArtifact {
             &self.provider_executions,
             &required_executions,
         )?;
+        let expected_physical_evidence = derive_physical_evidence(
+            self.physical_evidence_scope,
+            &self.psi_artifact,
+            self.target,
+            &self.object,
+            &self.image,
+            &self.selected_provider_plans,
+        )?;
+        if self.physical_evidence != expected_physical_evidence {
+            return Err(
+                "native artifact physical children disagree with its validated identity projection",
+            );
+        }
         if self.identity != self.recomputed_identity() {
             return Err("native artifact identity disagrees with its retained authority");
         }
@@ -406,6 +516,11 @@ impl NativeArtifact {
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
+            physical_evidence_scope: self.physical_evidence_scope,
+            physical_evidence_identity: self
+                .physical_evidence
+                .as_ref()
+                .map(|evidence| *evidence.identity()),
         })
     }
 
@@ -455,6 +570,17 @@ impl NativeArtifact {
         &self.provider_executions
     }
 
+    pub const fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
+        self.physical_evidence_scope
+    }
+
+    /// Complete D32 evidence for the currently supported physical lane.
+    /// `None` means the artifact contains a role this implementation does not
+    /// yet cover; it grants no final-realization claim for that role.
+    pub const fn physical_evidence(&self) -> Option<&NativePhysicalEvidence> {
+        self.physical_evidence.as_ref()
+    }
+
     pub fn into_parts(self) -> NativeArtifactParts {
         NativeArtifactParts {
             target: self.target,
@@ -466,6 +592,8 @@ impl NativeArtifact {
             selected_provider_closure_digest: self.selected_provider_closure_digest,
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
+            physical_evidence_scope: self.physical_evidence_scope,
+            physical_evidence: self.physical_evidence,
         }
     }
 }
@@ -491,6 +619,8 @@ struct NativeArtifactIdentityFields<'a> {
     selected_provider_closure_digest: [u8; 32],
     selected_provider_plans: &'a [NativeSelectedProviderPlan],
     provider_executions: &'a [NativeProviderExecution],
+    physical_evidence_scope: NativePhysicalEvidenceScope,
+    physical_evidence_identity: Option<[u8; 32]>,
 }
 
 fn derive_native_artifact_identity(
@@ -548,6 +678,7 @@ fn derive_native_artifact_identity(
     digest.update(canonical_usize(fields.selected_provider_plans.len()));
     for plan in fields.selected_provider_plans {
         digest.update(plan.report_identity.to_le_bytes());
+        digest.update(plan.plan_digest.as_bytes());
         digest.update(canonical_usize(plan.requirement_identities.len()));
         for requirement in &plan.requirement_identities {
             hash_bytes(&mut digest, requirement.as_bytes());
@@ -566,6 +697,11 @@ fn derive_native_artifact_identity(
             digest.update(report_coordinate.to_le_bytes());
         }
     }
+    digest.update([match fields.physical_evidence_scope {
+        NativePhysicalEvidenceScope::Unavailable => 0,
+        NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications => 1,
+    }]);
+    hash_optional_digest(&mut digest, fields.physical_evidence_identity);
     NativeArtifactIdentity(digest.finalize().into())
 }
 
@@ -614,8 +750,11 @@ mod tests {
         callback_report_fingerprint: u64,
         inventory_marker: u8,
         provider_closure_marker: u8,
+        provider_plan_marker: u8,
         requirement: &'a str,
         execution_report_fingerprint: u64,
+        physical_evidence_scope: NativePhysicalEvidenceScope,
+        physical_evidence_marker: u8,
         with_validation_evidence: bool,
     }
 
@@ -630,8 +769,12 @@ mod tests {
                 callback_report_fingerprint: 29,
                 inventory_marker: 2,
                 provider_closure_marker: 3,
+                provider_plan_marker: 59,
                 requirement: "core::Console::write",
                 execution_report_fingerprint: 41,
+                physical_evidence_scope:
+                    NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
+                physical_evidence_marker: 61,
                 with_validation_evidence: true,
             }
         }
@@ -640,6 +783,7 @@ mod tests {
     fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
         let plans = vec![NativeSelectedProviderPlan::new(
             7,
+            NativeSelectedProviderPlanDigest::from_digest([fixture.provider_plan_marker; 32]),
             vec![fixture.requirement.to_owned()],
         )];
         let executions = vec![NativeProviderExecution {
@@ -672,6 +816,8 @@ mod tests {
             selected_provider_closure_digest: [fixture.provider_closure_marker; 32],
             selected_provider_plans: &plans,
             provider_executions: &executions,
+            physical_evidence_scope: fixture.physical_evidence_scope,
+            physical_evidence_identity: Some([fixture.physical_evidence_marker; 32]),
         })
     }
 
@@ -679,6 +825,7 @@ mod tests {
     fn compact_equal_execution_cannot_substitute_an_exact_requirement() {
         let selected = vec![NativeSelectedProviderPlan::new(
             7,
+            NativeSelectedProviderPlanDigest::from_digest([23; 32]),
             vec!["core::Expected".to_owned()],
         )];
         let required = BTreeSet::from([("core::Expected".to_owned(), 7, 11, 13, 17, 19)]);
@@ -753,6 +900,10 @@ mod tests {
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {
+                provider_plan_marker: 13,
+                ..IdentityFixture::default()
+            }),
+            fixture_identity(IdentityFixture {
                 requirement: "core::Console::substitute",
                 ..IdentityFixture::default()
             }),
@@ -762,6 +913,14 @@ mod tests {
             }),
             fixture_identity(IdentityFixture {
                 with_validation_evidence: false,
+                ..IdentityFixture::default()
+            }),
+            fixture_identity(IdentityFixture {
+                physical_evidence_scope: NativePhysicalEvidenceScope::Unavailable,
+                ..IdentityFixture::default()
+            }),
+            fixture_identity(IdentityFixture {
+                physical_evidence_marker: 17,
                 ..IdentityFixture::default()
             }),
         ] {

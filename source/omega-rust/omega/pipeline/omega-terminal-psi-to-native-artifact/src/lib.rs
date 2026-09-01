@@ -17,8 +17,11 @@ pub use entry_settlement::{
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use omega_native_artifact::{
-    BoundaryExecutionRecord, NativeArtifact, NativeArtifactParts, NativeProviderExecution,
-    NativeSelectedProviderPlan,
+    BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeArtifact,
+    NativeArtifactParts, NativeByteSpan, NativePhysicalChild, NativePhysicalChildParts,
+    NativePhysicalEvidence, NativePhysicalEvidenceParts, NativePhysicalEvidenceScope,
+    NativeProviderExecution, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
+    PhysicalChildParent,
 };
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,
@@ -34,7 +37,9 @@ pub use realization::{
     RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
     UnclassifiedCompilerIntrinsicTerminalMechanism,
     current_compiler_intrinsic_terminal_authority_policy, realize_native_artifact,
-    realize_native_artifact_with_callback_custody, realize_program_entry_native_artifact,
+    realize_native_artifact_with_callback_custody,
+    realize_native_artifact_with_checked_boundary_operator_scope,
+    realize_program_entry_native_artifact,
 };
 
 #[cfg(test)]

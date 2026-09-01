@@ -97,8 +97,28 @@ stop the item on one precise owner question before adding machinery.
   retain their disjoint admitted execution custody. Extend the closed builtin
   sum only with another demanded local target mechanism. Convert planner
   classifications to `CompilerBuiltinExecution` with one exhaustive
-  `match -> Option`, then finish D32's occurrence-specific D41 physical-child
-  parent and replay rather than adding pre-lowering fingerprints.
+  `match -> Option`.
+
+  D32's first physical child is also complete for this lane on Linux x86-64
+  and AArch64. Eligibility is positive rather than a mechanism denylist: the
+  compiler must retain an exact empty checked D29 boundary-operator demand
+  roster and an unoptimized handoff, and the standalone Terminal companion
+  preserves a non-caller-authored scope receipt bound to the exact Terminal
+  artifact after frontend custody is destroyed.
+  `NativeArtifact` binds this scope and independently derives the identity
+  projection from canonical Terminal semantics, retaining the exact occurrence
+  and complete D41 parent (strong selected-plan digest,
+  requirement, target/catalog, structural execution role, realization, and
+  scalar ABI custody), and binds machine-relative, object, and final-image
+  spans under a direct-no-relocation disposition. Fresh emission derives the
+  evidence; standalone replay rederives it and rejects removal, duplication,
+  stale projection identity, plan substitution, span drift, and padding.
+  A nonempty D29 roster, explicit optimization, port effect, admitted native
+  provider, normalized foreign call, or another executable evidence role
+  retains no D32 evidence rather than publishing partial coverage or rejecting
+  an otherwise valid artifact. Remaining work is the D29 parent,
+  admitted-provider parent, and verified non-identity optimization projection
+  lanes, followed by final package-evidence consumption.
 
   The first standalone-product lane now retains the selected provider-plan
   facts, external-binding requirements, target/profile, ProgramEntry, and

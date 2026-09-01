@@ -168,6 +168,9 @@ fn validate_selected_provider_closure(
         .map(|plan| {
             NativeSelectedProviderPlan::new(
                 plan.report_fingerprint(),
+                omega_native_artifact::NativeSelectedProviderPlanDigest::from_digest(
+                    *plan.identity_digest().as_bytes(),
+                ),
                 plan.rows
                     .iter()
                     .map(|row| row.requirement_identity.clone())
@@ -239,6 +242,9 @@ mod tests {
     fn projected(plan: &ProviderPlan) -> Vec<NativeSelectedProviderPlan> {
         vec![NativeSelectedProviderPlan::new(
             plan.report_fingerprint(),
+            omega_native_artifact::NativeSelectedProviderPlanDigest::from_digest(
+                *plan.identity_digest().as_bytes(),
+            ),
             vec!["IndexedRequirement::apply".into()],
         )]
     }
@@ -266,7 +272,11 @@ mod tests {
         assert_ne!(original.identity_digest(), substituted.identity_digest());
 
         let native_plans = projected(&original_plan);
-        assert_eq!(native_plans, projected(&substituted_plan));
+        assert_ne!(
+            native_plans,
+            projected(&substituted_plan),
+            "the native projection now retains the strong exact plan digest",
+        );
         assert_eq!(
             validate_selected_provider_closure(
                 original.compatibility_report_identity(),
@@ -279,6 +289,17 @@ mod tests {
             Err(
                 "component candidate selected provider closure digest disagrees with its native artifact"
             )
+        );
+        assert_eq!(
+            validate_selected_provider_closure(
+                substituted.compatibility_report_identity(),
+                NativeSelectedProviderClosureDigest::from_digest(
+                    *substituted.identity_digest().as_bytes(),
+                ),
+                &native_plans,
+                &substituted,
+            ),
+            Err("component candidate selected provider facts disagree with its native artifact"),
         );
     }
 }
