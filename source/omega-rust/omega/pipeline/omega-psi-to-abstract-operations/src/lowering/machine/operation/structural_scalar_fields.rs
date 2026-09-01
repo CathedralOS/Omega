@@ -1,12 +1,11 @@
 //! Exact structural scalar-field preservation after independent Terminal verification.
 
 use omega_abstract_operations::{AbstractOperation, AbstractResult};
-use psi_core::{PlaceId, ScalarType, StructuralFieldId, StructuralTypeId};
+use psi_core::{PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId};
 use psi_terminal::{
     BindingRelevance, Block, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalMachine,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
