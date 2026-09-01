@@ -774,7 +774,9 @@ pub(super) fn lower_attached_unit_closure_including(
                     }
                 }
                 CheckedUnitEffectOperationPlan::CallUnit {
+                    coordinate,
                     target_machine,
+                    target_state,
                     structural_arguments,
                     claim_transfers,
                     ..
@@ -839,6 +841,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         &mut crash_continuations,
                         &substitutions,
                     )?;
+                    source_call = Some((*coordinate, None, *target_state));
                     let target_runtime_requirements = lowered_machine_runtime_requirements
                         .iter()
                         .find_map(|(symbol, requirements)| {
@@ -1385,8 +1388,10 @@ pub(super) fn lower_attached_unit_closure_including(
                         .ok_or(LoweringError::Unsupported(
                             "write-only store names an unknown structural parameter",
                         ))?;
-                    if destination.access != StructuralAccess::WriteOnlyBorrow
-                        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+                    if !matches!(
+                        destination.access,
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    ) || destination.multiplicity != StructuralMultiplicity::Unrestricted
                         || !destination.qualifications.is_empty()
                     {
                         return unsupported(
@@ -1725,6 +1730,7 @@ pub(super) fn lower_attached_unit_closure_including(
             root_service_reach,
             placed_view_inputs,
             reborrow_root_handoffs: Vec::new(),
+            reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
             provider_candidates,
             float_meaning_projections: Vec::new(),

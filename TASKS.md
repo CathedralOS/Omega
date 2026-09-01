@@ -6809,16 +6809,20 @@ Owners:
   Other non-overlapping sequential siblings may occur in the state without
   widening the row beyond its one qualifying child event. That child must end by
   `LastUseExpired` through the exact `Reactivate` disposition and
-  `ExclusiveSuspension` containment row, immediately before one receiver-free
-  call with one exact mutable-reference parameter takes the bare parent carrier
-  and mutates the complete restored referent. The certificate rejoins the exact child and parent
+  `ExclusiveSuspension` containment row, immediately before one runtime-
+  receiver-free call with one exact mutable-reference parameter takes the bare
+  parent carrier and mutates the complete restored referent. Nominal static
+  qualification such as `Sink::mutate(parent)` is permitted and does not count
+  as a runtime receiver. The certificate rejoins the exact child and parent
   resources, weakening, disposition, containment, flow and borrow call rows,
   carrier-read access, parent-loan entry constraint, captured places, restored
   access, and target. Independent replay is transactional. Shared cohorts,
   multihop children, concurrent siblings, state-exit closure, projected
   arguments, direct assignment, receiver calls, extra parameters, and
-  nonmutating targets retain no such row. This is checked evidence only and
-  grants no Terminal use, cleanup, transfer, or discharge authority.
+  nonmutating targets retain no such row. Terminal independently replays this
+  exact join and publishes one canonical row naming the sole `CallUnit` use,
+  its direct-root lifetime, and the exclusive child interval. The row
+  authorizes only that call; it grants no cleanup, transfer, or discharge.
 
   Terminal root-custody publication now accepts one finite nonempty linear
   exclusive lineage from a direct-root `Mutable` loan to the leaf that ends at
@@ -6829,16 +6833,17 @@ Owners:
   resource, activation, parent-entry formation, weakening, captured-place,
   projection-remainder, and `ExclusiveSuspension` containment row before
   accepting the leaf's exact `StateExitDirectRootHandoff` and root-lifetime
-  target. Terminal format 47 / vocabulary 50 retain the complete lineage in one
+  target. Terminal format 48 / vocabulary 51 retain the complete lineage in one
   canonical row. Codec and verifier reject empty, reordered, duplicated,
   access-amplified, malformed, redirected, branched, shared, or non-state-exit
   lineages. The row grants root custody only; its vocabulary cannot express
   cleanup, transfer, or linear discharge.
 
-  Complete the settled reborrow-restoration model by publishing post-reborrow
-  use and broader root custody only after independent replay. Shared-freeze
-  cohorts, non-state-exit restoration, and exclusive branching remain outside
-  the current Terminal rung.
+  Extend the settled reborrow-restoration model beyond the now-published
+  one-hop whole-parent call and linear state-exit root custody only after
+  independent replay. Shared-freeze cohorts, multihop or branching restored
+  use, projected/direct-assignment use, and non-state-exit root custody remain
+  outside the current Terminal rung.
 
   Acceptance: every access cell has a positive or directed negative canary;
   concurrent shared descendants do not produce internal drift; premature or
@@ -10677,7 +10682,7 @@ Remaining N6/N8 work:
   `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
   exact toolchain operator and result owners, private contract-free ordinary
   signature, source carrier, hermetic operation identity, and catalog version.
-  Checked deduplication and Terminal format 47 / vocabulary 50 retain that
+  Checked deduplication and Terminal format 48 / vocabulary 51 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
   operands to share that exact format and contract carrier. Resolved symbols

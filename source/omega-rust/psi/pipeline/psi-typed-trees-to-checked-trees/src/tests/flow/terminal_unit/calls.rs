@@ -408,6 +408,90 @@ fn retains_one_direct_write_only_primitive_literal_store() {
 }
 
 #[test]
+fn retains_one_direct_mutable_primitive_literal_store() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &mut i32) {
+            destination = 2;
+        }
+        "#,
+    );
+    let fill = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Sink::fill"))
+        .expect("literal store through readable mutable authority");
+    assert_eq!(
+        fill.structural_parameters[0].access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+    assert!(matches!(
+        fill.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                destination_parameter_index: 0,
+                value: CheckedScalarExpression::IntegerLiteral { literal },
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if literal.value_i64() == Some(2)
+    ));
+}
+
+#[test]
+fn retains_only_certificate_backed_restored_reference_alias_call() {
+    let checked = checked(
+        r#"
+        data Harness {}
+        data Sink {}
+        machine Sink::mutate(value: &mut i32) { value = 2; }
+        machine Harness::exercise(root: &mut i32) {
+            let parent: &mut i32 = &mut root;
+            let child: &write i32 = &write parent;
+            Sink::mutate(parent);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let exercise = plans
+        .for_machine(machine_named(&checked, "Harness::exercise"))
+        .expect("checked certificate admits the erased reference aliases");
+    assert!(exercise.trivial_affine_locals.is_empty());
+    assert!(matches!(
+        exercise.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::CallUnit {
+                coordinate,
+                structural_arguments,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if coordinate.statement_index == 2
+            && coordinate.call_ordinal == 0
+            && matches!(structural_arguments.as_slice(), [argument]
+                if argument.source_parameter_index == 0
+                    && argument.path.is_empty()
+                    && argument.access
+                        == psi_checked_trees::CheckedStructuralAccess::MutableBorrow)
+    ));
+
+    let mut without_certificate = checked.facts.clone();
+    without_certificate
+        .borrow
+        .reborrow_restored_call_use_certificates = psi_arena::Arena::new();
+    let rebuilt =
+        crate::flow::build_checked_unit_effect_plans(&checked.typed, &without_certificate, &[]);
+    assert!(
+        rebuilt
+            .for_machine(machine_named(&checked, "Harness::exercise"))
+            .is_none(),
+        "ordinary local aliases must not acquire heuristic Terminal meaning"
+    );
+}
+
+#[test]
 fn retains_one_direct_write_only_boolean_literal_store() {
     let checked = checked(
         r#"
@@ -464,15 +548,6 @@ fn primitive_store_planning_fails_closed_outside_the_literal_whole_write_root() 
             data Sink {}
             machine Sink::fill(destination: &write i32, replacement: i32) {
                 destination = replacement;
-            }
-            "#,
-        ),
-        (
-            "readable mutable destination",
-            r#"
-            data Sink {}
-            machine Sink::fill(destination: &mut i32) {
-                destination = 2;
             }
             "#,
         ),

@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        50
+        51
     }
 }
 
@@ -102,6 +102,10 @@ pub struct TerminalModule {
     /// linear exclusive-reborrow lineages. These rows grant no cleanup,
     /// transfer, or linear-discharge authority.
     pub reborrow_root_handoffs: Vec<TerminalReborrowRootHandoff>,
+    /// One exact whole-parent mutating call after a one-hop exclusive child
+    /// reactivates its direct mutable root. These rows grant use only at the
+    /// named call and cannot express cleanup, transfer, or discharge.
+    pub reborrow_restored_call_uses: Vec<TerminalReborrowRestoredCallUse>,
     /// Bodyless target-neutral Unit machines callable from terminal Psi.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     /// Every checked, target-neutral provider candidate eligible to realize a
@@ -216,6 +220,34 @@ pub struct TerminalReborrowRootHandoff {
     pub direct_root_weakening: TerminalBorrowBoundarySource,
     pub direct_root_lifetime_identity: String,
     pub lineage: Vec<TerminalReborrowRootHandoffStep>,
+}
+
+/// Closed publication of one exact use after one direct exclusive child has
+/// reactivated its mutable parent. The canonical operation identifies the sole
+/// authorized use. Access, disposition, containment, carrier-read, and restored-
+/// place facts that are fixed by this bounded form are verifier rules rather
+/// than malleable row fields; this vocabulary cannot express cleanup, transfer,
+/// or discharge.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalReborrowRestoredCallUse {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub source_machine_identity: String,
+    pub source_state_identity: String,
+    pub direct_root_owner_identity: String,
+    pub direct_root_owner_path: Vec<TerminalBorrowOwnerSegment>,
+    pub direct_root_place: TerminalBorrowPlace,
+    pub direct_root_activation: TerminalBorrowBoundarySource,
+    pub direct_root_weakening: TerminalBorrowBoundarySource,
+    pub direct_root_lifetime_identity: String,
+    pub child_owner_identity: String,
+    pub child_owner_path: Vec<TerminalBorrowOwnerSegment>,
+    pub child_place: TerminalBorrowPlace,
+    pub projection_remainder: Vec<TerminalBorrowPlaceSegment>,
+    pub child_access: StructuralAccess,
+    pub child_activation: TerminalBorrowBoundarySource,
+    pub formation_boundary: TerminalBorrowBoundarySource,
+    pub child_weakening: TerminalBorrowBoundarySource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1525,8 +1557,9 @@ pub struct CompletionReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
     /// Store one already-defined scalar value through one exact whole-root
-    /// write-only structural parameter. The previous referent value is not
-    /// observed and structural custody is preserved.
+    /// mutable or write-only structural parameter. The operation does not
+    /// observe the previous referent value, and structural custody is
+    /// preserved.
     WriteOnlyPrimitiveStore {
         destination: PlaceId,
         value: ValueId,

@@ -51,9 +51,21 @@ fn direct_write_only_primitive_store_is_total_and_preserves_custody() {
 }
 
 #[test]
+fn direct_mutable_primitive_store_is_total_and_preserves_custody() {
+    let mut module = write_only_primitive_store_module();
+    module.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    validate_module(&module).expect("a non-observing store may use readable mutable authority");
+    assert!(
+        reconstruct_operation_obligations(&module)
+            .expect("total stores reconstruct")
+            .is_empty()
+    );
+}
+
+#[test]
 fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations() {
     let mut wrong_access = write_only_primitive_store_module();
-    wrong_access.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    wrong_access.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
     assert!(matches!(
         validate_module(&wrong_access),
         Err(ModuleError::WriteOnlyPrimitiveStoreDestinationMismatch {
@@ -3742,6 +3754,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         },
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -3915,6 +3928,7 @@ fn hard_root_module() -> TerminalModule {
         },
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![boundary],
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -4116,6 +4130,7 @@ fn partial_affine_field_module() -> TerminalModule {
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -4373,6 +4388,7 @@ fn nominal_affine_module() -> TerminalModule {
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

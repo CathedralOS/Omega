@@ -87,6 +87,7 @@ pub(crate) fn conditional_widened_u8_exact_binary_artifact_with_values(
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

@@ -767,6 +767,7 @@ fn boundary_call_module() -> TerminalModule {
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
             id: boundary_id(1),
             identity: "test::observe".into(),
@@ -925,6 +926,7 @@ fn call_module() -> TerminalModule {
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),
@@ -1063,6 +1065,7 @@ fn payloadless_guarded_call_module() -> TerminalModule {
         root_service_reach: Default::default(),
         placed_view_inputs: Vec::new(),
         reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         float_meaning_projections: Vec::new(),

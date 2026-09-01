@@ -521,9 +521,11 @@ primitive replacement from either a landed integer literal or a Boolean
 literal. `PrimitiveScalar` is an honest structural
 referent shape rather than a synthetic record, and
 `WriteOnlyPrimitiveStore(destination, value)` is Unit, unconditional, and
-non-observing. Verification requires one claim-free, unqualified,
-unrestricted `WriteOnlyBorrow` parameter root and an already-defined exact-type
-SSA value. Reference execution keeps exact-typed primitive backing outside suspended call
+non-observing. Verification requires one claim-free, unqualified, unrestricted
+`MutableBorrow` or `WriteOnlyBorrow` parameter root and an already-defined
+exact-type SSA value. The operation name describes its non-observing effect,
+not a requirement to discard readable authority. Reference execution keeps
+exact-typed primitive backing outside suspended call
 frames, so a callee replacement is caller-visible; fuel is consumed before the
 mutation and resumption cannot replay it. Broader projected/aggregate stores,
 opaque-provider realization, and native address/width/store lowering remain
@@ -638,19 +640,24 @@ reordered, amplified, or retargeted rows reject transactionally before resource
 rebuild. The checked certificate is non-authorizing, and reaching a root grants
 no cleanup, transfer, or linear-discharge authority to the borrow layer.
 
-A sibling checked-only post-reactivation row now retains the first exact later
-use without publishing it. One direct mutable parent lends an exact mutable or
+A sibling checked post-reactivation row now retains the first exact later use.
+One direct mutable parent lends an exact mutable or
 write-only child while other non-overlapping sequential siblings may occur in
 the state; the qualifying child ends by `LastUseExpired` through matching
 `Reactivate` and `ExclusiveSuspension` rows; and the same boundary enters one
-receiver-free call with one exact mutable-reference parameter over the bare
-parent carrier whose mutation summary covers the complete restored referent. Transactional replay
+runtime-receiver-free call with one exact mutable-reference parameter over the
+bare parent carrier whose mutation summary covers the complete restored
+referent. Nominal static qualification such as `Sink::mutate(parent)` is not a
+runtime receiver. Transactional replay
 rejoins both resources, weakening, disposition, containment, flow and borrow
 calls, carrier-read access, parent-loan entry constraint, captured places,
 restored access, and target identity. Shared, multihop, concurrent-sibling,
 state-exit, projected, receiver, extra-parameter, direct-assignment,
-partial-mutation, and nonmutating shapes remain absent. This checked row is not
-Terminal authority.
+partial-mutation, and nonmutating shapes remain absent. Terminal independently
+replays the checked join, the caller's exact `CallUnit`, and the receiver-free
+callee shape, then publishes one canonical row binding that operation to the
+direct-root lifetime and exclusive child interval. Authority is limited to the
+named call; cleanup, transfer, and linear discharge remain unexpressible.
 
 The bounded Terminal publication now consumes that complete checked join for a
 finite nonempty linear exclusive lineage rooted in one direct-root `Mutable`
@@ -660,13 +667,15 @@ loan and ending at state exit. Each root-to-leaf edge is exactly
 The producer reverses the leaf's exact retired-parent path, rejects branching,
 and rejoins every resource, activation, parent-entry formation, weakening,
 captured-place, projection-remainder, and `ExclusiveSuspension` row before
-accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 47 /
-vocabulary 50 round-trip the complete lineage. Verification rejects empty,
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 48 /
+vocabulary 51 round-trip the complete lineage and restored-use publication.
+Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
-there is no cleanup, transfer, linear-discharge, or runtime-operation
-vocabulary, and shared cohorts, post-reborrow use, and broader branching remain
-outside this rung.
+there is no cleanup, transfer, or linear-discharge vocabulary. Shared cohorts,
+multihop or branching restored use, projected or direct-assignment restored
+use, non-state-exit root custody, and broader branching remain outside this
+rung.
 
 The row does not serialize "dominates" or "is valid" as trusted claims. The
 verifier reconstructs control-flow dominance and path availability from the
@@ -3292,7 +3301,7 @@ Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-47 / vocabulary 50 carries the closed artifact descriptor: rooted-checker
+48 / vocabulary 51 carries the closed artifact descriptor: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier

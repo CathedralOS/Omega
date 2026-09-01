@@ -159,7 +159,11 @@ pub(crate) fn validate_structural_root_operations(
                         .iter()
                         .find(|parameter| parameter.place == destination.place)
                         == Some(destination)
-                        && destination.access == psi_terminal::StructuralAccess::WriteOnlyBorrow
+                        && matches!(
+                            destination.access,
+                            psi_terminal::StructuralAccess::MutableBorrow
+                                | psi_terminal::StructuralAccess::WriteOnlyBorrow
+                        )
                         && destination.multiplicity
                             == psi_terminal::StructuralMultiplicity::Unrestricted
                         && destination.qualifications.is_empty()

@@ -977,14 +977,20 @@ pub(super) fn build_checked_machine(
     if has_scalar_result_local && (write_only_store.is_some() || construction.is_some()) {
         return None;
     }
+    let restored_call_alias_prefix =
+        reborrow_restored_call_alias_prefix(program, facts, machine, state, statements);
     let local_count = has_scalar_result_local.then_some(1).map_or_else(
         || {
             construction.as_ref().map_or_else(
                 || {
-                    statements
-                        .iter()
-                        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
-                        .count()
+                    restored_call_alias_prefix.unwrap_or_else(|| {
+                        statements
+                            .iter()
+                            .take_while(|statement| {
+                                matches!(statement, StatementNode::LocalData(_))
+                            })
+                            .count()
+                    })
                 },
                 |(_, local_statement_count)| *local_statement_count,
             )
@@ -1043,10 +1049,15 @@ pub(super) fn build_checked_machine(
             return None;
         }
     }
-    let local_rows = match (has_scalar_result_local, construction) {
-        (true, None) => Vec::new(),
-        (false, Some((rows, _))) => rows,
-        (false, None) => build_unit_trivial_affine_locals(
+    let local_rows = match (
+        has_scalar_result_local,
+        construction,
+        restored_call_alias_prefix,
+    ) {
+        (true, None, None) => Vec::new(),
+        (false, Some((rows, _)), None) => rows,
+        (false, None, Some(_)) => Vec::new(),
+        (false, None, None) => build_unit_trivial_affine_locals(
             program,
             facts,
             shapes,
@@ -1055,7 +1066,9 @@ pub(super) fn build_checked_machine(
             &binders,
             &statements[..local_count],
         )?,
-        (true, Some(_)) => unreachable!("scalar and affine local lanes were separated above"),
+        (true, Some(_), _) | (true, None, Some(_)) | (false, Some(_), Some(_)) => {
+            unreachable!("scalar, affine, and restored-alias local lanes were separated above")
+        }
     };
     let trivial_affine_locals = local_rows
         .iter()
@@ -1214,6 +1227,102 @@ pub(super) fn build_checked_machine(
     })
 }
 
+/// Recognize only the two erased reference aliases named by the checked
+/// post-reactivation certificate. These source bindings carry borrow
+/// lifetimes, not independent Terminal runtime places; every other reference
+/// local continues to reject through the ordinary affine-local path.
+fn reborrow_restored_call_alias_prefix(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    statements: &[StatementNode],
+) -> Option<usize> {
+    let [
+        StatementNode::LocalData(parent_local),
+        StatementNode::LocalData(child_local),
+        ..,
+    ] = statements
+    else {
+        return None;
+    };
+    if parent_local.is_mutable || child_local.is_mutable {
+        return None;
+    }
+    let ExpressionNode::Borrow(parent_borrow) = program
+        .expression_table
+        .expression(parent_local.initial_value)
+    else {
+        return None;
+    };
+    let ExpressionNode::Borrow(child_borrow) = program
+        .expression_table
+        .expression(child_local.initial_value)
+    else {
+        return None;
+    };
+    if parent_borrow.access != psi_language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
+
+    let parent_source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        0,
+        parent_borrow.target,
+    )?;
+    let child_source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        1,
+        child_borrow.target,
+    )?;
+    let candidates = facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .filter(|(_, certificate)| {
+            if certificate.machine_symbol != machine.symbol
+                || certificate.state_symbol != state.symbol
+                || certificate.carrier_place.root_symbol != parent_local.symbol
+                || !certificate.carrier_place.segments.is_empty()
+                || parent_source.root
+                    != psi_facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol)
+                || parent_source.segments != certificate.restored_place.segments
+                || child_source.root != psi_facts::PlaceRoot::Symbol(parent_local.symbol)
+                || !child_source.segments.is_empty()
+                || !facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .is_valid(certificate.child_resource)
+                || !facts.flow.control.calls.is_valid(certificate.call)
+            {
+                return false;
+            }
+            let child = facts
+                .borrow
+                .reborrow_loan_resources
+                .get(certificate.child_resource);
+            let call = facts.flow.control.calls.get(certificate.call);
+            child.owner_symbol == child_local.symbol
+                && child_borrow.access
+                    == match child.access {
+                        psi_checked_trees::BorrowAccessKind::Mutable => {
+                            psi_language_semantics::ReferenceAccess::Mutable
+                        }
+                        psi_checked_trees::BorrowAccessKind::WriteOnly => {
+                            psi_language_semantics::ReferenceAccess::WriteOnly
+                        }
+                        psi_checked_trees::BorrowAccessKind::Read => return false,
+                    }
+                && call.statement_index == 2
+                && call.call_ordinal == 0
+                && call.target_symbol == certificate.target_symbol
+        })
+        .count();
+    (candidates == 1).then_some(2)
+}
+
 fn checked_unit_scalar_result_local(
     program: &TypedTrees,
     statements: &[StatementNode],
@@ -1256,7 +1365,10 @@ fn build_write_only_primitive_store(
     if destination.is_self
         || destination.position != 0
         || destination.multiplicity != Multiplicity::Unrestricted
-        || destination.access != CheckedStructuralAccess::WriteOnlyBorrow
+        || !matches!(
+            destination.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        )
         || !destination.qualifications.is_empty()
     {
         return None;
@@ -1275,16 +1387,23 @@ fn build_write_only_primitive_store(
         return None;
     }
     let TypeReferenceNode::Reference {
-        access: psi_language_semantics::ReferenceAccess::WriteOnly,
-        referee,
-        ..
+        access, referee, ..
     } = program
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
         return None;
     };
-    if program.primitive_type_reference(*referee) != Some(*destination_type) {
+    let expected_access = match access {
+        psi_language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        psi_language_semantics::ReferenceAccess::WriteOnly => {
+            CheckedStructuralAccess::WriteOnlyBorrow
+        }
+        psi_language_semantics::ReferenceAccess::Shared => return None,
+    };
+    if destination.access != expected_access
+        || program.primitive_type_reference(*referee) != Some(*destination_type)
+    {
         return None;
     }
     let target = crate::flow::canonical_place_from_expression_in_state(

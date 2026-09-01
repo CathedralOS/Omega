@@ -112,6 +112,7 @@ mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
 mod quotient_correspondence;
+mod reborrow_restored_call_use;
 mod reborrow_root_handoff;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
@@ -1134,6 +1135,14 @@ pub fn lower_machine(
         selection.machine,
         lowered.semantic_module.entry,
         &mut lowered.semantic_module.reborrow_root_handoffs,
+    )?;
+    reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
+        checked,
+        selection.machine,
+        lowered.semantic_module.entry,
+        &lowered.source_call_occurrences,
+        &lowered.semantic_module.machines,
+        &mut lowered.semantic_module.reborrow_restored_call_uses,
     )?;
     if checked
         .facts

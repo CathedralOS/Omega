@@ -103,7 +103,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 47;
+const FORMAT_MARKER: u16 = 48;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -836,8 +836,11 @@ fn validate_operation_foundation(
             else {
                 return malformed("write-only primitive store destination is not a parameter");
             };
-            if parameter.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            if !matches!(
+                parameter.access,
+                psi_terminal::StructuralAccess::MutableBorrow
+                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
+            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || machine
                     .entry_claims

@@ -35,7 +35,11 @@ pub(super) fn lower(
             let Some(scalar_type) = value_types.get(&value).copied() else {
                 return Err(LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id));
             };
-            let valid_destination = destination.access == psi_terminal::StructuralAccess::WriteOnlyBorrow
+            let valid_destination = matches!(
+                destination.access,
+                psi_terminal::StructuralAccess::MutableBorrow
+                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
+            )
                 && destination.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
                 && destination.qualifications.is_empty()
                 && structural_types.iter().any(|declaration| {
