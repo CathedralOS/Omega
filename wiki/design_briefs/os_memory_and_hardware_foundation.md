@@ -733,9 +733,9 @@ missing here. Exactly one further represented acyclic, non-generic, case-free
 record with a nonzero canonical fixed representation may occur on that spine;
 both enclosing field identities remain in every direct erased-leaf path, and
 the root plan decision still diagnoses represented siblings. Third through
-eighth represented record levels are now admitted under the same restrictions,
+ninth represented record levels are now admitted under the same restrictions,
 with every enclosing identity retained and bounded complete-descendant replay
-so unsupported deeper custody cannot disappear. A ninth represented record
+so unsupported deeper custody cannot disappear. A tenth represented record
 level, zero-layout wrappers, arrays, generic, case-dependent, and planless
 agreement remain later work.
 

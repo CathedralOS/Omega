@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use omega_compiler::compile_to_checked;
-use psi_access_plans::{AccessPlan, PlacementPlan, validate_placement_plan};
+use psi_access_plans::{validate_placement_plan, AccessPlan, PlacementPlan};
 use psi_layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
 
 fn write_program(name: &str, source: &str) -> PathBuf {
@@ -464,6 +464,45 @@ fn depth_eight_nested_source(
     )
 }
 
+fn depth_nine_nested_source(
+    header_custody_fields: &str,
+    envelope_custody_fields: &str,
+    frame_custody_fields: &str,
+    boxed_custody_fields: &str,
+    crate_custody_fields: &str,
+    chest_custody_fields: &str,
+    vault_custody_fields: &str,
+    strongbox_custody_fields: &str,
+    lockbox_custody_fields: &str,
+    packet_custody_fields: &str,
+) -> String {
+    depth_eight_nested_source(
+        header_custody_fields,
+        envelope_custody_fields,
+        frame_custody_fields,
+        boxed_custody_fields,
+        crate_custody_fields,
+        chest_custody_fields,
+        vault_custody_fields,
+        strongbox_custody_fields,
+        packet_custody_fields,
+    )
+    .replacen(
+        "pub data Packet {\n    frame: Strongbox;\n    sibling: Plain;\n}",
+        "pub data Lockbox {\n    strongbox: Strongbox;\n    marker: u32;\n}\npub data Packet {\n    frame: Lockbox;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 32", "offset: 36", 1)
+    .replacen("size_fixed: 36", "size_fixed: 40", 1)
+    .replacen(
+        &format!("data PacketCustody {{\n{packet_custody_fields}\n}}"),
+        &format!(
+            "data LockboxCustody {{\n{lockbox_custody_fields}\n}}\ndata PacketCustody {{\n{packet_custody_fields}\n}}"
+        ),
+        1,
+    )
+}
+
 #[test]
 fn source_placement_custody_accepts_the_exact_erased_field_projection() {
     let main = write_program("exact", &source("    authority: Evidence;"));
@@ -835,7 +874,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_two_wrapper() {
             "Native::plan",
             "Packet.envelope",
             "represented at offset 0 with width 4",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1057,7 +1096,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_three_wrapper() {
             "Native::plan",
             "Packet.frame",
             "represented at offset 0 with width 8",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1174,7 +1213,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_four_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1325,7 +1364,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_five_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1485,7 +1524,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_six_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1663,7 +1702,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_seven_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1894,7 +1933,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eight_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1932,8 +1971,8 @@ fn source_placement_custody_rejects_a_depth_eight_back_edge() {
 }
 
 #[test]
-fn source_placement_custody_keeps_a_ninth_record_level_fenced() {
-    let source = depth_eight_nested_source(
+fn source_placement_custody_accepts_nine_nested_projection_record_paths() {
+    let source = depth_nine_nested_source(
         "    authority: Evidence;",
         "    header: HeaderCustody;",
         "    envelope: EnvelopeCustody;",
@@ -1942,29 +1981,274 @@ fn source_placement_custody_keeps_a_ninth_record_level_fenced() {
         "    item: CrateCustody;",
         "    chest: ChestCustody;",
         "    vault: VaultCustody;",
-        "    frame: StrongboxCustody;",
+        "    strongbox: StrongboxCustody;",
+        "    frame: LockboxCustody;",
+    );
+    let main = write_program("depth-nine-exact", &source);
+    compile_to_checked(&main, None).expect("exact depth-nine placement custody should compile");
+}
+
+#[test]
+fn source_placement_custody_rejects_a_missing_depth_nine_projection() {
+    let source = depth_nine_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+        "    frame: FrameCustody;",
+        "    boxed: BoxedCustody;",
+        "    item: CrateCustody;",
+        "    chest: ChestCustody;",
+        "    vault: VaultCustody;",
+        "    strongbox: StrongboxCustody;",
+        "",
+    );
+    let main = write_program("depth-nine-hidden", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("missing ninth-level custody projection must fail closed");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.frame.strongbox.vault.chest.item.boxed.frame.envelope.header.authority",
+            "omits canonical field path",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_depth_nine_projection_drift() {
+    for (
+        name,
+        header,
+        envelope,
+        frame,
+        boxed,
+        crate_fields,
+        chest,
+        vault,
+        strongbox,
+        lockbox,
+        packet,
+        expected,
+    ) in [
+        (
+            "depth-nine-missing-leaf",
+            "",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    boxed: BoxedCustody;",
+            "    item: CrateCustody;",
+            "    chest: ChestCustody;",
+            "    vault: VaultCustody;",
+            "    strongbox: StrongboxCustody;",
+            "    frame: LockboxCustody;",
+            vec![
+                "Packet.frame.strongbox.vault.chest.item.boxed.frame.envelope.header.authority",
+                "omits canonical field path",
+            ],
+        ),
+        (
+            "depth-nine-missing-inner-projection",
+            "    authority: Evidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    boxed: BoxedCustody;",
+            "    item: CrateCustody;",
+            "    chest: ChestCustody;",
+            "",
+            "    strongbox: StrongboxCustody;",
+            "    frame: LockboxCustody;",
+            vec![
+                "Packet.frame.strongbox.vault.chest.item.boxed.frame.envelope.header.authority",
+                "omits canonical field path",
+            ],
+        ),
+        (
+            "depth-nine-cross-sibling",
+            "    authority: Evidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    boxed: BoxedCustody;",
+            "    item: CrateCustody;",
+            "    chest: ChestCustody;",
+            "    vault: VaultCustody;",
+            "    strongbox: StrongboxCustody;",
+            "    sibling: LockboxCustody;",
+            vec![
+                "Packet.frame.strongbox.vault.chest.item.boxed.frame.envelope.header.authority",
+                "Packet.sibling",
+            ],
+        ),
+        (
+            "depth-nine-represented-leaf",
+            "    authority: Evidence;\n    bits: u32;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    boxed: BoxedCustody;",
+            "    item: CrateCustody;",
+            "    chest: ChestCustody;",
+            "    vault: VaultCustody;",
+            "    strongbox: StrongboxCustody;",
+            "    frame: LockboxCustody;",
+            vec![
+                "Packet.frame.strongbox.vault.chest.item.boxed.frame.envelope.header.bits",
+                "must be absent",
+            ],
+        ),
+        (
+            "depth-nine-wrong-type",
+            "    authority: OtherEvidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    boxed: BoxedCustody;",
+            "    item: CrateCustody;",
+            "    chest: ChestCustody;",
+            "    vault: VaultCustody;",
+            "    strongbox: StrongboxCustody;",
+            "    frame: LockboxCustody;",
+            vec!["exact type", "OtherEvidence"],
+        ),
+        (
+            "depth-nine-wrong-multiplicity",
+            "    authority: CopyEvidence;",
+            "    header: HeaderCustody;",
+            "    envelope: EnvelopeCustody;",
+            "    frame: FrameCustody;",
+            "    boxed: BoxedCustody;",
+            "    item: CrateCustody;",
+            "    chest: ChestCustody;",
+            "    vault: VaultCustody;",
+            "    strongbox: StrongboxCustody;",
+            "    frame: LockboxCustody;",
+            vec!["multiplicity Affine", "multiplicity Unrestricted"],
+        ),
+    ] {
+        let main = write_program(
+            name,
+            &depth_nine_nested_source(
+                header,
+                envelope,
+                frame,
+                boxed,
+                crate_fields,
+                chest,
+                vault,
+                strongbox,
+                lockbox,
+                packet,
+            ),
+        );
+        let diagnostics =
+            compile_to_checked(&main, None).expect_err("depth-nine custody drift must fail closed");
+        assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
+    }
+}
+
+#[test]
+fn source_placement_custody_rejects_a_zero_layout_depth_nine_wrapper() {
+    let source = depth_nine_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+        "    frame: FrameCustody;",
+        "    boxed: BoxedCustody;",
+        "    item: CrateCustody;",
+        "    chest: ChestCustody;",
+        "    vault: VaultCustody;",
+        "    strongbox: StrongboxCustody;",
+        "    frame: LockboxCustody;",
     )
     .replacen(
-        "pub data Packet {\n    frame: Strongbox;\n    sibling: Plain;\n}",
-        "pub data Lockbox {\n    strongbox: Strongbox;\n    marker: u32;\n}\npub data Packet {\n    frame: Lockbox;\n    sibling: Plain;\n}",
-        1,
-    )
-    .replacen("offset: 32", "offset: 36", 1)
-    .replacen("size_fixed: 36", "size_fixed: 40", 1)
-    .replacen(
-        "data PacketCustody {\n    frame: StrongboxCustody;\n}",
-        "data LockboxCustody {\n    strongbox: StrongboxCustody;\n}\ndata PacketCustody {\n    frame: LockboxCustody;\n}",
+        "    bits: u32;\n    authority [erased]: Evidence;",
+        "    phantom [erased]: OtherEvidence;\n    authority [erased]: Evidence;",
         1,
     );
-    let main = write_program("depth-nine-fenced", &source);
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("ninth-level custody must remain fenced");
+    let main = write_program("depth-nine-zero-wrapper", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a zero-layout ninth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact eight-record",
+            "outside the exact nine-record",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_depth_nine_back_edge() {
+    let source = depth_nine_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+        "    frame: FrameCustody;",
+        "    boxed: BoxedCustody;",
+        "    item: CrateCustody;",
+        "    chest: ChestCustody;",
+        "    vault: VaultCustody;",
+        "    strongbox: StrongboxCustody;",
+        "    frame: LockboxCustody;",
+    )
+    .replacen(
+        "pub data Envelope {\n    header: Header;",
+        "pub data Envelope {\n    header: Lockbox;",
+        1,
+    );
+    let main = write_program("depth-nine-back-edge", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a ninth-level back-edge must remain outside the custody cohort");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Placed<Native,Packet>",
+            "Packet",
+            "field `frame`",
+            "neither a supported primitive",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_keeps_a_tenth_record_level_fenced() {
+    let source = depth_nine_nested_source(
+        "    authority: Evidence;",
+        "    header: HeaderCustody;",
+        "    envelope: EnvelopeCustody;",
+        "    frame: FrameCustody;",
+        "    boxed: BoxedCustody;",
+        "    item: CrateCustody;",
+        "    chest: ChestCustody;",
+        "    vault: VaultCustody;",
+        "    strongbox: StrongboxCustody;",
+        "    frame: LockboxCustody;",
+    )
+    .replacen(
+        "pub data Packet {\n    frame: Lockbox;\n    sibling: Plain;\n}",
+        "pub data Coffer {\n    lockbox: Lockbox;\n    marker: u32;\n}\npub data Packet {\n    frame: Coffer;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 36", "offset: 40", 1)
+    .replacen("size_fixed: 40", "size_fixed: 44", 1)
+    .replacen(
+        "data PacketCustody {\n    frame: LockboxCustody;\n}",
+        "data CofferCustody {\n    lockbox: LockboxCustody;\n}\ndata PacketCustody {\n    frame: CofferCustody;\n}",
+        1,
+    );
+    let main = write_program("depth-ten-fenced", &source);
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("tenth-level custody must remain fenced");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.frame",
+            "outside the exact nine-record",
         ],
     );
 }
@@ -1981,7 +2265,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
         (
             "depth-three-array-fenced",
             baseline.replacen("    header: Header;", "    header: [Header; 1];", 1),
-            ["Native::plan", "outside the exact eight-record"],
+            ["Native::plan", "outside the exact nine-record"],
         ),
         (
             "depth-three-case-fenced",
@@ -2000,7 +2284,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
             baseline
                 .replacen("pub data Header {", "pub data Header<T> {", 1)
                 .replacen("    header: Header;", "    header: Header<u32>;", 1),
-            ["Native::plan", "outside the exact eight-record"],
+            ["Native::plan", "outside the exact nine-record"],
         ),
     ];
     for (name, source, expected) in cases {
