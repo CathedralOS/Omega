@@ -2489,6 +2489,59 @@ judgment. Implementation must author dedicated entry fixtures before publishing
 golden coordinates, covering absent, malformed, duplicate, reordered, renamed,
 and body-error-adjacent forms without treating corpus silence as evidence.
 
+## D57 — Delta transition patterns have a total staged judgment
+
+Delta transition syntax admits at least one arm and makes wildcard placement a
+grammar property. A transition body is either one or more nonwildcard arms with
+an optional final wildcard arm, or one wildcard arm. After a wildcard
+continuation the parser requires the transition-closing `}`. Any following
+pattern token, including another `_`, is `UnexpectedToken` at that token.
+Wildcards never participate in `DuplicatePattern`; that reason retains its D24
+scope of repeated scalar selectors and exact sum cases.
+
+A final wildcard is legal even when every current sum case is already named.
+The sum-coverage `or` is inclusive: exact enumeration or a final wildcard is
+sufficient, and exact enumeration plus that wildcard is also valid. Adding a
+case therefore does not turn an untouched defensive wildcard into an error.
+
+Body/control checking resolves pattern names first. An unknown owner or case is
+`UnknownName` at that name. A resolved owner that cannot own sum cases, a scalar
+selector against a sum, a case against a scalar, or a case belonging to a
+different nominal sum is solely `TypeMismatch` at the pattern start. Such a
+pattern does not enter duplicate or arity checking.
+
+Subject admission grants a scalar selector or exact case its semantic identity
+before case-payload arity. The first admitted occurrence owns that identity even
+if it later fails arity. A later occurrence is solely `DuplicatePattern`; a
+unique case with the wrong binder count is solely `ArityMismatch`. Only a
+unique, subject-compatible, arity-compatible pattern supplies complete-pattern
+and typed-binder facts. This follows D24's existing phase discipline: syntactic
+binder identity is collected independently before later case and arity
+validation rather than inferred from a completed downstream judgment.
+
+Scalar selector identity is the validated `i32` value. Decimal spelling is not
+identity: `false`, `0`, and `00` coincide, as do `true`, `1`, and `001`.
+Negative patterns are syntactically unavailable and reject at the authored `-`;
+out-of-range positive tokens reject before an identity exists.
+
+Static sum coverage consumes a complete sum subject and every completed pattern
+premise. Missing coverage without a final wildcard is `NonexhaustiveSum` at the
+transition subject's first byte. Subject failure and coverage are mutually
+exclusive by premise. A category, duplicate, or arity failure suppresses
+coverage, so repairing it may reveal `NonexhaustiveSum` in the next checking
+round. Scalar transitions have no static coverage requirement; an unmatched
+runtime scalar traps as `NonExhaustiveTransition`.
+
+The Gamma implementation's current `Resolved | Complete` progress carrier is
+too broad: `Resolved` conflates unavailable subject information, subject
+incompatibility, and wrong arity. D57 implementation replaces that conflation
+with separately reconstructible name-resolved, subject-admitted, semantic-
+identity, and complete-pattern stages. Known boundary/record owners in case
+position receive the category judgment above rather than silently producing no
+fact. Any structurally impossible field result from a sum-case-only lookup is
+removed through a narrower carrier or treated as an internal invariant failure,
+never ignored as source recovery.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

@@ -87,7 +87,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 | Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
 | Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
 | Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment, resolve Q2 capacity, emit the production adapters, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56 and resolve Q3 transition-pattern diagnostics, complete transition-pattern negatives and coverage plus the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56/D57, complete the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
 | `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
@@ -1292,18 +1292,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `i32` identity, so `true` and `1`, or `false` and `0`, are reconstructably
     equal without yet promoting a duplicate candidate. Retain one exact sum-
     coverage row as complete, missing, or unresolved after all arms. Unknown
-    owners/cases keep their settled name diagnostics, but category, payload-
-    arity, duplicate, wildcard-placement, and missing-coverage rejections wait
-    for Q3's total premise order. D53 separately owns local block exits.
+    owners/cases keep their settled name diagnostics. D57 now fixes category,
+    semantic-identity, payload-arity, grammar-owned wildcard placement, and
+    missing-coverage order. D53 separately owns local block exits.
     The Gamma gate establishes source formation only until the real compiler
     edge exists.
-  - [ ] **OWNER-BLOCKED — Q3 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.** The
-    language does not order category, payload-arity, and duplicate relations
-    that can share one pattern coordinate; it also assigns no total rejection
-    to a single nonfinal `_`, no precedence for repeated wildcards, and no
-    coordinate to `NonexhaustiveSum`. Retain the exact positive subject,
-    resolved-pattern, complete-binder, and coverage facts above; do not invent
-    public rejections while Q3 is unresolved.
+  - [ ] **IMPLEMENTATION — D57 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.**
+    Restrict transition parsing to one or more nonwildcard arms with an optional
+    final wildcard, or one wildcard arm; a following pattern is
+    `UnexpectedToken`. Replace the broad `Resolved | Complete` progress with
+    explicit name-resolved, subject-admitted, semantic-identity, and completed
+    stages. Admit category before semantic duplication and duplication before
+    payload arity; compare scalar selectors by canonical `i32` value. Emit
+    `NonexhaustiveSum` at the complete sum subject only after every pattern
+    premise completes. Total known non-case owner paths without adding a reason
+    or using wire-code order.
   - [ ] **IMPLEMENTATION — D36 DELTA CALLABLE SHAPE.** Enforce D36 without
     merging the retained constructor and machine catalog rows or choosing a
     callable by lookup order, arity, expected type, statement context, or

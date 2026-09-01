@@ -102,8 +102,9 @@ Transition subjects are retained once as scalar `i32` or an exact nominal sum.
 Resolved case patterns retain exact case custody; payload arity and subject
 compatibility gate typed D24 binders. Completed non-wildcard selectors/cases
 retain positive semantic identity, and each sum transition retains complete,
-missing, or unresolved coverage without inventing the pending negative
-pattern or coverage order.
+missing, or unresolved coverage. D57 now fixes the pending negative order:
+grammar-owned final wildcard, subject admission, semantic duplication, payload
+arity, then complete sum coverage at the subject.
 Remaining body/control checking, lowering, `main`, tape
 publication, and refinement are open implementation work. D56 has closed the
 entry-diagnostic judgment inside type formation; its implementation and first
@@ -111,9 +112,8 @@ entry-bearing fixtures remain open. D36's receiver parser, the now-superseded
 case/machine collision census and direct static applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
 the D50 bare-state branch, D51 receiver normalization, D52 resultless-argument
-branch, D53 local block-exit carrier, and D56 entry subjudgment remain
-implementation work, while Q3 transition-pattern and coverage diagnostic
-totality remain owner-blocked. D37's
+branch, D53 local block-exit carrier, D56 entry subjudgment, and D57 transition-
+pattern/coverage judgment remain implementation work. D37's
 field/index/slice projection failures, scalar categories,
 argument-`never` branch, let/assignment/assert and explicit-return relations,
 and first-following-statement terminal flow are implemented; D53 supersedes that

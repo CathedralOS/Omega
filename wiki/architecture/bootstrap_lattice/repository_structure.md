@@ -82,9 +82,9 @@ The committed tree still has two important gaps:
   D50 fixes state-transfer spelling, D51 fixes receiver normalization,
   static-qualified removal, and disjoint case/method namespaces, D52 fixes
   resultless-argument anchoring, and D53 fixes local block exits without
-  reachability analysis; their branches remain implementation work. Entry
-  diagnostics, transition-pattern/coverage diagnostics, D37 remaining terminal
-  closure, D38 lowering/executable controls, body/control
+  reachability analysis; D56 fixes entry diagnostics and D57 fixes transition-
+  pattern/coverage diagnostics. Their branches, D37 remaining terminal closure,
+  D38 lowering/executable controls, body/control
   checking, D34 physical storage refusal, lowering, tape publication, and
   refinement are still open.
   The restricted Delta-written native compiler prototype was also deleted: it
