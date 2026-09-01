@@ -286,10 +286,10 @@ explicitly.
     current trait-fixture compatibility seams are the two synthesized
     trait-default roots that still need separate authored-requirement and
     executable-realization custody plus a Terminal composed-Unit plan, and two
-    local named-`dyn` roots: package-aware typing exposes a shared-borrow cast
-    normalization mismatch at the LET-receiver fence, while complete migration
-    still requires a checked composed-Unit plan, direct source-place realization
-    custody, and rebound dynamic descriptor/table custody in Terminal Psi; the
+    local named-`dyn` roots that still need a checked-to-Terminal composed-Unit
+    producer, attachment scalar field store/read and native custody for the
+    direct fixture, and rebound dynamic descriptor/table custody for the
+    rebound fixture; the
     two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
