@@ -395,3 +395,99 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     assert!(subject.canonical().contains("Card"));
     assert_eq!(bound.arguments().len(), 1);
 }
+
+#[test]
+fn package_review_closes_over_a_private_named_dynamic_selection_without_publishing_it() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub trait Shape {
+    machine code(&self) -> i32;
+}
+pub data Item { value: i32; }
+Primary: Item satisfies Shape {
+    machine code(&self) -> i32 { self.value }
+}
+pub data Main { item: Item; }
+pub machine Main::inspect(&self) -> i32 {
+    let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+    let result: i32 = erased.code();
+    transition { _ -> result }
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("private named dynamic selection should check in package-aware compilation");
+    let plans = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .direct_scalar_calls;
+    let [plan] = plans.as_slice() else {
+        panic!("one exact checked direct dynamic dispatch plan expected")
+    };
+    assert_eq!(
+        plan.selected_conformance,
+        plan.selection
+            .conformance
+            .expect("named conformance selection")
+    );
+    assert_ne!(plan.realization_machine, plan.requirement);
+
+    let conformance_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Conformance
+                && matches!(
+                    selection.target(),
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                        if target.selected_symbol() == plan.selected_conformance
+                )
+        })
+        .collect::<Vec<_>>();
+    let [selection] = conformance_selections.as_slice() else {
+        panic!("one authored named dynamic conformance selection expected")
+    };
+    assert_eq!(
+        selection.exposure(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("ordinary package review should close over the supported dynamic body");
+    assert!(
+        review.public_conformances().is_empty(),
+        "a body-local private conformance must not become public API"
+    );
+    let inspect = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path().contains("inspect"))
+        .expect("public inspect row");
+    assert!(matches!(
+        inspect.checked_service_reach(),
+        PackageReviewCheckedServiceReach::CheckedBody { realized, concrete }
+            if realized.is_empty() && concrete.is_empty()
+    ));
+    assert!(!review.canonical_review_bytes().unwrap().is_empty());
+}
