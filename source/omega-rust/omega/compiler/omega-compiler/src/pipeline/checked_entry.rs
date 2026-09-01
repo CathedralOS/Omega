@@ -1176,8 +1176,9 @@ fn compile_to_checked_inner_with_replay(
             )
         }),
     )?;
-    let target_provider_defaults =
+    let settled_target_machines =
         selected_target_machine_declarations.settle_provider_defaults(&typed)?;
+    let target_provider_defaults = settled_target_machines.provider_defaults;
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
@@ -1188,10 +1189,11 @@ fn compile_to_checked_inner_with_replay(
             package_inputs,
         )?;
     let derived_provider_plans =
-        crate::pipeline::provider_plans::derive_satisfies_plans_with_evaluated_bindings(
+        crate::pipeline::provider_plans::derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
             &typed,
             target_name,
             &evaluated_via_bindings,
+            &settled_target_machines.origins,
         )?;
     let provider_plans = derived_provider_plans
         .iter()

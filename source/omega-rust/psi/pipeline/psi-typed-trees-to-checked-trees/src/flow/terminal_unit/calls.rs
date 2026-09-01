@@ -263,7 +263,7 @@ pub(super) fn build_affine_array_construction_prefix(
 pub(super) fn exact_compiler_intrinsic_boundary_requirement(
     program: &TypedTrees,
     target_state_symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
+) -> Option<(SymbolHandle, SymbolHandle)> {
     let mut machines = program.machines().iter().filter(|machine| {
         program
             .machine_states(machine)
@@ -278,16 +278,22 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
     {
         return None;
     }
-    let MachineSupplyMode::ExternalRealization { binding, mechanism } = machine.supply_mode else {
-        return None;
+    let authored_binding = match machine.supply_mode {
+        MachineSupplyMode::ExternalRealization {
+            binding: Some(binding),
+            mechanism: Some(psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+        } if program.external_bindings.identity(binding)
+            == Some(&psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic) =>
+        {
+            Some(binding)
+        }
+        _ => None,
     };
-    let (Some(binding), Some(mechanism)) = (binding, mechanism) else {
-        return None;
-    };
-    if mechanism != psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic
-        || program.external_bindings.identity(binding)
-            != Some(&psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic)
-    {
+    let inferred_console_exit = machine.supply_mode == MachineSupplyMode::Boundary
+        && machine.name.as_str() == "ConsoleNativeProvider::exit_process"
+        && machine.attached_data.as_ref().map(|name| name.as_str())
+            == Some("ConsoleNativeProvider");
+    if authored_binding.is_none() && !inferred_console_exit {
         return None;
     }
     let [state] = program.machine_states(machine) else {
@@ -307,7 +313,11 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
         .machine_trait_conformances(machine)
         .iter()
         .filter_map(|conformance| {
-            if conformance.external_binding != Some(binding)
+            if ((inferred_console_exit
+                && (conformance.external_binding.is_some()
+                    || conformance.via_expression.is_valid()
+                    || conformance.external_binding_source_span.is_some()))
+                || (!inferred_console_exit && conformance.external_binding != authored_binding))
                 || conformance.requirement.is_none()
                 || !program
                     .type_reference_table
@@ -329,9 +339,11 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
             };
             (definition.symbol == conformance.symbol
                 && definition.is_boundary
+                && (!inferred_console_exit || definition.name.as_str() == "Console")
                 && definition.lifetime_parameters.is_empty()
                 && program.trait_type_parameters(definition).is_empty()
                 && requirement.symbol == conformance.requirement_symbol
+                && (!inferred_console_exit || requirement.name.as_str() == "exit_process")
                 && requirement.lifetime_parameters.is_empty()
                 && program
                     .state_signature_type_parameters(requirement)
@@ -347,7 +359,10 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
             .then_some(requirement.symbol)
         });
     let requirement = matches.next()?;
-    matches.next().is_none().then_some(requirement)
+    matches
+        .next()
+        .is_none()
+        .then_some((requirement, machine.attached_data_symbol))
 }
 
 fn exact_direct_intrinsic_signature(
@@ -442,10 +457,11 @@ pub(super) fn build_call_operation(
         });
     }
 
-    let direct_boundary_target =
-        exact_compiler_intrinsic_boundary_requirement(program, call.target_symbol)
-            .unwrap_or(call.target_symbol);
-    let selected_realization = direct_boundary_target != call.target_symbol;
+    let selected_realization =
+        exact_compiler_intrinsic_boundary_requirement(program, call.target_symbol);
+    let direct_boundary_target = selected_realization
+        .map(|(requirement, _)| requirement)
+        .unwrap_or(call.target_symbol);
     let mut static_boundaries = program
         .traits()
         .iter()
@@ -596,8 +612,8 @@ pub(super) fn build_call_operation(
                 .iter()
                 .any(|parameter| !parameter.is_self && (parameter.is_const || parameter.is_mutable))
             || arguments.len() != abi_parameters.len()
-            || if selected_realization {
-                call.has_receiver
+            || if let Some((_, qualifier)) = selected_realization {
+                call.has_receiver && call.receiver_symbol != qualifier
             } else if *selected_parameter {
                 call.has_receiver
             } else {
@@ -882,8 +898,45 @@ fn checked_single_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) 
     matches!(path, [CheckedUnitStructuralPathSegment::FixedIndex(_)])
 }
 
+fn checked_double_literal_index_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    matches!(
+        path,
+        [
+            CheckedUnitStructuralPathSegment::FixedIndex(_),
+            CheckedUnitStructuralPathSegment::FixedIndex(_),
+        ]
+    )
+}
+
+fn checked_double_literal_indexed_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
+    let [
+        fields @ ..,
+        CheckedUnitStructuralPathSegment::FixedIndex(_),
+        CheckedUnitStructuralPathSegment::FixedIndex(_),
+    ] = path
+    else {
+        return false;
+    };
+    checked_nonempty_field_path(fields)
+}
+
 fn place_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
     let Some((psi_facts::PlaceSegment::FixedIndex { .. }, fields)) = path.split_last() else {
+        return false;
+    };
+    !fields.is_empty()
+        && fields
+            .iter()
+            .all(|segment| matches!(segment, psi_facts::PlaceSegment::Field { .. }))
+}
+
+fn place_double_literal_indexed_field_path(path: &[psi_facts::PlaceSegment]) -> bool {
+    let [
+        fields @ ..,
+        psi_facts::PlaceSegment::FixedIndex { .. },
+        psi_facts::PlaceSegment::FixedIndex { .. },
+    ] = path
+    else {
         return false;
     };
     !fields.is_empty()
@@ -927,18 +980,26 @@ pub(super) fn ordinary_projected_call_is_supported(
     let field_path = checked_nonempty_field_path(&arguments[0].path);
     let literal_indexed_field_path = checked_literal_indexed_field_path(&arguments[0].path);
     let single_literal_index_path = checked_single_literal_index_path(&arguments[0].path);
-    let write_only_subloan_path =
-        (field_path || literal_indexed_field_path || single_literal_index_path)
-            && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
-            && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
+    let double_literal_indexed_field_path =
+        checked_double_literal_indexed_field_path(&arguments[0].path);
+    let double_literal_index_path = checked_double_literal_index_path(&arguments[0].path);
+    let write_only_subloan_path = (field_path
+        || literal_indexed_field_path
+        || single_literal_index_path
+        || double_literal_indexed_field_path
+        || double_literal_index_path)
+        && caller_parameters[0].access == CheckedStructuralAccess::WriteOnlyBorrow
+        && arguments[0].access == CheckedStructuralAccess::WriteOnlyBorrow;
     if field_path && !allow_field_path_projection && !write_only_subloan_path {
         return false;
     }
-    if literal_indexed_field_path && !write_only_subloan_path {
+    if (literal_indexed_field_path || double_literal_indexed_field_path) && !write_only_subloan_path
+    {
         return false;
     }
     if !field_path
         && !literal_indexed_field_path
+        && !double_literal_indexed_field_path
         && !matches!(
             arguments[0].path.as_slice(),
             [CheckedUnitStructuralPathSegment::FixedIndex(_)]
@@ -1452,7 +1513,8 @@ pub(super) fn structural_call_arguments(
                         )? == CheckedStructuralAccess::WriteOnlyBorrow
                         && (segments.iter().all(|segment| {
                             matches!(segment, psi_facts::PlaceSegment::Field { .. })
-                        }) || place_literal_indexed_field_path(segments))))
+                        }) || place_literal_indexed_field_path(segments)
+                            || place_double_literal_indexed_field_path(segments))))
                     && caller_parameters
                         .get(source_index)?
                         .qualifications
@@ -1475,7 +1537,8 @@ pub(super) fn structural_call_arguments(
                             ))
                         }
                         psi_facts::PlaceSegment::FixedIndex { index }
-                            if place_literal_indexed_field_path(segments) =>
+                            if place_literal_indexed_field_path(segments)
+                                || place_double_literal_indexed_field_path(segments) =>
                         {
                             u64::try_from(*index)
                                 .ok()

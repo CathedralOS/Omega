@@ -106,6 +106,10 @@ proof facts, but may derive nothing by loading the referent. Each write must
 also satisfy ordinary displaced-custody and invariant-window rules. An opaque
 provider's compliance is admitted unless target isolation enforces it; that
 does not widen the authority recorded in the source or artifact contract.
+The bounded direct-call subloan may select one literal fixed-array index, or
+exactly two through a recursively literal fixed array, only when every bound is
+static and the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic,
+range, third-index, and aggregate-leaf projections remain outside that rung.
 
 The first bounded whole-root primitive store accepts a landed integer literal
 or Boolean literal and preserves its complete write-only parameter row and

@@ -128,10 +128,12 @@ Must own:
   subloan when the existing common-field leaf referee and the one-parameter,
   single-state checked Unit call shape both hold. This does not admit general
   projected expression formation or reusable local-reference aliases. The same
-  call shape now accepts one direct write-only literal fixed-array parameter
-  root projected by exactly one in-bounds literal `FixedIndex` to an
-  unrestricted non-Atomic primitive element; checked and Terminal replay retain
-  that complete one-segment path.
+  call shape accepts one direct write-only literal fixed-array parameter root
+  projected by exactly one in-bounds literal `FixedIndex` to an unrestricted
+  non-Atomic primitive element. Its bounded nested successor accepts exactly
+  two ordered literal indexes through a recursively literal fixed array, either
+  directly or after the eligible field prefix, to the same primitive leaf.
+  Checked and Terminal replay retain the complete one- or two-segment suffix.
   Recursively literal fixed arrays whose ultimate elements are unrestricted
   primitive scalars or eligible material nongeneric, invariant-free `[copy]`
   records or sums admit whole replacement, static length metadata, and literal
@@ -627,9 +629,9 @@ Current ownership is:
   published. One deeper, binding-reborrow, recursive, or opaque branch fences
   the whole right-hand side; reference-valued roots keep their existing
   relational handling. A direct primitive scalar assignment value may wrap
-  complete caller-isolated call producers in up to twenty-four unary, binary,
+  complete caller-isolated call producers in up to twenty-five unary, binary,
   primitive-cast, member-projection, or indexing shells under the same call
-  budget; a twenty-fifth shell and generic/reference/unknown call results remain
+  budget; a twenty-sixth shell and generic/reference/unknown call results remain
   conservative. Aggregate fields and projected concrete record, selected-case,
   or fixed-array literals retain their separate two-shell computation budget.
   One top-level concrete primitive-only record or

@@ -144,18 +144,22 @@ effect input as an ordinary machine return or introduce a private pre-terminal
 IR to evade this fence.
 
 The production compiler now supplies that distinct later binding for the first
-sealed ordinary intrinsic: the transitional Linux
-`Console::exit_process(i32) -> Unit` shape.
+sealed ordinary intrinsic: the Linux `Console::exit_process(i32) -> Unit`
+shape. Its target library retains a bodyless target-scoped `boundary machine`
+and exact `satisfies` edge, with no authored payload-free `via`.
 Canonical Terminal replay preserves the exact called boundary requirement;
-selected-dispatch catalog review independently rejoins the toolchain-owned
-requirement and realization symbols, normalized signatures and conformance,
-payloadless binding, and selected Linux profile. Only then may provider evidence
-select the existing `exit_group` realization. This closes provider selection
+selected-dispatch catalog review independently rejoins the requirement and
+realization symbols under exact accepted package/toolchain custody, normalized
+signatures and conformance, the catalog-inferred binding, and selected Linux profile. Only then may provider
+evidence select the existing `exit_group` realization. This closes provider selection
 and physical emission, but under D39 it does not close the reusable execution
 observation: neither a Unit requirement nor a nonreturning syscall proves
 successful external termination. This grants neither a sibling
 Console operation nor a Darwin or Windows realization, and retained ELF custody
 still does not imply publication without compiler-function validation evidence.
+Targetless checking on a Linux host may retain the inferred provider row from
+its exact target-source sidecar, but its plan target stays empty and catalog
+review leaves the physical execution unsupported.
 
 ## Checked-adapter provider installation
 
@@ -566,12 +570,15 @@ treats it as a claim-free non-transferring subloan rather than an owned linear
 projection; malformed path, target type/access, source access, qualification,
 arity, or provider substitution rejects. Reusable local or re-entrant reborrow
 authority does not follow. One direct write-only literal fixed-array parameter
-root may now instead carry exactly one in-bounds literal `FixedIndex` to an
-unrestricted non-Atomic primitive element. The verifier independently rejoins
-the array shape, bounds, element type, multiplicity, and write-only access;
-dynamic, range, second-index, aggregate-element, and nested-array paths remain
-absent. The verifier also rejects widening, target
-disagreement, overlapping exclusive arguments, and Boolean structural
+root may carry exactly one in-bounds literal `FixedIndex` to an unrestricted
+non-Atomic primitive element. The bounded nested successor admits exactly two
+ordered in-bounds `FixedIndex` segments through a recursively literal fixed
+array, either directly or after the eligible field prefix, when the ultimate
+element is likewise an unrestricted non-Atomic primitive. The verifier
+independently rejoins every array shape, bound, element type, multiplicity, and
+write-only access. Dynamic, range, third-index, whole nested-array, and
+aggregate-element paths remain absent. The verifier also rejects widening,
+target disagreement, overlapping exclusive arguments, and Boolean structural
 observation through write-only access.
 Terminal format 42/vocabulary 45 retains one executable direct whole-root
 primitive replacement from either a landed integer literal or a Boolean

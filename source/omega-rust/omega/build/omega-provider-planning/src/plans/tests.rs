@@ -427,6 +427,140 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 }
 
 #[test]
+fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
+    let source = r#"
+        boundary trait Console {
+            machine write_byte(byte: i32);
+            machine exit_process(return_code: i32);
+        }
+
+        data ConsoleNativeProvider {}
+        boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+            satisfies Console::write_byte;
+        boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+            satisfies Console::exit_process;
+    "#;
+    let tokens = psi_source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .expect("tokenize source-inferred catalog leaf");
+    let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("parse source-inferred catalog leaf");
+    let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+        .expect("resolve source-inferred catalog leaf");
+    let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+        .expect("type source-inferred catalog leaf");
+
+    assert!(
+        derive_satisfies_plans_with_provenance(&typed, Some("linux_x86_64")).is_empty(),
+        "an unscoped same-shaped boundary machine is not compiler-catalog authority",
+    );
+    let realization = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::exit_process")
+        .expect("typed exit realization");
+
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let profile = match target {
+            "linux_x86_64" => omega_target::TargetProfile::LinuxX64,
+            "linux_arm64" => omega_target::TargetProfile::LinuxArm64,
+            _ => unreachable!(),
+        };
+        let evaluated =
+            crate::evaluated_via_bindings::evaluate_via_bindings(&typed, Some(profile), None)
+                .expect("claim-free fixture has an empty evaluated-via table");
+        let origin = SelectedTargetMachineOrigin {
+            machine: realization.symbol,
+            target: target.to_owned(),
+        };
+        let derived = derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+            &typed,
+            Some(target),
+            &evaluated,
+            std::slice::from_ref(&origin),
+        )
+        .expect("exact selected target-machine origin derives");
+        let [derived] = derived.as_slice() else {
+            panic!("one exact inferred Linux Console plan for {target}")
+        };
+        assert_eq!(derived.plan.target, target);
+        let [row] = derived.plan.rows.as_slice() else {
+            panic!("only the migrated exit row may be inferred")
+        };
+        assert_eq!(row.method, "exit_process");
+        assert!(matches!(
+            row.binding,
+            ProviderBinding::CompilerIntrinsic { .. }
+        ));
+        let retained_realization = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == derived.provenance.row_realizations[0])
+            .expect("retained inferred realization");
+        assert_eq!(
+            retained_realization.supply_mode,
+            psi_language_semantics::MachineSupplyMode::Boundary,
+        );
+        assert_eq!(
+            derived.provenance.row_target_machine_origins,
+            [Some(origin.clone())],
+        );
+        let [conformance] = typed.machine_trait_conformances(retained_realization) else {
+            panic!("one inferred satisfies edge")
+        };
+        assert!(conformance.external_binding.is_none());
+        assert!(!conformance.via_expression.is_valid());
+        assert!(conformance.external_binding_source_span.is_none());
+
+        let wrong_origin = SelectedTargetMachineOrigin {
+            machine: realization.symbol,
+            target: "windows_x86_64".to_owned(),
+        };
+        assert!(
+            derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+                &typed,
+                Some(target),
+                &evaluated,
+                &[wrong_origin],
+            )
+            .expect("wrong origin is a closed candidate set")
+            .is_empty(),
+            "wrong-target declaration provenance must not infer the Linux row",
+        );
+
+        let mut tampered = derived.clone();
+        tampered.provenance.row_target_machine_origins[0]
+            .as_mut()
+            .expect("inferred origin")
+            .target = "windows_x86_64".to_owned();
+        assert!(
+            !validate_derived_provider_plan_candidates(&typed, &evaluated, &[tampered]).is_empty(),
+            "retained target-machine origin substitution must reject during replay",
+        );
+    }
+    let targetless_evaluated =
+        crate::evaluated_via_bindings::evaluate_via_bindings(&typed, None, None)
+            .expect("claim-free fixture has an empty targetless evaluated-via table");
+    let linux_host_origin = SelectedTargetMachineOrigin {
+        machine: realization.symbol,
+        target: "linux_x86_64".to_owned(),
+    };
+    let targetless = derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+        &typed,
+        None,
+        &targetless_evaluated,
+        &[linux_host_origin],
+    )
+    .expect("targetless Linux-host origin derives without inventing a plan target");
+    let [targetless] = targetless.as_slice() else {
+        panic!("one exact inferred targetless Linux Console plan")
+    };
+    assert_eq!(targetless.plan.target, "");
+    assert!(derive_satisfies_plans(&typed, None).is_empty());
+    assert!(derive_satisfies_plans(&typed, Some("macos_arm64")).is_empty());
+}
+
+#[test]
 fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
     let source = r#"
         boundary trait Process {
@@ -2553,6 +2687,7 @@ fn duplicate_exact_target_defaults_do_not_conflict() {
                 provider_type: None,
                 row_requirements: Vec::new(),
                 row_realizations: Vec::new(),
+                row_target_machine_origins: Vec::new(),
             },
         }],
         omega_target::NativeTarget::host(),

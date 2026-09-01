@@ -1504,6 +1504,140 @@ fn direct_root_literal_indexed_write_only_subloan_crosses_codec_and_verification
 }
 
 #[test]
+fn two_index_write_only_subloan_crosses_source_codec_and_verification() {
+    let source = r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [[u16; 3]; 2]) {
+            Sink::fill(&write values[1][2]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward").expect("lower two-index forwarding");
+    let module = &lowered.semantic_module;
+
+    let [call] = module.machines[0].blocks[0].operations.as_slice() else {
+        panic!("two-index caller emits one forwarding call")
+    };
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.access == StructuralAccess::WriteOnlyBorrow
+                    && argument.path == [
+                        StructuralPathSegment::FixedIndex(1),
+                        StructuralPathSegment::FixedIndex(2),
+                    ])
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode two-index module");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode two-index module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify two-index write-only subloan");
+
+    let mutate_path = |module: &mut TerminalModule,
+                       mutation: &dyn Fn(&mut Vec<StructuralPathSegment>)| {
+        let OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].operations[0].kind
+        else {
+            panic!("two-index caller call")
+        };
+        mutation(&mut structural_arguments[0].path);
+    };
+
+    let mut outer_out_of_bounds = decoded.clone();
+    mutate_path(&mut outer_out_of_bounds, &|path| {
+        path[0] = StructuralPathSegment::FixedIndex(2);
+    });
+    psi_terminal_verifier::validate_module(&outer_out_of_bounds)
+        .expect_err("an out-of-bounds outer subloan index must reject");
+
+    let mut inner_out_of_bounds = decoded.clone();
+    mutate_path(&mut inner_out_of_bounds, &|path| {
+        path[1] = StructuralPathSegment::FixedIndex(3);
+    });
+    psi_terminal_verifier::validate_module(&inner_out_of_bounds)
+        .expect_err("an out-of-bounds inner subloan index must reject");
+
+    let mut missing_inner = decoded.clone();
+    mutate_path(&mut missing_inner, &|path| {
+        path.pop();
+    });
+    psi_terminal_verifier::validate_module(&missing_inner)
+        .expect_err("omitting the inner coordinate must reject exact target rejoin");
+
+    let mut third_index = decoded.clone();
+    mutate_path(&mut third_index, &|path| {
+        path.push(StructuralPathSegment::FixedIndex(0));
+    });
+    psi_terminal_verifier::validate_module(&third_index)
+        .expect_err("a third write-only subloan index must remain fenced");
+
+    let mut source_access_drifted = decoded.clone();
+    source_access_drifted.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+    psi_terminal_verifier::validate_module(&source_access_drifted)
+        .expect_err("a two-index subloan requires exact write-only source access");
+
+    let mut target_multiplicity_drifted = decoded;
+    target_multiplicity_drifted.machines[1].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Linear;
+    psi_terminal_verifier::validate_module(&target_multiplicity_drifted)
+        .expect_err("a two-index subloan cannot become linear");
+}
+
+#[test]
+fn field_prefixed_two_index_write_only_subloan_crosses_terminal() {
+    let source = r#"
+        data Outer [copy] { values: [[u16; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2]);
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+    let lowered = lower_machine(&checked, "Root::forward")
+        .expect("lower field-prefixed two-index forwarding");
+    let module = &lowered.semantic_module;
+
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &module.machines[0].blocks[0].operations[0].kind
+    else {
+        panic!("field-prefixed two-index forwarding call")
+    };
+    assert!(matches!(
+        structural_arguments[0].path.as_slice(),
+        [
+            StructuralPathSegment::Field(_),
+            StructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::FixedIndex(2),
+        ]
+    ));
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode field-prefixed module");
+    let decoded =
+        psi_terminal_codec::decode_module(&encoded).expect("decode field-prefixed module");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded)
+        .expect("verify field-prefixed two-index write-only subloan");
+}
+
+#[test]
 fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
     let source = r#"
         data Inner [copy] { values: [u16; 2]; sibling: u16; }

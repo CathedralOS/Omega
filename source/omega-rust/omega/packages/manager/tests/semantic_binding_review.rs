@@ -79,9 +79,8 @@ machine build(builder: &mut Build) {
 }
 
 pub data ConsoleNativeProvider { }
-linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
-    satisfies Console::exit_process
-    via Binding::CompilerIntrinsic;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
 windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via Binding::CompilerIntrinsic;

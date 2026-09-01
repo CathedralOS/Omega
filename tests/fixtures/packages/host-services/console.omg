@@ -34,9 +34,8 @@ linux_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
 satisfies Console::write_byte
 via Binding::CompilerIntrinsic;
 
-linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
-satisfies Console::exit_process
-via Binding::CompilerIntrinsic;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+satisfies Console::exit_process;
 
 windows_x86_64 machine ConsoleNativeProvider::write_line(text: &[u8])
 satisfies Console::write_line
