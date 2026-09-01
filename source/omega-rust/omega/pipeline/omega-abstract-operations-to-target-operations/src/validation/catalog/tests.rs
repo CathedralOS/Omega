@@ -22,6 +22,7 @@ use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationValidationError,
 };
 
+mod boolean_not_immediate;
 mod enabled_families;
 mod integer_bitwise_not_immediate;
 mod integer_exact_cast_immediate_operand;

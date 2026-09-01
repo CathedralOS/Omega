@@ -27,4 +27,7 @@ mod positive;
 mod source_corruption;
 mod target_corruption;
 
+#[path = "../translation_validation_boolean_not_immediate/mod.rs"]
+mod not_immediate;
+
 use fixture::*;

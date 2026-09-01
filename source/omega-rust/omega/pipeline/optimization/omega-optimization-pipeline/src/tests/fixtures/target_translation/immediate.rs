@@ -24,6 +24,94 @@ pub(crate) fn boolean_literal_return_artifact(value: bool) -> (Vec<u8>, Vec<u8>)
     )
 }
 
+pub(crate) fn boolean_not_immediate_return_artifact(source_value: bool) -> (Vec<u8>, Vec<u8>) {
+    let machine = MachineId::new(68_001).unwrap();
+    let entry = BlockId::new(68_002).unwrap();
+    let constant = ValueId::new(68_004).unwrap();
+    let boolean_not = ValueId::new(68_006).unwrap();
+    let module = TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            id: machine,
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(ValueDeclaration {
+                id: ValueId::new(68_008).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            }),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![Block {
+                id: entry,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(68_003).unwrap(),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: constant,
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::BooleanConstant {
+                            value: source_value,
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(68_005).unwrap(),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: boolean_not,
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::BooleanNot { operand: constant },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(68_007).unwrap(),
+                    value: boolean_not,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(68_009).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    (
+        psi_terminal_codec::encode_module(&module).unwrap(),
+        psi_terminal_codec::encode_proof_bundle(&ProofBundle::default()).unwrap(),
+    )
+}
+
 pub(crate) fn integer_bitwise_not_immediate_return_artifact(
     scalar_type: IntegerType,
     source_value: IntegerValue,

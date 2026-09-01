@@ -7,6 +7,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerBitwiseNotImmediate,
     StraightLineIntegerExactCastImmediateOperand,
     StraightLineBooleanImmediate,
+    StraightLineBooleanNotImmediate,
     StraightLineUnitReturn,
     StraightLinePortWriteUnitReturn,
     StraightLineUnitCallReturn,

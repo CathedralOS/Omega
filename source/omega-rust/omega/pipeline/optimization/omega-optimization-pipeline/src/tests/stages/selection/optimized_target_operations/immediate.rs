@@ -105,6 +105,52 @@ fn optimized_target_lowering_retains_exact_boolean_translation_custody() {
 }
 
 #[test]
+fn optimized_target_lowering_retains_constant_boolean_not_immediate_custody() {
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        for source_value in [false, true] {
+            let (semantic, proof) = boolean_not_immediate_return_artifact(source_value);
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+            let AbstractToTargetFunctionTranslationDisposition::Validated(
+                AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanNotImmediate(row),
+            ) = target.translation_validation().function_roster()[0].translation()
+            else {
+                panic!("optimized constant Boolean-not must retain its exact immediate family")
+            };
+            assert_eq!(row.constant_operation(), OperationId::new(68_003).unwrap());
+            assert_eq!(
+                row.boolean_not_operation(),
+                OperationId::new(68_005).unwrap()
+            );
+            assert_eq!(row.constant_result(), ValueId::new(68_004).unwrap());
+            assert_eq!(row.boolean_not_result(), ValueId::new(68_006).unwrap());
+            assert_eq!(row.source_value(), source_value);
+            assert_eq!(row.materialized_value(), !source_value);
+            assert!(matches!(
+                target.target_operations().functions[0].operation,
+                TargetOperation::ReturnBooleanImmediate {
+                    source_value: result,
+                    value,
+                    ..
+                } if result == ValueId::new(68_006).unwrap() && value == !source_value
+            ));
+        }
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_constant_bitwise_not_immediate_custody() {
     let cases = [
         (

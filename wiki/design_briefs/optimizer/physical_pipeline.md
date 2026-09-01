@@ -140,6 +140,12 @@ exact width-aware complement, and requires `ReturnIntegerImmediate` with both
 source operations retained in provenance. Its signed/unsigned 8/16/32/64 and
 address64 carriers cross both boundaries and all five targets; it cannot be
 reclassified as either a plain immediate return or parameter bitwise-not.
+Constant Boolean-not independently validates only
+`[BooleanConstant, BooleanNot, Return]`, computes the complemented truth value,
+and requires `ReturnBooleanImmediate` with both source operations retained in
+provenance. Both truth values cross all five targets; the family cannot be
+reclassified as either a plain Boolean-immediate return or parameter
+Boolean-not.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -563,6 +569,16 @@ pressured reload at point 14 and the new reload/rewrite occur at point 16.
 This remains target-neutral logical scheduling and grants no physical slot,
 address, instruction, memory, frame, trap, unwind, encoding, emission, or
 publication authority.
+
+An original-victim canary is deliberately still upstream of this allocation
+boundary. The exact proposed graph is
+`r + ((r + (a + b)) + (b + r))`: its middle original remains unused at the
+epoch-two pressure point and is therefore eligible for guarded-original
+ranking. Today the artifact stops earlier because canonical Psi proof search
+cannot yet synthesize the exact-add fork/join conjunction proving the join's
+U64 upper bound, although the proof kernel can validate that evidence. The
+next prerequisite is general recursive exact-add conjunction production and
+independent replay—not a fixture-only certificate and not allocator authority.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

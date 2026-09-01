@@ -4,7 +4,7 @@ mod arithmetic;
 mod shift;
 
 use super::immediate::{
-    StraightLineBooleanImmediateTranslationError,
+    StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
@@ -55,6 +55,7 @@ pub enum AbstractToTargetTranslationFamilyError {
         StraightLineIntegerExactCastImmediateOperandTranslationError,
     ),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
+    StraightLineBooleanNotImmediate(StraightLineBooleanNotImmediateTranslationError),
     StraightLineUnitReturn(StraightLineUnitReturnTranslationError),
     StraightLinePortWriteUnitReturn(StraightLinePortWriteUnitReturnTranslationError),
     StraightLineUnitCallReturn(StraightLineUnitCallReturnTranslationError),

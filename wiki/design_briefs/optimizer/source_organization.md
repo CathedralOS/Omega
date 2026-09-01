@@ -418,7 +418,7 @@ The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
 
-Abstract-to-target validation follows the same entrance rule. Its 38-line
+Abstract-to-target validation follows the same entrance rule. Its 43-line
 `validation/mod.rs` exposes the module map and public validation calls;
 `whole_plan.rs` binds whole-plan roots, exact external settlement rosters,
 function order, and structural declarations before the catalog selects one
@@ -431,6 +431,12 @@ descends directly to `grammar.rs` for the exact three-operation source shape and
 that descent through separate fixture, positive, source-corruption, and target-
 corruption leaves; the catalog canary and public optimized-custody leaf remain
 visible in the registered semantic ladder.
+Constant Boolean-not immediate translation is its exact sibling under
+`straight_line_boolean_not_immediate/`. Its 27-line `mod.rs` entrance joins
+only `grammar.rs` and `replay.rs`; mirrored fixture, positive, source-
+corruption, and target-corruption leaves sit below their own test group. The
+catalog and architecture ladders register it independently from plain Boolean
+immediate and parameter Boolean-not families.
 
 GVN's `expression_keys/` group owns a closed key model and three explicit
 classifiers: total, proof-certified, and directional compatible-policy. Those

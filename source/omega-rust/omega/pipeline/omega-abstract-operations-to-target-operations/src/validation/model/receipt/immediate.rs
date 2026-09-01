@@ -46,6 +46,68 @@ impl StraightLineBooleanImmediateTranslationReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineBooleanNotImmediateTranslationReceipt {
+    machine: MachineId,
+    constant_operation: OperationId,
+    boolean_not_operation: OperationId,
+    return_edge: EdgeId,
+    constant_result: ValueId,
+    boolean_not_result: ValueId,
+    source_value: bool,
+    materialized_value: bool,
+}
+
+impl StraightLineBooleanNotImmediateTranslationReceipt {
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        constant_operation: OperationId,
+        boolean_not_operation: OperationId,
+        return_edge: EdgeId,
+        constant_result: ValueId,
+        boolean_not_result: ValueId,
+        source_value: bool,
+        materialized_value: bool,
+    ) -> Self {
+        Self {
+            machine,
+            constant_operation,
+            boolean_not_operation,
+            return_edge,
+            constant_result,
+            boolean_not_result,
+            source_value,
+            materialized_value,
+        }
+    }
+
+    pub const fn machine(self) -> MachineId {
+        self.machine
+    }
+    pub const fn constant_operation(self) -> OperationId {
+        self.constant_operation
+    }
+    pub const fn boolean_not_operation(self) -> OperationId {
+        self.boolean_not_operation
+    }
+    pub const fn return_edge(self) -> EdgeId {
+        self.return_edge
+    }
+    pub const fn constant_result(self) -> ValueId {
+        self.constant_result
+    }
+    pub const fn boolean_not_result(self) -> ValueId {
+        self.boolean_not_result
+    }
+    pub const fn source_value(self) -> bool {
+        self.source_value
+    }
+    pub const fn materialized_value(self) -> bool {
+        self.materialized_value
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StraightLineIntegerImmediateTranslationReceipt {
     machine: MachineId,
     constant_operation: OperationId,

@@ -3352,6 +3352,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "source.functions.len() != target.functions.len()",
         "straight_line_boolean_immediate::is_candidate",
         "straight_line_boolean_immediate::validate",
+        "straight_line_boolean_not_immediate::is_candidate",
+        "straight_line_boolean_not_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
         "straight_line_integer_widen_immediate::is_candidate",
