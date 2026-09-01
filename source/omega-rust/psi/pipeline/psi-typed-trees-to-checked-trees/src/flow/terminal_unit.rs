@@ -54,6 +54,7 @@ mod calls;
 mod cleanup;
 mod composed_control;
 pub(crate) mod control;
+mod dynamic_scalar_calls;
 mod providers;
 pub(crate) mod returns;
 mod selected_ieee_float;
@@ -65,6 +66,7 @@ use calls::*;
 use cleanup::*;
 use composed_control::*;
 use control::*;
+use dynamic_scalar_calls::*;
 use providers::*;
 use returns::*;
 use selected_ieee_float::*;
@@ -207,6 +209,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         &mut shapes,
         &boundary_machines,
     );
+    let dynamic_dispatch = build_checked_dynamic_dispatch_plans(program, facts);
 
     loop {
         let checked_symbols = candidates
@@ -307,6 +310,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         },
         boundary_machines,
         machines: candidates,
+        dynamic_dispatch,
         composed_machines,
     }
 }
