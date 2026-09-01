@@ -208,6 +208,18 @@ the module map, test-only classifier visibility, and exact sixteen-row roster;
 all local, dominating, phi-translated, and identity leaves name their own
 dependencies.
 
+The first nine GVN rows are the three-by-three scalar common-subexpression
+matrix: same-block, dominating, and phi-translated traversal scopes crossed
+with obligation-free, proof-certified, and compatible-policy evidence. Their
+producer tests enter through
+`tests/global_value_numbering/scalar_common_subexpression/mod.rs`, then descend
+to scope behavior or the exact contract-custody matrix. Independent admission
+requires the complete scope-specific analysis set, complete invalidation set,
+exact safety class, `-1` cost, and exact named rule before semantic replay. A
+nine-fixture operational matrix exercises each row through the selected pass
+and the empty default registry, binds manifest/validator/fact and ledger/commit
+custody, and proves determinism, budget failure, and output idempotence.
+
 GVN total scalar identity tests mirror the seven exact roster rows beneath
 `tests/global_value_numbering/total_scalar_identity/`. The group entrance is a
 map to one leaf each for wrapping neutral arithmetic, shift-by-zero,

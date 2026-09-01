@@ -21,25 +21,20 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
             OptimizationSafetyClass::ProofCertified
         }
     };
-    if !candidate
-        .required_analyses()
-        .contains(AnalysisKind::ControlFlowGraph)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::Dominators)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
+    if candidate.required_analyses()
+        != AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::EffectSummaries,
+        ])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
         || candidate.safety_class() != expected_safety
+        || candidate.predicted_cost_delta() != -1
         || !candidate.substitutions().is_empty()
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);

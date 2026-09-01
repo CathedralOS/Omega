@@ -155,6 +155,18 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "Psi GVN scalar common-subexpression tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/scalar_common_subexpression/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/scalar_common_subexpression/contract_custody.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/scalar_common_subexpression/same_block.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/scalar_common_subexpression/dominating.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/scalar_common_subexpression/phi_translated.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/scalar_common_subexpression/compatible_policy.rs",
+        ],
+    },
+    SemanticLadder {
         family: "transformation ledger",
         paths: &[
             "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/model.rs",

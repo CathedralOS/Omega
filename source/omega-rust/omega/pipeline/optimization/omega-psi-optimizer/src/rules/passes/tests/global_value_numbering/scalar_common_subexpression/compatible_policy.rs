@@ -567,3 +567,97 @@ fn compatible_policy_gvn_declines_missing_evidence_and_rejects_corruption() {
             .is_empty()
     );
 }
+
+#[test]
+fn compatible_policy_dominator_gvn_declines_missing_evidence_and_rejects_corruption() {
+    let unit = compatible_policy_dominator_gvn_unit();
+    let contract = DominatorProofCertifiedCompatiblePolicyScalarGvnRule::contract();
+    let mut manager = crate::AnalysisManager::new(&unit);
+    let products = manager
+        .require_all(&unit, contract.required_analyses())
+        .unwrap()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    let [candidate] = DominatorProofCertifiedCompatiblePolicyScalarGvnRule
+        .propose(&unit, RuleAnalysisView::new(&products))
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let PsiRewritePatch::EliminateDominatedScalarCommonSubexpression(patch) = candidate.patch()
+    else {
+        unreachable!()
+    };
+
+    let mut wrong_patch = patch;
+    wrong_patch.scalar_type = ScalarType::Boolean;
+    let forged = PsiRewriteCandidate::new_proof_certified_dominating_scalar_common_subexpression(
+        unit.identity,
+        contract,
+        candidate.affected_blocks().to_vec(),
+        candidate.provenance().to_vec(),
+        candidate.accepted_obligation_witness().unwrap(),
+        -1,
+        wrong_patch,
+    )
+    .unwrap();
+    assert_eq!(
+        validate_dominating_scalar_common_subexpression_candidate(&unit, &forged),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+    );
+
+    let foreign_fact = unit
+        .accepted_obligation_facts
+        .iter()
+        .find(|fact| fact.operation == patch.leader_operation)
+        .unwrap()
+        .identity;
+    let forged = PsiRewriteCandidate::new_proof_certified_dominating_scalar_common_subexpression(
+        unit.identity,
+        contract,
+        candidate.affected_blocks().to_vec(),
+        candidate.provenance().to_vec(),
+        foreign_fact,
+        -1,
+        patch,
+    )
+    .unwrap();
+    assert_eq!(
+        validate_dominating_scalar_common_subexpression_candidate(&unit, &forged),
+        Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+    );
+
+    let mut missing = unit.clone();
+    missing
+        .accepted_obligation_facts
+        .retain(|fact| fact.operation != patch.redundant_operation);
+    missing.identity = recompute_psi_optimization_unit_identity(&missing);
+    let mut manager = crate::AnalysisManager::new(&missing);
+    let products = manager
+        .require_all(&missing, contract.required_analyses())
+        .unwrap()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        DominatorProofCertifiedCompatiblePolicyScalarGvnRule
+            .propose(&missing, RuleAnalysisView::new(&products))
+            .unwrap()
+            .is_empty()
+    );
+
+    let exact_only = proof_certified_dominator_gvn_unit();
+    let mut manager = crate::AnalysisManager::new(&exact_only);
+    let products = manager
+        .require_all(&exact_only, contract.required_analyses())
+        .unwrap()
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(
+        DominatorProofCertifiedCompatiblePolicyScalarGvnRule
+            .propose(&exact_only, RuleAnalysisView::new(&products))
+            .unwrap()
+            .is_empty()
+    );
+}

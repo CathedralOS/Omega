@@ -71,6 +71,42 @@ fn proof_certified_dominator_gvn_consumes_cross_block_redundant_evidence() {
         validate_dominating_scalar_common_subexpression_candidate(&unit, &forged),
         Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
     );
+
+    for missing_operation in [patch.leader_operation, patch.redundant_operation] {
+        let mut missing = unit.clone();
+        missing
+            .accepted_obligation_facts
+            .retain(|fact| fact.operation != missing_operation);
+        missing.identity = recompute_psi_optimization_unit_identity(&missing);
+        let mut manager = crate::AnalysisManager::new(&missing);
+        let products = manager
+            .require_all(&missing, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            DominatorProofCertifiedScalarGvnRule
+                .propose(&missing, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+        let forged =
+            PsiRewriteCandidate::new_proof_certified_dominating_scalar_common_subexpression(
+                missing.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                redundant_fact,
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_dominating_scalar_common_subexpression_candidate(&missing, &forged),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+    }
 }
 
 #[test]
