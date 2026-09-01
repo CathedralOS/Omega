@@ -2,6 +2,7 @@
 
 mod allocation;
 mod artifacts;
+mod layout;
 mod machine;
 mod realization;
 mod selection;
