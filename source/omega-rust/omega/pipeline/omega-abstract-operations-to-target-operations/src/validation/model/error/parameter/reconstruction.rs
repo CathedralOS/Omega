@@ -6,6 +6,7 @@ use super::{
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
+    StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
@@ -106,6 +107,7 @@ map_parameter_reconstruction_error!(StraightLineIntegerBitwiseXorParametersTrans
 map_parameter_reconstruction_error!(StraightLineExactIntegerAddParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineExactIntegerDivideParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineExactIntegerMultiplyParametersTranslationError);
+map_parameter_reconstruction_error!(StraightLineExactIntegerRemainderParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineExactIntegerSubtractParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineSaturatingIntegerAddParametersTranslationError);
 map_parameter_reconstruction_error!(

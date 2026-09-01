@@ -32,6 +32,8 @@ pub use validation::{
     StraightLineExactIntegerDivideParametersTranslationReceipt,
     StraightLineExactIntegerMultiplyParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationReceipt,
+    StraightLineExactIntegerRemainderParametersTranslationError,
+    StraightLineExactIntegerRemainderParametersTranslationReceipt,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationReceipt,
     StraightLineIntegerBitwiseAndParametersTranslationError,

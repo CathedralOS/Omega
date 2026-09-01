@@ -6,13 +6,14 @@ use omega_target_operations::TargetFunction;
 
 use super::super::super::model::{
     ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerDivideParameters,
-    ReconstructedExactIntegerMultiplyParameters, ReconstructedExactIntegerSubtractParameters,
-    ReconstructedIntegerArithmeticParameters,
+    ReconstructedExactIntegerMultiplyParameters, ReconstructedExactIntegerRemainderParameters,
+    ReconstructedExactIntegerSubtractParameters, ReconstructedIntegerArithmeticParameters,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
+    StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
@@ -108,6 +109,29 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_divide(
         StraightLineExactIntegerDivideParametersTranslationError::TargetProvenance,
     )?;
     Ok(ReconstructedExactIntegerDivideParameters {
+        arithmetic,
+        obligation: source.obligation,
+    })
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_remainder(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedExactIntegerRemainderParameters,
+    StraightLineExactIntegerRemainderParametersTranslationError,
+> {
+    let source =
+        super::super::super::source::integer::arithmetic::reconstruct_exact_remainder(function)?;
+    let arithmetic = super::replay::reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source.arithmetic,
+        StraightLineExactIntegerRemainderParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedExactIntegerRemainderParameters {
         arithmetic,
         obligation: source.obligation,
     })

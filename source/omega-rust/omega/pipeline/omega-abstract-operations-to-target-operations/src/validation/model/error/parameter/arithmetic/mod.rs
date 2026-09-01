@@ -3,6 +3,7 @@
 mod exact_add;
 mod exact_divide;
 mod exact_multiply;
+mod exact_remainder;
 mod exact_subtract;
 mod saturating_add;
 mod saturating_multiply;
@@ -14,6 +15,7 @@ mod wrapping_subtract;
 pub use exact_add::*;
 pub use exact_divide::*;
 pub use exact_multiply::*;
+pub use exact_remainder::*;
 pub use exact_subtract::*;
 pub use saturating_add::*;
 pub use saturating_multiply::*;
