@@ -411,10 +411,12 @@ fn operation_observations(
         | O::SaturatingIntegerRemainder { .. }
         | O::SaturatingIntegerMultiply { .. } => (Vec::new(), No, No),
         O::WriteOnlyPrimitiveStore { .. }
+        | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::BooleanStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
+        | O::BooleanStructuralField { .. }
+        | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructural { .. }

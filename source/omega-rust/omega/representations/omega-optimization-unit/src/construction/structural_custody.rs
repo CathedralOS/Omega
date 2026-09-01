@@ -3,7 +3,8 @@ use super::*;
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
     match operation {
-        O::WriteOnlyPrimitiveStore { destination, .. } => {
+        O::WriteOnlyPrimitiveStore { destination, .. }
+        | O::StructuralScalarFieldStore { destination, .. } => {
             places.insert(destination.place);
         }
         O::EstablishByteSequenceLiteral { place, .. }
@@ -15,6 +16,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         }
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
             places.insert(*source);
+        }
+        O::IntegerStructuralField { source, .. } => {
+            places.insert(source.place);
         }
         _ => {}
     }

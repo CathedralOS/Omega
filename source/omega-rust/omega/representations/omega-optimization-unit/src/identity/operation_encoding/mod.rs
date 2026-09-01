@@ -16,6 +16,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
     use AbstractOperation as O;
     match operation {
         O::WriteOnlyPrimitiveStore { .. }
+        | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. } => structural::encode(bytes, operation),
@@ -32,6 +33,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanConstant { .. }
         | O::BooleanStructuralField { .. }
+        | O::IntegerStructuralField { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }
         | O::IntegerEqual { .. }
