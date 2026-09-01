@@ -7,6 +7,7 @@ pub(super) use super::super::parameter::{
     StraightLineExactIntegerRemainderParametersTranslationReceipt as ExactRemainderReceipt,
     StraightLineExactIntegerSubtractParametersTranslationReceipt as ExactSubtractReceipt,
     StraightLineSaturatingIntegerAddParametersTranslationReceipt as SaturatingAddReceipt,
+    StraightLineSaturatingIntegerDivideParametersTranslationReceipt as SaturatingDivideReceipt,
     StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt as SaturatingMultiplyReceipt,
     StraightLineSaturatingIntegerSubtractParametersTranslationReceipt as SaturatingSubtractReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt as WrappingAddReceipt,

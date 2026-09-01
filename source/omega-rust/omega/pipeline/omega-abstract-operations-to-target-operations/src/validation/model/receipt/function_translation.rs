@@ -23,7 +23,7 @@ use super::parameter::{
 use super::terminal::StraightLineScalarCrashTranslationReceipt;
 use arithmetic::{
     ExactAddReceipt, ExactDivideReceipt, ExactMultiplyReceipt, ExactRemainderReceipt,
-    ExactSubtractReceipt, SaturatingAddReceipt, SaturatingMultiplyReceipt,
+    ExactSubtractReceipt, SaturatingAddReceipt, SaturatingDivideReceipt, SaturatingMultiplyReceipt,
     SaturatingSubtractReceipt, WrappingAddReceipt, WrappingDivideReceipt, WrappingMultiplyReceipt,
     WrappingRemainderReceipt, WrappingSubtractReceipt,
 };
@@ -63,6 +63,7 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineExactIntegerRemainderParameters(ExactRemainderReceipt),
     StraightLineWrappingIntegerDivideParameters(WrappingDivideReceipt),
     StraightLineWrappingIntegerRemainderParameters(WrappingRemainderReceipt),
+    StraightLineSaturatingIntegerDivideParameters(SaturatingDivideReceipt),
     StraightLineSaturatingIntegerAddParameters(SaturatingAddReceipt),
     StraightLineWrappingIntegerAddParameters(WrappingAddReceipt),
     StraightLineSaturatingIntegerSubtractParameters(SaturatingSubtractReceipt),

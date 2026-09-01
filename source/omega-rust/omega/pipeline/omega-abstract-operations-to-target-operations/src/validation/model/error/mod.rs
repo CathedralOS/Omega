@@ -30,6 +30,7 @@ pub use parameter::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerDivideParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,

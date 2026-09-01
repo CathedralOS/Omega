@@ -102,6 +102,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineExactIntegerRemainderParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerRemainderParameters,
+            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerDivideParameters,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractParameters,

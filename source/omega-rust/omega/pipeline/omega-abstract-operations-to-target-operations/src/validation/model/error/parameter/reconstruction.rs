@@ -19,6 +19,7 @@ use super::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
+    StraightLineSaturatingIntegerDivideParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
@@ -112,6 +113,7 @@ map_parameter_reconstruction_error!(StraightLineExactIntegerMultiplyParametersTr
 map_parameter_reconstruction_error!(StraightLineExactIntegerRemainderParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineExactIntegerSubtractParametersTranslationError);
 map_parameter_reconstruction_error!(StraightLineSaturatingIntegerAddParametersTranslationError);
+map_parameter_reconstruction_error!(StraightLineSaturatingIntegerDivideParametersTranslationError);
 map_parameter_reconstruction_error!(
     StraightLineSaturatingIntegerMultiplyParametersTranslationError
 );

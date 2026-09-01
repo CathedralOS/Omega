@@ -15,7 +15,7 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first twenty-nine families reconstruct parameterless straight-line
+replay. Its first thirty families reconstruct parameterless straight-line
 integer and Boolean literal returns, scalar `Crash`, direct integer and Boolean
 parameter returns, Boolean negation of a parameter, and equality of two Boolean
 parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -24,8 +24,8 @@ integer-widen or proof-bearing integer exact-cast of one parameter, and integer
 bitwise-AND, bitwise-OR, bitwise-XOR, proof-bearing fixed-integer exact-add,
 exact-subtract, exact-multiply, exact-divide, or exact-remainder, plus
 wrapping-divide, wrapping-remainder, saturating-add, wrapping-add,
-saturating-subtract, wrapping-subtract, wrapping-multiply, or
-saturating-multiply of two same-type integer parameters, without calling
+saturating-divide, saturating-subtract, wrapping-subtract, wrapping-multiply,
+or saturating-multiply of two same-type integer parameters, without calling
 `lowering`, `KnownScalar`, or the scalar-return helper. The distinct parameter
 families share governed source-envelope and whole-roster ABI replay rungs,
 which independently apply the target's calling policy to prove every incoming
@@ -39,8 +39,8 @@ or inclusive integer ordering retain ordered and identical operands through
 recursive `ReturnBooleanExpression` receipts, while integer bitwise-not,
 bitwise-AND, bitwise-OR, bitwise-XOR, exact-add, exact-subtract, exact-multiply,
 exact-divide, exact-remainder, wrapping-divide, wrapping-remainder, wrapping-add,
-saturating-add, saturating-subtract, wrapping-subtract, wrapping-multiply, and
-saturating-multiply retain exact-width operands,
+saturating-add, saturating-divide, saturating-subtract, wrapping-subtract,
+wrapping-multiply, and saturating-multiply retain exact-width operands,
 integer-widen retains distinct source/target types, and exact-cast additionally
 retains its proof obligation through `ReturnIntegerExpression`.
 Exact-add independently retains its range-obligation identity, rejects address
@@ -59,13 +59,14 @@ the dividend's sign; signed `MIN % -1` remains undefined because the
 corresponding exact quotient is not representable. Wrapping divide and
 wrapping remainder instead retain only nonzero-divisor obligations. The former
 maps signed `MIN / -1` to `MIN`; the latter returns zero while otherwise keeping
-the truncating remainder's dividend sign. The optimized custody tests construct
-canonical exact-cast representability, exact-subtract range, exact-product
-range, exact-division-defined quotient and remainder goals, and wrapping
-quotient/remainder nonzero-divisor goals as machine preconditions, then
-discharge them with real Terminal proof certificates. Replay never substitutes
-fresh proof search for obligation identity. Its adjacent ordered catalog is the
-sole enable/disable inventory.
+the truncating remainder's dividend sign. Saturating divide also retains only a
+nonzero-divisor obligation, but maps signed `MIN / -1` to `MAX`. The optimized
+custody tests construct canonical exact-cast representability, exact-subtract
+range, exact-product range, exact-division-defined quotient and remainder
+goals, and wrapping quotient/remainder plus saturating-quotient nonzero-divisor
+goals as machine preconditions, then discharge them with real Terminal proof
+certificates. Replay never substitutes fresh proof search for obligation
+identity. Its adjacent ordered catalog is the sole enable/disable inventory.
 Each descriptor joins one source classifier to one typed replay adapter; the
 separate selection leaf makes zero matches explicitly uncovered, retains one
 match on that function's roster row, and fails closed on ambiguity.
