@@ -1,4 +1,4 @@
-//! Canonical format-36 codec for one installed function's stack facts.
+//! Canonical installation codec for one installed function's stack facts.
 //!
 //! Function ordering and stack validation remain in the installation parent.
 //! This child owns optional local envelopes and ordered unit/scalar call rows.
@@ -6,7 +6,7 @@
 use psi_core::MachineId;
 
 use super::{
-    InstallationError, InstalledFunction, Reader,
+    InstallationError, InstalledForeignCallStack, InstalledFunction, Reader,
     call_site_owner_codec::{decode_call_site_owner, encode_call_site_owner},
     push_u32, push_u64,
 };
@@ -66,6 +66,29 @@ pub(super) fn encode_function_stack_facts(
         );
         push_u32(bytes, call.caller_live_bytes);
     }
+    push_u32(
+        bytes,
+        u32::try_from(function.foreign_call_stacks.len())
+            .map_err(|_| InstallationError::TooManyStackCallFacts)?,
+    );
+    for call in &function.foreign_call_stacks {
+        encode_call_site_owner(bytes, call.owner);
+        push_u64(
+            bytes,
+            u64::try_from(call.text_offset)
+                .map_err(|_| InstallationError::FunctionOffsetNotRepresentable)?,
+        );
+        push_u32(bytes, call.caller_live_bytes);
+        push_u32(bytes, 0);
+        push_u64(bytes, call.provider_plan_report_identity);
+        push_u64(
+            bytes,
+            call.contribution_report_identity.normalized_identity(),
+        );
+        bytes.extend_from_slice(&call.contribution_commitment.as_bytes());
+        push_u64(bytes, call.contribution_bytes);
+        push_u64(bytes, call.contribution_alignment);
+    }
     Ok(())
 }
 
@@ -77,6 +100,7 @@ pub(super) fn decode_function_stack_facts(
         Option<crate::ObjectScalarStack>,
         Vec<crate::ObjectUnitCallStack>,
         Vec<crate::ObjectScalarCallStack>,
+        Vec<InstalledForeignCallStack>,
     ),
     InstallationError,
 > {
@@ -155,10 +179,46 @@ pub(super) fn decode_function_stack_facts(
             caller_live_bytes: reader.u32()?,
         });
     }
+    let foreign_call_count =
+        usize::try_from(reader.u32()?).map_err(|_| InstallationError::TooManyStackCallFacts)?;
+    if foreign_call_count > reader.remaining() / 92 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut foreign_call_stacks = Vec::with_capacity(foreign_call_count);
+    for _ in 0..foreign_call_count {
+        let owner = decode_call_site_owner(reader)?;
+        let text_offset = usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::FunctionOffsetNotRepresentable)?;
+        let caller_live_bytes = reader.u32()?;
+        if reader.u32()? != 0 {
+            return Err(InstallationError::NonzeroReservedField);
+        }
+        let provider_plan_report_identity = reader.u64()?;
+        let contribution_report_identity =
+            omega_task_plans::AdmittedStackContributionReportId::from_normalized_identity(
+                reader.u64()?,
+            )
+            .map_err(|_| InstallationError::InvalidForeignStackContribution)?;
+        let contribution_commitment =
+            omega_task_plans::SameStackContributionCommitment::from_digest(reader.array()?);
+        let contribution_bytes = reader.u64()?;
+        let contribution_alignment = reader.u64()?;
+        foreign_call_stacks.push(InstalledForeignCallStack {
+            owner,
+            text_offset,
+            caller_live_bytes,
+            provider_plan_report_identity,
+            contribution_report_identity,
+            contribution_commitment,
+            contribution_bytes,
+            contribution_alignment,
+        });
+    }
     Ok((
         unit_stack,
         scalar_stack,
         unit_call_stacks,
         scalar_call_stacks,
+        foreign_call_stacks,
     ))
 }

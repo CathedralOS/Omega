@@ -340,6 +340,35 @@ fn validate_provider_execution_reports(
     Ok(())
 }
 
+fn validate_foreign_stack_contribution(
+    requirement_identity: &str,
+    execution: omega_machine_code::ProviderExecutionRecord,
+    contribution_requirement_identity: &str,
+    contribution_provider_plan_report_identity: u64,
+    contribution_provider_plan_commitment: [u8; 32],
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+) -> Result<(), &'static str> {
+    if contribution_requirement_identity != requirement_identity
+        || contribution_provider_plan_report_identity != execution.provider_plan_report_identity
+    {
+        return Err(
+            "native artifact foreign stack contribution disagrees with its semantic requirement or provider execution",
+        );
+    }
+    let Some(selected_plan) = selected_provider_plans
+        .iter()
+        .find(|plan| plan.report_identity() == contribution_provider_plan_report_identity)
+    else {
+        return Err("native artifact foreign stack contribution names an unselected provider plan");
+    };
+    if contribution_provider_plan_commitment != *selected_plan.plan_digest().as_bytes() {
+        return Err(
+            "native artifact foreign stack contribution disagrees with the exact selected provider plan",
+        );
+    }
+    Ok(())
+}
+
 impl NativeArtifact {
     /// Complete fresh native emission by deriving the identity optimization
     /// projection and every currently supported physical child.
@@ -464,6 +493,15 @@ impl NativeArtifact {
                 .find(|candidate| candidate.id == *boundary)
                 .ok_or("native artifact foreign provider execution names an absent boundary")?;
             let execution = foreign.provider_execution;
+            let contribution = &foreign.same_stack_contribution;
+            validate_foreign_stack_contribution(
+                &boundary.identity,
+                execution,
+                contribution.requirement_identity(),
+                contribution.provider_plan_report_identity(),
+                contribution.provider_plan_commitment().as_bytes(),
+                &self.selected_provider_plans,
+            )?;
             required_executions.insert((
                 boundary.identity.clone(),
                 execution.provider_plan_report_identity,
@@ -559,6 +597,9 @@ impl NativeArtifact {
             compiler_entry_region_binding,
             compiler_entry_footprint_binding,
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
+            foreign_stack_contribution_digest: foreign_stack_contribution_digest(
+                self.image.foreign_calls(),
+            ),
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
@@ -685,6 +726,7 @@ struct NativeArtifactIdentityFields<'a> {
     compiler_entry_region_binding: Option<([u8; 32], u64)>,
     compiler_entry_footprint_binding: Option<([u8; 32], u64)>,
     selected_provider_closure_digest: [u8; 32],
+    foreign_stack_contribution_digest: [u8; 32],
     selected_provider_plans: &'a [NativeSelectedProviderPlan],
     provider_executions: &'a [NativeProviderExecution],
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
@@ -744,6 +786,7 @@ fn derive_native_artifact_identity(
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_region_binding);
     hash_optional_digest_and_report(&mut digest, fields.compiler_entry_footprint_binding);
     digest.update(fields.selected_provider_closure_digest);
+    digest.update(fields.foreign_stack_contribution_digest);
     digest.update(canonical_usize(fields.selected_provider_plans.len()));
     for plan in fields.selected_provider_plans {
         digest.update(plan.report_identity.to_le_bytes());
@@ -786,6 +829,49 @@ fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
     digest.update(bytes);
 }
 
+fn foreign_stack_contribution_digest(
+    calls: &[omega_image_emission::ObjectForeignCall],
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.native-artifact.foreign-stack-contributions.v1\0");
+    digest.update(canonical_usize(calls.len()));
+    for call in calls {
+        digest.update(call.machine.get().to_le_bytes());
+        match call.owner {
+            omega_target_operations::CallSiteOwner::Operation(operation) => {
+                digest.update([1]);
+                digest.update(operation.get().to_le_bytes());
+                digest.update(0_u32.to_le_bytes());
+            }
+            omega_target_operations::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
+                digest.update([2]);
+                digest.update(edge.get().to_le_bytes());
+                digest.update(action_ordinal.to_le_bytes());
+            }
+        }
+        digest.update(canonical_usize(call.text_offset));
+        digest.update(call.caller_live_bytes.to_le_bytes());
+        let contribution = &call.same_stack_contribution;
+        digest.update(
+            contribution
+                .report_identity()
+                .normalized_identity()
+                .to_le_bytes(),
+        );
+        digest.update(contribution.commitment().as_bytes());
+        digest.update(contribution.provider_plan_report_identity().to_le_bytes());
+        digest.update(contribution.provider_plan_commitment().as_bytes());
+        hash_bytes(&mut digest, contribution.requirement_identity().as_bytes());
+        digest.update(contribution.receipt().normalized_identity().to_le_bytes());
+        digest.update(contribution.bytes().to_le_bytes());
+        digest.update(contribution.alignment().to_le_bytes());
+    }
+    digest.finalize().into()
+}
+
 fn hash_optional_digest(digest: &mut Sha256, value: Option<[u8; 32]>) {
     match value {
         None => digest.update([0]),
@@ -826,6 +912,7 @@ mod tests {
         callback_report_fingerprint: u64,
         inventory_marker: u8,
         provider_closure_marker: u8,
+        foreign_stack_marker: u8,
         provider_plan_marker: u8,
         requirement: &'a str,
         execution_report_fingerprint: u64,
@@ -846,6 +933,7 @@ mod tests {
                 callback_report_fingerprint: 29,
                 inventory_marker: 2,
                 provider_closure_marker: 3,
+                foreign_stack_marker: 71,
                 provider_plan_marker: 59,
                 requirement: "core::Console::write",
                 execution_report_fingerprint: 41,
@@ -892,6 +980,7 @@ mod tests {
             compiler_entry_region_binding: evidence,
             compiler_entry_footprint_binding: evidence,
             selected_provider_closure_digest: [fixture.provider_closure_marker; 32],
+            foreign_stack_contribution_digest: [fixture.foreign_stack_marker; 32],
             selected_provider_plans: &plans,
             provider_executions: &executions,
             terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity::from_parts(
@@ -923,6 +1012,31 @@ mod tests {
         assert_eq!(
             validate_provider_execution_reports(&selected, &substituted, &required),
             Err("native artifact provider execution is absent from its selected plan"),
+        );
+    }
+
+    #[test]
+    fn compact_equal_foreign_stack_plan_cannot_substitute_a_strong_commitment() {
+        let execution = omega_machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19)
+            .expect("nonzero execution record");
+        let selected = vec![NativeSelectedProviderPlan::new(
+            7,
+            NativeSelectedProviderPlanDigest::from_digest([29; 32]),
+            vec!["core::Expected".to_owned()],
+        )];
+
+        assert_eq!(
+            validate_foreign_stack_contribution(
+                "core::Expected",
+                execution,
+                "core::Expected",
+                7,
+                [23; 32],
+                &selected,
+            ),
+            Err(
+                "native artifact foreign stack contribution disagrees with the exact selected provider plan"
+            ),
         );
     }
 
@@ -979,6 +1093,10 @@ mod tests {
             }),
             fixture_identity(IdentityFixture {
                 provider_closure_marker: 11,
+                ..IdentityFixture::default()
+            }),
+            fixture_identity(IdentityFixture {
+                foreign_stack_marker: 73,
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {

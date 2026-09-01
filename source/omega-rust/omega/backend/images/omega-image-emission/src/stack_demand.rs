@@ -59,12 +59,17 @@ pub fn derive_stack_demand(
     let mut active = std::collections::BTreeSet::new();
     let mut memoized = std::collections::BTreeMap::new();
     let mut contributing_machines = std::collections::BTreeSet::new();
+    let mut admitted_contribution_report_identities = std::collections::BTreeSet::new();
+    let mut admitted_contribution_commitments = std::collections::BTreeSet::new();
     let ceiling_bytes = derive_terminal_stack_peak(
         entry,
+        artifact,
         &functions,
         &mut active,
         &mut memoized,
         &mut contributing_machines,
+        &mut admitted_contribution_report_identities,
+        &mut admitted_contribution_commitments,
         &stackless_nonreturning,
     )?;
     Ok(StackDemand {
@@ -74,15 +79,24 @@ pub fn derive_stack_demand(
         ceiling_bytes,
         stack_alignment: 16,
         contributing_machines,
+        admitted_contribution_report_identities,
+        admitted_contribution_commitments,
     })
 }
 
 fn derive_terminal_stack_peak(
     machine: MachineId,
+    artifact: &ObjectArtifact,
     functions: &std::collections::BTreeMap<MachineId, &ObjectFunction>,
     active: &mut std::collections::BTreeSet<MachineId>,
     memoized: &mut std::collections::BTreeMap<MachineId, u64>,
     contributing_machines: &mut std::collections::BTreeSet<MachineId>,
+    admitted_contribution_report_identities: &mut std::collections::BTreeSet<
+        omega_task_plans::AdmittedStackContributionReportId,
+    >,
+    admitted_contribution_commitments: &mut std::collections::BTreeSet<
+        omega_task_plans::SameStackContributionCommitment,
+    >,
     stackless_nonreturning: &std::collections::BTreeSet<MachineId>,
 ) -> Result<u64, ObjectError> {
     if let Some(peak) = memoized.get(&machine) {
@@ -113,10 +127,13 @@ fn derive_terminal_stack_peak(
     for call in &function.unit_call_stacks {
         let callee_peak = derive_terminal_stack_peak(
             call.target,
+            artifact,
             functions,
             active,
             memoized,
             contributing_machines,
+            admitted_contribution_report_identities,
+            admitted_contribution_commitments,
             stackless_nonreturning,
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
@@ -131,10 +148,13 @@ fn derive_terminal_stack_peak(
     for call in &function.scalar_call_stacks {
         let callee_peak = derive_terminal_stack_peak(
             call.target,
+            artifact,
             functions,
             active,
             memoized,
             contributing_machines,
+            admitted_contribution_report_identities,
+            admitted_contribution_commitments,
             stackless_nonreturning,
         )?;
         let caller_live = u64::from(call.caller_live_bytes);
@@ -145,6 +165,22 @@ fn derive_terminal_stack_peak(
             },
         )?;
         peak = peak.max(composed);
+    }
+    for call in artifact
+        .foreign_calls
+        .iter()
+        .filter(|call| call.machine == machine)
+    {
+        let contribution = &call.same_stack_contribution;
+        let composed = u64::from(call.caller_live_bytes)
+            .checked_add(contribution.bytes())
+            .ok_or(ObjectError::TerminalStackCompositionOverflow {
+                caller: machine,
+                owner: call.owner,
+            })?;
+        peak = peak.max(composed);
+        admitted_contribution_report_identities.insert(contribution.report_identity());
+        admitted_contribution_commitments.insert(contribution.commitment());
     }
     active.remove(&machine);
     memoized.insert(machine, peak);

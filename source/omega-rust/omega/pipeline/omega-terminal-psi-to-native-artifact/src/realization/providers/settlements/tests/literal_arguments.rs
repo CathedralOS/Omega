@@ -684,7 +684,67 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         .push(duplicate);
     assert!(omega_image_emission::build_object_artifact(&extra).is_err());
 
+    let mut wrong_contribution_plan = machine_code.clone();
+    wrong_contribution_plan.functions[0].foreign_calls[0]
+        .provider_execution
+        .provider_plan_report_identity ^= 1;
+    assert!(matches!(
+        omega_image_emission::build_object_artifact(&wrong_contribution_plan),
+        Err(omega_image_emission::ObjectError::ForeignStackProviderPlanMismatch { .. })
+    ));
+
+    let mut over_aligned = machine_code.clone();
+    over_aligned.functions[0].foreign_calls[0].same_stack_contribution =
+        omega_task_plans::admit_same_stack_contribution(
+            omega_task_plans::SameStackContributionAdmissionCandidate {
+                provider_plan_report_identity: report_identity,
+                provider_plan_commitment,
+                requirement_identity: requirement.into(),
+                receipt: omega_task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(812)
+                    .unwrap(),
+                bytes: 64,
+                alignment: 32,
+            },
+            report_identity,
+            provider_plan_commitment,
+            requirement,
+        )
+        .unwrap();
+    assert!(matches!(
+        omega_image_emission::build_object_artifact(&over_aligned),
+        Err(
+            omega_image_emission::ObjectError::UnsupportedForeignStackAlignment {
+                admitted_alignment: 32,
+                physical_alignment: 16,
+                ..
+            }
+        )
+    ));
+
     let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
+    let [object_call] = object.foreign_calls() else {
+        panic!("one object foreign call")
+    };
+    assert_eq!(object_call.same_stack_contribution, same_stack);
+    assert_eq!(
+        object_call.provider_execution.provider_plan_report_identity,
+        object_call
+            .same_stack_contribution
+            .provider_plan_report_identity(),
+    );
+    let demand = omega_image_emission::derive_stack_demand(&object, object.entry()).unwrap();
+    let expected_foreign_peak = u64::from(object_call.caller_live_bytes)
+        .checked_add(same_stack.bytes())
+        .unwrap();
+    assert_eq!(demand.ceiling_bytes(), expected_foreign_peak);
+    assert_eq!(
+        demand.admitted_contribution_report_identities(),
+        &std::collections::BTreeSet::from([same_stack.report_identity()]),
+    );
+    assert_eq!(
+        demand.admitted_contribution_commitments(),
+        &std::collections::BTreeSet::from([same_stack.commitment()]),
+    );
     assert_eq!(object.object().layout.normalized_imports.len(), 1);
     assert_eq!(object.relocations().record_count(), 1);
     let interpreter = omega_target::normalize_elf_interpreter_plan(

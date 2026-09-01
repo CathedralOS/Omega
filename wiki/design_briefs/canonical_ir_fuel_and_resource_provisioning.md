@@ -405,7 +405,16 @@ admission. For fully lowered Unit closures, Omega's emitter retains exact
 code-positioned frame, argument/shadow, and link evidence. Object construction
 validates those instructions, derives numeric local and caller-live peaks, and
 composes the acyclic call-closure peak by maximum over sequential calls. The
-branch-free scalar slice similarly retains exact ordered frame and
+same precursor now treats an admitted direct foreign call as an opaque leaf:
+its peak is the exact caller-live frontier plus admitted bytes, with sequential
+leaves composed by maximum. Object and canonical installation replay retain
+the admission report and strong contribution commitment, while native replay
+also rejoins the exact selected-provider-plan digest and semantic requirement.
+The physical lane rejects admitted alignment above its proved 16-byte
+call-entry alignment; numeric alignment without emitted padding is not a
+proof.
+
+The branch-free scalar slice similarly retains exact ordered frame and
 temporary-stack mutations. Its typed direct calls additionally retain exact
 outbound and AArch64 link-register evidence; object construction decodes and
 replays the instructions, derives caller-live bytes even with pending

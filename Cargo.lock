@@ -448,6 +448,7 @@ dependencies = [
  "omega-effects",
  "omega-executable-installation",
  "omega-external-roots",
+ "omega-image-emission",
  "omega-installation-evidence",
  "omega-layout",
  "omega-object-file",

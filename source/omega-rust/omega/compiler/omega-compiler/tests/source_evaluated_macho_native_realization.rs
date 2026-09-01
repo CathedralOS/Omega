@@ -242,4 +242,67 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     };
     assert_eq!(install_name, INSTALL_NAME);
     assert_eq!(symbol, SYMBOL);
+
+    let object_demand =
+        omega_image_emission::derive_stack_demand(artifact.object(), artifact.object().entry())
+            .expect("object stack demand includes the admitted foreign leaf");
+    assert!(
+        object_demand
+            .admitted_contribution_report_identities()
+            .contains(&same_stack.report_identity())
+    );
+    assert!(
+        object_demand
+            .admitted_contribution_commitments()
+            .contains(&same_stack.commitment())
+    );
+
+    let installation =
+        omega_image_emission::build_installation_record_with_selected_provider_plans_and_evidence(
+            artifact.image(),
+            psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+            artifact
+                .selected_provider_plans()
+                .iter()
+                .map(|plan| plan.report_identity()),
+            artifact.provider_executions().iter(),
+            None,
+        )
+        .expect("installation retains the admitted foreign stack projection");
+    let foreign_stacks = installation
+        .functions()
+        .iter()
+        .flat_map(|function| &function.foreign_call_stacks)
+        .collect::<Vec<_>>();
+    let [foreign_stack] = foreign_stacks.as_slice() else {
+        panic!("one installed foreign stack contribution expected")
+    };
+    assert_eq!(
+        foreign_stack.provider_plan_report_identity,
+        plan_report_identity
+    );
+    assert_eq!(
+        foreign_stack.contribution_report_identity,
+        same_stack.report_identity()
+    );
+    assert_eq!(
+        foreign_stack.contribution_commitment,
+        same_stack.commitment()
+    );
+    assert_eq!(foreign_stack.contribution_bytes, same_stack.bytes());
+    assert_eq!(foreign_stack.contribution_alignment, same_stack.alignment());
+
+    let encoded = omega_image_emission::encode_installation_record(&installation)
+        .expect("foreign stack installation encodes");
+    let decoded = omega_image_emission::decode_installation_record(&encoded)
+        .expect("foreign stack installation decodes");
+    omega_image_emission::validate_installation_record(&decoded, artifact.image())
+        .expect("decoded foreign stack installation rejoins the exact image");
+    let installation_demand = omega_image_emission::derive_installation_stack_demand(
+        &decoded,
+        artifact.image(),
+        artifact.object().entry(),
+    )
+    .expect("installation replays the admitted foreign stack demand");
+    assert_eq!(installation_demand, object_demand);
 }

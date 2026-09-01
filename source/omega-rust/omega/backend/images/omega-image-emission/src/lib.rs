@@ -295,6 +295,10 @@ pub struct StackDemand {
     ceiling_bytes: u64,
     stack_alignment: u32,
     contributing_machines: std::collections::BTreeSet<MachineId>,
+    admitted_contribution_report_identities:
+        std::collections::BTreeSet<omega_task_plans::AdmittedStackContributionReportId>,
+    admitted_contribution_commitments:
+        std::collections::BTreeSet<omega_task_plans::SameStackContributionCommitment>,
 }
 
 impl StackDemand {
@@ -320,6 +324,18 @@ impl StackDemand {
 
     pub const fn contributing_machines(&self) -> &std::collections::BTreeSet<MachineId> {
         &self.contributing_machines
+    }
+
+    pub const fn admitted_contribution_report_identities(
+        &self,
+    ) -> &std::collections::BTreeSet<omega_task_plans::AdmittedStackContributionReportId> {
+        &self.admitted_contribution_report_identities
+    }
+
+    pub const fn admitted_contribution_commitments(
+        &self,
+    ) -> &std::collections::BTreeSet<omega_task_plans::SameStackContributionCommitment> {
+        &self.admitted_contribution_commitments
     }
 }
 
@@ -369,6 +385,11 @@ pub struct ObjectForeignCall {
     pub owner: CallSiteOwner,
     pub locator: omega_target::NormalizedForeignLocator,
     pub provider_execution: omega_machine_code::ProviderExecutionRecord,
+    /// Exact physical caller frontier independently reconstructed from emitted
+    /// stack instructions before the opaque foreign leaf begins.
+    pub caller_live_bytes: u32,
+    /// Sealed admitted demand for the opaque same-stack foreign leaf.
+    pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
     /// Result custody retained from machine emission. Its code offset is
     /// rebased to absolute object `.text`, like `text_offset` below.
     pub scalar_result: Option<omega_machine_code::ForeignCallScalarResultRecord>,
@@ -503,6 +524,7 @@ fn build_object_artifact_with_x86_feature_profile(
     let mut text_size = 0usize;
     let mut validated_unit_stacks = std::collections::BTreeMap::new();
     let mut validated_scalar_stacks = std::collections::BTreeMap::new();
+    let mut validated_foreign_call_stacks = std::collections::BTreeMap::new();
     let attachments = plan
         .functions
         .iter()
@@ -579,6 +601,14 @@ fn build_object_artifact_with_x86_feature_profile(
             }
             if call.locator.target().native_target() != plan.target {
                 return Err(ObjectError::ForeignCallTargetMismatch {
+                    caller: function.machine,
+                    owner: call.owner,
+                });
+            }
+            if call.same_stack_contribution.provider_plan_report_identity()
+                != call.provider_execution.provider_plan_report_identity
+            {
+                return Err(ObjectError::ForeignStackProviderPlanMismatch {
                     caller: function.machine,
                     owner: call.owner,
                 });
@@ -779,8 +809,18 @@ fn build_object_artifact_with_x86_feature_profile(
             let function_stack = validated_function_stack
                 .as_mut()
                 .expect("validated Unit stack exists");
+            let admitted_alignment = call.same_stack_contribution.alignment();
+            if admitted_alignment > u64::from(function_stack.stack_alignment) {
+                return Err(ObjectError::UnsupportedForeignStackAlignment {
+                    caller: function.machine,
+                    owner: call.owner,
+                    admitted_alignment,
+                    physical_alignment: function_stack.stack_alignment,
+                });
+            }
             function_stack.local_peak_bytes =
                 function_stack.local_peak_bytes.max(caller_live_bytes);
+            validated_foreign_call_stacks.insert((function.machine, call.owner), caller_live_bytes);
         }
         let is_unit_custody_relocation = |call: &&omega_machine_code::InternalCallRelocation| {
             call.unit_stack.is_some()
@@ -1485,6 +1525,9 @@ fn build_object_artifact_with_x86_feature_profile(
             });
         }
         for call in &function.foreign_calls {
+            let caller_live_bytes = validated_foreign_call_stacks
+                .remove(&(function.machine, call.owner))
+                .expect("foreign stack validation precedes object projection");
             let scalar_result = call
                 .scalar_result
                 .clone()
@@ -1500,6 +1543,8 @@ fn build_object_artifact_with_x86_feature_profile(
                 owner: call.owner,
                 locator: call.locator.clone(),
                 provider_execution: call.provider_execution,
+                caller_live_bytes,
+                same_stack_contribution: call.same_stack_contribution.clone(),
                 scalar_result,
                 text_offset: text_offset
                     .checked_add(call.offset)
@@ -2219,6 +2264,16 @@ pub enum ObjectError {
     ForeignCallTargetMismatch {
         caller: MachineId,
         owner: CallSiteOwner,
+    },
+    ForeignStackProviderPlanMismatch {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    UnsupportedForeignStackAlignment {
+        caller: MachineId,
+        owner: CallSiteOwner,
+        admitted_alignment: u64,
+        physical_alignment: u32,
     },
     ForeignCallOverlapsInternalCall {
         caller: MachineId,
