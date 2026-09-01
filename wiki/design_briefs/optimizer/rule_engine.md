@@ -158,5 +158,12 @@ replay requires an exact context and row match before consuming the decision.
 Missing, malformed, stale, or mismatched responses fail closed or use an
 explicitly selected deterministic fallback.
 
+The compiler-private execution adapter remains deliberately dormant. It can
+exchange that canonical log only when handed an opaque
+`VerifiedExternalPolicySandboxInvocation`, and no production code can create
+one today. Exact transport limits and fallback settlement therefore exist
+without turning process/resource containment into a false sandbox claim or
+making ordinary compiler builds execute external policy.
+
 Search and ML never invent unchecked rewrites, mutate semantic contracts,
 grant publication authority, or make the baseline compiler depend on a model.

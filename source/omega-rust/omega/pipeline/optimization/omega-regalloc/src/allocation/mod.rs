@@ -7,6 +7,7 @@ mod post_allocation_manifest;
 pub(crate) mod reload_value_homes;
 pub(crate) mod spill_choice;
 pub(crate) mod stack_slot_coloring;
+pub(crate) mod synthetic_reload_values;
 
 pub use abstract_spill_insertion::*;
 pub use home_assignment::*;
@@ -15,3 +16,4 @@ pub use post_allocation_manifest::*;
 pub use reload_value_homes::*;
 pub use spill_choice::*;
 pub use stack_slot_coloring::*;
+pub use synthetic_reload_values::*;

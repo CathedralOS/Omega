@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Abstract spill-area insertion scheduling and replay.
+//! Optimizer module role: executable entrance. Abstract spill-area insertion scheduling and replay.
 //!
 //! This join turns validated logical spill actions plus validated slot colors
 //! into one exact store/reload/rewrite schedule. It deliberately stops before

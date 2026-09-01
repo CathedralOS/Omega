@@ -8,6 +8,12 @@ version.workspace = true
 name = "omega_compiler"
 path = "src/lib.rs"
 
+[features]
+experimental-external-optimization-policy = [
+    "dep:omega-bounded-process",
+    "dep:omega-optimization-policy",
+]
+
 [dependencies]
 omega-build-declarations = { path = "../../build/omega-build-declarations" }
 omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
@@ -19,6 +25,7 @@ omega-representation-planning = { path = "../../build/omega-representation-plann
 omega-trust-model = { path = "../../build/omega-trust-model" }
 omega-core = { path = "../../representations/omega-core" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-optimization-policy = { path = "../../pipeline/optimization/omega-optimization-policy", optional = true }
 omega-optimization-pipeline = { path = "../../pipeline/optimization/omega-optimization-pipeline" }
 omega-abstract-operations-to-target-operations = { path = "../../pipeline/omega-abstract-operations-to-target-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
@@ -42,6 +49,7 @@ psi-tokens = { path = "../../../psi/representations/psi-tokens" }
 omega-backend-plan = { path = "../../backend/plans/omega-backend-plan" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-artifacts = { path = "../../tooling/omega-artifacts" }
+omega-bounded-process = { path = "../../tooling/omega-bounded-process", optional = true }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
@@ -70,6 +78,7 @@ serde_json = "1"
 
 [dev-dependencies]
 sha2 = "0.10.9"
+omega-bounded-process = { path = "../../tooling/omega-bounded-process" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation" }
 omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
@@ -79,5 +88,6 @@ omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-package-compilation = { path = "../../build/omega-package-compilation", features = ["test-support"] }
 omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
+omega-optimization-policy = { path = "../../pipeline/optimization/omega-optimization-policy" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }

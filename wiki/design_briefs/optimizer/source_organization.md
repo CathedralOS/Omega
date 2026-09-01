@@ -196,6 +196,23 @@ interference and accounting mechanics, and `model.rs`, `identity.rs`, and
 pipeline leaf is `register_allocation/reload_value_homes.rs`. Neither stage is
 a selectable optimization rule.
 
+Synthetic reload binding continues at
+`omega-regalloc/src/allocation/synthetic_reload_values/mod.rs`. Its 27-line
+executable entrance joins validated insertion and home custody; `compute.rs`
+owns direct canonical traversal, `replay.rs` independently owns keyed
+reconstruction and sorting, and `model.rs`, `identity.rs`, and `validate.rs`
+own the closed namespace artifact. The pipeline mirror is
+`register_allocation/synthetic_reload_values.rs`. The architecture guard names
+all three spill-related executable entrances explicitly instead of treating
+meaningful joins as generic stage groups.
+
+The external-policy execution prerequisite has its own dormant compiler
+entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
+That file alone coordinates the opaque sandbox capability, exact transport
+limits, canonical response matching, and explicit fallback settlement; named
+leaves own each concern. The module is absent from ordinary builds and has no
+production capability constructor until a real platform sandbox exists.
+
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create
