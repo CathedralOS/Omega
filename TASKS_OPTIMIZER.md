@@ -465,12 +465,12 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-three abstract-to-target families, including
+  machine-rule family. Thirty-four abstract-to-target families, including
   proof-bearing exact parameterized fixed-integer addition, subtraction,
   multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
-  addition, subtraction, and multiplication and independently typed wrapping
-  shifts, selected incoming u12 folds,
+  addition, subtraction, and multiplication, independently typed wrapping
+  shifts, and proof-bearing exact shift-right, selected incoming u12 folds,
   current machine substitutions, structural-Unit encoding, resolved layout,
   and ranked-u32 publication routes
   are covered. The x86 zero-extending MOV-r32 materialization now also crosses
@@ -588,6 +588,13 @@ decision. Only true language-semantic questions belong in
   and signed fixed sign-fill semantics; direction swaps, exact shifts, bitwise,
   and arithmetic expression substitutions fail closed through optimized-target
   custody.
+- [x] Add independent proof-bearing exact shift-right parameter translation.
+  Its shift leaf retains independently typed fixed-integer value/count
+  operands, their exact ABI placement and provenance, and the source obligation
+  through target replay and optimized custody. The canonical `ExactShiftCount`
+  goal admits only the unmodified mathematical range `0 <= count < value_width`;
+  it does not require shifted-out bits to be zero. Address carriers, obligation
+  drift, direction/policy substitution, and ordered-operand drift fail closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
 - [ ] Validate ABI operands, calls, clobbers, effects, traps, provenance, and

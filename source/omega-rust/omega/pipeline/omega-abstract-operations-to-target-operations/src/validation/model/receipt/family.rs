@@ -58,7 +58,8 @@ impl AbstractToTargetFunctionTranslationReceipt {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters
             }
             receipt @ (Self::StraightLineWrappingIntegerShiftLeftParameters(_)
-            | Self::StraightLineWrappingIntegerShiftRightParameters(_)) => shift::family(receipt),
+            | Self::StraightLineWrappingIntegerShiftRightParameters(_)
+            | Self::StraightLineExactIntegerShiftRightParameters(_)) => shift::family(receipt),
             receipt @ (Self::StraightLineExactIntegerAddParameters(_)
             | Self::StraightLineExactIntegerSubtractParameters(_)
             | Self::StraightLineExactIntegerMultiplyParameters(_)

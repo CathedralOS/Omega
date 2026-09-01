@@ -7,13 +7,39 @@ use psi_core::ScalarType;
 
 use super::super::super::{
     abi,
-    model::{IntegerShiftParametersSource, ReconstructedIntegerShiftParameters},
+    model::{
+        IntegerShiftParametersSource, ReconstructedExactIntegerShiftRightParameters,
+        ReconstructedIntegerShiftParameters,
+    },
 };
 use crate::validation::model::{
+    StraightLineExactIntegerShiftRightParametersTranslationError,
     StraightLineParameterReconstructionError,
     StraightLineWrappingIntegerShiftLeftParametersTranslationError,
     StraightLineWrappingIntegerShiftRightParametersTranslationError,
 };
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_right(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedExactIntegerShiftRightParameters,
+    StraightLineExactIntegerShiftRightParametersTranslationError,
+> {
+    let source = super::super::super::source::integer::shift::reconstruct_exact_right(function)?;
+    let shift = reconstruct(
+        function,
+        expected_target,
+        target,
+        source.shift,
+        StraightLineExactIntegerShiftRightParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedExactIntegerShiftRightParameters {
+        shift,
+        obligation: source.obligation,
+    })
+}
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_left(
     function: &AbstractFunction,

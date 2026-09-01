@@ -20,6 +20,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerBitwiseXorParameters,
     StraightLineWrappingIntegerShiftLeftParameters,
     StraightLineWrappingIntegerShiftRightParameters,
+    StraightLineExactIntegerShiftRightParameters,
     StraightLineExactIntegerAddParameters,
     StraightLineExactIntegerSubtractParameters,
     StraightLineExactIntegerMultiplyParameters,

@@ -27,7 +27,7 @@ use arithmetic::{
     SaturatingSubtractError, WrappingAddError, WrappingDivideError, WrappingMultiplyError,
     WrappingRemainderError, WrappingSubtractError,
 };
-use shift::{WrappingShiftLeftError, WrappingShiftRightError};
+use shift::{ExactShiftRightError, WrappingShiftLeftError, WrappingShiftRightError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationFamilyError {
@@ -55,6 +55,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineWrappingIntegerShiftLeftParameters(WrappingShiftLeftError),
     StraightLineWrappingIntegerShiftRightParameters(WrappingShiftRightError),
+    StraightLineExactIntegerShiftRightParameters(ExactShiftRightError),
     StraightLineExactIntegerAddParameters(ExactAddError),
     StraightLineExactIntegerSubtractParameters(ExactSubtractError),
     StraightLineExactIntegerMultiplyParameters(ExactMultiplyError),

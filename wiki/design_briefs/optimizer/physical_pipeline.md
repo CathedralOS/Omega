@@ -15,7 +15,7 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-three families reconstruct parameterless straight-line
+replay. Its first thirty-four families reconstruct parameterless straight-line
 integer and Boolean literal returns, scalar `Crash`, direct integer and Boolean
 parameter returns, Boolean negation of a parameter, and equality of two Boolean
 parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -26,8 +26,8 @@ exact-subtract, exact-multiply, exact-divide, or exact-remainder, plus
 wrapping-divide, wrapping-remainder, saturating-add, wrapping-add,
 saturating-divide, saturating-remainder, saturating-subtract, wrapping-subtract,
 wrapping-multiply, or saturating-multiply of two same-type integer parameters,
-plus wrapping shift-left or shift-right of an independently typed integer value
-and count,
+plus wrapping shift-left, wrapping shift-right, or proof-bearing exact
+shift-right of an independently typed integer value and count,
 without calling
 `lowering`, `KnownScalar`, or the scalar-return helper. The distinct parameter
 families share governed source-envelope and whole-roster ABI replay rungs,
@@ -60,6 +60,12 @@ unsigned fixed/address zero-fill and signed fixed sign-fill. Neither
 direction's specific family identity can be substituted with its sibling,
 either proof-bearing exact shift, bitwise, or arithmetic expressions even when
 an individual runtime value agrees.
+Exact shift-right admits only fixed value/count carriers and retains the
+operation's canonical `ExactShiftCount` obligation. That goal proves the
+unmodified count is in `0 <= count < value_width`; it does not require discarded
+bits to be zero. Signed values sign-fill and unsigned values zero-fill. Replay
+rejects wrapping or left-shift substitution, address carriers, operand drift,
+and independent obligation drift.
 Exact-add independently retains its range-obligation identity, rejects address
 carriers, and rejects substitution with wrapping or saturating addition.
 Saturating-add independently rejects both wrapping and proof-bearing exact-add

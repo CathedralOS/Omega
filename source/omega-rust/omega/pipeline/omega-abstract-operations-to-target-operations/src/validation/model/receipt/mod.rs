@@ -19,6 +19,7 @@ pub use parameter::{
     StraightLineExactIntegerDivideParametersTranslationReceipt,
     StraightLineExactIntegerMultiplyParametersTranslationReceipt,
     StraightLineExactIntegerRemainderParametersTranslationReceipt,
+    StraightLineExactIntegerShiftRightParametersTranslationReceipt,
     StraightLineExactIntegerSubtractParametersTranslationReceipt,
     StraightLineIntegerBitwiseAndParametersTranslationReceipt,
     StraightLineIntegerBitwiseNotParameterTranslationReceipt,

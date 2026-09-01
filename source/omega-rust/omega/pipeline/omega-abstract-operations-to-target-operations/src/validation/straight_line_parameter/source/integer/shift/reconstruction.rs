@@ -3,9 +3,30 @@
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
-use super::super::super::super::model::IntegerShiftParametersSource;
+use super::super::super::super::model::{
+    ExactIntegerShiftRightParametersSource, IntegerShiftParametersSource,
+};
+use crate::validation::model::StraightLineExactIntegerShiftRightParametersTranslationError;
 use crate::validation::model::StraightLineWrappingIntegerShiftLeftParametersTranslationError;
 use crate::validation::model::StraightLineWrappingIntegerShiftRightParametersTranslationError;
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_right(
+    function: &AbstractFunction,
+) -> Result<
+    ExactIntegerShiftRightParametersSource,
+    StraightLineExactIntegerShiftRightParametersTranslationError,
+> {
+    let Some(AbstractOperation::ExactIntegerShiftRight { value_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineExactIntegerShiftRightParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*value_type))?;
+    super::exact_right::reconstruct(function, &envelope)
+}
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_left(
     function: &AbstractFunction,
