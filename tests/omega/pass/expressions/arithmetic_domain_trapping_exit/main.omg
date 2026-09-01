@@ -6,7 +6,7 @@
 // separately by a native-only test, since a trap is not a clean exit the
 // differential oracle can compare.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

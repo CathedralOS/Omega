@@ -6,7 +6,7 @@
 // IMIN/IMAX by the result's sign bit on overflow. The interpreter clamps to the
 // same range so the differential oracle agrees.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

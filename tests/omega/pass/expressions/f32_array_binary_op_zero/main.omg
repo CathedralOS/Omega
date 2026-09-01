@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 // `binary_value_operands_are_float` returned `false` and emitted integer
 // add instead of addss.  Fixed together with the f64 variant.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

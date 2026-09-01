@@ -13,7 +13,7 @@
 // passed to a VALUE-CALL (`self.dbl(a1)` -- previously broke before the array got a
 // slot). Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pt {
     x: i32 in Wrapping;

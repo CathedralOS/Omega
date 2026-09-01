@@ -7,7 +7,7 @@
 // `Saturating`/`Trapping` codegen and exact-by-default overflow ENFORCEMENT land
 // in later stages.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

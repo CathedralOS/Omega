@@ -8,7 +8,7 @@
 // Before the fix `a * b` stored the wrapped low byte (10000 mod 256 = 16) and the
 // program exited 71; now it clamps to u8 max (255) and the guard takes `good`.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

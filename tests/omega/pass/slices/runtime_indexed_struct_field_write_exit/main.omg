@@ -13,7 +13,7 @@
 // reads (the written fields, an untouched field, and an untouched element). All
 // correct -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Entity {
     hp: i32 in Trapping;

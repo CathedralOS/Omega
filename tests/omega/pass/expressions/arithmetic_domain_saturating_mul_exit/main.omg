@@ -4,7 +4,7 @@
 // 8-bit target), then range-compares against 255 and `cmov`s to the max; the
 // interpreter clamps to the same bound.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

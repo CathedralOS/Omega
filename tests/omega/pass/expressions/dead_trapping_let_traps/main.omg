@@ -13,7 +13,7 @@
 // arithmetic ... ALWAYS overflows `i32` -- traps unconditionally at
 // runtime". A warning, not an error (owner: no compelling reason to forbid
 // it) -- the program compiles and traps as requested.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: i32 in Trapping = 2000000000;

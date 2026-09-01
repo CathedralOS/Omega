@@ -7,7 +7,7 @@
 // fixed (the read-only array was being elided without a frame slot; see
 // slices/runtime_local_aggregate_into_let_exit). Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

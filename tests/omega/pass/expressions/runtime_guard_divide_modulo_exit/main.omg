@@ -12,7 +12,7 @@
 // 71-74 instead of 70. The interpreter evaluates the same integer guards, so the
 // differential oracle agrees.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

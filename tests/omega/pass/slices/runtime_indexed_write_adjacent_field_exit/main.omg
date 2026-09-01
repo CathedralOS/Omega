@@ -9,7 +9,7 @@
 // bytes of a 64-bit index load would be 99. The write must still land at arr[2], and
 // neither the index nor the sentinel may be corrupted. All correct -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

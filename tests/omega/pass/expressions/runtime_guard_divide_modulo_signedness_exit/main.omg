@@ -10,7 +10,7 @@
 //
 // Every arm is reached only on a correct guard; a regression exits 71-74.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data State {
     neg: i32;

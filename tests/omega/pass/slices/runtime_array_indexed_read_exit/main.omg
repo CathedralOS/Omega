@@ -4,7 +4,7 @@
 // written and kept its zero value. Now it loads the element correctly. Reads two
 // different runtime indices and self-checks. (Constant indices already worked.)
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

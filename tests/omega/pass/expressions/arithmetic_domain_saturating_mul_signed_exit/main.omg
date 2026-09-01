@@ -2,7 +2,7 @@
 // directions. 50*50 = 2500 -> clamps to the i8 max 127 (cmovg); 50*-50 = -2500
 // -> clamps to the i8 min -128 (cmovl). hi == 127 AND lo == -128 -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

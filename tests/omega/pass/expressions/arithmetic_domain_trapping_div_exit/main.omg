@@ -3,7 +3,7 @@
 // `idiv` already traps on -- exactly Trapping semantics -- so Trapping div/mod
 // route to the normal division path. In range, 140 / 2 = 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

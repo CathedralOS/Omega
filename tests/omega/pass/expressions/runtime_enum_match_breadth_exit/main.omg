@@ -9,7 +9,7 @@
 // fail the Goal check. Then a Potion (whose `power` field name collides with Weapon's)
 // is matched and its payload extracted. All correct -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     case Empty;

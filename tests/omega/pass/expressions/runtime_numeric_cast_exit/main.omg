@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // f64 arithmetic result exactly: 9.0 / 2.0 = 4.5, truncated to 4, widened back
 // to 4.0.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

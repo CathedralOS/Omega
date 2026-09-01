@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 // to apply the root-field member_index (array element index) when the suffix
 // is empty.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

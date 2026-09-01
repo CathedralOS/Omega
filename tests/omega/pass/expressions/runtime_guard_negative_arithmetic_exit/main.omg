@@ -13,7 +13,7 @@
 // with a negative dividend is a separate, deeper case -- see
 // guard-negative-i32-arithmetic memory.)
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

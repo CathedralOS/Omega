@@ -5,7 +5,7 @@
 // proven in-bounds. This pattern underlies sorts, sliding windows, and reversal.
 // [10,20,30,40,50] is sorted, so every adjacent pair is ordered -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

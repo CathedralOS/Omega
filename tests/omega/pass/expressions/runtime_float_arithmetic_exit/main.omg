@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // chain reads the updated value at each step. Exits 70 to confirm the SSE
 // sequence executes without faulting and codegen is clean (no stub/NoOp).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

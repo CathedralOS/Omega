@@ -7,7 +7,7 @@
 // interpreter was correct). Now the base case resolves a bare fixed array.
 // Exits 70 when the passed view has len 3 and data[i] reads the right bytes.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
