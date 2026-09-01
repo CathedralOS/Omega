@@ -383,6 +383,58 @@ crashes Abort
 }
 
 #[test]
+fn review_rejects_unresolved_installation_reach_at_ordinary_public_export() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub boundary trait MachineControl { }
+pub boundary trait PortIo { }
+
+pub boundary trait InterruptCompletion {
+    machine complete() -> u64
+    reaches <= MachineControl + PortIo;
+}
+
+pub machine invoke<machine Completion>() -> u64
+where machine Completion satisfies InterruptCompletion::complete;
+reaches MachineControl + PortIo
+{
+    Completion()
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("ordinary public export fixture should check before package review");
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("an ordinary public export cannot retain an unresolved installation row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(
+                "ordinary public callable `invoke` cannot export unresolved installation-reach",
+            ) && diagnostic.message.contains("InterruptCompletion::complete")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}",
+    );
+}
+
+#[test]
 fn review_projects_plan_name_provider_grant() {
     let Some(target) = host_target_name() else {
         return;
