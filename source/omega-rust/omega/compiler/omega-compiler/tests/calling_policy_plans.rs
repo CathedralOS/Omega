@@ -520,6 +520,90 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
 }
 
 #[test]
+fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
+    let source = callback_fixture_source("direct_callback_parameter.omg")
+        .replace(
+            "use calling;",
+            "use calling;\nuse omega::language::core::representation;\n\npub boundary data CallbackToken;\npub data CallbackTokenCarrier { value: u64; }\npub CallbackTokenRepresentation:\n    CallbackTokenCarrier satisfies OpaqueRepresentation<CallbackToken>;",
+        )
+        .replace("module: u64", "module: CallbackToken")
+        .replace(
+            "data Main { }\nmachine Main::main(&mut self) {\n    HookRegistrar::install<HookProvider::call>(1u64, 2u64);\n}",
+            "data Main { }\nmachine Main::register(&mut self, module: CallbackToken) {\n    HookRegistrar::install<HookProvider::call>(1u64, module);\n}\nmachine Main::main(&mut self) { }",
+        );
+    let (main_path, package_inputs) =
+        write_callback_package("opaque-direct-callback-ordinal", &source);
+    fs::write(
+        main_path
+            .parent()
+            .expect("callback package directory")
+            .join("build.omg"),
+        r#"machine build(builder: &mut Build) {
+    builder.package("opaque-direct-callback-ordinal");
+    builder.select_representation<CallbackToken, CallbackTokenRepresentation>();
+}
+"#,
+    )
+    .expect("write callback opaque-representation selection");
+    let checked =
+        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
+            .expect("opaque registrar parameter should close around the direct callback");
+    let opaque = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "CallbackToken")
+        .expect("exact callback-token opaque declaration");
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| {
+            realization
+                .materialized_signature
+                .opaque_representation_uses()
+                .iter()
+                .any(|representation| representation.opaque() == opaque.symbol)
+                && realization
+                    .replayed_validated_application()
+                    .is_ok_and(|(validated, _, _)| validated.plan().call.parameters.len() == 3)
+        })
+        .expect("one closed registrar signature with its compiler-inserted callback");
+    let representation = realization
+        .materialized_signature
+        .opaque_representation_uses()
+        .iter()
+        .find(|representation| representation.opaque() == opaque.symbol)
+        .expect("one exact callback-token occurrence");
+    let (validated, _, _) = realization
+        .replayed_validated_application()
+        .expect("callback-interleaved opaque plan should replay exactly");
+    let movement = realization
+        .materialized_signature
+        .opaque_representation_movement(representation, &validated)
+        .expect("opaque occurrence must rejoin after direct callback insertion");
+    assert!(matches!(
+        movement.role(),
+        BoundaryOpaqueRepresentationMovementRole::Parameter {
+            formal_ordinal: 1,
+            native_ordinal: 2,
+        }
+    ));
+    assert!(movement.path().is_empty());
+    assert_eq!(movement.placement(), &validated.plan().call.parameters[2]);
+    assert!(matches!(
+        movement.placement().locations.as_slice(),
+        [omega_calling_conventions::ValueLocation::Register {
+            register: omega_calling_conventions::MachineRegister::X86R8,
+            ..
+        }]
+    ));
+    let _ = fs::remove_dir_all(
+        main_path
+            .parent()
+            .expect("temporary callback package directory"),
+    );
+}
+
+#[test]
 fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
     let source = callback_fixture_source("direct_callback_parameter.omg")
         .replace("boundary trait HookRegistrar", "trait HookRegistrar");
@@ -976,6 +1060,32 @@ boundary trait InterruptResult: Calling<InterruptResultPolicy> {
     machine issue() -> InterruptAcknowledgement;
 }
 "#;
+
+fn interrupt_envelope_policy(fields: &str, extra_declarations: &str) -> String {
+    let lookalike_requirement = format!(
+        "data InterruptEnvelope {{\n{fields}\n}}\n\nboundary trait LookalikeEntry: Calling<X86InterruptPolicy> {{\n    machine enter(envelope: InterruptEnvelope)\n    reaches PortIo;\n}}"
+    );
+    let representation_declarations = format!(
+        "PicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;\n\n{extra_declarations}"
+    );
+    INTERRUPT_POLICY
+        .replace(
+            "PicAckRepresentation:\n    PicAckCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;",
+            &representation_declarations,
+        )
+        .replace(
+            "boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(acknowledgement: InterruptAcknowledgement in Pending)\n    reaches PortIo;\n}",
+            &lookalike_requirement,
+        )
+        .replace(
+            "data LookalikeEntryProvider { }\nLookalikeEntryProviderLookalikeEntry: LookalikeEntryProvider satisfies LookalikeEntry;\n\nmachine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)\n    satisfies LookalikeEntry::enter\n    reaches PortIo\n{\n    acknowledgement.complete();\n}\n\n",
+            "",
+        )
+        .replace(
+            "signature.shapes[root].byte_size == 40",
+            "signature.shapes[root].byte_size == 40 || signature.shapes[root].byte_size == 80",
+        )
+}
 
 fn retained_interrupt_representation(
     checked: &omega_compiler::CheckedCompilation,
@@ -1614,19 +1724,10 @@ fn opaque_result_rejoins_its_exact_result_placement() {
 
 #[test]
 fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
-    let source = INTERRUPT_POLICY
-        .replace(
-            "boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(acknowledgement: InterruptAcknowledgement in Pending)\n    reaches PortIo;\n}",
-            "data InterruptEnvelope {\n    ordinary: PicAckCarrier;\n    acknowledgement: InterruptAcknowledgement;\n}\n\nboundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(envelope: InterruptEnvelope)\n    reaches PortIo;\n}",
-        )
-        .replace(
-            "data LookalikeEntryProvider { }\nLookalikeEntryProviderLookalikeEntry: LookalikeEntryProvider satisfies LookalikeEntry;\n\nmachine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)\n    satisfies LookalikeEntry::enter\n    reaches PortIo\n{\n    acknowledgement.complete();\n}\n\n",
-            "",
-        )
-        .replace(
-            "signature.shapes[root].byte_size == 40",
-            "signature.shapes[root].byte_size == 40 || signature.shapes[root].byte_size == 80",
-        );
+    let source = interrupt_envelope_policy(
+        "    ordinary: PicAckCarrier;\n    acknowledgement: InterruptAcknowledgement;",
+        "",
+    );
     let main_path = write_project(
         "interrupt-nested-opaque-movement",
         &source,
@@ -1704,6 +1805,153 @@ fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
     assert_eq!(
         nested_movements, 1,
         "the authored envelope should retain one exact nested opaque movement"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn repeated_opaque_values_rejoin_distinct_equal_layout_occurrences() {
+    let source = interrupt_envelope_policy(
+        "    first: InterruptAcknowledgement;\n    second: InterruptAcknowledgement;",
+        "",
+    );
+    let main_path = write_project(
+        "interrupt-repeated-opaque-movement",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("repeated opaque representation policy should compile");
+    let selection = retained_interrupt_representation(&checked);
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| {
+            realization
+                .materialized_signature
+                .opaque_representation_uses()
+                .iter()
+                .filter(|representation| representation.opaque() == selection.opaque())
+                .count()
+                == 2
+        })
+        .expect("one boundary signature with two exact opaque occurrences");
+    let (validated, _, _) = realization
+        .replayed_validated_application()
+        .expect("repeated opaque plan should replay exactly");
+    let uses = realization
+        .materialized_signature
+        .opaque_representation_uses()
+        .iter()
+        .filter(|representation| representation.opaque() == selection.opaque())
+        .collect::<Vec<_>>();
+    let [first, second] = uses.as_slice() else {
+        panic!("two exact repeated opaque markers")
+    };
+    assert_ne!(first.shape_root(), second.shape_root());
+    let first_shape = realization.materialized_signature.shapes()[usize::from(first.shape_root())];
+    let second_shape =
+        realization.materialized_signature.shapes()[usize::from(second.shape_root())];
+    assert_eq!(first_shape.byte_size(), second_shape.byte_size());
+    assert_eq!(first_shape.alignment(), second_shape.alignment());
+
+    let movements = uses
+        .iter()
+        .map(|representation| {
+            realization
+                .materialized_signature
+                .opaque_representation_movement(representation, &validated)
+                .expect("each repeated marker must rejoin its own occurrence")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        movements
+            .iter()
+            .map(|movement| movement.path())
+            .collect::<Vec<_>>(),
+        [
+            &[BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 0 }][..],
+            &[BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 1 }][..],
+        ]
+    );
+    assert!(movements.iter().all(|movement| {
+        matches!(
+            movement.role(),
+            BoundaryOpaqueRepresentationMovementRole::Parameter {
+                formal_ordinal: 0,
+                native_ordinal: 0,
+            }
+        ) && movement.placement().shape.byte_size == 80
+    }));
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn distinct_opaque_values_with_equal_layout_retain_distinct_nominal_markers() {
+    let source = interrupt_envelope_policy(
+        "    acknowledgement: InterruptAcknowledgement;\n    shadow: ShadowAcknowledgement;",
+        "pub boundary data ShadowAcknowledgement;\n\ndata ShadowAckCarrier {\n    physical_root: u64;\n    execution: u64;\n    invocation: u64;\n    policy: u64;\n    acknowledgement: u64;\n}\n\nShadowAckRepresentation:\n    ShadowAckCarrier satisfies OpaqueRepresentation<ShadowAcknowledgement>;",
+    );
+    let build = INTERRUPT_REPRESENTATION_BUILD.replace(
+        "    >();",
+        "    >();\n    builder.select_representation<\n        ShadowAcknowledgement,\n        ShadowAckRepresentation\n    >();",
+    );
+    let main_path = write_project("interrupt-equal-opaque-movement", &source, &build);
+    let checked = compile_to_checked(&main_path, None)
+        .expect("equal-layout opaque representation policy should compile");
+    let opaque_symbols = ["InterruptAcknowledgement", "ShadowAcknowledgement"].map(|name| {
+        checked
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .unwrap_or_else(|| panic!("exact `{name}` opaque declaration"))
+            .symbol
+    });
+    let realization = checked
+        .boundary_calling_plan_realizations()
+        .iter()
+        .find(|realization| {
+            opaque_symbols.iter().all(|opaque| {
+                realization
+                    .materialized_signature
+                    .opaque_representation_uses()
+                    .iter()
+                    .any(|representation| representation.opaque() == *opaque)
+            })
+        })
+        .expect("one boundary signature carrying both opaque declarations");
+    let (validated, _, _) = realization
+        .replayed_validated_application()
+        .expect("equal-layout opaque plan should replay exactly");
+    let uses = opaque_symbols.map(|opaque| {
+        realization
+            .materialized_signature
+            .opaque_representation_uses()
+            .iter()
+            .find(|representation| representation.opaque() == opaque)
+            .expect("one exact nominal opaque marker")
+    });
+    assert_ne!(uses[0].opaque(), uses[1].opaque());
+    assert_ne!(uses[0].carrier(), uses[1].carrier());
+    assert_ne!(uses[0].shape_root(), uses[1].shape_root());
+    let shapes = uses.map(|representation| {
+        realization.materialized_signature.shapes()[usize::from(representation.shape_root())]
+    });
+    assert_eq!(shapes[0].byte_size(), shapes[1].byte_size());
+    assert_eq!(shapes[0].alignment(), shapes[1].alignment());
+    let movements = uses.map(|representation| {
+        realization
+            .materialized_signature
+            .opaque_representation_movement(representation, &validated)
+            .expect("equal layout must not substitute one nominal marker for another")
+    });
+    assert_eq!(
+        movements[0].path(),
+        [BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 0 }]
+    );
+    assert_eq!(
+        movements[1].path(),
+        [BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 1 }]
     );
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
