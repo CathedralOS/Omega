@@ -1,4 +1,5 @@
 use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::realization::providers::AdmittedTerminalMechanism;
 use omega_abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -11,8 +12,15 @@ use psi_diagnostics::Diagnostic;
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
     request: &NativeRealizationRequest<'request>,
-) -> Result<Vec<AdmittedBoundarySettlement<'request>>, Vec<Diagnostic>> {
+) -> Result<
+    (
+        Vec<AdmittedBoundarySettlement<'request>>,
+        Vec<AdmittedTerminalMechanism>,
+    ),
+    Vec<Diagnostic>,
+> {
     let mut admitted = Vec::with_capacity(request.compiler_builtins.len());
+    let mut mechanisms = Vec::with_capacity(request.compiler_builtins.len());
     let mut seen_requirements = std::collections::BTreeSet::new();
     for proposal in request.compiler_builtins {
         let requirement = proposal.requirement_identity;
@@ -85,8 +93,12 @@ pub(super) fn settle_compiler_builtins<'request>(
             execution: AdmittedBoundaryExecution::CompilerBuiltin(proposal.execution),
             realization: BoundarySettlementRealization::Builtin(realization),
         });
+        mechanisms.push(AdmittedTerminalMechanism {
+            boundary: boundary.id,
+            mechanism: mechanism.into(),
+        });
     }
-    Ok(admitted)
+    Ok((admitted, mechanisms))
 }
 
 const fn compiler_intrinsic_execution_identity(

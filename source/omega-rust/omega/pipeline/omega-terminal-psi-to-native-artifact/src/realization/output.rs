@@ -13,6 +13,9 @@ pub(crate) fn assemble_native_artifact(
     machine_code: &MachineCodePlanWithPrivateFunctions,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: omega_effects::TerminalAuthorityPolicyIdentity,
+    terminal_authority_permission_policy_identity:
+        omega_effects::TerminalAuthorityPermissionPolicyIdentity,
+    terminal_authority_closure_review: omega_effects::TerminalAuthorityClosureReviewReceipt,
     boundary_application_coverage: Option<
         omega_boundary_applications::TerminalBoundaryApplicationCoverage,
     >,
@@ -74,6 +77,8 @@ pub(crate) fn assemble_native_artifact(
         selected_provider_plans,
         provider_executions,
         terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review,
         boundary_application_coverage,
         physical_evidence_scope,
     })

@@ -26,6 +26,8 @@ pub struct CompileRequest {
     pub(crate) requested_product: RequestedCompileProduct,
     pub(crate) artifact_policy: ArtifactEmissionPolicy,
     pub(crate) terminal_admission_profile: psi_proof_admission::AdmissionProfile,
+    pub(crate) terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     pub(crate) accepted_trust_admissions: Vec<omega_trust_model::TrustAdmission>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) optimization_rollback: OptimizationRollback,
@@ -45,6 +47,9 @@ impl CompileRequest {
             requested_product: RequestedCompileProduct::Check,
             artifact_policy: ArtifactEmissionPolicy::Full,
             terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
+            terminal_authority_permission_policy:
+                omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(
+                ),
             accepted_trust_admissions: Vec::new(),
             package_inputs: None,
             optimization_rollback: OptimizationRollback::default(),
@@ -69,6 +74,16 @@ impl CompileRequest {
         profile: psi_proof_admission::AdmissionProfile,
     ) -> Self {
         self.terminal_admission_profile = profile;
+        self
+    }
+
+    /// Supply the receiving authority's exact service-schema/requirement
+    /// permissions for native realization. The default is deny-by-absence.
+    pub fn with_terminal_authority_permission_policy(
+        mut self,
+        policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    ) -> Self {
+        self.terminal_authority_permission_policy = policy;
         self
     }
 

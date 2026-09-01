@@ -1440,6 +1440,18 @@ fn compile_rooted_backend_canary_without_output_for_target(
     canary_dir: &Path,
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+        canary_dir,
+        target,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+    )
+}
+
+fn compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+    canary_dir: &Path,
+    target: &str,
+    permission_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let root_path = canary_dir.join("main.omg");
     let package_inputs = reviewed_repository_fixture_package_inputs(&root_path, Some(target))?;
@@ -1449,7 +1461,8 @@ fn compile_rooted_backend_canary_without_output_for_target(
         target_name: Some(target.into()),
     })
     .with_requested_product(RequestedCompileProduct::NativeArtifact)
-    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+    .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    .with_terminal_authority_permission_policy(permission_policy);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }

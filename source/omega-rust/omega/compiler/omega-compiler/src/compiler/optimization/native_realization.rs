@@ -5,6 +5,8 @@ pub(super) fn realize(
     checked: &crate::pipeline::CheckedCompilation,
     admission: super::admission::NativeOptimizationAdmission<'_>,
     profile: &psi_proof_admission::AdmissionProfile,
+    terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     optimization_selections: &OptimizationSelections,
 ) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
@@ -74,6 +76,7 @@ pub(super) fn realize(
             profile,
             terminal_authority_policy:
                 omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+            terminal_authority_permission_policy,
             program_entry,
             optimization_selections,
             selected_provider_plans: checked.selected_provider_plans(),

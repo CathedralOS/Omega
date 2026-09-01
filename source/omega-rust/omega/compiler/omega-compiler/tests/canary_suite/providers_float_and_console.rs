@@ -1081,6 +1081,9 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             selected_provider_plans: parts.selected_provider_plans.clone(),
             provider_executions: parts.provider_executions.clone(),
             terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: parts
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review: parts.terminal_authority_closure_review.clone(),
             boundary_application_coverage: parts.boundary_application_coverage.clone(),
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence.clone(),
@@ -1089,7 +1092,42 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
 
     let canary = pass_canary("providers/adapter_satisfies_compile");
     for target in ["linux_x86_64", "linux_arm64"] {
-        let compilation = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
+            .expect("Console permission preflight should reach checked custody");
+        let permission_policy =
+            omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+                checked
+                    .selected_provider_plans()
+                    .plans()
+                    .iter()
+                    .flat_map(|plan| {
+                        plan.rows.iter().filter_map(move |row| {
+                            matches!(
+                                row.binding,
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                                    ..
+                                }
+                            )
+                                .then(|| {
+                                    omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                                        plan.schema.identity_digest(),
+                                        row.requirement_identity.clone(),
+                                        omega_effects::TerminalAuthorityDisposition::from_classes([
+                                            omega_effects::TerminalAuthorityClass::ProcessTermination,
+                                        ]),
+                                    )
+                                })
+                        })
+                    })
+                    .collect(),
+            )
+            .expect("exact Console exit permission policy");
+        let accepted_permission = permission_policy.identity();
+        let compilation = compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+            &canary,
+            target,
+            permission_policy,
+        )
             .unwrap_or_else(|diagnostics| {
                 panic!("exact Linux Console exit catalog row should compile for {target}: {diagnostics:#?}")
             });
@@ -1173,13 +1211,28 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         let artifact = compilation
             .into_retained_native_artifact()
             .expect("NativeArtifact report should transfer exact custody");
-        let artifact_identity = artifact.identity();
+        let accepted_closure_review = artifact.terminal_authority_closure_review().identity();
         let parts = artifact.into_parts();
         let replayed = native::NativeArtifact::from_replayed_parts(replay_parts(&parts))
             .expect("unchanged physical evidence must replay");
         replayed
-            .validate_for_terminal_authority_policy(accepted_policy.identity())
-            .expect("unchanged receiving policy must replay");
+            .validate_for_terminal_authority_policies(
+                accepted_policy.identity(),
+                accepted_permission,
+                accepted_closure_review,
+            )
+            .expect("unchanged receiving policies and closure review must replay");
+        let mut unaccepted_closure_review = accepted_closure_review;
+        unaccepted_closure_review[0] ^= 1;
+        assert_eq!(
+            replayed.validate_for_terminal_authority_policies(
+                accepted_policy.identity(),
+                accepted_permission,
+                unaccepted_closure_review,
+            ),
+            Err("native artifact terminal-authority closure review is not accepted"),
+            "structurally valid receipt data cannot substitute for the review identity accepted by the receiver",
+        );
 
         let mut missing_d29_custody = replay_parts(&parts);
         missing_d29_custody.boundary_application_coverage = None;
@@ -1194,14 +1247,9 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
                 accepted_policy.identity().version() + 1,
                 accepted_policy.identity().commitment(),
             );
-        let substituted_policy = native::NativeArtifact::from_replayed_parts(substituted_policy)
-            .expect("a different policy identity describes a different valid artifact");
-        assert_ne!(substituted_policy.identity(), artifact_identity);
         assert!(
-            substituted_policy
-                .validate_for_terminal_authority_policy(accepted_policy.identity())
-                .is_err(),
-            "the receiving authority must reject policy substitution",
+            native::NativeArtifact::from_replayed_parts(substituted_policy).is_err(),
+            "the retained closure receipt must reject physical-policy substitution before receiver acceptance",
         );
 
         let mut missing = replay_parts(&parts);
@@ -1296,16 +1344,14 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
     }
 
     let port_canary = pass_canary("inline_asm/asm_port_out_final_validation");
-    let port_report =
+    let port_diagnostics =
         compile_rooted_backend_canary_without_output_for_target(&port_canary, "linux_x86_64")
-            .expect("immediate-port checked assembly should retain its native artifact");
-    let port_artifact = port_report
-        .retained_native_artifact()
-        .expect("immediate-port checked assembly should retain exact native custody");
-    assert!(!port_artifact.object().port_effects().is_empty());
+            .expect_err("checked physical operations await their explicit D45 terminal role");
     assert!(
-        port_artifact.physical_evidence().is_none(),
-        "the first D32 lane must not publish partial evidence for an uncovered D29 port effect",
+        port_diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("checked physical terminal operation unsupported")),
+        "the bounded current-role review must fail closed on checked physical leaves",
     );
 }
 
@@ -1375,6 +1421,25 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         .collect::<Vec<_>>();
     let profile = psi_proof_admission::AdmissionProfile::default();
     let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let permission_policy =
+        omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+            proposal
+                .compiler_builtins()
+                .iter()
+                .map(|builtin| {
+                    let plan = &proposal.selected_provider_plans().plans()
+                        [builtin.provider_plan_index()];
+                    omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                        plan.schema.identity_digest(),
+                        builtin.requirement_identity(),
+                        omega_effects::TerminalAuthorityDisposition::from_classes([
+                            omega_effects::TerminalAuthorityClass::ProcessTermination,
+                        ]),
+                    )
+                })
+                .collect(),
+        )
+        .expect("exact Console exit permission policy");
     let native = omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
         artifact,
         proposal.checked_boundary_operator_scope(),
@@ -1384,6 +1449,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             profile: &profile,
             terminal_authority_policy:
                 omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+            terminal_authority_permission_policy: permission_policy,
             program_entry,
             optimization_selections: &optimizations,
             selected_provider_plans: proposal.selected_provider_plans(),

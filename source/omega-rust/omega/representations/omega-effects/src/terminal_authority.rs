@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
 /// Closed compiler-owned execution child retained independently of authored
@@ -387,6 +388,16 @@ impl TerminalAuthorityDisposition {
     pub fn is_authority_class_empty(&self) -> bool {
         self.classes.is_empty()
     }
+
+    /// Whether every class exercised by `other` is admitted by this
+    /// disposition. Both inputs are canonical sets, so containment never
+    /// depends on authored order or duplicate spellings.
+    pub fn contains_all(&self, other: &Self) -> bool {
+        other
+            .classes
+            .iter()
+            .all(|class| self.classes.binary_search(class).is_ok())
+    }
 }
 
 /// Version and strong commitment for one complete receiving target-policy
@@ -412,6 +423,303 @@ impl TerminalAuthorityPolicyIdentity {
 
     pub const fn commitment(self) -> [u8; 32] {
         self.commitment
+    }
+}
+
+/// Version and strong commitment for the independently accepted mapping from
+/// exact service schemas and requirements to permitted D45 authority classes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TerminalAuthorityPermissionPolicyIdentity {
+    version: u32,
+    commitment: [u8; 32],
+}
+
+impl TerminalAuthorityPermissionPolicyIdentity {
+    pub const fn from_parts(version: u32, commitment: [u8; 32]) -> Self {
+        Self {
+            version,
+            commitment,
+        }
+    }
+
+    pub const fn version(self) -> u32 {
+        self.version
+    }
+
+    pub const fn commitment(self) -> [u8; 32] {
+        self.commitment
+    }
+}
+
+/// One exact terminal leaf retained by D45's installed-closure review.
+///
+/// Provider context remains evidence of which selected row was traversed; it
+/// never alters the physical classification or the service permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAuthorityClosureLeaf {
+    service_schema: crate::provider_plan::ServiceSchemaDigest,
+    requirement_identity: String,
+    provider_plan: crate::provider_plan::ProviderPlanDigest,
+    mechanism: TerminalMechanismIdentity,
+    exercised: TerminalAuthorityDisposition,
+    permitted: TerminalAuthorityDisposition,
+}
+
+impl TerminalAuthorityClosureLeaf {
+    pub fn new(
+        service_schema: crate::provider_plan::ServiceSchemaDigest,
+        requirement_identity: String,
+        provider_plan: crate::provider_plan::ProviderPlanDigest,
+        mechanism: TerminalMechanismIdentity,
+        exercised: TerminalAuthorityDisposition,
+        permitted: TerminalAuthorityDisposition,
+    ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
+        if requirement_identity.is_empty() {
+            return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
+        }
+        if !permitted.contains_all(&exercised) {
+            return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
+        }
+        Ok(Self {
+            service_schema,
+            requirement_identity,
+            provider_plan,
+            mechanism,
+            exercised,
+            permitted,
+        })
+    }
+
+    pub const fn service_schema(&self) -> crate::provider_plan::ServiceSchemaDigest {
+        self.service_schema
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn provider_plan(&self) -> crate::provider_plan::ProviderPlanDigest {
+        self.provider_plan
+    }
+
+    pub const fn mechanism(&self) -> TerminalMechanismIdentity {
+        self.mechanism
+    }
+
+    pub const fn exercised(&self) -> &TerminalAuthorityDisposition {
+        &self.exercised
+    }
+
+    pub const fn permitted(&self) -> &TerminalAuthorityDisposition {
+        &self.permitted
+    }
+}
+
+/// Canonical receiving-authority receipt for one complete selected-provider
+/// closure over the terminal mechanism roles implemented by this compiler.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalAuthorityClosureReviewReceipt {
+    terminal_artifact_identity: [u8; 32],
+    target: omega_target::NativeTarget,
+    selected_provider_closure: crate::SelectedProviderClosureDigest,
+    physical_policy: TerminalAuthorityPolicyIdentity,
+    permission_policy: TerminalAuthorityPermissionPolicyIdentity,
+    leaves: Vec<TerminalAuthorityClosureLeaf>,
+    identity: [u8; 32],
+}
+
+impl TerminalAuthorityClosureReviewReceipt {
+    /// Constructs canonical review data. The receipt is deliberately free
+    /// data: receiving authority comes from running the closure review and
+    /// explicitly accepting the resulting identity, never from possession of
+    /// a structurally valid value alone.
+    pub fn from_reviewed_leaves(
+        terminal_artifact_identity: [u8; 32],
+        target: omega_target::NativeTarget,
+        selected_provider_closure: crate::SelectedProviderClosureDigest,
+        physical_policy: TerminalAuthorityPolicyIdentity,
+        permission_policy: TerminalAuthorityPermissionPolicyIdentity,
+        mut leaves: Vec<TerminalAuthorityClosureLeaf>,
+    ) -> Result<Self, TerminalAuthorityClosureReviewBuildError> {
+        leaves.sort_by(compare_closure_leaves);
+        if leaves
+            .windows(2)
+            .any(|rows| same_closure_leaf_key(&rows[0], &rows[1]))
+        {
+            return Err(TerminalAuthorityClosureReviewBuildError::DuplicateRequirementLeaf);
+        }
+        if leaves
+            .iter()
+            .any(|leaf| !leaf.permitted.contains_all(&leaf.exercised))
+        {
+            return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
+        }
+        let identity = terminal_authority_closure_review_identity(
+            terminal_artifact_identity,
+            target,
+            selected_provider_closure,
+            physical_policy,
+            permission_policy,
+            &leaves,
+        );
+        Ok(Self {
+            terminal_artifact_identity,
+            target,
+            selected_provider_closure,
+            physical_policy,
+            permission_policy,
+            leaves,
+            identity,
+        })
+    }
+
+    pub const fn terminal_artifact_identity(&self) -> [u8; 32] {
+        self.terminal_artifact_identity
+    }
+
+    pub const fn target(&self) -> omega_target::NativeTarget {
+        self.target
+    }
+
+    pub const fn selected_provider_closure(&self) -> crate::SelectedProviderClosureDigest {
+        self.selected_provider_closure
+    }
+
+    pub const fn physical_policy(&self) -> TerminalAuthorityPolicyIdentity {
+        self.physical_policy
+    }
+
+    pub const fn permission_policy(&self) -> TerminalAuthorityPermissionPolicyIdentity {
+        self.permission_policy
+    }
+
+    pub fn leaves(&self) -> &[TerminalAuthorityClosureLeaf] {
+        &self.leaves
+    }
+
+    pub const fn identity(&self) -> [u8; 32] {
+        self.identity
+    }
+
+    pub fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
+        if self.leaves.windows(2).any(|rows| {
+            compare_closure_leaves(&rows[0], &rows[1]).is_ge()
+                || same_closure_leaf_key(&rows[0], &rows[1])
+        }) {
+            return Err(TerminalAuthorityClosureReviewBuildError::NonCanonicalLeaves);
+        }
+        if self
+            .leaves
+            .iter()
+            .any(|leaf| leaf.requirement_identity.is_empty())
+        {
+            return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
+        }
+        if self
+            .leaves
+            .iter()
+            .any(|leaf| !leaf.permitted.contains_all(&leaf.exercised))
+        {
+            return Err(TerminalAuthorityClosureReviewBuildError::ExercisedAuthorityNotPermitted);
+        }
+        let expected = terminal_authority_closure_review_identity(
+            self.terminal_artifact_identity,
+            self.target,
+            self.selected_provider_closure,
+            self.physical_policy,
+            self.permission_policy,
+            &self.leaves,
+        );
+        if self.identity != expected {
+            return Err(TerminalAuthorityClosureReviewBuildError::IdentityMismatch);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAuthorityClosureReviewBuildError {
+    EmptyRequirement,
+    DuplicateRequirementLeaf,
+    NonCanonicalLeaves,
+    ExercisedAuthorityNotPermitted,
+    IdentityMismatch,
+}
+
+fn compare_closure_leaves(
+    left: &TerminalAuthorityClosureLeaf,
+    right: &TerminalAuthorityClosureLeaf,
+) -> std::cmp::Ordering {
+    left.service_schema
+        .as_bytes()
+        .cmp(right.service_schema.as_bytes())
+        .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+        .then_with(|| {
+            left.provider_plan
+                .as_bytes()
+                .cmp(right.provider_plan.as_bytes())
+        })
+        .then_with(|| {
+            terminal_mechanism_identity_bytes(left.mechanism)
+                .cmp(&terminal_mechanism_identity_bytes(right.mechanism))
+        })
+}
+
+fn same_closure_leaf_key(
+    left: &TerminalAuthorityClosureLeaf,
+    right: &TerminalAuthorityClosureLeaf,
+) -> bool {
+    left.service_schema == right.service_schema
+        && left.requirement_identity == right.requirement_identity
+        && left.provider_plan == right.provider_plan
+}
+
+fn terminal_authority_closure_review_identity(
+    terminal_artifact_identity: [u8; 32],
+    target: omega_target::NativeTarget,
+    selected_provider_closure: crate::SelectedProviderClosureDigest,
+    physical_policy: TerminalAuthorityPolicyIdentity,
+    permission_policy: TerminalAuthorityPermissionPolicyIdentity,
+    leaves: &[TerminalAuthorityClosureLeaf],
+) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"omega.terminal-authority.closure-review.v1\0");
+    digest.update(terminal_artifact_identity);
+    digest.update([match target.architecture {
+        omega_target::Architecture::Aarch64 => 0,
+        omega_target::Architecture::X86_64 => 1,
+    }]);
+    digest.update([match target.object_format {
+        omega_target::ObjectFormat::Elf => 0,
+        omega_target::ObjectFormat::MachO => 1,
+        omega_target::ObjectFormat::Coff => 2,
+    }]);
+    digest.update((target.pointer_size as u64).to_be_bytes());
+    digest.update((target.pointer_alignment as u64).to_be_bytes());
+    digest.update(selected_provider_closure.as_bytes());
+    digest.update(physical_policy.version().to_be_bytes());
+    digest.update(physical_policy.commitment());
+    digest.update(permission_policy.version().to_be_bytes());
+    digest.update(permission_policy.commitment());
+    digest.update((leaves.len() as u64).to_be_bytes());
+    for leaf in leaves {
+        digest.update(leaf.service_schema.as_bytes());
+        digest.update((leaf.requirement_identity.len() as u64).to_be_bytes());
+        digest.update(leaf.requirement_identity.as_bytes());
+        digest.update(leaf.provider_plan.as_bytes());
+        let mechanism = terminal_mechanism_identity_bytes(leaf.mechanism);
+        digest.update((mechanism.len() as u64).to_be_bytes());
+        digest.update(mechanism);
+        encode_authority_classes(&mut digest, &leaf.exercised);
+        encode_authority_classes(&mut digest, &leaf.permitted);
+    }
+    digest.finalize().into()
+}
+
+fn encode_authority_classes(digest: &mut Sha256, disposition: &TerminalAuthorityDisposition) {
+    digest.update((disposition.classes().len() as u64).to_be_bytes());
+    for class in disposition.classes() {
+        digest.update([class.canonical_tag()]);
     }
 }
 

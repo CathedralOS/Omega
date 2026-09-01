@@ -9203,10 +9203,33 @@ compiler concept is introduced.
   internally, and realize a zero-argument `MachODylibSymbol` call through
   ordinary object and Mach-O image emission.
 
-  The remaining D45 work is to traverse complete selected-provider closures,
-  including checked adapters, join exact service/schema permissions to every
-  classified leaf, and delete the blessed filename classifier. This direct-
-  import rung claims neither closure completeness nor containment.
+  The current-role closure/containment rung is now live. Native realization
+  walks the actual verified `AbstractOperationPlan` from its entry through all
+  four internal-call forms and exact boundary declarations. An exact selected
+  checked-adapter row must resolve to one installed candidate and is traversed
+  rather than treated as a terminal role; missing, duplicate, substituted, or
+  cyclic candidates reject. The only terminal roles admitted by this bounded
+  rung are the implemented compiler-intrinsic and normalized-foreign roles.
+  Every reachable leaf must have one exact admitted physical mechanism, one
+  exact selected plan/schema method, one physical-policy classification, and
+  one permission-policy row keyed by the exact schema digest and requirement
+  identity. Realization accepts only `exercised <= permitted`. Repeated equal
+  reach deduplicates; changed mechanisms reject. String-backed imports,
+  syscalls, vtable slots/fields, table functions, and checked-physical
+  operations such as `PortWrite` reject explicitly until their role-specific
+  evidence and classification are implemented.
+
+  `NativeArtifact` now retains both receiving-policy identities and a canonical
+  closure-review receipt binding the Terminal artifact, native target, exact
+  selected-provider closure, both policies, and the complete leaf ledger into
+  its strong identity. Replay validates those cross-bindings, while receiver
+  acceptance separately pins the identity produced by the actual review;
+  freely constructible receipt data grants no authority. The remaining D45
+  work is to add the future syscall, firmware, table, and checked-physical role
+  variants with their exact evidence, migrate package service permissions onto
+  this schema-keyed policy, and only then delete the blessed filename
+  classifier. No unsupported role is inferred from a string or accepted by a
+  wildcard.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,

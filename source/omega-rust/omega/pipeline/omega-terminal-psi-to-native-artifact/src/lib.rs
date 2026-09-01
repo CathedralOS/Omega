@@ -33,17 +33,22 @@ pub use optimized_semantic_wrapper_encoding::{
 pub use optimized_semantic_wrapper_object::*;
 pub use realization::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CallbackCustodyNativeRealizationError,
-    CompilerIntrinsicTerminalAuthorityPolicy, NativeBoundaryRealization,
-    NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-    NativeRealizationRequest, RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
-    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
-    TerminalAuthorityPolicyRow, UnclassifiedCompilerIntrinsicTerminalMechanism,
-    UnclassifiedTerminalMechanism, current_compiler_intrinsic_terminal_authority_policy,
-    current_terminal_authority_policy, normalized_foreign_terminal_mechanism,
+    CompilerIntrinsicTerminalAuthorityPolicy, MissingTerminalAuthorityPermission,
+    NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
+    NativeProviderSettlement, NativeRealizationRequest, RealizedNativeArtifactWithCallbackCustody,
+    SettledNativeArtifact, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
+    TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPermissionPolicy,
+    TerminalAuthorityPermissionPolicyBuildError, TerminalAuthorityPermissionPolicyRow,
+    TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
+    UnclassifiedCompilerIntrinsicTerminalMechanism, UnclassifiedTerminalMechanism,
+    current_compiler_intrinsic_terminal_authority_policy,
+    current_terminal_authority_permission_policy, current_terminal_authority_policy,
+    normalized_foreign_terminal_mechanism,
     normalized_foreign_terminal_mechanism_with_callback_materializations, realize_native_artifact,
     realize_native_artifact_with_callback_custody,
     realize_native_artifact_with_checked_boundary_operator_scope,
-    realize_program_entry_native_artifact, terminal_authority_policy_with_rows,
+    realize_program_entry_native_artifact, terminal_authority_permission_policy_with_rows,
+    terminal_authority_policy_with_rows,
 };
 
 #[cfg(test)]

@@ -156,28 +156,42 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution
             None,
         )
         .expect("encode canonical ranked artifact");
-        let native =
-            omega_native_artifact::NativeArtifact::from_emitted_parts(
-                omega_native_artifact::NativeArtifactEmissionParts {
-                    target,
-                    psi_artifact: canonical,
-                    object,
-                    image,
-                    selected_provider_closure_report_identity: 1,
-                    selected_provider_closure_digest:
-                        omega_native_artifact::NativeSelectedProviderClosureDigest::from_digest(
-                            [1; 32],
-                        ),
-                    selected_provider_plans: Vec::new(),
-                    provider_executions: Vec::new(),
-                    terminal_authority_policy_identity:
-                        crate::current_compiler_intrinsic_terminal_authority_policy().identity(),
-                    boundary_application_coverage: None,
-                    physical_evidence_scope:
-                        omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
-                },
+        let selected = omega_effects::SelectedProviderPlanFacts::default();
+        let selected_digest = selected.identity_digest();
+        let physical_policy = crate::current_compiler_intrinsic_terminal_authority_policy();
+        let permission_policy = crate::current_terminal_authority_permission_policy();
+        let closure_review =
+            omega_effects::TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+                *canonical.manifest().identity().as_bytes(),
+                target,
+                selected_digest,
+                physical_policy.identity(),
+                permission_policy.identity(),
+                Vec::new(),
             )
-            .expect("ranked object and final image should enter native-artifact custody");
+            .expect("exact empty terminal-authority closure review");
+        let native = omega_native_artifact::NativeArtifact::from_emitted_parts(
+            omega_native_artifact::NativeArtifactEmissionParts {
+                target,
+                psi_artifact: canonical,
+                object,
+                image,
+                selected_provider_closure_report_identity: 1,
+                selected_provider_closure_digest:
+                    omega_native_artifact::NativeSelectedProviderClosureDigest::from_digest(
+                        *selected_digest.as_bytes(),
+                    ),
+                selected_provider_plans: Vec::new(),
+                provider_executions: Vec::new(),
+                terminal_authority_policy_identity: physical_policy.identity(),
+                terminal_authority_permission_policy_identity: permission_policy.identity(),
+                terminal_authority_closure_review: closure_review,
+                boundary_application_coverage: None,
+                physical_evidence_scope:
+                    omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
+            },
+        )
+        .expect("ranked object and final image should enter native-artifact custody");
         native
             .validate()
             .expect("ranked native artifact should replay independently");

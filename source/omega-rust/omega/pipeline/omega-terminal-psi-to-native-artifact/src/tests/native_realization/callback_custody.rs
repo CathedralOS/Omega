@@ -4,7 +4,7 @@ use crate::tests::fixtures::hosted::hosted_custody;
 use crate::{
     NativeProgramEntrySettlement, NativeRealizationRequest,
     current_compiler_intrinsic_terminal_authority_policy,
-    realize_native_artifact_with_callback_custody,
+    current_terminal_authority_permission_policy, realize_native_artifact_with_callback_custody,
 };
 
 #[test]
@@ -22,6 +22,7 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
             subsystem: 3,
             profile: &profile,
             terminal_authority_policy: current_compiler_intrinsic_terminal_authority_policy(),
+            terminal_authority_permission_policy: current_terminal_authority_permission_policy(),
             program_entry: NativeProgramEntrySettlement::new(&source, None),
             optimization_selections: &optimizations,
             selected_provider_plans: &providers,
@@ -61,6 +62,7 @@ fn native_realization_rejection_returns_callback_custody_without_reordering() {
             subsystem: 0,
             profile: &profile,
             terminal_authority_policy: current_compiler_intrinsic_terminal_authority_policy(),
+            terminal_authority_permission_policy: current_terminal_authority_permission_policy(),
             program_entry: NativeProgramEntrySettlement::new(&source, None),
             optimization_selections: &optimizations,
             selected_provider_plans: &providers,
