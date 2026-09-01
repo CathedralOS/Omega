@@ -1,13 +1,13 @@
 //! Independent reconstruction of proof-only float-meaning projection rows.
 
-use psi_core::IeeeFloatFormat;
+use psi_core::{IeeeFloatFormat, MachineId, ScalarType, ValueId};
 use psi_numerics::{
     float_projection::{FloatProjectionOperation, FloatProjectionRule},
     float_semantics::{FloatFormat, FloatMeaning},
 };
 use psi_terminal::{
     FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionContractIdentity, ProofOnlyValueType,
+    FloatProjectionContractIdentity, ProofOnlyValueType, TerminalModule,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,7 +68,8 @@ pub fn reconstruct_float_meaning_projection(
         return Err(FloatMeaningProjectionVerificationError::IncompleteProjectionLaw);
     }
     let literal_meaning = match projection.source {
-        FloatMeaningSource::TransitionalInput(_) => None,
+        FloatMeaningSource::TransitionalInput(_)
+        | FloatMeaningSource::DirectMachineParameter(_) => None,
         FloatMeaningSource::ExactBinary32Literal(bits) => {
             Some(FloatMeaning::from_f32(f32::from_bits(bits)))
         }
@@ -87,12 +88,62 @@ pub fn reconstruct_float_meaning_projection(
     })
 }
 
+/// Rejoin one artifact-relative source to the complete Terminal machine table.
+/// Catalog reconstruction above remains independent of module topology; this
+/// companion check proves that a direct source is specifically an owner's
+/// declared entry parameter with the exact IEEE format.
+pub(crate) fn verify_direct_float_parameter(
+    module: &TerminalModule,
+    parameter: psi_terminal::DirectMachineFloatParameter,
+) -> Result<(), FloatMeaningProjectionVerificationError> {
+    let mut owners = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == parameter.owner);
+    let owner = owners.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectParameterOwner(parameter.owner),
+    )?;
+    if owners.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectParameterOwner(parameter.owner),
+        );
+    }
+    let mut parameters = owner
+        .parameters
+        .iter()
+        .filter(|declaration| declaration.id == parameter.parameter);
+    let declaration = parameters.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectParameter {
+            owner: parameter.owner,
+            parameter: parameter.parameter,
+        },
+    )?;
+    if parameters.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectParameter {
+                owner: parameter.owner,
+                parameter: parameter.parameter,
+            },
+        );
+    }
+    if declaration.scalar_type != ScalarType::IeeeFloat(parameter.format) {
+        return Err(FloatMeaningProjectionVerificationError::DirectParameterFormatMismatch);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatMeaningProjectionVerificationError {
     ResultTypeMismatch,
     SourceFormatMismatch,
     IncompleteProjectionLaw,
     ContractIdentityMismatch,
+    InvalidDirectParameterOwner(MachineId),
+    InvalidDirectParameter {
+        owner: MachineId,
+        parameter: ValueId,
+    },
+    DirectParameterFormatMismatch,
     EqualityCarrierMismatch,
 }
 

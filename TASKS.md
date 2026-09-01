@@ -3683,7 +3683,7 @@ Remaining:
   structural-subterm relation; every exact internal statement, expression, or
   transition call site owns its own caller/callee rank parameters and resolved
   nonempty member path. Multiple calls between the same machine pair do not
-  collapse. Terminal format 57 / vocabulary 60 retains a closed finite-
+  collapse. Terminal format 58 / vocabulary 61 retains a closed finite-
   inductive proof-type graph and exact source-free component rows. The verifier
   resolves every strict path in that graph, reconstructs semantic component and
   ranking-relation identities plus one shared well-foundedness and one exact
@@ -10774,11 +10774,10 @@ Remaining N6/N8 work:
   tokenless signature, and the exact toolchain `FloatMeaning` result from
   `float_meaning.omg`; checked replay repeats those ownership joins, so a local
   same-shaped lookalike cannot mint or inherit projection facts. Checked and
-  Terminal rows still do not retain the recognized declaration/catalog tuple
-  as artifact-reconstructible contract ownership. They
-  retain proof-position invocation, format, equality, and projection-table
-  coordinates, and
-  replay rejects missing, reordered, substituted, noncanonical, or cross-format
+  Terminal rows retain the recognized declaration/catalog tuple as exact
+  artifact-reconstructible contract identity alongside proof-position
+  invocation, format, equality, and projection-table coordinates. Replay
+  rejects missing, reordered, substituted, noncanonical, or cross-format
   evidence. Runtime Booleans, machine operations/contracts, native lowering,
   and complete proof-kernel discharge remain open under
   [`total_specification_arithmetic.md`](wiki/design_briefs/total_specification_arithmetic.md).
@@ -10820,7 +10819,7 @@ Remaining N6/N8 work:
   `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
   exact toolchain operator and result owners, private contract-free ordinary
   signature, source carrier, hermetic operation identity, and catalog version.
-  Checked deduplication and Terminal format 53 / vocabulary 56 retain that
+  Checked deduplication and Terminal format 58 / vocabulary 61 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
   operands to share that exact format and contract carrier. The first
@@ -10832,13 +10831,21 @@ Remaining N6/N8 work:
   state-contract parameters, locals, members, casts, const parameters,
   non-floats, and foreign owners from direct provenance, and deduplicates only
   the exact owner/parameter/format tuple. Exact literals remain unchanged, and
-  every other nonliteral source remains
-  transitional. Checked-to-Terminal deliberately erases this checked-only
-  provenance through its unchanged fallback input; Terminal format 53 /
-  vocabulary 56 continues to carry only that unchanged fallback input and adds
-  no direct-parameter provenance row. Artifact-aware parameter binding remains an
-  engineering prerequisite because Terminal intentionally has no general float
-  scalar parameter representation. Still open are that Terminal carrier,
+  every other nonliteral source remains transitional. The first
+  artifact-aware nonliteral carrier is now live too. While checked and Terminal
+  representations coexist, checked-to-Terminal rejoins an emitted owner and
+  direct parameter to exact source-handle-free `(MachineId, ValueId, format)`
+  identity. It first requires the complete emitted scalar parameter shape to
+  match the owner's checked entry parameters, so mixed structural/scalar source
+  positions cannot be confused with dense Terminal scalar positions. Owners
+  outside the emitted artifact, and routes without an exact scalar binding,
+  retain the unchanged transitional fallback. Terminal format 58 / vocabulary
+  61 encode that carrier, and independent validation requires the owner to
+  resolve uniquely, the value to occur specifically in that owner's direct
+  parameter table, and its IEEE format to match. Unknown or foreign owners,
+  results, locals, block/operation values, nonparameters, duplicate tuples, and
+  format substitution reject. This adds no runtime operation, value production,
+  fuel, interpreter behavior, or native lowering. Still open are
   artifact-aware carriers for contract results, Terminal values, and structural
   float leaves, plus production proof-ledger discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,

@@ -8,18 +8,18 @@ use psi_core::{ContentProjectionIdentity, IeeeFloatFormat};
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, EvidenceContractLane,
-    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
-    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
-    StructuralDomainDeclaration, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
-    TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule, TerminalPlacedViewInput,
-    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
-    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
-    TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
+    ClosedConformanceParameterKind, ClosedConformanceRow, DirectMachineFloatParameter,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceTermDeclaration,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency,
+    ProofOnlyValueType, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
+    ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
+    StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
+    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
+    TerminalPlacedViewInput, TerminalProofRankingRelation, TerminalProofRecursiveCallSite,
+    TerminalProofRecursiveComponent, TerminalProofRecursiveEdge, TerminalProofRecursiveField,
+    TerminalProofRecursiveMember, TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
     TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
     TerminalReborrowRootHandoffStep, TerminalReborrowSharedCohortMember, TerminalRootServiceReach,
     VocabularyMarker,
@@ -34,8 +34,8 @@ use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_
 use super::quotient_correspondence_wire::{
     decode_quotient_correspondence, encode_quotient_correspondence,
 };
-use super::structural_result_wire::ResultPathWireFormat;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::structural_result_wire::ResultPathWireFormat;
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
     encode_content_projection_expression,
@@ -671,6 +671,15 @@ fn encode_raw_for_result_paths(
                     IeeeFloatFormat::Binary64 => 2,
                 });
             }
+            FloatMeaningSource::DirectMachineParameter(parameter) => {
+                writer.u8(4);
+                writer.id(parameter.owner);
+                writer.id(parameter.parameter);
+                writer.u8(match parameter.format {
+                    IeeeFloatFormat::Binary32 => 1,
+                    IeeeFloatFormat::Binary64 => 2,
+                });
+            }
             FloatMeaningSource::ExactBinary32Literal(bits) => {
                 writer.u8(2);
                 writer.u32(bits);
@@ -934,7 +943,11 @@ pub(super) fn decode_module_body(
         (LEGACY_RESULT_PATH_FORMAT_MARKER, LEGACY_RESULT_PATH_VOCABULARY_MARKER) => {
             ResultPathWireFormat::LegacyWithoutResultPaths
         }
-        _ => return Err(CodecError::UnsupportedVocabularyMarker(vocabulary_marker_raw)),
+        _ => {
+            return Err(CodecError::UnsupportedVocabularyMarker(
+                vocabulary_marker_raw,
+            ));
+        }
     };
     let vocabulary_marker = VocabularyMarker::CURRENT;
     let entry = reader.id("MachineId")?;
@@ -1022,6 +1035,15 @@ pub(super) fn decode_module_body(
                 }),
                 2 => FloatMeaningSource::ExactBinary32Literal(reader.u32()?),
                 3 => FloatMeaningSource::ExactBinary64Literal(reader.u64()?),
+                4 => FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
+                    owner: reader.id("float-meaning direct parameter owner")?,
+                    parameter: reader.id("float-meaning direct parameter value")?,
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
                 tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
             },
             operation: match reader.u8()? {

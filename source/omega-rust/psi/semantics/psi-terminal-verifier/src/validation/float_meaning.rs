@@ -8,6 +8,7 @@ pub(super) fn validate_float_meaning_projections(
     module: &TerminalModule,
 ) -> Result<(), ModuleError> {
     validate_rows(&module.float_meaning_projections)?;
+    validate_direct_sources(module)?;
     validate_equalities(
         &module.float_meaning_projections,
         &module.float_meaning_equalities,
@@ -131,21 +132,36 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
     Ok(())
 }
 
+fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
+    for (index, projection) in module.float_meaning_projections.iter().enumerate() {
+        let psi_terminal::FloatMeaningSource::DirectMachineParameter(parameter) = projection.source
+        else {
+            continue;
+        };
+        let index = u32::try_from(index).unwrap_or(u32::MAX);
+        crate::verification::verify_direct_float_parameter(module, parameter)
+            .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+    }
+    Ok(())
+}
+
 const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Option<u32> {
     match source {
         psi_terminal::FloatMeaningSource::TransitionalInput(input) => Some(input.id.0),
-        psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
+        psi_terminal::FloatMeaningSource::DirectMachineParameter(_)
+        | psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
         | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use psi_core::IeeeFloatFormat;
+    use psi_core::{BlockId, ContractId, IeeeFloatFormat, MachineId, ScalarType, ValueId};
     use psi_terminal::{
-        FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-        FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType,
-        ProofPropositionId, ProofValueDeclaration, ProofValueId,
+        DirectMachineFloatParameter, FloatMeaningEqualityProposition, FloatMeaningProjection,
+        FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
+        FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+        ProofValueId, TerminalMachine, TerminalMachineResult, ValueDeclaration, VocabularyMarker,
     };
 
     fn contract(
@@ -187,6 +203,90 @@ mod tests {
             source: FloatMeaningSource::ExactBinary32Literal(bits),
             operation: FloatMeaningProjectionOperation::Meaning32,
             contract: contract(psi_numerics::float_projection::FloatProjectionOperation::Meaning32),
+        }
+    }
+
+    fn semantic_id<T>(raw: u64, make: impl FnOnce(u64) -> Option<T>) -> T {
+        make(raw).expect("nonzero semantic identity")
+    }
+
+    fn terminal_machine(
+        owner: MachineId,
+        parameter: ValueId,
+        scalar_type: ScalarType,
+    ) -> TerminalMachine {
+        TerminalMachine {
+            id: owner,
+            attachment: None,
+            parameters: vec![ValueDeclaration {
+                id: parameter,
+                scalar_type,
+            }],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: semantic_id(owner.get(), BlockId::new),
+            blocks: Vec::new(),
+            contract: psi_terminal::MachineContract {
+                id: semantic_id(owner.get(), ContractId::new),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn direct_module() -> TerminalModule {
+        let owner = semantic_id(1, MachineId::new);
+        let parameter = semantic_id(1, ValueId::new);
+        TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: owner,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            placed_view_inputs: Vec::new(),
+            reborrow_root_handoffs: Vec::new(),
+            reborrow_restored_call_uses: Vec::new(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: vec![FloatMeaningProjection {
+                result: ProofValueDeclaration {
+                    id: ProofValueId(0),
+                    value_type: ProofOnlyValueType::FloatMeaning,
+                },
+                source: FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
+                    owner,
+                    parameter,
+                    format: IeeeFloatFormat::Binary32,
+                }),
+                operation: FloatMeaningProjectionOperation::Meaning32,
+                contract: contract(
+                    psi_numerics::float_projection::FloatProjectionOperation::Meaning32,
+                ),
+            }],
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![terminal_machine(
+                owner,
+                parameter,
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            )],
         }
     }
 
@@ -265,6 +365,86 @@ mod tests {
         assert!(matches!(
             validate_rows(&[projection]),
             Err(ModuleError::InvalidFloatMeaningProjection { .. })
+        ));
+    }
+
+    #[test]
+    fn direct_parameter_rejoins_only_its_exact_owner_parameter_and_format() {
+        let module = direct_module();
+        assert_eq!(validate_direct_sources(&module), Ok(()));
+
+        let mut unknown_owner = module.clone();
+        let FloatMeaningSource::DirectMachineParameter(parameter) =
+            &mut unknown_owner.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        parameter.owner = semantic_id(2, MachineId::new);
+        assert!(matches!(
+            validate_direct_sources(&unknown_owner),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectParameterOwner(_),
+                ..
+            })
+        ));
+
+        let mut unknown_parameter = module.clone();
+        let FloatMeaningSource::DirectMachineParameter(parameter) =
+            &mut unknown_parameter.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        parameter.parameter = semantic_id(2, ValueId::new);
+        assert!(matches!(
+            validate_direct_sources(&unknown_parameter),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectParameter { .. },
+                ..
+            })
+        ));
+
+        let mut wrong_format = module;
+        let FloatMeaningSource::DirectMachineParameter(parameter) =
+            &mut wrong_format.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        parameter.format = IeeeFloatFormat::Binary64;
+        assert!(matches!(
+            validate_direct_sources(&wrong_format),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::DirectParameterFormatMismatch,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn direct_parameter_identity_includes_the_owner_machine() {
+        let mut module = direct_module();
+        let second_owner = semantic_id(2, MachineId::new);
+        let shared_parameter = semantic_id(1, ValueId::new);
+        module.machines.push(terminal_machine(
+            second_owner,
+            shared_parameter,
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        ));
+        let mut second = module.float_meaning_projections[0];
+        second.result.id = ProofValueId(1);
+        second.source = FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
+            owner: second_owner,
+            parameter: shared_parameter,
+            format: IeeeFloatFormat::Binary32,
+        });
+        module.float_meaning_projections.push(second);
+        assert_eq!(validate_rows(&module.float_meaning_projections), Ok(()));
+        assert_eq!(validate_direct_sources(&module), Ok(()));
+
+        let mut duplicate = second;
+        duplicate.source = module.float_meaning_projections[0].source;
+        assert!(matches!(
+            validate_rows(&[module.float_meaning_projections[0], duplicate]),
+            Err(ModuleError::DuplicateFloatMeaningProjection { .. })
         ));
     }
 

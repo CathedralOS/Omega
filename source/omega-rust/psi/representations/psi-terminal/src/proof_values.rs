@@ -4,7 +4,7 @@
 //! This first closed carrier retains only `FloatMeaning` projections from one
 //! landed IEEE input through the shared format-specific projection catalog.
 
-use psi_core::IeeeFloatFormat;
+use psi_core::{IeeeFloatFormat, MachineId, ValueId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofValueId(pub u32);
@@ -60,6 +60,19 @@ pub struct FloatProjectionInput {
     pub format: IeeeFloatFormat,
 }
 
+/// Exact artifact-relative identity of one direct IEEE machine parameter.
+///
+/// The owner and parameter are Terminal semantic identities, not frontend
+/// symbol handles or producer-local coordinates. The independent verifier
+/// rejoins this row to the owner's direct parameter table and checks the exact
+/// IEEE format before accepting the projection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DirectMachineFloatParameter {
+    pub owner: MachineId,
+    pub parameter: ValueId,
+    pub format: IeeeFloatFormat,
+}
+
 /// Verifier-reconstructible source of one float-meaning projection.
 ///
 /// Exact literals own their raw landed bits and therefore need no producer ID.
@@ -69,6 +82,7 @@ pub struct FloatProjectionInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FloatMeaningSource {
     TransitionalInput(FloatProjectionInput),
+    DirectMachineParameter(DirectMachineFloatParameter),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
@@ -77,6 +91,7 @@ impl FloatMeaningSource {
     pub const fn format(self) -> IeeeFloatFormat {
         match self {
             Self::TransitionalInput(input) => input.format,
+            Self::DirectMachineParameter(parameter) => parameter.format,
             Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
             Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,
         }
