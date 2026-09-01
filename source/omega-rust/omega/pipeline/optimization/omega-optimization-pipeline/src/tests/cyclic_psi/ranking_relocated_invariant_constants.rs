@@ -9,6 +9,9 @@ use omega_optimization_unit::{
 use omega_optimization_validation::{
     OptimizerUnsignedCountdownRankingCertificate, validate_transformed_psi_cycle_components,
 };
+use omega_psi_optimizer::{
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
+};
 
 #[derive(Clone, Copy)]
 enum Relocation {
@@ -35,6 +38,111 @@ fn zero_one_and_pair_relocation_preserve_authenticated_ranking_and_freeze() {
             [moved.certificate]
         );
     }
+}
+
+#[test]
+fn relocated_revisions_reconstruct_counted_invariant_and_placement_custody() {
+    for relocation in [Relocation::Zero, Relocation::One, Relocation::Both] {
+        let RelocatedCountdown {
+            input,
+            unit,
+            certificate,
+            preheader,
+        } = relocated_countdown(relocation);
+        let revision = unit.identity;
+        let session = VerifiedPsiOptimizationSession::from_transformed(input, unit)
+            .expect("exact relocation rebinds transformed analysis custody");
+        assert_eq!(session.unit().identity, revision);
+        assert_eq!(
+            session.ranking_certificates().certificates(),
+            [certificate.clone()]
+        );
+
+        let counted = session
+            .counted_loop_analysis()
+            .expect("counted-loop custody reconstructs after relocation");
+        assert_eq!(counted.snapshot().revision, revision);
+        let invariants = session
+            .countdown_invariant_constant_analysis()
+            .expect("invariant custody reconstructs after relocation");
+        session
+            .validate_countdown_invariant_constant_analysis(invariants.snapshot())
+            .expect("relocated invariant snapshot independently replays");
+        let [constants] = invariants.loops() else {
+            panic!("one relocated countdown invariant row")
+        };
+        let [zero, one] = constants.constants.as_slice() else {
+            panic!("relocated countdown retains exact zero and one")
+        };
+        assert_eq!(
+            zero.location.block,
+            if matches!(relocation, Relocation::Zero | Relocation::Both) {
+                preheader
+            } else {
+                certificate.header
+            }
+        );
+        assert_eq!(
+            one.location.block,
+            if matches!(relocation, Relocation::One | Relocation::Both) {
+                preheader
+            } else {
+                certificate.descent.backedge.source
+            }
+        );
+
+        let placements = session
+            .countdown_invariant_constant_placement_analysis()
+            .expect("placement custody reconstructs after relocation");
+        session
+            .validate_countdown_invariant_constant_placement_analysis(placements.snapshot())
+            .expect("relocated placement snapshot independently replays");
+        let [placed] = placements.loops() else {
+            panic!("one relocated countdown placement row")
+        };
+        let jump = block(session.unit(), preheader).nodes.len() - 1;
+        for (placement, constant) in placed.placements.iter().zip(&constants.constants) {
+            assert_eq!(&placement.constant, constant);
+            assert_eq!(placement.destination.before.block, preheader);
+            assert_eq!(
+                usize::try_from(placement.destination.before.node).ok(),
+                Some(jump)
+            );
+            assert!(certificate.component.internal_edges.iter().any(|edge| {
+                edge.source == placement.consumer.location.block
+                    || edge.target == placement.consumer.location.block
+            }));
+        }
+    }
+}
+
+#[test]
+fn relocated_snapshot_corruption_fails_independent_replay() {
+    let RelocatedCountdown { input, unit, .. } = relocated_countdown(Relocation::Both);
+    let session = VerifiedPsiOptimizationSession::from_transformed(input, unit)
+        .expect("exact pair relocation rebinds analysis custody");
+
+    let mut invariants = session
+        .countdown_invariant_constant_analysis()
+        .expect("relocated invariants")
+        .snapshot()
+        .clone();
+    invariants.loops[0].constants[0].location.node += 1;
+    assert_eq!(
+        session.validate_countdown_invariant_constant_analysis(&invariants),
+        Err(CountdownInvariantConstantAnalysisError::SnapshotMismatch)
+    );
+
+    let mut placements = session
+        .countdown_invariant_constant_placement_analysis()
+        .expect("relocated placements")
+        .snapshot()
+        .clone();
+    placements.loops[0].placements[1].destination.before.node -= 1;
+    assert_eq!(
+        session.validate_countdown_invariant_constant_placement_analysis(&placements),
+        Err(CountdownInvariantConstantPlacementAnalysisError::SnapshotMismatch)
+    );
 }
 
 #[test]
@@ -221,6 +329,17 @@ fn block_mut(
     unit.functions
         .iter_mut()
         .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == block)
+        .expect("block exists")
+}
+
+fn block(
+    unit: &PsiOptimizationUnit,
+    block: psi_core::BlockId,
+) -> &omega_optimization_unit::OptimizationBlock {
+    unit.functions
+        .iter()
+        .flat_map(|function| &function.blocks)
         .find(|candidate| candidate.id == block)
         .expect("block exists")
 }

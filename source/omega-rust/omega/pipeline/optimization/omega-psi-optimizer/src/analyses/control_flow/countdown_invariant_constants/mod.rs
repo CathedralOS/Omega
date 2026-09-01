@@ -7,8 +7,7 @@ use omega_optimization_unit::{
     PsiProvenance, ValueDefinition, ValueDefinitionSite, recompute_psi_optimization_unit_identity,
 };
 use omega_optimization_validation::{
-    CycleComponentId, OptimizerUnsignedCountdownRankingCertificate,
-    ValidatedOptimizerCycleComponents,
+    OptimizerUnsignedCountdownRankingCertificate, ValidatedOptimizerCycleComponents,
 };
 use psi_core::{BlockId, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
 

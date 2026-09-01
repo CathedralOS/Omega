@@ -65,13 +65,30 @@ pub(super) fn reconstruct(
             .copied()
             .ok_or(CountdownInvariantConstantPlacementAnalysisError::ComponentRosterMismatch)?;
         let destination = reconstruct_destination(function, component, counted)?;
+        let constants = [
+            reconstruct_constant(
+                function,
+                certificate,
+                CountdownInvariantConstantRole::PositiveGuardZero,
+            )?,
+            reconstruct_constant(
+                function,
+                certificate,
+                CountdownInvariantConstantRole::BackedgeDecrementOne,
+            )?,
+        ];
+        validate_constant_locations(function, component, certificate, &constants)?;
         let placements = [
             CountdownInvariantConstantRole::PositiveGuardZero,
             CountdownInvariantConstantRole::BackedgeDecrementOne,
         ]
         .into_iter()
         .map(|role| {
-            let constant = reconstruct_constant(function, component, certificate, role)?;
+            let constant = constants
+                .iter()
+                .find(|constant| constant.role == role)
+                .cloned()
+                .ok_or(CountdownInvariantConstantPlacementAnalysisError::ComponentRosterMismatch)?;
             let retained = invariants
                 .constants
                 .iter()
@@ -187,7 +204,6 @@ fn reconstruct_destination(
 
 fn reconstruct_constant(
     function: &PsiOptimizationFunction,
-    component: &omega_optimization_validation::OptimizerCycleComponent,
     certificate: &OptimizerUnsignedCountdownRankingCertificate,
     role: CountdownInvariantConstantRole,
 ) -> Result<CountdownInvariantIntegerConstant, CountdownInvariantConstantPlacementAnalysisError> {
@@ -206,7 +222,6 @@ fn reconstruct_constant(
     let mut matches = function
         .blocks
         .iter()
-        .filter(|block| component.members.binary_search(&block.id).is_ok())
         .flat_map(|block| {
             block
                 .nodes
@@ -272,6 +287,80 @@ fn reconstruct_constant(
         fuel: node.fuel.clone(),
         effect: node.effect,
     })
+}
+
+fn validate_constant_locations(
+    function: &PsiOptimizationFunction,
+    component: &omega_optimization_validation::OptimizerCycleComponent,
+    certificate: &OptimizerUnsignedCountdownRankingCertificate,
+    constants: &[CountdownInvariantIntegerConstant; 2],
+) -> Result<(), CountdownInvariantConstantPlacementAnalysisError> {
+    let original_blocks = [certificate.header, certificate.descent.backedge.source];
+    if constants
+        .iter()
+        .zip(original_blocks)
+        .all(|(constant, original)| constant.location.block == original)
+    {
+        return Ok(());
+    }
+    let [entry] = component.entries.as_slice() else {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    };
+    if component.members.contains(&entry.source) || entry.target != certificate.header {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    }
+    let preheader = function
+        .blocks
+        .iter()
+        .find(|block| block.id == entry.source)
+        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    let jump_index = preheader
+        .nodes
+        .len()
+        .checked_sub(1)
+        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    let O::Jump {
+        psi_edge, target, ..
+    } = preheader.nodes[jump_index].operation
+    else {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    };
+    if psi_edge != entry.edge || target != certificate.header {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    }
+    let moved = constants
+        .iter()
+        .zip(original_blocks)
+        .filter_map(|(constant, original)| {
+            (constant.location.block != original).then_some(constant)
+        })
+        .collect::<Vec<_>>();
+    let suffix_start = jump_index
+        .checked_sub(moved.len())
+        .ok_or_else(|| unsupported(function.machine, certificate.guard.zero_operation))?;
+    if moved.iter().enumerate().any(|(offset, constant)| {
+        constant.location.machine != function.machine
+            || constant.location.block != preheader.id
+            || usize::try_from(constant.location.node).ok() != Some(suffix_start + offset)
+    }) {
+        return Err(unsupported(
+            function.machine,
+            certificate.guard.zero_operation,
+        ));
+    }
+    Ok(())
 }
 
 fn reconstruct_consumer(
