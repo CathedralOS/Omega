@@ -150,10 +150,11 @@ the zero/one roles and authenticated snapshot, `compute.rs` consumes counted-
 loop custody to locate certificate-owned input-free integer constants, and
 `replay.rs` independently reconstructs their component, prospective preheader,
 definition, provenance, fuel, and effect bindings without calling the producer.
-`validate.rs` is the sole admission seam. The mirrored cyclic-Psi leaf pins the
-exact pair, empty acyclic behavior, corruption axes, and the continuing frozen-
-body mutation refusal; this remains analysis authority rather than LICM or
-rewrite authority.
+Both sides search the complete function but accept only the original role
+blocks or sole role-ordered canonical preheader suffix. `validate.rs` is the
+sole admission seam. The mirrored cyclic-Psi leaf pins the exact pair, empty
+acyclic behavior, corruption axes, and post-relocation reauthentication; this
+remains analysis authority rather than LICM or rewrite authority.
 Exact placement discovery descends one more rung through the 58-line
 `countdown_invariant_constant_placement/mod.rs` entrance. `model.rs` owns the
 opaque revision/Terminal snapshot and destination/consumer rows; `compute.rs`
@@ -161,8 +162,8 @@ joins component, counted-loop, and invariant custody; `replay.rs` independently
 rescans definitions, uses, provenance, the preheader jump, and exact consumers;
 and `validate.rs` alone seals the result. The mirrored cyclic-Psi leaf covers
 the exact zero/one destinations, 31 retained corruption axes, stale revision,
-empty acyclic behavior, and the unchanged ranked-block freeze. No rewrite or
-generic-analysis-manager path is introduced.
+empty acyclic behavior, and independent original-or-preheader location replay.
+No rewrite or generic-analysis-manager path is introduced.
 The ranking validator's current-IR side descends through the private
 `countdown_ranking/current/invariant_constants.rs` resolver. The existing
 `current.rs` coordinator still derives the complete certificate, while the new
@@ -174,6 +175,12 @@ provenance and fuel to remain identical; every other component node remains
 positionally frozen. The mirrored relocation-shaped cyclic-Psi leaf and
 layering guard prove this is independent validation mechanics, not an import
 from optimizer placement analyses or a rewrite entrance.
+`VerifiedPsiOptimizationSession::from_transformed` then runs full transformed
+validation and rebinds the session to the new component/ranking custody before
+counted-loop, invariant, and placement analyses are reconstructed. Layering
+forbids those analysis leaves from importing the ranking resolver or freeze
+normalizer. Atomic relocation proposal/application and ledger taxonomy remain
+absent.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -380,6 +387,17 @@ paths, V1 byte stability, corruption, budgets, and cross-target custody.
 Architecture guards register the entrance and ladder and prohibit replay from
 calling producer mechanics.
 
+Abstract spill-effect projection enters through the 24-line
+`abstract_spill_memory_effects/mod.rs` coordination file. `model.rs`,
+`identity.rs`, and `validate.rs` own its closed V1 policy, target-neutral rows,
+identity, and receipt. `compute.rs` descends to separate storage/work leaves;
+`replay.rs` independently reconstructs keyed storage, effects, order, and work
+without importing producer mechanics. The mirrored
+`register_allocation/abstract_spill_memory_effects/mod.rs` test entrance
+descends through fixture, positive/effect, corruption, and budget leaves.
+Architecture guards register the full ladder and enforce the absence of real
+memory/frame/fault/encoding authority.
+
 Function-relative V9 mutation coverage enters through the five-line
 `function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
 into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,
@@ -576,11 +594,20 @@ Constant wrapping integer-subtract immediate translation is the adjacent exact
 ordered sibling under `straight_line_wrapping_integer_subtract_immediate/`.
 Its 27-line entrance joins the two-constant four-operation grammar to
 independent `ReturnIntegerImmediate` replay using
-`IntegerType::wrapping_subtract`. Dedicated fixture, corruption, catalog, and
+`IntegerType::wrapping_sub`. Dedicated fixture, corruption, catalog, and
 optimized-custody leaves cover signed/unsigned fixed 8/16/32/64 and address64
 on all five targets with 180 direct and 180 optimized cases. The family remains
 disjoint from exact/saturating subtract, wrapping add/multiply, plain immediate,
 and parameter wrapping-subtract.
+Constant wrapping integer-multiply immediate translation is the next exact
+arithmetic sibling under `straight_line_wrapping_integer_multiply_immediate/`.
+Its 27-line entrance joins the two-constant four-operation grammar to
+independent `ReturnIntegerImmediate` replay using `IntegerType::wrapping_mul`.
+Dedicated fixture, corruption, catalog, and optimized-custody leaves cover
+signed/unsigned fixed 8/16/32/64 and address64 on all five targets with 180
+direct and 180 optimized cases. The family remains disjoint from
+exact/saturating multiply, wrapping add/subtract, plain immediate, and
+parameter wrapping-multiply.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line

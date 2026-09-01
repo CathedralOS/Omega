@@ -225,6 +225,16 @@ coordinates. Successful relocation reissues identical component and ranking
 custody. This changes no certificate identity, public rewrite API, or execution
 authority.
 
+Transformed session rebinding now enters full transformed-unit validation
+before it reissues component and ranking custody. The invariant producer and
+its independent replay locate each certificate-owned constant across the
+function and accept only its original role block or the sole role-ordered
+canonical preheader suffix; placement replay independently reconstructs the
+same restriction. Counted-loop, invariant, and placement snapshots can
+therefore be regenerated against the new unit revision after canonical
+relocation. This is the downstream reconstruction prerequisite for a future
+atomic proposal/application/ledger boundary, not that boundary itself.
+
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
 rematerialization proof custody; common encoding, layout, whole-function exit,
@@ -381,6 +391,15 @@ producer, and independently keyed replay prevent this field from silently
 widening V1. This is still compiler-private pseudo custody, not selected or
 machine instruction, address, memory, frame, trap, encoding, emission, or
 publication authority.
+
+The following `abstract_spill_memory_effects` V1 entrance projects those homed
+pseudos into exact target-neutral abstract `Read` and `Write` rows. It retains
+pseudo/action anchors, typed source or reload result, physical views/class, and
+abstract storage geometry, but has no fault field, executable address/base,
+frame coordinate, opcode, encoding, emission, or publication type. Direct
+production and independently keyed replay must agree before admission. This
+boundary is permitted by Q1's explicit scope; only conversion into real memory
+operations and frame/probing remains owner-blocked.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

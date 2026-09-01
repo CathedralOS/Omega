@@ -466,7 +466,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Fifty-nine abstract-to-target families are covered,
+  machine-rule family. Sixty abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -860,6 +860,15 @@ decision. Only true language-semantic questions belong in
   remain exact, and reissues identical ranking custody. Malformed location,
   order, provenance, fuel, definition, value/type/result, consumer operands,
   or any other ranked-node change fail closed. No public rewrite API is added.
+  Post-transform session rebinding now runs full transformed validation before
+  issuing new component/ranking custody. Countdown invariant compute/replay and
+  placement replay independently locate each certificate constant across the
+  function, admit only its original role block or the sole role-ordered
+  canonical preheader suffix, and rebuild counted-loop, invariant, and
+  placement snapshots at the new revision. Zero-, one-, and two-constant
+  relocation shapes all reauthenticate; corrupted invariant or placement
+  snapshots fail closed. This completes downstream custody reconstruction, not
+  atomic relocation proposal, application, or ledger authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
@@ -867,8 +876,10 @@ decision. Only true language-semantic questions belong in
 - [>] Retarget LICM and other loop consumers to validated Terminal SCCs. The
   exact countdown-induction, countdown-invariant-constant, and constant-
   placement analyses are the first non-transforming consumers of authenticated
-  component, ranking, and ordinary `LoopForest` custody; general consumers and
-  rewrite-bearing passes remain open.
+  component, ranking, and ordinary `LoopForest` custody. Canonical relocated
+  constants can now rebuild all four analysis rungs in a transformed verified
+  session; general consumers and the atomic rewrite/ledger boundary remain
+  open.
 - [ ] Implement LICM only after transforms can invalidate and reconstruct
   component, loop-carried custody, and ranking evidence.
 
@@ -981,11 +992,18 @@ decision. Only true language-semantic questions belong in
   - [x] Add constant wrapping-integer-subtract-to-immediate as its own exact
     abstract-to-target family. Its four-operation grammar and independent
     replay retain both ordered constants, all definitions, return/provenance,
-    and the exact `IntegerType::wrapping_subtract` result for signed/unsigned
+    and the exact `IntegerType::wrapping_sub` result for signed/unsigned
     fixed 8/16/32/64 and address64. Direct and optimized custody each cover
     180 type/pair/target cases; catalog ambiguity, corruption,
     exact/saturating policy, add/multiply/plain/parameter substitution fail
     closed.
+  - [x] Add constant wrapping-integer-multiply-to-immediate as its own exact
+    abstract-to-target family. Its four-operation grammar and independent
+    replay retain both ordered constants, all definitions, return/provenance,
+    and the exact `IntegerType::wrapping_mul` result for signed/unsigned fixed
+    8/16/32/64 and address64. Direct and optimized custody each cover 180
+    type/pair/target cases; catalog ambiguity, corruption, exact/saturating
+    policy, add/subtract/plain/parameter substitution fail closed.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both
@@ -1269,8 +1287,19 @@ decision. Only true language-semantic questions belong in
   remains compiler-private pseudo custody: it creates no real instruction,
   address, memory effect, frame, trap, encoding, emission, or publication
   authority.
-  Abstract spill memory effects and ISA lowering, final frame offsets, unwind/
-  probing, and downstream realization remain engineering work. Real memory
+  An eighteenth independently replayed V1 artifact now projects those homed
+  pseudos into exact target-neutral abstract spill `Read`/`Write` effect rows.
+  It retains pseudo/action identity, anchors, typed stored source or reload
+  result, source/destination views and class, plus abstract storage class,
+  offset, size, and alignment. Direct production and independently keyed replay
+  agree on three writes and three reads over all three logical slots on both
+  victim paths and architectures under exact usage `{7, 9, 15, 6, 10}`. Every
+  root, lineage, geometry, view, order, usage, five first-under budget axes, and
+  cross-target custody fail closed. The carrier has no fault field, executable
+  address/base, frame coordinate, opcode, encoding, emission, or publication
+  type, so Q1 remains isolated to real memory realization and frame/probing.
+  ISA lowering, executable spill accesses, final frame offsets, unwind/probing,
+  and downstream realization remain engineering work. Real memory
   insertion is owner-blocked only on the spill-access fault semantics recorded
   in `OWNER_QUESTIONS.md`; the abstract schedules, reload-home analyses, and
   synthetic namespaces are not blocked.

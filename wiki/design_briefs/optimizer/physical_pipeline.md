@@ -194,13 +194,21 @@ subtraction/multiplication, plain-immediate, and parameter-family substitution
 fail closed.
 Constant wrapping integer subtract is the ordered arithmetic sibling. It
 validates two same-type constants, `WrappingIntegerSubtract`, and `Return`,
-computes modulo the declared width through `IntegerType::wrapping_subtract`,
+computes modulo the declared width through `IntegerType::wrapping_sub`,
 and requires one exact `ReturnIntegerImmediate` with ordered provenance.
 Signed/unsigned fixed 8/16/32/64 and address64 each cross four ordered wrap
 boundaries at direct and optimized custody on all five targets. Exact or
 saturating policy, addition/multiplication, plain-immediate, and parameter-
 family substitution fail closed; operand order is never treated as
 commutative.
+Constant wrapping integer multiply is a separate exact arithmetic sibling. It
+validates two same-type constants, `WrappingIntegerMultiply`, and `Return`,
+computes modulo the declared width through `IntegerType::wrapping_mul`, and
+requires one exact `ReturnIntegerImmediate` with ordered provenance. Signed/
+unsigned fixed 8/16/32/64 and address64 each cross four ordered wrap boundaries
+at direct and optimized custody on all five targets. Exact or saturating
+policy, addition/subtraction, plain-immediate, and parameter-family
+substitution fail closed.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -679,6 +687,15 @@ and independently keyed replay bind the V1, home, register-environment,
 allocator-availability, optimization-unit, fuel, budget, and usage roots while
 a golden pins V1 identity bytes. It grants no ISA opcode, stack address, memory
 effect, frame, fault, encoding, emission, or publication authority.
+
+Abstract spill-memory effects form the next V1 boundary. The artifact maps
+each homed store/reload to an exact target-neutral `Write`/`Read` row and retains
+the pseudo/action anchors, typed source/result lineage, views/class, and
+abstract storage offset/size/alignment. Its direct producer and independently
+keyed replay agree on order, roots, identity, and bounded work across both
+victim lineages and architectures. The model intentionally has no fault field,
+address base, frame coordinate, opcode, encoding, emission, or publication
+carrier; executable spill realization remains behind Q1.
 
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is
