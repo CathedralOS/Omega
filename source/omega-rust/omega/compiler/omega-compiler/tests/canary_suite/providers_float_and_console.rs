@@ -370,6 +370,65 @@ fn specialized_boundary_operator_physical_custody_canary_compiles() {
 }
 
 #[test]
+fn specialized_fixed_operator_physical_custody_canary_compiles() {
+    let canary = pass_canary("providers/specialized_fixed_operator_physical_custody");
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("specialized fixed-token physical-custody canary should check");
+    let selected_remainders = checked
+        .facts
+        .operators
+        .resolved_uses()
+        .filter(|operator_use| operator_use.spelling == psi_language_core::OperatorSpelling::Modulo)
+        .filter_map(|operator_use| checked.facts.operators.selected_candidate(operator_use))
+        .filter(|candidate| candidate.is_boundary)
+        .count();
+    assert_eq!(
+        selected_remainders, 1,
+        "one exact generic boundary `%` selection"
+    );
+    assert_selected_operator_native_physical_call(
+        &canary,
+        "specialized fixed-token operator physical-custody canary",
+        omega_boundary_applications::BoundaryApplicationRealizationRole::SpecializedCheckedBody,
+        0,
+    );
+
+    let mut substituted = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("specialized fixed-token false twin should reach checked custody");
+    let [application] = substituted
+        .facts
+        .operators
+        .boundary_applications
+        .as_mut_slice()
+    else {
+        panic!("one specialized fixed-token application")
+    };
+    let [
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+            binder_symbol, ..
+        },
+    ] = application.arguments.as_mut_slice()
+    else {
+        panic!("one specialized fixed-token type argument")
+    };
+    *binder_symbol = psi_symbols::SymbolHandle::invalid();
+    let diagnostics =
+        omega_selected_dispatch::derive_checked_specialized_operator_application_realizations(
+            &substituted,
+            substituted.selected_provider_plans(),
+        )
+        .expect_err("a substituted fixed-token D29 application must reject");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolves to 0 exact specializations for one application")
+        }),
+        "substituted fixed-token diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
 fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
     let canary = pass_canary("providers/nested_checked_boundary_operator_physical_custody");
     assert_selected_operator_native_physical_call(

@@ -339,7 +339,12 @@ fn selected_operator_applications(
     let mut diagnostics = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 let expression = match statement {
                     StatementNode::Expression(expression) => Some(*expression),
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
@@ -354,7 +359,13 @@ fn selected_operator_applications(
                     continue;
                 };
                 match selected_operator_application_at_expression(
-                    program, &symbols, operator, machine, state, expression,
+                    program,
+                    &symbols,
+                    operator,
+                    machine,
+                    state,
+                    statement_index,
+                    expression,
                 ) {
                     Ok(Some(application)) if !application.is_empty() => {
                         if !applications.contains(&application) {
@@ -381,6 +392,7 @@ fn selected_operator_application_at_expression(
     operator: &psi_typed_trees::operator::OperatorDefinition,
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
+    statement_index: usize,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Result<Option<Vec<psi_typed_trees::operator::ClosedOperatorApplicationArgument>>, Diagnostic> {
     let (operands, explicit_static_arguments) =
@@ -420,10 +432,19 @@ fn selected_operator_application_at_expression(
             }
             _ => return Ok(None),
         };
+    let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        statement_index,
+        role: Default::default(),
+    };
     let operand_types = operands
         .iter()
         .map(|operand| {
-            psi_validation::declared_place_type_raw(program, machine, Some(state), *operand)
+            crate::operators::expression_type_reference_for_origin(program, *operand, origin)
+                .or_else(|| {
+                    psi_validation::declared_place_type_raw(program, machine, Some(state), *operand)
+                })
                 .or_else(|| {
                     psi_validation::landed_integer_literal_type_reference(program, *operand)
                 })
