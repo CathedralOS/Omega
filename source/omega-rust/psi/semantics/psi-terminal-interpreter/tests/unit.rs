@@ -471,6 +471,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
                 qualifications: vec![domain],
+                projected_qualifications: Vec::new(),
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
@@ -2220,6 +2221,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             result: None,
             requires: Vec::new(),
@@ -2576,6 +2578,7 @@ fn structural_parameter(
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: vec![domain],
+        projected_qualifications: Vec::new(),
     }
 }
 
@@ -2872,6 +2875,7 @@ fn write_only_primitive_call_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let place = |id, position| StructuralPlaceDeclaration {
         id,
@@ -3006,6 +3010,7 @@ fn nominal_affine_module() -> TerminalModule {
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 }],
                 ranked_scc: None,
                 result: TerminalMachineResult::Unit,
@@ -3448,6 +3453,7 @@ fn ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(2),
@@ -3560,6 +3566,7 @@ fn three_ordered_empty_nominal_affine_module(same_target: bool) -> TerminalModul
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(3),
@@ -3664,6 +3671,7 @@ fn three_ordered_shared_executable_nominal_affine_module() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(3),
@@ -3854,6 +3862,7 @@ fn partial_affine_field_module() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
@@ -3912,6 +3921,7 @@ fn partial_affine_field_module() -> TerminalModule {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
@@ -3990,6 +4000,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             multiplicity: StructuralMultiplicity::Linear,
             access: StructuralAccess::Owned,
             qualifications: vec![domain],
+            projected_qualifications: Vec::new(),
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
@@ -4094,6 +4105,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             multiplicity: StructuralMultiplicity::Linear,
             access: StructuralAccess::Owned,
             qualifications: vec![domain],
+            projected_qualifications: Vec::new(),
         }],
         ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {

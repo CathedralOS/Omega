@@ -41,6 +41,7 @@ pub(in crate::tests) fn structural_call_fixture() -> (
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::Owned,
         qualifications: vec![psi_core::StructuralDomainId::new(1).unwrap()],
+        projected_qualifications: Vec::new(),
     };
     let abstract_plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {

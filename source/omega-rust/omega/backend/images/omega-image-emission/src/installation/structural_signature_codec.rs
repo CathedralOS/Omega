@@ -60,6 +60,7 @@ pub(super) fn decode_structural_parameter(
         multiplicity,
         access,
         qualifications: decode_domains(reader)?,
+        projected_qualifications: Vec::new(),
     })
 }
 

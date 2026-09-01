@@ -23,6 +23,7 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
         multiplicity: StructuralMultiplicity::Affine,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     AbstractOperationPlan {
         psi: identity(),
@@ -257,6 +258,7 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                         multiplicity: StructuralMultiplicity::Affine,
                         access: StructuralAccess::Owned,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     },
                     StructuralParameterDeclaration {
                         place: plain,
@@ -266,6 +268,7 @@ fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
                         multiplicity: StructuralMultiplicity::Affine,
                         access: StructuralAccess::Owned,
                         qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
                     },
                 ],
                 result: AbstractFunctionResult::Scalar(AbstractResult {
@@ -569,6 +572,7 @@ fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bod
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         })
         .collect::<Vec<_>>();
     let executable_call = AbstractOperation::CallUnit {

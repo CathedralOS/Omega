@@ -137,6 +137,7 @@ fn integer_widen_shared_envelope_corruption_fails_closed() {
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
                     qualifications: vec![StructuralDomainId::new(44_012).unwrap()],
+                    projected_qualifications: Vec::new(),
                 });
         }),
         StraightLineIntegerWidenParameterTranslationError::SourceStructuralParameters

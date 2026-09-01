@@ -88,6 +88,7 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
                     multiplicity: StructuralMultiplicity::Affine,
                     access: parameter.access,
                     qualifications: parameter.qualifications.clone(),
+                    projected_qualifications: parameter.projected_qualifications.clone(),
                 })
                 .collect(),
         },
@@ -122,6 +123,7 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
                 multiplicity: StructuralMultiplicity::Affine,
                 access: parameter.access,
                 qualifications: parameter.qualifications.clone(),
+                projected_qualifications: parameter.projected_qualifications.clone(),
             })
             .collect(),
         result: None,

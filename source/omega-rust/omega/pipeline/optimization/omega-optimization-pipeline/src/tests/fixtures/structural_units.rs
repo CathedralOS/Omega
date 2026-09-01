@@ -121,6 +121,42 @@ pub(crate) fn unit_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn trivial_affine_local_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let structural_type = StructuralTypeId::new(3_512).unwrap();
+    let place = PlaceId::new(3_513).unwrap();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "TrivialAffineToken".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type,
+                construction: None,
+            },
+        });
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(3_514).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::EstablishTrivialAffineLocal { destination: place },
+    });
+    let Terminator::ReturnUnit {
+        trivial_affine_discards,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    *trivial_affine_discards = vec![place];
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn staged_unit_return(
     target: NativeTarget,
 ) -> (Vec<u8>, Vec<u8>, StagedOptimizedSelectedInstructions) {
@@ -168,6 +204,7 @@ pub(crate) fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }];
     entry.structural_places = vec![StructuralPlaceDeclaration {
         id: place,
@@ -194,6 +231,7 @@ pub(crate) fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::Owned,
         qualifications: vec![granted],
+        projected_qualifications: Vec::new(),
     };
     let places = |roots: [PlaceId; 2]| {
         roots

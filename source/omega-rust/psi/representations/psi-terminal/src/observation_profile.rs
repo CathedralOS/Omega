@@ -5,6 +5,7 @@ use psi_core::{
     StructuralDomainId, StructuralTypeId,
 };
 
+use crate::StructuralPathQualification;
 use crate::{CrashCause, StructuralAccess, StructuralMultiplicity, TerminalPsiIdentity};
 
 /// The closed consumer-selected observation schema understood by this build.
@@ -47,6 +48,7 @@ pub struct TerminalTraceStructuralSchema {
     pub multiplicity: StructuralMultiplicity,
     pub access: StructuralAccess,
     pub qualifications: Vec<StructuralDomainId>,
+    pub projected_qualifications: Vec<StructuralPathQualification>,
     pub comparison: TerminalTraceValueComparison,
 }
 

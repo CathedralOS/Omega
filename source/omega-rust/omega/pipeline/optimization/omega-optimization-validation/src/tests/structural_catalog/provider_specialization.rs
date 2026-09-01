@@ -86,6 +86,7 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
             multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
             access: psi_terminal::StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         },
     );
     self_parameter.functions[0]

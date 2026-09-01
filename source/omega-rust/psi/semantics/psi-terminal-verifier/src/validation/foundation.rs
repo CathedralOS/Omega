@@ -1171,6 +1171,7 @@ fn provider_signature_parameter(
         multiplicity: parameter.multiplicity,
         access: parameter.access,
         qualifications: parameter.qualifications.clone(),
+        projected_qualifications: parameter.projected_qualifications.clone(),
     }
 }
 
@@ -1388,6 +1389,46 @@ fn validate_structural_signature(
                 parameter.place,
             ));
         }
+        if parameter
+            .projected_qualifications
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        {
+            return Err(ModuleError::NonCanonicalProjectedStructuralQualifications(
+                parameter.place,
+            ));
+        }
+        for qualification in &parameter.projected_qualifications {
+            let Some(projected_type) = (!qualification.path.is_empty())
+                .then(|| {
+                    resolve_structural_path_in_types(
+                        types,
+                        parameter.structural_type,
+                        &qualification.path,
+                    )
+                })
+                .flatten()
+            else {
+                return Err(ModuleError::InvalidProjectedStructuralQualificationPath {
+                    place: parameter.place,
+                    path: qualification.path.clone(),
+                });
+            };
+            let Some(domain) = domains.get(&qualification.domain) else {
+                return Err(ModuleError::UnknownStructuralDomain(qualification.domain));
+            };
+            if domain.carrier != projected_type {
+                return Err(
+                    ModuleError::ProjectedStructuralQualificationCarrierMismatch {
+                        place: parameter.place,
+                        path: qualification.path.clone(),
+                        domain: domain.id,
+                        expected: projected_type,
+                        actual: domain.carrier,
+                    },
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -1426,6 +1467,34 @@ fn validate_service_ceiling(
         return Err(ModuleError::NonCanonicalPublishedServiceCeiling(owner));
     }
     Ok(())
+}
+
+fn resolve_structural_path_in_types(
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    mut structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    types.get(&structural_type)?;
+    for segment in path {
+        let declaration = types.get(&structural_type)?;
+        structural_type = match (segment, &declaration.shape) {
+            (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                next
+            }
+            (
+                StructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
+        };
+    }
+    Some(structural_type)
 }
 
 fn validate_machine_entry_claims(

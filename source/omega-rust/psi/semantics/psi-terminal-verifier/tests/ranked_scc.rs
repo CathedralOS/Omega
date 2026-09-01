@@ -322,6 +322,7 @@ fn add_loop_preserved_affine_parameter(module: &mut TerminalModule) -> PlaceId {
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: place,

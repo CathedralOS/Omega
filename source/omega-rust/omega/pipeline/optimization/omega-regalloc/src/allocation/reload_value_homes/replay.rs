@@ -64,7 +64,7 @@ struct ReloadSpec {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn replay(
+pub(in crate::allocation) fn replay(
     insertion: &ValidatedAbstractSpillInsertion,
     logical: &ValidatedLogicalSpillOperations,
     legality: &ValidatedAllocationLegality,

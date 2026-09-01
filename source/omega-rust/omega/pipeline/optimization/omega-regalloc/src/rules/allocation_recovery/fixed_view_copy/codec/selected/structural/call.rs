@@ -38,7 +38,7 @@ fn encode_call(
     retain_contract: bool,
 ) {
     bytes.extend_from_slice(&call.id.0.to_le_bytes());
-    encode_call_source(bytes, &call.source);
+    encode_call_source(bytes, &call.source, retain_contract);
     bytes.extend_from_slice(&call.operation.get().to_le_bytes());
     bytes.extend_from_slice(&call.callee.get().to_le_bytes());
     encode_call_plan(bytes, &call.caller_call_plan);
@@ -90,7 +90,7 @@ fn decode_call(
     retain_contract: bool,
 ) -> Result<SelectedStructuralUnitCallInstruction, FixedViewCopyDecodeError> {
     let id = SelectedInstructionId(cursor.u32()?);
-    let source = decode_call_source(cursor)?;
+    let source = decode_call_source(cursor, retain_contract)?;
     let operation = decode_id(cursor, OperationId::new)?;
     let callee = decode_id(cursor, MachineId::new)?;
     let caller_call_plan = decode_call_plan(cursor)?;

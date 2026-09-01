@@ -85,6 +85,7 @@ pub(super) fn write_only_store_plan() -> AbstractOperationPlan {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     AbstractOperationPlan {
         psi: TerminalPsiIdentity {

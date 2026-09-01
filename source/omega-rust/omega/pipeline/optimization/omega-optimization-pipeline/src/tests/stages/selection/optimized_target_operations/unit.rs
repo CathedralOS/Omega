@@ -1,4 +1,66 @@
 use super::*;
+use psi_terminal::TerminalAffineCleanupAction;
+
+#[test]
+fn optimized_target_lowering_retains_trivial_affine_local_cleanup_custody() {
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = trivial_affine_local_unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let receipt = target.translation_validation();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineTrivialAffineLocalUnitReturn(
+                row,
+            ),
+        ) = receipt.function_roster()[0].translation()
+        else {
+            panic!("optimized trivial affine local must retain its validated family row")
+        };
+        assert_eq!(
+            row.establishment_operation(),
+            OperationId::new(3_514).unwrap()
+        );
+        assert_eq!(row.place().id, PlaceId::new(3_513).unwrap());
+        assert_eq!(
+            row.structural_type().id,
+            StructuralTypeId::new(3_512).unwrap()
+        );
+        let TargetOperation::UnitBody(body) = &target.target_operations().functions[0].operation
+        else {
+            panic!("optimized trivial affine local must remain in the Unit body carrier")
+        };
+        assert!(matches!(
+            body.operations.as_slice(),
+            [
+                TargetUnitOperation::EstablishTrivialAffineLocal {
+                    psi_operation,
+                    place,
+                    structural_type,
+                },
+                TargetUnitOperation::Return { cleanup_actions, .. },
+            ] if *psi_operation == OperationId::new(3_514).unwrap()
+                && place.id == PlaceId::new(3_513).unwrap()
+                && structural_type.id == StructuralTypeId::new(3_512).unwrap()
+                && matches!(
+                    cleanup_actions.as_slice(),
+                    [TerminalAffineCleanupAction::DiscardRoot(root)]
+                        if *root == PlaceId::new(3_513).unwrap()
+                )
+        ));
+    }
+}
 
 #[test]
 fn optimized_target_lowering_retains_parameterless_unit_call_custody() {

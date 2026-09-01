@@ -3342,6 +3342,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     machine
         .structural_parameters
@@ -3353,6 +3354,7 @@ fn structural_return_requires_exact_trivial_affine_local_establishment_and_clean
             multiplicity: StructuralMultiplicity::Affine,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: affine_parameter_place,
@@ -4531,6 +4533,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             multiplicity: StructuralMultiplicity::Linear,
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         }],
         entry_claims: vec![psi_terminal::EntryClaim {
             claim,
@@ -4664,6 +4667,7 @@ fn structural_call_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let caller_machine = TerminalMachine {
         id: caller,
@@ -5025,6 +5029,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let machine = TerminalMachine {
         id: MachineId::new(90).expect("machine"),

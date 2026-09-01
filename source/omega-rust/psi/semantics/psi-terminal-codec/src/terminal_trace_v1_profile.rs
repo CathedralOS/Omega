@@ -13,6 +13,9 @@ use psi_terminal_verifier::{
 };
 
 use crate::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use crate::structural_signature_wire::{
+    decode_projected_qualifications, encode_projected_qualifications,
+};
 use crate::wire::{Reader, Writer};
 use crate::{CodecError, terminal_psi_identity};
 
@@ -430,6 +433,7 @@ fn encode_structural_schema(
     for qualification in &schema.qualifications {
         writer.id(*qualification);
     }
+    encode_projected_qualifications(writer, &schema.projected_qualifications)?;
     Ok(())
 }
 
@@ -465,11 +469,13 @@ fn decode_structural_schema(
                 .map_err(Into::into)
         })
         .collect::<Result<Vec<_>, TerminalTraceV1ProfileCodecError>>()?;
+    let projected_qualifications = decode_projected_qualifications(reader)?;
     Ok(TerminalTraceStructuralSchema {
         structural_type,
         multiplicity,
         access,
         qualifications,
+        projected_qualifications,
         comparison,
     })
 }
@@ -581,6 +587,13 @@ fn validate_structural_schema(
 ) -> Result<(), TerminalTraceV1ProfileCodecError> {
     if schema
         .qualifications
+        .windows(2)
+        .any(|values| values[0] >= values[1])
+    {
+        return Err(TerminalTraceV1ProfileCodecError::NonCanonicalStructuralQualifications);
+    }
+    if schema
+        .projected_qualifications
         .windows(2)
         .any(|values| values[0] >= values[1])
     {
@@ -722,6 +735,7 @@ mod tests {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 },
                 StructuralParameterDeclaration {
                     place: id(4, PlaceId::new),
@@ -731,6 +745,7 @@ mod tests {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 },
             ],
             result: Some(u8_type),
@@ -758,6 +773,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             },
             StructuralParameterDeclaration {
                 place: second_place,
@@ -767,6 +783,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             },
         ];
         module.machines[0].structural_places = vec![
@@ -892,6 +909,7 @@ mod tests {
                 id(31, StructuralDomainId::new),
                 id(32, StructuralDomainId::new),
             ],
+            projected_qualifications: Vec::new(),
             comparison: exact,
         }];
         profile.root.result =
@@ -900,6 +918,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
                 qualifications: vec![id(34, StructuralDomainId::new)],
+                projected_qualifications: Vec::new(),
                 comparison: exact,
             });
 
@@ -1226,6 +1245,7 @@ mod tests {
                 id(32, StructuralDomainId::new),
                 id(31, StructuralDomainId::new),
             ],
+            projected_qualifications: Vec::new(),
             comparison: TerminalTraceValueComparison::ExactSemanticValue,
         }];
         assert!(matches!(

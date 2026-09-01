@@ -15,9 +15,10 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-eight families reconstruct parameterless straight-line
+replay. Its first thirty-nine families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
-followed by Unit return, integer and Boolean
+followed by Unit return, one exact trivial affine local establishment followed
+by Unit return and its discard cleanup, integer and Boolean
 literal returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -55,6 +56,12 @@ crash-continuation rosters, empty structural arguments and claim transfers,
 empty native call plan, target provenance, cleanup, and return edge on every
 native target. Exact operation rosters keep it disjoint from return-only and
 PortWrite families.
+The trivial-affine-local sibling requires one empty-record declaration at
+ordinal zero, no construction, and the exact `DiscardRoot` cleanup before Unit
+return. Its independent replay reconstructs the establishment, local/type
+identity, native Unit call plan, return edge, cleanup, and provenance on every
+native target; its two-operation roster keeps it disjoint from the other Unit
+families.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -297,9 +304,10 @@ producer self-attestation.
 Its public artifact is V6. V4 remains decode-only and byte-pinned without a
 structural roster; V5 retains the structural roster but decodes call proof and
 crash rows as empty. V6 encodes those rows canonically through the shared
-Terminal crash-route codec, binds them in selected V12 and fixed-view V4
-semantic identities, and authenticates the complete payload in the outer
-envelope.
+Terminal crash-route codec and also retains parameter-rooted projected
+qualification rows. Those rows are bound by the selected and fixed-view
+semantic identities and authenticated by the outer envelope; legacy decoders
+reconstruct fields absent from their payload versions as empty.
 
 The current transition-free, spill-free home stage is a deterministic
 constraint-graph allocator. Distinct use/definition ties form quotient
@@ -380,8 +388,16 @@ typed `ReloadPressure { function: 0, result: 0 }` branch. The fixture binds the
 pressure point, incoming and victim values, store-before, reload-before, and
 complete rewrite suffix without directly constructing any compiler-private
 `Validated*` receipt. This establishes the deferred branch as reachable; it
-does not publish an epoch-one seed. The next recursive-recovery rung must begin
-at that failure with a bounded epoch/worklist artifact.
+does not itself publish an epoch-one seed. The adjacent bounded spill-recovery
+worklist begins only at that independently reproduced failure and emits exactly
+one `{epoch: 1, ordinal: 0}` item. V1 retains the source reload, machine, block,
+half-open lifetime, reload class, complete canonical candidate domain, and
+separately identity-bound trigger/worklist budgets. Production and validation
+reconstruct all usage axes independently. The item does not choose a second
+victim or assigned view, create a selected virtual register or rewrite, or
+grant memory, frame, trap, unwind, encoding, emission, or publication
+authority. Its next consumer must make the second spill choice and generalize
+logical insertion/reanalysis under a new bounded contract.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

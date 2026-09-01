@@ -7,6 +7,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineUnitReturn,
     StraightLinePortWriteUnitReturn,
     StraightLineUnitCallReturn,
+    StraightLineTrivialAffineLocalUnitReturn,
     StraightLineScalarCrash,
     StraightLineIntegerParameter,
     StraightLineBooleanParameter,

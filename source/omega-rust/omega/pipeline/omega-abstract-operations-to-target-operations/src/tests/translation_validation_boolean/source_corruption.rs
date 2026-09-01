@@ -23,6 +23,7 @@ fn boolean_source_shape_and_result_corruption_fails_closed() {
                     multiplicity: StructuralMultiplicity::Affine,
                     access: StructuralAccess::Owned,
                     qualifications: vec![StructuralDomainId::new(1_104).unwrap()],
+                    projected_qualifications: Vec::new(),
                 });
         }),
         StraightLineBooleanImmediateTranslationError::SourceStructuralParameters

@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        58
+        59
     }
 }
 
@@ -758,6 +758,20 @@ pub struct StructuralParameterDeclaration {
     /// establish these facts by declaration: its caller or root installation
     /// must discharge them at invocation.
     pub qualifications: Vec<StructuralDomainId>,
+    /// Strictly ordered exact qualification preconditions rooted beneath this
+    /// parameter. Whole-root qualifications remain in `qualifications`; every
+    /// row here must carry a nonempty path whose resolved structural type is
+    /// the declared domain carrier.
+    pub projected_qualifications: Vec<StructuralPathQualification>,
+}
+
+/// One exact qualification carried by a nonempty structural path beneath a
+/// parameter root. The path is occurrence-relative, not a type-wide rule: a
+/// qualification on one field never qualifies a sibling, prefix, or root.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StructuralPathQualification {
+    pub path: Vec<StructuralPathSegment>,
+    pub domain: StructuralDomainId,
 }
 
 /// Exact normal structural result signature. The result place is proof-visible
@@ -971,6 +985,7 @@ pub struct ProviderSignatureParameter {
     pub multiplicity: StructuralMultiplicity,
     pub access: StructuralAccess,
     pub qualifications: Vec<StructuralDomainId>,
+    pub projected_qualifications: Vec<StructuralPathQualification>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

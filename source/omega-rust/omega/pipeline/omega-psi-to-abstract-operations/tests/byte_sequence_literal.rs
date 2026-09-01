@@ -84,6 +84,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             result: None,
             requires: Vec::new(),

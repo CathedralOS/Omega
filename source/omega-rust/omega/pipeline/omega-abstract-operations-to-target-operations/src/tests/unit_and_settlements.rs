@@ -17,6 +17,7 @@ fn write_only_primitive_store_stops_at_explicit_physical_lowering_fence() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let plan = AbstractOperationPlan {
         psi: identity(),
@@ -218,6 +219,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             result: None,
             requires: Vec::new(),
@@ -239,6 +241,7 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
                 multiplicity: StructuralMultiplicity::Affine,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             result: AbstractFunctionResult::Unit,
             entry_claims: Vec::new(),
@@ -444,6 +447,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: vec![granted],
+        projected_qualifications: Vec::new(),
     };
     let settle = |operation, place, claim| AbstractOperation::BoundaryCall {
         psi_operation: operation,
@@ -501,6 +505,7 @@ fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inp
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
                 qualifications: vec![granted],
+                projected_qualifications: Vec::new(),
             }],
             result: None,
             requires: vec![psi_terminal::StructuralDomainRequirement {

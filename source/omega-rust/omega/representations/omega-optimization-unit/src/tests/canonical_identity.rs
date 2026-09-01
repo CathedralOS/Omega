@@ -126,16 +126,16 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            131, 153, 80, 214, 161, 245, 68, 97, 64, 197, 125, 106, 187, 155, 218, 54, 109, 166,
-            195, 182, 199, 122, 24, 102, 67, 49, 44, 81, 88, 138, 97, 183,
+            140, 128, 96, 118, 246, 145, 2, 214, 166, 135, 163, 119, 74, 177, 246, 20, 198, 184,
+            46, 80, 137, 55, 6, 143, 61, 2, 211, 124, 142, 247, 203, 66,
         ],
         "integer-constant and scalar-return operation tags and fields are stable",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            219, 159, 65, 192, 30, 216, 49, 35, 87, 153, 132, 6, 200, 125, 74, 50, 125, 83, 61, 73,
-            14, 61, 180, 224, 34, 64, 129, 197, 75, 238, 111, 147,
+            55, 230, 243, 84, 236, 151, 171, 97, 35, 93, 94, 252, 252, 40, 92, 17, 9, 73, 185, 51,
+            18, 106, 144, 36, 208, 146, 37, 254, 220, 157, 7, 230,
         ],
         "write-only structural storage and unit-return operation tags and fields are stable",
     );
@@ -340,6 +340,7 @@ fn canonical_identity_binds_every_retained_field_class() {
             multiplicity: psi_terminal::StructuralMultiplicity::Affine,
             access: psi_terminal::StructuralAccess::Owned,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     mutations.push(("structural parameter", unit));
     let mut unit = baseline.clone();

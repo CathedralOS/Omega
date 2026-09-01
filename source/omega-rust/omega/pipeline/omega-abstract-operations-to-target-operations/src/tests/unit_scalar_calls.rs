@@ -402,6 +402,7 @@ fn unit_scalar_calls_reject_address_boolean_wide_and_structural_shapes() {
             multiplicity: StructuralMultiplicity::Unrestricted,
             access: StructuralAccess::SharedBorrow,
             qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
         });
     assert_eq!(
         lower_to_target_operations(&structural, NativeTarget::linux_x64()),

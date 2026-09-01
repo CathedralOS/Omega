@@ -73,6 +73,7 @@ fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
         multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
         access: psi_terminal::StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let constant = AbstractOperation::IntegerConstant {
         psi_operation: id(56, OperationId::new),
@@ -411,6 +412,7 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
         multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let plan = AbstractOperationPlan {
         psi: TerminalPsiIdentity {

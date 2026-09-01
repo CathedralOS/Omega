@@ -16,21 +16,27 @@ use psi_terminal::{
 use crate::FixedViewCopyDecodeError;
 
 use super::calling::{decode_placement, decode_shape, encode_placement, encode_shape};
+use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::rules::allocation_recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_ids, encode_ids, length},
     values::{decode_scalar, encode_scalar},
 };
 
-pub(super) fn encode_parameter(bytes: &mut Vec<u8>, parameter: &SelectedStructuralUnitParameter) {
-    encode_semantic_parameter(bytes, &parameter.semantic);
+pub(super) fn encode_parameter(
+    bytes: &mut Vec<u8>,
+    parameter: &SelectedStructuralUnitParameter,
+    retain_projected_qualifications: bool,
+) {
+    encode_semantic_parameter(bytes, &parameter.semantic, retain_projected_qualifications);
     encode_target_parameter(bytes, &parameter.target);
 }
 
 pub(super) fn decode_parameter(
     cursor: &mut Cursor<'_>,
+    retain_projected_qualifications: bool,
 ) -> Result<SelectedStructuralUnitParameter, FixedViewCopyDecodeError> {
     Ok(SelectedStructuralUnitParameter {
-        semantic: decode_semantic_parameter(cursor)?,
+        semantic: decode_semantic_parameter(cursor, retain_projected_qualifications)?,
         target: decode_target_parameter(cursor)?,
     })
 }
@@ -233,7 +239,11 @@ fn decode_byte_sequence_carrier(
     }
 }
 
-fn encode_semantic_parameter(bytes: &mut Vec<u8>, parameter: &StructuralParameterDeclaration) {
+fn encode_semantic_parameter(
+    bytes: &mut Vec<u8>,
+    parameter: &StructuralParameterDeclaration,
+    retain_projected_qualifications: bool,
+) {
     bytes.extend_from_slice(&parameter.place.get().to_le_bytes());
     bytes.extend_from_slice(&parameter.position.to_le_bytes());
     bytes.push(u8::from(parameter.is_self));
@@ -244,10 +254,16 @@ fn encode_semantic_parameter(bytes: &mut Vec<u8>, parameter: &StructuralParamete
         bytes,
         parameter.qualifications.iter().map(|value| value.get()),
     );
+    encode_projected(
+        bytes,
+        &parameter.projected_qualifications,
+        retain_projected_qualifications,
+    );
 }
 
 fn decode_semantic_parameter(
     cursor: &mut Cursor<'_>,
+    retain_projected_qualifications: bool,
 ) -> Result<StructuralParameterDeclaration, FixedViewCopyDecodeError> {
     Ok(StructuralParameterDeclaration {
         place: decode_id(cursor, PlaceId::new)?,
@@ -257,6 +273,7 @@ fn decode_semantic_parameter(
         multiplicity: decode_multiplicity(cursor)?,
         access: decode_access(cursor)?,
         qualifications: decode_ids(cursor, psi_core::StructuralDomainId::new)?,
+        projected_qualifications: decode_projected(cursor, retain_projected_qualifications)?,
     })
 }
 

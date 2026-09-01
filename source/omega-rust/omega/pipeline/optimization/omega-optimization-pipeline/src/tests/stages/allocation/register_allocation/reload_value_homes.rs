@@ -273,6 +273,14 @@ impl ReloadSources {
         &self.insertion
     }
 
+    pub(super) const fn logical(&self) -> &omega_regalloc::ValidatedLogicalSpillOperations {
+        &self.logical
+    }
+
+    pub(super) const fn legality(&self) -> &StagedOptimizedAllocationLegality {
+        &self.legality
+    }
+
     fn validate(
         &self,
         plan: omega_regalloc::ReloadValueHomePlan,

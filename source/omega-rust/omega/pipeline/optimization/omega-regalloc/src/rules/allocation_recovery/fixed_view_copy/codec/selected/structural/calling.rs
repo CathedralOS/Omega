@@ -14,20 +14,25 @@ use crate::FixedViewCopyDecodeError;
 use super::declarations::{decode_parameter, encode_parameter};
 use crate::rules::allocation_recovery::fixed_view_copy::codec::primitives::{Cursor, length};
 
-pub(super) fn encode_abi(bytes: &mut Vec<u8>, abi: &SelectedStructuralUnitAbi) {
+pub(super) fn encode_abi(
+    bytes: &mut Vec<u8>,
+    abi: &SelectedStructuralUnitAbi,
+    retain_projected_qualifications: bool,
+) {
     bytes.push(match abi.recipe {
         SelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1 => 1,
     });
     encode_call_plan(bytes, &abi.call_plan);
     length(bytes, abi.parameters.len());
     for parameter in &abi.parameters {
-        encode_parameter(bytes, parameter);
+        encode_parameter(bytes, parameter, retain_projected_qualifications);
     }
     encode_layout(bytes, abi.layout);
 }
 
 pub(super) fn decode_abi(
     cursor: &mut Cursor<'_>,
+    retain_projected_qualifications: bool,
 ) -> Result<SelectedStructuralUnitAbi, FixedViewCopyDecodeError> {
     let recipe = match cursor.byte()? {
         1 => SelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1,
@@ -37,7 +42,7 @@ pub(super) fn decode_abi(
     let parameter_count = cursor.length()?;
     let mut parameters = Vec::with_capacity(parameter_count.min(cursor.remaining()));
     for _ in 0..parameter_count {
-        parameters.push(decode_parameter(cursor)?);
+        parameters.push(decode_parameter(cursor, retain_projected_qualifications)?);
     }
     Ok(SelectedStructuralUnitAbi {
         recipe,

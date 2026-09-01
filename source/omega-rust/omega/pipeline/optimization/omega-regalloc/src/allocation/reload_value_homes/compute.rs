@@ -26,7 +26,7 @@ struct ActiveHome {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compute(
+pub(in crate::allocation) fn compute(
     insertion: &ValidatedAbstractSpillInsertion,
     logical: &ValidatedLogicalSpillOperations,
     legality: &ValidatedAllocationLegality,

@@ -91,6 +91,7 @@ pub fn reconstruct_terminal_trace_v1_rows(
             multiplicity: parameter.multiplicity,
             access: parameter.access,
             qualifications: parameter.qualifications.clone(),
+            projected_qualifications: parameter.projected_qualifications.clone(),
             comparison: exact,
         })
         .collect();
@@ -108,6 +109,7 @@ pub fn reconstruct_terminal_trace_v1_rows(
                 multiplicity: result.multiplicity,
                 access: StructuralAccess::Owned,
                 qualifications: result.qualifications.clone(),
+                projected_qualifications: Vec::new(),
                 comparison: exact,
             })
         }
@@ -280,6 +282,7 @@ fn reconstruct_boundary_call_event(
                 multiplicity: parameter.multiplicity,
                 access: parameter.access,
                 qualifications: parameter.qualifications.clone(),
+                projected_qualifications: parameter.projected_qualifications.clone(),
                 comparison: exact,
             })
             .collect(),
@@ -559,6 +562,7 @@ mod tests {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 },
                 StructuralParameterDeclaration {
                     place: id(4, PlaceId::new),
@@ -568,6 +572,7 @@ mod tests {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 },
             ],
             result: Some(u8_type),
@@ -595,6 +600,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             },
             StructuralParameterDeclaration {
                 place: second_place,
@@ -604,6 +610,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 access: StructuralAccess::SharedBorrow,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             },
         ];
         module.machines[0].structural_places = vec![

@@ -13,6 +13,25 @@ pub(crate) fn structural_qualifications_match(
         })
 }
 
+pub(crate) fn structural_projected_qualifications_match(
+    root: StructuralTypeId,
+    qualifications: &[psi_terminal::StructuralPathQualification],
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &psi_terminal::StructuralDomainDeclaration>,
+) -> bool {
+    !qualifications.windows(2).any(|pair| pair[0] >= pair[1])
+        && qualifications.iter().all(|qualification| {
+            !qualification.path.is_empty()
+                && resolve_structural_path(types, root, &qualification.path).is_some_and(
+                    |projected| {
+                        domains
+                            .get(&qualification.domain)
+                            .is_some_and(|domain| domain.carrier == projected)
+                    },
+                )
+        })
+}
+
 pub(crate) fn resolve_structural_path(
     types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,

@@ -36,6 +36,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                     multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
                     access: psi_terminal::StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
                 }],
                 result: None,
                 requires: Vec::new(),
@@ -94,6 +95,147 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
         FuelScheduleIdentity::new(1).expect("nonzero schedule"),
     )
     .expect("byte literal boundary unit")
+}
+
+pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
+    let machine = id(4_720, MachineId::new);
+    let block = id(4_721, BlockId::new);
+    let boundary = id(4_722, BoundaryMachineId::new);
+    let leaf = id(4_723, StructuralTypeId::new);
+    let root = id(4_724, StructuralTypeId::new);
+    let domain = id(4_725, StructuralDomainId::new);
+    let foreign_domain = id(4_726, StructuralDomainId::new);
+    let caller_place = id(4_727, PlaceId::new);
+    let boundary_place = id(4_728, PlaceId::new);
+    let path = vec![psi_terminal::StructuralPathSegment::Field("left".into())];
+    let mut unit = reconstruct_psi_optimization_unit_seed(
+        &AbstractOperationPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([72; 32]),
+            },
+            entry: machine,
+            structural_types: vec![
+                psi_terminal::StructuralTypeDeclaration {
+                    id: leaf,
+                    identity: "validation::qualified-leaf".into(),
+                    shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+                },
+                psi_terminal::StructuralTypeDeclaration {
+                    id: root,
+                    identity: "validation::qualified-root".into(),
+                    shape: psi_terminal::StructuralTypeShape::Record {
+                        fields: ["left", "right"]
+                            .into_iter()
+                            .enumerate()
+                            .map(
+                                |(index, identity)| psi_terminal::StructuralFieldDeclaration {
+                                    id: id(4_729 + index as u64, psi_core::StructuralFieldId::new),
+                                    identity: identity.into(),
+                                    relevance: psi_terminal::BindingRelevance::Relevant,
+                                    field_type: psi_terminal::StructuralFieldType::Structural(leaf),
+                                },
+                            )
+                            .collect(),
+                    },
+                },
+            ],
+            boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
+                id: boundary,
+                identity: "validation::consume-qualified-field".into(),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
+                    place: boundary_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: leaf,
+                    multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                    access: psi_terminal::StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                }],
+                result: None,
+                requires: vec![psi_terminal::StructuralDomainRequirement {
+                    argument_index: 0,
+                    domain,
+                }],
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            }],
+            provider_candidates: Vec::new(),
+            functions: vec![AbstractFunction {
+                machine,
+                attachment: None,
+                entry: block,
+                parameters: Vec::new(),
+                structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
+                    place: caller_place,
+                    position: 0,
+                    is_self: false,
+                    structural_type: root,
+                    multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                    access: psi_terminal::StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: vec![psi_terminal::StructuralPathQualification {
+                        path: path.clone(),
+                        domain,
+                    }],
+                }],
+                result: AbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    AbstractOperation::BoundaryCall {
+                        psi_operation: id(4_731, OperationId::new),
+                        result: None,
+                        boundary,
+                        arguments: Vec::new(),
+                        structural_arguments: vec![psi_terminal::StructuralArgument {
+                            place: caller_place,
+                            path,
+                            access: psi_terminal::StructuralAccess::SharedBorrow,
+                        }],
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: id(4_732, EdgeId::new),
+                        cleanup_actions: vec![
+                            psi_terminal::TerminalAffineCleanupAction::DiscardRoot(caller_place),
+                        ],
+                    },
+                ],
+            }],
+        },
+        FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+    )
+    .expect("partial-path qualified boundary unit");
+    unit.structural_domains = vec![
+        psi_terminal::StructuralDomainDeclaration {
+            id: domain,
+            semantic_domain: id(4_725, psi_core::DomainSemanticId::new),
+            identity: "validation::qualified-left".into(),
+            carrier: leaf,
+            content_projection: None,
+        },
+        psi_terminal::StructuralDomainDeclaration {
+            id: foreign_domain,
+            semantic_domain: id(4_726, psi_core::DomainSemanticId::new),
+            identity: "validation::qualified-foreign".into(),
+            carrier: leaf,
+            content_projection: None,
+        },
+    ]
+    .into();
+    refresh_identity(&mut unit);
+    unit
 }
 
 pub(crate) fn refresh_function_derivatives(unit: &mut PsiOptimizationUnit, function_index: usize) {
@@ -426,6 +568,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         multiplicity: psi_terminal::StructuralMultiplicity::Linear,
         access: psi_terminal::StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let entry_claim = |input| psi_terminal::EntryClaim {
         claim,

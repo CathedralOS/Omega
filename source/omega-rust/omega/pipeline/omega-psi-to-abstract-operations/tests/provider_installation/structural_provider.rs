@@ -76,6 +76,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     module.boundary_machines[0].structural_parameters =
         vec![structural_parameter(place_id(9), resource)];
@@ -151,5 +152,6 @@ fn structural_parameter(
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }
 }

@@ -200,8 +200,17 @@ The adjacent synthetic reload-value entrance gives each validated reload/home
 pair a distinct compiler-private `{epoch, ordinal}` identity. V1 admits only
 epoch zero and canonical function/logical-value order; producer traversal and
 keyed replay remain separate. This closes the namespace prerequisite without
-claiming a real selected `VirtualRegisterId`, instruction, recursive spill
-worklist, or any later physical authority.
+claiming a real selected `VirtualRegisterId`, instruction, or any later
+physical authority.
+
+The bounded spill-recovery worklist is the next small executable entrance. It
+starts only when independent reload-home replay reproduces exact
+`ReloadPressure`, then emits one epoch-one item retaining the source reload,
+machine, block, lifetime, class, complete canonical candidate domain, and
+separate trigger/worklist budgets. Its validator reconstructs all work axes
+without calling the producer. The artifact chooses no victim or assigned view,
+creates no instruction or rewrite, and grants no memory, frame, trap, unwind,
+encoding, emission, or publication authority.
 
 The public prerequisite for exercising a later recovery epoch begins with a
 distinct mandatory-legalization recipe for
@@ -212,8 +221,9 @@ independent selected replay now retain its exact nine-register,
 twelve-instruction form. Restricting the public allocator to two views carries
 that same artifact through every validated allocation/spill entrance and
 terminates at the exact typed reload-pressure failure on both supported ISAs.
-This proves reachability of the recursive-recovery boundary, but grants no
-epoch-one, spill-pseudo, memory, frame, or publication authority.
+This proves reachability of the recursive-recovery boundary. The bounded
+worklist grants only the epoch-one scheduling identity described above; spill
+choice, spill-pseudo, memory, frame, and publication authority remain absent.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

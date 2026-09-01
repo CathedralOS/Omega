@@ -26,12 +26,21 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "projected structural qualification target admission",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/model.rs",
+        ],
+    },
+    SemanticLadder {
         family: "straight-line Unit translation validation",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/terminal.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_unit_return.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_port_write_unit_return.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_unit_call_return.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_trivial_affine_local_unit_return.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/terminal.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/terminal.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_return/mod.rs",
@@ -49,6 +58,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_call_return/positive.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_call_return/source_corruption.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_call_return/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_trivial_affine_local_unit_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_trivial_affine_local_unit_return/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_trivial_affine_local_unit_return/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_trivial_affine_local_unit_return/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_trivial_affine_local_unit_return/target_corruption.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/structural_units.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/mod.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/unit.rs",

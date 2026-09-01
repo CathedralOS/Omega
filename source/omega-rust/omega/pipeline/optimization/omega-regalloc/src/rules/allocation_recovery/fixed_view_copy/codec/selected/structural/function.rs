@@ -19,7 +19,7 @@ pub(super) fn encode(
     function: &SelectedStructuralUnitFunction,
     retain_call_contract: bool,
 ) {
-    encode_signature(bytes, function);
+    encode_signature(bytes, function, retain_call_contract);
     length(bytes, function.boundary_settlements.len());
     for settlement in &function.boundary_settlements {
         encode_boundary_settlement(bytes, settlement);
@@ -42,7 +42,7 @@ pub(super) fn decode(
     cursor: &mut Cursor<'_>,
     retain_call_contract: bool,
 ) -> Result<SelectedStructuralUnitFunction, FixedViewCopyDecodeError> {
-    let signature = decode_signature(cursor)?;
+    let signature = decode_signature(cursor, retain_call_contract)?;
     let settlement_count = cursor.length()?;
     let mut boundary_settlements = Vec::with_capacity(settlement_count.min(cursor.remaining()));
     for _ in 0..settlement_count {

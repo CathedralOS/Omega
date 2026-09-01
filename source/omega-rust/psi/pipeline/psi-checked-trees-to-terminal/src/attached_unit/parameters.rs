@@ -56,6 +56,7 @@ pub(crate) fn lower_unit_parameters(
                     }
                 },
                 qualifications,
+                projected_qualifications: Vec::new(),
             })
         })
         .collect()

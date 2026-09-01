@@ -6,6 +6,7 @@ use psi_core::{
 };
 use psi_terminal::{
     CrashCause, EvidenceContractLaneKind, StructuralAccess, StructuralMultiplicity,
+    StructuralPathSegment,
 };
 use psi_terminal_semantics::OperationSemanticError;
 
@@ -276,6 +277,18 @@ pub enum ModuleError {
         domain: StructuralDomainId,
     },
     NonCanonicalStructuralQualifications(PlaceId),
+    InvalidProjectedStructuralQualificationPath {
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
+    ProjectedStructuralQualificationCarrierMismatch {
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        domain: StructuralDomainId,
+        expected: StructuralTypeId,
+        actual: StructuralTypeId,
+    },
+    NonCanonicalProjectedStructuralQualifications(PlaceId),
     DuplicatePublishedService {
         owner: ServiceCeilingOwner,
         service: ServiceId,

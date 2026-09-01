@@ -40,6 +40,7 @@ fn restored_call_use_module() -> TerminalModule {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::MutableBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let contract = |raw| MachineContract {
         id: id(raw, ContractId::new),
@@ -291,6 +292,7 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         access: StructuralAccess::SharedBorrow,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     two_member_shared.machines.push(TerminalMachine {
         id: observer,

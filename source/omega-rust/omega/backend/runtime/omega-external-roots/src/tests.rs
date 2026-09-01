@@ -2459,6 +2459,7 @@ fn program_local_root_module() -> TerminalModule {
                 multiplicity: StructuralMultiplicity::Linear,
                 access: psi_terminal::StructuralAccess::Owned,
                 qualifications: vec![qualification],
+                projected_qualifications: Vec::new(),
             }],
             result: None,
             requires: vec![StructuralDomainRequirement {

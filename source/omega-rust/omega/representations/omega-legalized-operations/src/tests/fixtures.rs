@@ -26,6 +26,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 multiplicity: StructuralMultiplicity::Linear,
                 access: StructuralAccess::Owned,
                 qualifications: vec![granted],
+                projected_qualifications: Vec::new(),
             },
             target: omega_target_operations::TargetStructuralParameter {
                 place,
@@ -205,6 +206,7 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
                     multiplicity: parameter.semantic.multiplicity,
                     access: parameter.semantic.access,
                     qualifications: parameter.semantic.qualifications.clone(),
+                    projected_qualifications: parameter.semantic.projected_qualifications.clone(),
                 })
                 .collect(),
         },

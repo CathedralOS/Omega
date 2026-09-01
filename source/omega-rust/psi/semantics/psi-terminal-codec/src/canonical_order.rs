@@ -569,6 +569,16 @@ fn validate_parameter_order(
             "structural parameter qualifications by StructuralDomainId",
         ));
     }
+    if parameters.iter().any(|parameter| {
+        parameter
+            .projected_qualifications
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+    }) {
+        return Err(CodecError::NonCanonicalOrder(
+            "projected structural qualifications by path and StructuralDomainId",
+        ));
+    }
     Ok(())
 }
 

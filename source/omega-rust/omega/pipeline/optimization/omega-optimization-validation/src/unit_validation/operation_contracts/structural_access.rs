@@ -13,11 +13,22 @@ pub(crate) struct StructuralSourceContract<'a> {
     multiplicity: psi_terminal::StructuralMultiplicity,
     access: psi_terminal::StructuralAccess,
     qualifications: &'a [StructuralDomainId],
+    projected_qualifications: &'a [psi_terminal::StructuralPathQualification],
 }
 
 impl StructuralSourceContract<'_> {
-    pub(crate) fn carries_qualification(&self, domain: StructuralDomainId) -> bool {
-        self.qualifications.contains(&domain)
+    pub(crate) fn carries_qualification(
+        &self,
+        path: &[psi_terminal::StructuralPathSegment],
+        domain: StructuralDomainId,
+    ) -> bool {
+        if path.is_empty() {
+            self.qualifications.contains(&domain)
+        } else {
+            self.projected_qualifications
+                .iter()
+                .any(|qualification| qualification.path == path && qualification.domain == domain)
+        }
     }
 }
 
@@ -84,9 +95,18 @@ pub(crate) fn structural_arguments_match(
             psi_terminal::StructuralMultiplicity::Linear
         };
         if actual_multiplicity != parameter.multiplicity
-            || parameter.qualifications.iter().any(|qualification| {
-                !argument.path.is_empty() || !source.qualifications.contains(qualification)
-            })
+            || parameter
+                .qualifications
+                .iter()
+                .any(|qualification| !source.carries_qualification(&argument.path, *qualification))
+            || parameter
+                .projected_qualifications
+                .iter()
+                .any(|qualification| {
+                    let mut path = argument.path.clone();
+                    path.extend(qualification.path.iter().cloned());
+                    !source.carries_qualification(&path, qualification.domain)
+                })
             || (projection == StructuralProjectionPolicy::Unit
                 && !argument.path.is_empty()
                 && !source.qualifications.is_empty())
@@ -124,6 +144,7 @@ pub(crate) fn structural_source_contract(
             multiplicity: parameter.multiplicity,
             access: parameter.access,
             qualifications: &parameter.qualifications,
+            projected_qualifications: &parameter.projected_qualifications,
         })
         .or_else(|| structural_operation_result_contract(caller, place))
         .or_else(|| {
@@ -146,6 +167,7 @@ pub(crate) fn structural_source_contract(
                         multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
                         access: psi_terminal::StructuralAccess::Owned,
                         qualifications: &[],
+                        projected_qualifications: &[],
                     })
                 })
         })
@@ -171,6 +193,7 @@ fn structural_operation_result_contract(
                 multiplicity: result.multiplicity,
                 access: psi_terminal::StructuralAccess::Owned,
                 qualifications: &result.qualifications,
+                projected_qualifications: &[],
             })
         })
 }

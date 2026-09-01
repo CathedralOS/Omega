@@ -52,6 +52,7 @@ fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
         multiplicity: StructuralMultiplicity::Linear,
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
     let unit_function = |machine, place, operations| AbstractFunction {
         machine,

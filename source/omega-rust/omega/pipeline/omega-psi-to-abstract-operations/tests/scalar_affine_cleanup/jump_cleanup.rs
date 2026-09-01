@@ -64,6 +64,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                 structural_type: structural_type_id(1),
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {

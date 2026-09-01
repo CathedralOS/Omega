@@ -2,6 +2,8 @@ use super::function::lower_function;
 use super::scalar_abi::derive_fixed_integer_scalar_function_abi;
 use super::shared::*;
 
+mod projected_qualifications;
+
 pub(crate) fn lower_to_target_operations_with_settlements(
     plan: &AbstractOperationPlan,
     target: NativeTarget,
@@ -28,6 +30,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<omega_target_operations::TargetOperationPlanWithNativeCallbacks, LoweringError> {
+    projected_qualifications::reject_unsupported(plan)?;
     if !plan
         .functions
         .iter()

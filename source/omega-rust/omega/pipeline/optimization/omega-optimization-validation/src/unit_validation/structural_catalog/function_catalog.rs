@@ -77,6 +77,12 @@ pub(crate) fn validate_function_structural_catalog(
                 &parameter.qualifications,
                 domains,
             )
+            || !structural_projected_qualifications_match(
+                parameter.structural_type,
+                &parameter.projected_qualifications,
+                types,
+                domains,
+            )
         {
             return Err(mismatch());
         }
