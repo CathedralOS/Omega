@@ -5,7 +5,10 @@
 mod arguments;
 mod capture;
 mod error;
+mod evaluation;
+mod inputs;
 mod publication;
+mod training;
 
 #[cfg(test)]
 mod tests;
@@ -30,6 +33,9 @@ fn run(
 ) -> Result<(), OfflinePolicyCommandError> {
     match arguments::parse(arguments)? {
         OfflinePolicyCommand::Capture(request) => capture::capture(request),
+        OfflinePolicyCommand::Train(request) => training::train(request),
+        OfflinePolicyCommand::Evaluate(request) => evaluation::evaluate(request),
+        OfflinePolicyCommand::Regression(request) => evaluation::regression(request),
         OfflinePolicyCommand::Help => {
             println!("{}", arguments::USAGE);
             Ok(())

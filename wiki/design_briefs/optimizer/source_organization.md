@@ -487,21 +487,22 @@ inventory registers the complete ladder and forbids compiler, build, pipeline,
 Psi-optimizer, and process-tooling dependencies. This is corpus custody, not a
 second policy catalog or compiler activation path.
 
-The 38-line `src/bin/omega-optimization-policy-offline/main.rs` command
-entrance coordinates the closed command vocabulary with exactly one capture
-route. Its adjacent `arguments`, `capture`, `publication`, and `error` leaves
-make positional admission, canonical corpus custody, create-once file output,
-and exit classification separately visible. The architecture inventory names
-that full descent. Command tests live under the sibling `tests/` rung; model
-training and evaluation remain library calls rather than hidden command modes.
+The 44-line `src/bin/omega-optimization-policy-offline/main.rs` command
+entrance coordinates the closed `capture`, `train`, `evaluate`, and
+`regression` vocabulary. Its adjacent `arguments`, `capture`, `inputs`,
+`training`, `evaluation`, `publication`, and `error` leaves make positional
+admission, strict artifact custody, fixed report-split selection, create-once
+file output, and exit classification separately visible. The architecture
+inventory names that full descent, including the mirrored command tests.
 
 The adjacent `reference_policy/mod.rs` entrance exposes only deterministic
 training, evaluation, and strict decode calls. Its `training/mod.rs` and
 `evaluation/mod.rs` entrances each join separate compute and independent replay
 leaves; `identity`, `inference`, `model`, and `codec/` remain named sibling
 rungs. Tests mirror codec, training, evaluation, and refusal behavior, and the
-tooling architecture ladder registers all three entrances. No training,
-evaluation, process, or compiler command route is hidden below them.
+tooling architecture ladder registers all three library entrances. The command
+routes call these public validated operations; no second trainer, evaluator,
+process, or compiler route is hidden below them.
 
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.

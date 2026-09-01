@@ -4,3 +4,4 @@ mod arguments;
 mod capture;
 mod fixture;
 mod publication;
+mod reference;

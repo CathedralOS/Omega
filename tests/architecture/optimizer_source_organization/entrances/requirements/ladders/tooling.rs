@@ -2,13 +2,22 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
-        family: "offline optimization-policy capture command",
+        family: "offline optimization-policy artifact commands",
         paths: &[
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/main.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/arguments.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/capture.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/inputs.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/training.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/evaluation.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/publication.rs",
             "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/error.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/mod.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/arguments.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/capture.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/fixture.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/reference.rs",
+            "source/omega-rust/omega/tooling/omega-optimization-policy-offline/src/bin/omega-optimization-policy-offline/tests/publication.rs",
         ],
     },
     SemanticLadder {

@@ -201,12 +201,17 @@ corpus and receipt grant no optimizer replay, compiler activation, process
 execution, or publication authority. Training and evaluation must consume this
 boundary rather than inventing a second feature schema.
 
-The sibling offline command exposes only
-`capture <output-corpus> <decision-log>...`. It reads every input before corpus
-admission, publishes only the canonical validated encoding, creates rather than
+The sibling offline command exposes four exact routes:
+`capture <output-corpus> <decision-log>...`,
+`train <input-corpus> <output-model>`, and distinct `evaluate` and `regression`
+routes from one corpus/model pair to one report. Fixed report commands prevent
+an open split argument from relabelling evaluation as regression. Every route
+strictly admits its complete inputs, calls the independently replayed library
+boundary, publishes only canonical validated bytes, creates rather than
 overwrites the output path, and removes an output it created if writing fails.
 This is user-requested artifact custody, not optimizer-result publication: the
-command has no compiler, build, policy replay, model execution, or process
+command runs only the built-in deterministic reference algorithm and has no
+compiler, build, policy replay, arbitrary-model execution, or process
 authority.
 
 The first reference consumer is `CostThresholdV1`. It deterministically fits
