@@ -14,6 +14,13 @@ checker. In particular, the checker does not decide that a valid derivation is
 about the compiler artifact a caller intended; an artifact-aware owner must
 bind the exact subject and construct the proposition independently.
 
+The role does not justify the current size by itself. The open
+`MINIMIZE-ROOT-DERIVATION-CHECKER` task derives the smallest calculus and
+subject-binding format needed by the canonical compiler edges, then compares
+checker reduction with any proof-production and certificate growth it causes.
+Until that selection, this README describes the current authoritative artifact,
+not a permanently frozen kernel surface.
+
 ## Rooted construction
 
 ```text

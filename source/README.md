@@ -42,6 +42,13 @@ The Alpha checker is a service beside the language chain. `source/psi/` is an
 internal boundary of the Omega product compiler, not a bootstrap language.
 `omega0` and `omega` name output tapes, not source owners.
 
+The rung order is fixed, but current instruction sets, language features,
+compiler protocols, and checker rules are subject to the backward whole-chain
+audit in
+[`bootstrap_minimization.md`](../wiki/design_briefs/bootstrap_minimization.md).
+Present source usage establishes migration cost rather than a reason to retain
+a construct.
+
 `source/omega-rust/` may build, compare, and accelerate development, but it
 supplies no trusted bootstrap premise. Bootstrap invocation lives under
 [`tools/bootstrap/`](../tools/bootstrap/). Bootstrap-language and checker tests

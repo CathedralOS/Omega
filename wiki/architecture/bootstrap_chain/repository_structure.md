@@ -23,7 +23,7 @@ source/
     compiler/
       gamma_compiler.beta        canonical compiler implementation
       gamma_compiler_bytecode.tape
-      outcomes-v1.tsv            closed compiler boundary table
+      outcomes-v1.tsv            current boundary sidecar; retirement queued
 
   delta/                         Delta language
     compiler/
@@ -133,8 +133,10 @@ compiler rather than Gamma, Delta, or Epsilon.
 - A lower rung must not parse a language beyond its immediate successor.
 - A compiler artifact must consume its own language and emit the next runnable
   Alpha tape without invoking an older compiler or semantic host script.
-- Canonical compiler source, artifact, and closed evidence tables stay together
-  under `source/`. Executable tests and references live under
+- Canonical compiler source and artifact stay together under `source/`.
+  Existing compiler-boundary TSVs are manually duplicated sidecars under the
+  minimization/retirement task, not a placement precedent for new tables.
+  Executable tests and references live under
   `tests/<subject>/` and bind the canonical subject by explicit path; there is
   no generic evidence archive.
 - Optional comparators, fuzzers, and corpora must name the exact edge property

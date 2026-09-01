@@ -7,6 +7,13 @@ This directory owns the compiler artifact required by the Gamma rung:
 - `outcomes-v1.tsv` is the closed compiler-boundary code table consumed by the
   focused gate.
 
+That table describes the current `GCOUT` contract; it is not evidence that a
+one-customer bootstrap compiler needs a permanent detailed diagnostic ABI.
+`BOOTSTRAP-MINIMAL-COMPILER-BOUNDARY` compares this frame and code surface with
+the four semantic outcomes actually required, and
+`BOOTSTRAP-SIDECAR-RETIREMENT` removes the TSV if no named external consumer
+earns a machine-readable registry.
+
 Exact construction and materialization live under `tools/bootstrap/gamma/`.
 Focused language and artifact-structure tests live under
 `tests/gamma/compiler/`.
@@ -204,7 +211,7 @@ containment.
 | --- | --- | --- |
 | `gamma_compiler.beta` | Canonical Beta-written compiler source accepting Gamma. | Replace only atomically with its artifact and checked relation. |
 | `gamma_compiler_bytecode.tape` | Canonical platform-independent compiler artifact. | Replace only with a green exact reconstruction from the canonical source. |
-| `outcomes-v1.tsv` | Closed projection of compiler boundary codes. | Replace only with a versioned boundary contract and synchronized compiler. |
+| `outcomes-v1.tsv` | Current manually maintained projection of compiler boundary codes. | Delete under `BOOTSTRAP-SIDECAR-RETIREMENT` if detailed codes have no named external consumer; otherwise replace only with the selected synchronized contract. |
 
 The retained files are exactly one compiler source, one Alpha-tape artifact,
 one boundary code table, and this owner document.
