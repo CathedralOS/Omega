@@ -42,7 +42,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -50,7 +50,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "6e1fe2484449166a71849e4ceb0c1d660fd0ddf3cbaf9d10fc9118e7a01680a4"
+        "dc90dc2ac1f8ad633e429fe63a5ee676c5ff7f01ffac8111e21e3f7412973ad4"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -63,7 +63,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -167,7 +167,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -645,7 +645,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -658,7 +658,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -693,7 +693,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -1164,6 +1164,7 @@ fn trivial_affine_local_declaration_and_establishment_round_trip_canonically() {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     };
@@ -2339,10 +2340,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&60_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&61_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(60))
+        Err(CodecError::UnsupportedFormatMarker(61))
     );
 
     let mut stale_format = bytes.clone();
@@ -2529,6 +2530,7 @@ fn partial_affine_fixture() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -2764,6 +2766,7 @@ fn nominal_affine_fixture() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -2951,6 +2954,7 @@ fn structural_effect_fixture() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
@@ -3098,7 +3102,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 59_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 60_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -3752,6 +3756,7 @@ fn unit_fixture() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(900),
@@ -3969,6 +3974,7 @@ fn fixture() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
@@ -4118,6 +4124,7 @@ fn content_conservation_fixture(vocabulary_marker: VocabularyMarker) -> Terminal
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(80),
@@ -4346,6 +4353,7 @@ fn call_fixture() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {

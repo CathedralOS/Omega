@@ -7,13 +7,13 @@ use super::{
     PROOF_ADMISSION_INTEGER_FORBIDDEN_ROOT_SOURCE, PROOF_ADMISSION_JUDGMENT_SOURCE,
     PROOF_ADMISSION_LIB_SOURCE, PROOF_ADMISSION_PROOF_SOURCE, PROOF_BUNDLE_SOURCE,
     PROOF_CODEC_SOURCE, PROPOSITION_SOURCE, RECONSTRUCTION_SOURCE, SUBSTITUTION_SOURCE,
-    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE, TERMINAL_MODEL_SOURCE,
-    TERMINAL_PROOF_BEARING_SCALAR_SOURCE, TERMINAL_SEMANTICS_SOURCE,
-    TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy, TrustDependencyKind,
-    TrustDependencyNode, TrustDependencyStatus, TrustGraphError, VERIFIER_CALL_COMPOSITION_SOURCE,
-    VERIFIER_LIB_SOURCE, VERIFIER_SOURCE, VERIFIER_SOURCE_CLOSURE,
-    VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE, ValidatedTerminalTrustGraph,
-    validate_terminal_trust_graph,
+    TERMINAL_CALL_COMPOSITION_SOURCE, TERMINAL_CANONICAL_SCALAR_GOAL_SOURCE,
+    TERMINAL_DYNAMIC_DISPATCH_SOURCE, TERMINAL_MODEL_SOURCE, TERMINAL_PROOF_BEARING_SCALAR_SOURCE,
+    TERMINAL_SEMANTICS_SOURCE, TERMINAL_STRUCTURAL_EFFECT_SOURCE, TrustAcceptingPolicy,
+    TrustDependencyKind, TrustDependencyNode, TrustDependencyStatus, TrustGraphError,
+    VERIFIER_CALL_COMPOSITION_SOURCE, VERIFIER_LIB_SOURCE, VERIFIER_SOURCE,
+    VERIFIER_SOURCE_CLOSURE, VERIFIER_SOURCE_CLOSURE_BUILD_SOURCE, VERIFIER_VALIDATION_SOURCE,
+    ValidatedTerminalTrustGraph, validate_terminal_trust_graph,
 };
 use crate::FORMAT_MARKER;
 use psi_terminal_semantics::{
@@ -32,7 +32,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-59-vocabulary-62"
+    "root:canonical-terminal-bytes-format-60-vocabulary-63"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -77,7 +77,13 @@ fn registered_roots() -> Vec<TrustDependencyNode> {
             "Portable PCC bottoms out in the abstract terminal execution model.",
             TrustAcceptingPolicy::RegisteredSemanticFoundation,
             Vec::new(),
-            &[("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE)],
+            &[
+                ("psi-terminal/module.rs", TERMINAL_MODEL_SOURCE),
+                (
+                    "psi-terminal/dynamic_dispatch.rs",
+                    TERMINAL_DYNAMIC_DISPATCH_SOURCE,
+                ),
+            ],
         ),
         TrustDependencyNode::new(
             canonical_proof_calculus_identity(),

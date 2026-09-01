@@ -13,6 +13,7 @@ mod canonical_order;
 mod content_wire;
 mod contract_wire;
 mod debug_map;
+mod dynamic_dispatch_wire;
 mod integer_math_term_wire;
 #[cfg(test)]
 mod legacy_result_path_wire_tests;
@@ -105,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 59;
+const FORMAT_MARKER: u16 = 60;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";

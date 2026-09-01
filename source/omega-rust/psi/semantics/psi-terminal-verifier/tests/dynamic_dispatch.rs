@@ -1,0 +1,376 @@
+use psi_core::{
+    BlockId, ClaimId, ContractId, EdgeId, MachineId, ObligationId, OperationId, PlaceId,
+    PsiSemanticId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
+use psi_terminal::{
+    Block, ClaimTransfer, ClosedConformanceApplication, ClosedConformanceCallableResult,
+    ClosedConformanceParameterBinding, ClosedConformanceRealizationCallable, ClosedConformanceRow,
+    CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation, OperationKind,
+    OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, closed_conformance_application_commitment,
+    closed_conformance_application_report_fingerprint,
+};
+use psi_terminal_verifier::{ModuleError, validate_module};
+
+const CARRIER_IDENTITY: &str =
+    "package:0101010101010101010101010101010101010101010101010101010101010101::Carrier";
+const OTHER_CARRIER_IDENTITY: &str =
+    "package:0202020202020202020202020202020202020202020202020202020202020202::OtherCarrier";
+
+fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
+    Identity::new(raw).expect("test identity is nonzero")
+}
+
+fn empty_contract(raw: u64) -> MachineContract {
+    MachineContract {
+        id: id::<ContractId>(raw),
+        crash_routes: Vec::new(),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        outcome_specific_ensures: Vec::new(),
+    }
+}
+
+fn parameter(place: u64) -> StructuralParameterDeclaration {
+    StructuralParameterDeclaration {
+        place: id::<PlaceId>(place),
+        position: 0,
+        is_self: false,
+        structural_type: id::<StructuralTypeId>(1),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }
+}
+
+fn parameter_place(place: u64) -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id: id::<PlaceId>(place),
+        kind: StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        },
+    }
+}
+
+fn closed_application(owner: MachineId, realization: MachineId) -> ClosedConformanceApplication {
+    let mut application = ClosedConformanceApplication {
+        owner,
+        declaration_identity: "package::CarrierImplementsMeasure".into(),
+        telescope: Vec::<ClosedConformanceParameterBinding>::new(),
+        subject_identity: Some(CARRIER_IDENTITY.into()),
+        trait_identity: "package::Measure".into(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![ClosedConformanceRealizationCallable {
+            source_callable_identity: "package::Carrier::measure#callable".into(),
+            machine: realization,
+            result: ClosedConformanceCallableResult::Bool,
+        }],
+        rows: vec![ClosedConformanceRow {
+            declaring_trait_identity: "package::Measure".into(),
+            public_requirement_identity: "package::Measure::measure()".into(),
+            requirement_identity: "package::Measure::measure".into(),
+            realization_identity: "package::Carrier::measure".into(),
+            realization_callable_identity: Some("package::Carrier::measure#callable".into()),
+        }],
+        report_fingerprint: 0,
+        commitment: Default::default(),
+    };
+    refresh_application_identity(&mut application);
+    application
+}
+
+fn refresh_application_identity(application: &mut ClosedConformanceApplication) {
+    application.report_fingerprint = closed_conformance_application_report_fingerprint(application);
+    application.commitment = closed_conformance_application_commitment(application);
+}
+
+fn dynamic_dispatch_module() -> TerminalModule {
+    let caller = id::<MachineId>(1);
+    let realization = id::<MachineId>(2);
+    let operation = id::<OperationId>(1);
+    let source = StructuralArgument {
+        place: id::<PlaceId>(1),
+        path: Vec::new(),
+        access: StructuralAccess::SharedBorrow,
+    };
+    let application = closed_application(caller, realization);
+    TerminalModule {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: caller,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: id::<StructuralTypeId>(1),
+                identity: CARRIER_IDENTITY.into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: id::<StructuralTypeId>(2),
+                identity: OTHER_CARRIER_IDENTITY.into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        closed_conformance_applications: vec![application.clone()],
+        dynamic_dispatch: TerminalDynamicDispatchCatalog {
+            selections: vec![TerminalDynamicConformanceSelection {
+                owner: caller,
+                ordinal: 0,
+                source: source.clone(),
+                conformance_application_report_fingerprint: application.report_fingerprint,
+                conformance_application_commitment: application.commitment,
+            }],
+            direct_dispatches: vec![TerminalDirectDynamicDispatch {
+                owner: caller,
+                operation,
+                selection_ordinal: 0,
+                declaring_trait_identity: "package::Measure".into(),
+                public_requirement_identity: "package::Measure::measure()".into(),
+                requirement_identity: "package::Measure::measure".into(),
+                realization_identity: "package::Carrier::measure".into(),
+                realization_callable_identity: "package::Carrier::measure#callable".into(),
+                realization,
+            }],
+        },
+        quotient_correspondences: Vec::new(),
+        machines: vec![
+            TerminalMachine {
+                id: caller,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(1)],
+                ranked_scc: None,
+                result: TerminalMachineResult::Unit,
+                structural_places: vec![parameter_place(1)],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: id::<BlockId>(1),
+                blocks: vec![Block {
+                    id: id::<BlockId>(1),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: operation,
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: id::<ValueId>(1),
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::CallStructuralScalar {
+                            callee: realization,
+                            structural_arguments: vec![source],
+                            claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::ReturnUnit {
+                        edge: id::<EdgeId>(1),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: empty_contract(1),
+            },
+            TerminalMachine {
+                id: realization,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(2)],
+                ranked_scc: None,
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    id: id::<ValueId>(2),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                structural_places: vec![parameter_place(2)],
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: id::<BlockId>(2),
+                blocks: vec![Block {
+                    id: id::<BlockId>(2),
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: id::<OperationId>(2),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: id::<ValueId>(3),
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::BooleanConstant { value: true },
+                    }],
+                    terminator: Terminator::Return {
+                        cleanup_actions: Vec::new(),
+                        edge: id::<EdgeId>(2),
+                        value: id::<ValueId>(3),
+                    },
+                }],
+                contract: empty_contract(2),
+            },
+        ],
+    }
+}
+
+fn direct_call_mut(module: &mut TerminalModule) -> &mut OperationKind {
+    &mut module.machines[0].blocks[0].operations[0].kind
+}
+
+fn validation_error(module: &TerminalModule) -> ModuleError {
+    validate_module(module).expect_err("corrupt dynamic dispatch must fail closed")
+}
+
+#[test]
+fn admits_exact_source_free_direct_dynamic_dispatch() {
+    validate_module(&dynamic_dispatch_module()).expect("exact direct dynamic dispatch is valid");
+}
+
+#[test]
+fn rejects_conformance_subject_for_another_source_carrier() {
+    let mut module = dynamic_dispatch_module();
+    module.closed_conformance_applications[0].subject_identity =
+        Some(OTHER_CARRIER_IDENTITY.into());
+    refresh_application_identity(&mut module.closed_conformance_applications[0]);
+    let application = &module.closed_conformance_applications[0];
+    module.dynamic_dispatch.selections[0].conformance_application_report_fingerprint =
+        application.report_fingerprint;
+    module.dynamic_dispatch.selections[0].conformance_application_commitment =
+        application.commitment;
+
+    assert_eq!(
+        validation_error(&module),
+        ModuleError::InvalidDirectDynamicDispatch {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(1),
+        }
+    );
+}
+
+#[test]
+fn rejects_nonempty_direct_dynamic_call_lanes() {
+    let expected = ModuleError::InvalidDirectDynamicDispatch {
+        owner: id::<MachineId>(1),
+        operation: id::<OperationId>(1),
+    };
+
+    let mut claims = dynamic_dispatch_module();
+    let OperationKind::CallStructuralScalar {
+        claim_transfers, ..
+    } = direct_call_mut(&mut claims)
+    else {
+        panic!("fixture direct call");
+    };
+    claim_transfers.push(ClaimTransfer {
+        claim: id::<ClaimId>(1),
+        argument_index: 0,
+    });
+    assert_eq!(validation_error(&claims), expected.clone());
+
+    let mut requirements = dynamic_dispatch_module();
+    let OperationKind::CallStructuralScalar {
+        requirement_obligations,
+        ..
+    } = direct_call_mut(&mut requirements)
+    else {
+        panic!("fixture direct call");
+    };
+    requirement_obligations.push(id::<ObligationId>(1));
+    assert_eq!(validation_error(&requirements), expected.clone());
+
+    let mut crashes = dynamic_dispatch_module();
+    let OperationKind::CallStructuralScalar {
+        crash_continuations,
+        ..
+    } = direct_call_mut(&mut crashes)
+    else {
+        panic!("fixture direct call");
+    };
+    crash_continuations.push(CrashRouteBucket {
+        cause: CrashCause::Trap,
+        alternatives: vec![CrashRouteGuard::Truth],
+    });
+    assert_eq!(validation_error(&crashes), expected);
+}
+
+#[test]
+fn rejects_duplicate_and_orphan_dynamic_rows() {
+    let mut duplicate_selection = dynamic_dispatch_module();
+    duplicate_selection
+        .dynamic_dispatch
+        .selections
+        .push(duplicate_selection.dynamic_dispatch.selections[0].clone());
+    assert_eq!(
+        validation_error(&duplicate_selection),
+        ModuleError::DuplicateDynamicConformanceSelection {
+            owner: id::<MachineId>(1),
+            ordinal: 0,
+        }
+    );
+
+    let mut duplicate_dispatch = dynamic_dispatch_module();
+    duplicate_dispatch
+        .dynamic_dispatch
+        .direct_dispatches
+        .push(duplicate_dispatch.dynamic_dispatch.direct_dispatches[0].clone());
+    assert_eq!(
+        validation_error(&duplicate_dispatch),
+        ModuleError::DuplicateDirectDynamicDispatch {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(1),
+        }
+    );
+
+    let mut orphan_selection = dynamic_dispatch_module();
+    let mut orphan = orphan_selection.dynamic_dispatch.selections[0].clone();
+    orphan.ordinal = 1;
+    orphan_selection.dynamic_dispatch.selections.push(orphan);
+    assert_eq!(
+        validation_error(&orphan_selection),
+        ModuleError::OrphanDynamicConformanceSelection {
+            owner: id::<MachineId>(1),
+            ordinal: 1,
+        }
+    );
+}
+
+#[test]
+fn rejects_broken_application_row_callable_and_operation_joins() {
+    let mut broken_application = dynamic_dispatch_module();
+    broken_application.dynamic_dispatch.selections[0].conformance_application_commitment =
+        Default::default();
+    assert!(validate_module(&broken_application).is_err());
+
+    let mut broken_row = dynamic_dispatch_module();
+    broken_row.dynamic_dispatch.direct_dispatches[0].requirement_identity =
+        "package::Measure::different".into();
+    assert!(validate_module(&broken_row).is_err());
+
+    let mut broken_callable = dynamic_dispatch_module();
+    broken_callable.dynamic_dispatch.direct_dispatches[0].realization = id::<MachineId>(1);
+    assert!(validate_module(&broken_callable).is_err());
+
+    let mut broken_operation = dynamic_dispatch_module();
+    broken_operation.machines[0].blocks[0].operations[0].kind =
+        OperationKind::BooleanConstant { value: true };
+    assert!(validate_module(&broken_operation).is_err());
+}

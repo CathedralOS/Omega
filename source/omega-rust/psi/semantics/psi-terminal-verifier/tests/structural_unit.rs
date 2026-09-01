@@ -3907,6 +3907,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
     }
@@ -4081,6 +4082,7 @@ fn hard_root_module() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
@@ -4286,6 +4288,7 @@ fn partial_affine_field_module() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
@@ -4546,6 +4549,7 @@ fn nominal_affine_module() -> TerminalModule {
         proof_output_calls: Vec::new(),
         proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, cleanup],
     }

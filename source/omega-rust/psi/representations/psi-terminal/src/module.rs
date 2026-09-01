@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        62
+        63
     }
 }
 
@@ -246,6 +246,8 @@ pub struct TerminalModule {
     /// retained machine closure. Rows are owned by the concrete terminal
     /// machine whose specialization selected the application.
     pub closed_conformance_applications: Vec<ClosedConformanceApplication>,
+    /// Source-free local dynamic selection and dispatch custody.
+    pub dynamic_dispatch: crate::TerminalDynamicDispatchCatalog,
     /// Canonical proof-only quotient correspondence, strictly ordered by its
     /// independently replayable identity. The public operation's hermetic
     /// identity is the semantic owner; these rows do not join an executable

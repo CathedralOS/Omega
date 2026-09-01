@@ -10,6 +10,7 @@
 //! proof, serialization, fuel, and lowering contracts together; stale artifacts
 //! are rejected instead of migrated or assigned enduring semantic versions.
 
+mod dynamic_dispatch;
 mod identity;
 mod module;
 mod observation_profile;
@@ -18,6 +19,7 @@ mod quotient_correspondence;
 
 pub use psi_language_core::BindingRelevance;
 
+pub use dynamic_dispatch::*;
 pub use identity::*;
 pub use module::*;
 pub use observation_profile::*;

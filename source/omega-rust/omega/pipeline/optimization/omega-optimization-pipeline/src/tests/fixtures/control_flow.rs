@@ -33,6 +33,7 @@ pub(crate) fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -144,6 +145,7 @@ pub(crate) fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -254,6 +256,7 @@ pub(crate) fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -355,6 +358,7 @@ pub(crate) fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -450,6 +454,7 @@ pub(crate) fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
@@ -565,6 +570,7 @@ pub(crate) fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
         proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine,
