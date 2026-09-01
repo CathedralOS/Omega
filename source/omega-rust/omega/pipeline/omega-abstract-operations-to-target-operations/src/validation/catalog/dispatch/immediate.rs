@@ -3,8 +3,10 @@ use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 mod boolean_equal;
+mod integer_equal;
 
 pub(in crate::validation::catalog) use boolean_equal::DESCRIPTOR as BOOLEAN_EQUAL;
+pub(in crate::validation::catalog) use integer_equal::DESCRIPTOR as INTEGER_EQUAL;
 
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,

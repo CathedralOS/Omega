@@ -29,6 +29,8 @@ mod target_corruption;
 
 #[path = "../translation_validation_boolean_equal_immediate/mod.rs"]
 mod equal_immediate;
+#[path = "../translation_validation_integer_equal_immediate/mod.rs"]
+mod integer_equal_immediate;
 #[path = "../translation_validation_boolean_not_immediate/mod.rs"]
 mod not_immediate;
 

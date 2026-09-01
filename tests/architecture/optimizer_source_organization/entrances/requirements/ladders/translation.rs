@@ -133,6 +133,23 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "constant integer-equality immediate translation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_equal_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_equal_immediate/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_equal_immediate/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate/integer_equal.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/tests/integer_equal_immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_equal_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_equal_immediate/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_equal_immediate/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_equal_immediate/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_equal_immediate/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/integer_equal_immediate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/integer_equal_immediate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "proof-bearing exact-cast immediate-operand translation",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_exact_cast_immediate_operand/mod.rs",
