@@ -3894,8 +3894,9 @@ symbols, package owners, schema, complete plan, Linux target, external
 realization mechanism, and ABI. A supplied row must settle exactly once;
 foreign, stale, ambiguous, and unused authority rejects. Downstream review
 rederives against the compiler-resolved declaration symbol rather than
-searching by path. Constructing or consuming this policy row proves no human or
-model audit occurred.
+searching by path, and only that exact symbol receives the existing Process
+dangerous-authority classification. Constructing or consuming this policy row
+proves no human or model audit occurred.
 
 This role is deliberately narrow. Its present schema normalization is exact for
 the compiler-primitive `i32`/`Unit` signature and self reach used by Console; it

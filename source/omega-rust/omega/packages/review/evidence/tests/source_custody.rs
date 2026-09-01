@@ -487,6 +487,17 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     .expect("canonical console fixture should check");
     let canonical_review = project_checked_package_review(&canonical_checked)
         .expect("unsupported selected siblings remain non-authorizing review evidence");
+    let [legacy_process_authority] = canonical_review.dangerous_authorities() else {
+        panic!("legacy bundled Console must retain one process-authority row")
+    };
+    assert_eq!(
+        legacy_process_authority.class(),
+        PackageReviewDangerousAuthorityClass::Process,
+    );
+    assert!(matches!(
+        legacy_process_authority.service().owner(),
+        PackageReviewNominalOwner::ToolchainSource(_),
+    ));
     let console = canonical_review
         .selected_providers()
         .iter()
@@ -550,4 +561,111 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         lookalike_review.dangerous_authorities().is_empty(),
         "package-controlled Console naming must not mint process authority"
     );
+}
+
+#[test]
+fn accepted_dependency_console_binding_classifies_the_exact_process_authority() {
+    let root = TempPackage::new();
+    let console = TempPackage::new();
+    let root_package = package_identity();
+    let console_package =
+        PackageKeyIdentity::from_digest([49; 32]).expect("Console package identity");
+
+    root.write(
+        "main.omg",
+        r#"use accepted_console::console;
+
+pub machine terminate(console: Console, return_code: i32)
+reaches Console
+invokes console;
+{
+    console.exit_process(return_code);
+}
+"#,
+    );
+    root.write(
+        "build.omg",
+        r#"target linux_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.package("review-fixture");
+    builder.depend_as("accepted_console", Source::Path { location: "../console" });
+    builder.select_provider<Console, ConsoleNativeProvider>();
+}
+"#,
+    );
+    console.write(
+        "console.omg",
+        r#"pub boundary trait Console {
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+
+    let base_inputs = || {
+        PackageCompilationInputs::new_package(
+            root_package,
+            vec![
+                PackageSourceBinding::new(root_package, "review-fixture", root.0.clone()),
+                PackageSourceBinding::new(console_package, "accepted-console", console.0.clone()),
+            ],
+            vec![PackageDependencyBinding::new(
+                root_package,
+                "accepted_console",
+                console_package,
+            )],
+        )
+        .expect("ordinary Console dependency graph")
+    };
+    let candidate = compile_to_checked_with_packages(
+        &root.0.join("main.omg"),
+        Some("linux_x86_64"),
+        base_inputs(),
+    )
+    .expect("candidate Console dependency should check before consumer acceptance");
+    let (plan, retained) = candidate
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(candidate.selected_provider_provenance())
+        .find(|(plan, _)| plan.schema.trait_name == "Console")
+        .expect("candidate retains its exact Console plan");
+    let accepted = omega_package_compilation::AcceptedSemanticBinding::new(
+        omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        console_package,
+        candidate
+            .typed
+            .symbols
+            .display_path(retained.provider.schema.symbol(), "::"),
+        plan.schema.identity_digest(),
+        plan.identity_digest(),
+    )
+    .expect("exact accepted Console binding");
+    let checked = compile_to_checked_with_packages(
+        &root.0.join("main.omg"),
+        Some("linux_x86_64"),
+        base_inputs()
+            .with_accepted_semantic_bindings(vec![accepted])
+            .expect("binding package is in the exact closure"),
+    )
+    .expect("accepted Console dependency should settle exactly");
+    let review = project_checked_package_review(&checked)
+        .expect("resolved package Console authority should rederive during review");
+    let [authority] = review.dangerous_authorities() else {
+        panic!("one exact accepted process authority row")
+    };
+    assert_eq!(
+        authority.class(),
+        PackageReviewDangerousAuthorityClass::Process,
+    );
+    assert_eq!(
+        authority.service().owner(),
+        PackageReviewNominalOwner::Package(console_package),
+    );
+    assert_eq!(authority.service().path(), "Console");
 }
