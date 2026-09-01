@@ -1615,6 +1615,21 @@ pub(super) fn consider_generic_spelling(
                 if CanonicalConstValue::from_atom(name.as_str()).is_some() {
                     continue;
                 }
+                if matches!(
+                    syntax
+                        .tables
+                        .type_references
+                        .type_reference(parameter_type),
+                    TypeReferenceNode::Named(type_name) if type_name.as_str() == "bool"
+                ) && matches!(name.as_str(), "true" | "false")
+                {
+                    let value = CanonicalConstValue::boolean(name.as_str() == "true");
+                    syntax.tables.type_references.replace_type_reference(
+                        *argument,
+                        TypeReferenceNode::Named(Identifier::generated(value.atom())),
+                    );
+                    continue;
+                }
                 if let Some(value) = const_values.get(name.as_str()) {
                     syntax.tables.type_references.replace_type_reference(
                         *argument,

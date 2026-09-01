@@ -74,6 +74,12 @@ impl CanonicalConstIdentity {
 }
 
 impl CanonicalConstValue {
+    /// Construct the unique retained atom payload for one Boolean value.
+    pub fn boolean(value: bool) -> Self {
+        let spelling = value.to_string();
+        Self::new("bool", framed("boolean", [spelling.as_str()]), spelling)
+    }
+
     pub fn new(
         type_name: impl Into<String>,
         encoding: impl Into<String>,
@@ -333,6 +339,15 @@ mod tests {
 
     #[test]
     fn canonical_inner_scalars_decode() {
+        let canonical_true = CanonicalConstValue::boolean(true);
+        assert_eq!(
+            CanonicalConstValue::from_atom(&canonical_true.atom()),
+            Some(canonical_true.clone())
+        );
+        assert_eq!(
+            canonical_true.decode_encoding(),
+            Some(DecodedCanonicalConstValue::Boolean(true))
+        );
         assert_eq!(
             decode(framed("integer", ["i64", "-42"])),
             Some(DecodedCanonicalConstValue::Integer {

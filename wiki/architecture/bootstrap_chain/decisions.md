@@ -481,8 +481,8 @@ fact-bearing, quotient, zero-gated, or non-data shapes return the owned base
 to the unchanged full frontend rebuild/rebind fallback. Runtime-generic data in
 one generated unit now bypasses that fallback for methodless record, pure-sum,
 and mixed field/case templates with any nonzero number of ordinary Type
-parameters and exact property bounds plus scalar integer const parameters. Any
-number of closed instances,
+parameters and exact property bounds plus scalar integer or Boolean const
+parameters. Any number of closed instances,
 wrappers, and uses may compose finite acyclic nested instance graphs. Arguments
 may be builtins, exact nongeneric nominal data, or already validated local
 instances. Direct parameter substitution recursively traverses reference,
@@ -491,21 +491,23 @@ Lifetime-bearing templates and instances may form finite acyclic field or
 case-payload dependency graphs through those same shells. Every synthesized
 definition retains the exact erased binder roster, while every internal and
 ordinary edge retains exact owner-local lifetime arity and ordering.
-Scalar const binders retain exact compiler-owned signed/unsigned integer or
-address carriers. Closed arguments use canonical in-range decimal leaves;
-already-normalized expressions share that identity. Internal forwarding rejoins
-the exact owner const binder and carrier, and literal-array lengths replay the
-substituted value. These instances join the same finite dependency graph and
-may be later local Type arguments.
-The continuation rejoins exact
-template/argument/origin spelling, case order and identity, retired data/
+Scalar const binders retain exact compiler-owned signed/unsigned integer,
+address, or Boolean carriers. Closed integer arguments use canonical in-range
+decimal leaves; already-normalized expressions share that identity. Closed
+Boolean arguments retain and completely decode the compiler-generated
+canonical value atom. Internal forwarding rejoins the exact owner const binder
+and carrier; only integer binders may supply literal-array lengths, whose
+instance fields replay the substituted value. These instances join the same
+finite dependency graph and may be later local Type arguments.
+The continuation rejoins exact template/argument/origin spelling, case order
+and identity, retired data/
 payload identities, declaration/parameter/field/case ownership, transitive
 reachability from ordinary generated data, and common source ownership. Base-
 owned applications separately retain their exact structural generic nodes
 without local synthesis. The compiler normalizes a per-unit clone before
 seeded resolution but retains the raw parsed unit for fallback. Cross-unit
-synthesis, lifetime-bearing local instances used as Type arguments, Boolean or
-structured-canonical const applications, constrained applications,
+synthesis, lifetime-bearing local instances used as Type arguments, structured-
+canonical const applications, constrained applications,
 parameter-bearing constrained/dynamic/other composite shells, facts,
 quotients, zero gates, attached generated methods, and non-data shapes remain
 on the raw full-rebuild path. General seeded typing and deletion of that fallback remain open. The source-
