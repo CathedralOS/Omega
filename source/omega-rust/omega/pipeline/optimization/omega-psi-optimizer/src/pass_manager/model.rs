@@ -13,7 +13,8 @@ use omega_optimization_unit::{
     PsiTransformationLedger,
 };
 use omega_optimization_validation::{
-    OptimizationUnitValidationError, validate_verified_psi_optimization_unit,
+    OptimizationUnitValidationError, ValidatedOptimizerCycleComponents,
+    validate_verified_psi_cycle_components,
 };
 use omega_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit};
 
@@ -23,15 +24,20 @@ use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
 pub struct VerifiedPsiOptimizationSession {
     pub(super) input: VerifiedPsiOptimizationInput,
     pub(super) unit: PsiOptimizationUnit,
+    pub(super) cycle_components: ValidatedOptimizerCycleComponents,
 }
 
 impl VerifiedPsiOptimizationSession {
     pub fn new(
         verified: VerifiedPsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
-        validate_verified_psi_optimization_unit(&verified)?;
+        let cycle_components = validate_verified_psi_cycle_components(&verified)?;
         let (input, unit) = verified.into_parts();
-        Ok(Self { input, unit })
+        Ok(Self {
+            input,
+            unit,
+            cycle_components,
+        })
     }
 
     pub const fn input(&self) -> &VerifiedPsiOptimizationInput {
@@ -40,6 +46,11 @@ impl VerifiedPsiOptimizationSession {
 
     pub const fn unit(&self) -> &PsiOptimizationUnit {
         &self.unit
+    }
+
+    /// Canonical SCC topology authorized for optimizer analysis only.
+    pub const fn cycle_components(&self) -> &ValidatedOptimizerCycleComponents {
+        &self.cycle_components
     }
 
     pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {

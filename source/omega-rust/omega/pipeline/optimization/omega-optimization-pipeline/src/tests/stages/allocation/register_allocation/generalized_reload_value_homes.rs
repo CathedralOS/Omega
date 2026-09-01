@@ -149,6 +149,33 @@ impl Sources {
         )
     }
 
+    pub(super) fn schedule_recursive_spills(
+        &self,
+        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        budget: OptimizationWorkBudget,
+    ) -> Result<
+        omega_regalloc::ValidatedRecursiveSpillInsertion,
+        omega_regalloc::RecursiveSpillInsertionError,
+    > {
+        omega_regalloc::schedule_recursive_spill_insertion(
+            &self.generalized,
+            recovery,
+            omega_regalloc::RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
+            budget,
+        )
+    }
+
+    pub(super) fn validate_recursive_spills(
+        &self,
+        recovery: &omega_regalloc::ValidatedGeneralizedSpillRecoveryActions,
+        plan: omega_regalloc::RecursiveSpillInsertionPlan,
+    ) -> Result<
+        omega_regalloc::ValidatedRecursiveSpillInsertion,
+        omega_regalloc::RecursiveSpillInsertionError,
+    > {
+        omega_regalloc::validate_recursive_spill_insertion(&self.generalized, recovery, plan)
+    }
+
     fn validate(
         &self,
         candidate: omega_regalloc::GeneralizedReloadValueHomePlan,

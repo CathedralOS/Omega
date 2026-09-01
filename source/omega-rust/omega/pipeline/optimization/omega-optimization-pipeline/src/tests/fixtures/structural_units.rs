@@ -237,6 +237,46 @@ pub(crate) fn integer_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn integer_ieee_float_literal_sequence_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    module.machines[0].blocks[0].operations.extend([
+        Operation {
+            id: OperationId::new(3_550).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(3_551).unwrap(),
+                scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).unwrap()),
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(-128),
+            },
+        },
+        Operation {
+            id: OperationId::new(3_552).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(3_553).unwrap(),
+                scalar_type: ScalarType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
+            }),
+            kind: OperationKind::IeeeFloatConstant {
+                value: psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+            },
+        },
+        Operation {
+            id: OperationId::new(3_554).unwrap(),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(3_555).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 16).unwrap(),
+                ),
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(65_535),
+            },
+        },
+    ]);
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn nearest_ieee_float_fused_multiply_add_unit_return_artifact(
     format: psi_core::IeeeFloatFormat,
 ) -> (Vec<u8>, Vec<u8>) {

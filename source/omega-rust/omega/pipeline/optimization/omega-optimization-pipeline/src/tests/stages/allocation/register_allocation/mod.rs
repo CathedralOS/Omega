@@ -12,6 +12,7 @@ mod generalized_spill_recovery_worklist;
 mod live_ranges;
 mod liveness;
 mod logical_spill_operations;
+mod recursive_spill_insertion;
 mod register_homes;
 mod reload_value_homes;
 mod selected_input;

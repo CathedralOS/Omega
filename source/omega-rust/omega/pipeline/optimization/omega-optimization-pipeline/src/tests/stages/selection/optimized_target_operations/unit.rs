@@ -263,6 +263,81 @@ fn optimized_target_lowering_retains_finite_integer_literal_sequence_custody() {
 }
 
 #[test]
+fn optimized_target_lowering_retains_ordered_mixed_literal_sequence_custody() {
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = integer_ieee_float_literal_sequence_unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn(row),
+        ) = target.translation_validation().function_roster()[0].translation()
+        else {
+            panic!("optimized mixed sequence must retain its exact validated family")
+        };
+        assert!(matches!(
+            row.literals(),
+            [
+                IntegerIeeeFloatLiteralSequenceMember::Integer {
+                    operation,
+                    result,
+                    scalar_type,
+                    value,
+                },
+                IntegerIeeeFloatLiteralSequenceMember::IeeeFloat {
+                    operation: float_operation,
+                    result: float_result,
+                    value: float_value,
+                },
+                IntegerIeeeFloatLiteralSequenceMember::Integer {
+                    operation: second_operation,
+                    result: second_result,
+                    scalar_type: second_type,
+                    value: second_value,
+                },
+            ] if *operation == OperationId::new(3_550).unwrap()
+                && *result == ValueId::new(3_551).unwrap()
+                && *scalar_type == IntegerType::new(IntegerSign::Signed, 8).unwrap()
+                && *value == IntegerValue::Signed(-128)
+                && *float_operation == OperationId::new(3_552).unwrap()
+                && *float_result == ValueId::new(3_553).unwrap()
+                && *float_value == psi_core::IeeeFloatValue::Binary32(0x7fc1_2345)
+                && *second_operation == OperationId::new(3_554).unwrap()
+                && *second_result == ValueId::new(3_555).unwrap()
+                && *second_type == IntegerType::new(IntegerSign::Unsigned, 16).unwrap()
+                && *second_value == IntegerValue::Unsigned(65_535)
+        ));
+        let TargetOperation::UnitBody(body) = &target.target_operations().functions[0].operation
+        else {
+            panic!("optimized mixed sequence must remain in the Unit-body carrier")
+        };
+        assert!(matches!(
+            body.operations.as_slice(),
+            [
+                TargetUnitOperation::IntegerConstant { psi_operation: first, .. },
+                TargetUnitOperation::IeeeFloatConstant { psi_operation: second, .. },
+                TargetUnitOperation::IntegerConstant { psi_operation: third, .. },
+                TargetUnitOperation::Return { cleanup_actions, .. },
+            ] if *first == OperationId::new(3_550).unwrap()
+                && *second == OperationId::new(3_552).unwrap()
+                && *third == OperationId::new(3_554).unwrap()
+                && cleanup_actions.is_empty()
+        ));
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_exact_nearest_ieee_fma_custody() {
     for (target_profile, profile) in [
         (NativeTarget::linux_x64(), TargetProfile::LinuxX64),

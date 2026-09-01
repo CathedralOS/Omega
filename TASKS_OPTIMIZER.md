@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-five abstract-to-target families are covered,
+  machine-rule family. Forty-six abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -516,6 +516,15 @@ decision. Only true language-semantic questions belong in
   host-float conversion, and its optimized-target custody canary retains the
   typed sequence receipt. Its multi-operation grammar remains disjoint from
   both the singleton IEEE-literal and return-only families.
+  The adjacent mixed integer/IEEE-literal-sequence family admits a nonempty
+  ordered prefix containing only `IntegerConstant` and `IeeeFloatConstant`,
+  with at least one operation of each kind, followed by `ReturnUnit`.
+  Independent replay retains every operation/result identity, exact integer
+  type and mathematical value, raw Binary32/Binary64 bits, literal order,
+  provenance, return edge, empty cleanup/native call plan, and canonical
+  structural roster across all five native targets. Its heterogeneous grammar
+  is disjoint from both homogeneous sequence families, and optimized-target
+  custody retains the distinct typed receipt.
   The x86-only nearest-even IEEE fused-multiply-add sibling admits exactly
   three raw-bit constants, one fused operation consuming them in order, and
   `ReturnUnit`. Independent replay binds every definition/operand identity and
@@ -645,7 +654,17 @@ decision. Only true language-semantic questions belong in
   artifact fields and all 16 representable manifest fields are reauthenticated
   independently; their envelope, vocabulary, optional-debug, target, machine,
   stage, unavailable-data, trailing, and truncation wire axes fail closed; and
-  all six receipt custody roots are mutated separately.
+  all six receipt custody roots are mutated separately. The preceding
+  function-relative realization V9 slice now reauthenticates all 41
+  representable fields: 32 direct manifest fields plus nine nested
+  post-allocation custody fields, with stale outer identity covered
+  separately. It rejects 25 closed/envelope wire axes and independently swaps
+  all five receipt roots across real x86 rel32-to-rel8 and MOV-r32-imm32 public
+  routes. The tests descend through six named leaves for fixtures, manifest
+  fields, wire axes/offsets, and receipt custody. A UEFI ProgramStorage wrapper
+  matrix remains engineering-dependent on a physical adapter/lowering path for
+  the accepted cyclic two-`Extent` linear return shape; it is not an owner
+  language-semantic question.
 
 ## P3 — Psi optimizer
 
@@ -665,13 +684,19 @@ decision. Only true language-semantic questions belong in
   replay uses an equality-converging deterministic worklist, and a real
   source-produced four-block countdown reaches CFG, dominator, SCC, loop, and
   value-liveness analyses without rewrites. Topology, frozen-body, and missing-
-  function corruption fail typed. This slice creates no general component ID,
-  ranking certificate, unranked-progress authority, finite-work failure, or
-  cyclic rewrite permission.
+  function corruption fail typed. The adjacent custody slice derives a public
+  structural `CycleComponentId` from the owning machine and canonical internal
+  edge roster, plus sorted members, entries, and exits. Terminal and current
+  operation graphs are reconstructed independently; exact component identity
+  and topology must agree before the opaque analysis-only carrier is issued,
+  retained by the verified optimizer session, and rederived after a run.
+  Mutation covers every edge coordinate and roster shape. This creates no
+  ranking certificate, unranked-progress authority, finite-work failure,
+  execution permission, cyclic rewrite permission, or publication authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
-  execution with fixed-point dominance/frontiers, canonical component IDs,
-  well-founded ranking certificates, productive unranked components, and
-  structured finite-work failures.
+  execution with fixed-point dominance/frontiers, well-founded ranking
+  certificates, productive unranked components, and structured finite-work
+  failures.
 - [ ] Retarget LICM and other loop consumers to validated Terminal SCCs.
 - [ ] Implement LICM only after transforms can invalidate and reconstruct
   component, loop-carried custody, and ranking evidence.
@@ -903,8 +928,20 @@ decision. Only true language-semantic questions belong in
   custody fail closed. The 26-line entrance grants no selected VReg,
   instruction, physical slot, address, memory effect, frame, trap, or
   publication authority. V1 deliberately refuses an original-value victim;
-  generalizing that source role and integrating epoch two into the generalized
-  insertion schedule remain engineering work.
+  generalizing that source role remains engineering work. A fourteenth
+  independently replayed V1 artifact now integrates the validated epoch-two
+  reload-victim obligations into one complete recursive logical insertion
+  schedule. Its distinct stored-value type prevents a compiler-private reload
+  action from masquerading as an original selected VReg. The public dual-target
+  fixture recolors closed lifetimes `[9,12]`, `[12,14]`, and `[14,16]` to
+  offsets 0, 8, and 0, respectively, preserving the 16-byte abstract area;
+  it emits ten canonical `Store < Reload < Rewrite` events under exact usage
+  `{1, 3, 14, 3, 4}`. The epoch-two store at point 14 names both source reload
+  `{0,0}` and pressured reload `{1,0}`, then reloads/rebinds `{2,0}` at point
+  16. Root, slot, typed-source, schedule, usage, every representable budget
+  axis, and cross-target corruption fail closed. The 26-line entrance grants
+  no selected VReg, instruction, physical slot/address, memory effect, frame,
+  trap, unwind, encoding, emission, or publication authority.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

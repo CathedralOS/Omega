@@ -39,6 +39,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIeeeFloatLiteralSequenceUnitReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn
             }
+            Self::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn
+            }
             Self::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn
             }

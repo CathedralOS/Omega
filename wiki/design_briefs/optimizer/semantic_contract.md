@@ -91,9 +91,12 @@ fixed-fuel, native, or publication authority. Verified-context validation
 independently rederives the Terminal and current SCC membership, freezes the
 ranked component at the optimization-unit level, and scopes cycle admission to
 that function. Current ownership reaches its fixed point only when all incoming
-and backedge states are equal. General component identities, ranking
-certificates, productive unranked components, finite-work failures, and
-transforms that invalidate SCC evidence remain closed.
+and backedge states are equal. A canonical `CycleComponentId` now binds machine
+and internal edges, with derived member, entry, and exit rosters; Terminal and
+current graphs must independently produce the same structural component before
+analysis custody is issued. Ranking certificates, productive unranked
+components, finite-work failures, and transforms that invalidate SCC evidence
+remain closed.
 
 ## Provenance
 

@@ -168,6 +168,28 @@ pub enum StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerIeeeFloatLiteralSequenceUnitReturnTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceConstantType,
+    SourceConstantOutsideType,
+    SourceCleanupActions,
+    TargetFixedIntegerScalarAbi,
+    TargetProvenance,
+    TargetOperation,
+    TargetCallPlan,
+    TargetParameters,
+    TargetOperationRoster,
+    TargetConstant,
+    TargetReturn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationError {
     SourceParameters,
     SourceStructuralParameters,

@@ -24,6 +24,7 @@ use super::terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationError,
     StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationError,
     StraightLineIeeeFloatLiteralUnitReturnTranslationError,
+    StraightLineIntegerIeeeFloatLiteralSequenceUnitReturnTranslationError,
     StraightLineIntegerLiteralSequenceUnitReturnTranslationError,
     StraightLineIntegerLiteralUnitReturnTranslationError,
     StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationError,
@@ -58,6 +59,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIeeeFloatLiteralUnitReturn(StraightLineIeeeFloatLiteralUnitReturnTranslationError),
     StraightLineIeeeFloatLiteralSequenceUnitReturn(
         StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationError,
+    ),
+    StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn(
+        StraightLineIntegerIeeeFloatLiteralSequenceUnitReturnTranslationError,
     ),
     StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn(
         StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationError,

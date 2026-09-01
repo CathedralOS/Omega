@@ -3,8 +3,9 @@
 use omega_abstract_operations::AbstractOperation;
 use omega_optimization_core::AnalysisKind;
 use omega_optimization_validation::{
-    OptimizationUnitValidationError, validate_psi_optimization_unit,
-    validate_transformed_psi_optimization_unit,
+    OptimizationUnitValidationError, OptimizerCycleComponentSnapshot,
+    validate_psi_cycle_component_snapshot, validate_psi_optimization_unit,
+    validate_transformed_psi_optimization_unit, validate_verified_psi_cycle_components,
 };
 use omega_psi_optimizer::{AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession};
 use omega_psi_to_abstract_operations::{
@@ -86,6 +87,19 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
         .as_ref()
         .expect("source countdown rank");
     let decrement = ranked.covered_cyclic_edges[0].source;
+    let [component] = session.cycle_components().components() else {
+        panic!("one optimizer cycle component")
+    };
+    assert_eq!(component.id.machine, module.entry);
+    assert_eq!(component.members, vec![ranked.header, decrement]);
+    assert_eq!(component.id.internal_edges.len(), 2);
+    assert_eq!(component.entries.len(), 1);
+    assert_eq!(component.exits.len(), 1);
+    assert!(component.id.internal_edges.iter().any(|edge| {
+        edge.edge == ranked.covered_cyclic_edges[0].edge
+            && edge.source == decrement
+            && edge.target == ranked.header
+    }));
     let mut analyses = AnalysisManager::new(unit);
 
     let AnalysisProduct::ControlFlowGraph(cfg) = analyses
@@ -146,6 +160,80 @@ fn source_countdown_reaches_all_loop_prerequisite_analyses_without_rewrites() {
                 .iter()
                 .any(|node| node.entry.contains(&ranked.rank_parameter))
     }));
+}
+
+#[test]
+fn ranked_component_snapshot_replay_rejects_every_topology_axis() {
+    let (_, verified) = countdown_unit();
+    let validated = validate_verified_psi_cycle_components(&verified)
+        .expect("derive canonical optimizer component snapshot");
+    let baseline = validated.snapshot().clone();
+    let (input, unit) = verified.into_parts();
+    validate_psi_cycle_component_snapshot(&input, &unit, &baseline)
+        .expect("exact component snapshot replays");
+
+    let corruptions: Vec<Box<dyn Fn(&mut OptimizerCycleComponentSnapshot)>> = vec![
+        Box::new(|snapshot| {
+            snapshot.terminal_psi.program_fingerprint =
+                psi_terminal::SemanticFingerprint::from_bytes([0xA5; 32]);
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].id.machine = psi_core::MachineId::new(91_001).unwrap();
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].id.internal_edges[0].edge =
+                snapshot.components[0].entries[0].edge
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].id.internal_edges[0].source =
+                snapshot.components[0].entries[0].source
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].id.internal_edges[0].target =
+                snapshot.components[0].exits[0].target
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].id.internal_edges.pop();
+        }),
+        Box::new(|snapshot| snapshot.components[0].id.internal_edges.reverse()),
+        Box::new(|snapshot| {
+            snapshot.components[0].members.pop();
+        }),
+        Box::new(|snapshot| snapshot.components[0].members.reverse()),
+        Box::new(|snapshot| {
+            snapshot.components[0].entries[0].edge =
+                snapshot.components[0].id.internal_edges[0].edge
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].entries[0].source = snapshot.components[0].members[0]
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].entries[0].target = snapshot.components[0].exits[0].target
+        }),
+        Box::new(|snapshot| snapshot.components[0].entries.clear()),
+        Box::new(|snapshot| {
+            snapshot.components[0].exits[0].edge = snapshot.components[0].id.internal_edges[0].edge
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].exits[0].source = snapshot.components[0].entries[0].source
+        }),
+        Box::new(|snapshot| {
+            snapshot.components[0].exits[0].target = snapshot.components[0].members[0]
+        }),
+        Box::new(|snapshot| snapshot.components[0].exits.clear()),
+        Box::new(|snapshot| {
+            let duplicate = snapshot.components[0].clone();
+            snapshot.components.push(duplicate);
+        }),
+    ];
+    for mutate in corruptions {
+        let mut corrupted = baseline.clone();
+        mutate(&mut corrupted);
+        assert_eq!(
+            validate_psi_cycle_component_snapshot(&input, &unit, &corrupted),
+            Err(OptimizationUnitValidationError::RankedCycleComponentSnapshotMismatch)
+        );
+    }
 }
 
 #[test]

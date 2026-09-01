@@ -24,6 +24,18 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "optimizer ranked-cycle component validation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/graph.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/components.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/topology.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/freeze.rs",
+        ],
+    },
+    SemanticLadder {
         family: "SCCP validation",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_candidate.rs",

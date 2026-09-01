@@ -3218,6 +3218,53 @@ fn generalized_recovery_action_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn recursive_spill_insertion_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/recursive_spill_insertion",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read recursive spill-insertion entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_recursive_spill_insertion("),
+        "the recursive spill-insertion entrance must visibly join production to independent replay",
+    );
+
+    let producer = std::fs::read_to_string(stage.join("compute.rs"))
+        .expect("read recursive spill-insertion producer");
+    let mut replay = std::fs::read_to_string(stage.join("replay.rs"))
+        .expect("read recursive spill-insertion replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read recursive spill-insertion validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::work_usage"] {
+        assert!(
+            !replay.contains(forbidden),
+            "recursive spill-insertion replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "BTreeMap",
+        "BTreeSet",
+        "fn work_usage",
+        "RecursiveSpillStoredValue::Reload",
+    ] {
+        assert!(
+            replay.contains(required),
+            "recursive spill-insertion replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["BTreeMap", "BTreeSet"] {
+        assert!(
+            !producer.contains(forbidden),
+            "recursive spill-insertion producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(

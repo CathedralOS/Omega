@@ -11,7 +11,10 @@ mod services;
 mod structural_catalog;
 
 pub use context::{
-    validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
+    CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
+    ValidatedOptimizerCycleComponents, validate_psi_cycle_component_snapshot,
+    validate_transformed_psi_cycle_components, validate_transformed_psi_optimization_unit,
+    validate_verified_psi_cycle_components, validate_verified_psi_optimization_unit,
 };
 pub use core::validate_psi_optimization_unit;
 
