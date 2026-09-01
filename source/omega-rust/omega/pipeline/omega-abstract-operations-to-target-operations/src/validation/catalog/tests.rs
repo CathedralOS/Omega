@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
@@ -10,7 +8,7 @@ use omega_target_operations::{
 };
 use psi_core::{
     BlockId, EdgeId, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    ObligationId, OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ByteSequenceCarrier, StructuralPlaceDeclaration, StructuralTypeDeclaration,
@@ -24,6 +22,8 @@ use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationValidationError,
 };
 
+mod enabled_families;
+mod integer_exact_cast_immediate_operand;
 mod integer_ieee_float_literal_sequence;
 mod integer_widen_immediate;
 
@@ -476,77 +476,6 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
 }
 
 #[test]
-fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
-    let ordered = ENABLED_TRANSLATION_FAMILIES
-        .iter()
-        .map(|descriptor| descriptor.family)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        ordered,
-        vec![
-            AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
-            AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate,
-            AbstractToTargetTranslationFamily::StraightLineBooleanImmediate,
-            AbstractToTargetTranslationFamily::StraightLineUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
-            AbstractToTargetTranslationFamily::StraightLineByteSequenceLiteralUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineIntegerLiteralSequenceUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
-            AbstractToTargetTranslationFamily::StraightLineScalarCrash,
-            AbstractToTargetTranslationFamily::StraightLineIntegerParameter,
-            AbstractToTargetTranslationFamily::StraightLineBooleanParameter,
-            AbstractToTargetTranslationFamily::StraightLineBooleanNotParameter,
-            AbstractToTargetTranslationFamily::StraightLineBooleanEqualParameters,
-            AbstractToTargetTranslationFamily::StraightLineIntegerEqualParameters,
-            AbstractToTargetTranslationFamily::StraightLineIntegerLessThanParameters,
-            AbstractToTargetTranslationFamily::StraightLineIntegerLessOrEqualParameters,
-            AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotParameter,
-            AbstractToTargetTranslationFamily::StraightLineIntegerWidenParameter,
-            AbstractToTargetTranslationFamily::StraightLineIntegerExactCastParameter,
-            AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndParameters,
-            AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrParameters,
-            AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftLeftParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftRightParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerShiftLeftParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerShiftRightParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerAddParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerSubtractParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerMultiplyParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerDivideParameters,
-            AbstractToTargetTranslationFamily::StraightLineExactIntegerRemainderParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerRemainderParameters,
-            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerDivideParameters,
-            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerRemainderParameters,
-            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
-            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractParameters,
-            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyParameters,
-            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyParameters,
-        ]
-    );
-    let identities = ordered.iter().copied().collect::<BTreeSet<_>>();
-    assert_eq!(identities.len(), ENABLED_TRANSLATION_FAMILIES.len());
-
-    let (source, target) = boolean_literal_pair();
-    let disposition = validate_function(&source, NativeTarget::linux_x64(), &target, &[]).unwrap();
-    assert!(matches!(
-        disposition,
-        AbstractToTargetFunctionTranslationDisposition::Validated(
-            AbstractToTargetFunctionTranslationReceipt::StraightLineBooleanImmediate(_)
-        )
-    ));
-}
-
-#[test]
 fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
     let (source, target) = boolean_literal_pair();
     let source = &source;
@@ -556,7 +485,13 @@ fn omission_is_uncovered_while_duplicate_or_overlap_fails_closed() {
         AbstractToTargetFunctionTranslationDisposition::Uncovered
     );
 
-    let boolean = ENABLED_TRANSLATION_FAMILIES[2];
+    let boolean = ENABLED_TRANSLATION_FAMILIES
+        .iter()
+        .find(|descriptor| {
+            descriptor.family == AbstractToTargetTranslationFamily::StraightLineBooleanImmediate
+        })
+        .copied()
+        .unwrap();
     assert!(matches!(
         selection::validate(
             source,

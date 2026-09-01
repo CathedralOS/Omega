@@ -15,9 +15,11 @@ pub use model::*;
 pub use validate::validate_generalized_spill_recovery_choices;
 
 #[allow(clippy::too_many_arguments)]
-pub fn choose_generalized_spill_recovery_victims(
+pub fn choose_generalized_spill_recovery_victims<S: crate::ValidatedSelectedAnalysis>(
     worklist: &crate::ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &crate::ValidatedGeneralizedReloadValueHomes,
+    selected: &S,
+    ranges: &crate::ValidatedLiveRanges,
     legality: &crate::ValidatedAllocationLegality,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
     constraints: &omega_register_model::ValidatedRegisterConstraintCatalog,
@@ -29,6 +31,8 @@ pub fn choose_generalized_spill_recovery_victims(
     let plan = compute::compute(
         worklist,
         homes,
+        selected,
+        ranges,
         legality,
         physical,
         constraints,
@@ -40,6 +44,8 @@ pub fn choose_generalized_spill_recovery_victims(
     validate_generalized_spill_recovery_choices(
         worklist,
         homes,
+        selected,
+        ranges,
         legality,
         physical,
         constraints,

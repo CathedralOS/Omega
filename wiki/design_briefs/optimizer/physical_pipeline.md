@@ -15,7 +15,7 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-six families reconstruct parameterless straight-line
+replay. Its first forty-eight families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
@@ -126,6 +126,14 @@ wrapping-subtract, wrapping-multiply, and saturating-multiply retain exact-width
 operands,
 integer-widen retains distinct source/target types, and exact-cast additionally
 retains its proof obligation through `ReturnIntegerExpression`.
+The two constant-conversion siblings remain distinct from those parameter
+families. Constant widen validates `[IntegerConstant, IntegerWiden, Return]`
+and replays the materialized widened immediate. Proof-bearing constant exact
+cast validates `[IntegerConstant, IntegerExactCast, Return]` and faithfully
+replays `IntegerExactCast(Immediate)`, retaining both operation identities,
+the obligation, source/target types, and the independently computed exact cast
+value. Its 38 legal native fixed-integer relations cross two representability
+boundaries and all five targets; no cast-elimination authority is inferred.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -509,7 +517,7 @@ custody roots, and exact usage `{2, 2, 13, 1, 1}`. The item is not a generalized
 spill action or selected VReg; it chooses no victim or home and grants no
 instruction, memory, frame, trap, unwind, encoding, emission, or publication
 authority. It feeds the adjacent epoch-two victim-choice boundary.
-That boundary now enters through the 50-line
+That boundary now enters through the 56-line
 `generalized_spill_recovery_choice` coordinator. V1 independently reconstructs
 the complete blocker roster as typed residents with exact lifetimes and views,
 proves which single omissions recover a candidate view, and ranks only those
@@ -520,7 +528,14 @@ and keyed replay bind the work item, source pressure, candidate domain,
 residents, contenders, chosen/reclaimed views, every custody root, and exact
 usage `{2, 2, 13, 1, 1}`. This remains choice evidence: it performs no
 eviction, logical spill action, selected rewrite, memory/frame operation, trap
-claim, encoding, emission, or publication. The adjacent 26-line
+claim, encoding, emission, or publication. An explicit guarded-original policy
+also binds the selected-plan and live-range roots. Separate producer and
+point-indexed replay leaves admit an original to ranking only when its selected
+role and flexible post-pressure use suffix are independently proven, then rank
+eligible originals before reloads. Exact guarded usage is
+`{4, 2, 43, 1, 1}`. The fixture's `v5` is used at the pressure point, so it
+remains visible as a typed contender but is excluded from guarded ranking;
+forging it as selected fails closed. The adjacent 26-line
 `generalized_spill_recovery_actions` entrance now converts the selected reload
 victim into target-neutral epoch-two obligations. Direct traversal and an
 independently keyed replay agree on the victim action, current/reclaimed view,

@@ -68,21 +68,39 @@ impl Sources {
         omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
         omega_regalloc::GeneralizedSpillRecoveryChoiceError,
     > {
+        self.choose_generalized_victim_with_policy(
+            homes,
+            worklist,
+            omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
+            budget,
+        )
+    }
+
+    pub(super) fn choose_generalized_victim_with_policy(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        worklist: &omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
+        policy: omega_regalloc::GeneralizedSpillRecoveryChoicePolicy,
+        budget: OptimizationWorkBudget,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        omega_regalloc::GeneralizedSpillRecoveryChoiceError,
+    > {
         let legality = self.reloads.legality();
-        let environment = legality
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment();
+        let ranges = legality.live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        let environment = selected.register_environment();
         omega_regalloc::choose_generalized_spill_recovery_victims(
             worklist,
             homes,
+            selected.selected(),
+            ranges.ranges(),
             legality.legality(),
             environment.physical(),
             environment.constraints(),
             environment.reservations(),
             environment.allocation_constraint_keys(),
-            omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
+            policy,
             budget,
         )
     }
@@ -97,14 +115,14 @@ impl Sources {
         omega_regalloc::GeneralizedSpillRecoveryChoiceError,
     > {
         let legality = self.reloads.legality();
-        let environment = legality
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .register_environment();
+        let ranges = legality.live_range_stage();
+        let selected = ranges.liveness_stage().selected_stage();
+        let environment = selected.register_environment();
         omega_regalloc::validate_generalized_spill_recovery_choices(
             worklist,
             homes,
+            selected.selected(),
+            ranges.ranges(),
             legality.legality(),
             environment.physical(),
             environment.constraints(),

@@ -294,6 +294,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(in crate::analyses) fn value_ranges",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/mod.rs",
+        coordination_marker: "pub(crate) fn analyze_counted_loops",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/dead_scalar_elimination/mod.rs",
         coordination_marker: "fn validate_candidate_contract",
     },

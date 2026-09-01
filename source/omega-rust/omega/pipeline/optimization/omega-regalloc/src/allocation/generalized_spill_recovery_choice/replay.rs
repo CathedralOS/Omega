@@ -15,13 +15,17 @@ use crate::{
     GeneralizedSpillRecoveryChoicePolicy, GeneralizedSpillRecoveryContender,
     GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryVictimChoice, LiveRangePoint,
     ValidatedAllocationLegality, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillRecoveryWorklist,
+    ValidatedGeneralizedSpillRecoveryWorklist, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
+mod original_eligibility;
+
 #[allow(clippy::too_many_arguments)]
-pub(super) fn replay(
+pub(super) fn replay<S: ValidatedSelectedAnalysis>(
     worklist: &ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &ValidatedGeneralizedReloadValueHomes,
+    selected: &S,
+    ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -33,17 +37,17 @@ pub(super) fn replay(
     replay_roots(
         worklist,
         homes,
+        selected,
+        ranges,
         legality,
         physical,
         constraints,
         reservations,
         selected_keys,
     )?;
-    if !matches!(
-        policy,
+    match policy {
         GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1
-    ) {
-        return Err(GeneralizedSpillRecoveryChoiceError::UnsupportedPolicy);
+        | GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => {}
     }
     let mut work_items = BTreeMap::new();
     for (function, row) in worklist.plan().functions.iter().enumerate() {
@@ -106,6 +110,18 @@ pub(super) fn replay(
             .get(&(function, item.source_pressure))
             .copied()
             .ok_or(GeneralizedSpillRecoveryChoiceError::MissingPressure { function })?;
+        let selected_row = selected
+            .selected_plan()
+            .functions
+            .get(function)
+            .filter(|row| row.machine == machine)
+            .ok_or(GeneralizedSpillRecoveryChoiceError::FunctionMismatch { function })?;
+        let ranges_row = ranges
+            .plan()
+            .functions
+            .get(function)
+            .filter(|row| row.machine == machine)
+            .ok_or(GeneralizedSpillRecoveryChoiceError::FunctionMismatch { function })?;
         if pressure.source != item.source
             || pressure.block != item.block
             || pressure.start != item.start
@@ -226,10 +242,56 @@ pub(super) fn replay(
         }
         contenders.sort_by_key(|contender| contender.value);
         candidates = checked(candidates, to_u64(contenders.len())?)?;
-        let ranked = contenders
-            .iter()
-            .map(|contender| ((contender.exclusive_end, contender.value), *contender))
-            .collect::<BTreeMap<_, _>>();
+        let mut ranked = BTreeMap::new();
+        for contender in &contenders {
+            let admitted = match policy {
+                GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1 => {
+                    true
+                }
+                GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => {
+                    rules = checked(rules, 1)?;
+                    steps = checked(steps, 1)?;
+                    match contender.value {
+                        GeneralizedReloadCoexistingValue::Reload(_) => true,
+                        GeneralizedReloadCoexistingValue::Original(register) => {
+                            let resident = residents
+                                .iter()
+                                .find(|resident| resident.value == contender.value)
+                                .copied()
+                                .ok_or(GeneralizedSpillRecoveryChoiceError::InvalidBlocker {
+                                    function,
+                                })?;
+                            original_eligibility::replay(
+                                register,
+                                item.block,
+                                item.start,
+                                resident,
+                                selected_row,
+                                ranges_row,
+                                &mut steps,
+                            )?
+                        }
+                    }
+                }
+            };
+            if admitted {
+                let original_priority = match policy {
+                    GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1 => {
+                        0
+                    }
+                    GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => {
+                        u8::from(matches!(
+                            contender.value,
+                            GeneralizedReloadCoexistingValue::Original(_)
+                        ))
+                    }
+                };
+                ranked.insert(
+                    (original_priority, contender.exclusive_end, contender.value),
+                    *contender,
+                );
+            }
+        }
         let selected = ranked
             .last_key_value()
             .map(|(_, contender)| *contender)
@@ -269,6 +331,8 @@ pub(super) fn replay(
     Ok(GeneralizedSpillRecoveryChoicePlan {
         worklist: worklist.receipt().identity(),
         reload_value_homes: receipt.identity(),
+        selected: receipt.selected(),
+        ranges: receipt.ranges(),
         legality: receipt.legality(),
         register_environment: receipt.register_environment(),
         allocator_availability: receipt.allocator_availability(),
@@ -285,6 +349,8 @@ pub(super) fn replay(
 fn replay_roots(
     worklist: &ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &ValidatedGeneralizedReloadValueHomes,
+    selected: &impl ValidatedSelectedAnalysis,
+    ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -294,6 +360,7 @@ fn replay_roots(
     let source = worklist.plan();
     let home = homes.receipt();
     let legal = legality.receipt();
+    let range = ranges.receipt();
     let environment = target_register_environment_identity(
         reservations.target(),
         physical,
@@ -303,6 +370,10 @@ fn replay_roots(
     );
     if source.reload_value_homes != home.identity()
         || source.legality != legal.identity()
+        || home.selected() != selected.selected_identity()
+        || home.ranges() != range.identity()
+        || range.selected() != selected.selected_identity()
+        || legal.ranges() != range.identity()
         || home.legality() != legal.identity()
         || source.register_environment != environment
         || home.register_environment() != environment

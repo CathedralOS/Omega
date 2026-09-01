@@ -9,13 +9,16 @@ use crate::{
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryChoicePlan,
     GeneralizedSpillRecoveryChoiceReceipt, ValidatedAllocationLegality,
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryChoices,
-    ValidatedGeneralizedSpillRecoveryWorklist, generalized_spill_recovery_choice_identity,
+    ValidatedGeneralizedSpillRecoveryWorklist, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    generalized_spill_recovery_choice_identity,
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_generalized_spill_recovery_choices(
+pub fn validate_generalized_spill_recovery_choices<S: ValidatedSelectedAnalysis>(
     worklist: &ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &ValidatedGeneralizedReloadValueHomes,
+    selected: &S,
+    ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -27,6 +30,8 @@ pub fn validate_generalized_spill_recovery_choices(
     let home = homes.receipt();
     if plan.worklist != worklist.receipt().identity()
         || plan.reload_value_homes != home.identity()
+        || plan.selected != selected.selected_identity()
+        || plan.ranges != ranges.receipt().identity()
         || plan.legality != home.legality()
         || plan.register_environment != home.register_environment()
         || plan.allocator_availability != home.allocator_availability()
@@ -35,12 +40,18 @@ pub fn validate_generalized_spill_recovery_choices(
         || source.legality != plan.legality
         || source.register_environment != plan.register_environment
         || source.allocator_availability != plan.allocator_availability
+        || home.selected() != plan.selected
+        || home.ranges() != plan.ranges
+        || ranges.receipt().selected() != plan.selected
+        || legality.receipt().ranges() != plan.ranges
     {
         return Err(GeneralizedSpillRecoveryChoiceError::RootMismatch);
     }
     let expected = super::replay::replay(
         worklist,
         homes,
+        selected,
+        ranges,
         legality,
         physical,
         constraints,
@@ -70,6 +81,8 @@ pub fn validate_generalized_spill_recovery_choices(
         identity: generalized_spill_recovery_choice_identity(&plan),
         worklist: plan.worklist,
         reload_value_homes: plan.reload_value_homes,
+        selected: plan.selected,
+        ranges: plan.ranges,
         legality: plan.legality,
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,

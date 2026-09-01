@@ -6,6 +6,7 @@ use omega_register_model::{
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
+use omega_selected_instructions::SelectedFunction;
 
 use crate::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
@@ -14,12 +15,17 @@ use crate::{
     GeneralizedSpillRecoveryContender, GeneralizedSpillRecoveryResident,
     GeneralizedSpillRecoveryVictimChoice, LiveRangePoint, ValidatedAllocationLegality,
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryWorklist,
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
+mod original_eligibility;
+
 #[allow(clippy::too_many_arguments)]
-pub(super) fn compute(
+pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     worklist: &ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &ValidatedGeneralizedReloadValueHomes,
+    selected: &S,
+    ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -31,15 +37,15 @@ pub(super) fn compute(
     admit_roots(
         worklist,
         homes,
+        selected,
+        ranges,
         legality,
         physical,
         constraints,
         reservations,
         selected_keys,
     )?;
-    if policy != GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1 {
-        return Err(GeneralizedSpillRecoveryChoiceError::UnsupportedPolicy);
-    }
+    admit_policy(policy)?;
     let mut work = Work::default();
     let mut choices = Vec::new();
     for (function, row) in worklist.plan().functions.iter().enumerate() {
@@ -51,6 +57,18 @@ pub(super) fn compute(
             .filter(|candidate| candidate.machine == row.machine)
             .ok_or(GeneralizedSpillRecoveryChoiceError::FunctionMismatch { function })?;
         let legality_row = legality
+            .plan()
+            .functions
+            .get(function)
+            .filter(|candidate| candidate.machine == row.machine)
+            .ok_or(GeneralizedSpillRecoveryChoiceError::FunctionMismatch { function })?;
+        let selected_row = selected
+            .selected_plan()
+            .functions
+            .get(function)
+            .filter(|candidate| candidate.machine == row.machine)
+            .ok_or(GeneralizedSpillRecoveryChoiceError::FunctionMismatch { function })?;
+        let ranges_row = ranges
             .plan()
             .functions
             .get(function)
@@ -106,8 +124,18 @@ pub(super) fn compute(
             return Err(GeneralizedSpillRecoveryChoiceError::InvalidBlocker { function });
         }
         let contenders = contenders(function, item, &residents, physical, &mut work)?;
-        let selected = select(&contenders)
-            .ok_or(GeneralizedSpillRecoveryChoiceError::NoRecoverableVictim { function })?;
+        let selected = select(
+            function,
+            policy,
+            item.block,
+            item.start,
+            &contenders,
+            &residents,
+            selected_row,
+            ranges_row,
+            &mut work,
+        )?
+        .ok_or(GeneralizedSpillRecoveryChoiceError::NoRecoverableVictim { function })?;
         add(&mut work.commits, 1)?;
         add(&mut work.steps, 8)?;
         choices.push(GeneralizedSpillRecoveryVictimChoice {
@@ -138,6 +166,8 @@ pub(super) fn compute(
     Ok(GeneralizedSpillRecoveryChoicePlan {
         worklist: worklist_receipt.identity(),
         reload_value_homes: homes_receipt.identity(),
+        selected: homes_receipt.selected(),
+        ranges: homes_receipt.ranges(),
         legality: homes_receipt.legality(),
         register_environment: homes_receipt.register_environment(),
         allocator_availability: homes_receipt.allocator_availability(),
@@ -266,6 +296,8 @@ fn contenders(
 fn admit_roots(
     worklist: &ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &ValidatedGeneralizedReloadValueHomes,
+    selected: &impl ValidatedSelectedAnalysis,
+    ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -275,6 +307,7 @@ fn admit_roots(
     let source = worklist.plan();
     let homes_receipt = homes.receipt();
     let legality_receipt = legality.receipt();
+    let ranges_receipt = ranges.receipt();
     let environment = target_register_environment_identity(
         reservations.target(),
         physical,
@@ -284,6 +317,10 @@ fn admit_roots(
     );
     if source.reload_value_homes != homes_receipt.identity()
         || source.legality != legality_receipt.identity()
+        || homes_receipt.selected() != selected.selected_identity()
+        || homes_receipt.ranges() != ranges_receipt.identity()
+        || ranges_receipt.selected() != selected.selected_identity()
+        || legality_receipt.ranges() != ranges_receipt.identity()
         || homes_receipt.legality() != legality_receipt.identity()
         || source.register_environment != environment
         || homes_receipt.register_environment() != environment
@@ -362,13 +399,71 @@ fn count(value: usize) -> Result<u64, GeneralizedSpillRecoveryChoiceError> {
     u64::try_from(value).map_err(|_| GeneralizedSpillRecoveryChoiceError::WorkOverflow)
 }
 
+fn admit_policy(
+    policy: GeneralizedSpillRecoveryChoicePolicy,
+) -> Result<(), GeneralizedSpillRecoveryChoiceError> {
+    match policy {
+        GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1
+        | GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => Ok(()),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn select(
+    function: usize,
+    policy: GeneralizedSpillRecoveryChoicePolicy,
+    block: omega_selected_instructions::SelectedBlockId,
+    point: LiveRangePoint,
     contenders: &[GeneralizedSpillRecoveryContender],
-) -> Option<GeneralizedSpillRecoveryContender> {
-    contenders
-        .iter()
-        .max_by_key(|contender| (contender.exclusive_end, contender.value))
-        .copied()
+    residents: &[GeneralizedSpillRecoveryResident],
+    selected: &SelectedFunction,
+    ranges: &crate::FunctionLiveRanges,
+    work: &mut Work,
+) -> Result<Option<GeneralizedSpillRecoveryContender>, GeneralizedSpillRecoveryChoiceError> {
+    let mut eligible = Vec::new();
+    for contender in contenders {
+        let admitted = match policy {
+            GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1 => true,
+            GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => {
+                add(&mut work.rules, 1)?;
+                add(&mut work.steps, 1)?;
+                match contender.value {
+                    GeneralizedReloadCoexistingValue::Reload(_) => true,
+                    GeneralizedReloadCoexistingValue::Original(register) => {
+                        let Some(resident) = residents.iter().find(|row| row.value == contender.value)
+                        else {
+                            return Err(GeneralizedSpillRecoveryChoiceError::InvalidBlocker {
+                                function,
+                            });
+                        };
+                        original_eligibility::is_eligible(
+                            register, block, point, resident, selected, ranges, work,
+                        )?
+                    }
+                }
+            }
+        };
+        if admitted {
+            eligible.push(*contender);
+        }
+    }
+    Ok(eligible
+        .into_iter()
+        .max_by_key(|contender| ranking_key(policy, *contender)))
+}
+
+fn ranking_key(
+    policy: GeneralizedSpillRecoveryChoicePolicy,
+    contender: GeneralizedSpillRecoveryContender,
+) -> (u8, LiveRangePoint, GeneralizedReloadCoexistingValue) {
+    let original_priority = match policy {
+        GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1 => 0,
+        GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => u8::from(matches!(
+            contender.value,
+            GeneralizedReloadCoexistingValue::Original(_)
+        )),
+    };
+    (original_priority, contender.exclusive_end, contender.value)
 }
 
 #[cfg(test)]
@@ -387,7 +482,14 @@ mod tests {
             reclaimed_view: RegisterViewId(9),
         };
         assert_eq!(
-            select(&[contender(3), contender(7)]).unwrap().value,
+            [contender(3), contender(7)]
+                .into_iter()
+                .max_by_key(|contender| ranking_key(
+                    GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
+                    *contender
+                ))
+                .unwrap()
+                .value,
             GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(7))
         );
     }

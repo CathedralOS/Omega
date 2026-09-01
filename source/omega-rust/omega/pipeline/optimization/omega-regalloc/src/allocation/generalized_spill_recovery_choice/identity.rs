@@ -11,9 +11,11 @@ pub fn generalized_spill_recovery_choice_identity(
     plan: &GeneralizedSpillRecoveryChoicePlan,
 ) -> GeneralizedSpillRecoveryChoiceIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.generalized-spill-recovery-choice.v1\0");
+    bytes.extend_from_slice(b"omega.generalized-spill-recovery-choice.v2\0");
     bytes.extend_from_slice(&plan.worklist.bytes());
     bytes.extend_from_slice(&plan.reload_value_homes.bytes());
+    bytes.extend_from_slice(&plan.selected.bytes());
+    bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
@@ -21,6 +23,7 @@ pub fn generalized_spill_recovery_choice_identity(
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1 => 0,
+        GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1 => 1,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());

@@ -18,7 +18,11 @@ use omega_optimization_validation::{
 };
 use omega_psi_to_abstract_operations::{VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit};
 
-use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
+use crate::{
+    AnalysisManagerError, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, RuleProposalError,
+    RuleRegistryError, ValidatedCountedLoopAnalysis, analyze_counted_loops,
+    validate_counted_loop_analysis,
+};
 
 #[derive(Debug)]
 pub struct VerifiedPsiOptimizationSession {
@@ -57,6 +61,21 @@ impl VerifiedPsiOptimizationSession {
     /// or cyclic-rewrite authority.
     pub const fn ranking_certificates(&self) -> &ValidatedOptimizerRankingCertificates {
         self.cycle_components.ranking_certificates()
+    }
+
+    /// Independently reconstructed, revision-bound counted-loop facts. This
+    /// grants analysis custody only, never cyclic rewrite or execution rights.
+    pub fn counted_loop_analysis(
+        &self,
+    ) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
+        analyze_counted_loops(&self.unit, &self.cycle_components)
+    }
+
+    pub fn validate_counted_loop_analysis(
+        &self,
+        candidate: &CountedLoopAnalysisSnapshot,
+    ) -> Result<ValidatedCountedLoopAnalysis, CountedLoopAnalysisError> {
+        validate_counted_loop_analysis(&self.unit, &self.cycle_components, candidate)
     }
 
     pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {

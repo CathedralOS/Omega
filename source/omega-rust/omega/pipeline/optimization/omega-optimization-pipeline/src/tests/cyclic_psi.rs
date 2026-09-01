@@ -34,6 +34,8 @@ const COUNTDOWN_SOURCE: &str = r#"
     }
 "#;
 
+mod counted_loop_analysis;
+
 fn countdown_input() -> (psi_terminal::TerminalModule, VerifiedPsiOptimizationInput) {
     let tokens = Lexer::new(COUNTDOWN_SOURCE)
         .tokenize()

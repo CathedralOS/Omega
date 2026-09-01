@@ -8,7 +8,9 @@ mod validation;
 
 pub use family::AbstractToTargetTranslationFamilyError;
 pub use immediate::{
-    StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
+    StraightLineBooleanImmediateTranslationError,
+    StraightLineIntegerExactCastImmediateOperandTranslationError,
+    StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
 };
 pub(in crate::validation) use parameter::StraightLineParameterReconstructionError;

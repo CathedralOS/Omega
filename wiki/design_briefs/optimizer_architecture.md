@@ -177,7 +177,14 @@ certificate is available to optimizer analyses and is publicly
 reauthenticatable, but does not generalize cyclic admission. Together these
 carriers are sufficient for CFG, dominator, SCC, loop, liveness, and exact
 countdown-ranking analysis, but grant no rewrite, execution, interpretation,
-native, or publication authority.
+native, or publication authority. The first authority-sensitive consumer is a
+separate counted-loop analysis entrance: it joins the opaque component and
+ranking carriers to the current unit revision, requires one preheader and one
+exit, and records the preheader rank argument as a symbolic exact trip count.
+Its direct construction and independently keyed replay must agree on the full
+certificate, component roster, edges, carrier type, and unit roots. It is
+deliberately absent from the generic bare-unit analysis manager because that
+entrance cannot supply ranking authority.
 
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
@@ -283,7 +290,13 @@ end then highest canonical value. The V1 result retains the full resident and
 contender rosters plus selected/reclaimed views, but remains evidence only: it
 does not evict a value, create a logical spill action or selected register, or
 grant memory, frame, trap, unwind, encoding, emission, or publication
-authority.
+authority. A second exact policy retains selected-plan and live-range roots and
+admits an original resident to ranking only after separate producer and indexed
+replay prove its selected role and flexible post-pressure use suffix. Eligible
+originals rank ahead of reloads, then by the same farthest-end/canonical-value
+order. The current fixture's original is used at the pressure point, so it is
+correctly excluded and the reload remains selected; the boundary therefore
+proves eligibility mechanics without minting original-victim action authority.
 
 The adjacent `generalized_spill_recovery_actions` entrance converts that exact
 reload-victim evidence into epoch-two logical store, reload, and rewrite

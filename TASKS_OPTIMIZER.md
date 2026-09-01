@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-seven abstract-to-target families are covered,
+  machine-rule family. Forty-eight abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -508,6 +508,17 @@ decision. Only true language-semantic questions belong in
   integer-immediate and parameter-widen families; envelope, definition,
   carrier, value, cleanup, provenance, and target-operation corruption fail
   closed through optimized-target custody.
+  The sibling proof-bearing constant exact-cast family admits only
+  `[IntegerConstant, IntegerExactCast, Return]` and independently replays the
+  producer's real `IntegerExactCast(Immediate)` target expression. It retains
+  both operation identities, the proof obligation, source/target types,
+  mathematical source and exact cast values, nested immediate, provenance,
+  and return link. All 38 nonidentity, nonwidening native fixed-integer exact-
+  cast relations cross two representability boundaries and all five native
+  targets (380 positive cases), with source, target, catalog, and optimized-
+  custody corruption pinned. This validates the existing proof-bearing path;
+  it does not claim cast elimination or immediate materialization without the
+  separate proof-certified Psi rule.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -678,7 +689,14 @@ decision. Only true language-semantic questions belong in
   test taxonomy separates the shared fixture, positive and multipass custody,
   logical-field matrix, wire offsets, and wire corruption. Singleton in-memory
   stage, physical-status, and vocabulary axes are tested at their closed wire
-  tags rather than forged as impossible Rust values. A UEFI ProgramStorage
+  tags rather than forged as impossible Rust values. The post-allocation
+  manifest V6 slice now follows the same navigable taxonomy over a real staged
+  register-home result. It reauthenticates all 20 mutable logical fields through
+  22 representable cases (including every selected-transformation variant),
+  rejects a stale outer identity, covers 14 exact envelope and closed-tag wire
+  failures, and independently swaps all five authoritative reconstruction
+  inputs: prephysical custody, the transformation ledger, live ranges,
+  allocation legality, and register homes. A UEFI ProgramStorage
   wrapper matrix remains engineering-dependent on a physical adapter/lowering
   path for the accepted cyclic two-`Extent` linear return shape; it is not an
   owner language-semantic question.
@@ -715,12 +733,20 @@ decision. Only true language-semantic questions belong in
   obligation; public snapshot reauthentication and field-by-field corruption
   tests fail closed. This creates no general ranking rule, unranked-progress
   authority, finite-work failure, execution permission, cyclic rewrite
-  permission, or publication authority.
+  permission, or publication authority. The first authority-sensitive consumer
+  now derives a revision-bound counted-loop snapshot through a 38-line entrance.
+  Direct construction and independently keyed replay join the full component
+  and ranking certificate to the single preheader/exit and expose the entering
+  unsigned rank argument as a symbolic exact trip count. Fifteen snapshot axes
+  and stale-unit custody fail closed. The consumer remains outside the generic
+  bare-unit analysis manager and grants no rewrite or execution authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
   failures.
-- [ ] Retarget LICM and other loop consumers to validated Terminal SCCs.
+- [>] Retarget LICM and other loop consumers to validated Terminal SCCs. The
+  exact countdown-induction analysis is the first non-transforming consumer;
+  general consumers and rewrite-bearing passes remain open.
 - [ ] Implement LICM only after transforms can invalidate and reconstruct
   component, loop-carried custody, and ranking evidence.
 
@@ -806,6 +832,11 @@ decision. Only true language-semantic questions belong in
     family. Its independently reconstructed source grammar and target replay
     cover all 18 native fixed-integer widening relations and preserve the
     mathematical value without retaining a runtime extension.
+  - [x] Add proof-bearing constant exact-cast operand validation as its own
+    exact abstract-to-target family. It covers all 38 legal native fixed-
+    integer exact-cast relations and faithfully retains the producer's cast
+    operation and obligation around the immediate operand; this is not an
+    elimination claim.
   - [x] Add x86-64 sign-extended imm32 i64 materialization as one exact named
     family over the full i32 round-trip bit domain. Its independently replayed
     symbolic plan, canonical `REX.W + C7 /0 r64, imm32` encoder/decoder,
@@ -940,10 +971,20 @@ decision. Only true language-semantic questions belong in
   traversal and separately keyed replay retain every root, work item,
   pressure, candidate, resident, contender, selected view, and reclaimed view
   under exact usage `{2, 2, 13, 1, 1}`; all representable budget axes and
-  cross-target custody fail closed. The 50-line entrance grants no eviction,
+  cross-target custody fail closed. The 56-line entrance grants no eviction,
   logical action, selected VReg, instruction, memory, frame, trap, or
-  publication authority. A thirteenth independently replayed V1 artifact now
-  converts the selected compiler-private reload victim into bounded epoch-two
+  publication authority. The same boundary now carries the selected-plan and
+  live-range roots needed for an explicit guarded-original policy. Separate
+  producer and indexed-replay leaves prove an original's selected role and
+  flexible post-pressure use suffix before it may enter ranking, then prefer an
+  eligible original ahead of reloads. On the current dual-target fixture `v5`
+  remains a typed contender but is used at the pressure point, so the guarded
+  policy correctly excludes it and still selects the epoch-zero reload. Forging
+  `v5` as the choice fails closed; all nine roots, exact guarded usage
+  `{4, 2, 43, 1, 1}`, first-under-budget boundaries, and cross-target custody
+  are pinned. This is the honest original-choice prerequisite, not original-
+  value spill-action authority. A thirteenth independently replayed V1 artifact
+  now converts the selected compiler-private reload victim into bounded epoch-two
   logical recovery obligations. It retains the epoch-two work identity,
   source-pressure action, victim action and view, non-address storage class,
   store-before-pressure-reload anchor, reload-before-first-later-rewrite
@@ -955,7 +996,8 @@ decision. Only true language-semantic questions belong in
   custody fail closed. The 26-line entrance grants no selected VReg,
   instruction, physical slot, address, memory effect, frame, trap, or
   publication authority. V1 deliberately refuses an original-value victim;
-  generalizing that source role remains engineering work. A fourteenth
+  a fixture where an original passes the new choice proof and the corresponding
+  typed action generalization remain engineering work. A fourteenth
   independently replayed V1 artifact now integrates the validated epoch-two
   reload-victim obligations into one complete recursive logical insertion
   schedule. Its distinct stored-value type prevents a compiler-private reload

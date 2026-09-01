@@ -3147,10 +3147,18 @@ fn generalized_recovery_choice_validation_cannot_reenter_its_producer() {
         "the generalized recovery-choice entrance must visibly join production to independent replay",
     );
 
-    let producer = std::fs::read_to_string(stage.join("compute.rs"))
+    let mut producer = std::fs::read_to_string(stage.join("compute.rs"))
         .expect("read generalized recovery-choice producer");
+    producer.push_str(
+        &std::fs::read_to_string(stage.join("compute/original_eligibility.rs"))
+            .expect("read generalized recovery-choice original-eligibility producer"),
+    );
     let mut replay = std::fs::read_to_string(stage.join("replay.rs"))
         .expect("read generalized recovery-choice replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("replay/original_eligibility.rs"))
+            .expect("read generalized recovery-choice original-eligibility replay"),
+    );
     replay.push_str(
         &std::fs::read_to_string(stage.join("validate.rs"))
             .expect("read generalized recovery-choice validator"),
@@ -3161,7 +3169,14 @@ fn generalized_recovery_choice_validation_cannot_reenter_its_producer() {
             "generalized recovery-choice replay must not consume producer mechanics; found {forbidden}",
         );
     }
-    for required in ["BTreeMap", "work_items", "assignments", "originals"] {
+    for required in [
+        "BTreeMap",
+        "work_items",
+        "assignments",
+        "originals",
+        "selected_values",
+        "range_values",
+    ] {
         assert!(
             replay.contains(required),
             "generalized recovery-choice replay must visibly own independent `{required}` reconstruction",
@@ -3341,6 +3356,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_integer_immediate::validate",
         "straight_line_integer_widen_immediate::is_candidate",
         "straight_line_integer_widen_immediate::validate",
+        "straight_line_integer_exact_cast_immediate_operand::is_candidate",
+        "straight_line_integer_exact_cast_immediate_operand::validate",
         "straight_line_integer_literal_unit_return::is_candidate",
         "straight_line_integer_literal_unit_return::validate",
         "straight_line_ieee_float_literal_unit_return::is_candidate",

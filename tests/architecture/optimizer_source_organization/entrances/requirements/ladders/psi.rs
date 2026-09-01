@@ -39,6 +39,16 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "optimizer exact countdown induction analysis",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/control_flow/countdown_induction/validate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "SCCP validation",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_candidate.rs",
