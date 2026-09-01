@@ -206,6 +206,97 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_nongeneric_boundary_application_in_an_ordinary_value_machine() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data CheckedMath {}
+pub boundary operator CheckedMath::offset_zero(value: i32) -> i32;
+
+pub data CheckedMathProvider {}
+pub machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+satisfies CheckedMath::offset_zero
+{ input }
+
+pub machine exercise(value: i32) -> i32 {
+    CheckedMath::offset_zero(value)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("ordinary monomorphic boundary application should check");
+    let review = project_checked_package_review(&checked)
+        .expect("ordinary monomorphic boundary application should project");
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact ordinary boundary application realization")
+    };
+    assert_eq!(
+        application.application(),
+        PackageReviewBoundaryApplication::Empty
+    );
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::NongenericCheckedBody
+    );
+    let rows = review
+        .canonical_rows()
+        .expect("ordinary application canonical rows");
+    let [location] = rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationRealization)
+        .expect("ordinary application row")
+        .source()
+        .authored_locations()
+        .expect("ordinary application authored source")
+    else {
+        panic!("one ordinary authored application location")
+    };
+    assert_eq!(
+        location.role(),
+        PackageReviewSourceLocationRole::BoundaryApplicationUse
+    );
+
+    let mut substituted_plan = checked;
+    let (actual_use, _) = substituted_plan
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .find(|(_, operator_use)| !operator_use.provider_plan_commitment.is_empty())
+        .expect("ordinary application selected-plan use");
+    substituted_plan
+        .facts
+        .operators
+        .named_uses
+        .get_mut(actual_use)
+        .provider_plan_commitment = psi_checked_trees::CheckedProviderPlanCommitment::default();
+    let diagnostics = project_checked_package_review(&substituted_plan)
+        .expect_err("ordinary application selected-plan substitution must reject");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("without an exact commitment") })
+    );
+}
+
+#[test]
 fn review_keeps_named_boundary_operator_overloads_and_private_supply_exact() {
     let Some(target) = host_target_name() else {
         return;

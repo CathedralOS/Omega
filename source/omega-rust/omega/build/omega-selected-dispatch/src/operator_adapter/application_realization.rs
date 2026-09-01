@@ -17,8 +17,10 @@ use psi_diagnostics::Diagnostic;
 use psi_language_core::operator_spelling::OperatorSpelling;
 use psi_symbols::SymbolHandle;
 
-/// The retained authored-use lane rejoined to one selected attached-Unit
-/// occurrence. The expression and origin live in `application_site`; this
+mod checked_expressions;
+
+/// The retained authored-use lane rejoined to one selected checked occurrence.
+/// The expression and origin live in `application_site`; this
 /// discriminant prevents a downstream projector from conflating named and
 /// fixed-token applications.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,9 +38,6 @@ pub enum CheckedOperatorAuthoredUseKind {
 /// here and intentionally are not exposed as stable projector input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedNongenericOperatorApplicationRealization {
-    pub source_machine: SymbolHandle,
-    pub source_state: SymbolHandle,
-    pub call_coordinate: CheckedUnitCallCoordinate,
     pub application_site: CheckedBoundaryOperatorApplicationUseSite,
     pub authored_use_kind: CheckedOperatorAuthoredUseKind,
     pub requirement_operator: SymbolHandle,
@@ -51,13 +50,15 @@ pub struct CheckedNongenericOperatorApplicationRealization {
     pub realization_contract_commitment: psi_checked_trees::MachineContractCommitment,
 }
 
-/// Rejoin actual selected scalar calls retained for attached Unit machines to
-/// their canonical empty application and exact nongeneric checked body.
+/// Rejoin actual selected scalar calls to their canonical empty application
+/// and exact nongeneric checked body.
 ///
-/// Generic operator applications and applications outside attached Unit
-/// machines are deliberately outside this derivation. Once an attached-Unit
-/// selected call names a nongeneric operator, every demanded join is
-/// fail-closed: absence, ambiguity, or substitution rejects the derivation.
+/// Attached-Unit planning supplies an independent join where available;
+/// ordinary value-machine expressions derive from their checked application,
+/// exact authored selection, selected plan, and independently replayed body
+/// contract. Generic applications remain in their specialization derivation.
+/// Once a selected call names a nongeneric checked adapter, absence,
+/// ambiguity, or substitution rejects the derivation.
 pub fn derive_checked_nongeneric_operator_application_realizations(
     checked: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
@@ -154,11 +155,29 @@ pub fn derive_checked_nongeneric_operator_application_realizations(
         }
     }
 
-    if diagnostics.is_empty() {
-        Ok(rows)
-    } else {
-        Err(diagnostics)
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
     }
+
+    for row in checked_expressions::derive(
+        checked,
+        selected_provider_plans.plans(),
+        &independently_derived_realizations,
+    )? {
+        match rows
+            .iter()
+            .find(|retained| retained.application_site == row.application_site)
+        {
+            Some(retained) if retained == &row => {}
+            Some(_) => {
+                return Err(vec![Diagnostic::error(
+                    "attached-Unit and checked-expression boundary application derivations disagree",
+                )]);
+            }
+            None => rows.push(row),
+        }
+    }
+    Ok(rows)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -407,9 +426,6 @@ fn derive_one(
     }
 
     Ok(Some(CheckedNongenericOperatorApplicationRealization {
-        source_machine,
-        source_state,
-        call_coordinate,
         application_site,
         authored_use_kind: *authored_use_kind,
         requirement_operator,
