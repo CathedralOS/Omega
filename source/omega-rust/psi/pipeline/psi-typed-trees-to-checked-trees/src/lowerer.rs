@@ -7,19 +7,33 @@ pub(crate) fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_crash_admission(program, true, selected_generic_operator_providers)
+    lower_typed_trees_with_policy(program, true, false, selected_generic_operator_providers)
+}
+
+pub(crate) fn lower_preliminary_typed_trees(
+    program: psi_typed_trees::TypedTrees,
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lower_typed_trees_with_policy(program, true, true, &[])
+}
+
+pub(crate) fn lower_package_typed_trees(
+    program: psi_typed_trees::TypedTrees,
+    selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lower_typed_trees_with_policy(program, true, true, selected_generic_operator_providers)
 }
 
 #[cfg(test)]
 pub(crate) fn lower_typed_trees_for_crash_fact_inspection(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
-    lower_typed_trees_with_crash_admission(program, false, &[])
+    lower_typed_trees_with_policy(program, false, false, &[])
 }
 
-fn lower_typed_trees_with_crash_admission(
+fn lower_typed_trees_with_policy(
     program: psi_typed_trees::TypedTrees,
     enforce_crash_admission: bool,
+    allow_unresolved_toolchain_selections: bool,
     selected_generic_operator_providers: &[crate::SelectedGenericOperatorProviderSpecialization],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
     // Stage-1 machine monomorphization MUST precede validation: a generic
@@ -138,8 +152,15 @@ fn lower_typed_trees_with_crash_admission(
 
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
-    crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    if allow_unresolved_toolchain_selections {
+        crate::authored_selections::finalize_preliminary_checked_authored_selections(
+            &mut program,
+            &facts,
+        )
+    } else {
+        crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
+    }
+    .map_err(|diagnostic| vec![diagnostic])?;
     psi_validation::validate_reserved_cleanup_selections(&program)?;
     psi_validation::validate_declaration_visibility(&program)?;
 

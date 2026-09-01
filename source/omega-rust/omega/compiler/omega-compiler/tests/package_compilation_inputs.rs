@@ -394,6 +394,87 @@ machine inspect(observation: Observation, bytes: &[u8]) -> u64 {
 }
 
 #[test]
+fn intrinsic_scalar_operators_remain_builtin_beside_unrelated_operators() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use omega::language::core::float_operations;
+
+data ForeignNumber { value: f64; }
+data Cursor {
+    offset: u64 in Wrapping;
+    length: u64 in Wrapping;
+    total: u64 in Wrapping;
+}
+
+target linux_x86_64 { }
+
+operator > ForeignNumber::greater(left: ForeignNumber, right: ForeignNumber) -> bool;
+operator == ForeignNumber::equal(left: ForeignNumber, right: ForeignNumber) -> bool;
+operator % ForeignNumber::remainder(left: ForeignNumber, right: ForeignNumber) -> ForeignNumber;
+operator * ForeignNumber::multiply(left: ForeignNumber, right: ForeignNumber) -> ForeignNumber;
+
+machine has_items(items: &[u8]) -> bool {
+    transition items.len > 0 { true -> yes() _ -> no() }
+    state yes() -> bool { true }
+    state no() -> bool { false }
+}
+
+machine bit_is_clear(value: u32) -> bool {
+    (value & 128) == 0
+}
+
+machine captured_parameter_is_zero(value: u32) -> bool {
+    transition { _ -> check() }
+    state check() -> bool { value == 0 }
+}
+
+machine scale_remainder(value: u64) -> u64 {
+    (value % 1000) * 1000000
+}
+
+linux_x86_64 machine Cursor::record_fits(&self) -> bool {
+    transition self.length > 0 && self.offset + self.length <= self.total {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&self) -> bool { true }
+    state no(&self) -> bool { false }
+}
+"#,
+    );
+
+    let root_identity = identity(1);
+    let inputs = PackageCompilationInputs::new_package(
+        root_identity,
+        vec![PackageSourceBinding::new(
+            root_identity,
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    let checked =
+        compile_to_checked_with_packages(&root.join("main.omg"), Some("linux_x86_64"), inputs)
+            .expect("collection length remains a builtin u64 operand beside foreign operators");
+    assert!(
+        checked.authored_declaration_selections().iter().any(|selection| {
+            selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator
+                && selection.target()
+                    == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                    )
+        }),
+        "selections={:#?}",
+        checked.authored_declaration_selections(),
+    );
+}
+
+#[test]
 fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
     let tree = TempTree::new();
     let root = tree.package("root");

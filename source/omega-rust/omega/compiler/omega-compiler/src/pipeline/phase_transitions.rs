@@ -144,10 +144,17 @@ pub(super) fn typed_trees_to_checked_trees(
                 &typed,
                 &settlement.selected_provider_plan_facts,
             )?;
-        let mut program = psi_typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
-            typed,
-            &selected_generic_operator_providers,
-        )?;
+        let mut program = if settlement.package_inputs.is_some() {
+            psi_typed_trees_to_checked_trees::lower_package_typed_trees_with_selected_generic_operator_providers(
+                typed,
+                &selected_generic_operator_providers,
+            )?
+        } else {
+            psi_typed_trees_to_checked_trees::lower_typed_trees_with_selected_generic_operator_providers(
+                typed,
+                &selected_generic_operator_providers,
+            )?
+        };
         crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
         if let Some(package_inputs) = settlement.package_inputs {
             crate::pipeline::package_declaration_admission::validate_authored_declaration_selections(
@@ -321,7 +328,7 @@ pub(super) fn typed_trees_to_preliminary_checked_trees(
     timings: &mut CompileTimings,
 ) -> Result<Arc<CheckedProgram>, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
-        let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
+        let program = psi_typed_trees_to_checked_trees::lower_preliminary_typed_trees(typed)?;
         crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))
     })

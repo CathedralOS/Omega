@@ -160,6 +160,21 @@ pub(crate) fn finalize_checked_authored_selections(
     program: &mut TypedTrees,
     facts: &CheckFacts,
 ) -> Result<(), Diagnostic> {
+    finalize_checked_authored_selections_with_policy(program, facts, false)
+}
+
+pub(crate) fn finalize_preliminary_checked_authored_selections(
+    program: &mut TypedTrees,
+    facts: &CheckFacts,
+) -> Result<(), Diagnostic> {
+    finalize_checked_authored_selections_with_policy(program, facts, true)
+}
+
+fn finalize_checked_authored_selections_with_policy(
+    program: &mut TypedTrees,
+    facts: &CheckFacts,
+    allow_unresolved_toolchain: bool,
+) -> Result<(), Diagnostic> {
     let mut resolutions = Vec::new();
     let mut inferred_conformances = Vec::new();
     let expressions = &program.tables.expression_table;
@@ -367,10 +382,17 @@ pub(crate) fn finalize_checked_authored_selections(
         }
     }
     if let Some(selection) = selections.iter().find(|selection| {
-        matches!(
+        if !matches!(
             selection.target(),
             AuthoredDeclarationSelectionTarget::LateBound(_)
-        )
+        ) {
+            return false;
+        }
+        !allow_unresolved_toolchain
+            || program
+                .symbols
+                .source_file(selection.source_span())
+                .is_none_or(|source| source.origin != psi_source::SourceOrigin::Toolchain)
     }) {
         let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
             unreachable!("guarded late-bound authored selection")
@@ -1353,7 +1375,9 @@ fn checked_operator_target(
                 _ => return None,
             };
             (expression_is_intrinsic_primitive_without_origin(program, operand)
-                || expression_is_contextual_domain_primitive(program, expression, operand))
+                || checked_operator_expression_is_intrinsic_primitive(facts, operand)
+                || expression_is_contextual_domain_primitive(program, expression, operand)
+                || expression_is_contextual_statement_primitive(program, expression, operand))
             .then_some(CheckedResolutionTarget::Intrinsic(
                 AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
             ))
@@ -1365,6 +1389,16 @@ fn checked_operator_target(
                 ),
             )
         })
+}
+
+fn checked_operator_expression_is_intrinsic_primitive(
+    facts: &CheckFacts,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    facts.operators.uses.iter().any(|(_, operator_use)| {
+        operator_use.expression == expression
+            && operator_use.status == CheckedOperatorResolutionStatus::BuiltinFallback
+    })
 }
 
 fn checked_structural_equality_call(
@@ -1518,6 +1552,10 @@ fn authored_operand_type(
         ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
         ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
+        ExpressionNode::Member(member) => type_reference_for_symbol(
+            program,
+            crate::flow::effective_member_symbol(program, member.receiver, member),
+        ),
         ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol)
             .or_else(|| operator_contract_parameter_type(program, expression, path)),
         _ => None,
@@ -1926,6 +1964,51 @@ fn expression_is_contextual_domain_primitive(
         .is_some()
 }
 
+fn expression_is_contextual_statement_primitive(
+    program: &TypedTrees,
+    containing_expression: psi_typed_trees::expression::ExpressionHandle,
+    operand: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let mut found = false;
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (statement_index, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                let mut expressions = Vec::new();
+                crate::monomorphization::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+                if !expressions.contains(&containing_expression) {
+                    continue;
+                }
+
+                let Some(type_reference) = crate::flow::expression_type_reference_in_state(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    operand,
+                )
+                .or_else(|| {
+                    captured_entry_parameter_type_reference(program, state.symbol, operand)
+                }) else {
+                    return false;
+                };
+                if program.primitive_type_reference(type_reference).is_none() {
+                    return false;
+                }
+                found = true;
+            }
+        }
+    }
+    found
+}
+
 fn contextual_expression_type_reference(
     program: &TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
@@ -2073,10 +2156,77 @@ fn expression_is_intrinsic_primitive_without_origin(
             .flat_map(|machine| program.machine_states(machine))
             .find_map(|state| (state.symbol == call.target_symbol).then_some(state.return_type)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::Member(member) => type_reference_for_symbol(
-            program,
-            crate::flow::effective_member_symbol(program, member.receiver, member),
-        ),
+        ExpressionNode::Member(member) => {
+            if contexts::checked_member_target_from_exact_owner(
+                program,
+                &CheckFacts::default(),
+                expression,
+                member,
+            ) == Some(contexts::OwnerMemberTarget::CollectionLength)
+            {
+                return true;
+            }
+            type_reference_for_symbol(
+                program,
+                crate::flow::effective_member_symbol(program, member.receiver, member),
+            )
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                psi_typed_trees::expression::BinaryOperator::And
+                    | psi_typed_trees::expression::BinaryOperator::BitwiseAnd
+                    | psi_typed_trees::expression::BinaryOperator::BitwiseOr
+                    | psi_typed_trees::expression::BinaryOperator::BitwiseXor
+                    | psi_typed_trees::expression::BinaryOperator::Or
+                    | psi_typed_trees::expression::BinaryOperator::ShiftLeft
+                    | psi_typed_trees::expression::BinaryOperator::ShiftRight
+            ) =>
+        {
+            return true;
+        }
+        ExpressionNode::Binary(binary) => {
+            use psi_language_core::OperatorSpelling;
+            use psi_typed_trees::expression::BinaryOperator;
+
+            let spelling = match binary.operator {
+                BinaryOperator::Add => OperatorSpelling::Add,
+                BinaryOperator::Subtract => OperatorSpelling::Subtract,
+                BinaryOperator::Multiply => OperatorSpelling::Multiply,
+                BinaryOperator::Divide => OperatorSpelling::Divide,
+                BinaryOperator::Modulo => OperatorSpelling::Modulo,
+                BinaryOperator::Equal => OperatorSpelling::Equal,
+                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+                BinaryOperator::Less => OperatorSpelling::Less,
+                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+                BinaryOperator::Greater => OperatorSpelling::Greater,
+                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+                BinaryOperator::And
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor
+                | BinaryOperator::Or
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight => unreachable!("handled above"),
+            };
+            let operand_types = [
+                authored_operand_type(program, binary.left),
+                authored_operand_type(program, binary.right),
+            ];
+            if operand_types.iter().all(Option::is_none)
+                || !psi_typed_trees::operator::resolve_spelling_for_operands(
+                    program,
+                    spelling,
+                    &operand_types,
+                )
+                .is_empty()
+            {
+                return false;
+            }
+            return expression_is_intrinsic_primitive_without_origin(program, binary.left)
+                || expression_is_intrinsic_primitive_without_origin(program, binary.right);
+        }
+        ExpressionNode::Unary(_) => return true,
         ExpressionNode::Borrow(inner) => {
             return expression_is_intrinsic_primitive_without_origin(program, inner.target);
         }

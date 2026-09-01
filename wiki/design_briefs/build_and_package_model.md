@@ -2978,6 +2978,15 @@ earliest coherent owner of its facts. Missing, ambiguous, or unjoinable rows
 reject. The ledger is a compiler-internal sidecar and does not justify nominal
 Chi.
 
+Package-aware preliminary and final checking may retain a late-bound row only
+when its exact retained source origin is compiler-owned `Toolchain`. Those rows
+remain TCB input: package declaration admission skips them, package evidence
+does not attribute them to the requesting package, and every late-bound row
+from ordinary package source still rejects before build authority or evidence
+is issued. This exception does not bypass declaration visibility. A package
+that resolves a private toolchain declaration still rejects and the intended
+core API must be made explicitly public.
+
 Expression custody follows the declaration that publishes it. Public machine
 contracts, public data/domain predicates, and public trait contracts use
 public-interface exposure; executable state/body expressions and

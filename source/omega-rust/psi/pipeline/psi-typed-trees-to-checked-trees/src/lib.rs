@@ -35,6 +35,15 @@ pub fn lower_typed_trees(
     lowerer::lower_typed_trees(program, &[])
 }
 
+/// Lower a pre-settlement package checkpoint. Unresolved selections are
+/// retained only for compiler-owned toolchain source; the caller must reject
+/// unresolved ordinary-package selections before granting build authority.
+pub fn lower_preliminary_typed_trees(
+    program: psi_typed_trees::TypedTrees,
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lowerer::lower_preliminary_typed_trees(program)
+}
+
 /// One Omega-selected generic checked body that must be specialized for the
 /// exact closed applications of its boundary-operator requirement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,6 +61,17 @@ pub fn lower_typed_trees_with_selected_generic_operator_providers(
     selected: &[SelectedGenericOperatorProviderSpecialization],
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
     lowerer::lower_typed_trees(program, selected)
+}
+
+/// Final package-aware lowering keeps ordinary package selections strict while
+/// permitting unresolved compiler-owned toolchain selections to remain TCB
+/// input. The compiler must run its package declaration-authority gate over
+/// the result before issuing package evidence.
+pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
+    program: psi_typed_trees::TypedTrees,
+    selected: &[SelectedGenericOperatorProviderSpecialization],
+) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {
+    lowerer::lower_package_typed_trees(program, selected)
 }
 
 /// Exact compiler-owned join from one authored operator use to the checked
