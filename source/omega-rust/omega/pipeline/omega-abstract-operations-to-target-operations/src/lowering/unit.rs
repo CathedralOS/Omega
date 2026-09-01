@@ -474,6 +474,7 @@ pub(super) fn lower_unit_function(
                 &mut active,
                 &established_byte_sequences,
                 &integer_constants,
+                &scalar_values,
                 &mut operations,
                 &mut provenance,
                 &mut nonreturning_boundary,

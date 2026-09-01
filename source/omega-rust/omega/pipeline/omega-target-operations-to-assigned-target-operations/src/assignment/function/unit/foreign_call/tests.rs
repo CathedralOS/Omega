@@ -1,7 +1,7 @@
 use super::normalized::assign_normalized_foreign_scalar_arguments_for_plan;
 use crate::assignment::shared::{
-    CallSignature, CallingPolicy, MachineRegister, NativeTarget, TargetUnitOperation, ValueId,
-    ValueLocation, ValueShape,
+    BTreeMap, CallSignature, CallingPolicy, MachineRegister, NativeTarget, TargetUnitOperation,
+    ValueId, ValueLocation, ValueShape,
 };
 use psi_core::{IntegerSign, IntegerType, IntegerValue, OperationId};
 
@@ -26,10 +26,13 @@ fn fixture(
     .plan()
     .clone();
     let argument = omega_target_operations::NormalizedForeignScalarArgument {
-        source_value,
-        scalar_type,
-        immediate: IntegerValue::Signed(-19),
         parameter_index: 0,
+        source: omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation: OperationId::new(72).expect("operation"),
+            source_value,
+            scalar_type,
+            value: IntegerValue::Signed(-19),
+        },
         placement: plan.call.parameters[0].clone(),
     };
     let preceding = vec![TargetUnitOperation::IntegerConstant {
@@ -39,6 +42,32 @@ fn fixture(
         value: IntegerValue::Signed(-19),
     }];
     (plan, argument, preceding)
+}
+
+fn assigned_argument(
+    argument: &omega_target_operations::NormalizedForeignScalarArgument,
+) -> omega_assigned_target_operations::AssignedNormalizedForeignScalarArgument {
+    let source = match argument.source {
+        omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        },
+        omega_target_operations::TargetUnitScalarArgumentSource::Home(_) => {
+            panic!("literal helper receives an immediate")
+        }
+    };
+    omega_assigned_target_operations::AssignedNormalizedForeignScalarArgument {
+        parameter_index: argument.parameter_index,
+        source,
+        placement: argument.placement.clone(),
+    }
 }
 
 #[test]
@@ -51,8 +80,9 @@ fn assignment_replays_literal_and_exact_register_placement_on_both_linux_archite
                 target,
                 std::slice::from_ref(&argument),
                 &preceding,
+                &BTreeMap::new(),
             ),
-            Ok(vec![argument])
+            Ok(vec![assigned_argument(&argument)])
         );
     }
 
@@ -65,7 +95,13 @@ fn assignment_replays_literal_and_exact_register_placement_on_both_linux_archite
     .plan()
     .clone();
     assert_eq!(
-        assign_normalized_foreign_scalar_arguments_for_plan(&zero_plan, target, &[], &[],),
+        assign_normalized_foreign_scalar_arguments_for_plan(
+            &zero_plan,
+            target,
+            &[],
+            &[],
+            &BTreeMap::new(),
+        ),
         Ok(Vec::new())
     );
 }
@@ -89,17 +125,23 @@ fn assignment_replays_two_ordered_register_literals_on_both_linux_architectures(
         .clone();
         let arguments = vec![
             omega_target_operations::NormalizedForeignScalarArgument {
-                source_value: first_source,
-                scalar_type: first_type,
-                immediate: IntegerValue::Unsigned(513),
                 parameter_index: 0,
+                source: omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                    defining_operation: OperationId::new(83).expect("first constant"),
+                    source_value: first_source,
+                    scalar_type: first_type,
+                    value: IntegerValue::Unsigned(513),
+                },
                 placement: plan.call.parameters[0].clone(),
             },
             omega_target_operations::NormalizedForeignScalarArgument {
-                source_value: second_source,
-                scalar_type: second_type,
-                immediate: IntegerValue::Signed(-29),
                 parameter_index: 1,
+                source: omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                    defining_operation: OperationId::new(84).expect("second constant"),
+                    source_value: second_source,
+                    scalar_type: second_type,
+                    value: IntegerValue::Signed(-29),
+                },
                 placement: plan.call.parameters[1].clone(),
             },
         ];
@@ -119,9 +161,13 @@ fn assignment_replays_two_ordered_register_literals_on_both_linux_architectures(
         ];
         assert_eq!(
             assign_normalized_foreign_scalar_arguments_for_plan(
-                &plan, target, &arguments, &preceding,
+                &plan,
+                target,
+                &arguments,
+                &preceding,
+                &BTreeMap::new(),
             ),
-            Ok(arguments.clone())
+            Ok(arguments.iter().map(assigned_argument).collect())
         );
 
         let mut stack_argument = arguments;
@@ -137,6 +183,7 @@ fn assignment_replays_two_ordered_register_literals_on_both_linux_architectures(
                 target,
                 &stack_argument,
                 &preceding,
+                &BTreeMap::new(),
             )
             .is_err()
         );
@@ -150,15 +197,32 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
     let mut mutations = Vec::new();
 
     let mut changed_source = argument.clone();
-    changed_source.source_value = ValueId::new(73).expect("changed source");
+    if let omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+        source_value,
+        ..
+    } = &mut changed_source.source
+    {
+        *source_value = ValueId::new(73).expect("changed source");
+    }
     mutations.push(changed_source);
 
     let mut changed_type = argument.clone();
-    changed_type.scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    if let omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+        scalar_type,
+        ..
+    } = &mut changed_type.source
+    {
+        *scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+    }
     mutations.push(changed_type);
 
     let mut changed_value = argument.clone();
-    changed_value.immediate = IntegerValue::Signed(-18);
+    if let omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+        value, ..
+    } = &mut changed_value.source
+    {
+        *value = IntegerValue::Signed(-18);
+    }
     mutations.push(changed_value);
 
     let mut changed_order = argument.clone();
@@ -189,6 +253,7 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
                 target,
                 &[mutation],
                 &preceding,
+                &BTreeMap::new(),
             )
             .is_err()
         );
@@ -200,6 +265,7 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
             target,
             &[argument.clone(), argument.clone()],
             &preceding,
+            &BTreeMap::new(),
         )
         .is_err()
     );
@@ -211,6 +277,7 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
             target,
             &[argument.clone()],
             &preceding,
+            &BTreeMap::new(),
         )
         .is_err()
     );
@@ -232,10 +299,8 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         let arguments = (0..register_count)
             .map(
                 |index| omega_target_operations::NormalizedForeignScalarArgument {
-                    source_value: argument.source_value,
-                    scalar_type: argument.scalar_type,
-                    immediate: argument.immediate,
                     parameter_index: u32::try_from(index).unwrap(),
+                    source: argument.source,
                     placement: plan.call.parameters[index].clone(),
                 },
             )
@@ -246,9 +311,13 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         ));
         assert_eq!(
             assign_normalized_foreign_scalar_arguments_for_plan(
-                &plan, target, &arguments, &preceding,
+                &plan,
+                target,
+                &arguments,
+                &preceding,
+                &BTreeMap::new(),
             ),
-            Ok(arguments)
+            Ok(arguments.iter().map(assigned_argument).collect())
         );
 
         let first_stack_count = register_count + 1;
@@ -275,10 +344,8 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         let first_stack_arguments = (0..first_stack_count)
             .map(
                 |index| omega_target_operations::NormalizedForeignScalarArgument {
-                    source_value: argument.source_value,
-                    scalar_type: argument.scalar_type,
-                    immediate: argument.immediate,
                     parameter_index: u32::try_from(index).unwrap(),
+                    source: argument.source,
                     placement: first_stack_plan.call.parameters[index].clone(),
                 },
             )
@@ -289,6 +356,7 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
                 target,
                 &first_stack_arguments,
                 &preceding,
+                &BTreeMap::new(),
             )
             .is_err(),
             "the first stack-resident literal remains fenced on {target:?}",
@@ -313,6 +381,7 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
             target,
             &[wrong_policy_argument],
             &preceding,
+            &BTreeMap::new(),
         )
         .is_err()
     );

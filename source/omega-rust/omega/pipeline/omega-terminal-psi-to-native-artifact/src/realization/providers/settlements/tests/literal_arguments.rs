@@ -52,6 +52,323 @@ fn exact_rejoined_all_register_literal_imports_reach_dynamic_elf() {
     }
 }
 
+#[test]
+fn exact_runtime_scalar_home_import_reaches_dynamic_elf() {
+    for profile in [
+        omega_target::TargetProfile::LinuxX64,
+        omega_target::TargetProfile::LinuxArm64,
+    ] {
+        assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(profile);
+    }
+}
+
+fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
+    profile: omega_target::TargetProfile,
+) {
+    let requirement = "omega::test::Foreign::leaf()";
+    let boundary = psi_core::BoundaryMachineId::new(822).unwrap();
+    let target = profile.native_target();
+    let scalar_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
+    let abstract_plan = runtime_argument_abstract_plan(scalar_type);
+    let mut selected_plan = import_plan(b"selected_runtime_leaf", profile);
+    selected_plan.schema.methods[0].parameter_count = 1;
+    selected_plan.schema.methods[0].parameter_type_identities = vec!["i32".into()];
+    let report_identity = selected_plan.report_fingerprint();
+    let locator = match &selected_plan.rows[0].binding {
+        ProviderBinding::Import { evaluated } => evaluated.locator().clone(),
+        _ => unreachable!(),
+    };
+    let boundary_entry_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        omega_calling_conventions::CallingPolicy::native_for_target(target),
+        &omega_calling_conventions::CallSignature {
+            parameters: vec![omega_calling_conventions::ValueShape::integer(4, 4)],
+            result: None,
+        },
+    )
+    .unwrap()
+    .plan()
+    .clone();
+    let external = omega_calling_conventions::ExternalBindingRow {
+        target_name: selected_plan.target.clone(),
+        trait_name: selected_plan.schema.trait_name.clone(),
+        method: "leaf".into(),
+        requirement_identity: requirement.into(),
+        table_type: String::new(),
+        boundary_entry_plan: Some(boundary_entry_plan.clone()),
+        binding: omega_calling_conventions::ExternalBindingKind::Import {
+            locator: locator.clone(),
+        },
+    };
+    let provider_plan_commitment = omega_task_plans::SameStackProviderPlanCommitment::from_digest(
+        *selected_plan.identity_digest().as_bytes(),
+    );
+    let same_stack = omega_task_plans::admit_same_stack_contribution(
+        omega_task_plans::SameStackContributionAdmissionCandidate {
+            provider_plan_report_identity: report_identity,
+            provider_plan_commitment,
+            requirement_identity: requirement.into(),
+            receipt:
+                omega_task_plans::SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                    823,
+                )
+                .unwrap(),
+            bytes: 64,
+            alignment: 16,
+        },
+        report_identity,
+        provider_plan_commitment,
+        requirement,
+    )
+    .unwrap();
+    let foreign = rejoin_normalized_foreign_call(
+        &selected_plan,
+        &[external],
+        &same_stack,
+        report_identity,
+        requirement,
+        target,
+    )
+    .unwrap();
+    let evidence = TestProviderExecution {
+        requirement: requirement.into(),
+        provider_plan_report_identity: report_identity,
+    };
+    let target_plan = omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions(
+        &abstract_plan,
+        target,
+        &[omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement {
+            boundary,
+            execution: omega_abstract_operations_to_target_operations::AdmittedBoundaryExecution::Provider(&evidence),
+            realization: omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(foreign),
+        }],
+    )
+    .unwrap();
+    let omega_target_operations::TargetOperation::UnitBody(target_body) =
+        &target_plan.functions[0].operation
+    else {
+        panic!("runtime import lowers inside an attached Unit body")
+    };
+    let omega_target_operations::TargetUnitOperation::ScalarCall { result_home, .. } =
+        &target_body.operations[1]
+    else {
+        panic!("runtime source has one durable scalar home")
+    };
+    let omega_target_operations::TargetUnitOperation::NormalizedForeignCall {
+        scalar_arguments,
+        ..
+    } = &target_body.operations[2]
+    else {
+        panic!("runtime import remains a normalized foreign call")
+    };
+    assert_eq!(scalar_arguments.len(), 1);
+    assert_eq!(
+        scalar_arguments[0].source,
+        omega_target_operations::TargetUnitScalarArgumentSource::Home(*result_home)
+    );
+    assert_eq!(
+        scalar_arguments[0].placement,
+        boundary_entry_plan.call.parameters[0]
+    );
+
+    let assigned =
+        omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+            .unwrap();
+    let omega_assigned_target_operations::AssignedOperation::UnitBody(assigned_body) =
+        &assigned.functions[0].operation
+    else {
+        unreachable!()
+    };
+    let omega_assigned_target_operations::AssignedUnitOperation::ScalarCall {
+        result_home: assigned_home,
+        ..
+    } = &assigned_body.operations[1]
+    else {
+        unreachable!()
+    };
+    let omega_assigned_target_operations::AssignedUnitOperation::NormalizedForeignCall {
+        scalar_arguments,
+        ..
+    } = &assigned_body.operations[2]
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        scalar_arguments[0].source,
+        omega_assigned_target_operations::AssignedUnitScalarArgumentSource::Home(*assigned_home)
+    );
+
+    let machine_code = omega_machine_emission::emit_machine_code(&assigned).unwrap();
+    let function = &machine_code.functions[0];
+    let [call] = function.foreign_calls.as_slice() else {
+        panic!("one runtime foreign call")
+    };
+    let [argument] = call.scalar_arguments.as_slice() else {
+        panic!("one runtime foreign argument")
+    };
+    let expected_home = omega_machine_code::UnitScalarHomeRecord {
+        defining_operation: assigned_home.defining_operation,
+        source_value: assigned_home.source_value,
+        scalar_type: assigned_home.scalar_type,
+        shape: assigned_home.shape,
+        byte_offset: assigned_home.byte_offset,
+    };
+    assert_eq!(
+        argument.source,
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(expected_home)
+    );
+    let argument_bytes =
+        &function.bytes[argument.code_offset..argument.code_offset + argument.byte_count];
+    match target.architecture {
+        omega_target::Architecture::X86_64 => {
+            assert_eq!(argument_bytes, &[0x48, 0x8b, 0x7c, 0x24, 0x00]);
+        }
+        omega_target::Architecture::Aarch64 => {
+            assert_eq!(argument_bytes, &0xf940_03e0_u32.to_le_bytes());
+        }
+    }
+
+    let mut changed_home = machine_code.clone();
+    let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
+        &mut changed_home.functions[0].foreign_calls[0].scalar_arguments[0].source
+    else {
+        unreachable!()
+    };
+    home.byte_offset += 8;
+    assert!(omega_image_emission::build_object_artifact(&changed_home).is_err());
+    let mut changed_source = machine_code.clone();
+    let omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) =
+        &mut changed_source.functions[0].foreign_calls[0].scalar_arguments[0].source
+    else {
+        unreachable!()
+    };
+    home.source_value = psi_core::ValueId::new(829).unwrap();
+    assert!(omega_image_emission::build_object_artifact(&changed_source).is_err());
+    let mut changed_bytes = machine_code.clone();
+    changed_bytes.functions[0].bytes[argument.code_offset] ^= 1;
+    assert!(omega_image_emission::build_object_artifact(&changed_bytes).is_err());
+
+    let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
+    let interpreter = omega_target::normalize_elf_interpreter_plan(
+        match profile {
+            omega_target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".to_vec(),
+            omega_target::TargetProfile::LinuxArm64 => b"/lib/ld-linux-aarch64.so.1".to_vec(),
+            _ => unreachable!(),
+        },
+        profile,
+    )
+    .unwrap();
+    let image = omega_image_emission::emit_dynamic_elf_image(&object, interpreter).unwrap();
+    assert_eq!(image.output().final_image_imports, 1);
+    assert_eq!(image.output().final_image_relocations, 2);
+}
+
+fn runtime_argument_abstract_plan(
+    integer_type: psi_core::IntegerType,
+) -> omega_abstract_operations::AbstractOperationPlan {
+    let machine = psi_core::MachineId::new(820).unwrap();
+    let scalar_machine = psi_core::MachineId::new(821).unwrap();
+    let boundary = psi_core::BoundaryMachineId::new(822).unwrap();
+    let input = psi_core::ValueId::new(820).unwrap();
+    let runtime = psi_core::ValueId::new(821).unwrap();
+    let callee_parameter = psi_core::ValueId::new(822).unwrap();
+    let callee_result = psi_core::ValueId::new(823).unwrap();
+    let scalar_type = psi_core::ScalarType::Integer(integer_type);
+    omega_abstract_operations::AbstractOperationPlan {
+        psi: psi_terminal::TerminalPsiIdentity {
+            vocabulary_marker: psi_terminal::VocabularyMarker::CURRENT,
+            program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x82; 32]),
+        },
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: vec![psi_terminal::BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "omega::test::Foreign::leaf()".into(),
+            attachment: None,
+            scalar_parameters: vec![scalar_type],
+            structural_parameters: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        functions: vec![
+            omega_abstract_operations::AbstractFunction {
+                machine,
+                attachment: Some(psi_core::StructuralTypeId::new(820).unwrap()),
+                entry: psi_core::BlockId::new(820).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: omega_abstract_operations::AbstractFunctionResult::Unit,
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![omega_abstract_operations::AbstractBlockEntry {
+                    block: psi_core::BlockId::new(820).unwrap(),
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    omega_abstract_operations::AbstractOperation::IntegerConstant {
+                        psi_operation: psi_core::OperationId::new(820).unwrap(),
+                        result: input,
+                        scalar_type,
+                        value: psi_core::IntegerValue::Signed(37),
+                    },
+                    omega_abstract_operations::AbstractOperation::Call {
+                        psi_operation: psi_core::OperationId::new(821).unwrap(),
+                        result: runtime,
+                        scalar_type,
+                        callee: scalar_machine,
+                        arguments: vec![input],
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                    omega_abstract_operations::AbstractOperation::BoundaryCall {
+                        psi_operation: psi_core::OperationId::new(822).unwrap(),
+                        result: None,
+                        boundary,
+                        arguments: vec![runtime],
+                        structural_arguments: Vec::new(),
+                        completion_claim_sources: Vec::new(),
+                        completion_receipts: Vec::new(),
+                    },
+                    omega_abstract_operations::AbstractOperation::ReturnUnit {
+                        psi_edge: psi_core::EdgeId::new(820).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+            omega_abstract_operations::AbstractFunction {
+                machine: scalar_machine,
+                attachment: None,
+                entry: psi_core::BlockId::new(821).unwrap(),
+                parameters: vec![omega_abstract_operations::AbstractParameter {
+                    value: callee_parameter,
+                    scalar_type,
+                }],
+                structural_parameters: Vec::new(),
+                result: omega_abstract_operations::AbstractFunctionResult::Scalar(
+                    omega_abstract_operations::AbstractResult {
+                        value: callee_result,
+                        scalar_type,
+                    },
+                ),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: Vec::new(),
+                operations: vec![omega_abstract_operations::AbstractOperation::Return {
+                    psi_edge: psi_core::EdgeId::new(821).unwrap(),
+                    result: callee_result,
+                    value: callee_parameter,
+                    scalar_type,
+                    cleanup_actions: Vec::new(),
+                }],
+            },
+        ],
+    }
+}
+
 fn literal_cases(
     count: usize,
     tail_type: psi_core::IntegerType,
@@ -279,9 +596,17 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
     };
     assert_eq!(target_arguments.len(), cases.len());
     for (parameter_index, (argument, case)) in target_arguments.iter().zip(cases).enumerate() {
-        assert_eq!(argument.source_value, case.value);
-        assert_eq!(argument.scalar_type, case.scalar_type);
-        assert_eq!(argument.immediate, case.immediate);
+        assert_eq!(argument.source_value(), case.value);
+        assert_eq!(argument.scalar_type(), case.scalar_type);
+        assert_eq!(
+            argument.source,
+            omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                defining_operation: case.operation,
+                source_value: case.value,
+                scalar_type: case.scalar_type,
+                value: case.immediate,
+            }
+        );
         assert_eq!(argument.parameter_index, parameter_index as u32);
         assert_eq!(
             argument.placement,
@@ -325,27 +650,48 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
     else {
         panic!("assigned literal import remains a normalized foreign call")
     };
-    assert_eq!(scalar_arguments, target_arguments);
+    assert_eq!(scalar_arguments.len(), target_arguments.len());
+    for (assigned, target) in scalar_arguments.iter().zip(target_arguments) {
+        assert_eq!(assigned.parameter_index, target.parameter_index);
+        assert_eq!(assigned.placement, target.placement);
+        assert_eq!(assigned.source.source_value(), target.source_value());
+        assert_eq!(assigned.source.scalar_type(), target.scalar_type());
+    }
 
-    let mutate_last =
-        |mut candidate: omega_assigned_target_operations::AssignedOperationPlan,
-         mutate: &dyn Fn(&mut omega_target_operations::NormalizedForeignScalarArgument)| {
-            let arguments = assigned_scalar_arguments_mut(&mut candidate, cases.len());
-            mutate(arguments.last_mut().unwrap());
-            assert!(omega_machine_emission::emit_machine_code(&candidate).is_err());
-        };
+    let mutate_last = |mut candidate: omega_assigned_target_operations::AssignedOperationPlan,
+                       mutate: &dyn Fn(
+        &mut omega_assigned_target_operations::AssignedNormalizedForeignScalarArgument,
+    )| {
+        let arguments = assigned_scalar_arguments_mut(&mut candidate, cases.len());
+        mutate(arguments.last_mut().unwrap());
+        assert!(omega_machine_emission::emit_machine_code(&candidate).is_err());
+    };
     mutate_last(assigned.clone(), &|argument| argument.parameter_index = 0);
     mutate_last(assigned.clone(), &|argument| {
-        argument.source_value = cases[0].value
+        let omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+            source_value,
+            ..
+        } = &mut argument.source
+        else {
+            unreachable!()
+        };
+        *source_value = cases[0].value;
     });
     mutate_last(assigned.clone(), &|argument| {
-        argument.immediate = different_immediate(argument.immediate)
+        let omega_assigned_target_operations::AssignedUnitScalarArgumentSource::IntegerImmediate {
+            value,
+            ..
+        } = &mut argument.source
+        else {
+            unreachable!()
+        };
+        *value = different_immediate(*value);
     });
     mutate_last(assigned.clone(), &|argument| {
         argument.placement = target_arguments[0].placement.clone()
     });
     mutate_last(assigned.clone(), &|argument| {
-        let bytes = argument.scalar_type.bits().div_ceil(8);
+        let bytes = argument.source.scalar_type().bits().div_ceil(8);
         argument.placement.locations = vec![omega_calling_conventions::ValueLocation::Stack {
             stack_byte_offset: 0,
             value_byte_offset: 0,
@@ -370,10 +716,26 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
     assert_eq!(call.locator, locator);
     assert_eq!(call.call_plan, boundary_entry_plan.call);
     assert_eq!(call.scalar_arguments.len(), cases.len());
-    for (argument, target_argument) in call.scalar_arguments.iter().zip(target_arguments) {
-        assert_eq!(argument.source_value, target_argument.source_value);
-        assert_eq!(argument.scalar_type, target_argument.scalar_type);
-        assert_eq!(argument.immediate, target_argument.immediate);
+    for ((argument, target_argument), case) in call
+        .scalar_arguments
+        .iter()
+        .zip(target_arguments)
+        .zip(cases)
+    {
+        assert_eq!(
+            argument.source,
+            omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                defining_operation: case.operation,
+                source_value: case.value,
+                scalar_type: case.scalar_type,
+                value: case.immediate,
+            }
+        );
+        assert_eq!(
+            argument.source.source_value(),
+            target_argument.source_value()
+        );
+        assert_eq!(argument.source.scalar_type(), target_argument.scalar_type());
         assert_eq!(argument.parameter_index, target_argument.parameter_index);
         assert_eq!(argument.placement, target_argument.placement);
         assert!(argument.byte_count > 0);
@@ -400,13 +762,42 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
 
     let last_index = cases.len() - 1;
     let mut changed_value = machine_code.clone();
-    changed_value.functions[0].foreign_calls[0].scalar_arguments[last_index].immediate =
-        different_immediate(cases[last_index].immediate);
+    if let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+        value,
+        ..
+    } = &mut changed_value.functions[0].foreign_calls[0].scalar_arguments[last_index].source
+    {
+        *value = different_immediate(cases[last_index].immediate);
+    }
     assert!(omega_image_emission::build_object_artifact(&changed_value).is_err());
     let mut changed_carrier = machine_code.clone();
-    changed_carrier.functions[0].foreign_calls[0].scalar_arguments[last_index].scalar_type =
-        psi_core::IntegerType::address(cases[last_index].scalar_type.bits()).unwrap();
+    if let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+        scalar_type,
+        ..
+    } = &mut changed_carrier.functions[0].foreign_calls[0].scalar_arguments[last_index].source
+    {
+        *scalar_type =
+            psi_core::IntegerType::address(cases[last_index].scalar_type.bits()).unwrap();
+    }
     assert!(omega_image_emission::build_object_artifact(&changed_carrier).is_err());
+    let mut changed_source = machine_code.clone();
+    if let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+        source_value,
+        ..
+    } = &mut changed_source.functions[0].foreign_calls[0].scalar_arguments[last_index].source
+    {
+        *source_value = cases[0].value;
+    }
+    assert!(omega_image_emission::build_object_artifact(&changed_source).is_err());
+    let mut changed_definition = machine_code.clone();
+    if let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+        defining_operation,
+        ..
+    } = &mut changed_definition.functions[0].foreign_calls[0].scalar_arguments[last_index].source
+    {
+        *defining_operation = cases[0].operation;
+    }
+    assert!(omega_image_emission::build_object_artifact(&changed_definition).is_err());
     let mut changed_bytes = machine_code.clone();
     changed_bytes.functions[0].bytes[last_argument.code_offset] ^= 1;
     assert!(omega_image_emission::build_object_artifact(&changed_bytes).is_err());
@@ -470,7 +861,7 @@ fn assert_exact_rejoined_register_literal_import_reaches_dynamic_elf(
 fn assigned_scalar_arguments_mut(
     plan: &mut omega_assigned_target_operations::AssignedOperationPlan,
     operation_index: usize,
-) -> &mut Vec<omega_target_operations::NormalizedForeignScalarArgument> {
+) -> &mut Vec<omega_assigned_target_operations::AssignedNormalizedForeignScalarArgument> {
     let omega_assigned_target_operations::AssignedOperation::UnitBody(body) =
         &mut plan.functions[0].operation
     else {

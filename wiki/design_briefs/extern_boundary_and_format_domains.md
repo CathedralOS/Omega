@@ -456,9 +456,11 @@ locator side table, and distinct call-site relocations. The dynamic-ELF driver
 tests now begin at this ordinary object builder rather than constructing its
 private result. The first preceding production path is now closed for one
 `Unit`-returning normalized import leaf with no scalar arguments or one through
-the target's complete fixed-width 8/16/32/64-bit integer literal register bank:
-six SysV x86-64 arguments through `R9`, or eight AAPCS64 arguments through `X7`.
-Every evaluated placement must be register-resident. Checked compilation
+the target's complete fixed-width 8/16/32/64-bit integer register bank: six
+SysV x86-64 arguments through `R9`, or eight AAPCS64 arguments through `X7`.
+Every evaluated placement must be register-resident. An argument may be an
+exact literal or the runtime result in an exact preceding attached-`Unit`
+scalar call's durable home. Checked compilation
 retains extracted external-binding rows before consuming typed trees. Native
 settlement rejoins one unique retained row only through the complete selected
 `ProviderPlan`, its exact selected-plan evidence, and the admitted same-stack
@@ -470,20 +472,22 @@ locator, provider execution, evaluated call plan, admitted contribution, and
 physical `Unit` stack evidence in the foreign-call row. Every literal-bearing
 row additionally binds its occurrence-specific source value, integer type and
 immediate, parameter index, evaluated register placement, and exact
-materialization byte interval. With multiple arguments through the target-
-specific ceiling, the rows and intervals stay in parameter order and every
-interval ends exactly where the next begins.
-Machine emission rejoins each row to its preceding constant and emits the
-compact target register materialization. Object construction independently
-replays the complete ordered call plan, placements, bytes, semantic call
-ownership, and physical stack custody before consuming the rows, and both Linux
-profiles advance from the exact native rejoin through target, assignment,
-machine, ordinary object construction, and the complete dynamic-ELF driver.
-Stripped, reordered, or drifted source/type/value/index/register/byte/plan/stack
-custody rejects. Runtime-derived arguments, the first stack-resident argument
-and beyond, result-bearing signatures, complete task-stack-budget composition,
-optional `.gnu.hash`, and general external-admission ownership remain open
-engineering work. An owned direct
+materialization byte interval. Runtime-home rows instead bind the exact source
+value and assigned durable home plus their load interval. With multiple
+arguments through the target-specific ceiling, the rows and intervals stay in
+parameter order and every interval ends exactly where the next begins.
+Machine emission rejoins each row to its preceding constant or exact preceding
+scalar-call producer and emits the compact target register materialization.
+Object construction repeats that semantic rejoin—including the literal source-
+value check—and independently replays the complete ordered call plan,
+placements, bytes, semantic call ownership, and physical stack custody before
+consuming the rows. Both Linux profiles advance from the exact native rejoin
+through target, assignment, machine, ordinary object construction, and the
+complete dynamic-ELF driver. Stripped, reordered, or drifted source/type/value/
+home/index/register/byte/plan/stack custody rejects. General runtime
+expressions, the first stack-resident argument and beyond, result-bearing
+signatures, complete task-stack-budget composition, optional `.gnu.hash`, and
+general external-admission ownership remain open engineering work. An owned direct
 `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte

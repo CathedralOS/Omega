@@ -12,14 +12,17 @@ pub(super) enum KnownUnitInteger {
 }
 
 impl KnownUnitInteger {
-    const fn scalar_type(self) -> IntegerType {
+    pub(super) const fn scalar_type(self) -> IntegerType {
         match self {
             Self::Immediate { scalar_type, .. } => scalar_type,
             Self::Home(home) => home.scalar_type,
         }
     }
 
-    const fn into_target_source(self, source_value: ValueId) -> TargetUnitScalarArgumentSource {
+    pub(super) const fn into_target_source(
+        self,
+        source_value: ValueId,
+    ) -> TargetUnitScalarArgumentSource {
         match self {
             Self::Immediate {
                 defining_operation,

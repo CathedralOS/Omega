@@ -596,13 +596,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.bytes,
                 call,
             )?;
-            validate_foreign_scalar_arguments(
-                plan.target,
-                function.machine,
-                &function.bytes,
-                &function.semantic_code_attribution,
-                call,
-            )?;
+            validate_foreign_scalar_arguments(plan.target, function, call)?;
         }
         let mut validated_function_stack = function
             .unit_stack
@@ -1742,11 +1736,10 @@ fn validate_foreign_call_site(
 
 fn validate_foreign_scalar_arguments(
     target: NativeTarget,
-    caller: MachineId,
-    bytes: &[u8],
-    semantic_code_attribution: &[SemanticCodeAttribution],
+    function: &omega_machine_code::MachineCodeFunction,
     call: &omega_machine_code::ForeignCallRelocation,
 ) -> Result<(), ObjectError> {
+    let caller = function.machine;
     if call.scalar_arguments.is_empty() {
         return (call.call_plan.parameters.is_empty()
             && call.call_plan.result.is_none()
@@ -1765,10 +1758,17 @@ fn validate_foreign_scalar_arguments(
         .scalar_arguments
         .iter()
         .map(|argument| {
-            let bits = argument.scalar_type.bits();
-            if argument.scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
+            let scalar_type = argument.source.scalar_type();
+            let bits = scalar_type.bits();
+            if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
                 || !matches!(bits, 8 | 16 | 32 | 64)
-                || !argument.scalar_type.admits(argument.immediate)
+                || matches!(
+                    argument.source,
+                    omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                        value,
+                        ..
+                    } if !scalar_type.admits(value)
+                )
             {
                 return Err(ObjectError::InvalidForeignCallArgument {
                     caller,
@@ -1820,7 +1820,8 @@ fn validate_foreign_scalar_arguments(
             caller,
             owner: call.owner,
         })?;
-    let attributed = semantic_code_attribution
+    let attributions = function
+        .semantic_code_attribution
         .iter()
         .filter(|row| row.site == SemanticCodeSite::Operation(operation))
         .filter(|row| {
@@ -1830,13 +1831,13 @@ fn validate_foreign_scalar_arguments(
                     .checked_add(row.byte_count)
                     .is_some_and(|end| end >= call_end)
         })
-        .count();
-    if attributed != 1 {
+        .collect::<Vec<_>>();
+    let [attribution] = attributions.as_slice() else {
         return Err(ObjectError::InvalidForeignCallArgument {
             caller,
             owner: call.owner,
         });
-    }
+    };
 
     for (parameter_index, ((argument, shape), expected_placement)) in call
         .scalar_arguments
@@ -1847,7 +1848,7 @@ fn validate_foreign_scalar_arguments(
     {
         let [
             omega_calling_conventions::ValueLocation::Register {
-                register,
+                register: _,
                 value_byte_offset: 0,
                 byte_size: placed_bytes,
             },
@@ -1868,78 +1869,13 @@ fn validate_foreign_scalar_arguments(
                 owner: call.owner,
             });
         }
-        let register_number = match (target.architecture, register) {
-            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rdi) => 7,
-            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rsi) => 6,
-            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rdx) => 2,
-            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86Rcx) => 1,
-            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86R8) => 8,
-            (Architecture::X86_64, omega_calling_conventions::MachineRegister::X86R9) => 9,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(0)) => 0,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(1)) => 1,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(2)) => 2,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(3)) => 3,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(4)) => 4,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(5)) => 5,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(6)) => 6,
-            (Architecture::Aarch64, omega_calling_conventions::MachineRegister::Aarch64X(7)) => 7,
-            _ => {
-                return Err(ObjectError::InvalidForeignCallArgument {
-                    caller,
-                    owner: call.owner,
-                });
-            }
-        };
-        let bits = argument.scalar_type.bits();
-        let mask = if bits == 64 {
-            u64::MAX
-        } else {
-            (1_u64 << bits) - 1
-        };
-        let value_bits = match (argument.scalar_type.sign(), argument.immediate) {
-            (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => {
-                value as u128 as u64
-            }
-            (psi_core::IntegerSign::Unsigned, psi_core::IntegerValue::Unsigned(value)) => {
-                value as u64
-            }
-            _ => {
-                return Err(ObjectError::InvalidForeignCallArgument {
-                    caller,
-                    owner: call.owner,
-                });
-            }
-        } & mask;
-        let mut expected_bytes = Vec::new();
-        match target.architecture {
-            Architecture::X86_64 if bits <= 32 => {
-                if register_number >= 8 {
-                    expected_bytes.push(0x41);
-                }
-                expected_bytes.push(0xb8 | (register_number & 7));
-                expected_bytes.extend_from_slice(&(value_bits as u32).to_le_bytes());
-            }
-            Architecture::X86_64 => {
-                expected_bytes.extend_from_slice(&[
-                    0x48 | ((register_number >> 3) & 1),
-                    0xb8 | (register_number & 7),
-                ]);
-                expected_bytes.extend_from_slice(&value_bits.to_le_bytes());
-            }
-            Architecture::Aarch64 => {
-                for chunk in 0..4 {
-                    let immediate = ((value_bits >> (chunk * 16)) & 0xffff) as u32;
-                    if chunk == 0 || immediate != 0 {
-                        let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
-                        let instruction = base
-                            | ((chunk as u32) << 21)
-                            | (immediate << 5)
-                            | u32::from(register_number);
-                        expected_bytes.extend_from_slice(&instruction.to_le_bytes());
-                    }
-                }
-            }
-        }
+        validate_foreign_scalar_source(function, attribution, argument)?;
+        let expected_bytes = expected_foreign_scalar_argument_bytes(target, argument).ok_or(
+            ObjectError::InvalidForeignCallArgument {
+                caller,
+                owner: call.owner,
+            },
+        )?;
         let argument_end = argument
             .code_offset
             .checked_add(argument.byte_count)
@@ -1952,7 +1888,8 @@ fn validate_foreign_scalar_arguments(
             .get(parameter_index + 1)
             .map_or(next_interval, |next| next.code_offset);
         if argument.byte_count != expected_bytes.len()
-            || bytes.get(argument.code_offset..argument_end) != Some(expected_bytes.as_slice())
+            || function.bytes.get(argument.code_offset..argument_end)
+                != Some(expected_bytes.as_slice())
             || argument_end != next_interval
         {
             return Err(ObjectError::InvalidForeignCallArgument {
@@ -1962,6 +1899,142 @@ fn validate_foreign_scalar_arguments(
         }
     }
     Ok(())
+}
+
+fn validate_foreign_scalar_source(
+    function: &omega_machine_code::MachineCodeFunction,
+    attribution: &SemanticCodeAttribution,
+    argument: &omega_machine_code::ForeignCallScalarArgumentRecord,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidForeignCallArgument {
+        caller: function.machine,
+        owner: CallSiteOwner::Operation(match attribution.site {
+            SemanticCodeSite::Operation(operation) => operation,
+            SemanticCodeSite::Edge(_) => unreachable!("foreign call attribution is an operation"),
+        }),
+    };
+    let exact_sources = match argument.source {
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => function
+            .unit_integer_constants
+            .iter()
+            .filter(|constant| {
+                constant.defining_operation == defining_operation
+                    && constant.source_value == source_value
+                    && constant.scalar_type == scalar_type
+                    && constant.value == value
+                    && constant.operation_ordinal < attribution.operation_ordinal
+            })
+            .count(),
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
+            if !function.unit_scalar_homes.contains(&home) {
+                return Err(invalid());
+            }
+            function
+                .internal_unit_scalar_calls
+                .iter()
+                .filter(|producer| {
+                    producer.result.home == home
+                        && producer.operation_ordinal < attribution.operation_ordinal
+                        && producer
+                            .code_offset
+                            .checked_add(producer.byte_count)
+                            .is_some_and(|end| end <= argument.code_offset)
+                })
+                .count()
+        }
+    };
+    (exact_sources == 1).then_some(()).ok_or_else(invalid)
+}
+
+fn expected_foreign_scalar_argument_bytes(
+    target: NativeTarget,
+    argument: &omega_machine_code::ForeignCallScalarArgumentRecord,
+) -> Option<Vec<u8>> {
+    let [omega_calling_conventions::ValueLocation::Register { register, .. }] =
+        argument.placement.locations.as_slice()
+    else {
+        return None;
+    };
+    let register = match target.architecture {
+        Architecture::X86_64 => instruction_loads::x86_terminal_register(*register)?,
+        Architecture::Aarch64 => instruction_loads::aarch64_terminal_register(*register)?,
+    };
+    let mut bytes = Vec::new();
+    match argument.source {
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            scalar_type,
+            value,
+            ..
+        } => {
+            let bits = scalar_type.bits();
+            let mask = if bits == 64 {
+                u64::MAX
+            } else {
+                (1_u64 << bits) - 1
+            };
+            let value_bits = match (scalar_type.sign(), value) {
+                (psi_core::IntegerSign::Signed, psi_core::IntegerValue::Signed(value)) => {
+                    value as u128 as u64
+                }
+                (psi_core::IntegerSign::Unsigned, psi_core::IntegerValue::Unsigned(value)) => {
+                    value as u64
+                }
+                _ => return None,
+            } & mask;
+            match target.architecture {
+                Architecture::X86_64 if bits <= 32 => {
+                    if register >= 8 {
+                        bytes.push(0x41);
+                    }
+                    bytes.push(0xb8 | (register & 7));
+                    bytes.extend_from_slice(&(value_bits as u32).to_le_bytes());
+                }
+                Architecture::X86_64 => {
+                    bytes.extend_from_slice(&[0x48 | ((register >> 3) & 1), 0xb8 | (register & 7)]);
+                    bytes.extend_from_slice(&value_bits.to_le_bytes());
+                }
+                Architecture::Aarch64 => {
+                    for chunk in 0..4 {
+                        let immediate = ((value_bits >> (chunk * 16)) & 0xffff) as u32;
+                        if chunk == 0 || immediate != 0 {
+                            let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
+                            let instruction = base
+                                | ((chunk as u32) << 21)
+                                | (immediate << 5)
+                                | u32::from(register);
+                            bytes.extend_from_slice(&instruction.to_le_bytes());
+                        }
+                    }
+                }
+            }
+        }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
+            match target.architecture {
+                Architecture::X86_64 => {
+                    instruction_loads::expected_x86_stack_load(
+                        &mut bytes,
+                        register,
+                        home.byte_offset,
+                        8,
+                    )?;
+                }
+                Architecture::Aarch64 => {
+                    let instruction = instruction_loads::expected_aarch64_stack_load(
+                        register,
+                        home.byte_offset,
+                        8,
+                    )?;
+                    bytes.extend_from_slice(&instruction.to_le_bytes());
+                }
+            }
+        }
+    }
+    Some(bytes)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

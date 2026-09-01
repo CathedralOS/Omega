@@ -136,10 +136,11 @@ pub struct ForeignCallRelocation {
     pub provider_execution: ProviderExecutionRecord,
     /// Exact source-selected ABI plan consumed to emit this call.
     pub call_plan: omega_calling_conventions::CallPlan,
-    /// Canonically ordered evaluated literal arguments materialized before
-    /// the unresolved native procedure-call placeholder. The bounded native
-    /// carrier admits the target's complete register-resident fixed-integer
-    /// argument bank.
+    /// Canonically ordered evaluated scalar arguments materialized before the
+    /// unresolved native procedure-call placeholder. Each source is either an
+    /// exact authored constant or an exact preceding scalar-result home. The
+    /// bounded native carrier admits the target's complete register-resident
+    /// fixed-integer argument bank.
     pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
     /// Byte-addressed outbound stack custody plus the independently admitted
     /// opaque same-stack contribution for the foreign leaf.
@@ -147,16 +148,14 @@ pub struct ForeignCallRelocation {
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
 }
 
-/// Exact occurrence-specific source, value, and ABI custody for one evaluated
-/// foreign-call scalar literal. The byte interval names only its register
+/// Exact occurrence-specific source and ABI custody for one evaluated foreign-
+/// call scalar value. The byte interval names only its register
 /// materialization; the unresolved call field remains owned by
 /// [`ForeignCallRelocation::offset`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForeignCallScalarArgumentRecord {
     pub parameter_index: u32,
-    pub source_value: ValueId,
-    pub scalar_type: IntegerType,
-    pub immediate: IntegerValue,
+    pub source: InternalUnitScalarArgumentSourceRecord,
     pub placement: ValuePlacement,
     pub code_offset: usize,
     pub byte_count: usize,

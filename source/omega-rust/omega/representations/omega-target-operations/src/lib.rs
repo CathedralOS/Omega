@@ -256,19 +256,12 @@ pub struct NormalizedForeignCallBinding {
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
 }
 
-/// One occurrence-specific fixed-width integer literal materialized for an
-/// evaluated normalized foreign call. The source identity and mathematical
-/// literal remain bound to the exact ordered placement selected by the
-/// evaluated boundary call plan. The bounded native carrier admits the target's
-/// complete register-resident fixed-integer argument bank.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NormalizedForeignScalarArgument {
-    pub source_value: ValueId,
-    pub scalar_type: IntegerType,
-    pub immediate: IntegerValue,
-    pub parameter_index: u32,
-    pub placement: ValuePlacement,
-}
+/// One occurrence-specific fixed-width integer value materialized for an
+/// evaluated normalized foreign call. The exact authored constant or durable
+/// scalar-result home remains bound to the ordered placement selected by the
+/// evaluated boundary call plan. The bounded native carrier admits the
+/// target's complete register-resident fixed-integer argument bank.
+pub type NormalizedForeignScalarArgument = TargetUnitScalarCallArgument;
 
 /// Closed native settlement choice. Keeping evaluated imports disjoint from
 /// built-in realizations prevents locator custody from being stripped into a
@@ -474,6 +467,16 @@ pub struct TargetUnitScalarCallArgument {
     pub placement: ValuePlacement,
 }
 
+impl TargetUnitScalarCallArgument {
+    pub const fn source_value(&self) -> ValueId {
+        self.source.source_value()
+    }
+
+    pub const fn scalar_type(&self) -> IntegerType {
+        self.source.scalar_type()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
     EstablishByteSequenceLiteral {
@@ -531,9 +534,9 @@ pub enum TargetUnitOperation {
     },
     /// One Unit-returning evaluated import leaf. Native settlement rejoins
     /// this exact carrier; lowering never accepts locator or calling-plan
-    /// strings from the call site. The initial bounded scalar lane admits no
-    /// arguments or one fixed-width integer literal in the evaluated plan's
-    /// exact register placement.
+    /// strings from the call site. The bounded scalar lane admits fixed-width
+    /// integer constants and exact preceding scalar-result homes in the
+    /// evaluated plan's register placements.
     NormalizedForeignCall {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,

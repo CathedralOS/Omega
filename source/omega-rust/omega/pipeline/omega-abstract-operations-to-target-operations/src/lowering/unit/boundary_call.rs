@@ -23,6 +23,7 @@ pub(super) fn lower_boundary_call(
         (OperationId, StructuralTypeDeclaration, Vec<u8>),
     >,
     integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
+    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
     nonreturning_boundary: &mut bool,
@@ -238,7 +239,7 @@ pub(super) fn lower_boundary_call(
                     declaration,
                     arguments,
                     &foreign.boundary_entry_plan,
-                    integer_constants,
+                    scalar_values,
                 )?;
                 if arguments.len() != declaration.scalar_parameters.len()
                     || !structural_arguments.is_empty()
@@ -442,7 +443,7 @@ fn lower_normalized_foreign_scalar_arguments(
     declaration: &psi_terminal::BoundaryMachineDeclaration,
     arguments: &[ValueId],
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
-    integer_constants: &BTreeMap<ValueId, (OperationId, IntegerType, IntegerValue)>,
+    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
 ) -> Result<Vec<omega_target_operations::NormalizedForeignScalarArgument>, LoweringError> {
     let scalar_parameter_shapes = declaration
         .scalar_parameters
@@ -485,9 +486,10 @@ fn lower_normalized_foreign_scalar_arguments(
                 let ScalarType::Integer(integer_type) = parameter else {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
-                let Some((_, actual_type, immediate)) = integer_constants.get(source_value) else {
+                let Some(known) = scalar_values.get(source_value).copied() else {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
+                let source = known.into_target_source(*source_value);
                 let [
                     ValueLocation::Register {
                         value_byte_offset: 0,
@@ -498,19 +500,24 @@ fn lower_normalized_foreign_scalar_arguments(
                 else {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
-                if actual_type != integer_type
+                if known.scalar_type() != *integer_type
                     || placement.shape != *shape
                     || u16::try_from(shape.byte_size) != Ok(*byte_size)
-                    || psi_core::ScalarTerm::integer(*integer_type, *immediate).is_err()
+                    || match source {
+                        TargetUnitScalarArgumentSource::IntegerImmediate {
+                            scalar_type,
+                            value,
+                            ..
+                        } => psi_core::ScalarTerm::integer(scalar_type, value).is_err(),
+                        TargetUnitScalarArgumentSource::Home(home) => home.shape != *shape,
+                    }
                 {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 }
                 Ok(omega_target_operations::NormalizedForeignScalarArgument {
-                    source_value: *source_value,
-                    scalar_type: *integer_type,
-                    immediate: *immediate,
                     parameter_index: u32::try_from(parameter_index)
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                    source,
                     placement: placement.clone(),
                 })
             },
