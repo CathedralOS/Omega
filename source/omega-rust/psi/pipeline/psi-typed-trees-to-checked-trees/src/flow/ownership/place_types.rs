@@ -51,16 +51,19 @@ pub(crate) fn canonical_place_type_reference(
         return None;
     };
 
-    // `self` move events are normalized to the durable machine symbol before
-    // checked facts are published. Recover projections through that machine's
-    // attached data shape so ownership validation can still inspect every
-    // nominal prefix.
+    // `self` places may retain the authored state-parameter symbol or be
+    // normalized to the durable machine symbol. In either form, project their
+    // fields through the exact attached data declaration rather than treating
+    // the machine's nominal self type as an ordinary data reference.
     if let Some(machine) = program.machines().iter().find(|machine| {
-        machine.symbol == root_symbol
-            && program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == state_symbol)
+        program.machine_states(machine).iter().any(|state| {
+            state.symbol == state_symbol
+                && (machine.symbol == root_symbol
+                    || program
+                        .state_parameters(state)
+                        .iter()
+                        .any(|parameter| parameter.is_self && parameter.symbol == root_symbol))
+        })
     }) && let Some((psi_facts::PlaceSegment::Field { symbol }, remaining)) =
         place.segments.split_first()
     {
@@ -152,11 +155,9 @@ fn attached_data_field_type_reference(
     machine: &psi_typed_trees::machine::Machine,
     symbol: SymbolHandle,
 ) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
-    let attached_data = machine.attached_data.as_deref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.name.as_str() == attached_data)?;
+    let data = program.data_definitions().iter().find(|definition| {
+        machine.attached_data_symbol.is_valid() && definition.symbol == machine.attached_data_symbol
+    })?;
     data_field_type_reference(program, data, symbol)
 }
 
