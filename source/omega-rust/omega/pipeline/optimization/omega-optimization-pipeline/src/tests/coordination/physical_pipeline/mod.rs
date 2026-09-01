@@ -13,3 +13,4 @@ mod phase_routing;
 mod x86_mov_after_active_resident;
 mod x86_mov_r64_sign_extended_after_active_resident;
 mod x86_xor_zero;
+mod x86_xor_zero_after_active_resident;

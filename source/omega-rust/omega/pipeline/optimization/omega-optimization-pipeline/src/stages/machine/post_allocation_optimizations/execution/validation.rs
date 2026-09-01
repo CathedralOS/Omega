@@ -10,6 +10,7 @@ use super::super::{
     validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_after_selected_lowering_custody,
     validate_optimized_x86_mov_r64_imm32_sign_extended_materialization_custody,
+    validate_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_x86_xor_zero_materialization_after_selected_lowering_custody,
     validate_optimized_x86_xor_zero_materialization_custody,
     OptimizedPostAllocationMachineOptimizationError,
@@ -95,6 +96,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_after_active_resi
     staged: &StagedOptimizedPostAllocationMachineOptimization,
 ) -> Result<(), OptimizedPostAllocationMachineOptimizationError> {
     match staged {
+        StagedOptimizedPostAllocationMachineOptimization::X86XorZero(staged) => {
+            validate_optimized_x86_xor_zero_materialization_after_active_resident_rematerialization_custody(
+                source, machine, staged,
+            )
+            .map(drop)
+        }
         StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(staged) => {
             validate_optimized_aarch64_movn_materialization_after_active_resident_rematerialization_custody(
                 source, machine, staged,

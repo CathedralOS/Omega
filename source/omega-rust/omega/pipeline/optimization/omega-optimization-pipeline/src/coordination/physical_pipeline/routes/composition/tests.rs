@@ -60,13 +60,16 @@ fn expected_pair(
             return ExpectedDisposition::UnsupportedPhysicalComposition;
         }
         if post_allocation == 1 {
-            let admitted =
-                pair.contains(&Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
-                    && (pair.contains(
+            let admitted = pair
+                .contains(&Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
+                && (pair.contains(&Optimization::X86SelectXorZeroI64MaterializationV1)
+                    || pair.contains(
                         &Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
-                    ) || pair.contains(
+                    )
+                    || pair.contains(
                         &Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
-                    ) || pair.contains(
+                    )
+                    || pair.contains(
                         &Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
                     ));
             if !admitted {
@@ -262,9 +265,9 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
     }
 
     assert_eq!(cells, 240);
-    assert_eq!(accepted, 131);
-    assert_eq!(unsupported, 58);
-    assert_eq!(wrong_target, 51);
+    assert_eq!(accepted, 132);
+    assert_eq!(unsupported, 56);
+    assert_eq!(wrong_target, 52);
 }
 
 #[test]

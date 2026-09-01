@@ -44,7 +44,9 @@ pub(crate) fn resolve_physical_phase_composition(
             None
         } else {
             let supported = post_allocation.as_slice()
-                == [Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1]
+                == [Optimization::X86SelectXorZeroI64MaterializationV1]
+                || post_allocation.as_slice()
+                    == [Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1]
                 || post_allocation.as_slice()
                     == [Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1]
                 || post_allocation.as_slice()
