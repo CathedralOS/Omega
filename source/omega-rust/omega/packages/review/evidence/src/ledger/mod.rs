@@ -31,8 +31,9 @@ pub use model::{
     OrdinaryPackageObligationSchemaIdentity,
 };
 pub use results::{
-    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageObligationResultSet,
-    OrdinaryPackageObligationStatus, ordinary_package_obligation_results_from_projection,
+    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageExternalExecutableSupplyObligation,
+    OrdinaryPackageObligationResultSet, OrdinaryPackageObligationStatus,
+    ordinary_package_obligation_results_from_projection,
     reconstruct_ordinary_package_obligation_results, validate_ordinary_package_obligation_results,
 };
 pub use validation::{

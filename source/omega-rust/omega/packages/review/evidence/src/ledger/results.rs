@@ -1,4 +1,4 @@
-//! Locally reconstructed results for the first ordinary obligation lane.
+//! Locally reconstructed results for supported ordinary obligation lanes.
 
 use super::{
     OrdinaryPackageObligationLedger, OrdinaryPackageObligationLedgerRecoveryError,
@@ -8,12 +8,13 @@ use super::{
 use crate::record::{
     CheckedPackageCallableReview, CheckedPackageReviewProjection, PackageReviewCallableSupply,
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewExternalExecutableSupply,
 };
 use omega_package_compilation::PackageDependencyClosure;
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
 
-/// Closed result vocabulary for the first ordinary package-obligation lane.
+/// Closed result status for the supported ordinary package-obligation lanes.
 ///
 /// An accepted claim has no certificate route. It remains explicitly open
 /// until the consuming root supplies its own policy decision.
@@ -47,11 +48,38 @@ impl OrdinaryPackageAcceptedClaimObligation {
     }
 }
 
+/// One exact opaque executable-supply disclosure reconstructed from checked
+/// compiler state.
+///
+/// The typed supply retains the callable, requirement application, and
+/// external binding. The matching canonical row binds that disclosure to the
+/// ordinary obligation schema. Neither field establishes implementation
+/// correctness or records an admission decision.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrdinaryPackageExternalExecutableSupplyObligation {
+    supply: PackageReviewExternalExecutableSupply,
+    row: OrdinaryPackageObligationRow,
+}
+
+impl OrdinaryPackageExternalExecutableSupplyObligation {
+    pub const fn supply(&self) -> &PackageReviewExternalExecutableSupply {
+        &self.supply
+    }
+
+    pub const fn row(&self) -> &OrdinaryPackageObligationRow {
+        &self.row
+    }
+
+    pub const fn status(&self) -> OrdinaryPackageObligationStatus {
+        OrdinaryPackageObligationStatus::OpenRootAdmission
+    }
+}
+
 /// Locally reconstructed ordinary results for one exact package subject.
 ///
-/// This is intentionally in-memory and contains only explicit open accepted
-/// claims. It cannot issue a `PackageInstance`, accepted lock row, or producer
-/// admission decision.
+/// This is intentionally in-memory and contains only supported explicit open
+/// obligations. It cannot issue a `PackageInstance`, accepted lock row, or
+/// producer admission decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrdinaryPackageObligationResultSet {
     schema: OrdinaryPackageObligationSchemaIdentity,
@@ -59,6 +87,7 @@ pub struct OrdinaryPackageObligationResultSet {
     target: TargetProfile,
     dependency_closure: PackageDependencyClosure,
     open_accepted_claims: Vec<OrdinaryPackageAcceptedClaimObligation>,
+    open_external_executable_supplies: Vec<OrdinaryPackageExternalExecutableSupplyObligation>,
 }
 
 impl OrdinaryPackageObligationResultSet {
@@ -81,10 +110,16 @@ impl OrdinaryPackageObligationResultSet {
     pub fn open_accepted_claims(&self) -> &[OrdinaryPackageAcceptedClaimObligation] {
         &self.open_accepted_claims
     }
+
+    pub fn open_external_executable_supplies(
+        &self,
+    ) -> &[OrdinaryPackageExternalExecutableSupplyObligation] {
+        &self.open_external_executable_supplies
+    }
 }
 
 /// Join one exact locally reconstructed ledger to its typed compiler
-/// projection and expose accepted claims only as open obligations.
+/// projection and expose supported opaque claims as open obligations.
 pub fn ordinary_package_obligation_results_from_projection(
     ledger: &OrdinaryPackageObligationLedger,
     projection: &CheckedPackageReviewProjection,
@@ -157,12 +192,45 @@ pub fn ordinary_package_obligation_results_from_projection(
         });
     }
 
+    let external_supplies = projection.external_executable_supply();
+    let external_supply_rows = ledger
+        .rows()
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
+        .collect::<Vec<_>>();
+    if external_supplies.len() != external_supply_rows.len() {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "ordinary package external executable supplies are not bijective with their canonical rows",
+        ));
+    }
+
+    let mut open_external_executable_supplies = Vec::new();
+    open_external_executable_supplies
+        .try_reserve_exact(external_supply_rows.len())
+        .map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package external executable-supply result allocation failed",
+            )
+        })?;
+    for (supply, row) in external_supplies.iter().zip(external_supply_rows) {
+        if row.risk() != PackageReviewCanonicalRowRisk::OpaqueBlocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package external executable supply is not opaque blocking",
+            ));
+        }
+        open_external_executable_supplies.push(OrdinaryPackageExternalExecutableSupplyObligation {
+            supply: supply.clone(),
+            row: row.clone(),
+        });
+    }
+
     Ok(OrdinaryPackageObligationResultSet {
         schema: ledger.schema(),
         package: ledger.package(),
         target: ledger.target(),
         dependency_closure: ledger.dependency_closure().clone(),
         open_accepted_claims,
+        open_external_executable_supplies,
     })
 }
 
