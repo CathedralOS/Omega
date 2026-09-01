@@ -102,7 +102,8 @@ pub fn validate_quotient_formations(
 /// checked or executable authority, and [`validate_program`] continues to
 /// reject every quotient operation request. The extraction is all-or-nothing:
 /// if any retained request lies outside the narrow total direct faithful
-/// `define` bridge, no partial aggregate is returned.
+/// `define` or position-preserving forward-transport `lift` bridge, no partial
+/// aggregate is returned.
 pub fn extract_non_executable_quotient_correspondences(
     program: &TypedTrees,
 ) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {

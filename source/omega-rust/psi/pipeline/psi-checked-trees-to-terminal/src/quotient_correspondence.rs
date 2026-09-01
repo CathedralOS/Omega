@@ -1,16 +1,16 @@
 //! Proof-only quotient correspondence retention at the checked-to-Terminal boundary.
 //!
 //! This bridge carries the all-or-nothing, source-handle-free direct-`define`
-//! batch into semantic-module identity. It does not emit or authorize an
-//! executable quotient operation.
+//! and bounded transport-backed direct-`lift` batch into semantic-module
+//! identity. It does not emit or authorize an executable quotient operation.
 
 use psi_terminal::{TerminalModule, retain_non_executable_quotient_correspondence};
 use psi_validation::NonExecutableQuotientCorrespondenceBatch;
 
 use crate::LoweringError;
 
-/// Install a complete proof-only direct-`define` batch derived by semantic
-/// validation.
+/// Install a complete proof-only quotient-correspondence batch derived by
+/// semantic validation.
 ///
 /// This entry point is separate from executable quotient admission. It is
 /// public so producer tests and later checked admission code can exercise the

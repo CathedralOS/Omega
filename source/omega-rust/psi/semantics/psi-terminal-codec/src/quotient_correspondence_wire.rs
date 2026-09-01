@@ -4,13 +4,13 @@ use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
     QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
     QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
-    QuotientForwardPreconditionTransportCorrespondence, QuotientMachineApplication,
-    QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
-    QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
-    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
-    QuotientTheoremRole,
+    QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
+    QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
+    QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
+    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
+    QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
+    QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
+    QuotientTheoremRelationPremise, QuotientTheoremRole,
 };
 use psi_terminal::{RetainedQuotientCorrespondence, retain_non_executable_quotient_correspondence};
 
@@ -79,15 +79,15 @@ pub(super) fn encode_quotient_correspondence(
                     "quotient transport public premises",
                     transport.public_premises.len(),
                 )?;
-                for coordinate in &transport.public_premises {
-                    encode_coordinate(writer, *coordinate);
+                for fact in &transport.public_premises {
+                    encode_transport_fact(writer, *fact);
                 }
                 writer.len(
                     "quotient transport representative conclusions",
                     transport.representative_conclusions.len(),
                 )?;
-                for coordinate in &transport.representative_conclusions {
-                    encode_coordinate(writer, *coordinate);
+                for fact in &transport.representative_conclusions {
+                    encode_transport_fact(writer, *fact);
                 }
             }
         }
@@ -150,7 +150,7 @@ fn encode_congruence(
         congruence.legality_premises.len(),
     )?;
     for premise in &congruence.legality_premises {
-        encode_coordinate(writer, *premise);
+        encode_transport_fact(writer, *premise);
     }
     encode_coordinate(writer, congruence.conclusion.actual);
     writer.string(
@@ -228,8 +228,8 @@ fn decode_theorem_evidence(reader: &mut Reader<'_>) -> Result<QuotientTheoremEvi
         1 => QuotientTheoremCorrespondence::Congruence(decode_congruence(reader)?),
         2 => QuotientTheoremCorrespondence::ForwardPreconditionTransport(
             QuotientForwardPreconditionTransportCorrespondence {
-                public_premises: decode_counted(reader, decode_coordinate)?,
-                representative_conclusions: decode_counted(reader, decode_coordinate)?,
+                public_premises: decode_counted(reader, decode_transport_fact)?,
+                representative_conclusions: decode_counted(reader, decode_transport_fact)?,
             },
         ),
         tag => return Err(CodecError::InvalidTag("QuotientTheoremCorrespondence", tag)),
@@ -246,6 +246,35 @@ fn decode_theorem_evidence(reader: &mut Reader<'_>) -> Result<QuotientTheoremEvi
                 tag => return Err(CodecError::InvalidTag("QuotientCrashCertificate", tag)),
             },
         },
+    })
+}
+
+fn encode_transport_fact(writer: &mut Writer, fact: QuotientForwardPreconditionTransportFact) {
+    writer.u8(match fact.application {
+        QuotientTheoremApplicationSide::Left => 1,
+        QuotientTheoremApplicationSide::Right => 2,
+    });
+    encode_coordinate(writer, fact.source);
+    encode_coordinate(writer, fact.actual);
+}
+
+fn decode_transport_fact(
+    reader: &mut Reader<'_>,
+) -> Result<QuotientForwardPreconditionTransportFact, CodecError> {
+    let application = match reader.u8()? {
+        1 => QuotientTheoremApplicationSide::Left,
+        2 => QuotientTheoremApplicationSide::Right,
+        tag => {
+            return Err(CodecError::InvalidTag(
+                "QuotientTheoremApplicationSide",
+                tag,
+            ));
+        }
+    };
+    Ok(QuotientForwardPreconditionTransportFact {
+        application,
+        source: decode_coordinate(reader)?,
+        actual: decode_coordinate(reader)?,
     })
 }
 
@@ -280,7 +309,7 @@ fn decode_congruence(
             right_parameter: reader.u32()?,
         })
     })?;
-    let legality_premises = decode_counted(reader, decode_coordinate)?;
+    let legality_premises = decode_counted(reader, decode_transport_fact)?;
     let conclusion = QuotientTheoremConclusion {
         actual: decode_coordinate(reader)?,
         relation: reader.string("quotient theorem conclusion relation")?,

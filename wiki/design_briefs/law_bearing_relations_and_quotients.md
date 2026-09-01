@@ -977,24 +977,34 @@ adjacent Left/Right substitutions for each authored fact. Certificate
 composition rejoins the exact `ForwardPreconditionTransport` role, complete
 closed selected application, and checked-body, pure-closure, unconditional-
 termination, and crash-free eligibility of both selected theorem entries. The
-result is a distinct checked-only transport-backed lift certificate; automatic
+result is a distinct checked transport-backed lift certificate; automatic
 implication and fixed-call rows are absent, while the theorem roster covers
-both dependent and fixed `P`. Terminal replay of the same role-tagged evidence
-remains open. Ambient domain linking, visibility search, an opaque solver
+both dependent and fixed `P`. The bounded non-executable Terminal carrier now
+retains and independently replays its exact position-preserving direct form.
+Every public-`Q`, representative-`P`, and congruence-legality row preserves the
+Left/Right application side, authored source coordinate, and selected-theorem
+coordinate; replay checks canonical fact-major and theorem-coordinate order and
+joins the congruence `P` roster exactly to the transport `P` roster. Ambient
+domain linking, visibility search, an opaque solver
 verdict, or a mixed automatic/theorem row set cannot supply that authority.
 The remaining lane is implementation work, not an open language-design
 question.
 
-A proof-only Terminal preparation seam now covers only the total direct
-faithful `define` shape. Its all-or-nothing validation API produces one
+A proof-only Terminal preparation seam now covers the total direct faithful
+`define` shape and the position-preserving direct transport-backed `lift`
+shape. Its all-or-nothing validation API produces one
 source-handle-free aggregate containing package-qualified callable and type
 identities, parameter ordinals, exact positional relations, theorem
 parameters/premises/applications/conclusion, contract-fact coordinates,
 purity/termination/crash eligibility, and the direct result edge. The seam
 requires monomorphic one-state public, representative, and theorem machines;
-empty static telescopes and public/representative preconditions; no theorem
-legality premises; immutable non-attached parameters; complete eligibility;
-and unchanged direct result flow. `TerminalModule` now retains those proof rows
+empty static telescopes; immutable non-attached parameters; complete
+eligibility; and unchanged direct result flow. Faithful `define` additionally
+requires empty public/representative preconditions and no theorem legality
+premises. The transport rung instead requires the
+complete checked `Congruence, ForwardPreconditionTransport` roster and admits
+no literal, omitted, permuted, repeated, generic, attached, or multi-state
+adaptation. `TerminalModule` now retains those proof rows
 in strict canonical-identity order, and its canonical codec includes each
 aggregate and rederives its length-delimited identity on decode. Normal
 representation validation independently reconstructs the structural theorem
@@ -1005,16 +1015,20 @@ an ordinary machine-lowering path. The rows still own no machine or
 operation, normal validation continues to reject every quotient operation, and
 a batch with one unsupported request yields no partial rows. This is a
 source-erasure, module-retention, and replay prerequisite, not executable
-stage-4 admission; checked operation/result lowering remains open.
+stage-4 admission. Package review still blanket-rejects quotient contract
+calls and has no quotient-operation record; executable checked operation/result
+lowering and the full package-review migration remain open.
 
 The collection migration is now live through sealed typed requests, checked
-relation planning, and the proof-only total-direct `define` Terminal seam.
+relation planning, and the proof-only total-direct `define` plus bounded direct
+transport-`lift` Terminal seam.
 Three-argument `lift` retains `Congruence` followed by
 `ForwardPreconditionTransport`. Its role-specific checked verifier now produces
 the complete non-executable `Q -> P` transport certificate, and selected and
-automatic transport are never mixed. The proof-only Terminal seam still covers
-only total direct `define`; package review blanket-rejects quotient contract
-calls and has no quotient-operation record to migrate.
+automatic transport are never mixed. Terminal representation replay is now
+closed for its position-preserving form only. Package review blanket-rejects
+quotient contract calls and has no quotient-operation record to migrate, and
+execution admission remains fail closed.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

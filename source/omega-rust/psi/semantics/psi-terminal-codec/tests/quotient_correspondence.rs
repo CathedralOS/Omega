@@ -3,12 +3,13 @@ use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
     QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
     QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
-    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
-    QuotientTheoremRole,
+    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
+    QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
+    QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
+    QuotientTheoremRelationPremise, QuotientTheoremRole,
 };
 use psi_terminal::{
     Block, MachineContract, RetainedQuotientCorrespondence, TerminalMachine, TerminalMachineResult,
@@ -110,6 +111,51 @@ fn correspondence(owner: &str) -> RetainedQuotientCorrespondence {
     })
 }
 
+fn transport_correspondence(owner: &str) -> RetainedQuotientCorrespondence {
+    let mut certificate = correspondence(owner).certificate;
+    certificate.operation_kind =
+        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport;
+    let QuotientTheoremCorrespondence::Congruence(congruence) =
+        &mut certificate.theorem_evidence[0].correspondence
+    else {
+        panic!("congruence fixture")
+    };
+    let pair = |source, actual| {
+        vec![
+            QuotientForwardPreconditionTransportFact {
+                application: QuotientTheoremApplicationSide::Left,
+                source: coordinate(source),
+                actual: coordinate(actual),
+            },
+            QuotientForwardPreconditionTransportFact {
+                application: QuotientTheoremApplicationSide::Right,
+                source: coordinate(source),
+                actual: coordinate(actual + 1),
+            },
+        ]
+    };
+    congruence.legality_premises = pair(11, 2);
+    certificate.theorem_evidence.push(QuotientTheoremEvidence {
+        role: QuotientTheoremRole::ForwardPreconditionTransport,
+        selected_application: QuotientMachineApplication {
+            callable: callable("apply_transports_preconditions"),
+            static_application: QuotientStaticApplication { bindings: vec![] },
+        },
+        correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(
+            QuotientForwardPreconditionTransportCorrespondence {
+                public_premises: pair(10, 0),
+                representative_conclusions: pair(11, 2),
+            },
+        ),
+        eligibility: QuotientTheoremEligibility {
+            purity: QuotientPurityCertificate::PureClosure,
+            termination: QuotientTerminationCertificate::Unconditional,
+            crash: QuotientCrashCertificate::CrashFree,
+        },
+    });
+    retain_non_executable_quotient_correspondence(certificate)
+}
+
 fn module_with(quotient_correspondences: Vec<RetainedQuotientCorrespondence>) -> TerminalModule {
     let machine = MachineId::new(1).unwrap();
     TerminalModule {
@@ -172,7 +218,7 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     let module = module_with(vec![correspondence("Public::apply")]);
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
-    assert_eq!(&bytes[8..10], 48_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 49_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         psi_terminal::VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -182,6 +228,14 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
         semantic_fingerprint(&module).unwrap(),
         semantic_fingerprint(&module_with(Vec::new())).unwrap()
     );
+}
+
+#[test]
+fn transport_backed_lift_round_trips_all_source_and_theorem_coordinates() {
+    let module = module_with(vec![transport_correspondence("Public::lift")]);
+    validate_module_representation(&module).expect("transport correspondence replays");
+    let bytes = encode_module(&module).expect("transport correspondence encodes");
+    assert_eq!(decode_module(&bytes), Ok(module));
 }
 
 #[test]

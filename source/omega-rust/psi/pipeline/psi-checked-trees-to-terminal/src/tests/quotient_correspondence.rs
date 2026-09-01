@@ -71,6 +71,78 @@ machine admitted(value: EquivalenceClass) -> EquivalenceClass {
 }
 "#;
 
+const TRANSPORT_BACKED_LIFT: &str = r#"
+use omega::language::core::relation;
+
+data Representative {
+    case Zero;
+    case Next(previous: Representative);
+}
+proposition equivalent(a: Representative, b: Representative) = a == b;
+
+machine equivalent_reflexive(a: Representative)
+ensures a == a
+{
+}
+machine equivalent_symmetric(a: Representative, b: Representative)
+requires a == b
+ensures b == a
+{
+}
+machine equivalent_transitive(a: Representative, b: Representative, c: Representative)
+requires
+    a == b
+    b == c
+ensures a == c
+{
+}
+
+RepresentativeEquivalence: satisfies Equivalence<Representative, equivalent> {
+    Reflexive::reflexive = equivalent_reflexive;
+    Symmetric::symmetric = equivalent_symmetric;
+    Transitive::transitive = equivalent_transitive;
+}
+
+data EquivalenceClass = Representative % equivalent
+where equivalent satisfies Equivalence<Representative, equivalent>
+as RepresentativeEquivalence;
+
+machine representative(value: Representative) -> Representative
+requires value == value
+{
+    value
+}
+
+machine representative_respects(left: Representative, right: Representative)
+requires
+    equivalent(left, right)
+    left == left
+    right == right
+ensures equivalent(representative(left), representative(right))
+{
+}
+
+machine representative_transports(left: Representative, right: Representative)
+requires
+    left == left
+    right == right
+ensures
+    left == left
+    right == right
+{
+}
+
+machine admitted(value: EquivalenceClass) -> EquivalenceClass
+requires value == value
+{
+    Quotient::lift<
+        representative,
+        representative_respects,
+        representative_transports
+    >(value)
+}
+"#;
+
 const CORE_RELATION: &str = include_str!("../../../../../../../source/library/core/relation.omg");
 
 fn quotient_program(source: &str) -> TypedTrees {
@@ -109,7 +181,7 @@ fn quotient_program(source: &str) -> TypedTrees {
         .filter_map(|(position, machine)| {
             matches!(
                 program.symbols.name(machine.symbol),
-                "representative" | "representative_respects"
+                "representative" | "representative_respects" | "representative_transports"
             )
             .then_some(position)
             .or_else(|| {
@@ -130,6 +202,81 @@ fn quotient_program(source: &str) -> TypedTrees {
         };
     }
     program
+}
+
+#[test]
+fn retains_and_replays_source_checked_transport_backed_lift_without_execution() {
+    let program = quotient_program(TRANSPORT_BACKED_LIFT);
+    let batch = psi_validation::extract_non_executable_quotient_correspondences(&program)
+        .expect("extract transport-backed lift");
+    let mut module = baseline_module();
+    install_non_executable_quotient_correspondences(batch, &mut module)
+        .expect("install transport-backed proof row");
+    let [retained] = module.quotient_correspondences.as_slice() else {
+        panic!("one retained transport row")
+    };
+    assert_eq!(
+        retained.certificate.operation_kind,
+        psi_language_semantics::quotient_correspondence::QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport
+    );
+    let psi_language_semantics::quotient_correspondence::QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) =
+        &retained.certificate.theorem_evidence[1].correspondence
+    else {
+        panic!("transport payload")
+    };
+    use psi_language_semantics::quotient_correspondence::{
+        QuotientContractFactCoordinate, QuotientContractOwner,
+        QuotientForwardPreconditionTransportFact, QuotientTheoremApplicationSide,
+        QuotientTheoremCorrespondence,
+    };
+    let coordinate = |contract_position, fact_position| QuotientContractFactCoordinate {
+        owner: QuotientContractOwner::Machine,
+        contract_position,
+        fact_position,
+    };
+    let pair = |source, left_actual, right_actual| {
+        vec![
+            QuotientForwardPreconditionTransportFact {
+                application: QuotientTheoremApplicationSide::Left,
+                source,
+                actual: left_actual,
+            },
+            QuotientForwardPreconditionTransportFact {
+                application: QuotientTheoremApplicationSide::Right,
+                source,
+                actual: right_actual,
+            },
+        ]
+    };
+    let public_source = coordinate(0, 0);
+    let representative_source = coordinate(0, 0);
+    assert_eq!(
+        transport.public_premises,
+        pair(public_source, coordinate(0, 0), coordinate(0, 1))
+    );
+    assert_eq!(
+        transport.representative_conclusions,
+        pair(representative_source, coordinate(1, 0), coordinate(1, 1))
+    );
+    let QuotientTheoremCorrespondence::Congruence(congruence) =
+        &retained.certificate.theorem_evidence[0].correspondence
+    else {
+        panic!("congruence payload")
+    };
+    assert_eq!(
+        congruence.legality_premises,
+        pair(representative_source, coordinate(0, 1), coordinate(0, 2))
+    );
+    assert_eq!(
+        psi_terminal_verifier::validate_module_representation(&module),
+        Ok(())
+    );
+    assert_eq!(
+        psi_terminal_verifier::validate_module(&module).unwrap_err(),
+        psi_terminal_verifier::ModuleError::NonExecutableQuotientCorrespondence
+    );
+    let bytes = psi_terminal_codec::encode_module(&module).expect("encode transport row");
+    assert_eq!(psi_terminal_codec::decode_module(&bytes), Ok(module));
 }
 
 fn baseline_module() -> psi_terminal::TerminalModule {
@@ -211,11 +358,11 @@ fn unsupported_request_leaves_the_installed_batch_unchanged() {
     let diagnostics =
         psi_validation::extract_non_executable_quotient_correspondences(&quotient_program(&mixed))
             .expect_err("one unsupported request rejects the whole replacement batch");
-    assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("faithful `define` only"))
-    );
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("direct transport-backed `lift` only")
+    }));
     assert_eq!(module, before);
 }
 

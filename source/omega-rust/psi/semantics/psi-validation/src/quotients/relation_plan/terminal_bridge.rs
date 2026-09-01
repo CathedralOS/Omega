@@ -1,15 +1,16 @@
-//! Canonical source erasure for the total direct faithful-definition bridge.
+//! Canonical source erasure for bounded direct quotient correspondences.
 
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCallableIdentity, QuotientCongruenceCorrespondence,
     QuotientContractFactCoordinate, QuotientContractOwner, QuotientCorrespondenceOperationKind,
     QuotientCrashCertificate, QuotientDefineRuntimePosition, QuotientDirectResultFlow,
+    QuotientForwardPreconditionTransportCorrespondence, QuotientForwardPreconditionTransportFact,
     QuotientMachineApplication, QuotientPositionalRelation, QuotientPurityCertificate,
     QuotientRelationIdentity, QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-    QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
-    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
-    QuotientTheoremRole,
+    QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
+    QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
+    QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
+    QuotientTheoremRelationPremise, QuotientTheoremRole,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
@@ -19,11 +20,14 @@ use psi_typed_trees::state::State;
 use super::correspondence_certificate::{
     QuotientCorrespondenceCertificate, QuotientCorrespondenceEvidence,
 };
+use super::precondition::{RepresentativeContractFactLocation, RepresentativeContractOwner};
 use super::representative::RepresentativePurity;
 use super::result_flow::CompleteSingleStateResultFlow;
+use super::runtime_correspondence::DirectLiftArgumentSource;
 use super::theorem_schema::{
-    TheoremContractFactLocation, TheoremContractOwner, TheoremParameterRole,
+    TheoremApplicationSide, TheoremContractFactLocation, TheoremContractOwner, TheoremParameterRole,
 };
+use super::transport_schema::VerifiedForwardPreconditionTransportSchema;
 use super::{DirectTerminalRelationPlan, ExactQuotientRelation, InputRelation};
 
 pub(in crate::quotients) fn canonical_total_define_correspondence(
@@ -35,11 +39,60 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
     representative_purity: RepresentativePurity,
     result_flow: CompleteSingleStateResultFlow,
 ) -> Result<CanonicalQuotientCorrespondence, String> {
-    let [planned_theorem] = plan.theorem_evidence.as_slice() else {
-        return Err("faithful `define` requires exactly one Congruence theorem entry".to_owned());
-    };
+    canonical_correspondence(
+        program,
+        public_machine,
+        public_state,
+        request_expression,
+        plan,
+        representative_purity,
+        result_flow,
+        false,
+    )
+}
+
+pub(in crate::quotients) fn canonical_transport_lift_correspondence(
+    program: &TypedTrees,
+    public_machine: &Machine,
+    public_state: &State,
+    request_expression: ExpressionHandle,
+    plan: &DirectTerminalRelationPlan,
+    representative_purity: RepresentativePurity,
+    result_flow: CompleteSingleStateResultFlow,
+) -> Result<CanonicalQuotientCorrespondence, String> {
+    canonical_correspondence(
+        program,
+        public_machine,
+        public_state,
+        request_expression,
+        plan,
+        representative_purity,
+        result_flow,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn canonical_correspondence(
+    program: &TypedTrees,
+    public_machine: &Machine,
+    public_state: &State,
+    request_expression: ExpressionHandle,
+    plan: &DirectTerminalRelationPlan,
+    representative_purity: RepresentativePurity,
+    result_flow: CompleteSingleStateResultFlow,
+    transport_lift: bool,
+) -> Result<CanonicalQuotientCorrespondence, String> {
+    let planned_theorem = plan
+        .theorem_evidence
+        .first()
+        .ok_or_else(|| "quotient correspondence requires a Congruence theorem entry".to_owned())?;
+    let expected_roles = if transport_lift { 2 } else { 1 };
+    if plan.theorem_evidence.len() != expected_roles {
+        return Err("quotient correspondence theorem role roster drifted".to_owned());
+    }
     if planned_theorem.role != psi_typed_trees::expression::QuotientTheoremRole::Congruence {
-        return Err("faithful `define` theorem evidence has a noncanonical role".to_owned());
+        return Err("quotient correspondence theorem evidence has a noncanonical role".to_owned());
     }
     let selected_theorem = &planned_theorem.selected_application;
     require_single_entry(program, public_machine, public_state, "public operation")?;
@@ -71,17 +124,40 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
             .static_application
             .lifetime_arguments
             .is_empty()
-        || !selected_theorem.static_application.bindings.is_empty()
-        || !plan.theorem_evidence[0]
-            .selected_application
-            .static_application
-            .lifetime_arguments
-            .is_empty()
+        || plan.theorem_evidence.iter().any(|evidence| {
+            !evidence
+                .selected_application
+                .static_application
+                .bindings
+                .is_empty()
+                || !evidence
+                    .selected_application
+                    .static_application
+                    .lifetime_arguments
+                    .is_empty()
+        })
     {
         return Err("the proof-only bridge requires empty closed static applications".to_owned());
     }
     require_empty_owner_telescope(program, representative_machine, "representative")?;
-    require_empty_owner_telescope(program, theorem_machine, "selected theorem")?;
+    for evidence in &plan.theorem_evidence {
+        let (machine, state) = exact_machine_state(
+            program,
+            evidence.selected_application.machine_symbol,
+            evidence.selected_application.state_symbol,
+            "selected theorem",
+        )?;
+        require_single_entry(program, machine, state, "selected theorem")?;
+        require_empty_owner_telescope(program, machine, "selected theorem")?;
+        require_plain_immutable_parameters(
+            evidence
+                .selected_application
+                .parameters
+                .iter()
+                .map(|parameter| (parameter.is_mutable, parameter.is_self)),
+            "selected theorem",
+        )?;
+    }
 
     let public_parameters = program
         .state_parameters(public_state)
@@ -113,38 +189,56 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
         .correspondence_certificate
         .as_ref()
         .ok_or_else(|| "the complete correspondence certificate is absent".to_owned())?;
-    let define_runtime = match &certificate.evidence {
+    let (operation_kind, runtime_positions, transport) = match &certificate.evidence {
         QuotientCorrespondenceEvidence::Define {
             runtime,
             precondition,
-        } => {
+        } if !transport_lift => {
             if !precondition.dependent.is_empty() || !precondition.fixed.is_empty() {
                 return Err(
                     "the proof-only bridge admits no public or representative preconditions"
                         .to_owned(),
                 );
             }
-            runtime
+            let positions = canonical_define_runtime_positions(
+                &public_parameters,
+                &plan.representative.parameters,
+                &runtime.positions,
+            )?;
+            (QuotientCorrespondenceOperationKind::Define, positions, None)
         }
-        QuotientCorrespondenceEvidence::DirectLift { .. }
-        | QuotientCorrespondenceEvidence::DirectLiftWithTransport { .. } => {
-            return Err("the proof-only bridge admits faithful `define` only".to_owned());
+        QuotientCorrespondenceEvidence::DirectLiftWithTransport { runtime, transport }
+            if transport_lift =>
+        {
+            let positions = canonical_lift_runtime_positions(
+                &public_parameters,
+                &plan.representative.parameters,
+                &runtime.positions,
+            )?;
+            (
+                QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport,
+                positions,
+                Some(transport),
+            )
         }
+        _ => return Err("the proof-only bridge operation/certificate kind drifted".to_owned()),
     };
-    require_empty_partition(plan.public_precondition.as_ref(), "public")?;
-    require_empty_partition(plan.representative_precondition.as_ref(), "representative")?;
-    if !plan.expected_theorem_schema.legality_premises.is_empty()
-        || !certificate.theorem.legality_premises.is_empty()
-    {
-        return Err("the proof-only bridge admits no theorem legality premises".to_owned());
+    if !transport_lift {
+        require_empty_partition(plan.public_precondition.as_ref(), "public")?;
+        require_empty_partition(plan.representative_precondition.as_ref(), "representative")?;
+        if !plan.expected_theorem_schema.legality_premises.is_empty()
+            || !certificate.theorem.legality_premises.is_empty()
+        {
+            return Err("the proof-only bridge admits no theorem legality premises".to_owned());
+        }
     }
 
     if plan.representative_termination.is_none()
         || representative_purity.machine_symbol != plan.representative.machine_symbol
         || representative_purity.state_symbol != plan.representative.state_symbol
-        || planned_theorem.termination.is_none()
-        || planned_theorem.purity.is_none()
-        || !planned_theorem.crash_free
+        || plan.theorem_evidence.iter().any(|evidence| {
+            evidence.termination.is_none() || evidence.purity.is_none() || !evidence.crash_free
+        })
     {
         return Err("purity, termination, or theorem crash eligibility is incomplete".to_owned());
     }
@@ -157,28 +251,11 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
     }
 
     if public_parameters.len() != plan.representative.parameters.len()
-        || define_runtime.positions.len() != public_parameters.len()
+        || runtime_positions.len() != public_parameters.len()
         || plan.input_relations.len() != public_parameters.len()
     {
         return Err("faithful runtime correspondence arity drifted".to_owned());
     }
-    let runtime_positions = define_runtime
-        .positions
-        .iter()
-        .enumerate()
-        .map(|(position, runtime)| {
-            if runtime.public_parameter != public_parameters[position].symbol
-                || runtime.representative_parameter
-                    != plan.representative.parameters[position].symbol
-            {
-                return Err("faithful runtime correspondence is not position preserving".to_owned());
-            }
-            Ok(QuotientDefineRuntimePosition {
-                public_position: to_u32(position, "public parameter position")?,
-                representative_position: to_u32(position, "representative parameter position")?,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
 
     let input_relations = plan
         .input_relations
@@ -205,7 +282,7 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
         })
         .collect::<Result<Vec<_>, String>>()?;
     let result_relation = relation_identity(program, plan.result_relation)?;
-    let theorem = theorem_correspondence(program, plan, certificate)?;
+    let theorem = theorem_correspondence(program, plan, certificate, transport_lift)?;
     let statement_position = program
         .statement_table
         .statements(public_state.statement_nodes)
@@ -214,22 +291,46 @@ pub(in crate::quotients) fn canonical_total_define_correspondence(
         .ok_or_else(|| "direct result state has no terminal statement".to_owned())?;
 
     Ok(CanonicalQuotientCorrespondence {
-        operation_kind: QuotientCorrespondenceOperationKind::Define,
+        operation_kind,
         public_operation: callable_identity(program, public_machine)?,
         representative: machine_application(program, representative_machine)?,
         input_relations,
         result_relation,
         runtime_positions,
-        theorem_evidence: vec![QuotientTheoremEvidence {
-            role: QuotientTheoremRole::Congruence,
-            selected_application: machine_application(program, theorem_machine)?,
-            correspondence: QuotientTheoremCorrespondence::Congruence(theorem),
-            eligibility: QuotientTheoremEligibility {
-                purity: QuotientPurityCertificate::PureClosure,
-                termination: QuotientTerminationCertificate::Unconditional,
-                crash: QuotientCrashCertificate::CrashFree,
-            },
-        }],
+        theorem_evidence: {
+            let mut evidence = vec![QuotientTheoremEvidence {
+                role: QuotientTheoremRole::Congruence,
+                selected_application: machine_application(program, theorem_machine)?,
+                correspondence: QuotientTheoremCorrespondence::Congruence(theorem),
+                eligibility: QuotientTheoremEligibility {
+                    purity: QuotientPurityCertificate::PureClosure,
+                    termination: QuotientTerminationCertificate::Unconditional,
+                    crash: QuotientCrashCertificate::CrashFree,
+                },
+            }];
+            if let Some(transport) = transport {
+                let selected = &plan.theorem_evidence[1].selected_application;
+                let (machine, _) = exact_machine_state(
+                    program,
+                    selected.machine_symbol,
+                    selected.state_symbol,
+                    "selected transport theorem",
+                )?;
+                evidence.push(QuotientTheoremEvidence {
+                    role: QuotientTheoremRole::ForwardPreconditionTransport,
+                    selected_application: machine_application(program, machine)?,
+                    correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(
+                        transport_correspondence(transport)?,
+                    ),
+                    eligibility: QuotientTheoremEligibility {
+                        purity: QuotientPurityCertificate::PureClosure,
+                        termination: QuotientTerminationCertificate::Unconditional,
+                        crash: QuotientCrashCertificate::CrashFree,
+                    },
+                });
+            }
+            evidence
+        },
         representative_eligibility: QuotientRepresentativeEligibility {
             purity: QuotientPurityCertificate::PureClosure,
             termination: QuotientTerminationCertificate::Unconditional,
@@ -245,6 +346,7 @@ fn theorem_correspondence(
     program: &TypedTrees,
     plan: &DirectTerminalRelationPlan,
     certificate: &QuotientCorrespondenceCertificate,
+    retain_legality: bool,
 ) -> Result<QuotientCongruenceCorrespondence, String> {
     let expected = &plan.expected_theorem_schema;
     let verified = &certificate.theorem;
@@ -311,7 +413,27 @@ fn theorem_correspondence(
     Ok(QuotientCongruenceCorrespondence {
         parameters,
         relation_premises,
-        legality_premises: Vec::new(),
+        legality_premises: if retain_legality {
+            expected
+                .legality_premises
+                .iter()
+                .enumerate()
+                .map(|(position, expected)| {
+                    let verified = verified
+                        .legality_premises
+                        .iter()
+                        .find(|premise| premise.expected_position == position)
+                        .ok_or_else(|| "verified theorem legality premise is absent".to_owned())?;
+                    Ok(QuotientForwardPreconditionTransportFact {
+                        application: theorem_application_side(expected.application),
+                        source: theorem_contract_coordinate(expected.fact)?,
+                        actual: contract_coordinate(verified.actual)?,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?
+        } else {
+            Vec::new()
+        },
         conclusion: QuotientTheoremConclusion {
             actual: contract_coordinate(verified.conclusion)?,
             relation: canonical_symbol(program, expected.result_relation.relation_symbol)?,
@@ -333,6 +455,98 @@ fn theorem_correspondence(
             },
         },
     })
+}
+
+fn canonical_define_runtime_positions(
+    public: &[&psi_typed_trees::signature::StateParameter],
+    representative: &[super::representative::RepresentativeRuntimeParameter],
+    runtime: &[super::runtime_correspondence::DefineRuntimePosition],
+) -> Result<Vec<QuotientDefineRuntimePosition>, String> {
+    if runtime.len() != public.len() || representative.len() != public.len() {
+        return Err("faithful runtime correspondence arity drifted".to_owned());
+    }
+    runtime
+        .iter()
+        .enumerate()
+        .map(|(position, runtime)| {
+            if runtime.public_parameter != public[position].symbol
+                || runtime.representative_parameter != representative[position].symbol
+            {
+                return Err("faithful runtime correspondence is not position preserving".to_owned());
+            }
+            canonical_runtime_position(position)
+        })
+        .collect()
+}
+
+fn canonical_lift_runtime_positions(
+    public: &[&psi_typed_trees::signature::StateParameter],
+    representative: &[super::representative::RepresentativeRuntimeParameter],
+    runtime: &[super::runtime_correspondence::DirectLiftRuntimePosition],
+) -> Result<Vec<QuotientDefineRuntimePosition>, String> {
+    if runtime.len() != public.len() || representative.len() != public.len() {
+        return Err("transport lift runtime correspondence arity drifted".to_owned());
+    }
+    runtime
+        .iter()
+        .enumerate()
+        .map(|(position, runtime)| {
+            if !matches!(
+                runtime.source,
+                DirectLiftArgumentSource::PublicParameter(symbol) if symbol == public[position].symbol
+            ) || runtime.representative_parameter != representative[position].symbol
+            {
+                return Err("transport lift runtime correspondence is not position preserving".to_owned());
+            }
+            canonical_runtime_position(position)
+        })
+        .collect()
+}
+
+fn canonical_runtime_position(position: usize) -> Result<QuotientDefineRuntimePosition, String> {
+    Ok(QuotientDefineRuntimePosition {
+        public_position: to_u32(position, "public parameter position")?,
+        representative_position: to_u32(position, "representative parameter position")?,
+    })
+}
+
+fn transport_correspondence(
+    transport: &VerifiedForwardPreconditionTransportSchema,
+) -> Result<QuotientForwardPreconditionTransportCorrespondence, String> {
+    fn row(
+        fact: &super::transport_schema::VerifiedTransportFact,
+    ) -> Result<QuotientForwardPreconditionTransportFact, String> {
+        Ok(QuotientForwardPreconditionTransportFact {
+            application: theorem_application_side(fact.application),
+            source: representative_contract_coordinate(fact.source)?,
+            actual: contract_coordinate(fact.actual)?,
+        })
+    }
+    Ok(QuotientForwardPreconditionTransportCorrespondence {
+        public_premises: transport
+            .public_premises
+            .iter()
+            .map(row)
+            .collect::<Result<Vec<_>, _>>()?,
+        representative_conclusions: transport
+            .representative_conclusions
+            .iter()
+            .map(row)
+            .collect::<Result<Vec<_>, _>>()?,
+    })
+}
+
+fn theorem_application_side(application: TheoremApplicationSide) -> QuotientTheoremApplicationSide {
+    match application {
+        TheoremApplicationSide::Left => QuotientTheoremApplicationSide::Left,
+        TheoremApplicationSide::Right => QuotientTheoremApplicationSide::Right,
+    }
+}
+
+fn theorem_contract_coordinate(
+    location: super::theorem_schema::TheoremContractFactLocation,
+) -> Result<QuotientContractFactCoordinate, String> {
+    contract_coordinate(location)
 }
 
 fn relation_identity(
@@ -495,6 +709,19 @@ fn contract_coordinate(
         },
         contract_position: to_u32(location.contract_position, "contract position")?,
         fact_position: to_u32(location.fact_position, "contract fact position")?,
+    })
+}
+
+fn representative_contract_coordinate(
+    location: RepresentativeContractFactLocation,
+) -> Result<QuotientContractFactCoordinate, String> {
+    Ok(QuotientContractFactCoordinate {
+        owner: match location.owner {
+            RepresentativeContractOwner::Machine => QuotientContractOwner::Machine,
+            RepresentativeContractOwner::State => QuotientContractOwner::State,
+        },
+        contract_position: to_u32(location.contract_position, "source contract position")?,
+        fact_position: to_u32(location.fact_position, "source contract fact position")?,
     })
 }
 

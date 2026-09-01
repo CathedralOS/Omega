@@ -4,8 +4,9 @@ use std::collections::BTreeSet;
 
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
-    QuotientCorrespondenceOperationKind, QuotientPositionalRelation, QuotientTheoremCorrespondence,
-    QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRole,
+    QuotientCorrespondenceOperationKind, QuotientPositionalRelation,
+    QuotientTheoremApplicationSide, QuotientTheoremCorrespondence, QuotientTheoremParameter,
+    QuotientTheoremParameterRole, QuotientTheoremRole,
 };
 use psi_terminal::{QuotientCorrespondenceIdentity, RetainedQuotientCorrespondence};
 
@@ -25,6 +26,7 @@ pub enum QuotientCorrespondenceReplayError {
     TheoremParameterMismatch,
     TheoremRelationPremiseMismatch,
     NonEmptyLegalityPremises,
+    TransportFactRosterMismatch,
     DuplicateTheoremCoordinate,
     TheoremConclusionMismatch,
     InvalidResultFlow,
@@ -39,7 +41,11 @@ pub fn replay_non_executable_quotient_correspondence(
 ) -> Result<(), QuotientCorrespondenceReplayError> {
     let certificate = &retained.certificate;
     validate_theorem_roles(certificate)?;
-    if certificate.operation_kind != QuotientCorrespondenceOperationKind::Define {
+    if !matches!(
+        certificate.operation_kind,
+        QuotientCorrespondenceOperationKind::Define
+            | QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport
+    ) {
         return Err(QuotientCorrespondenceReplayError::UnsupportedOperationKind);
     }
     let theorem_evidence = &certificate.theorem_evidence[0];
@@ -138,8 +144,42 @@ pub fn replay_non_executable_quotient_correspondence(
             return Err(QuotientCorrespondenceReplayError::DuplicateTheoremCoordinate);
         }
     }
-    if !theorem.legality_premises.is_empty() {
-        return Err(QuotientCorrespondenceReplayError::NonEmptyLegalityPremises);
+    match certificate.operation_kind {
+        QuotientCorrespondenceOperationKind::Define => {
+            if !theorem.legality_premises.is_empty() {
+                return Err(QuotientCorrespondenceReplayError::NonEmptyLegalityPremises);
+            }
+        }
+        QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport => {
+            let QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) =
+                &certificate.theorem_evidence[1].correspondence
+            else {
+                return Err(QuotientCorrespondenceReplayError::TheoremRolePayloadMismatch);
+            };
+            validate_transport_roster(&transport.public_premises)?;
+            validate_transport_roster(&transport.representative_conclusions)?;
+            if theorem.legality_premises.len() != transport.representative_conclusions.len() {
+                return Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch);
+            }
+            validate_transport_roster(&theorem.legality_premises)?;
+            for fact in &theorem.legality_premises {
+                if !coordinates.insert(fact.actual) {
+                    return Err(QuotientCorrespondenceReplayError::DuplicateTheoremCoordinate);
+                }
+            }
+            if theorem
+                .legality_premises
+                .iter()
+                .zip(&transport.representative_conclusions)
+                .any(|(legality, transport)| {
+                    legality.application != transport.application
+                        || legality.source != transport.source
+                })
+            {
+                return Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch);
+            }
+        }
+        QuotientCorrespondenceOperationKind::Lift => unreachable!(),
     }
     if !coordinates.insert(theorem.conclusion.actual) {
         return Err(QuotientCorrespondenceReplayError::DuplicateTheoremCoordinate);
@@ -160,6 +200,33 @@ pub fn replay_non_executable_quotient_correspondence(
             expected,
             actual: retained.identity.clone(),
         });
+    }
+    Ok(())
+}
+
+fn validate_transport_roster(
+    facts: &[psi_language_semantics::quotient_correspondence::QuotientForwardPreconditionTransportFact],
+) -> Result<(), QuotientCorrespondenceReplayError> {
+    if facts.len() % 2 != 0 {
+        return Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch);
+    }
+    let mut previous_source = None;
+    let mut actuals = BTreeSet::new();
+    let mut previous_actual = None;
+    for pair in facts.chunks_exact(2) {
+        if pair[0].application != QuotientTheoremApplicationSide::Left
+            || pair[1].application != QuotientTheoremApplicationSide::Right
+            || pair[0].source != pair[1].source
+            || previous_source.map_or(false, |previous| previous >= pair[0].source)
+            || !actuals.insert(pair[0].actual)
+            || !actuals.insert(pair[1].actual)
+            || previous_actual.map_or(false, |previous| previous >= pair[0].actual)
+            || pair[0].actual >= pair[1].actual
+        {
+            return Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch);
+        }
+        previous_source = Some(pair[0].source);
+        previous_actual = Some(pair[1].actual);
     }
     Ok(())
 }
@@ -295,7 +362,7 @@ fn independent_identity(
     certificate: &CanonicalQuotientCorrespondence,
 ) -> QuotientCorrespondenceIdentity {
     let mut writer = ReplayIdentityWriter::new();
-    writer.string("omega.quotient-correspondence.theorem-roles.v2");
+    writer.string("omega.quotient-correspondence.transport-coordinates.v3");
     writer.byte(match certificate.operation_kind {
         QuotientCorrespondenceOperationKind::Lift => 1,
         QuotientCorrespondenceOperationKind::Define => 2,
@@ -341,12 +408,12 @@ fn independent_identity(
             QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) => {
                 writer.byte(2);
                 writer.len(transport.public_premises.len());
-                for coordinate in &transport.public_premises {
-                    writer.coordinate(*coordinate);
+                for fact in &transport.public_premises {
+                    writer.transport_fact(*fact);
                 }
                 writer.len(transport.representative_conclusions.len());
-                for coordinate in &transport.representative_conclusions {
-                    writer.coordinate(*coordinate);
+                for fact in &transport.representative_conclusions {
+                    writer.transport_fact(*fact);
                 }
             }
         }
@@ -393,7 +460,7 @@ fn write_congruence_identity(
     }
     writer.len(congruence.legality_premises.len());
     for premise in &congruence.legality_premises {
-        writer.coordinate(*premise);
+        writer.transport_fact(*premise);
     }
     writer.coordinate(congruence.conclusion.actual);
     writer.string(&congruence.conclusion.relation);
@@ -468,6 +535,17 @@ impl ReplayIdentityWriter {
         self.u32(coordinate.contract_position);
         self.u32(coordinate.fact_position);
     }
+    fn transport_fact(
+        &mut self,
+        fact: psi_language_semantics::quotient_correspondence::QuotientForwardPreconditionTransportFact,
+    ) {
+        self.byte(match fact.application {
+            QuotientTheoremApplicationSide::Left => 1,
+            QuotientTheoremApplicationSide::Right => 2,
+        });
+        self.coordinate(fact.source);
+        self.coordinate(fact.actual);
+    }
 }
 
 #[cfg(test)]
@@ -478,13 +556,14 @@ mod tests {
         QuotientCongruenceCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,
         QuotientCorrespondenceOperationKind, QuotientCrashCertificate,
         QuotientDefineRuntimePosition, QuotientDirectResultFlow,
-        QuotientForwardPreconditionTransportCorrespondence, QuotientMachineApplication,
+        QuotientForwardPreconditionTransportCorrespondence,
+        QuotientForwardPreconditionTransportFact, QuotientMachineApplication,
         QuotientPositionalRelation, QuotientPurityCertificate, QuotientRelationIdentity,
         QuotientRepresentativeApplication, QuotientRepresentativeEligibility,
-        QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremConclusion,
-        QuotientTheoremCorrespondence, QuotientTheoremEligibility, QuotientTheoremEvidence,
-        QuotientTheoremParameter, QuotientTheoremParameterRole, QuotientTheoremRelationPremise,
-        QuotientTheoremRole,
+        QuotientStaticApplication, QuotientTerminationCertificate, QuotientTheoremApplicationSide,
+        QuotientTheoremConclusion, QuotientTheoremCorrespondence, QuotientTheoremEligibility,
+        QuotientTheoremEvidence, QuotientTheoremParameter, QuotientTheoremParameterRole,
+        QuotientTheoremRelationPremise, QuotientTheoremRole,
     };
     use psi_terminal::{
         Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
@@ -628,8 +707,12 @@ mod tests {
             },
             correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(
                 QuotientForwardPreconditionTransportCorrespondence {
-                    public_premises: vec![coordinate(2)],
-                    representative_conclusions: vec![coordinate(3), coordinate(4)],
+                    public_premises: [
+                        transport_pair(coordinate(20), 2),
+                        transport_pair(coordinate(22), 4),
+                    ]
+                    .concat(),
+                    representative_conclusions: transport_pair(coordinate(21), 6),
                 },
             ),
             eligibility: QuotientTheoremEligibility {
@@ -638,6 +721,44 @@ mod tests {
                 crash: QuotientCrashCertificate::CrashFree,
             },
         }
+    }
+
+    fn transport_pair(
+        source: QuotientContractFactCoordinate,
+        actual_start: u32,
+    ) -> Vec<QuotientForwardPreconditionTransportFact> {
+        vec![
+            QuotientForwardPreconditionTransportFact {
+                application: QuotientTheoremApplicationSide::Left,
+                source,
+                actual: coordinate(actual_start),
+            },
+            QuotientForwardPreconditionTransportFact {
+                application: QuotientTheoremApplicationSide::Right,
+                source,
+                actual: coordinate(actual_start + 1),
+            },
+        ]
+    }
+
+    fn transport_certificate() -> CanonicalQuotientCorrespondence {
+        let mut certificate = certificate();
+        certificate.operation_kind =
+            QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport;
+        certificate.theorem_evidence.push(transport_evidence());
+        congruence(&mut certificate).legality_premises = transport_pair(coordinate(21), 5);
+        certificate
+    }
+
+    fn transport(
+        certificate: &mut CanonicalQuotientCorrespondence,
+    ) -> &mut QuotientForwardPreconditionTransportCorrespondence {
+        let QuotientTheoremCorrespondence::ForwardPreconditionTransport(transport) =
+            &mut certificate.theorem_evidence[1].correspondence
+        else {
+            panic!("transport fixture")
+        };
+        transport
     }
 
     fn replayed(
@@ -748,16 +869,7 @@ mod tests {
             Err(QuotientCorrespondenceReplayError::NonCanonicalTheoremRoleCollection)
         );
 
-        let mut valid_three_argument_lift = certificate();
-        valid_three_argument_lift.operation_kind =
-            QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport;
-        valid_three_argument_lift
-            .theorem_evidence
-            .push(transport_evidence());
-        assert_eq!(
-            replayed(valid_three_argument_lift),
-            Err(QuotientCorrespondenceReplayError::UnsupportedOperationKind)
-        );
+        assert_eq!(replayed(transport_certificate()), Ok(()));
 
         let mut mismatched_payload = certificate();
         mismatched_payload.theorem_evidence[0].correspondence = transport_evidence().correspondence;
@@ -771,6 +883,64 @@ mod tests {
         role_mutation.theorem_evidence[0].role = QuotientTheoremRole::ForwardPreconditionTransport;
         let role_mutation = retain_non_executable_quotient_correspondence(role_mutation);
         assert_ne!(canonical.identity, role_mutation.identity);
+    }
+
+    #[test]
+    fn transport_replay_rejects_side_source_theorem_and_roster_drift() {
+        let mut changed = transport_certificate();
+        transport(&mut changed).public_premises[0].application =
+            QuotientTheoremApplicationSide::Right;
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+
+        let mut changed = transport_certificate();
+        transport(&mut changed).public_premises[1].source = coordinate(99);
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+
+        let mut changed = transport_certificate();
+        let retained_transport = transport(&mut changed);
+        retained_transport.representative_conclusions[1].actual =
+            retained_transport.representative_conclusions[0].actual;
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+
+        let mut changed = transport_certificate();
+        transport(&mut changed).representative_conclusions.pop();
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+
+        let mut changed = transport_certificate();
+        transport(&mut changed).public_premises.rotate_left(2);
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+
+        let mut changed = transport_certificate();
+        let facts = &mut transport(&mut changed).public_premises;
+        let actual = facts[0].actual;
+        facts[0].actual = facts[1].actual;
+        facts[1].actual = actual;
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
+
+        let mut changed = transport_certificate();
+        congruence(&mut changed).legality_premises[0].source = coordinate(98);
+        assert_eq!(
+            replayed(changed),
+            Err(QuotientCorrespondenceReplayError::TransportFactRosterMismatch)
+        );
     }
 
     #[test]
@@ -851,9 +1021,7 @@ mod tests {
         );
 
         let mut changed = certificate();
-        congruence(&mut changed)
-            .legality_premises
-            .push(coordinate(8));
+        congruence(&mut changed).legality_premises = transport_pair(coordinate(21), 8);
         assert_eq!(
             replayed(changed),
             Err(QuotientCorrespondenceReplayError::NonEmptyLegalityPremises)
@@ -922,6 +1090,18 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn transport_lift_is_representation_only_and_never_executable() {
+        let module = module_with(vec![retain_non_executable_quotient_correspondence(
+            transport_certificate(),
+        )]);
+        assert_eq!(crate::validate_module_representation(&module), Ok(()));
+        assert_eq!(
+            crate::validate_module(&module).unwrap_err(),
+            crate::ModuleError::NonExecutableQuotientCorrespondence
+        );
     }
 
     #[test]

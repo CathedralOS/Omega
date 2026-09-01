@@ -73,6 +73,24 @@ pub struct QuotientContractFactCoordinate {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum QuotientTheoremApplicationSide {
+    Left,
+    Right,
+}
+
+/// One exact source-to-theorem fact coordinate in a forward-precondition
+/// transport proof.  Retaining both coordinates prevents source erasure from
+/// turning a theorem row into unscoped proof authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct QuotientForwardPreconditionTransportFact {
+    pub application: QuotientTheoremApplicationSide,
+    pub source: QuotientContractFactCoordinate,
+    pub actual: QuotientContractFactCoordinate,
+}
+
+pub type QuotientTheoremLegalityFact = QuotientForwardPreconditionTransportFact;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum QuotientTheoremParameterRole {
     QuotientLeft { input_position: u32 },
     QuotientRight { input_position: u32 },
@@ -111,10 +129,11 @@ pub struct QuotientTheoremConclusion {
 pub struct QuotientCongruenceCorrespondence {
     pub parameters: Vec<QuotientTheoremParameter>,
     pub relation_premises: Vec<QuotientTheoremRelationPremise>,
-    /// The total direct bridge requires this roster to be empty. Retaining it
-    /// prevents a replay consumer from silently treating partial legality as
-    /// already discharged.
-    pub legality_premises: Vec<QuotientContractFactCoordinate>,
+    /// Faithful `define` requires this roster to be empty. A transport-backed
+    /// lift retains every representative-P source, application side, and
+    /// selected congruence-theorem coordinate so replay can join it exactly to
+    /// the transport theorem's P conclusions.
+    pub legality_premises: Vec<QuotientTheoremLegalityFact>,
     pub conclusion: QuotientTheoremConclusion,
 }
 
@@ -126,10 +145,12 @@ pub enum QuotientTheoremRole {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct QuotientForwardPreconditionTransportCorrespondence {
-    /// Complete ordered public-Q premises cited by the selected transport.
-    pub public_premises: Vec<QuotientContractFactCoordinate>,
-    /// Complete ordered representative-P conclusions proved by the transport.
-    pub representative_conclusions: Vec<QuotientContractFactCoordinate>,
+    /// Complete ordered public-Q source/theorem premises cited by the selected
+    /// transport, source-fact-major with adjacent Left/Right applications.
+    pub public_premises: Vec<QuotientForwardPreconditionTransportFact>,
+    /// Complete ordered representative-P source/theorem conclusions proved by
+    /// the transport, source-fact-major with adjacent Left/Right applications.
+    pub representative_conclusions: Vec<QuotientForwardPreconditionTransportFact>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
