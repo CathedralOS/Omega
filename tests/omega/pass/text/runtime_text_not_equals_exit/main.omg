@@ -16,7 +16,7 @@ requires
 domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
 machine Main::main(&mut self) {
     self.name = "omega";

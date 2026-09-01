@@ -12,7 +12,7 @@ requires
 // guard shape selected NO compare at all and the first transition arm was
 // taken unconditionally -- an empty field "equalled" any literal. (The
 // runtime-index sibling is runtime_slice_indexed_string_guard_exit.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Room {
     label: &[u8] in Utf8;

@@ -11,7 +11,7 @@ requires
 domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
-use omega::language::std::console;
+use omega_language_std::console;
 // `shift` puts `name` OFF machine offset 0: the old x16-clobbering
 // TextEqualsLiteral encoder happened to work when the compared text sat at
 // offset 0 (clobbered base + 0 == base); a leading field makes any future

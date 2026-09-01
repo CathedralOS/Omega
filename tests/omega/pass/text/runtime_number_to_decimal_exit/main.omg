@@ -9,7 +9,7 @@
 // the runtime-indexed carrier. This pins value-call-result lowering at an
 // indexed destination without a field temporary.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 domain [u8]::Utf8

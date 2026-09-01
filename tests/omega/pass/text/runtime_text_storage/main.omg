@@ -4,7 +4,7 @@
 // pointer_size) -- no `{ptr, len}` descriptor and no separate buffer -- then
 // echoed back with `write_line`. Replaces the `String` round-trip with the owned
 // carrier end to end.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 64]::Utf8
 requires

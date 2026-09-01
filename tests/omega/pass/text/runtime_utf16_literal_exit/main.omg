@@ -4,7 +4,7 @@
 // it fits any `[u16; N]` context, both backends and the interpreter see plain
 // integers, and escapes ride the existing string decoder. Verifies 'H' = 72 at
 // [0], '\n' = 10 at [17], and the NUL terminator at [18].
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; msg: [u16; 19]; a: u16; b: u16; c: u16; }
 machine Main::main(&mut self) {
     self.msg = utf16"Hello from Omega\r\n\0";

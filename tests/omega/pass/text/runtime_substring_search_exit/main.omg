@@ -10,7 +10,7 @@
 // k < hlen`) loses the carrier-length connection and the bound cannot be proven. The
 // flat index `i + j` is formed into a field `k` (a computed index is refused in a
 // subscript), then bounds-guarded.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8]::Utf8
 requires

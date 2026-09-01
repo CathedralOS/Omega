@@ -9,7 +9,7 @@ requires
 // gets it from `relay`'s param assumption -- the case this canary pins. The
 // dispatch is on `go` (a plain bool), so `text` is never value-narrowed.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;
