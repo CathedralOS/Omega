@@ -473,15 +473,20 @@ machine, ordinary object construction, and the complete dynamic-ELF driver.
 Stripped, reordered, or drifted source/type/value/index/register/byte/plan/stack
 custody rejects. Runtime-derived arguments, the first stack-resident argument
 and beyond, result-bearing signatures, complete task-stack-budget composition,
-optional `.gnu.hash`, and ordinary source `via` evaluation remain open
-engineering work. An owned direct
+optional `.gnu.hash`, and admitted native settlement of source-evaluated
+imports remain open engineering work. An owned direct
 `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the
-array value. Producer closure, evaluator receipt, source `via` evaluation,
-specialized string-only adapters, and complete versioned-ELF emission remain
-to migrate.
+array value. Producer closure, evaluator receipt, and ordinary source `via`
+evaluation are live through the target-constrained Terminal proposal. That
+proposal exactly rejoins every selected evaluated import to one retained
+physical row and rejects missing, duplicate, locator-substituted,
+legacy-shaped, or unmatched normalized rows. Native settlement still requires
+admitted task-stack custody. Specialized string-only adapters and any remaining
+versioned-ELF extensions remain to migrate; production library source no longer
+uses the legacy string-pair `Binding::DllImport` form.
 
 Changing raw foreign bytes changes the normalized binding, forces every final
 artifact whose reachable closure contains it to relink, and requires fresh

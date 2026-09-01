@@ -8895,7 +8895,7 @@ Owners:
   arity omits it. Target closure derives a requirement-and-declared-name-owned
   `NativeParameterId`, supplies the target function-pointer shape, merges the
   exact ordered native telescope, publishes `NativePlace::Parameter`, and
-  validates the telescope one-to-one against the physical plan. The v2
+  validates the telescope one-to-one against the physical plan. The v3
   boundary-application identity commits the exact owner requirement, ordered
   nominal entries and origins/shapes, parameter placements, callback demands,
   and physical plan; callback-placement replay retains both its strong
@@ -11049,8 +11049,8 @@ boundary without its corresponding checked law.
   dynamic-ELF driver; stripped, reordered, or drifted source/type/value/index/
   register/byte/plan/stack custody rejects. Runtime-derived arguments, the first
   stack-resident argument and beyond, result-bearing signatures, complete task-
-  stack-budget composition, optional `.gnu.hash`, and ordinary source `via`
-  evaluation remain engineering work.
+  stack-budget composition, optional `.gnu.hash`, and admitted native
+  settlement of source-evaluated imports remain engineering work.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
@@ -11059,10 +11059,17 @@ boundary without its corresponding checked law.
   const-call widths reject, while borrowed/text carriers keep their prior
   meaning. Hermetic build-time evaluation observes the resulting raw-byte
   `Array` value without text reconstruction.
-  The existing source evaluator is isolated behind an explicitly temporary
-  `StringBackedImportBootstrap` variant. Ordinary source `via` evaluation and
-  complete dynamic-ELF section, relocation, and loader-plan realization remain
-  engineering work.
+  Ordinary source `via` evaluation is live through exact producer-closure and
+  receipt custody. The target-constrained Terminal native proposal now also
+  rejoins every selected evaluated import to exactly one physical external row
+  by target, slot, requirement, provider, and normalized locator; missing,
+  duplicate, substituted, legacy-shaped, or unmatched normalized rows reject.
+  `StringBackedImportBootstrap` remains only as an explicit compatibility
+  carrier for legacy test/source surfaces and specialized string-only adapters;
+  no production library source uses the old `Binding::DllImport("...", "...")`
+  form. Remaining work is native provider settlement with admitted task-stack
+  custody, runtime and stack-resident arguments, result-bearing signatures,
+  specialized adapter migration, and any optional dynamic-ELF extensions.
 
 Acceptance: the same boundary requirement can select a checked test provider or
 a target intrinsic without editing its declaration; final artifacts contain no
