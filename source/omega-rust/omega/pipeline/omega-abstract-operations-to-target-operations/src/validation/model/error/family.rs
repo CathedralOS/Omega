@@ -22,9 +22,9 @@ use super::parameter::{
 use super::terminal::StraightLineScalarCrashTranslationError;
 use arithmetic::{
     ExactAddError, ExactDivideError, ExactMultiplyError, ExactRemainderError, ExactSubtractError,
-    SaturatingAddError, SaturatingDivideError, SaturatingMultiplyError, SaturatingSubtractError,
-    WrappingAddError, WrappingDivideError, WrappingMultiplyError, WrappingRemainderError,
-    WrappingSubtractError,
+    SaturatingAddError, SaturatingDivideError, SaturatingMultiplyError, SaturatingRemainderError,
+    SaturatingSubtractError, WrappingAddError, WrappingDivideError, WrappingMultiplyError,
+    WrappingRemainderError, WrappingSubtractError,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +59,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineWrappingIntegerDivideParameters(WrappingDivideError),
     StraightLineWrappingIntegerRemainderParameters(WrappingRemainderError),
     StraightLineSaturatingIntegerDivideParameters(SaturatingDivideError),
+    StraightLineSaturatingIntegerRemainderParameters(SaturatingRemainderError),
     StraightLineSaturatingIntegerAddParameters(SaturatingAddError),
     StraightLineWrappingIntegerAddParameters(WrappingAddError),
     StraightLineSaturatingIntegerSubtractParameters(SaturatingSubtractError),

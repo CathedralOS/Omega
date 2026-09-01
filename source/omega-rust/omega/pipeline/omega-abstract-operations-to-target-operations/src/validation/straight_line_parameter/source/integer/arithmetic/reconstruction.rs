@@ -1,29 +1,28 @@
 //! Exact arithmetic-family source envelope selection and replay join.
 
+mod quotient;
+
+pub(in crate::validation::straight_line_parameter) use quotient::{
+    reconstruct_exact_divide, reconstruct_exact_remainder, reconstruct_saturating_divide,
+    reconstruct_saturating_remainder, reconstruct_wrapping_divide, reconstruct_wrapping_remainder,
+};
+
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::ScalarType;
 
 use super::super::super::super::model::{
-    ExactIntegerAddParametersSource, ExactIntegerDivideParametersSource,
-    ExactIntegerMultiplyParametersSource, ExactIntegerRemainderParametersSource,
+    ExactIntegerAddParametersSource, ExactIntegerMultiplyParametersSource,
     ExactIntegerSubtractParametersSource, IntegerArithmeticParametersSource,
-    SaturatingIntegerDivideParametersSource, WrappingIntegerDivideParametersSource,
-    WrappingIntegerRemainderParametersSource,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
-    StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
-    StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
-    StraightLineSaturatingIntegerDivideParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    StraightLineWrappingIntegerRemainderParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 
@@ -74,96 +73,6 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_multiply
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::exact_multiply::reconstruct(function, &envelope)
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_divide(
-    function: &AbstractFunction,
-) -> Result<
-    ExactIntegerDivideParametersSource,
-    StraightLineExactIntegerDivideParametersTranslationError,
-> {
-    let Some(AbstractOperation::ExactIntegerDivide { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineExactIntegerDivideParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    super::exact_divide::reconstruct(function, &envelope)
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_remainder(
-    function: &AbstractFunction,
-) -> Result<
-    ExactIntegerRemainderParametersSource,
-    StraightLineExactIntegerRemainderParametersTranslationError,
-> {
-    let Some(AbstractOperation::ExactIntegerRemainder { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineExactIntegerRemainderParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    super::exact_remainder::reconstruct(function, &envelope)
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_divide(
-    function: &AbstractFunction,
-) -> Result<
-    WrappingIntegerDivideParametersSource,
-    StraightLineWrappingIntegerDivideParametersTranslationError,
-> {
-    let Some(AbstractOperation::WrappingIntegerDivide { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineWrappingIntegerDivideParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    super::wrapping_divide::reconstruct(function, &envelope)
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_remainder(
-    function: &AbstractFunction,
-) -> Result<
-    WrappingIntegerRemainderParametersSource,
-    StraightLineWrappingIntegerRemainderParametersTranslationError,
-> {
-    let Some(AbstractOperation::WrappingIntegerRemainder { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineWrappingIntegerRemainderParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    super::wrapping_remainder::reconstruct(function, &envelope)
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_divide(
-    function: &AbstractFunction,
-) -> Result<
-    SaturatingIntegerDivideParametersSource,
-    StraightLineSaturatingIntegerDivideParametersTranslationError,
-> {
-    let Some(AbstractOperation::SaturatingIntegerDivide { scalar_type, .. }) =
-        function.operations.first()
-    else {
-        return Err(
-            StraightLineSaturatingIntegerDivideParametersTranslationError::SourceOperationRoster,
-        );
-    };
-    let envelope =
-        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
-    super::saturating_divide::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(

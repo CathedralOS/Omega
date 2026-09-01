@@ -31,6 +31,9 @@ pub(super) const fn family(
         AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerDivideParameters(
             _,
         ) => AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerDivideParameters,
+        AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerRemainderParameters(
+            _,
+        ) => AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerRemainderParameters,
         AbstractToTargetFunctionTranslationReceipt::StraightLineSaturatingIntegerAddParameters(
             _,
         ) => AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddParameters,

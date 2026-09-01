@@ -9,6 +9,7 @@ pub(super) use super::super::parameter::{
     StraightLineSaturatingIntegerAddParametersTranslationError as SaturatingAddError,
     StraightLineSaturatingIntegerDivideParametersTranslationError as SaturatingDivideError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError as SaturatingMultiplyError,
+    StraightLineSaturatingIntegerRemainderParametersTranslationError as SaturatingRemainderError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError as SaturatingSubtractError,
     StraightLineWrappingIntegerAddParametersTranslationError as WrappingAddError,
     StraightLineWrappingIntegerDivideParametersTranslationError as WrappingDivideError,

@@ -26,6 +26,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineWrappingIntegerDivideParameters,
     StraightLineWrappingIntegerRemainderParameters,
     StraightLineSaturatingIntegerDivideParameters,
+    StraightLineSaturatingIntegerRemainderParameters,
     StraightLineSaturatingIntegerAddParameters,
     StraightLineWrappingIntegerAddParameters,
     StraightLineSaturatingIntegerSubtractParameters,
