@@ -821,6 +821,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-calling-conventions",
+ "omega-function-identity",
  "omega-installation-evidence",
  "omega-optimization-core",
  "omega-optimization-unit",
@@ -1487,6 +1488,7 @@ dependencies = [
  "omega-boundary-applications",
  "omega-calling-conventions",
  "omega-effects",
+ "omega-function-identity",
  "omega-image-emission",
  "omega-installation-evidence",
  "omega-isa-aarch64",

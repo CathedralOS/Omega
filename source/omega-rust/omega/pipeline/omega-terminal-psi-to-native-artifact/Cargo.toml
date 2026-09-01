@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
 omega-effects = { path = "../../representations/omega-effects" }
+omega-function-identity = { path = "../../representations/omega-function-identity" }
 omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }

@@ -31,6 +31,7 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
             boundary_application_coverage: None,
             ieee_float_fma: &[],
             native_callbacks: &[],
+            callback_thunks: &[],
         },
         custody.clone(),
     )
@@ -69,6 +70,7 @@ fn native_realization_rejection_returns_callback_custody_without_reordering() {
             boundary_application_coverage: None,
             ieee_float_fma: &[],
             native_callbacks: &[],
+            callback_thunks: &[],
         },
         swapped.clone(),
     )

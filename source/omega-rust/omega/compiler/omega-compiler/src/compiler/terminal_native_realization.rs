@@ -73,22 +73,22 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
     retained
         .validate()
         .map_err(|message| diagnostic("retained Terminal product", message))?;
-    let retained_proposal = retained.native_realization_proposal().ok_or_else(|| {
+    let (artifact, callback_placements, proposal) = retained.into_parts();
+    let proposal = proposal.ok_or_else(|| {
         diagnostic(
             "retained Terminal product",
             "source-evaluated import realization requires one native proposal",
         )
     })?;
-    let native_callbacks = admitted_native_callbacks(
-        retained.callback_placements(),
-        retained_proposal.callback_occurrences(),
-    )?;
-    let (artifact, callback_placements, proposal) = retained.into_parts();
-    debug_assert_eq!(callback_placements.len(), native_callbacks.len());
-    let proposal = proposal.expect("native proposal was checked before retained product split");
     proposal
         .validate_for_artifact(&artifact)
         .map_err(|message| diagnostic("Terminal native proposal", message))?;
+    let native_callbacks =
+        admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
+    let callback_thunks =
+        admitted_native_callback_thunks(&callback_placements, proposal.callback_occurrences())?;
+    debug_assert_eq!(callback_placements.len(), native_callbacks.len());
+    debug_assert_eq!(callback_placements.len(), callback_thunks.len());
 
     let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         diagnostic(
@@ -181,8 +181,58 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
             boundary_application_coverage: Some(proposal.boundary_application_coverage()),
             ieee_float_fma: &ieee_float_fma,
             native_callbacks: &native_callbacks,
+            callback_thunks: &callback_thunks,
         },
     )
+}
+
+fn admitted_native_callback_thunks<'artifact>(
+    placements: &'artifact [omega_backend_plan::BoundNominalCallbackPlacement],
+    occurrences: &'artifact [omega_compilation_report::TerminalCallbackOccurrenceProposal],
+) -> Result<
+    Vec<omega_terminal_psi_to_native_artifact::NativeCallbackThunkSettlement<'artifact>>,
+    Vec<Diagnostic>,
+> {
+    let mut admitted = Vec::with_capacity(occurrences.len());
+    for occurrence in occurrences {
+        let placement = placements
+            .get(occurrence.placement_index())
+            .ok_or_else(|| {
+                diagnostic(
+                    "Terminal callback thunk custody",
+                    "callback thunk occurrence names an absent retained placement",
+                )
+            })?;
+        let thunk = occurrence.callback_thunk_artifact();
+        let receipt = thunk.lowering_receipt();
+        let expected_symbol = omega_backend_plan::canonical_callback_private_symbol(placement);
+        let expected_function = omega_backend_plan::canonical_callback_thunk_identity(
+            occurrence.placement_index(),
+            placement,
+        );
+        if receipt.source_machine != placement.selected_machine
+            || receipt.source_entry != placement.selected_entry
+            || thunk.private_symbol() != &expected_symbol
+            || expected_function != Some(occurrence.callback_thunk_identity())
+        {
+            return Err(diagnostic(
+                "Terminal callback thunk custody",
+                "callback thunk body, symbol, or function identity drifted from its retained placement",
+            ));
+        }
+        admitted.push(
+            omega_terminal_psi_to_native_artifact::NativeCallbackThunkSettlement {
+                terminal_operation: occurrence.terminal_operation(),
+                placement_index: occurrence.placement_index(),
+                callback_function: occurrence.callback_thunk_identity(),
+                private_symbol: thunk.private_symbol(),
+                artifact: thunk.artifact(),
+                lowering_receipt: receipt,
+                boundary_entry_plan: &placement.boundary_entry_plan,
+            },
+        );
+    }
+    Ok(admitted)
 }
 
 fn admitted_native_callbacks(

@@ -1,6 +1,6 @@
 use crate::realization::diagnostics::realization_error;
 use crate::realization::model::NativeRealizationRequest;
-use omega_machine_code::MachineCodePlan;
+use omega_machine_code::{MachineCodePlan, MachineCodePlanWithPrivateFunctions};
 use omega_native_artifact::{
     NativeArtifact, NativeArtifactEmissionParts, NativeProviderExecution,
     NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
@@ -10,7 +10,7 @@ use psi_diagnostics::Diagnostic;
 
 pub(crate) fn assemble_native_artifact(
     psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-    machine_code: &MachineCodePlan,
+    machine_code: &MachineCodePlanWithPrivateFunctions,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: omega_effects::TerminalAuthorityPolicyIdentity,
     boundary_application_coverage: Option<
@@ -19,13 +19,19 @@ pub(crate) fn assemble_native_artifact(
     physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
-    validate_ieee_float_fma_rejoin(machine_code, request)?;
+    if !machine_code.private_functions.is_empty() {
+        return Err(realization_error(
+            "terminal object construction",
+            "compiler-private callback functions require private object-symbol custody",
+        ));
+    }
+    validate_ieee_float_fma_rejoin(&machine_code.plan, request)?;
     let object = match request.ieee_float_fma.first() {
         Some(first) => omega_image_emission::build_admitted_x86_fma_object_artifact(
-            machine_code,
+            &machine_code.plan,
             first.provider,
         ),
-        None => omega_image_emission::build_object_artifact(machine_code),
+        None => omega_image_emission::build_object_artifact(&machine_code.plan),
     }
     .map_err(|error| realization_error("terminal object construction", error))?;
     let image = omega_image_emission::emit_executable_image(&object, request.subsystem)

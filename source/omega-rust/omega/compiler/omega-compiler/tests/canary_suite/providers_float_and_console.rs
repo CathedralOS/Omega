@@ -1393,6 +1393,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             boundary_application_coverage: Some(proposal.boundary_application_coverage()),
             ieee_float_fma: &[],
             native_callbacks: &[],
+            callback_thunks: &[],
         },
     )
     .expect("retained Terminal product and independent local admission should realize natively");

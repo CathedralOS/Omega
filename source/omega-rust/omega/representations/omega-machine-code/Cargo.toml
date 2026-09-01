@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 omega-calling-conventions = { path = "../omega-calling-conventions" }
+omega-function-identity = { path = "../omega-function-identity" }
 omega-optimization-core = { path = "../omega-optimization-core" }
 omega-optimization-unit = { path = "../omega-optimization-unit" }
 omega-target = { path = "../omega-target" }

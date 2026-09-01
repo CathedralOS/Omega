@@ -88,6 +88,21 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub execution: omega_target_operations::CompilerBuiltinExecution,
 }
 
+/// Borrowed source-free body and placement join for one compiler-private
+/// callback thunk. The ordinary callback-argument carrier remains separate so
+/// target lowering cannot confuse executable body custody with a semantic
+/// registrar argument.
+#[derive(Debug, Clone, Copy)]
+pub struct NativeCallbackThunkSettlement<'artifact> {
+    pub terminal_operation: psi_core::OperationId,
+    pub placement_index: usize,
+    pub callback_function: omega_function_identity::MachineFunctionIdentity,
+    pub private_symbol: &'artifact str,
+    pub artifact: &'artifact psi_terminal_codec::CanonicalTerminalArtifact,
+    pub lowering_receipt: psi_checked_trees_to_terminal::CallbackTerminalLoweringReceipt,
+    pub boundary_entry_plan: &'artifact omega_calling_conventions::BoundaryEntryPlan,
+}
+
 /// Complete build-owned inputs for one target-native realization. Keeping
 /// these coupled prevents callers from accidentally carrying entry, target,
 /// optimization, and provider custody through separate positional channels.
@@ -119,6 +134,9 @@ pub struct NativeRealizationRequest<'request> {
     /// assignment; machine emission remains a later, explicitly fenced rung.
     pub native_callbacks:
         &'request [omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
+    /// Isolated executable bodies paired one-to-one with `native_callbacks`.
+    /// Their Terminal machine identities live in separate artifact namespaces.
+    pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
 }
 
 /// Compatibility-preserving result for the receipt-requiring native path.

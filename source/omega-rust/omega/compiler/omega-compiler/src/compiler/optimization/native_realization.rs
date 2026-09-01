@@ -83,6 +83,7 @@ pub(super) fn realize(
             boundary_application_coverage: Some(&boundary_application_coverage),
             ieee_float_fma: &[],
             native_callbacks: &[],
+            callback_thunks: &[],
         },
     )
 }
