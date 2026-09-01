@@ -153,6 +153,14 @@ reconstructs all three definitions and the exact equality result; and requires
 optimized custody on all five native targets. The grammar cannot be
 reclassified as plain Boolean immediate, constant Boolean-not, or parameter
 Boolean equality.
+Constant integer equality is another distinct four-operation sibling. It
+validates two ordered, same-type native integer constants, `IntegerEqual`, and
+`Return`; independently reconstructs both mathematical operands, all three
+definitions, and the exact Boolean result; and requires
+`ReturnBooleanImmediate`. Signed and unsigned fixed 8/16/32/64 plus address64
+cross four ordered boundary pairs at both direct and public optimized custody
+on all five native targets. It does not share the parameter integer-equality
+carrier and cannot be reclassified as a plain Boolean immediate family.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
