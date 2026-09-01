@@ -7,6 +7,7 @@ use super::super::super::{
     straight_line_byte_sequence_literal_unit_return,
     straight_line_ieee_float_literal_sequence_unit_return,
     straight_line_ieee_float_literal_unit_return,
+    straight_line_integer_ieee_float_literal_sequence_unit_return,
     straight_line_integer_literal_sequence_unit_return, straight_line_integer_literal_unit_return,
     straight_line_nearest_ieee_float_fused_multiply_add_unit_return,
     straight_line_port_write_unit_return, straight_line_scalar_crash,
@@ -70,6 +71,13 @@ pub(in crate::validation::catalog) const IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN
     AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
     straight_line_ieee_float_literal_sequence_unit_return::is_candidate,
     straight_line_ieee_float_literal_sequence_unit_return,
+);
+
+pub(in crate::validation::catalog) const INTEGER_IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN:
+    TranslationFamilyDescriptor = TranslationFamilyDescriptor::new(
+    AbstractToTargetTranslationFamily::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn,
+    straight_line_integer_ieee_float_literal_sequence_unit_return::is_candidate,
+    straight_line_integer_ieee_float_literal_sequence_unit_return,
 );
 
 pub(in crate::validation::catalog) const NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD_UNIT_RETURN:
@@ -192,6 +200,24 @@ pub(super) fn straight_line_ieee_float_literal_sequence_unit_return(
     )
     .map_err(
         AbstractToTargetTranslationFamilyError::StraightLineIeeeFloatLiteralSequenceUnitReturn,
+    )
+}
+
+pub(super) fn straight_line_integer_ieee_float_literal_sequence_unit_return(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_integer_ieee_float_literal_sequence_unit_return::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(
+        AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn,
+    )
+    .map_err(
+        AbstractToTargetTranslationFamilyError::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn,
     )
 }
 

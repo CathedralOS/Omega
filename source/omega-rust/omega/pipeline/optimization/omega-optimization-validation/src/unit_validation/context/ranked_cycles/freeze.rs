@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn validate_frozen_component_blocks(
     input: &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-    components: &[(MachineId, BTreeSet<BlockId>)],
+    components: &[OptimizerCycleComponent],
 ) -> Result<(), OptimizationUnitValidationError> {
     if components.is_empty() {
         return Ok(());
@@ -15,22 +15,23 @@ pub(super) fn validate_frozen_component_blocks(
         unit.fuel_schedule,
     )
     .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
-    for (machine, members) in components {
+    for component in components {
+        let machine = component.id.machine;
         let expected_function = expected
             .functions
             .iter()
-            .find(|function| function.machine == *machine)
+            .find(|function| function.machine == machine)
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
-                *machine,
+                machine,
             ))?;
         let current_function = unit
             .functions
             .iter()
-            .find(|function| function.machine == *machine)
+            .find(|function| function.machine == machine)
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
-                *machine,
+                machine,
             ))?;
-        for block in members {
+        for block in &component.members {
             let expected_block = expected_function
                 .blocks
                 .iter()
@@ -42,7 +43,7 @@ pub(super) fn validate_frozen_component_blocks(
             if expected_block.is_none() || expected_block != current_block {
                 return Err(
                     OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
-                        machine: *machine,
+                        machine,
                         block: *block,
                     },
                 );

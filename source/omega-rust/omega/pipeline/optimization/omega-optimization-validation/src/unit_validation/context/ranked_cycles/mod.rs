@@ -1,19 +1,33 @@
-//! Optimizer module role: stage group. Exact ranked-cycle context replay and immutable-component fencing.
+//! Optimizer module role: executable entrance. Ranked-cycle topology, identity, and immutable-body coordination.
 
 use super::super::*;
 
+mod components;
 mod freeze;
+mod graph;
+mod model;
+mod replay;
 mod topology;
+
+pub use model::{
+    CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
+    ValidatedOptimizerCycleComponents,
+};
+
+pub(super) struct RankedCycleAdmission {
+    pub(super) policy: function_structure::ControlCyclePolicy,
+    pub(super) snapshot: OptimizerCycleComponentSnapshot,
+}
 
 pub(super) fn validate_exact_ranked_cycles(
     input: &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-) -> Result<function_structure::ControlCyclePolicy, OptimizationUnitValidationError> {
-    let components = topology::rederive_exact_components(input.context().module(), unit)?;
-    freeze::validate_frozen_component_blocks(input, unit, &components)?;
+) -> Result<RankedCycleAdmission, OptimizationUnitValidationError> {
+    let snapshot = replay::rederive_exact_components(input.context().module(), unit)?;
+    freeze::validate_frozen_component_blocks(input, unit, &snapshot.components)?;
     let mut policy = function_structure::ControlCyclePolicy::default();
-    for (machine, _) in components {
-        policy.admit(machine);
+    for component in &snapshot.components {
+        policy.admit(component.id.machine);
     }
-    Ok(policy)
+    Ok(RankedCycleAdmission { policy, snapshot })
 }

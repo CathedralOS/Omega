@@ -1,7 +1,12 @@
 //! Terminal Unit-return and scalar-Crash receipts.
 
+mod integer_ieee_float_literal_sequence;
 mod integer_literal_sequence;
 
+pub use integer_ieee_float_literal_sequence::{
+    IntegerIeeeFloatLiteralSequenceMember,
+    StraightLineIntegerIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
+};
 pub use integer_literal_sequence::{
     IntegerLiteralSequenceMember, StraightLineIntegerLiteralSequenceUnitReturnTranslationReceipt,
 };

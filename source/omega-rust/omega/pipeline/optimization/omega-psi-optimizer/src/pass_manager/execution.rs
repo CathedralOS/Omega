@@ -154,6 +154,12 @@ fn run_registries_inner(
         None,
         transformation_ledger.identity(),
     );
+    let cycle_components =
+        omega_optimization_validation::validate_transformed_psi_cycle_components(
+            &session.input,
+            &unit,
+        )
+        .map_err(OptimizationRunError::CandidateValidation)?;
     Ok(OptimizationRun {
         selections: selections.clone(),
         psi_selections,
@@ -161,6 +167,7 @@ fn run_registries_inner(
         session: VerifiedPsiOptimizationSession {
             input: session.input,
             unit,
+            cycle_components,
         },
         commits,
         validated_candidates,

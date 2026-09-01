@@ -163,9 +163,13 @@ compositions and rejects all others.
 Psi analysis has one exact cyclic admission rather than a broad loop mode. The
 optimizer-only Terminal authority accepts ordinary acyclic input plus the
 existing unsigned-countdown ranked SCC. Verified-context validation separately
-reconstructs the Terminal/current component, freezes its blocks, and gives only
-that function a scoped cycle policy; bare optimization-unit validation remains
-acyclic. This is sufficient for CFG, dominator, SCC, loop, and liveness
+reconstructs the Terminal/current operation graphs and requires their canonical
+component structures to agree. `CycleComponentId` binds the owning machine and
+internal edge roster; derived topology retains sorted members, entries, and
+exits. The opaque validated carrier freezes the component blocks, gives only
+that function a scoped cycle policy, remains attached to the verified optimizer
+session, and is rederived after each run. Bare optimization-unit validation
+remains acyclic. This is sufficient for CFG, dominator, SCC, loop, and liveness
 analysis, but grants no rewrite, execution, interpretation, native, or
 publication authority.
 
@@ -281,8 +285,14 @@ obligations. Direct schedule traversal and independently keyed replay must
 agree before receipt sealing. Its action namespace remains compiler-private;
 the result grants no selected register, instruction, physical slot, address,
 memory effect, frame, trap, encoding, emission, or publication authority.
-Original-value victims and insertion of epoch two into the generalized
-schedule remain explicit later boundaries.
+Original-value victims remain an explicit later boundary. The adjacent
+`recursive_spill_insertion` entrance now integrates the reload-victim case into
+one complete target-neutral schedule. Its producer and independently keyed
+replay recolor all closed logical lifetimes, order every store/reload/rewrite,
+and use a closed stored-value type so compiler-private reload actions cannot be
+confused with original selected VRegs. The result still grants no physical
+slot/address, instruction, memory effect, frame, trap, unwind, encoding,
+emission, or publication authority.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

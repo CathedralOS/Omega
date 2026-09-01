@@ -322,6 +322,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn validate_psi_optimization_unit_with_context",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles/mod.rs",
+        coordination_marker: "fn validate_exact_ranked_cycles",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/core/mod.rs",
         coordination_marker: "pub fn validate_psi_optimization_unit",
     },

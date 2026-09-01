@@ -15,12 +15,13 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first forty-five families reconstruct parameterless straight-line
+replay. Its first forty-six families reconstruct parameterless straight-line
 Unit return, one exact PortWrite followed by Unit return, one exact Unit call
 followed by Unit return, one exact trivial affine local establishment followed
 by Unit return and its discard cleanup, exact byte-sequence, integer, or raw-bit
 IEEE literal establishment, including ordered sequences of at least two
-integer or IEEE literals, or three IEEE literals consumed by one settled
+integer or IEEE literals, a heterogeneous integer/IEEE literal sequence, or
+three IEEE literals consumed by one settled
 nearest-even fused multiply-add, followed by Unit return, integer and Boolean literal
 returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
@@ -88,6 +89,13 @@ identity, order, provenance, return edge, empty native Unit call plan, cleanup,
 and global structural roster across all five native targets. Its count-based
 grammar is disjoint from the singleton integer-literal and return-only routes,
 and optimized custody preserves the typed sequence receipt.
+The heterogeneous sequence sibling admits only consecutive integer and raw-bit
+IEEE constants before Unit return and requires at least one member of each
+kind. Independent replay preserves the exact typed payload and identity of each
+member in source order, along with provenance, return, cleanup, native-call,
+and structural-roster custody across all five targets. That mixed-membership
+predicate keeps it disjoint from both homogeneous sequence siblings, and
+optimized custody retains its distinct receipt.
 The x86 FMA sibling has the exact five-operation grammar of three raw-bit
 Binary32 or Binary64 constants, one nearest-even fused multiply-add consuming
 those values in order, and Unit return. Independent replay binds each
@@ -512,8 +520,18 @@ dual-target fixture stores action `{0,0}` before `{1,0}` at point 14 and
 reloads it as `{2,0}` before the point-16 rewrite under exact usage
 `{1, 1, 7, 1, 1}`. It creates no selected register or instruction and grants no
 physical slot, address, memory, frame, trap, encoding, emission, or publication
-authority. Original-value victims and generalized epoch-two insertion remain
-later engineering boundaries.
+authority. Original-value victims remain a later engineering boundary. The
+adjacent 26-line `recursive_spill_insertion` entrance now consumes those
+validated obligations and the prior generalized schedule. Direct projection
+and independently keyed replay recolor the complete closed-lifetime set and
+reconstruct one canonical event stream. A typed stored-value enum distinguishes
+original selected VRegs from compiler-private reload actions. In the current
+dual-target fixture, `[9,12]`, `[12,14]`, and `[14,16]` receive offsets 0, 8,
+and 0 in a still-16-byte abstract spill area; the epoch-two store precedes the
+pressured reload at point 14 and the new reload/rewrite occur at point 16.
+This remains target-neutral logical scheduling and grants no physical slot,
+address, instruction, memory, frame, trap, unwind, encoding, emission, or
+publication authority.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
@@ -678,6 +696,11 @@ optimization tags and custody, target layout, rendering, errors, and cursor
 mechanics descend into named leaves. The split preserves every byte and the
 existing trailing-data, conflicting-transformation, then identity-mismatch
 rejection order.
+Its adjacent test taxonomy independently reauthenticates 32 direct manifest
+fields and nine nested post-allocation custody fields, covers stale outer
+identity separately, exercises 25 closed/envelope wire axes, and swaps all five
+receipt roots. Real x86 rel32-to-rel8 and MOV-r32-imm32 public routes carry the
+mutations to replay rather than stopping at codec acceptance.
 
 The Terminal-Psi-to-native stage now exposes its full physical composition as
 small owning entrances. Source-entry settlement replays declaration and

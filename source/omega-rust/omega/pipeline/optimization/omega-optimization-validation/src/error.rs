@@ -188,6 +188,7 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
+    RankedCycleComponentSnapshotMismatch,
     ParameterMetadataMismatch {
         machine: MachineId,
         block: Option<BlockId>,

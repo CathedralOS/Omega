@@ -126,8 +126,11 @@ sibling routes.
 Optimizer-only ranked-cycle admission follows the same visible descent.
 `omega-optimization-validation/src/unit_validation/context/mod.rs` remains the
 small executable context-validation entrance. Its `ranked_cycles` stage group
-routes independent SCC reconstruction through `topology.rs` and immutable
-component comparison through `freeze.rs`; it is not a second public entrance.
+descends through `graph.rs`, `topology.rs`, and `components.rs` for independent
+Terminal/current reconstruction; `model.rs` owns the structural component ID
+and opaque validated carrier, `freeze.rs` owns immutable component comparison,
+and `replay.rs` owns post-run rederivation. The 33-line stage-group entrance is
+not a second public validation entrance.
 The mirrored `omega-optimization-pipeline/src/tests/cyclic_psi.rs` leaf builds a
 real source countdown and pins CFG, dominator, SCC, loop, and liveness analysis
 plus topology/frozen-body corruption. General cyclic authority and cyclic
@@ -283,6 +286,27 @@ pipeline leaf is `register_allocation/generalized_spill_recovery_actions.rs`;
 architecture guards register the complete ladder and forbid validation from
 calling producer mechanics. This stage remains target-neutral logical
 custody, not physical spill insertion or publication authority.
+
+Recursive logical insertion continues at
+`omega-regalloc/src/allocation/recursive_spill_insertion/mod.rs`. Its 26-line
+executable entrance visibly joins direct projection to independent keyed
+replay. `model.rs` owns the typed prior/epoch-two action sources, the distinct
+original-VReg/reload-action stored-value vocabulary, complete logical slots,
+and canonical events; `identity.rs` and `validate.rs` own custody and receipt
+admission while `compute.rs` and `replay.rs` retain separate mechanics. The
+mirrored pipeline leaf is
+`register_allocation/recursive_spill_insertion.rs`; architecture guards
+register the complete ladder and forbid validation from calling producer
+mechanics. This is still an abstract spill-area schedule, not physical
+memory/frame or publication authority.
+
+Function-relative V9 mutation coverage enters through the five-line
+`function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
+into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,
+and `custody` leaves; no leaf mixes public-route construction, logical field
+mutation, byte geometry, wire rejection, and receipt-root mutation. The source-
+organization ladder registers the complete test taxonomy beside the owning V9
+codec taxonomy.
 
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.

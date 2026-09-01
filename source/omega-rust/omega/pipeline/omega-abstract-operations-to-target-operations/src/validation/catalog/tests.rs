@@ -24,6 +24,8 @@ use crate::{
     AbstractToTargetTranslationFamily, AbstractToTargetTranslationValidationError,
 };
 
+mod integer_ieee_float_literal_sequence;
+
 fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
     let machine = MachineId::new(51_001).unwrap();
     let entry = BlockId::new(51_002).unwrap();
@@ -491,6 +493,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerLiteralSequenceUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralSequenceUnitReturn,
+            AbstractToTargetTranslationFamily::StraightLineIntegerIeeeFloatLiteralSequenceUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn,
             AbstractToTargetTranslationFamily::StraightLineScalarCrash,
