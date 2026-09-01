@@ -3,6 +3,7 @@
 use super::*;
 
 mod catalog;
+mod contract_custody;
 mod divide_by_one;
 mod multiply_by_zero;
 mod negative_one_shift_right;

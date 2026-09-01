@@ -655,8 +655,14 @@ unchecked rewrite or opt into lossy floating-point semantics.
   analysis/invalidation supersets and subsets, wrong safety, and wrong cost
   fail closed; a three-fixture pass matrix pins default-disabled execution,
   repeated-run determinism, deterministic budget exhaustion, manifest/ledger
-  custody, and output idempotence. The remaining operational axes and other
-  rule families are not yet complete.
+  custody, and output idempotence. All twelve proof-check-elision rows now pin
+  complete exact contracts, proof safety, `-1` cost, and validator identity;
+  their 132 directed relabellings plus every contract-axis corruption fail
+  closed. A twelve-fixture engine matrix pins default-disabled behavior, exact
+  roster evaluation counts, repeated-run and budget determinism, exact
+  manifest/fact and ledger/commit custody, accepted-proof retention,
+  source-obligation pruning, and fixed-point idempotence for every row. The
+  remaining operational axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

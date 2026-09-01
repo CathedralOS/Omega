@@ -41,22 +41,19 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         negative_one_shift_right_rule,
     ]
     .contains(&candidate.rule())
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::ScalarConstants)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .required_analyses()
-            .contains(AnalysisKind::EffectSummaries)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::UseDefinition)
-        || !candidate
-            .invalidated_analyses()
-            .contains(AnalysisKind::EffectSummaries)
+        || candidate.required_analyses()
+            != AnalysisSet::new([
+                AnalysisKind::ScalarConstants,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
         || candidate.safety_class() != OptimizationSafetyClass::ProofCertified
+        || candidate.predicted_cost_delta() != -1
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
