@@ -105,7 +105,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 58;
+const FORMAT_MARKER: u16 = 59;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -127,7 +127,10 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
         return Err(CodecError::InvalidMagic);
     }
     let format_marker = reader.u16()?;
-    if !matches!(format_marker, FORMAT_MARKER | LEGACY_RESULT_PATH_FORMAT_MARKER) {
+    if !matches!(
+        format_marker,
+        FORMAT_MARKER | LEGACY_RESULT_PATH_FORMAT_MARKER
+    ) {
         return Err(CodecError::UnsupportedFormatMarker(format_marker));
     }
     let module = decode_module_body(&mut reader, format_marker)?;

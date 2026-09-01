@@ -69,7 +69,8 @@ pub fn reconstruct_float_meaning_projection(
     }
     let literal_meaning = match projection.source {
         FloatMeaningSource::TransitionalInput(_)
-        | FloatMeaningSource::DirectMachineParameter(_) => None,
+        | FloatMeaningSource::DirectMachineParameter(_)
+        | FloatMeaningSource::DirectMachineResult(_) => None,
         FloatMeaningSource::ExactBinary32Literal(bits) => {
             Some(FloatMeaning::from_f32(f32::from_bits(bits)))
         }
@@ -86,6 +87,47 @@ pub fn reconstruct_float_meaning_projection(
         contract: projection.contract,
         rule,
     })
+}
+
+/// Rejoin one direct result source to the exact scalar result declaration of
+/// its owning Terminal machine. A same-numbered parameter, local, or result of
+/// another machine is not interchangeable with this coordinate.
+pub(crate) fn verify_direct_float_result(
+    module: &TerminalModule,
+    result: psi_terminal::DirectMachineFloatResult,
+) -> Result<(), FloatMeaningProjectionVerificationError> {
+    let mut owners = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == result.owner);
+    let owner = owners
+        .next()
+        .ok_or(FloatMeaningProjectionVerificationError::InvalidDirectResultOwner(result.owner))?;
+    if owners.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectResultOwner(result.owner),
+        );
+    }
+    let psi_terminal::TerminalMachineResult::Scalar(declaration) = &owner.result else {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectResult {
+                owner: result.owner,
+                result: result.result,
+            },
+        );
+    };
+    if declaration.id != result.result {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectResult {
+                owner: result.owner,
+                result: result.result,
+            },
+        );
+    }
+    if declaration.scalar_type != ScalarType::IeeeFloat(result.format) {
+        return Err(FloatMeaningProjectionVerificationError::DirectResultFormatMismatch);
+    }
+    Ok(())
 }
 
 /// Rejoin one artifact-relative source to the complete Terminal machine table.
@@ -144,6 +186,12 @@ pub enum FloatMeaningProjectionVerificationError {
         parameter: ValueId,
     },
     DirectParameterFormatMismatch,
+    InvalidDirectResultOwner(MachineId),
+    InvalidDirectResult {
+        owner: MachineId,
+        result: ValueId,
+    },
+    DirectResultFormatMismatch,
     EqualityCarrierMismatch,
 }
 

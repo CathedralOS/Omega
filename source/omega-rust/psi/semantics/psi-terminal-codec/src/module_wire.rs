@@ -9,17 +9,18 @@ use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, DirectMachineFloatParameter,
-    EvidenceContractLane, EvidenceContractLaneKind, EvidenceTermDeclaration,
-    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency,
-    ProofOnlyValueType, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
-    ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration,
-    ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
-    StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
-    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
-    TerminalPlacedViewInput, TerminalProofRankingRelation, TerminalProofRecursiveCallSite,
-    TerminalProofRecursiveComponent, TerminalProofRecursiveEdge, TerminalProofRecursiveField,
-    TerminalProofRecursiveMember, TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
+    DirectMachineFloatResult, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
+    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
+    ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
+    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
+    StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
+    StructuralDomainDeclaration, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
+    TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule, TerminalPlacedViewInput,
+    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
+    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
+    TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
     TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
     TerminalReborrowRootHandoffStep, TerminalReborrowSharedCohortMember, TerminalRootServiceReach,
     VocabularyMarker,
@@ -680,6 +681,15 @@ fn encode_raw_for_result_paths(
                     IeeeFloatFormat::Binary64 => 2,
                 });
             }
+            FloatMeaningSource::DirectMachineResult(result) => {
+                writer.u8(5);
+                writer.id(result.owner);
+                writer.id(result.result);
+                writer.u8(match result.format {
+                    IeeeFloatFormat::Binary32 => 1,
+                    IeeeFloatFormat::Binary64 => 2,
+                });
+            }
             FloatMeaningSource::ExactBinary32Literal(bits) => {
                 writer.u8(2);
                 writer.u32(bits);
@@ -1038,6 +1048,15 @@ pub(super) fn decode_module_body(
                 4 => FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
                     owner: reader.id("float-meaning direct parameter owner")?,
                     parameter: reader.id("float-meaning direct parameter value")?,
+                    format: match reader.u8()? {
+                        1 => IeeeFloatFormat::Binary32,
+                        2 => IeeeFloatFormat::Binary64,
+                        tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                    },
+                }),
+                5 => FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
+                    owner: reader.id("float-meaning direct result owner")?,
+                    result: reader.id("float-meaning direct result value")?,
                     format: match reader.u8()? {
                         1 => IeeeFloatFormat::Binary32,
                         2 => IeeeFloatFormat::Binary64,

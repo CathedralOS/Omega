@@ -1526,7 +1526,7 @@ ranking-relation identity, one shared well-foundedness obligation, and one
 decrease obligation per exact call row, invokes the generic proof-admission
 checker, and retains the resulting component acceptance separately from flat
 contract evidence. Missing, surplus, reordered, or substituted component or
-edge evidence rejects. Terminal format 58 / vocabulary 61 and proof format 22
+edge evidence rejects. Terminal format 59 / vocabulary 62 and proof format 22
 bind these rows; the ordinary verified synopsis reports the component, shared
 well-foundedness route, members, and every exact decrease route. The checked-
 to-Terminal producer walks the selected root's contract and body proof-call
@@ -3493,24 +3493,33 @@ position. Independent Terminal validation then resolves the owner uniquely,
 requires the value to occur in that owner's direct parameter table rather than
 as a result, local, block parameter, or operation result, and checks the exact
 IEEE format. An owner outside the selected artifact, or a lowering route with
-no exact scalar binding, retains the explicit transitional fallback. Contract
-results, Terminal values, structural leaves, and every other nonliteral source
+no exact scalar binding, retains the explicit transitional fallback. Bare
+reserved `result` in an owning top-level machine `ensures` now has a separate
+carrier: checked custody retains the owner and primitive format without
+inventing a result symbol, then artifact-local lowering reads the emitted
+owner's exact scalar result declaration and emits `(MachineId, result ValueId,
+format)`. A real entry parameter named `result` shadows the pseudo binder.
+Independent validation requires the unique owner, exact scalar result identity,
+and exact IEEE type; parameter, Unit, structural, local, block, operation, and
+foreign-owner substitutions reject. An owner omitted from the selected artifact
+retains its transitional fallback. Nested state, call, and operation results,
+arbitrary Terminal values, structural leaves, and every other nonliteral source
 remain transitional.
 Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-58 / vocabulary 61 carries the closed artifact descriptor and direct-parameter
-source carrier: rooted-checker
+59 / vocabulary 62 carries the closed artifact descriptor and direct-parameter/
+direct-result source carriers: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
 signature, source carrier, nominal result, and catalog version. The verifier
 reconstructs that descriptor independently, and `FloatMeaningEqual` requires
 both operands to share its exact format/operation/contract carrier. This is not
-yet a production proof-ledger claim: direct parameters have artifact-relative
-correspondence, while results, Terminal values, structural leaves, and other
-nonliteral source coordinates remain transitional until their corresponding
-carriers land.
+yet a production proof-ledger claim: direct parameters and owning top-level
+scalar results have artifact-relative correspondence, while nested results,
+Terminal values, structural leaves, and other nonliteral source coordinates
+remain transitional until their corresponding carriers land.
 
 The relation is structural equality of the already payload-erased
 `FloatMeaning` sum, not IEEE comparison: NaN is reflexive and signed zero is
