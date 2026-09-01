@@ -20,6 +20,15 @@ target contract:
 Native instruction count, code size, register pressure, compilation work, and
 wall-clock time are cost observations, not source logical fuel.
 
+The current Terminal fuel schedule is deterministic accounting, not program
+meaning: exhaustion is an external incomplete-service outcome, optimized native
+execution has no fuel meter, and fixed-fuel certificates are reconstructed from
+the immutable Terminal program. A rewrite that relocates a source operation
+therefore retains its exact `FuelSettlement` and provenance custody at the new
+realization site; it does not synthesize loop-iteration charges in mutable IR.
+Any future evaluator that executes optimized IR would require its own explicit
+accounting contract before activation.
+
 ## Arithmetic and floats
 
 The operation identity includes width, signedness, domain/provider, and policy:
