@@ -20,12 +20,13 @@ const SOURCE: &str = r#"
         let inner: u16 = a + b;
         let middle: u16 = r + inner;
         let bridge: u16 = b + r;
-        middle + bridge
+        let join: u16 = middle + bridge;
+        r + join
     }
 "#;
 
 #[test]
-fn affine_chain_endpoint_conjunction_crosses_source_codec_and_independent_verification() {
+fn exact_outer_fork_join_crosses_source_codec_and_independent_verification() {
     let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
@@ -55,7 +56,7 @@ fn affine_chain_endpoint_conjunction_crosses_source_codec_and_independent_verifi
     let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
         panic!("final exact add uses canonical certificate custody")
     };
-    assert_recursive_affine_chain_conjunction(&certificate.proof);
+    assert_single_computed_join_conjunction(&certificate.proof);
 
     psi_terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -78,7 +79,7 @@ fn affine_chain_endpoint_conjunction_crosses_source_codec_and_independent_verifi
     .expect("independent verification replays decoded conjunction custody");
 }
 
-fn assert_recursive_affine_chain_conjunction(proof: &ProofNode) {
+fn assert_single_computed_join_conjunction(proof: &ProofNode) {
     let mapped = match &proof.rule {
         ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle,
@@ -93,9 +94,11 @@ fn assert_recursive_affine_chain_conjunction(proof: &ProofNode) {
         panic!("final add retains two ordered endpoint proofs")
     };
     assert_eq!(endpoints.len(), 2);
-    assert!(endpoints.iter().all(|endpoint| matches!(
-        endpoint.rule,
-        ProofRule::IntegerAffineBound { ref witness, .. }
-            if !witness.definition_axioms.is_empty()
-    )));
+    assert!(matches!(
+        endpoints[1].rule,
+        ProofRule::IntegerExactAddDefinitionBound {
+            definition_axiom: 6,
+            ..
+        }
+    ));
 }

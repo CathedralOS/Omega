@@ -1,5 +1,6 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
+use super::projected_structural_call_return::encode_projected_structural_call_return;
 use super::{
     plan::encode_structural_unit_function,
     scalar::{encode_bindings, encode_definition_site, encode_leaf, encode_register},
@@ -93,6 +94,10 @@ pub(super) fn identity(
     encode_len(&mut bytes, plan.structural_unit_functions.len());
     for function in &plan.structural_unit_functions {
         encode_structural_unit_function(&mut bytes, function, retain_call_contract);
+    }
+    encode_len(&mut bytes, plan.projected_structural_call_returns.len());
+    for closure in &plan.projected_structural_call_returns {
+        encode_projected_structural_call_return(&mut bytes, closure);
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
 }

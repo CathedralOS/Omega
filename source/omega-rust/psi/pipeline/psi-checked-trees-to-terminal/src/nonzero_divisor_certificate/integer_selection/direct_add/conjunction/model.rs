@@ -9,6 +9,7 @@ use psi_proof_admission::{ProofNode, ProofRule};
 pub(super) struct SearchBudget {
     pub(super) definition_visits: usize,
     pub(super) depth: usize,
+    pub(super) computed_joins: usize,
 }
 
 impl Default for SearchBudget {
@@ -16,6 +17,7 @@ impl Default for SearchBudget {
         Self {
             definition_visits: 128,
             depth: 32,
+            computed_joins: 1,
         }
     }
 }
@@ -25,6 +27,7 @@ pub(super) struct SearchUsage {
     pub(super) definition_visits: usize,
     pub(super) peak_depth: usize,
     pub(super) memo_hits: usize,
+    pub(super) computed_joins: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +109,15 @@ impl SearchState {
             return false;
         }
         self.usage.definition_visits += 1;
+        true
+    }
+
+    pub(super) fn visit_computed_join(&mut self) -> bool {
+        if self.usage.computed_joins >= self.budget.computed_joins {
+            self.exhausted = true;
+            return false;
+        }
+        self.usage.computed_joins += 1;
         true
     }
 

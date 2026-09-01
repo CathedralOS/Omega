@@ -12,7 +12,7 @@ straight-line routes or structural direct-call and return routes. Unit,
 boundary-settlement, cleanup, and structural-layout mechanics remain named
 sibling responsibilities rather than hidden branches in one lowering file.
 
-The adjacent 50-line translation-validation entrance is independent of
+The adjacent 51-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
 replay. Its function catalog reconstructs parameterless straight-line
@@ -146,6 +146,13 @@ and requires `ReturnBooleanImmediate` with both source operations retained in
 provenance. Both truth values cross all five targets; the family cannot be
 reclassified as either a plain Boolean-immediate return or parameter
 Boolean-not.
+Constant Boolean equality is a separate four-operation sibling. It validates
+two ordered Boolean constants, `BooleanEqual`, and `Return`; independently
+reconstructs all three definitions and the exact equality result; and requires
+`ReturnBooleanImmediate`. All four ordered truth pairs cross direct and public
+optimized custody on all five native targets. The grammar cannot be
+reclassified as plain Boolean immediate, constant Boolean-not, or parameter
+Boolean equality.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
@@ -195,7 +202,7 @@ identity. Its adjacent ordered catalog is the sole enable/disable inventory.
 Each descriptor joins one source classifier to one typed replay adapter; the
 separate selection leaf makes zero matches explicitly uncovered, retains one
 match on that function's roster row, and fails closed on ambiguity.
-The 38-line `validation/mod.rs` entrance is only the module map and public
+The 51-line `validation/mod.rs` entrance is only the module map and public
 validation surface. `whole_plan.rs` owns Psi/target/function/structural-roster
 coordination and exact FMA-settlement admission, while catalog selection and
 each family leaf own their narrower classifier and independent semantic replay.
@@ -219,8 +226,14 @@ shape is one owned linear parameter crossing `CallStructural;
 ReturnStructural` to a callee that returns its parameter; all six target roster
 locations, both native call plans, placements, claims/transfers, provenance,
 and structural layout are replayed on every native target. Public optimized
-custody stops at the target receipt. Legalization, allocation, machine
-selection, and publication gain no projected-qualification authority.
+custody continues through one exact identity-legalization family. A distinct
+atomic result-bearing carrier retains both target functions, entry blocks, the
+canonical projected rosters, and each optimizer node's fuel, effect, and
+ownership custody. Independent legalization replay reconstructs the source,
+target, ABI, roster, optimizer-node, and machine shape on all five targets and
+publishes a typed family receipt. Instruction selection fails with a typed
+unsupported result; selection, allocation, machine realization, and
+publication gain no projected-qualification authority.
 
 Target legalization and instruction selection produce explicit selected forms
 over virtual registers. Fixed operands are constraints; they do not preassign
@@ -591,13 +604,16 @@ bounded first slice: the 94-line `direct_add/mod.rs` entrance preserves the
 existing correlated, strict-targeted, and flat strategies before a named
 `conjunction/` rung combines two recursively proven affine-chain scalar
 endpoints under one shared definition/depth budget; relaxed targeted search
-remains last. Completed evidence is immediately re-admitted by the existing
-proof kernel and survives source lowering, Terminal codec round-trip, and
-independent verifier replay. An internal computed-plus-computed definition is
-still refused, so the extra outer `r +` in the proposed allocator graph remains
-outside this slice. Arbitrary exact-add DAG proof authority, the allocator
-fixture, and original-victim spill-action authority are separate unimplemented
-boundaries.
+remains last. Completed evidence is immediately re-admitted by the proof kernel
+and survives source lowering, Terminal codec round-trip, and independent
+verifier replay. One additional bounded rung admits exactly one internal
+computed-plus-computed definition per query: two recursively proven
+fixed-integer endpoints plus one exact cited definition produce a
+kernel-checked `IntegerExactAddDefinitionBound`. The intended graph now crosses
+that full proof path. The shared search state separately budgets the one
+computed join; a second join exhausts and refuses, so arbitrary exact-add DAG
+proof authority is not implied. The allocator fixture and original-victim
+spill-action authority remain separate unimplemented boundaries.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

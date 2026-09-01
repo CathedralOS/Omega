@@ -244,6 +244,7 @@ fn selected_structural_legalized_identity(
                 return_ownership: function.terminator.ownership.clone(),
             })
             .collect(),
+        projected_structural_call_returns: Vec::new(),
     };
     if legacy {
         omega_legalized_operations::legalized_operation_plan_identity_v9_legacy(&legalized)

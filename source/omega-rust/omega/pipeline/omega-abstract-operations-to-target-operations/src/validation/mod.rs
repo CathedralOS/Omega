@@ -6,6 +6,7 @@
 
 mod catalog;
 mod model;
+pub(crate) mod straight_line_boolean_equal_immediate;
 pub(crate) mod straight_line_boolean_immediate;
 pub(crate) mod straight_line_boolean_not_immediate;
 pub(crate) mod straight_line_byte_sequence_literal_unit_return;
@@ -30,9 +31,9 @@ mod whole_plan;
 
 pub use model::*;
 pub use structural_call_return::{
+    StructuralCallReturnCallerTranslationReceipt,
     StructuralCallReturnProjectedQualificationReceipt,
-    StructuralCallReturnProjectedQualificationValidationError,
-    StructuralCallReturnRosterLocation, StructuralCallReturnCallerTranslationReceipt,
+    StructuralCallReturnProjectedQualificationValidationError, StructuralCallReturnRosterLocation,
     StructuralParameterReturnCalleeTranslationReceipt,
 };
 pub use whole_plan::validate_abstract_to_target_translation_with_ieee_float_fma_settlements;

@@ -4,9 +4,11 @@ mod custody;
 mod functions;
 mod leaves;
 mod matchers;
+mod ordinary_roster;
 mod shared;
 mod structural;
 
+use crate::legalization::projected_structural_call_return;
 use functions::{derive_source_function, derive_source_unit_function};
 use matchers::{match_structural_unit_form, match_unit_form};
 use shared::*;
@@ -16,6 +18,8 @@ pub(crate) struct SourceFunctionRosters {
     pub functions: Vec<SourceFunction>,
     pub unit_functions: Vec<SourceUnitFunction>,
     pub structural_unit_functions: Vec<SourceStructuralUnitFunction>,
+    pub projected_structural_call_returns:
+        Vec<omega_legalized_operations::LegalizedProjectedStructuralCallReturn>,
 }
 
 /// Validate common custody once, then classify every target function through
@@ -26,64 +30,21 @@ pub(crate) fn derive_source_function_rosters(
     unit: &PsiOptimizationUnit,
 ) -> Result<SourceFunctionRosters, LegalizationError> {
     validate_source_custody(target, abstract_plan, unit)?;
+    let projected = projected_structural_call_return::derive(target, abstract_plan, unit)?;
 
     let mut rosters = SourceFunctionRosters {
         functions: Vec::new(),
         unit_functions: Vec::new(),
         structural_unit_functions: Vec::new(),
+        projected_structural_call_returns: projected.iter().cloned().collect(),
     };
-    for (index, target_function) in target.functions.iter().enumerate() {
-        let abstract_matches = abstract_plan
-            .functions
-            .iter()
-            .filter(|candidate| candidate.machine == target_function.machine)
-            .collect::<Vec<_>>();
-        let optimized_matches = unit
-            .functions
-            .iter()
-            .filter(|candidate| candidate.machine == target_function.machine)
-            .collect::<Vec<_>>();
-        let ([abstracted], [optimized]) =
-            (abstract_matches.as_slice(), optimized_matches.as_slice())
-        else {
-            return Err(Error::SourceCustodyMismatch);
-        };
-
-        if matches!(target_function.operation, TargetOperation::UnitBody(_)) {
-            if let Some(form) = match_unit_form(target_function, abstracted, optimized) {
-                rosters.unit_functions.push(derive_source_unit_function(
-                    index,
-                    target_function,
-                    abstracted,
-                    optimized,
-                    form,
-                )?);
-            } else {
-                let matched = match_structural_unit_form(target_function, abstracted, optimized)
-                    .ok_or(Error::UnsupportedSourceShape { function: index })?;
-                rosters
-                    .structural_unit_functions
-                    .push(derive_source_structural_unit_function(
-                        index,
-                        target_function,
-                        abstracted,
-                        optimized,
-                        target,
-                        abstract_plan,
-                        unit,
-                        matched,
-                    )?);
-            }
-        } else {
-            rosters.functions.push(derive_source_function(
-                index,
-                target_function,
-                abstracted,
-                optimized,
-                &unit.accepted_obligation_facts,
-            )?);
-        }
-    }
+    ordinary_roster::derive_remaining(
+        &mut rosters,
+        projected.as_ref(),
+        target,
+        abstract_plan,
+        unit,
+    )?;
 
     validate_source_register_architecture(&rosters.functions, target.target.architecture)?;
     Ok(rosters)

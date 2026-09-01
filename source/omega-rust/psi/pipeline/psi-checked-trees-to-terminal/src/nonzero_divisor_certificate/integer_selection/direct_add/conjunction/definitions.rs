@@ -13,6 +13,7 @@ pub(super) struct LiteralLanding {
 
 pub(super) struct ExactAddDefinition<'a> {
     pub(super) index: usize,
+    pub(super) expression: &'a ScalarTerm,
     pub(super) left: &'a ScalarTerm,
     pub(super) right: &'a ScalarTerm,
 }
@@ -101,7 +102,12 @@ pub(super) fn exact_add<'a>(
             (*scalar_type == integer_type
                 && left.scalar_type() == operand.scalar_type()
                 && right.scalar_type() == operand.scalar_type())
-            .then_some(ExactAddDefinition { index, left, right })
+            .then_some(ExactAddDefinition {
+                index,
+                expression,
+                left,
+                right,
+            })
         });
     let result = matches.next()?;
     matches.next().is_none().then_some(result)

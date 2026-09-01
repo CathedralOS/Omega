@@ -182,6 +182,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
             },
             return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
         }],
+        projected_structural_call_returns: Vec::new(),
     }
 }
 

@@ -10,6 +10,7 @@ use omega_target_operations::{
 
 mod arithmetic;
 mod bitwise;
+mod boolean_equal_immediate;
 mod comparison;
 mod direct;
 mod immediate;

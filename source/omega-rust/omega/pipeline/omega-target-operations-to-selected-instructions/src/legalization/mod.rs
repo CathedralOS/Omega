@@ -7,11 +7,14 @@ mod catalog;
 #[cfg(test)]
 mod catalog_tests;
 mod model;
+mod projected_structural_call_return;
 mod replay;
 mod source;
 
 pub use model::{
-    LegalizationError, LegalizationValidationReceipt, ValidatedLegalizedOperations,
+    LegalizationError, LegalizationValidationReceipt,
+    ProjectedStructuralCallReturnLegalizationError,
+    ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity,
 };
 
@@ -39,6 +42,7 @@ pub fn legalize_target_operations(
         functions: rosters.functions,
         unit_functions: rosters.unit_functions,
         structural_unit_functions: rosters.structural_unit_functions,
+        projected_structural_call_returns: rosters.projected_structural_call_returns,
     };
     validate_legalized_operations(target, abstract_plan, unit, plan)
 }
@@ -53,7 +57,8 @@ pub fn validate_legalized_operations(
     plan: LegalizedOperationPlan,
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     reject_ranked_countdown(target)?;
-    let decomposition_count = replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
+    let (decomposition_count, projected_structural_call_return) =
+        replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
     let receipt = LegalizationValidationReceipt {
         identity: legalized_operation_plan_identity(&plan),
         validator: legalization_validator_identity(),
@@ -62,8 +67,10 @@ pub fn validate_legalized_operations(
         target: target.target,
         function_count: plan.functions.len()
             + plan.unit_functions.len()
-            + plan.structural_unit_functions.len(),
+            + plan.structural_unit_functions.len()
+            + plan.projected_structural_call_returns.len() * 2,
         decomposition_count,
+        projected_structural_call_return,
     };
     Ok(ValidatedLegalizedOperations { plan, receipt })
 }

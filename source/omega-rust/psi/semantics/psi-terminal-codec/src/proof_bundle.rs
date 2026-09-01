@@ -29,7 +29,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 22;
+pub(crate) const FORMAT_MARKER: u16 = 23;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -430,6 +430,16 @@ fn encode_proof_node(
                 witness.upper_bound_axiom,
             )?;
             encode_proposition(writer, &witness.conclusion, 0, format_marker)?;
+        }
+        ProofRule::IntegerExactAddDefinitionBound {
+            left_bound,
+            right_bound,
+            definition_axiom,
+        } => {
+            writer.u8(15);
+            encode_proof_node(writer, left_bound, depth + 1, format_marker)?;
+            encode_proof_node(writer, right_bound, depth + 1, format_marker)?;
+            writer.index("integer exact-add definition axiom", *definition_axiom)?;
         }
     }
     Ok(())
@@ -1343,6 +1353,11 @@ fn decode_proof_node(
                 },
             }
         }
+        15 => ProofRule::IntegerExactAddDefinitionBound {
+            left_bound: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            right_bound: Box::new(decode_proof_node(reader, depth + 1, format_marker)?),
+            definition_axiom: reader.index()?,
+        },
         tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
     };
     Ok(ProofNode { conclusion, rule })

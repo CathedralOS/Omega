@@ -72,6 +72,7 @@ impl SelectedInstructionValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedInstructionError {
+    ProjectedStructuralCallReturnNotYetSelectable,
     SourceCustodyMismatch,
     TargetRegisterArchitectureMismatch,
     UnsupportedSourceShape {

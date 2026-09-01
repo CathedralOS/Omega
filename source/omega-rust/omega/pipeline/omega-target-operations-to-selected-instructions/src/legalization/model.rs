@@ -3,7 +3,7 @@ use omega_optimization_core::OptimizationValidatorIdentity;
 
 pub fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v10",
+        b"omega.terminal-target-legalization-independent-replay.v11",
     )
 }
 
@@ -28,6 +28,27 @@ impl ValidatedLegalizedOperations {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProjectedStructuralCallReturnLegalizationReceipt {
+    pub(super) caller: psi_core::MachineId,
+    pub(super) callee: psi_core::MachineId,
+    pub(super) projected_qualification_count: usize,
+}
+
+impl ProjectedStructuralCallReturnLegalizationReceipt {
+    pub const fn caller(self) -> psi_core::MachineId {
+        self.caller
+    }
+
+    pub const fn callee(self) -> psi_core::MachineId {
+        self.callee
+    }
+
+    pub const fn projected_qualification_count(self) -> usize {
+        self.projected_qualification_count
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalizationValidationReceipt {
     pub(super) identity: LegalizedOperationPlanIdentity,
     pub(super) validator: OptimizationValidatorIdentity,
@@ -36,6 +57,8 @@ pub struct LegalizationValidationReceipt {
     pub(super) target: omega_target::NativeTarget,
     pub(super) function_count: usize,
     pub(super) decomposition_count: usize,
+    pub(super) projected_structural_call_return:
+        Option<ProjectedStructuralCallReturnLegalizationReceipt>,
 }
 
 impl LegalizationValidationReceipt {
@@ -67,6 +90,21 @@ impl LegalizationValidationReceipt {
     pub const fn decomposition_count(self) -> usize {
         self.decomposition_count
     }
+
+    pub const fn projected_structural_call_return(
+        self,
+    ) -> Option<ProjectedStructuralCallReturnLegalizationReceipt> {
+        self.projected_structural_call_return
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectedStructuralCallReturnLegalizationError {
+    UnsupportedSourceShape,
+    UnsupportedTargetShape,
+    SourceTargetMismatch,
+    UnexpectedProposedClosure,
+    NonCanonicalProposedClosure,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,6 +130,13 @@ pub enum LegalizationError {
         function: usize,
     },
     NonCanonicalLegalizedPlan,
+    ProjectedStructuralCallReturn(ProjectedStructuralCallReturnLegalizationError),
+}
+
+impl From<ProjectedStructuralCallReturnLegalizationError> for LegalizationError {
+    fn from(error: ProjectedStructuralCallReturnLegalizationError) -> Self {
+        Self::ProjectedStructuralCallReturn(error)
+    }
 }
 
 impl std::fmt::Display for LegalizationError {

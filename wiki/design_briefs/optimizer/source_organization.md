@@ -418,7 +418,7 @@ The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
 
-Abstract-to-target validation follows the same entrance rule. Its 50-line
+Abstract-to-target validation follows the same entrance rule. Its 51-line
 `validation/mod.rs` exposes the module map and public validation calls;
 `whole_plan.rs` binds whole-plan roots, exact external settlement rosters,
 function order, and structural declarations before the catalog selects one
@@ -437,6 +437,13 @@ only `grammar.rs` and `replay.rs`; mirrored fixture, positive, source-
 corruption, and target-corruption leaves sit below their own test group. The
 catalog and architecture ladders register it independently from plain Boolean
 immediate and parameter Boolean-not families.
+Constant Boolean-equality immediate translation follows the same taxonomy under
+`straight_line_boolean_equal_immediate/`. Its 27-line entrance joins an exact
+four-operation source grammar to independent target replay; fixture, positive,
+source-corruption, and target-corruption leaves mirror that production split.
+Its own catalog adapter, catalog canary, and optimized-custody leaf keep the
+family visibly separate from plain Boolean immediate, constant Boolean-not,
+and parameter Boolean equality.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line
@@ -449,6 +456,17 @@ catalog and structural function adapters make enablement explicit. Mirrored
 fixture, positive, source-corruption, target-corruption, and fence leaves sit
 under one registered semantic ladder, with the public optimizer-custody canary
 at its final rung.
+
+Legalization continues the same exact closure through
+`legalization/projected_structural_call_return/`. Its seven-line stage-group
+entrance names only `source/` and `replay/`; their 51- and 34-line entrances
+descend through explicit candidate, grammar/contract, and custody leaves.
+Ordinary legalization rosters remain in adjacent `ordinary_roster.rs` leaves,
+keeping the main source and replay entrances at 52 and 43 lines. Mirrored
+positive, corruption, and fence tests cover all five targets and keep the
+selection refusal visible. Layering guards forbid replay from importing the
+producer or target lowering, and the source-organization registry names both
+semantic ladders.
 
 The checked-Psi exact-add proof producer uses the same navigability rule
 without pretending to be an optimizer catalog. Its 94-line `direct_add/mod.rs`

@@ -2669,6 +2669,28 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
             "legalization producer must not consume replay validators; found {forbidden}"
         );
     }
+    let projected_legalization = legalization_replay
+        .parent()
+        .expect("replay has legalization parent")
+        .join("projected_structural_call_return");
+    let projected_replay = recursive_rust_source(&projected_legalization.join("replay"));
+    for forbidden in [
+        "projected_structural_call_return::source",
+        "source::derive",
+        "lower_to_target_operations",
+    ] {
+        assert!(
+            !projected_replay.contains(forbidden),
+            "projected legalization replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    let projected_source = recursive_rust_source(&projected_legalization.join("source"));
+    for forbidden in ["replay::", "validate_legalized_operations"] {
+        assert!(
+            !projected_source.contains(forbidden),
+            "projected legalization producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
     let legalization_catalog = legalization_replay
         .parent()
         .expect("replay has legalization parent")
@@ -3387,6 +3409,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_boolean_immediate::validate",
         "straight_line_boolean_not_immediate::is_candidate",
         "straight_line_boolean_not_immediate::validate",
+        "straight_line_boolean_equal_immediate::is_candidate",
+        "straight_line_boolean_equal_immediate::validate",
         "straight_line_integer_immediate::is_candidate",
         "straight_line_integer_immediate::validate",
         "straight_line_integer_widen_immediate::is_candidate",

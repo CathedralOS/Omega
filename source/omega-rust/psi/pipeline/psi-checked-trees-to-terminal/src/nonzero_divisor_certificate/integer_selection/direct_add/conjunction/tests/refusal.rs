@@ -1,7 +1,7 @@
 use psi_core::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm};
 
 use super::super::model::SearchBudget;
-use super::fixture::{fork_join, literal, value};
+use super::fixture::{fork_join, literal, two_computed_joins, value};
 
 #[test]
 fn ambiguous_and_late_definitions_fail_closed_without_budget_forgery() {
@@ -94,18 +94,10 @@ fn cycles_type_drift_address_carriers_and_overflow_are_refused() {
 }
 
 #[test]
-fn an_internal_computed_plus_computed_definition_is_not_claimed() {
-    let mut fixture = fork_join(IntegerSign::Unsigned, 8, false, false);
-    let inner = value(4, fixture.integer_type);
-    let middle = value(5, fixture.integer_type);
-    let bridge = value(6, fixture.integer_type);
-    fixture.axioms[4] = fixture.axioms[5].clone();
-    fixture.axioms[5] = Proposition::Equal(
-        middle,
-        ScalarTerm::exact_integer_add(fixture.integer_type, inner, bridge)
-            .expect("computed-plus-computed definition"),
-    );
+fn a_second_internal_computed_join_remains_outside_the_bounded_rule() {
+    let fixture = two_computed_joins(IntegerSign::Unsigned, 8, false);
     let outcome = fixture.prove(SearchBudget::default());
     assert!(outcome.proof.is_none());
-    assert!(!outcome.exhausted);
+    assert!(outcome.exhausted);
+    assert_eq!(outcome.usage.computed_joins, 1);
 }

@@ -8,6 +8,7 @@ mod validation;
 
 pub use family::AbstractToTargetTranslationFamilyError;
 pub use immediate::{
+    StraightLineBooleanEqualImmediateTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
