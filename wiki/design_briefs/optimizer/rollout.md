@@ -116,6 +116,34 @@ is recordable and deterministically replayable, including exact analysis and
 proof/fact evidence; sandboxing and offline corpus tooling remain experimental
 work and are not part of ordinary builds.
 
+## Deterministic differential corpus
+
+`tests/native-differential/tests/optimizer_corpus.rs` is the small corpus
+entrance. It owns only manifest admission, exact case replay, and target-lane
+dispatch; `optimizer_corpus/{generator,manifest,psi,selected_machine}.rs`
+descends into deterministic input generation, checked-in corpus identity,
+valid Terminal-Psi construction and interpretation, and target-specific
+machine oracles.
+
+The V1 manifest fixes the format, generator, seed, case count, both artifact
+shapes, target lane restrictions, and a SHA-256 digest of every generated
+record. Each of the 64 records is run twice. Equality covers optimizer and
+workload identities, pass and pre/post-physical manifests, commits, the
+transformation ledger, register-home and machine-plan custody, selected bytes,
+and resolved layout. The generated expected value is checked independently by
+the Terminal interpreter on both conditional paths and then by an x86-64
+decoder or AArch64 shortest-materialization validator. Set
+`OMEGA_OPTIMIZER_CORPUS_CASE=<ordinal>` to replay one record with its format,
+seed, inputs, expected values, and target restrictions visible.
+
+V1 deliberately uses two related, independently interpreted artifacts per
+target lane. The wrapping-add artifact exercises Psi SCCP; the immediate-leaf
+artifact exercises selected-machine materialization. They are not presented as
+one end-to-end optimized carrier: dead-source removal currently erases the
+constant-definition provenance required by selected lowering, while retaining
+the dead sources leaves an unsupported source shape. A later admitted carrier
+may compose those lanes without weakening either validator.
+
 ## Documentation
 
 The versioned [V1 release inventory](../../releases/optimizer_exact_rules_v1.md)

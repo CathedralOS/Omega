@@ -879,6 +879,8 @@ dependencies = [
  "omega-external-roots",
  "omega-image-emission",
  "omega-installation-evidence",
+ "omega-isa-aarch64",
+ "omega-isa-x86_64",
  "omega-machine-code",
  "omega-machine-emission",
  "omega-native-artifact",
@@ -891,6 +893,8 @@ dependencies = [
  "omega-provider-planning",
  "omega-psi-optimizer",
  "omega-psi-to-abstract-operations",
+ "omega-regalloc",
+ "omega-register-model",
  "omega-selected-instructions",
  "omega-target",
  "omega-target-operations",
@@ -922,6 +926,7 @@ dependencies = [
  "psi-tokens-to-syntax-trees",
  "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
+ "sha2",
 ]
 
 [[package]]
