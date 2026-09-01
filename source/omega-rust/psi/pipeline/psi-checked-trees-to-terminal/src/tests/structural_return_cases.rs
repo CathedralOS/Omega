@@ -38,6 +38,7 @@ fn install_structural_scalar_return_fixture(checked: &mut CheckedTrees) {
                     CheckedStructuralScalarReturnCleanupAction::DiscardRoot(0),
                 ],
             }],
+            selected_operator_machines: Vec::new(),
             trait_operator_machines: Vec::new(),
         };
     checked.facts.values.scalar_expressions.expressions.push(

@@ -151,6 +151,7 @@ fn lower_typed_trees_with_policy(
             &program,
             &facts,
             &terminal_unit_effects,
+            &[],
             &mut cleanup_diagnostics,
         );
     facts.flow.terminal_partial_affine_unit_cleanups =

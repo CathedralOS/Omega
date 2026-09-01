@@ -17,17 +17,19 @@ use psi_checked_trees::{
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPropositionBinderArgumentKind,
     CheckedPropositionBinderKind, CheckedPropositionEvidence, CheckedScalarBindingValue,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralCallReturnMachinePlan,
-    CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
-    CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
-    CheckedStructuralScalarReturnMachinePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalMachineDebugPlan,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ClosedScalarContractValue, ClosedScalarValueContractPlan,
-    ContentIdentityReshuffleFact, ContentPartitionCompositionFact, types::PrimitiveType,
+    CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
+    CheckedStructuralCallReturnMachinePlan, CheckedStructuralReturnMachinePlan,
+    CheckedStructuralScalarIntegerBoundKind, CheckedStructuralScalarIntegerBoundPlan,
+    CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlTerminatorPlan,
+    CheckedTerminalMachineDebugPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
+    ClosedScalarValueContractPlan, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
+    types::PrimitiveType,
 };
 use psi_core::{
     BlockId, BoundaryMachineId, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
@@ -1206,6 +1208,9 @@ pub fn lower_machine(
             vec![selection.machine, target_machine]
         }
         SelectedMachineRoute::TraitOperatorScalarReturn {
+            realization_machine,
+        } => vec![selection.machine, realization_machine],
+        SelectedMachineRoute::SelectedOperatorStructuralScalarReturn {
             realization_machine,
         } => vec![selection.machine, realization_machine],
         SelectedMachineRoute::AttachedUnit

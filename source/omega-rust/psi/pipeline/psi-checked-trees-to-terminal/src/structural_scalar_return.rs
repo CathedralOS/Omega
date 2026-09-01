@@ -8,8 +8,10 @@ use super::*;
 
 mod expressions;
 mod nominal;
+mod selected_operator;
 use expressions::*;
 use nominal::lower_nominal_structural_scalar_return_machine;
+pub(super) use selected_operator::lower_selected_operator_structural_scalar_return_machine;
 
 pub(super) fn lower_trait_operator_scalar_return_machine(
     checked: &CheckedTrees,

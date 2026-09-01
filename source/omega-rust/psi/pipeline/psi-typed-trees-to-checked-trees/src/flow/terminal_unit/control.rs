@@ -925,7 +925,7 @@ pub(super) fn build_checked_machine(
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     machine: &psi_typed_trees::machine::Machine,
-    selected_operator_applications: &[crate::SelectedOperatorUnitApplication],
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> Option<CheckedUnitEffectMachinePlan> {
     let [state] = program.machine_states(machine) else {

@@ -103,7 +103,7 @@ pub fn lower_package_typed_trees_with_selected_generic_operator_providers(
 /// machine selected to realize it. Selected execution supplies these rows only
 /// after ProviderPlan settlement; ordinary checking supplies none.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedOperatorUnitApplication {
+pub struct SelectedOperatorApplication {
     pub expression: psi_typed_trees::expression::ExpressionHandle,
     pub origin: psi_checked_trees::CheckedValueOrigin,
     pub requirement_operator: psi_symbols::SymbolHandle,
@@ -134,7 +134,7 @@ pub struct SelectedIeeeFloatFmaUnitApplication {
 /// internal phase seam, not a public checked-IR contract.
 pub fn rebuild_checked_unit_effect_plans_with_selected_operators(
     program: &mut CheckedTrees,
-    applications: &[SelectedOperatorUnitApplication],
+    applications: &[SelectedOperatorApplication],
 ) {
     rebuild_checked_unit_effect_plans_with_selected_execution(program, applications, &[]);
 }
@@ -144,7 +144,7 @@ pub fn rebuild_checked_unit_effect_plans_with_selected_operators(
 /// one transaction prevents either settlement pass from erasing the other.
 pub fn rebuild_checked_unit_effect_plans_with_selected_execution(
     program: &mut CheckedTrees,
-    operator_applications: &[SelectedOperatorUnitApplication],
+    operator_applications: &[SelectedOperatorApplication],
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
 ) {
     program.facts.flow.terminal_unit_effects = flow::build_checked_unit_effect_plans(
@@ -153,6 +153,37 @@ pub fn rebuild_checked_unit_effect_plans_with_selected_execution(
         operator_applications,
         ieee_float_fma_applications,
     );
+}
+
+/// Rebuild every checked Terminal plan whose exact shape depends on selected
+/// operator execution. Unit-local scalar calls and direct structural-scalar
+/// returns are one transaction so neither selected family can erase the
+/// other's custody.
+pub fn rebuild_checked_terminal_plans_with_selected_execution(
+    program: &mut CheckedTrees,
+    operator_applications: &[SelectedOperatorApplication],
+    ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
+) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+    let terminal_unit_effects = flow::build_checked_unit_effect_plans(
+        &program.typed,
+        &program.facts,
+        operator_applications,
+        ieee_float_fma_applications,
+    );
+    let mut diagnostics = Vec::new();
+    let structural_scalar_returns = flow::build_checked_structural_scalar_return_plans(
+        &program.typed,
+        &program.facts,
+        &terminal_unit_effects,
+        operator_applications,
+        &mut diagnostics,
+    );
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    program.facts.flow.terminal_unit_effects = terminal_unit_effects;
+    program.facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
+    Ok(())
 }
 
 /// Rederive the complete, canonically ordered checked semantic-dependency

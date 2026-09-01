@@ -429,6 +429,117 @@ fn specialized_fixed_operator_physical_custody_canary_compiles() {
 }
 
 #[test]
+fn specialized_structural_fixed_operator_terminal_custody_canary_compiles() {
+    let canary = pass_canary("providers/specialized_structural_fixed_operator_terminal_custody");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("structural fixed-token custody canary should check");
+    let produced =
+        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            &checked,
+            "exercise",
+        )
+        .expect("structural fixed-token application should reach Terminal");
+    produced
+        .boundary_operator_scope()
+        .validate_for_artifact(produced.artifact())
+        .expect("checked D29 scope should bind the exact Terminal artifact");
+    let [application] = produced.boundary_operator_scope().applications() else {
+        panic!("one exact structural fixed-token application")
+    };
+    let [
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type { .. },
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+            binder_ordinal,
+            value,
+            ..
+        },
+    ] = application.arguments.as_slice()
+    else {
+        panic!("one exact type+const structural application")
+    };
+    assert_eq!(*binder_ordinal, 1);
+    assert_eq!(
+        value,
+        &psi_language_semantics::const_value::CanonicalConstIdentity::integer("u64", 4),
+    );
+    let [occurrence] = produced.boundary_operator_scope().occurrences() else {
+        panic!("one exact checked-to-Terminal structural operator occurrence")
+    };
+    let module = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("structural fixed-token Terminal semantics should decode");
+    assert!(module.machines.iter().any(|machine| {
+        machine.blocks.iter().any(|block| {
+            block.operations.iter().any(|operation| {
+                operation.id == occurrence.terminal_operation()
+                    && matches!(
+                        operation.kind,
+                        psi_terminal::OperationKind::CallStructuralScalar { .. }
+                    )
+            })
+        })
+    }));
+    let realizations =
+        omega_selected_dispatch::derive_checked_specialized_operator_application_realizations(
+            &checked,
+            checked.selected_provider_plans(),
+        )
+        .expect("structural fixed-token application should rejoin its specialization");
+    let [realization] = realizations.as_slice() else {
+        panic!("one exact specialized structural realization")
+    };
+    assert_eq!(realization.application_arguments, application.arguments);
+
+    let mut substituted = checked.clone();
+    let [substituted_application] = substituted
+        .facts
+        .operators
+        .boundary_applications
+        .as_mut_slice()
+    else {
+        panic!("one structural fixed-token false-twin application")
+    };
+    let [
+        _,
+        psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Const {
+            binder_symbol, ..
+        },
+    ] = substituted_application.arguments.as_mut_slice()
+    else {
+        panic!("one structural type+const false-twin application")
+    };
+    *binder_symbol = psi_symbols::SymbolHandle::invalid();
+    let diagnostics =
+        omega_selected_dispatch::derive_checked_specialized_operator_application_realizations(
+            &substituted,
+            substituted.selected_provider_plans(),
+        )
+        .expect_err("a substituted structural const application must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("resolves to 0 exact specializations for one application")
+    }));
+
+    let mut drifted_plan = checked.clone();
+    let [selected_structural] = drifted_plan
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .selected_operator_machines
+        .as_mut_slice()
+    else {
+        panic!("one selected structural Terminal plan")
+    };
+    selected_structural.provider_plan_commitment =
+        psi_checked_trees::CheckedProviderPlanCommitment::default();
+    omega_selected_dispatch::validate_selected_operator_terminal_custody(
+        &drifted_plan,
+        checked.selected_provider_plans(),
+    )
+    .expect_err("a substituted structural selected plan must reject");
+}
+
+#[test]
 fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
     let canary = pass_canary("providers/nested_checked_boundary_operator_physical_custody");
     assert_selected_operator_native_physical_call(

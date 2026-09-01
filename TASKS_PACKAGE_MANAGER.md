@@ -42,8 +42,9 @@ stop the item on one precise owner question before adding machinery.
   - finish D29 artifact-qualified symbolic demand/final substitution for
     separately compiled generic artifacts, nested authored operator
     applications beyond the proven transitive scalar-helper closure, and
-    structural or const-generic fixed-token applications whose Terminal/native
-    realization shape is not yet closed;
+    fixed-token structural applications beyond the proven all-affine,
+    structural-operand/scalar-result Terminal lane, including mixed
+    structural/scalar operands, structural results, and native custody;
   - complete D32 physical-child custody for verified non-identity optimization
     and remaining native roles, with an exact bijection to surviving optimized
     occurrences and reconstructible D29/D41 parents;

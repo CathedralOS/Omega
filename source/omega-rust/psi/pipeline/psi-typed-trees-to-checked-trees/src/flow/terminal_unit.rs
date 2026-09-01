@@ -11,10 +11,11 @@ use psi_checked_trees::{
     CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
     CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedProviderAttachmentRequirementPlan,
     CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedStructuralAccess, CheckedStructuralCallPlan,
-    CheckedStructuralCallReturnMachinePlan, CheckedStructuralCallReturnPlans,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
+    CheckedScalarExpressionRole, CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
+    CheckedStructuralAccess, CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
+    CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
+    CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarIntegerBoundRequirementPlan,
     CheckedStructuralScalarParameterPlan, CheckedStructuralScalarReturnCleanupAction,
@@ -166,7 +167,7 @@ pub(super) fn exact_two_field_record_projection(
 pub(crate) fn build_checked_unit_effect_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
-    selected_operator_applications: &[crate::SelectedOperatorUnitApplication],
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
     selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);

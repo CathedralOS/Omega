@@ -52,18 +52,18 @@ pub fn settle_selected_execution_dispatch(
     }
 
     let operator_applications =
-        operator_adapter::selected_unit_applications(checked, &operator_rewrites)
+        operator_adapter::selected_operator_applications(checked, &operator_rewrites)
             .map_err(|diagnostic| vec![diagnostic])?;
     let fma_applications =
         float_intrinsic::selected_ieee_float_fma_unit_applications(checked, &float_rewrites)
             .map_err(|diagnostic| vec![diagnostic])?;
     let mut staged = checked.as_ref().clone();
     if !operator_applications.is_empty() || !fma_applications.is_empty() {
-        psi_typed_trees_to_checked_trees::rebuild_checked_unit_effect_plans_with_selected_execution(
+        psi_typed_trees_to_checked_trees::rebuild_checked_terminal_plans_with_selected_execution(
             &mut staged,
             &operator_applications,
             &fma_applications,
-        );
+        )?;
         operator_adapter::validate_selected_unit_applications(&staged, &operator_rewrites)
             .map_err(|diagnostic| vec![diagnostic])?;
         float_intrinsic::validate_selected_ieee_float_fma_unit_applications(

@@ -1,0 +1,35 @@
+// A fixed-token use closes one exact type+const application whose selected
+// checked realization consumes only structural operands and returns a scalar.
+
+data Buffer<Element, const Count: u64> {
+    value: Element
+}
+
+data Position {}
+
+data Indexing {}
+
+boundary operator [] Indexing::index<Element, const Count: u64>(
+    items: Buffer<Element, Count>,
+    position: Position
+) -> bool
+requires Count == Count;
+
+data IndexingProvider {}
+
+machine IndexingProvider::index<Value, const Length: u64>(
+    items: Buffer<Value, Length>,
+    position: Position
+) -> bool
+satisfies Indexing::index
+{
+    true
+}
+
+machine exercise(items: Buffer<i32, 4>, position: Position) -> bool {
+    items[position]
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

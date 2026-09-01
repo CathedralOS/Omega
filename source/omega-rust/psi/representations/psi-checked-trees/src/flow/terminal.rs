@@ -368,6 +368,11 @@ pub struct CheckedStructuralControlTransferPlan {
 pub struct CheckedStructuralScalarReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub machines: Vec<CheckedStructuralScalarReturnMachinePlan>,
+    /// Boundary-operator applications whose checked realization consumes an
+    /// exact structural frontier and returns one scalar. Selection and the
+    /// authored application stay explicit; this is not rediscovered from the
+    /// rewritten ordinary call expression.
+    pub selected_operator_machines: Vec<CheckedSelectedOperatorStructuralScalarReturnMachinePlan>,
     /// Direct trait-backed fixed-token returns. These stay separate from the
     /// builtin scalar-expression lane because the selected realization is an
     /// executable structural call, not a primitive comparison.
@@ -390,6 +395,38 @@ impl CheckedStructuralScalarReturnPlans {
             .iter()
             .find(|plan| plan.machine == machine)
     }
+
+    pub fn selected_operator_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedSelectedOperatorStructuralScalarReturnMachinePlan> {
+        self.selected_operator_machines
+            .iter()
+            .find(|plan| plan.machine == machine)
+    }
+}
+
+/// One exact selected boundary-operator return over whole structural
+/// parameters. The provider plan and concrete checked realization cross the
+/// checked boundary explicitly so Terminal can retain the authored D29 use
+/// while emitting an ordinary structural scalar call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedSelectedOperatorStructuralScalarReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    pub result_type: PrimitiveType,
+    pub return_statement_ordinal: u32,
+    pub requirement_operator: SymbolHandle,
+    pub provider_plan_report_fingerprint: u64,
+    pub provider_plan_commitment: crate::CheckedProviderPlanCommitment,
+    pub realization_machine: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    pub realization_contract_report_fingerprint: u64,
+    pub realization_contract_commitment: crate::MachineContractCommitment,
+    pub service_reach: ServiceReachSummary,
+    /// Authored source-parameter positions in fixed-token operand order.
+    pub argument_source_positions: Vec<u32>,
 }
 
 /// One exact trait-backed fixed-token return over whole structural parameters.
