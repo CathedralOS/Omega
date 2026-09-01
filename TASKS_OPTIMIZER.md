@@ -1241,7 +1241,23 @@ consumes and retains their identities through publication.
   invocation because there is intentionally no production constructor. A real
   platform sandbox backend, capability construction, and build-level
   activation remain engineering work.
-- [ ] Add offline corpus capture, training, evaluation, and regression tools.
+- [>] Add offline corpus capture, training, evaluation, and regression tools.
+  The first library-only custody boundary now admits only canonical nonempty
+  External Decision Schema V2 logs, canonicalizes them by log identity, and
+  independently replays a strict V1 corpus envelope. Its action-independent
+  decision-surface identity binds the complete context, input, rule,
+  candidates, predicted costs, analyses, and facts; the corpus identity still
+  retains every recorded action as a label. Duplicate logs/surfaces, foreign
+  schemas, malformed or noncanonical encodings, action corruption, and source-
+  split corruption fail closed. A deterministic source-identity hash assigns
+  complete source groups to 70/20/10 training/evaluation/regression partitions
+  without point leakage, and the receipt binds schema, corpus identity, and
+  exact log/source/decision/split counts. The 41-line corpus entrance joins
+  separate capture and independent validation leaves; its production closure
+  is forbidden from depending on the compiler, build evaluation, optimizer
+  pipeline, Psi optimizer, or bounded-process tooling. CLI capture, reference
+  training, evaluation reports, checked regression manifests, measured
+  objective labels, and any compiler/model execution remain open.
 
 ML may rank already-declared equal transformations. It cannot invent an
 unchecked rewrite or opt into lossy floating-point semantics.
