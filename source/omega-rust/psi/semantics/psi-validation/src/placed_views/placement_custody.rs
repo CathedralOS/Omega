@@ -11,7 +11,7 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// ordinary conformance evidence: this pass only replays one exact concrete
 /// policy/schema plan, its direct erased fields, and one acyclic ordinary
 /// record path from a represented outer field to erased leaves through at
-/// most nine additional represented records.
+/// most ten additional represented records.
 pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
@@ -149,39 +149,16 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
                 }
                 continue;
             }
-            let Some(custody_field) = custody_field else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{}`",
-                    program.symbols.display_path(conformance.symbol, "::"),
-                    canonical_path(schema, schema_field),
-                    program.normalized_type_identity(schema_field.type_reference),
-                    program.type_multiplicity(schema_field.type_reference),
-                    custody.name,
-                    canonical_path(schema, schema_field),
-                )));
-                continue;
-            };
-            let expected_multiplicity = program.type_multiplicity(schema_field.type_reference);
-            let actual_multiplicity = program.type_multiplicity(custody_field.type_reference);
-            if actual_multiplicity != expected_multiplicity {
-                diagnostics.push(Diagnostic::error(format!(
-                    "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                    program.symbols.display_path(conformance.symbol, "::"),
-                    canonical_path(schema, schema_field),
-                    custody.name,
-                )));
-                continue;
-            }
-            let expected_type = program.normalized_type_identity(schema_field.type_reference);
-            let actual_type = program.normalized_type_identity(custody_field.type_reference);
-            if actual_type != expected_type {
-                diagnostics.push(Diagnostic::error(format!(
-                    "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                    program.symbols.display_path(conformance.symbol, "::"),
-                    canonical_path(schema, schema_field),
-                    custody.name,
-                )));
-            }
+            validate_custody_leaf(
+                program,
+                conformance,
+                custody,
+                schema_field,
+                custody_field,
+                &canonical_path(schema, schema_field),
+                &plan_name,
+                diagnostics,
+            );
         }
 
         for custody_field in custody_fields {
@@ -203,6 +180,8 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
     }
 }
 
+const MAX_CUSTODY_RECORD_DEPTH: usize = 11;
+
 #[allow(clippy::too_many_arguments)]
 fn validate_nested_record(
     program: &TypedTrees,
@@ -216,153 +195,231 @@ fn validate_nested_record(
     outer_entry: &LayoutFieldEntryReport,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let nested_schema_fields = program
+    validate_nested_record_at_path(
+        program,
+        conformance,
+        schema,
+        custody,
+        outer_field,
+        nested_schema,
+        custody_field,
+        &canonical_path(schema, outer_field),
+        &[nested_schema.symbol],
+        1,
+        plan_name,
+        outer_entry,
+        diagnostics,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_nested_record_at_path(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    root_schema: &psi_typed_trees::data::DataDefinition,
+    custody: &psi_typed_trees::data::DataDefinition,
+    outer_field: &DataField,
+    nested_schema: &psi_typed_trees::data::DataDefinition,
+    custody_field: Option<&DataField>,
+    path: &str,
+    ancestors: &[psi_symbols::SymbolHandle],
+    record_depth: usize,
+    plan_name: &str,
+    outer_entry: &LayoutFieldEntryReport,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let schema_fields = program
         .data_members(nested_schema)
         .iter()
         .filter_map(field)
         .collect::<Vec<_>>();
     let Some(custody_field) = custody_field else {
-        for nested_field in &nested_schema_fields {
-            if nested_field.relevance.is_erased() {
-                let path = nested_canonical_path(schema, outer_field, nested_field);
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    nested_field,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            if let Some(deep_schema) =
-                second_nested_custody_record(program, nested_field, &[nested_schema.symbol])
-            {
-                let middle_path = nested_canonical_path(schema, outer_field, nested_field);
-                push_missing_second_nested_paths(
-                    program,
-                    conformance,
-                    custody,
-                    deep_schema,
-                    nested_schema.symbol,
-                    &middle_path,
-                    plan_name,
-                    diagnostics,
-                );
-            }
-        }
+        push_missing_nested_paths(
+            program,
+            conformance,
+            custody,
+            nested_schema,
+            path,
+            ancestors,
+            record_depth,
+            plan_name,
+            diagnostics,
+        );
         return;
     };
     let Some(nested_custody) = plain_record_for_type(program, custody_field.type_reference) else {
         diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{}` requires one authored ordinary projection record, but `{}` has type `{}`",
+            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{path}` requires one authored ordinary projection record, but `{}` has type `{}`",
             program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(schema, outer_field),
             canonical_path(custody, custody_field),
             program.normalized_type_identity(custody_field.type_reference),
         )));
         return;
     };
-    let nested_custody_fields = program
+    let custody_fields = program
         .data_members(nested_custody)
         .iter()
         .filter_map(field)
         .collect::<Vec<_>>();
-    if nested_custody_fields.len() != program.data_members(nested_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(schema, outer_field),
-        )));
-        return;
-    }
 
-    for nested_field in &nested_schema_fields {
-        let custody_leaf = nested_custody_fields
+    for schema_field in &schema_fields {
+        let custody_leaf = custody_fields
             .iter()
             .copied()
-            .find(|candidate| same_canonical_field(nested_field, candidate));
-        let path = nested_canonical_path(schema, outer_field, nested_field);
-        if !nested_field.relevance.is_erased() {
-            if let Some(deep_schema) =
-                second_nested_custody_record(program, nested_field, &[nested_schema.symbol])
-            {
-                validate_second_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    nested_field,
-                    deep_schema,
-                    custody_leaf,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
+            .find(|candidate| same_canonical_field(schema_field, candidate));
+        let field_path = format!("{path}.{}", canonical_segment(schema_field));
+        if schema_field.relevance.is_erased() {
+            validate_custody_leaf(
+                program,
+                conformance,
+                custody,
+                schema_field,
+                custody_leaf,
+                &field_path,
+                plan_name,
+                diagnostics,
+            );
+            continue;
+        }
+        let Some(child_schema) =
+            nested_custody_record(program, schema_field, ancestors, record_depth + 1, true)
+        else {
             if custody_leaf.is_some() {
-                diagnostics.push(nested_represented_field_diagnostic(
+                diagnostics.push(nested_path_represented_field_diagnostic(
                     program,
                     conformance,
-                    schema,
+                    &field_path,
+                    root_schema,
                     outer_field,
-                    nested_field,
                     custody,
                     plan_name,
                     outer_entry,
                 ));
             }
             continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                program.normalized_type_identity(nested_field.type_reference),
-                program.type_multiplicity(nested_field.type_reference),
-                custody.name,
-            )));
-            continue;
         };
-        let expected_multiplicity = program.type_multiplicity(nested_field.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"),
-                custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(nested_field.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                custody.name,
-            )));
-        }
+        let mut child_ancestors = ancestors.to_vec();
+        child_ancestors.push(child_schema.symbol);
+        validate_nested_record_at_path(
+            program,
+            conformance,
+            root_schema,
+            custody,
+            outer_field,
+            child_schema,
+            custody_leaf,
+            &field_path,
+            &child_ancestors,
+            record_depth + 1,
+            plan_name,
+            outer_entry,
+            diagnostics,
+        );
     }
 
-    for custody_leaf in nested_custody_fields {
-        if !nested_schema_fields
+    for custody_leaf in custody_fields {
+        if !schema_fields
             .iter()
             .any(|candidate| same_canonical_field(candidate, custody_leaf))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{}.{}` path, but `{}` declares that extra canonical field path",
+                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{path}.{}` path, but `{}` declares that extra canonical field path",
                 program.symbols.display_path(conformance.symbol, "::"),
-                canonical_path(schema, outer_field),
                 canonical_segment(custody_leaf),
                 custody.name,
             )));
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_custody_leaf(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    custody: &psi_typed_trees::data::DataDefinition,
+    schema_field: &DataField,
+    custody_field: Option<&DataField>,
+    path: &str,
+    plan_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(custody_field) = custody_field else {
+        push_missing_custody_path(
+            program,
+            conformance,
+            custody,
+            plan_name,
+            schema_field,
+            path,
+            diagnostics,
+        );
+        return;
+    };
+    let expected_multiplicity = program.type_multiplicity(schema_field.type_reference);
+    let actual_multiplicity = program.type_multiplicity(custody_field.type_reference);
+    if actual_multiplicity != expected_multiplicity {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
+            program.symbols.display_path(conformance.symbol, "::"),
+            custody.name,
+        )));
+        return;
+    }
+    let expected_type = program.normalized_type_identity(schema_field.type_reference);
+    let actual_type = program.normalized_type_identity(custody_field.type_reference);
+    if actual_type != expected_type {
+        diagnostics.push(Diagnostic::error(format!(
+            "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
+            program.symbols.display_path(conformance.symbol, "::"),
+            custody.name,
+        )));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_missing_nested_paths(
+    program: &TypedTrees,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    custody: &psi_typed_trees::data::DataDefinition,
+    nested_schema: &psi_typed_trees::data::DataDefinition,
+    path: &str,
+    ancestors: &[psi_symbols::SymbolHandle],
+    record_depth: usize,
+    plan_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for schema_field in program.data_members(nested_schema).iter().filter_map(field) {
+        let field_path = format!("{path}.{}", canonical_segment(schema_field));
+        if schema_field.relevance.is_erased() {
+            push_missing_custody_path(
+                program,
+                conformance,
+                custody,
+                plan_name,
+                schema_field,
+                &field_path,
+                diagnostics,
+            );
             continue;
         }
-        // Every known nested field was checked in the schema walk above.
+        let Some(child_schema) =
+            nested_custody_record(program, schema_field, ancestors, record_depth + 1, true)
+        else {
+            continue;
+        };
+        let mut child_ancestors = ancestors.to_vec();
+        child_ancestors.push(child_schema.symbol);
+        push_missing_nested_paths(
+            program,
+            conformance,
+            custody,
+            child_schema,
+            &field_path,
+            &child_ancestors,
+            record_depth + 1,
+            plan_name,
+            diagnostics,
+        );
     }
 }
 
@@ -390,155 +447,24 @@ fn direct_nested_custody_record<'program>(
     schema_field: &DataField,
     owner_symbol: psi_symbols::SymbolHandle,
 ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if record.symbol == owner_symbol {
-        return None;
-    }
-    let mut has_custody = false;
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut vec![record.symbol])
-        {
-            continue;
-        }
-        second_nested_custody_record(program, field, &[record.symbol])?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
+    nested_custody_record(program, schema_field, &[owner_symbol], 1, false)
 }
 
-fn second_nested_custody_record<'program>(
+fn nested_custody_record<'program>(
     program: &'program TypedTrees,
     schema_field: &DataField,
     ancestors: &[psi_symbols::SymbolHandle],
+    record_depth: usize,
+    require_nonzero_layout: bool,
 ) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
+    if record_depth > MAX_CUSTODY_RECORD_DEPTH {
         return None;
     }
-    let mut third_ancestors = ancestors.to_vec();
-    third_ancestors.push(record.symbol);
-    let mut has_custody = false;
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(
-            program,
-            field.type_reference,
-            &mut third_ancestors.clone(),
-        ) {
-            continue;
-        }
-        third_nested_custody_record(program, field, &third_ancestors)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn third_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
     let record = plain_record_for_type(program, schema_field.type_reference)?;
     if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut has_custody = false;
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            continue;
-        }
-        fourth_nested_custody_record(program, field, &visiting)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn fourth_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut has_custody = false;
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            continue;
-        }
-        fifth_nested_custody_record(program, field, &visiting)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn fifth_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut has_custody = false;
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            continue;
-        }
-        sixth_nested_custody_record(program, field, &visiting)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn sixth_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
+        || (require_nonzero_layout
+            && fixed_type_width_bytes(program, schema_field.type_reference)
+                .is_none_or(|width| width == 0))
     {
         return None;
     }
@@ -553,175 +479,10 @@ fn sixth_nested_custody_record<'program>(
         if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
             continue;
         }
-        seventh_nested_custody_record(program, field, &visiting)?;
+        nested_custody_record(program, field, &visiting, record_depth + 1, true)?;
         has_custody = true;
     }
     has_custody.then_some(record)
-}
-
-fn seventh_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    let mut has_custody = false;
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            continue;
-        }
-        eighth_nested_custody_record(program, field, &visiting)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn eighth_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    let mut has_custody = false;
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            continue;
-        }
-        ninth_nested_custody_record(program, field, &visiting)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn ninth_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    let mut has_custody = false;
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if !type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            continue;
-        }
-        tenth_nested_custody_record(program, field, &visiting)?;
-        has_custody = true;
-    }
-    has_custody.then_some(record)
-}
-
-fn tenth_nested_custody_record<'program>(
-    program: &'program TypedTrees,
-    schema_field: &DataField,
-    ancestors: &[psi_symbols::SymbolHandle],
-) -> Option<&'program psi_typed_trees::data::DataDefinition> {
-    let record = plain_record_for_type(program, schema_field.type_reference)?;
-    if ancestors.contains(&record.symbol)
-        || !fixed_type_width_bytes(program, schema_field.type_reference)
-            .is_some_and(|width| width > 0)
-    {
-        return None;
-    }
-    let mut visiting = ancestors.to_vec();
-    visiting.push(record.symbol);
-    let mut has_custody = false;
-    for field in program.data_members(record).iter().filter_map(field) {
-        if field.relevance.is_erased() {
-            has_custody = true;
-            continue;
-        }
-        if type_contains_erased_descendant(program, field.type_reference, &mut visiting.clone()) {
-            return None;
-        }
-    }
-    has_custody.then_some(record)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn push_missing_ninth_nested_paths(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    custody: &psi_typed_trees::data::DataDefinition,
-    ninth_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    ninth_path: &str,
-    plan_name: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let mut tenth_ancestors = ancestors.to_vec();
-    tenth_ancestors.push(ninth_schema.symbol);
-    for ninth_field in program.data_members(ninth_schema).iter().filter_map(field) {
-        let path = format!("{ninth_path}.{}", canonical_segment(ninth_field));
-        if ninth_field.relevance.is_erased() {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                ninth_field,
-                &path,
-                diagnostics,
-            );
-            continue;
-        }
-        let Some(tenth_schema) =
-            tenth_nested_custody_record(program, ninth_field, &tenth_ancestors)
-        else {
-            continue;
-        };
-        for tenth_field in program
-            .data_members(tenth_schema)
-            .iter()
-            .filter_map(field)
-            .filter(|field| field.relevance.is_erased())
-        {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                tenth_field,
-                &format!("{path}.{}", canonical_segment(tenth_field)),
-                diagnostics,
-            );
-        }
-    }
 }
 
 fn type_contains_erased_descendant(
@@ -834,1962 +595,6 @@ fn type_contains_erased_descendant_bounded(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn push_missing_second_nested_paths(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    custody: &psi_typed_trees::data::DataDefinition,
-    deep_schema: &psi_typed_trees::data::DataDefinition,
-    parent_symbol: psi_symbols::SymbolHandle,
-    middle_path: &str,
-    plan_name: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for deep_field in program.data_members(deep_schema).iter().filter_map(field) {
-        let path = format!("{middle_path}.{}", canonical_segment(deep_field));
-        if deep_field.relevance.is_erased() {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                deep_field,
-                &path,
-                diagnostics,
-            );
-            continue;
-        }
-        let Some(third_schema) =
-            third_nested_custody_record(program, deep_field, &[parent_symbol, deep_schema.symbol])
-        else {
-            continue;
-        };
-        for third_field in program.data_members(third_schema).iter().filter_map(field) {
-            let third_path = format!("{path}.{}", canonical_segment(third_field));
-            if third_field.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    third_field,
-                    &third_path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let Some(fourth_schema) = fourth_nested_custody_record(
-                program,
-                third_field,
-                &[parent_symbol, deep_schema.symbol, third_schema.symbol],
-            ) else {
-                continue;
-            };
-            for fourth_field in program.data_members(fourth_schema).iter().filter_map(field) {
-                let fourth_path = format!("{third_path}.{}", canonical_segment(fourth_field));
-                if fourth_field.relevance.is_erased() {
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        fourth_field,
-                        &fourth_path,
-                        diagnostics,
-                    );
-                    continue;
-                }
-                let Some(fifth_schema) = fifth_nested_custody_record(
-                    program,
-                    fourth_field,
-                    &[
-                        parent_symbol,
-                        deep_schema.symbol,
-                        third_schema.symbol,
-                        fourth_schema.symbol,
-                    ],
-                ) else {
-                    continue;
-                };
-                for fifth_field in program.data_members(fifth_schema).iter().filter_map(field) {
-                    let fifth_path = format!("{fourth_path}.{}", canonical_segment(fifth_field));
-                    if fifth_field.relevance.is_erased() {
-                        push_missing_custody_path(
-                            program,
-                            conformance,
-                            custody,
-                            plan_name,
-                            fifth_field,
-                            &fifth_path,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let Some(sixth_schema) = sixth_nested_custody_record(
-                        program,
-                        fifth_field,
-                        &[
-                            parent_symbol,
-                            deep_schema.symbol,
-                            third_schema.symbol,
-                            fourth_schema.symbol,
-                            fifth_schema.symbol,
-                        ],
-                    ) else {
-                        continue;
-                    };
-                    for sixth_field in program.data_members(sixth_schema).iter().filter_map(field) {
-                        let sixth_path = format!("{fifth_path}.{}", canonical_segment(sixth_field));
-                        if sixth_field.relevance.is_erased() {
-                            push_missing_custody_path(
-                                program,
-                                conformance,
-                                custody,
-                                plan_name,
-                                sixth_field,
-                                &sixth_path,
-                                diagnostics,
-                            );
-                            continue;
-                        }
-                        let Some(seventh_schema) = seventh_nested_custody_record(
-                            program,
-                            sixth_field,
-                            &[
-                                parent_symbol,
-                                deep_schema.symbol,
-                                third_schema.symbol,
-                                fourth_schema.symbol,
-                                fifth_schema.symbol,
-                                sixth_schema.symbol,
-                            ],
-                        ) else {
-                            continue;
-                        };
-                        for seventh_field in program
-                            .data_members(seventh_schema)
-                            .iter()
-                            .filter_map(field)
-                        {
-                            let seventh_path =
-                                format!("{sixth_path}.{}", canonical_segment(seventh_field));
-                            if seventh_field.relevance.is_erased() {
-                                push_missing_custody_path(
-                                    program,
-                                    conformance,
-                                    custody,
-                                    plan_name,
-                                    seventh_field,
-                                    &seventh_path,
-                                    diagnostics,
-                                );
-                                continue;
-                            }
-                            let Some(eighth_schema) = eighth_nested_custody_record(
-                                program,
-                                seventh_field,
-                                &[
-                                    parent_symbol,
-                                    deep_schema.symbol,
-                                    third_schema.symbol,
-                                    fourth_schema.symbol,
-                                    fifth_schema.symbol,
-                                    sixth_schema.symbol,
-                                    seventh_schema.symbol,
-                                ],
-                            ) else {
-                                continue;
-                            };
-                            for eighth_field in
-                                program.data_members(eighth_schema).iter().filter_map(field)
-                            {
-                                let eighth_path =
-                                    format!("{seventh_path}.{}", canonical_segment(eighth_field));
-                                if eighth_field.relevance.is_erased() {
-                                    push_missing_custody_path(
-                                        program,
-                                        conformance,
-                                        custody,
-                                        plan_name,
-                                        eighth_field,
-                                        &eighth_path,
-                                        diagnostics,
-                                    );
-                                    continue;
-                                }
-                                let ninth_ancestors = [
-                                    parent_symbol,
-                                    deep_schema.symbol,
-                                    third_schema.symbol,
-                                    fourth_schema.symbol,
-                                    fifth_schema.symbol,
-                                    sixth_schema.symbol,
-                                    seventh_schema.symbol,
-                                    eighth_schema.symbol,
-                                ];
-                                let Some(ninth_schema) = ninth_nested_custody_record(
-                                    program,
-                                    eighth_field,
-                                    &ninth_ancestors,
-                                ) else {
-                                    continue;
-                                };
-                                push_missing_ninth_nested_paths(
-                                    program,
-                                    conformance,
-                                    custody,
-                                    ninth_schema,
-                                    &ninth_ancestors,
-                                    &eighth_path,
-                                    plan_name,
-                                    diagnostics,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_second_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    middle_field: &DataField,
-    deep_schema: &psi_typed_trees::data::DataDefinition,
-    custody_field: Option<&DataField>,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let deep_schema_fields = program
-        .data_members(deep_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let middle_path = nested_canonical_path(schema, outer_field, middle_field);
-    let Some(custody_field) = custody_field else {
-        push_missing_second_nested_paths(
-            program,
-            conformance,
-            custody,
-            deep_schema,
-            nested_record_symbol(program, outer_field),
-            &middle_path,
-            plan_name,
-            diagnostics,
-        );
-        return;
-    };
-    let Some(deep_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{middle_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let deep_custody_fields = program
-        .data_members(deep_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if deep_custody_fields.len() != program.data_members(deep_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{middle_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-
-    for deep_field in &deep_schema_fields {
-        let custody_leaf = deep_custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(deep_field, candidate));
-        let path = format!("{middle_path}.{}", canonical_segment(deep_field));
-        if !deep_field.relevance.is_erased() {
-            if let Some(third_schema) = third_nested_custody_record(
-                program,
-                deep_field,
-                &[
-                    nested_record_symbol(program, outer_field),
-                    deep_schema.symbol,
-                ],
-            ) {
-                validate_third_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    third_schema,
-                    &[
-                        nested_record_symbol(program, outer_field),
-                        deep_schema.symbol,
-                        third_schema.symbol,
-                    ],
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{}` and multiplicity {:?}, but `{}` omits canonical field path `{path}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                program.normalized_type_identity(deep_field.type_reference),
-                program.type_multiplicity(deep_field.type_reference),
-                custody.name,
-            )));
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(deep_field.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"),
-                custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(deep_field.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                custody.name,
-            )));
-        }
-    }
-
-    for custody_leaf in deep_custody_fields {
-        if !deep_schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{middle_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf),
-                custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_third_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    third_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    third_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let third_schema_fields = program
-        .data_members(third_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in &third_schema_fields {
-            let path = format!("{third_path}.{}", canonical_segment(leaf));
-            if leaf.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    leaf,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let Some(fourth_schema) = fourth_nested_custody_record(program, leaf, ancestors) else {
-                continue;
-            };
-            for fourth_leaf in program.data_members(fourth_schema).iter().filter_map(field) {
-                let fourth_path = format!("{path}.{}", canonical_segment(fourth_leaf));
-                if fourth_leaf.relevance.is_erased() {
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        fourth_leaf,
-                        &fourth_path,
-                        diagnostics,
-                    );
-                    continue;
-                }
-                let mut fifth_ancestors = ancestors.to_vec();
-                fifth_ancestors.push(fourth_schema.symbol);
-                let Some(fifth_schema) =
-                    fifth_nested_custody_record(program, fourth_leaf, &fifth_ancestors)
-                else {
-                    continue;
-                };
-                for fifth_leaf in program.data_members(fifth_schema).iter().filter_map(field) {
-                    let fifth_path = format!("{fourth_path}.{}", canonical_segment(fifth_leaf));
-                    if fifth_leaf.relevance.is_erased() {
-                        push_missing_custody_path(
-                            program,
-                            conformance,
-                            custody,
-                            plan_name,
-                            fifth_leaf,
-                            &fifth_path,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let mut sixth_ancestors = fifth_ancestors.clone();
-                    sixth_ancestors.push(fifth_schema.symbol);
-                    let Some(sixth_schema) =
-                        sixth_nested_custody_record(program, fifth_leaf, &sixth_ancestors)
-                    else {
-                        continue;
-                    };
-                    for sixth_leaf in program.data_members(sixth_schema).iter().filter_map(field) {
-                        let sixth_path = format!("{fifth_path}.{}", canonical_segment(sixth_leaf));
-                        if sixth_leaf.relevance.is_erased() {
-                            push_missing_custody_path(
-                                program,
-                                conformance,
-                                custody,
-                                plan_name,
-                                sixth_leaf,
-                                &sixth_path,
-                                diagnostics,
-                            );
-                            continue;
-                        }
-                        let mut seventh_ancestors = sixth_ancestors.clone();
-                        seventh_ancestors.push(sixth_schema.symbol);
-                        let Some(seventh_schema) =
-                            seventh_nested_custody_record(program, sixth_leaf, &seventh_ancestors)
-                        else {
-                            continue;
-                        };
-                        for seventh_leaf in program
-                            .data_members(seventh_schema)
-                            .iter()
-                            .filter_map(field)
-                        {
-                            let seventh_path =
-                                format!("{sixth_path}.{}", canonical_segment(seventh_leaf));
-                            if seventh_leaf.relevance.is_erased() {
-                                push_missing_custody_path(
-                                    program,
-                                    conformance,
-                                    custody,
-                                    plan_name,
-                                    seventh_leaf,
-                                    &seventh_path,
-                                    diagnostics,
-                                );
-                                continue;
-                            }
-                            let mut eighth_ancestors = seventh_ancestors.clone();
-                            eighth_ancestors.push(seventh_schema.symbol);
-                            let Some(eighth_schema) = eighth_nested_custody_record(
-                                program,
-                                seventh_leaf,
-                                &eighth_ancestors,
-                            ) else {
-                                continue;
-                            };
-                            for eighth_leaf in
-                                program.data_members(eighth_schema).iter().filter_map(field)
-                            {
-                                let eighth_path =
-                                    format!("{seventh_path}.{}", canonical_segment(eighth_leaf));
-                                if eighth_leaf.relevance.is_erased() {
-                                    push_missing_custody_path(
-                                        program,
-                                        conformance,
-                                        custody,
-                                        plan_name,
-                                        eighth_leaf,
-                                        &eighth_path,
-                                        diagnostics,
-                                    );
-                                    continue;
-                                }
-                                let mut ninth_ancestors = eighth_ancestors.clone();
-                                ninth_ancestors.push(eighth_schema.symbol);
-                                let Some(ninth_schema) = ninth_nested_custody_record(
-                                    program,
-                                    eighth_leaf,
-                                    &ninth_ancestors,
-                                ) else {
-                                    continue;
-                                };
-                                push_missing_ninth_nested_paths(
-                                    program,
-                                    conformance,
-                                    custody,
-                                    ninth_schema,
-                                    &ninth_ancestors,
-                                    &eighth_path,
-                                    plan_name,
-                                    diagnostics,
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return;
-    };
-    let Some(third_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{third_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let third_custody_fields = program
-        .data_members(third_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if third_custody_fields.len() != program.data_members(third_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{third_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-
-    for leaf in &third_schema_fields {
-        let custody_leaf = third_custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{third_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            if let Some(fourth_schema) = fourth_nested_custody_record(program, leaf, ancestors) {
-                validate_fourth_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    fourth_schema,
-                    ancestors,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"),
-                custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"),
-                custody.name,
-            )));
-        }
-    }
-
-    for custody_leaf in third_custody_fields {
-        if !third_schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{third_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf),
-                custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_fourth_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    fourth_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    fourth_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(fourth_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in &schema_fields {
-            let path = format!("{fourth_path}.{}", canonical_segment(leaf));
-            if leaf.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    leaf,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let mut fifth_ancestors = ancestors.to_vec();
-            fifth_ancestors.push(fourth_schema.symbol);
-            let Some(fifth_schema) = fifth_nested_custody_record(program, leaf, &fifth_ancestors)
-            else {
-                continue;
-            };
-            for fifth_leaf in program.data_members(fifth_schema).iter().filter_map(field) {
-                let fifth_path = format!("{path}.{}", canonical_segment(fifth_leaf));
-                if fifth_leaf.relevance.is_erased() {
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        fifth_leaf,
-                        &fifth_path,
-                        diagnostics,
-                    );
-                    continue;
-                }
-                let mut sixth_ancestors = fifth_ancestors.clone();
-                sixth_ancestors.push(fifth_schema.symbol);
-                let Some(sixth_schema) =
-                    sixth_nested_custody_record(program, fifth_leaf, &sixth_ancestors)
-                else {
-                    continue;
-                };
-                for sixth_leaf in program.data_members(sixth_schema).iter().filter_map(field) {
-                    let sixth_path = format!("{fifth_path}.{}", canonical_segment(sixth_leaf));
-                    if sixth_leaf.relevance.is_erased() {
-                        push_missing_custody_path(
-                            program,
-                            conformance,
-                            custody,
-                            plan_name,
-                            sixth_leaf,
-                            &sixth_path,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let mut seventh_ancestors = sixth_ancestors.clone();
-                    seventh_ancestors.push(sixth_schema.symbol);
-                    let Some(seventh_schema) =
-                        seventh_nested_custody_record(program, sixth_leaf, &seventh_ancestors)
-                    else {
-                        continue;
-                    };
-                    for seventh_leaf in program
-                        .data_members(seventh_schema)
-                        .iter()
-                        .filter_map(field)
-                    {
-                        let seventh_path =
-                            format!("{sixth_path}.{}", canonical_segment(seventh_leaf));
-                        if seventh_leaf.relevance.is_erased() {
-                            push_missing_custody_path(
-                                program,
-                                conformance,
-                                custody,
-                                plan_name,
-                                seventh_leaf,
-                                &seventh_path,
-                                diagnostics,
-                            );
-                            continue;
-                        }
-                        let mut eighth_ancestors = seventh_ancestors.clone();
-                        eighth_ancestors.push(seventh_schema.symbol);
-                        let Some(eighth_schema) =
-                            eighth_nested_custody_record(program, seventh_leaf, &eighth_ancestors)
-                        else {
-                            continue;
-                        };
-                        for eighth_leaf in
-                            program.data_members(eighth_schema).iter().filter_map(field)
-                        {
-                            let eighth_path =
-                                format!("{seventh_path}.{}", canonical_segment(eighth_leaf));
-                            if eighth_leaf.relevance.is_erased() {
-                                push_missing_custody_path(
-                                    program,
-                                    conformance,
-                                    custody,
-                                    plan_name,
-                                    eighth_leaf,
-                                    &eighth_path,
-                                    diagnostics,
-                                );
-                                continue;
-                            }
-                            let mut ninth_ancestors = eighth_ancestors.clone();
-                            ninth_ancestors.push(eighth_schema.symbol);
-                            let Some(ninth_schema) =
-                                ninth_nested_custody_record(program, eighth_leaf, &ninth_ancestors)
-                            else {
-                                continue;
-                            };
-                            push_missing_ninth_nested_paths(
-                                program,
-                                conformance,
-                                custody,
-                                ninth_schema,
-                                &ninth_ancestors,
-                                &eighth_path,
-                                plan_name,
-                                diagnostics,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        return;
-    };
-    let Some(fourth_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{fourth_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(fourth_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(fourth_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{fourth_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{fourth_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            let mut fifth_ancestors = ancestors.to_vec();
-            fifth_ancestors.push(fourth_schema.symbol);
-            if let Some(fifth_schema) = fifth_nested_custody_record(program, leaf, &fifth_ancestors)
-            {
-                validate_fifth_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    fifth_schema,
-                    &fifth_ancestors,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{fourth_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_fifth_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    fifth_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    fifth_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(fifth_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in &schema_fields {
-            let path = format!("{fifth_path}.{}", canonical_segment(leaf));
-            if leaf.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    leaf,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let mut sixth_ancestors = ancestors.to_vec();
-            sixth_ancestors.push(fifth_schema.symbol);
-            let Some(sixth_schema) = sixth_nested_custody_record(program, leaf, &sixth_ancestors)
-            else {
-                continue;
-            };
-            for sixth_leaf in program.data_members(sixth_schema).iter().filter_map(field) {
-                let sixth_path = format!("{path}.{}", canonical_segment(sixth_leaf));
-                if sixth_leaf.relevance.is_erased() {
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        sixth_leaf,
-                        &sixth_path,
-                        diagnostics,
-                    );
-                    continue;
-                }
-                let mut seventh_ancestors = sixth_ancestors.clone();
-                seventh_ancestors.push(sixth_schema.symbol);
-                let Some(seventh_schema) =
-                    seventh_nested_custody_record(program, sixth_leaf, &seventh_ancestors)
-                else {
-                    continue;
-                };
-                for seventh_leaf in program
-                    .data_members(seventh_schema)
-                    .iter()
-                    .filter_map(field)
-                {
-                    let seventh_path = format!("{sixth_path}.{}", canonical_segment(seventh_leaf));
-                    if seventh_leaf.relevance.is_erased() {
-                        push_missing_custody_path(
-                            program,
-                            conformance,
-                            custody,
-                            plan_name,
-                            seventh_leaf,
-                            &seventh_path,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let mut eighth_ancestors = seventh_ancestors.clone();
-                    eighth_ancestors.push(seventh_schema.symbol);
-                    let Some(eighth_schema) =
-                        eighth_nested_custody_record(program, seventh_leaf, &eighth_ancestors)
-                    else {
-                        continue;
-                    };
-                    for eighth_leaf in program.data_members(eighth_schema).iter().filter_map(field)
-                    {
-                        let eighth_path =
-                            format!("{seventh_path}.{}", canonical_segment(eighth_leaf));
-                        if eighth_leaf.relevance.is_erased() {
-                            push_missing_custody_path(
-                                program,
-                                conformance,
-                                custody,
-                                plan_name,
-                                eighth_leaf,
-                                &eighth_path,
-                                diagnostics,
-                            );
-                            continue;
-                        }
-                        let mut ninth_ancestors = eighth_ancestors.clone();
-                        ninth_ancestors.push(eighth_schema.symbol);
-                        let Some(ninth_schema) =
-                            ninth_nested_custody_record(program, eighth_leaf, &ninth_ancestors)
-                        else {
-                            continue;
-                        };
-                        push_missing_ninth_nested_paths(
-                            program,
-                            conformance,
-                            custody,
-                            ninth_schema,
-                            &ninth_ancestors,
-                            &eighth_path,
-                            plan_name,
-                            diagnostics,
-                        );
-                    }
-                }
-            }
-        }
-        return;
-    };
-    let Some(fifth_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{fifth_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(fifth_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(fifth_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{fifth_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{fifth_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            let mut sixth_ancestors = ancestors.to_vec();
-            sixth_ancestors.push(fifth_schema.symbol);
-            if let Some(sixth_schema) = sixth_nested_custody_record(program, leaf, &sixth_ancestors)
-            {
-                validate_sixth_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    sixth_schema,
-                    &sixth_ancestors,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{fifth_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_sixth_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    sixth_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    sixth_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(sixth_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in &schema_fields {
-            let path = format!("{sixth_path}.{}", canonical_segment(leaf));
-            if leaf.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    leaf,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let mut seventh_ancestors = ancestors.to_vec();
-            seventh_ancestors.push(sixth_schema.symbol);
-            let Some(seventh_schema) =
-                seventh_nested_custody_record(program, leaf, &seventh_ancestors)
-            else {
-                continue;
-            };
-            for seventh_leaf in program
-                .data_members(seventh_schema)
-                .iter()
-                .filter_map(field)
-            {
-                let seventh_path = format!("{path}.{}", canonical_segment(seventh_leaf));
-                if seventh_leaf.relevance.is_erased() {
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        seventh_leaf,
-                        &seventh_path,
-                        diagnostics,
-                    );
-                    continue;
-                }
-                let mut eighth_ancestors = seventh_ancestors.clone();
-                eighth_ancestors.push(seventh_schema.symbol);
-                let Some(eighth_schema) =
-                    eighth_nested_custody_record(program, seventh_leaf, &eighth_ancestors)
-                else {
-                    continue;
-                };
-                for eighth_leaf in program.data_members(eighth_schema).iter().filter_map(field) {
-                    let eighth_path = format!("{seventh_path}.{}", canonical_segment(eighth_leaf));
-                    if eighth_leaf.relevance.is_erased() {
-                        push_missing_custody_path(
-                            program,
-                            conformance,
-                            custody,
-                            plan_name,
-                            eighth_leaf,
-                            &eighth_path,
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let mut ninth_ancestors = eighth_ancestors.clone();
-                    ninth_ancestors.push(eighth_schema.symbol);
-                    let Some(ninth_schema) =
-                        ninth_nested_custody_record(program, eighth_leaf, &ninth_ancestors)
-                    else {
-                        continue;
-                    };
-                    push_missing_ninth_nested_paths(
-                        program,
-                        conformance,
-                        custody,
-                        ninth_schema,
-                        &ninth_ancestors,
-                        &eighth_path,
-                        plan_name,
-                        diagnostics,
-                    );
-                }
-            }
-        }
-        return;
-    };
-    let Some(sixth_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{sixth_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(sixth_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(sixth_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{sixth_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{sixth_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            let mut seventh_ancestors = ancestors.to_vec();
-            seventh_ancestors.push(sixth_schema.symbol);
-            if let Some(seventh_schema) =
-                seventh_nested_custody_record(program, leaf, &seventh_ancestors)
-            {
-                validate_seventh_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    seventh_schema,
-                    &seventh_ancestors,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{sixth_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_seventh_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    seventh_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    seventh_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(seventh_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in &schema_fields {
-            let path = format!("{seventh_path}.{}", canonical_segment(leaf));
-            if leaf.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    leaf,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let mut eighth_ancestors = ancestors.to_vec();
-            eighth_ancestors.push(seventh_schema.symbol);
-            let Some(eighth_schema) =
-                eighth_nested_custody_record(program, leaf, &eighth_ancestors)
-            else {
-                continue;
-            };
-            for eighth_leaf in program.data_members(eighth_schema).iter().filter_map(field) {
-                let eighth_path = format!("{path}.{}", canonical_segment(eighth_leaf));
-                if eighth_leaf.relevance.is_erased() {
-                    push_missing_custody_path(
-                        program,
-                        conformance,
-                        custody,
-                        plan_name,
-                        eighth_leaf,
-                        &eighth_path,
-                        diagnostics,
-                    );
-                    continue;
-                }
-                let mut ninth_ancestors = eighth_ancestors.clone();
-                ninth_ancestors.push(eighth_schema.symbol);
-                let Some(ninth_schema) =
-                    ninth_nested_custody_record(program, eighth_leaf, &ninth_ancestors)
-                else {
-                    continue;
-                };
-                push_missing_ninth_nested_paths(
-                    program,
-                    conformance,
-                    custody,
-                    ninth_schema,
-                    &ninth_ancestors,
-                    &eighth_path,
-                    plan_name,
-                    diagnostics,
-                );
-            }
-        }
-        return;
-    };
-    let Some(seventh_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{seventh_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(seventh_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(seventh_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{seventh_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{seventh_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            let mut eighth_ancestors = ancestors.to_vec();
-            eighth_ancestors.push(seventh_schema.symbol);
-            if let Some(eighth_schema) =
-                eighth_nested_custody_record(program, leaf, &eighth_ancestors)
-            {
-                validate_eighth_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    eighth_schema,
-                    &eighth_ancestors,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{seventh_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_eighth_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    eighth_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    eighth_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(eighth_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in &schema_fields {
-            let path = format!("{eighth_path}.{}", canonical_segment(leaf));
-            if leaf.relevance.is_erased() {
-                push_missing_custody_path(
-                    program,
-                    conformance,
-                    custody,
-                    plan_name,
-                    leaf,
-                    &path,
-                    diagnostics,
-                );
-                continue;
-            }
-            let mut ninth_ancestors = ancestors.to_vec();
-            ninth_ancestors.push(eighth_schema.symbol);
-            let Some(ninth_schema) = ninth_nested_custody_record(program, leaf, &ninth_ancestors)
-            else {
-                continue;
-            };
-            push_missing_ninth_nested_paths(
-                program,
-                conformance,
-                custody,
-                ninth_schema,
-                &ninth_ancestors,
-                &path,
-                plan_name,
-                diagnostics,
-            );
-        }
-        return;
-    };
-    let Some(eighth_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{eighth_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(eighth_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(eighth_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{eighth_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{eighth_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            let mut ninth_ancestors = ancestors.to_vec();
-            ninth_ancestors.push(eighth_schema.symbol);
-            if let Some(ninth_schema) = ninth_nested_custody_record(program, leaf, &ninth_ancestors)
-            {
-                validate_ninth_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    ninth_schema,
-                    &ninth_ancestors,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{eighth_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_ninth_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    ninth_schema: &psi_typed_trees::data::DataDefinition,
-    ancestors: &[psi_symbols::SymbolHandle],
-    custody_field: Option<&DataField>,
-    ninth_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(ninth_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        push_missing_ninth_nested_paths(
-            program,
-            conformance,
-            custody,
-            ninth_schema,
-            ancestors,
-            ninth_path,
-            plan_name,
-            diagnostics,
-        );
-        return;
-    };
-    let Some(ninth_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{ninth_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(ninth_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(ninth_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{ninth_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{ninth_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            let mut tenth_ancestors = ancestors.to_vec();
-            tenth_ancestors.push(ninth_schema.symbol);
-            if let Some(tenth_schema) = tenth_nested_custody_record(program, leaf, &tenth_ancestors)
-            {
-                validate_tenth_nested_record(
-                    program,
-                    conformance,
-                    schema,
-                    custody,
-                    outer_field,
-                    tenth_schema,
-                    custody_leaf,
-                    &path,
-                    plan_name,
-                    outer_entry,
-                    diagnostics,
-                );
-                continue;
-            }
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{ninth_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_tenth_nested_record(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    custody: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    tenth_schema: &psi_typed_trees::data::DataDefinition,
-    custody_field: Option<&DataField>,
-    tenth_path: &str,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let schema_fields = program
-        .data_members(tenth_schema)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    let Some(custody_field) = custody_field else {
-        for leaf in schema_fields
-            .iter()
-            .filter(|field| field.relevance.is_erased())
-        {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &format!("{tenth_path}.{}", canonical_segment(leaf)),
-                diagnostics,
-            );
-        }
-        return;
-    };
-    let Some(tenth_custody) = plain_record_for_type(program, custody_field.type_reference) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{tenth_path}` requires one authored ordinary projection record, but `{}` has type `{}`",
-            program.symbols.display_path(conformance.symbol, "::"),
-            canonical_path(custody, custody_field),
-            program.normalized_type_identity(custody_field.type_reference),
-        )));
-        return;
-    };
-    let custody_fields = program
-        .data_members(tenth_custody)
-        .iter()
-        .filter_map(field)
-        .collect::<Vec<_>>();
-    if custody_fields.len() != program.data_members(tenth_custody).len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "custody conformance `{}` disagrees with `{plan_name}`: canonical path `{tenth_path}` must use an ordinary projection record without case members",
-            program.symbols.display_path(conformance.symbol, "::"),
-        )));
-        return;
-    }
-    for leaf in &schema_fields {
-        let custody_leaf = custody_fields
-            .iter()
-            .copied()
-            .find(|candidate| same_canonical_field(leaf, candidate));
-        let path = format!("{tenth_path}.{}", canonical_segment(leaf));
-        if !leaf.relevance.is_erased() {
-            if custody_leaf.is_some() {
-                diagnostics.push(nested_path_represented_field_diagnostic(
-                    program,
-                    conformance,
-                    &path,
-                    schema,
-                    outer_field,
-                    custody,
-                    plan_name,
-                    outer_entry,
-                ));
-            }
-            continue;
-        }
-        let Some(custody_leaf) = custody_leaf else {
-            push_missing_custody_path(
-                program,
-                conformance,
-                custody,
-                plan_name,
-                leaf,
-                &path,
-                diagnostics,
-            );
-            continue;
-        };
-        let expected_multiplicity = program.type_multiplicity(leaf.type_reference);
-        let actual_multiplicity = program.type_multiplicity(custody_leaf.type_reference);
-        if actual_multiplicity != expected_multiplicity {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with multiplicity {expected_multiplicity:?}, but `{}` uses multiplicity {actual_multiplicity:?}",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-            continue;
-        }
-        let expected_type = program.normalized_type_identity(leaf.type_reference);
-        let actual_type = program.normalized_type_identity(custody_leaf.type_reference);
-        if actual_type != expected_type {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{path}` is custody-carried with exact type `{expected_type}`, but `{}` uses `{actual_type}`",
-                program.symbols.display_path(conformance.symbol, "::"), custody.name,
-            )));
-        }
-    }
-    for custody_leaf in custody_fields {
-        if !schema_fields
-            .iter()
-            .any(|candidate| same_canonical_field(candidate, custody_leaf))
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{tenth_path}.{}` path, but `{}` declares that extra canonical field path",
-                program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf), custody.name,
-            )));
-        }
-    }
-}
-
-fn nested_record_symbol(program: &TypedTrees, field: &DataField) -> psi_symbols::SymbolHandle {
-    plain_record_for_type(program, field.type_reference)
-        .map_or(psi_symbols::SymbolHandle::invalid(), |record| record.symbol)
-}
-
 fn plain_record_for_type(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -2877,19 +682,6 @@ fn canonical_segment(field: &DataField) -> String {
     }
 }
 
-fn nested_canonical_path(
-    root: &psi_typed_trees::data::DataDefinition,
-    outer: &DataField,
-    nested: &DataField,
-) -> String {
-    format!(
-        "{}.{}.{}",
-        root.name,
-        canonical_segment(outer),
-        canonical_segment(nested)
-    )
-}
-
 fn represented_field_diagnostic(
     program: &TypedTrees,
     conformance: &psi_typed_trees::trait_definition::Conformance,
@@ -2907,30 +699,6 @@ fn represented_field_diagnostic(
         canonical_path(schema, schema_field),
         custody.name,
     ))
-}
-
-#[allow(clippy::too_many_arguments)]
-fn nested_represented_field_diagnostic(
-    program: &TypedTrees,
-    conformance: &psi_typed_trees::trait_definition::Conformance,
-    schema: &psi_typed_trees::data::DataDefinition,
-    outer_field: &DataField,
-    nested_field: &DataField,
-    custody: &psi_typed_trees::data::DataDefinition,
-    plan_name: &str,
-    outer_entry: &LayoutFieldEntryReport,
-) -> Diagnostic {
-    let path = nested_canonical_path(schema, outer_field, nested_field);
-    nested_path_represented_field_diagnostic(
-        program,
-        conformance,
-        &path,
-        schema,
-        outer_field,
-        custody,
-        plan_name,
-        outer_entry,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2964,7 +732,7 @@ fn unsupported_nested_custody_diagnostic(
     entry: &LayoutFieldEntryReport,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is {}, but its represented type contains non-runtime custody outside the exact ten-record acyclic, non-generic, case-free projection spine",
+        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is {}, but its represented type contains non-runtime custody outside the exact eleven-record acyclic, non-generic, case-free projection spine",
         program.symbols.display_path(conformance.symbol, "::"),
         canonical_path(schema, field),
         represented_decision(program, field.type_reference, &entry.placement),
@@ -3138,5 +906,23 @@ mod tests {
             recursive,
             &mut Vec::new(),
         ));
+    }
+
+    #[test]
+    fn nested_custody_record_rejects_an_exact_symbol_cycle() {
+        let mut program = TypedTrees::default();
+        let symbol = psi_symbols::SymbolHandle::from_arena_index(3_000);
+        let recursive = named_type(&mut program, symbol, "Recursive");
+        push_record(&mut program, symbol, recursive, BindingRelevance::Relevant);
+        let schema_field = DataField {
+            relevance: BindingRelevance::Relevant,
+            type_reference: recursive,
+            ..DataField::default()
+        };
+
+        assert!(
+            nested_custody_record(&program, &schema_field, &[symbol], 1, false).is_none(),
+            "an ancestor back-edge must remain outside the custody cohort"
+        );
     }
 }
