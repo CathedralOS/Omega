@@ -154,6 +154,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "replay::replay_action(",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/mod.rs",
+        coordination_marker: "pub fn color_logical_spill_stack_slots",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/compute/mod.rs",
+        coordination_marker: "color_intervals_first_fit(function, logical.machine, intervals)",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/stack_slot_coloring/validate/mod.rs",
+        coordination_marker: "let expected = replay::replay(source)?;",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocation_legality/mod.rs",
         coordination_marker: "pub fn analyze_allocation_legality",
     },

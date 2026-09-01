@@ -567,9 +567,17 @@ decision. Only true language-semantic questions belong in
   reload-before-first-future-use, and the complete later-use rewrite suffix,
   and has versioned transport, exact budgets, typed refusal, corruption, and
   x86-64/AArch64 fixture coverage. It intentionally grants no physical slot,
-  offset, instruction, frame, unwind, trap, or publication authority. Physical
-  spill/reload insertion, stack-slot coloring, and downstream realization
-  remain open.
+  offset, instruction, frame, unwind, trap, or publication authority. A second
+  V1 independently replayed artifact now colors its closed block-local storage
+  lifetimes by deterministic lowest-offset first fit. It grants only canonical
+  8-byte-aligned offsets relative to an abstract spill-area origin, with
+  identity-bound roots, exact work budgets, strict versioned transport,
+  endpoint-conflict/reuse tests, empty-pressure behavior, and cross-target
+  corruption coverage. Current public logical plans contain at most one spill
+  per function, so compiler fixtures can exercise only offset zero; internal
+  interval tests pin overlapping, disjoint, touching, and cross-block coloring.
+  Physical spill/reload instruction insertion, final frame/SP/FP offsets,
+  unwind/probing integration, and downstream realization remain open.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,

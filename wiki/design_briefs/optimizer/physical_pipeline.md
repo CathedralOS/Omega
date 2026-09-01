@@ -245,6 +245,20 @@ parameters, legalization temporaries, fixed or use-def suffixes, and
 cross-block ranges fail with typed errors rather than silently receiving a
 weaker recipe.
 
+The next target-neutral boundary is validated stack-slot coloring. Its
+26-line entrance consumes only the validated logical-spill carrier and joins a
+canonical producer to an independent replay validator. V1 derives a closed
+block-local lifetime from pressure through the first reload rewrite, sorts by
+block/start/end/storage identity, and assigns the lowest available 8-byte slot;
+touching endpoints conflict, while disjoint or different-block lifetimes may
+reuse a slot. Offsets are relative to an abstract spill-area origin. The
+versioned, identity-bound artifact grants no stack-pointer or frame-pointer
+offset, stack direction, red-zone, shadow-space, frame, unwind, probing,
+instruction, encoding, trap, or publication authority. The current logical
+schema carries at most one spill action per function, so cross-target compiler
+fixtures reach offset zero while internal interval tests pin the full first-fit
+contract.
+
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
 are explicit target facts. Modulo scratch-register assignment is not an

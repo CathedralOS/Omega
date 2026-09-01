@@ -175,6 +175,14 @@ pair explicitly; all other recovery-machine pairs still reject. The join
 retains both phase-selection roots and independently replays source, machine,
 encoding, layout, and exit custody before publication.
 
+Logical spilling and stack-slot coloring are compiler-private allocation
+decisions rather than user-selected optimization rules. The coloring entrance
+consumes the independently validated logical-spill carrier and returns a
+versioned, independently replayed first-fit plan whose offsets are relative to
+an abstract spill-area origin. This grants neither final frame layout nor
+machine spill/reload insertion authority, keeping frame, ABI, unwind, and
+publication decisions at later explicit boundaries.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and

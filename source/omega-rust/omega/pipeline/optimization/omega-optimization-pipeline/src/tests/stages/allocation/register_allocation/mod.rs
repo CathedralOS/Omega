@@ -7,3 +7,4 @@ mod liveness;
 mod logical_spill_operations;
 mod register_homes;
 mod selected_input;
+mod stack_slot_coloring;

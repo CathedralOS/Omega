@@ -169,6 +169,16 @@ test taxonomy mirrors those boundaries, and the cross-target pipeline leaf is
 `register_allocation/logical_spill_operations.rs`. No allocation-recovery
 catalog or user-visible optimization name is duplicated for this evidence.
 
+Stack-slot coloring follows the same non-selectable allocation taxonomy at
+`omega-regalloc/src/allocation/stack_slot_coloring/mod.rs`. Its small entrance
+coordinates `compute/` and independently implemented `validate/` rungs;
+`compute/intervals.rs` and `compute/first_fit.rs` expose the lifetime and
+coloring descent, while `model.rs`, `identity.rs`, and `codec/` own the closed
+artifact vocabulary and transport. Mirrored `tests/` cover the exact first-fit
+contract, and the cross-target pipeline leaf is
+`register_allocation/stack_slot_coloring.rs`. It does not add an optimization
+name or enter the allocation-recovery catalog.
+
 Removing a catalog row disables that exact rule. Adding a row must make
 omissions, duplicates, unsupported targets, and ambiguous matches fail closed.
 A custody crate may consume the catalog owner's typed result; it may not create
