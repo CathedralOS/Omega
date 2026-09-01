@@ -486,15 +486,15 @@ pub data TransferCarrier { value: u64; }
 pub TransferTokenRepresentation:
     TransferCarrier satisfies OpaqueRepresentation<TransferToken>;
 
-data OneParameterPolicy { }
-OneParameterPolicyCallingPolicy: OneParameterPolicy satisfies CallingPolicy;
+data TwoParameterPolicy { }
+TwoParameterPolicyCallingPolicy: TwoParameterPolicy satisfies CallingPolicy;
 
-machine OneParameterPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine TwoParameterPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     let mut output: BoundaryEntryPlan;
     output.call.convention = CallingConvention::MicrosoftX64;
-    output.call.parameter_count = 1;
+    output.call.parameter_count = 2;
     output.call.parameters[0].shape.class = AbiValueClass::Integer;
     output.call.parameters[0].shape.byte_size = signature.shapes[1].byte_size;
     output.call.parameters[0].shape.alignment = signature.shapes[1].alignment;
@@ -504,14 +504,23 @@ machine OneParameterPolicy::plan(signature: BoundarySignature) -> BoundaryPlanRe
         value_byte_offset: 0,
         byte_size: signature.shapes[1].byte_size,
     };
+    output.call.parameters[1].shape.class = AbiValueClass::Integer;
+    output.call.parameters[1].shape.byte_size = signature.shapes[3].byte_size;
+    output.call.parameters[1].shape.alignment = signature.shapes[3].alignment;
+    output.call.parameters[1].location_count = 1;
+    output.call.parameters[1].locations[0] = ValueLocation::Register {
+        register: MachineRegister::X86Rdx,
+        value_byte_offset: 0,
+        byte_size: signature.shapes[3].byte_size,
+    };
     output.call.stack_alignment = 16;
     output.call.shadow_bytes = 32;
     output.call.entry_control = EntryControl::CallReturn;
     BoundaryPlanResult::Accepted { plan: output }
 }
 
-boundary trait TransferEntry: Calling<OneParameterPolicy> {
-    machine transfer(value: TransferToken);
+boundary trait TransferEntry: Calling<TwoParameterPolicy> {
+    machine transfer(first: TransferToken, second: TransferToken);
 }
 "#,
     );
@@ -575,22 +584,46 @@ machine build(builder: &mut Build) {
         PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly
     );
     assert!(!demand.4.shapes().is_empty());
-    let [occurrence] = demand.5.as_slice() else {
-        panic!("one opaque occurrence in one boundary parameter")
+    let [first_occurrence, second_occurrence] = demand.5.as_slice() else {
+        panic!("two exact opaque occurrences in two boundary parameters")
     };
-    assert!(usize::from(occurrence.carrier_shape_root()) < demand.4.shapes().len());
+    assert_ne!(
+        first_occurrence.carrier_shape_root(),
+        second_occurrence.carrier_shape_root()
+    );
+    assert!(
+        usize::from(first_occurrence.carrier_shape_root()) < demand.4.shapes().len()
+            && usize::from(second_occurrence.carrier_shape_root()) < demand.4.shapes().len()
+    );
     assert!(matches!(
-        occurrence.role(),
+        first_occurrence.role(),
         PackageReviewOpaqueRepresentationMovementRole::Parameter {
             formal_ordinal: 0,
             native_ordinal: 0,
         }
     ));
+    assert!(matches!(
+        second_occurrence.role(),
+        PackageReviewOpaqueRepresentationMovementRole::Parameter {
+            formal_ordinal: 1,
+            native_ordinal: 1,
+        }
+    ));
     assert_eq!(
-        occurrence.placement().locations(),
+        first_occurrence.placement().locations(),
         &[
             omega_package_evidence::record::PackageReviewBoundaryValueLocation::Register {
                 register: PackageReviewMachineRegister::X86Rcx,
+                value_byte_offset: 0,
+                byte_size: 8,
+            }
+        ]
+    );
+    assert_eq!(
+        second_occurrence.placement().locations(),
+        &[
+            omega_package_evidence::record::PackageReviewBoundaryValueLocation::Register {
+                register: PackageReviewMachineRegister::X86Rdx,
                 value_byte_offset: 0,
                 byte_size: 8,
             }

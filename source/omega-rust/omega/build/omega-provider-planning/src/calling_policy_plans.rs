@@ -4275,6 +4275,46 @@ mod tests {
     }
 
     #[test]
+    fn opaque_shape_path_rejects_an_out_of_range_root() {
+        let shapes = vec![BoundaryValueShape {
+            class: BoundaryValueClass::Integer,
+            byte_size: 8,
+            alignment: 8,
+        }];
+
+        let error = boundary_shape_path(&shapes, &[], 1, 0)
+            .expect_err("an out-of-range shape-graph root must reject");
+        assert!(error.contains("out-of-range node"), "{error}");
+    }
+
+    #[test]
+    fn opaque_shape_path_rejects_an_out_of_range_record_field_span() {
+        let shapes = vec![
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Record {
+                    first_field: 0,
+                    field_count: 2,
+                },
+                byte_size: 16,
+                alignment: 8,
+            },
+        ];
+        let fields = vec![BoundaryValueField {
+            shape: 0,
+            byte_offset: 0,
+        }];
+
+        let error = boundary_shape_path(&shapes, &fields, 1, 0)
+            .expect_err("a record field span outside the checked shape graph must reject");
+        assert!(error.contains("out-of-range field span"), "{error}");
+    }
+
+    #[test]
     fn opaque_shape_path_retains_fixed_array_and_record_coordinates() {
         let shapes = vec![
             BoundaryValueShape {
@@ -4337,6 +4377,33 @@ mod tests {
         signature.opaque_representations[0].shape_root = 1;
         let second = boundary_plan_application_identity(&signature, &validated);
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn opaque_movement_rejects_an_out_of_range_shape_marker() {
+        let shape = ValueShape::integer(8, 8);
+        let call_signature = CallSignature {
+            parameters: vec![shape],
+            result: None,
+        };
+        let validated = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(NativeTarget::host()),
+            &call_signature,
+        )
+        .expect("ordinary one-parameter plan");
+        let mut signature = materialized_boundary_signature_from_abi(&call_signature)
+            .expect("materialized one-parameter signature");
+        signature
+            .opaque_representations
+            .push(test_opaque_representation_use(u16::MAX));
+
+        let error = signature
+            .opaque_representation_movement(&signature.opaque_representations[0], &validated)
+            .expect_err("an out-of-range opaque shape marker must not rejoin movement");
+        assert!(
+            error.contains("belongs to 0 top-level boundary occurrences"),
+            "{error}"
+        );
     }
 
     #[test]
