@@ -1,11 +1,14 @@
-//! Optimizer module role: validation leaf. Immutable executable-block comparison for the admitted ranked component.
+//! Optimizer module role: validation leaf. Frozen ranked-block preservation coordination.
 
 use super::*;
+
+mod normalized_component;
 
 pub(super) fn validate_frozen_component_blocks(
     input: &omega_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
     components: &[OptimizerCycleComponent],
+    rankings: &[OptimizerUnsignedCountdownRankingCertificate],
 ) -> Result<(), OptimizationUnitValidationError> {
     if components.is_empty() {
         return Ok(());
@@ -31,24 +34,28 @@ pub(super) fn validate_frozen_component_blocks(
             .ok_or(OptimizationUnitValidationError::RankedCycleFunctionMissing(
                 machine,
             ))?;
-        for block in &component.members {
-            let expected_block = expected_function
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == *block);
-            let current_block = current_function
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == *block);
-            if expected_block.is_none() || expected_block != current_block {
-                return Err(
-                    OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
-                        machine,
-                        block: *block,
-                    },
-                );
-            }
-        }
+        let certificates = rankings
+            .iter()
+            .filter(|certificate| certificate.component == component.id)
+            .collect::<Vec<_>>();
+        let [certificate] = certificates.as_slice() else {
+            return Err(
+                OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                    machine,
+                    block: component
+                        .members
+                        .first()
+                        .copied()
+                        .unwrap_or(current_function.entry),
+                },
+            );
+        };
+        normalized_component::validate(
+            expected_function,
+            current_function,
+            component,
+            certificate,
+        )?;
     }
     Ok(())
 }

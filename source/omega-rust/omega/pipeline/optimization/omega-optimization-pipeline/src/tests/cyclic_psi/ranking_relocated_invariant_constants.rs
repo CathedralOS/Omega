@@ -3,10 +3,12 @@
 use super::*;
 
 use omega_optimization_unit::{
-    EffectLink, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
+    EffectLink, FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
     recompute_psi_optimization_unit_identity,
 };
-use omega_optimization_validation::OptimizerUnsignedCountdownRankingCertificate;
+use omega_optimization_validation::{
+    OptimizerUnsignedCountdownRankingCertificate, validate_transformed_psi_cycle_components,
+};
 
 #[derive(Clone, Copy)]
 enum Relocation {
@@ -23,19 +25,15 @@ struct RelocatedCountdown {
 }
 
 #[test]
-fn zero_one_and_pair_relocation_reconstruct_the_original_ranking_before_freeze() {
+fn zero_one_and_pair_relocation_preserve_authenticated_ranking_and_freeze() {
     for relocation in [Relocation::Zero, Relocation::One, Relocation::Both] {
         let moved = relocated_countdown(relocation);
-        assert!(matches!(
-            validate_transformed_psi_optimization_unit(&moved.input, &moved.unit),
-            Err(OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
-                machine,
-                block,
-            }) if machine == moved.certificate.component.machine
-                && moved.certificate.component.internal_edges.iter().any(|edge| {
-                    edge.source == block || edge.target == block
-                })
-        ));
+        let validated = validate_transformed_psi_cycle_components(&moved.input, &moved.unit)
+            .expect("exact relocation preserves ranked-cycle analysis custody");
+        assert_eq!(
+            validated.ranking_certificates().certificates(),
+            [moved.certificate]
+        );
     }
 }
 
@@ -93,6 +91,41 @@ fn relocated_constant_shape_corruption_fails_ranking_before_freeze() {
     *value = psi_core::IntegerValue::Unsigned(1);
     moved.unit.identity = recompute_psi_optimization_unit_identity(&moved.unit);
     assert_ranking_mismatch(&moved);
+}
+
+#[test]
+fn relocated_constant_provenance_and_fuel_must_match_the_frozen_source_node() {
+    let mut fuel = relocated_countdown(Relocation::Zero);
+    find_operation_mut(&mut fuel.unit, fuel.certificate.guard.zero_operation).fuel[0].units += 1;
+    fuel.unit.identity = recompute_psi_optimization_unit_identity(&fuel.unit);
+    assert_frozen_at_original_role(&fuel, fuel.certificate.header);
+
+    let mut provenance = relocated_countdown(Relocation::One);
+    let inherited = PsiProvenance::Operation(provenance.certificate.descent.subtract_operation);
+    let one = find_operation_mut(
+        &mut provenance.unit,
+        provenance.certificate.descent.one_operation,
+    );
+    one.provenance.push(inherited);
+    one.fuel.push(FuelSettlement {
+        site: inherited,
+        units: 1,
+    });
+    provenance.unit.identity = recompute_psi_optimization_unit_identity(&provenance.unit);
+    assert_frozen_at_original_role(&provenance, provenance.certificate.descent.backedge.source);
+}
+
+#[test]
+fn relocation_does_not_thaw_any_other_ranked_node() {
+    let mut moved = relocated_countdown(Relocation::Zero);
+    find_operation_mut(
+        &mut moved.unit,
+        moved.certificate.guard.comparison_operation,
+    )
+    .fuel[0]
+        .units += 1;
+    moved.unit.identity = recompute_psi_optimization_unit_identity(&moved.unit);
+    assert_frozen_at_original_role(&moved, moved.certificate.header);
 }
 
 #[test]
@@ -215,6 +248,29 @@ fn refresh_coordinates_and_effects(unit: &mut PsiOptimizationUnit) {
                 effect += 1;
             }
         }
+        let operation_order = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .enumerate()
+            .filter_map(|(position, node)| match node.provenance.first() {
+                Some(PsiProvenance::Operation(operation)) => Some((*operation, position)),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        function.facts.sort_by_key(|fact| {
+            let support = match fact {
+                omega_optimization_unit::OptimizationFact::OperationObligationReference {
+                    support,
+                    ..
+                }
+                | omega_optimization_unit::OptimizationFact::BooleanConstant { support, .. }
+                | omega_optimization_unit::OptimizationFact::IntegerConstant { support, .. } => {
+                    support
+                }
+            };
+            operation_order.get(support).copied()
+        });
     }
     unit.identity = recompute_psi_optimization_unit_identity(unit);
 }
@@ -225,6 +281,18 @@ fn assert_ranking_mismatch(moved: &RelocatedCountdown) {
         Err(
             OptimizationUnitValidationError::RankedCycleRankingEvidenceMismatch {
                 machine: moved.certificate.component.machine,
+            }
+        )
+    );
+}
+
+fn assert_frozen_at_original_role(moved: &RelocatedCountdown, block: psi_core::BlockId) {
+    assert_eq!(
+        validate_transformed_psi_optimization_unit(&moved.input, &moved.unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: moved.certificate.component.machine,
+                block,
             }
         )
     );
