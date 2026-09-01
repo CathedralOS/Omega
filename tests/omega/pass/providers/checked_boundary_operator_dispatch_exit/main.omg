@@ -1,7 +1,7 @@
 // A named boundary operator may select a checked Omega body. Checking retains
 // the public operator contract and exact ProviderPlan identity; execution in
 // both engines redirects to the selected ordinary machine.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CheckedMath {}
 

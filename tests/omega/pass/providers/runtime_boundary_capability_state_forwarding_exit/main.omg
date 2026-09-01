@@ -3,7 +3,7 @@
 // must distinguish that intentional zero-byte representation from a missing
 // layout, while host-call lowering continues to use the capability's type and
 // selected provider identity.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

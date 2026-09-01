@@ -4,7 +4,7 @@
 // ExternalRealization supply mode (the interned normalized rendering is
 // its identity). Inert here (never called); the merge-time consumption is
 // the next rung.
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Shutdown {
     machine halt(code: i32);
 }

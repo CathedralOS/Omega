@@ -2,7 +2,7 @@
 // root's explicit type-per-slot selection resolves the otherwise-loud
 // ambiguity without selecting or reconstructing individual rows. Dispatch
 // must consume the exact selected rows from SecondProvider.
-use omega::language::std::console;
+use omega_language_std::console;
 
 boundary trait Pick {
     machine choose() -> i32;

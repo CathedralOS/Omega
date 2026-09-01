@@ -3,7 +3,7 @@
 // CheckedAdapter row (coverage counts it; its transitive service reach refines
 // the requirement's declared ceiling: an effect-free body under an
 // effect-free requirement here).
-use omega::language::std::console;
+use omega_language_std::console;
 boundary trait Echo {
     machine echo(x: i32) -> i32;
 }

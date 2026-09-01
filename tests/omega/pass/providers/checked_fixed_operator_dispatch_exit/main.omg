@@ -1,7 +1,7 @@
 // A fixed-token boundary operator may select a checked Omega body. The token
 // resolves the public operator while execution redirects to the exact selected
 // adapter in both checked interpretation and target-selected Terminal production.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CheckedMath {}
 

@@ -2,7 +2,7 @@
 // implements write/write_line as ordinary Omega machines over write_byte. Exercise both
 // runtime-place and literal byte-carrier sources; both must travel through the
 // honest borrowed byte-view path and measured byte walk.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain [u8; 16]::Utf8
 requires

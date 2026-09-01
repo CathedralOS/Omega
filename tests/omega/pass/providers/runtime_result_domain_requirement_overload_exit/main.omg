@@ -1,7 +1,7 @@
 // Same-name boundary requirements differ only by their normalized result
 // dispatch set. Destination context selects the requirement, and provider
 // planning must preserve that exact identity through adapter dispatch.
-use omega::language::std::console;
+use omega_language_std::console;
 
 boundary trait Convert {
     machine convert(value: i32) -> i32;
