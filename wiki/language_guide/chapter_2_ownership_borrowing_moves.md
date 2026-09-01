@@ -152,9 +152,11 @@ storage containing no live `T` is a separate feature.
 > **Implementation checkpoint (August 2026):** the compiler recognizes and
 > preserves the distinct `&write` source/type identity. Checked Omega bodies may
 > replace unrestricted primitive scalars and fixed byte arrays, replace literal
-> or proven-in-bounds dynamic byte elements, replace a fixed byte range with a
-> same-width array literal when both bounds normalize statically, replace an
-> unrestricted primitive leaf through a finite path of relevant unconstrained
+> or proven-in-bounds dynamic byte elements, replace a supported fixed-array
+> range with a
+> same-width array literal when both bounds are integer literals or finite
+> immutable local-copy chains, replace an unrestricted primitive leaf through a
+> finite path of relevant unconstrained
 > common fields in plain invariant-free records, read a literal fixed-array
 > length as static metadata through the same eligible record paths, and forward
 > the loan explicitly. One bounded subloan form may pass

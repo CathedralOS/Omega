@@ -144,7 +144,7 @@ fn collect_state_mutation_summary_places(
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
-        let Some(place) = canonical_place_from_expression_in_state(
+        let Some(mut place) = canonical_place_from_expression_in_state(
             program,
             state.symbol,
             statement_index,
@@ -152,6 +152,7 @@ fn collect_state_mutation_summary_places(
         ) else {
             continue;
         };
+        normalize_write_only_range_place(program, state.symbol, &mut place);
         let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
             continue;
         };
