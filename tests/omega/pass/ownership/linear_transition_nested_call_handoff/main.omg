@@ -3,7 +3,7 @@
 // Backend realization must keep their call ordinals separate and join both
 // target-state entry establishments to the correct handoff site.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}

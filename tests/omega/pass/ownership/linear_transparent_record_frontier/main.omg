@@ -1,6 +1,6 @@
 // A transparent affine record contributes no nominal claim of its own. Its
 // two contained linear fields remain independent path-indexed obligations.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] {
     code: i32;

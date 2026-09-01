@@ -4,7 +4,7 @@
 // fold reads the RIGHT value (the boundary flavor instead pointee-hoists --
 // pinned by targets/efi_ref_param_direct_faces). Value-validated: c = 9 at
 // field offset 4; a garbage flat read of `a` (= 4, offset 0) would exit 2.
-use omega::language::std::console;
+use omega_language_std::console;
 data Pt { a: i32; c: i32; }
 data Main { console: Console; p: Pt; }
 machine Main::check(&self, r: &Pt) -> i32 {

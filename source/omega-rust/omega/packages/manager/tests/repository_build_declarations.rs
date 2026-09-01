@@ -268,6 +268,44 @@ fn executable_samples_declare_canonical_roles_and_ordinary_standard_library_edge
     }
 }
 
+fn assert_canary_declares_ordinary_standard_library_edge(root: &Path) {
+    let projection = extract_build_dependency_projection(root).unwrap_or_else(|error| {
+        panic!(
+            "canary role/dependency projection failed for {}: {error}",
+            root.display()
+        )
+    });
+    assert_eq!(
+        projection.dependencies(),
+        [DependencySourceRequest::Path {
+            explicit_alias: None,
+            location: "../../../../../source/library/std".to_owned(),
+        }],
+        "unexpected canary dependency declaration in {}",
+        root.display()
+    );
+
+    for source in fs::read_dir(root)
+        .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
+        .map(|entry| entry.expect("read canary source entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
+        .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
+    {
+        let contents = fs::read_to_string(&source)
+            .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
+        assert!(
+            !contents.contains("omega::language::std"),
+            "packaged canary {} retains a bundled std import",
+            source.display()
+        );
+        assert!(
+            contents.contains("omega_language_std"),
+            "packaged canary {} does not use its dependency alias",
+            source.display()
+        );
+    }
+}
+
 fn assert_canaries_declare_ordinary_standard_library_edges(cases: &Path, expected_count: usize) {
     let mut roots = Vec::new();
     collect_build_roots(cases, &mut roots);
@@ -279,41 +317,7 @@ fn assert_canaries_declare_ordinary_standard_library_edges(cases: &Path, expecte
     );
 
     for root in roots {
-        let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
-            panic!(
-                "canary role/dependency projection failed for {}: {error}",
-                root.display()
-            )
-        });
-        assert_eq!(
-            projection.dependencies(),
-            [DependencySourceRequest::Path {
-                explicit_alias: None,
-                location: "../../../../../source/library/std".to_owned(),
-            }],
-            "unexpected canary dependency declaration in {}",
-            root.display()
-        );
-
-        for source in fs::read_dir(&root)
-            .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
-            .map(|entry| entry.expect("read canary source entry").path())
-            .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
-            .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
-        {
-            let contents = fs::read_to_string(&source)
-                .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
-            assert!(
-                !contents.contains("omega::language::std"),
-                "packaged canary {} retains a bundled std import",
-                source.display()
-            );
-            assert!(
-                contents.contains("omega_language_std"),
-                "packaged canary {} does not use its dependency alias",
-                source.display()
-            );
-        }
+        assert_canary_declares_ordinary_standard_library_edge(&root);
     }
 }
 
@@ -356,6 +360,31 @@ fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() 
             expected_count,
         );
     }
+}
+
+#[test]
+fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_edges() {
+    let ownership = repository_root().join("tests/omega/pass/ownership");
+    let dependency_free = ownership.join("linear_boundary_entry_handoff");
+    let mut ownership_roots = Vec::new();
+    collect_build_roots(&ownership, &mut ownership_roots);
+    assert_eq!(ownership_roots.len(), 10);
+    for root in ownership_roots {
+        if root == dependency_free {
+            let projection = extract_build_dependency_projection(&root).unwrap();
+            assert!(
+                projection.dependencies().is_empty(),
+                "freestanding UEFI ownership canary must remain dependency-free"
+            );
+        } else {
+            assert_canary_declares_ordinary_standard_library_edge(&root);
+        }
+    }
+
+    assert_canaries_declare_ordinary_standard_library_edges(
+        &repository_root().join("tests/omega/pass/references"),
+        3,
+    );
 }
 
 #[test]

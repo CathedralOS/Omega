@@ -3,7 +3,7 @@
 // the caller's continuation segment. Realization must not lose or duplicate
 // the obligation across the synthesized continuation edge.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self, marker: bool) -> i32 { self.code }

@@ -3,7 +3,7 @@
 // join the source call event and target entry establishment to the exact call
 // selection site, even when no runtime dispatch edge performs the handoff.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
