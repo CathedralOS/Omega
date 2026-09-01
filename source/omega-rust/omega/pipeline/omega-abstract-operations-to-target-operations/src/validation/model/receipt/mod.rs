@@ -12,6 +12,7 @@ pub use immediate::{
     StraightLineBooleanEqualImmediateTranslationReceipt,
     StraightLineBooleanImmediateTranslationReceipt,
     StraightLineBooleanNotImmediateTranslationReceipt,
+    StraightLineIntegerBitwiseAndImmediateTranslationReceipt,
     StraightLineIntegerBitwiseNotImmediateTranslationReceipt,
     StraightLineIntegerEqualImmediateTranslationReceipt,
     StraightLineIntegerLessThanImmediateTranslationReceipt,

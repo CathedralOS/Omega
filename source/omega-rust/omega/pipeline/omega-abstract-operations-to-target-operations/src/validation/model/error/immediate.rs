@@ -110,6 +110,26 @@ pub enum StraightLineIntegerLessOrEqualImmediateTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIntegerBitwiseAndImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceIntegerType,
+    SourceConstantOutsideType,
+    SourceBitwiseAndOperands,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineIntegerImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,

@@ -100,6 +100,25 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "constant integer bitwise-AND immediate translation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_bitwise_and_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_bitwise_and_immediate/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_integer_bitwise_and_immediate/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/immediate/integer_bitwise_and.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate/integer_bitwise_and.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/tests/integer_bitwise_and_immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_and.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_and_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_and_immediate/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_and_immediate/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_and_immediate/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_integer_bitwise_and_immediate/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/bitwise/bitwise_and_immediate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/bitwise/bitwise_and_immediate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "constant Boolean-not immediate translation",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_boolean_not_immediate/mod.rs",

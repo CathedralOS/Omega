@@ -1,8 +1,10 @@
 //! Parameterless scalar-immediate receipts.
 
+mod integer_bitwise_and;
 mod integer_less_or_equal;
 mod integer_less_than;
 
+pub use integer_bitwise_and::StraightLineIntegerBitwiseAndImmediateTranslationReceipt;
 pub use integer_less_or_equal::StraightLineIntegerLessOrEqualImmediateTranslationReceipt;
 pub use integer_less_than::StraightLineIntegerLessThanImmediateTranslationReceipt;
 

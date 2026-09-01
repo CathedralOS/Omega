@@ -10,6 +10,7 @@ pub use family::AbstractToTargetTranslationFamilyError;
 pub use immediate::{
     StraightLineBooleanEqualImmediateTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
+    StraightLineIntegerBitwiseAndImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerLessThanImmediateTranslationError,
