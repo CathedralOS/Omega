@@ -227,10 +227,30 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/entry_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/direct_exact_binary.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/widened_exact_binary.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/exact_add.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/active_resident_exact_add_chain.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/active_resident_exact_add_bridge_chain.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/return_projection.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/operation_projection.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/leaves/fuel.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "legalization replay leaves",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/recipe.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/exact_arithmetic.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/bridge_chain.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/leaf/fuel.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "assignment and legalization tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/active_resident_bridge_chain.rs",
         ],
     },
 ];

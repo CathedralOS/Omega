@@ -1,6 +1,9 @@
 use omega_regalloc::{BlockLiveness, InstructionLiveness};
 
-use super::{TerminalPairMatchError, TerminalPairPattern, model::ResolvedNamedUnitSet, registers};
+use super::{
+    MatchedPhysicalRead, TerminalPairMatchError, TerminalPairPattern, model::ResolvedNamedUnitSet,
+    registers, relations,
+};
 
 pub(super) fn match_boundary(
     pattern: &TerminalPairPattern,
@@ -8,6 +11,8 @@ pub(super) fn match_boundary(
     second: &InstructionLiveness,
     block: &BlockLiveness,
     named: &[ResolvedNamedUnitSet],
+    first_operands: &[MatchedPhysicalRead],
+    second_operands: &[MatchedPhysicalRead],
 ) -> Result<bool, TerminalPairMatchError> {
     let live_through = registers::units_for(pattern.live_through(), named);
     if first.unit_live_out != second.unit_live_in
@@ -16,6 +21,18 @@ pub(super) fn match_boundary(
             .all(|unit| first.unit_live_out.contains(unit) && second.unit_uses.contains(unit))
     {
         return Err(TerminalPairMatchError::Liveness(second.instruction));
+    }
+    for coordinate in pattern.live_through_operands() {
+        let Some(operand) = relations::operand(*coordinate, first_operands, second_operands) else {
+            return Err(TerminalPairMatchError::Liveness(second.instruction));
+        };
+        if !operand.storage_units.iter().all(|unit| {
+            first.unit_live_out.contains(unit)
+                && second.unit_live_in.contains(unit)
+                && second.unit_uses.contains(unit)
+        }) {
+            return Err(TerminalPairMatchError::Liveness(second.instruction));
+        }
     }
     let dead_after = registers::units_for(pattern.dead_after(), named);
     Ok(second

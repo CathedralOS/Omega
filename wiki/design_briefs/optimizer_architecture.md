@@ -203,6 +203,15 @@ keyed replay remain separate. This closes the namespace prerequisite without
 claiming a real selected `VirtualRegisterId`, instruction, recursive spill
 worklist, or any later physical authority.
 
+The public prerequisite for exercising a later recovery epoch begins one
+stage earlier. Mandatory legalization has a distinct versioned recipe for
+`r + (b + (r + (a + b)))`; production and independent replay retain the same
+pressure-bearing graph on x86-64 and AArch64 while appending new identity tags
+without renumbering existing V10 forms. This grants legalization custody only.
+Until selected construction and independent selection validation admit the
+shape, it is not evidence of allocator pressure, reload allocation, or
+recursive spill recovery.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and
@@ -327,6 +336,13 @@ src/
 
 The physical pipeline mirrors compiler custody, not individual optimization
 names. Rule-specific mechanics must not leak upward into complete-route files.
+
+The first dormant core-only consumer below that taxonomy is AArch64
+same-view-copy elision. Its sub-40-line entrance joins a declarative
+`CopyI64; ReturnI64` proposal to independent replay; named codec, computation,
+identity, model, pattern, validation, and test rungs sit immediately below it.
+No catalog row or compiler route references the rule, so exporting the typed
+core operation does not silently enable it for a build or another consumer.
 
 ## Deeper briefs
 

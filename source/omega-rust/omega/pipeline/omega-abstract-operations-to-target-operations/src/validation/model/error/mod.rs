@@ -45,6 +45,7 @@ pub use parameter::{
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 pub use terminal::{
-    StraightLineScalarCrashTranslationError, StraightLineUnitReturnTranslationError,
+    StraightLinePortWriteUnitReturnTranslationError, StraightLineScalarCrashTranslationError,
+    StraightLineUnitReturnTranslationError,
 };
 pub use validation::AbstractToTargetTranslationValidationError;

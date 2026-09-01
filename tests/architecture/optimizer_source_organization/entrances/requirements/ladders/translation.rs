@@ -26,10 +26,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
-        family: "straight-line Unit-return translation validation",
+        family: "straight-line Unit translation validation",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/terminal.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_unit_return.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_port_write_unit_return.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/error/terminal.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/terminal.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_return/mod.rs",
@@ -37,6 +38,14 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_return/positive.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_return/source_corruption.rs",
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_unit_return/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_port_write_unit_return/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_port_write_unit_return/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_port_write_unit_return/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_port_write_unit_return/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_port_write_unit_return/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/structural_units.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/unit.rs",
         ],
     },
     SemanticLadder {

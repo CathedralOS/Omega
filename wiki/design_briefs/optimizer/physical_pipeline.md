@@ -15,8 +15,9 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-six families reconstruct parameterless straight-line
-Unit return, integer and Boolean literal returns, scalar `Crash`, direct integer
+replay. Its first thirty-seven families reconstruct parameterless straight-line
+Unit return, one exact PortWrite followed by Unit return, integer and Boolean
+literal returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
 ordering of two same-type integer parameters, plus integer bitwise-not and
@@ -40,6 +41,12 @@ roster. Whole-plan admission separately binds every Unit body's canonical
 structural-type roster to the source plan so a function-local family validator
 cannot silently accept reordered, substituted, missing, or injected global
 declarations.
+The adjacent PortWrite leaf requires the exact parameterless, claim-free,
+single-block `PortWrite; ReturnUnit` shape and a singleton published-service
+ceiling. Independent replay retains the operation, service, port, byte,
+provenance, empty native call plan, return edge, and cleanup roster on every
+native target; optimized custody consumes the typed family receipt rather than
+reclassifying the target body.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -243,7 +250,7 @@ those joins. The crate-level `lib.rs` is only the responsibility map between
 the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for all twelve current forms: seven scalar, one plain Unit, and four
+inventory for all thirteen current forms: eight scalar, one plain Unit, and four
 structural Unit. Each row names its typed recipe, producer matcher kind, exact
 source-shape constraints, non-authoritative structural cost, and independent
 validator kind. `source/matchers/` walks that catalog to recognize a form;
@@ -253,11 +260,16 @@ closed. The Unit recipe families are retained in the V10 legalized-plan
 identity. Structural selected-form validation separately reconstructs ABI
 layout and call constraints without importing selection construction helpers.
 
-Scalar source-leaf construction enters through a 99-line `derive_leaf`
+Scalar source-leaf construction enters through a sub-100-line `derive_leaf`
 coordinator. It admits the common node and return envelope, visibly routes
 immediate, entry-parameter, direct exact-binary, widened exact-binary, and
-active-resident exact-add-chain forms, and then seals shared return and fuel
-custody. Focused leaves below it retain the existing catalog-family order,
+active-resident exact-add forms, and then seals shared return and fuel custody.
+The exact-add rung orders the existing resident chain before direct binary
+fallback and now admits one distinct bridge chain,
+`r + (b + (r + (a + b)))`, whose independent replay keeps `b` live across the
+first resident use. This recipe is a legalization-only prerequisite: no
+selected-instruction or allocator-pressure authority follows until a separate
+public selection family exists. Focused leaves below it retain the existing catalog-family order,
 diagnostic precedence, operation roster, proof identity, and provenance order;
 they do not merge producer mechanics with `replay/validators/`.
 
@@ -404,6 +416,16 @@ partitioned into instruction, register, and liveness leaves under one small
 coordination entrance. The rule's independent validator deliberately retains
 its separate replay logic. Other materialization rules remain rule-local
 selection until a genuinely shared pattern vocabulary is demonstrated.
+
+The shared matcher now has a second, still-bounded descriptor consumer. The
+core-only AArch64 same-view-copy owner matches an exact terminal
+`CopyI64; ReturnI64` pair, including cross-instruction virtual-register and
+physical-view/storage relations, then joins its proposal to an independently
+replayed symbolic disposition and canonical codec. It is deliberately absent
+from the machine catalog and complete compiler route: the artifact grants no
+encoding, layout, realization, build-selection, or publication authority.
+Consequently this proves relation vocabulary and one exact copy-elision case,
+not arbitrary peephole topology or general copy removal.
 
 The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
 binds the complete native target and model version into a stable identity, and

@@ -223,12 +223,16 @@ execution rung switches on its closed rule kind and contains no exact
 
 The machine peephole rung is itself navigable: `peephole_matching/mod.rs`
 coordinates one immutable terminal-pair input through `instruction.rs`,
-`registers.rs`, and `liveness.rs`, with vocabulary in `model.rs`. Exact pattern
-data stays with its rule, currently
-`aarch64/compare_zero_branch_nonzero/pattern.rs`. The shared rung owns neither
-enablement nor rewriting, and validators do not import it. This keeps the path
-catalog row -> exact rule entrance -> exact pattern -> named matcher mechanics
-visible without creating a proxy rule schedule.
+`registers.rs`, `relations.rs`, and `liveness.rs`, with vocabulary in
+`model.rs`. Exact pattern data stays with each rule, currently the cataloged
+`aarch64/compare_zero_branch_nonzero/pattern.rs` and the core-only
+`aarch64/elide_same_view_copy_before_return/pattern.rs`. The latter rule's tiny
+entrance visibly joins proposal to independent replay, while its `validate/`
+group reconstructs footprints and roots without importing the matcher. The
+shared rung owns neither enablement nor rewriting, and validators do not
+import it. This keeps the path from exact rule entrance to pattern, named
+matcher mechanics, and independent replay visible without creating a proxy
+rule schedule. Only a catalog row may grant compiler enablement.
 
 Descriptive machine costs are a sibling rung, not a rule catalog.
 `omega-machine-optimizer/src/costs/mod.rs` selects the current model and binds

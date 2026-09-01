@@ -1,9 +1,11 @@
-//! Optimizer module role: executable entrance. Reconstructs one scalar leaf through the exact seven-form catalog, then seals its return envelope.
+//! Optimizer module role: executable entrance. Reconstructs one scalar leaf through the exact eight-form catalog, then seals its return envelope.
 
+mod active_resident_exact_add_bridge_chain;
 mod active_resident_exact_add_chain;
 mod context;
 mod direct_exact_binary;
 mod entry_parameter;
+mod exact_add;
 mod fuel;
 mod immediate;
 mod operation_projection;
@@ -13,7 +15,9 @@ mod widened_exact_binary;
 use super::shared::*;
 use context::{DerivedValue, LeafContext};
 
-pub(super) use active_resident_exact_add_chain::is_active_resident_exact_add_chain;
+pub(super) use exact_add::{
+    is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
+};
 pub(super) use fuel::exact_edge_fuel;
 pub(super) use operation_projection::source_operations;
 
@@ -82,13 +86,8 @@ pub(super) fn derive_leaf(
             )?,
             _ => return Err(Error::UnsupportedSourceShape { function }),
         },
-        expression @ TargetIntegerExpression::ExactAdd { .. }
-            if !is_active_resident_exact_add_chain(expression) =>
-        {
-            direct_exact_binary::derive_add(&context, expression)?
-        }
-        expression if is_active_resident_exact_add_chain(expression) => {
-            active_resident_exact_add_chain::derive(&context, expression)?
+        expression @ TargetIntegerExpression::ExactAdd { .. } => {
+            exact_add::derive(&context, expression)?
         }
         expression @ TargetIntegerExpression::ExactSubtract { .. } => {
             direct_exact_binary::derive_subtract(&context, expression)?

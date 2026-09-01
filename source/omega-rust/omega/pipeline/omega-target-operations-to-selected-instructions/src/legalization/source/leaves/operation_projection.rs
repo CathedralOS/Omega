@@ -64,5 +64,14 @@ pub(in crate::legalization::source) fn source_operations(
             chain.middle.operation,
             chain.result.operation,
         ],
+        SourceLeafValue::ActiveResidentExactAddBridgeChain(chain) => vec![
+            chain.resident.constant_operation,
+            chain.left.constant_operation,
+            chain.right.constant_operation,
+            chain.inner.operation,
+            chain.middle.operation,
+            chain.bridge.operation,
+            chain.result.operation,
+        ],
     }
 }

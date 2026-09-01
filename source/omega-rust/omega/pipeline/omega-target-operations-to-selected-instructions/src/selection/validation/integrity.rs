@@ -350,6 +350,22 @@ pub(super) fn validate_provenance_partition(
                     });
                 }
             }
+            SourceLeafValue::ActiveResidentExactAddBridgeChain(chain) => {
+                if block.instructions.len() != 7
+                    || block.instructions[0].provenance.fuel != chain.resident.fuel
+                    || block.instructions[1].provenance.fuel != chain.left.fuel
+                    || block.instructions[2].provenance.fuel != chain.right.fuel
+                    || block.instructions[3].provenance.fuel != chain.inner.fuel
+                    || block.instructions[4].provenance.fuel != chain.middle.fuel
+                    || block.instructions[5].provenance.fuel != chain.bridge.fuel
+                    || block.instructions[6].provenance.fuel != chain.result.fuel
+                    || instruction.provenance.fuel != leaf.return_fuel
+                {
+                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                        function: function_index,
+                    });
+                }
+            }
         }
     }
     Ok(())

@@ -50,5 +50,6 @@ pub use roster::{
     AbstractToTargetTranslationValidationReceipt,
 };
 pub use terminal::{
-    StraightLineScalarCrashTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
+    StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
+    StraightLineUnitReturnTranslationReceipt,
 };

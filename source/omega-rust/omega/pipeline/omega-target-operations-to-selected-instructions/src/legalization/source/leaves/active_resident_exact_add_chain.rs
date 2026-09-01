@@ -157,7 +157,7 @@ pub(in crate::legalization::source) fn is_active_resident_exact_add_chain(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn derive_exact_add(
+pub(super) fn derive_exact_add(
     context: &LeafContext<'_>,
     node: &omega_optimization_unit::OptimizationNode,
     operation: OperationId,

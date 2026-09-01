@@ -54,6 +54,9 @@ pub enum LegalizationRecipe {
     /// The true leaf materializes `r`, `a`, and `b`, then computes the exact
     /// chain `(r + (r + (a + b)))`; the false leaf returns one immediate.
     ReturnU64ActiveResidentExactAddChainConditionalV1,
+    /// The true leaf keeps `b` live across the first resident use:
+    /// `r + (b + (r + (a + b)))`; the false leaf returns one immediate.
+    ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
 }
 
 /// Closed identity legalization admitted for a value-less Unit function.

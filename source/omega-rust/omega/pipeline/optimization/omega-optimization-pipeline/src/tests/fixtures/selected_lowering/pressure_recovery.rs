@@ -3,14 +3,6 @@
 use super::baseline::request;
 use crate::stage_optimized_active_resident_rematerialization_function_relative_realization;
 use crate::tests::{
-    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
-    selected_lowering_budget, stage_allocation_recovery_function_relative_realization,
-    stage_optimized_active_resident_rematerialization,
-    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
-    stage_optimized_active_resident_rematerialization_selected_form_encoding,
-    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
-    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
     AdmissionProfile, Block, BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
     MachineContract, MachineId, NativeTarget, ObligationId, Operation, OperationId, OperationKind,
     OperationResult, Optimization, OptimizationSelections, PressureRematerializationPolicy,
@@ -22,12 +14,28 @@ use crate::tests::{
     StagedOptimizedAllocationLegality, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedSelectedInstructions, SuccessorEdge, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration, ValueId, VocabularyMarker,
+    lower_optimized_to_target_operations, operation_proof_bundle, optimize_artifact_sections,
+    selected_lowering_budget, stage_allocation_recovery_function_relative_realization,
+    stage_optimized_active_resident_rematerialization,
+    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
+    stage_optimized_active_resident_rematerialization_selected_form_encoding,
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
+    stage_optimized_instruction_selection, stage_optimized_live_ranges, stage_optimized_liveness,
+    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
 };
 
 pub(crate) fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) {
     conditional_active_resident_exact_add_chain_artifact_with_literals(
         IntegerValue::Unsigned(3),
         IntegerValue::Unsigned(11),
+    )
+}
+
+pub(crate) fn conditional_active_resident_exact_add_bridge_chain_artifact() -> (Vec<u8>, Vec<u8>) {
+    conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge(
+        IntegerValue::Unsigned(3),
+        IntegerValue::Unsigned(11),
+        true,
     )
 }
 
@@ -53,6 +61,18 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals(
     resident_literal: IntegerValue,
     false_literal: IntegerValue,
 ) -> (Vec<u8>, Vec<u8>) {
+    conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge(
+        resident_literal,
+        false_literal,
+        false,
+    )
+}
+
+fn conditional_active_resident_exact_add_chain_artifact_with_literals_and_bridge(
+    resident_literal: IntegerValue,
+    false_literal: IntegerValue,
+    retain_right_across_first_resident_use: bool,
+) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(5_201).unwrap();
     let entry = BlockId::new(5_202).unwrap();
     let when_true = BlockId::new(5_203).unwrap();
@@ -66,6 +86,7 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals(
     let result_value = ValueId::new(5_211).unwrap();
     let false_value = ValueId::new(5_212).unwrap();
     let machine_result = ValueId::new(5_213).unwrap();
+    let bridge = ValueId::new(5_214).unwrap();
     let resident_operation = OperationId::new(5_221).unwrap();
     let left_operation = OperationId::new(5_222).unwrap();
     let right_operation = OperationId::new(5_223).unwrap();
@@ -73,9 +94,11 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals(
     let middle_operation = OperationId::new(5_225).unwrap();
     let result_operation = OperationId::new(5_226).unwrap();
     let false_operation = OperationId::new(5_227).unwrap();
+    let bridge_operation = OperationId::new(5_228).unwrap();
     let inner_obligation = ObligationId::new(5_231).unwrap();
     let middle_obligation = ObligationId::new(5_232).unwrap();
     let result_obligation = ObligationId::new(5_233).unwrap();
+    let bridge_obligation = ObligationId::new(5_234).unwrap();
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
     let operation = |id, result, kind| Operation {
@@ -143,56 +166,73 @@ fn conditional_active_resident_exact_add_chain_artifact_with_literals(
                 Block {
                     id: when_true,
                     parameters: Vec::new(),
-                    operations: vec![
-                        operation(
-                            resident_operation,
-                            resident,
-                            OperationKind::IntegerConstant {
-                                value: resident_literal,
-                            },
-                        ),
-                        operation(
-                            left_operation,
-                            left,
-                            OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(5),
-                            },
-                        ),
-                        operation(
-                            right_operation,
-                            right,
-                            OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(7),
-                            },
-                        ),
-                        operation(
-                            inner_operation,
-                            inner,
-                            OperationKind::ExactIntegerAdd {
+                    operations: {
+                        let mut operations = vec![
+                            operation(
+                                resident_operation,
+                                resident,
+                                OperationKind::IntegerConstant {
+                                    value: resident_literal,
+                                },
+                            ),
+                            operation(
+                                left_operation,
                                 left,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(5),
+                                },
+                            ),
+                            operation(
+                                right_operation,
                                 right,
-                                obligation: inner_obligation,
-                            },
-                        ),
-                        operation(
-                            middle_operation,
-                            middle,
-                            OperationKind::ExactIntegerAdd {
-                                left: resident,
-                                right: inner,
-                                obligation: middle_obligation,
-                            },
-                        ),
-                        operation(
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(7),
+                                },
+                            ),
+                            operation(
+                                inner_operation,
+                                inner,
+                                OperationKind::ExactIntegerAdd {
+                                    left,
+                                    right,
+                                    obligation: inner_obligation,
+                                },
+                            ),
+                            operation(
+                                middle_operation,
+                                middle,
+                                OperationKind::ExactIntegerAdd {
+                                    left: resident,
+                                    right: inner,
+                                    obligation: middle_obligation,
+                                },
+                            ),
+                        ];
+                        let result_right = if retain_right_across_first_resident_use {
+                            operations.push(operation(
+                                bridge_operation,
+                                bridge,
+                                OperationKind::ExactIntegerAdd {
+                                    left: right,
+                                    right: middle,
+                                    obligation: bridge_obligation,
+                                },
+                            ));
+                            bridge
+                        } else {
+                            middle
+                        };
+                        operations.push(operation(
                             result_operation,
                             result_value,
                             OperationKind::ExactIntegerAdd {
                                 left: resident,
-                                right: middle,
+                                right: result_right,
                                 obligation: result_obligation,
                             },
-                        ),
-                    ],
+                        ));
+                        operations
+                    },
                     terminator: Terminator::Return {
                         edge: EdgeId::new(5_243).unwrap(),
                         value: result_value,

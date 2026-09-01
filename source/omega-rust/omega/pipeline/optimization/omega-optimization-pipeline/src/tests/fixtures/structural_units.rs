@@ -70,6 +70,29 @@ pub(crate) fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     )
 }
 
+pub(crate) fn port_write_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let service = psi_core::ServiceId::new(3_505).unwrap();
+    module.services.push(psi_terminal::ServiceDeclaration {
+        id: service,
+        identity: "test::DebugPort".to_owned(),
+        parents: Vec::new(),
+    });
+    module.root_service_reach.concrete.push(service);
+    module.machines[0].published_service_ceiling.push(service);
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(3_506).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::PortWrite {
+            service,
+            port: 0x03f8,
+            value: 0x41,
+        },
+    });
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn staged_unit_return(
     target: NativeTarget,
 ) -> (Vec<u8>, Vec<u8>, StagedOptimizedSelectedInstructions) {
