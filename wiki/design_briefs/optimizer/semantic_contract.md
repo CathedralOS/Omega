@@ -53,6 +53,20 @@ The optimizer may consume these facts only by recording their identities in
 the candidate and validation receipt. It must not erase them before the last
 dependent transformation or diagnostic boundary.
 
+Structural qualification rosters are non-recomputable authority. The current
+Terminal roster qualifies a whole parameter or operation result; it cannot be
+reinterpreted as qualifying a projected field whose carrier happens to be
+reachable beneath that root. Partial-path support must first add an exact,
+canonical path-indexed roster and retain it through Terminal verification,
+optimizer identity, independent replay, and publication custody. Until that
+carrier exists at a stage, the stage rejects rather than inferring the field
+qualification from root shape or carrier equality.
+
+At control-flow joins, an output may retain only qualifications carried by
+every incoming occurrence through valid establishment lineage. CSE and GVN
+must distinguish unequal rosters unless a named transformation deliberately
+forms their common intersection and independently revalidates every use.
+
 ## Effects and control flow
 
 Purity is a closed classification reconstructed from operation semantics.

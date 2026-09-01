@@ -51,5 +51,5 @@ pub use roster::{
 };
 pub use terminal::{
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
-    StraightLineUnitReturnTranslationReceipt,
+    StraightLineUnitCallReturnTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
 };

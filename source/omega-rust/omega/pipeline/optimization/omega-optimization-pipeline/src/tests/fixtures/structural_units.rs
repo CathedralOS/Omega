@@ -93,6 +93,34 @@ pub(crate) fn port_write_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
     (psi_terminal_codec::encode_module(&module).unwrap(), proof)
 }
 
+pub(crate) fn unit_call_return_artifact() -> (Vec<u8>, Vec<u8>) {
+    let (semantic, proof) = unit_return_artifact();
+    let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+    let callee = MachineId::new(3_507).unwrap();
+    let mut callee_machine = module.machines[0].clone();
+    callee_machine.id = callee;
+    callee_machine.entry = BlockId::new(3_508).unwrap();
+    callee_machine.blocks[0].id = callee_machine.entry;
+    let Terminator::ReturnUnit { edge, .. } = &mut callee_machine.blocks[0].terminator else {
+        unreachable!()
+    };
+    *edge = EdgeId::new(3_509).unwrap();
+    callee_machine.contract.id = ContractId::new(3_510).unwrap();
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(3_511).unwrap(),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            callee,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
+    module.machines.push(callee_machine);
+    (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+}
+
 pub(crate) fn staged_unit_return(
     target: NativeTarget,
 ) -> (Vec<u8>, Vec<u8>, StagedOptimizedSelectedInstructions) {

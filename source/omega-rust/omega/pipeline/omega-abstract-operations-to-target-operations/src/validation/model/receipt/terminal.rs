@@ -1,7 +1,7 @@
 //! Terminal Unit-return and scalar-Crash receipts.
 
-use psi_core::{ClaimId, EdgeId, MachineId, OperationId, ScalarType, ServiceId};
-use psi_terminal::{CrashCause, CrashPredicateTerm};
+use psi_core::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ScalarType, ServiceId};
+use psi_terminal::{CrashCause, CrashPredicateTerm, CrashRouteBucket};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StraightLineUnitReturnTranslationReceipt {
@@ -73,6 +73,60 @@ impl StraightLinePortWriteUnitReturnTranslationReceipt {
 
     pub const fn value(&self) -> u8 {
         self.value
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StraightLineUnitCallReturnTranslationReceipt {
+    machine: MachineId,
+    call_operation: OperationId,
+    callee: MachineId,
+    requirement_obligations: Vec<ObligationId>,
+    crash_continuations: Vec<CrashRouteBucket>,
+    return_edge: EdgeId,
+}
+
+impl StraightLineUnitCallReturnTranslationReceipt {
+    pub(in crate::validation) fn new(
+        machine: MachineId,
+        call_operation: OperationId,
+        callee: MachineId,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            call_operation,
+            callee,
+            requirement_obligations,
+            crash_continuations,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn call_operation(&self) -> OperationId {
+        self.call_operation
+    }
+
+    pub const fn callee(&self) -> MachineId {
+        self.callee
+    }
+
+    pub fn requirement_obligations(&self) -> &[ObligationId] {
+        &self.requirement_obligations
+    }
+
+    pub fn crash_continuations(&self) -> &[CrashRouteBucket] {
+        &self.crash_continuations
     }
 
     pub const fn return_edge(&self) -> EdgeId {

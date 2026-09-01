@@ -21,6 +21,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLinePortWriteUnitReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn
             }
+            Self::StraightLineUnitCallReturn(_) => {
+                AbstractToTargetTranslationFamily::StraightLineUnitCallReturn
+            }
             Self::StraightLineScalarCrash(_) => {
                 AbstractToTargetTranslationFamily::StraightLineScalarCrash
             }

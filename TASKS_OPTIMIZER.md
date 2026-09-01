@@ -465,16 +465,20 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-seven abstract-to-target families are covered,
+  machine-rule family. Thirty-eight abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
   structural-type roster custody. The adjacent PortWrite-plus-Unit-return
   family independently retains the exact singleton service ceiling, operation,
   service, port, byte, target provenance, empty native call plan, return edge,
-  and cleanup roster across all five native targets. Coverage also includes
-  proof-bearing exact parameterized fixed-integer addition, subtraction,
-  multiplication, division, and remainder, proof-bearing wrapping and
+  and cleanup roster across all five native targets. The exact Unit-call family
+  independently reconstructs a separate parameterless Unit-return callee and
+  retains the caller's `CallUnit; ReturnUnit` roster, callee, arbitrary exact
+  requirement/crash rows, empty structural/claim/native-call-plan surfaces,
+  provenance, cleanup, and return edge across the same targets. Coverage also
+  includes proof-bearing exact parameterized fixed-integer addition,
+  subtraction, multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
   addition, subtraction, and multiplication, independently typed wrapping
   shifts and proof-bearing exact shifts, selected incoming u12 folds,
@@ -528,9 +532,16 @@ decision. Only true language-semantic questions belong in
   roster, and rejects a same-carrier foreign domain. Current-ownership replay
   separately proves that whole-root shared or mutable borrows do not consume a
   linear carrier while owned arguments still do, and rejects stale or
-  partially moved borrows. Partial-path qualification carriers plus explicit
-  join-intersection/CSE behavior remain engineering work, not open language
-  semantics.
+  partially moved borrows. The audited next prerequisite is an explicit,
+  canonical path-indexed qualification roster: current Terminal parameter and
+  operation-result rosters describe only a whole root, while a boundary domain
+  on a projected field must match that field's carrier. Relaxing only optimizer
+  validation would therefore mint authority. The first honest bounded slice is
+  parameter-rooted path custody through Terminal format/verifier, optimizer
+  identity and independent replay, and the prephysical manifest, followed by
+  an explicit target-lowering rejection until downstream carriers support it.
+  Structural-result path rosters and explicit join-intersection/CSE behavior
+  remain later engineering work, not open language semantics.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
   versioned structural selected subtree; public encoding now emits v6 with
   exact structural-call requirement and crash-continuation rows. Decoding
@@ -697,16 +708,21 @@ decision. Only true language-semantic questions belong in
   deterministic x86-64/AArch64, cross-target corruption, exact-budget, and
   empty-pressure coverage. It still creates no real `VirtualRegisterId` or
   instruction and grants no downstream authority. Recursive recovery still
-  needs a bounded epoch/worklist artifact. The first half of its honest fixture
-  prerequisite is now public and independently replayed: mandatory
-  legalization admits the versioned exact graph
+  needs a bounded epoch/worklist artifact. Its honest fixture prerequisite is
+  now public and independently replayed. Mandatory legalization admits the
+  versioned exact graph
   `r + (b + (r + (a + b)))`, retaining `b` across the first use of `r`, on
   x86-64 and AArch64. It appends a distinct recipe/carrier identity without
-  changing the existing V10 recipe tags, and intentionally stops before
-  selection. Remaining work is a selected-program plus allocator-availability
-  fixture that carries this shape through every public validator and actually
-  reaches reload or secondary pressure; an internal test that constructs
-  `Validated*` receipts directly is not accepted as evidence for that branch.
+  changing the existing V10 recipe tags. A distinct eighth scalar-selection
+  family now constructs and independently replays the exact nine-register,
+  twelve-instruction selected shape. With only two admitted physical views,
+  the public liveness, ranges, availability, legality, spill choice, logical
+  spill, slot-coloring, abstract-insertion, and reload-home chain reaches the
+  exact typed `ReloadPressure { function: 0, result: 0 }` branch on x86-64 and
+  AArch64. The fixture retains the pressure point, incoming/victim values,
+  store, reload, and complete rewrite suffix; it fabricates no `Validated*`
+  receipt and publishes no epoch-one seed. Remaining work begins at that
+  reachable failure with the bounded recursive epoch/worklist artifact.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

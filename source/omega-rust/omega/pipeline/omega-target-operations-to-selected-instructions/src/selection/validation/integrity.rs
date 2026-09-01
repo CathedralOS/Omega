@@ -13,6 +13,10 @@ pub(super) fn validate_dense(
                 SourceLeafValue::ActiveResidentExactAddChain(..),
                 SourceLeafValue::Immediate { .. },
             ) => (8, 11),
+            (
+                SourceLeafValue::ActiveResidentExactAddBridgeChain(..),
+                SourceLeafValue::Immediate { .. },
+            ) => (9, 12),
             (SourceLeafValue::EntryParameter { .. }, SourceLeafValue::EntryParameter { .. }) => {
                 (2, 4)
             }

@@ -46,6 +46,6 @@ pub use parameter::{
 };
 pub use terminal::{
     StraightLinePortWriteUnitReturnTranslationError, StraightLineScalarCrashTranslationError,
-    StraightLineUnitReturnTranslationError,
+    StraightLineUnitCallReturnTranslationError, StraightLineUnitReturnTranslationError,
 };
 pub use validation::AbstractToTargetTranslationValidationError;

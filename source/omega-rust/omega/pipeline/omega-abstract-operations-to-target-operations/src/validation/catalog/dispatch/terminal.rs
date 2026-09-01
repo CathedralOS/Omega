@@ -4,7 +4,8 @@ use omega_target_operations::TargetFunction;
 
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
-    straight_line_port_write_unit_return, straight_line_scalar_crash, straight_line_unit_return,
+    straight_line_port_write_unit_return, straight_line_scalar_crash,
+    straight_line_unit_call_return, straight_line_unit_return,
 };
 use super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -21,6 +22,13 @@ pub(in crate::validation::catalog) const PORT_WRITE_UNIT_RETURN: TranslationFami
         AbstractToTargetTranslationFamily::StraightLinePortWriteUnitReturn,
         straight_line_port_write_unit_return::is_candidate,
         straight_line_port_write_unit_return,
+    );
+
+pub(in crate::validation::catalog) const UNIT_CALL_RETURN: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineUnitCallReturn,
+        straight_line_unit_call_return::is_candidate,
+        straight_line_unit_call_return,
     );
 
 pub(in crate::validation::catalog) const SCALAR_CRASH: TranslationFamilyDescriptor =
@@ -58,4 +66,14 @@ pub(super) fn straight_line_port_write_unit_return(
     straight_line_port_write_unit_return::validate(source, expected_target, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLinePortWriteUnitReturn)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLinePortWriteUnitReturn)
+}
+
+pub(super) fn straight_line_unit_call_return(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_unit_call_return::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineUnitCallReturn)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineUnitCallReturn)
 }

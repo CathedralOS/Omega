@@ -1,7 +1,8 @@
 use crate::selection::shared::*;
 
 use super::{
-    active_resident_exact_add_chain_return, exact_binary_return, immediate_return, parameter_return,
+    active_resident_exact_add_bridge_chain_return, active_resident_exact_add_chain_return,
+    exact_binary_return, immediate_return, parameter_return,
 };
 
 pub(super) fn validate(
@@ -26,6 +27,28 @@ pub(super) fn validate(
                 9,
                 10,
                 VirtualRegisterId(7),
+                &source.when_false,
+                keys,
+                catalog,
+            )
+        }
+        (
+            SourceLeafValue::ActiveResidentExactAddBridgeChain(..),
+            SourceLeafValue::Immediate { .. },
+        ) => {
+            active_resident_exact_add_bridge_chain_return::validate(
+                function_index,
+                &function.blocks[1],
+                &source.when_true,
+                keys,
+                catalog,
+            )?;
+            immediate_return::validate(
+                function_index,
+                &function.blocks[2],
+                10,
+                11,
+                VirtualRegisterId(8),
                 &source.when_false,
                 keys,
                 catalog,

@@ -3,7 +3,10 @@
 use crate::selection::shared::*;
 
 use super::model::{ConstructedScalarBody, ScalarConstructionContext};
-use super::{active_resident_exact_add_chain, exact_binary_pair, immediate_pair, parameter_pair};
+use super::{
+    active_resident_exact_add_bridge_chain, active_resident_exact_add_chain, exact_binary_pair,
+    immediate_pair, parameter_pair,
+};
 
 type CandidateClassifier = fn(&SourceFunction) -> bool;
 type FamilyBuilder = for<'a> fn(
@@ -52,6 +55,11 @@ const SCALAR_FAMILIES: &[ScalarFamilyDescriptor] = &[
         "active-resident-exact-add-chain",
         active_resident_exact_add_chain::is_candidate,
         active_resident_exact_add_chain::build,
+    ),
+    ScalarFamilyDescriptor::new(
+        "active-resident-exact-add-bridge-chain",
+        active_resident_exact_add_bridge_chain::is_candidate,
+        active_resident_exact_add_bridge_chain::build,
     ),
 ];
 

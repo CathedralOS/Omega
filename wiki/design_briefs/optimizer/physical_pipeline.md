@@ -15,8 +15,9 @@ sibling responsibilities rather than hidden branches in one lowering file.
 The adjacent sub-100-line translation-validation entrance is independent of
 those producer routes. It first binds Psi identity, requested target, entry,
 function count/order, machine, and attachment, then descends into exact family
-replay. Its first thirty-seven families reconstruct parameterless straight-line
-Unit return, one exact PortWrite followed by Unit return, integer and Boolean
+replay. Its first thirty-eight families reconstruct parameterless straight-line
+Unit return, one exact PortWrite followed by Unit return, one exact Unit call
+followed by Unit return, integer and Boolean
 literal returns, scalar `Crash`, direct integer
 and Boolean parameter returns, Boolean negation of a parameter, and equality of
 two Boolean parameters, equality of two same-type integer parameters, or strict/inclusive
@@ -47,6 +48,13 @@ ceiling. Independent replay retains the operation, service, port, byte,
 provenance, empty native call plan, return edge, and cleanup roster on every
 native target; optimized custody consumes the typed family receipt rather than
 reclassifying the target body.
+The Unit-call sibling admits a separate parameterless Unit-return callee and an
+exact claim-free, structurally parameterless `CallUnit; ReturnUnit` caller.
+Independent replay binds the callee, arbitrary exact requirement-obligation and
+crash-continuation rosters, empty structural arguments and claim transfers,
+empty native call plan, target provenance, cleanup, and return edge on every
+native target. Exact operation rosters keep it disjoint from return-only and
+PortWrite families.
 Parameter replay descends through explicit direct, unary, arithmetic, bitwise,
 and comparison rungs. The arithmetic model join owns only the common ordered
 operand/result carrier and sends obligation-retaining policies through its named
@@ -363,13 +371,17 @@ closed binding set. The synthetic identity is deliberately not a selected
 `VirtualRegisterId`. Bounded recursive epochs/worklists, spill pseudos, real
 instructions, memory effects, and all frame/publication work remain absent.
 
-The next recursive-recovery rung must begin from pressure produced by the same
-publicly validated selected-program, availability, legality, spill, insertion,
-and reload-home chain. Direct construction of compiler-private `Validated*`
-receipts cannot establish that the deferred branch is reachable and is not
-accepted as worklist evidence. Until an x86-64/AArch64 fixture reaches reload
-or secondary pressure through those entrances, pressure remains a typed
-terminal failure and no epoch-one seed is published.
+The bridge-chain recipe now has its own scalar-selection family and independent
+selected replay. Its selected shape contains nine virtual registers and twelve
+instructions. Under the public two-view availability policy, both x86-64 and
+AArch64 traverse liveness, ranges, legality, spill choice, logical spill, slot
+coloring, abstract insertion, and reload-home replay before reaching the exact
+typed `ReloadPressure { function: 0, result: 0 }` branch. The fixture binds the
+pressure point, incoming and victim values, store-before, reload-before, and
+complete rewrite suffix without directly constructing any compiler-private
+`Validated*` receipt. This establishes the deferred branch as reachable; it
+does not publish an epoch-one seed. The next recursive-recovery rung must begin
+at that failure with a bounded epoch/worklist artifact.
 
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints

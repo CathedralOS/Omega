@@ -203,14 +203,17 @@ keyed replay remain separate. This closes the namespace prerequisite without
 claiming a real selected `VirtualRegisterId`, instruction, recursive spill
 worklist, or any later physical authority.
 
-The public prerequisite for exercising a later recovery epoch begins one
-stage earlier. Mandatory legalization has a distinct versioned recipe for
+The public prerequisite for exercising a later recovery epoch begins with a
+distinct mandatory-legalization recipe for
 `r + (b + (r + (a + b)))`; production and independent replay retain the same
 pressure-bearing graph on x86-64 and AArch64 while appending new identity tags
-without renumbering existing V10 forms. This grants legalization custody only.
-Until selected construction and independent selection validation admit the
-shape, it is not evidence of allocator pressure, reload allocation, or
-recursive spill recovery.
+without renumbering existing V10 forms. A separate scalar-selection family and
+independent selected replay now retain its exact nine-register,
+twelve-instruction form. Restricting the public allocator to two views carries
+that same artifact through every validated allocation/spill entrance and
+terminates at the exact typed reload-pressure failure on both supported ISAs.
+This proves reachability of the recursive-recovery boundary, but grants no
+epoch-one, spill-pseudo, memory, frame, or publication authority.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
