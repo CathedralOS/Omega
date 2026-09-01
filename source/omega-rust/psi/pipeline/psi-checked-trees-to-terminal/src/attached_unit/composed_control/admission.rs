@@ -74,8 +74,8 @@ pub(super) fn admit_composed_unit_control<'a>(
 
 pub(crate) fn admit_direct_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
-    plan: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
-    continuation: &'a psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+    plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+    continuation: &'a psi_checked_trees::CheckedDynamicUnitContinuationPlan,
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
     let [when_true, when_false] = continuation.leaves.as_slice() else {
         return unsupported("direct dynamic continuation requires exactly two effect leaves");

@@ -311,6 +311,18 @@ pub(crate) fn build_checked_unit_effect_plans(
                     ]
                 }),
         )
+        .chain(
+            dynamic_dispatch
+                .rebound_scalar_calls
+                .iter()
+                .flat_map(|plan| {
+                    [
+                        plan.latest.caller_attachment_type_identity.as_str(),
+                        plan.initial.type_identity.as_str(),
+                        plan.latest.source_type_identity.as_str(),
+                    ]
+                }),
+        )
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained_type_identities);
 

@@ -12,20 +12,20 @@ use super::{
 };
 
 /// Checked dynamic-dispatch custody published by the Unit-effect planner.
-/// Direct devirtualization is only the first lane; rebound descriptor/table
-/// rows will extend this catalog without widening `CheckedUnitEffectPlans`
-/// again.
+/// Direct devirtualization and rebound descriptor/table calls remain distinct
+/// lanes without widening `CheckedUnitEffectPlans` again.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedDynamicDispatchPlans {
-    pub direct_scalar_calls: Vec<CheckedDirectDynamicScalarCallPlan>,
+    pub direct_scalar_calls: Vec<CheckedDynamicScalarCallPlan>,
+    pub rebound_scalar_calls: Vec<CheckedReboundDynamicScalarCallPlan>,
 }
 
-/// Checked custody for one direct scalar call through a local named dynamic
-/// value. Every identity required to select the concrete realization is
-/// retained here while typed expression handles are still available; Terminal
-/// lowering must consume this row rather than repeat conformance discovery.
+/// Shared checked custody for the selected call version of one local named
+/// dynamic scalar call. The containing direct or rebound catalog supplies its
+/// dispatch semantics; Terminal lowering must consume this row rather than
+/// repeat conformance discovery.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedDirectDynamicScalarCallPlan {
+pub struct CheckedDynamicScalarCallPlan {
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
     pub caller_attachment_type_identity: String,
@@ -74,13 +74,33 @@ pub struct CheckedDirectDynamicScalarCallPlan {
     /// Unit effect leaves. The dynamic call remains in this plan; this suffix
     /// begins at the authored guard and therefore cannot be lowered as an
     /// independent machine or silently discarded.
-    pub unit_continuation: Option<CheckedDirectDynamicUnitContinuationPlan>,
+    pub unit_continuation: Option<CheckedDynamicUnitContinuationPlan>,
 }
 
-/// One direct named-dynamic scalar result consumed by an immediate binary
-/// control split whose leaves each perform one checked Unit effect.
+/// Checked custody for one local named-dynamic scalar call after exactly one
+/// same-conformance reassignment. This is a separate lane from direct
+/// devirtualization: later Terminal lowering must consume both source versions
+/// as descriptor/table state.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedDirectDynamicUnitContinuationPlan {
+pub struct CheckedReboundDynamicScalarCallPlan {
+    pub initial: CheckedDynamicSelectionPlan,
+    pub latest: CheckedDynamicScalarCallPlan,
+}
+
+/// Source-normalized custody for one version of a local named-dynamic
+/// selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicSelectionPlan {
+    pub fact: DynamicConformanceBindingFact,
+    pub field: SymbolHandle,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub type_identity: String,
+}
+
+/// One named-dynamic scalar result consumed by an immediate binary control
+/// split whose leaves each perform one checked Unit effect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicUnitContinuationPlan {
     pub guard: CheckedScalarExpression,
     pub when_true: CheckedStructuralControlSuccessorPlan,
     pub when_false: CheckedStructuralControlSuccessorPlan,

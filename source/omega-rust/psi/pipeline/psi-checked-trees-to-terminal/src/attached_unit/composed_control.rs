@@ -14,8 +14,8 @@ pub(crate) use emission::emit_boundary_leaf as emit_direct_dynamic_boundary_leaf
 
 pub(crate) fn lower_direct_dynamic_control_catalogs(
     checked: &CheckedTrees,
-    plan: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
-    continuation: &psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+    plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+    continuation: &psi_checked_trees::CheckedDynamicUnitContinuationPlan,
 ) -> Result<ComposedCatalogs, LoweringError> {
     let boundaries = admission::admit_direct_dynamic_continuation(checked, plan, continuation)?;
     catalogs::lower_direct_dynamic_catalogs(checked, plan, continuation, &boundaries)

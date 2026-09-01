@@ -90,13 +90,60 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        console: Console;
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) reaches Console {
+        let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        let result: i32 = erased.measure();
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+"#;
+
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
 }
 
 fn direct_plan(
     checked: &psi_checked_trees::CheckedTrees,
-) -> &psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
+) -> &psi_checked_trees::CheckedDynamicScalarCallPlan {
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .rebound_scalar_calls
+            .is_empty(),
+        "direct dynamic call must not enter the rebound catalog"
+    );
     let plans = &checked
         .facts
         .flow
@@ -109,9 +156,39 @@ fn direct_plan(
     plan
 }
 
+#[test]
+fn rejects_rebound_dynamic_custody_at_the_unimplemented_terminal_lane() {
+    let mut checked = checked_source(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(catalog.direct_scalar_calls.is_empty());
+    let [plan] = catalog.rebound_scalar_calls.as_slice() else {
+        panic!("one rebound dynamic plan expected, got {catalog:#?}")
+    };
+    assert_eq!(plan.initial.fact.statement_index, 0);
+    assert_eq!(plan.latest.selection.statement_index, 1);
+    assert_eq!(plan.latest.coordinate.statement_index, 2);
+    assert_eq!(
+        unsupported_message(&checked),
+        "rebound dynamic descriptor/table custody is not yet lowered"
+    );
+
+    let duplicate = plan.clone();
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .rebound_scalar_calls
+        .push(duplicate);
+    assert_eq!(
+        unsupported_message(&checked),
+        "rebound dynamic dispatch plan is duplicated for one caller"
+    );
+}
+
 fn direct_plan_mut(
     checked: &mut psi_checked_trees::CheckedTrees,
-) -> &mut psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
+) -> &mut psi_checked_trees::CheckedDynamicScalarCallPlan {
     let plans = &mut checked
         .facts
         .flow

@@ -101,8 +101,8 @@ pub(super) fn lower_composed_catalogs(
 
 pub(crate) fn lower_direct_dynamic_catalogs(
     checked: &CheckedTrees,
-    plan: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
-    continuation: &psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+    plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
+    continuation: &psi_checked_trees::CheckedDynamicUnitContinuationPlan,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
 ) -> Result<ComposedCatalogs, LoweringError> {
     let contract_service_reach = checked

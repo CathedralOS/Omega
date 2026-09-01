@@ -66,6 +66,43 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Shape {
+        machine code(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Shape {
+        machine code(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        console: Console;
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) reaches Console {
+        let mut erased: &dyn Shape = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        let result: i32 = erased.code();
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+"#;
+
 fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -76,7 +113,7 @@ fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
 
 fn sole_direct_dynamic_plan(
     checked: &psi_checked_trees::CheckedTrees,
-) -> &psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
+) -> &psi_checked_trees::CheckedDynamicScalarCallPlan {
     let plans = &checked
         .facts
         .flow
@@ -85,6 +122,31 @@ fn sole_direct_dynamic_plan(
         .direct_scalar_calls;
     let [plan] = plans.as_slice() else {
         panic!("one direct dynamic scalar plan expected, got {plans:#?}")
+    };
+    plan
+}
+
+fn sole_rebound_dynamic_plan(
+    checked: &psi_checked_trees::CheckedTrees,
+) -> &psi_checked_trees::CheckedReboundDynamicScalarCallPlan {
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .direct_scalar_calls
+            .is_empty(),
+        "rebound dynamic call must not enter the direct catalog"
+    );
+    let plans = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .rebound_scalar_calls;
+    let [plan] = plans.as_slice() else {
+        panic!("one rebound dynamic scalar plan expected, got {plans:#?}")
     };
     plan
 }
@@ -175,15 +237,9 @@ fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver(
         .expect("latest preceding selection for dynamic call receiver");
     assert_eq!(selected, *reassignment);
 
-    let plans = &checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .dynamic_dispatch
-        .direct_scalar_calls;
-    let [plan] = plans.as_slice() else {
-        panic!("one direct dynamic scalar plan expected, got {plans:#?}")
-    };
+    let rebound = sole_rebound_dynamic_plan(&checked);
+    assert_eq!(rebound.initial.fact, **initializer);
+    let plan = &rebound.latest;
     assert!(plan.caller_structural_scalar_field_store.is_none());
     assert_eq!(plan.selection, **reassignment);
     assert_eq!(
@@ -401,6 +457,26 @@ fn direct_dynamic_plan_retains_result_control_and_effect_leaves() {
                 psi_checked_trees::CheckedBooleanExpression::IntegerComparison { .. }
             )
     ));
+}
+
+#[test]
+fn rebound_dynamic_plan_retains_both_exact_selection_versions() {
+    let checked = check_dynamic_source(REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let plan = sole_rebound_dynamic_plan(&checked);
+    let initial = &plan.initial;
+    let latest = &plan.latest;
+    assert_eq!(initial.fact.statement_index, 0);
+    assert_eq!(latest.selection.statement_index, 1);
+    assert_eq!(latest.coordinate.statement_index, 2);
+    assert_eq!(initial.fact.binding, latest.selection.binding);
+    assert_eq!(initial.fact.source_name.as_str(), "decoy");
+    assert_eq!(latest.selection.source_name.as_str(), "selected");
+    assert_eq!(initial.fact.source_data, latest.selection.source_data);
+    assert_eq!(initial.fact.target_trait, latest.selection.target_trait);
+    assert_eq!(initial.fact.conformance, latest.selection.conformance);
+    assert_eq!(initial.fact.rows, latest.selection.rows);
+    assert_eq!(initial.type_identity, latest.source_type_identity);
+    assert!(latest.unit_continuation.is_some());
 }
 
 #[test]
