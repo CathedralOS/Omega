@@ -3,6 +3,55 @@ use super::{
 };
 use psi_typed_trees::statement::StatementNode;
 
+const STRUCTURAL_INTEGER_STORE_SOURCE: &str = r#"
+    trait Shape {
+        machine code(&self) -> i32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    Primary: Item satisfies Shape {
+        machine code(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        self.item.value = 17;
+        let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+        let result: i32 = erased.code();
+    }
+"#;
+
+fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("check dynamic source")
+}
+
+fn sole_direct_dynamic_plan(
+    checked: &psi_checked_trees::CheckedTrees,
+) -> &psi_checked_trees::CheckedDirectDynamicScalarCallPlan {
+    let plans = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .direct_scalar_calls;
+    let [plan] = plans.as_slice() else {
+        panic!("one direct dynamic scalar plan expected, got {plans:#?}")
+    };
+    plan
+}
+
 #[test]
 fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver() {
     let source = r#"
@@ -98,6 +147,7 @@ fn dynamic_binding_facts_select_latest_preceding_reassignment_for_call_receiver(
     let [plan] = plans.as_slice() else {
         panic!("one direct dynamic scalar plan expected, got {plans:#?}")
     };
+    assert!(plan.caller_structural_scalar_field_store.is_none());
     assert_eq!(plan.selection, **reassignment);
     assert_eq!(
         plan.result_binding,
@@ -157,6 +207,7 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
     let [plan] = plans.as_slice() else {
         panic!("one direct dynamic scalar plan expected, got {plans:#?}")
     };
+    assert!(plan.caller_structural_scalar_field_store.is_none());
     assert_eq!(
         plan.selected_conformance,
         plan.selection.conformance.expect("selected conformance")
@@ -210,4 +261,202 @@ fn direct_dynamic_plan_retains_the_selected_realization_despite_an_ambient_looka
         .find(|machine| machine.name.as_str() == "Item::code")
         .expect("ambient Item::code lookalike");
     assert_ne!(ambient.symbol, plan.realization_machine);
+}
+
+#[test]
+fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores() {
+    let checked = check_dynamic_source(STRUCTURAL_INTEGER_STORE_SOURCE);
+    eprintln!("scalar expressions: {:#?}", checked.facts.values.scalar_expressions.expressions);
+    eprintln!("mutation: {:#?}", checked.facts.mutation);
+    let plan = sole_direct_dynamic_plan(&checked);
+    let caller_state = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .find(|state| state.symbol == plan.caller_state)
+        .expect("caller state");
+    let StatementNode::Assignment(assignment) = &checked
+        .typed
+        .statement_table
+        .statements(caller_state.statement_nodes)[0]
+    else {
+        panic!("assignment")
+    };
+    eprintln!(
+        "target type: {:#?}",
+        crate::flow::expression_type_reference_in_state(
+            &checked.typed,
+            caller_state.symbol,
+            0,
+            assignment.target,
+        )
+    );
+    eprintln!(
+        "target place: {:#?}",
+        crate::flow::canonical_place_from_expression_in_state(
+            &checked.typed,
+            caller_state.symbol,
+            0,
+            assignment.target,
+        )
+    );
+    eprintln!("parameters: {:#?}", checked.typed.state_parameters(caller_state));
+    let integer_store = plan
+        .caller_structural_scalar_field_store
+        .as_ref()
+        .expect("exact integer structural field store");
+    assert_eq!(integer_store.statement_index, 0);
+    assert_eq!(integer_store.destination_parameter_position, 0);
+    assert_eq!(integer_store.carrier_path, plan.source_path);
+    assert_eq!(integer_store.field_identity, "value");
+    assert_eq!(
+        integer_store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::I32
+    );
+    assert!(matches!(
+        &integer_store.value,
+        psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.value_i64() == Some(17)
+    ));
+
+    let checked = check_dynamic_source(
+        r#"
+        trait Switch {
+            machine enabled(&self) -> bool;
+        }
+
+        data Item {
+            enabled: bool;
+        }
+
+        Primary: Item satisfies Switch {
+            machine enabled(&self) -> bool {
+                transition { _ -> self.enabled }
+            }
+        }
+
+        data Main {
+            item: Item;
+        }
+
+        machine Main::run(&mut self) {
+            self.item.enabled = true;
+            let erased: &dyn Switch = &self.item as &dyn Item::Primary;
+            let result: bool = erased.enabled();
+        }
+        "#,
+    );
+    let plan = sole_direct_dynamic_plan(&checked);
+    let boolean_store = plan
+        .caller_structural_scalar_field_store
+        .as_ref()
+        .expect("exact Boolean structural field store");
+    assert_eq!(boolean_store.statement_index, 0);
+    assert_eq!(boolean_store.destination_parameter_position, 0);
+    assert_eq!(boolean_store.carrier_path, plan.source_path);
+    assert_eq!(boolean_store.field_identity, "enabled");
+    assert_eq!(
+        boolean_store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::Bool
+    );
+    assert!(matches!(
+        &boolean_store.value,
+        psi_checked_trees::CheckedScalarExpression::Boolean(expression)
+            if matches!(
+                expression.as_ref(),
+                psi_checked_trees::CheckedBooleanExpression::Constant(true)
+            )
+    ));
+}
+
+#[test]
+fn structural_field_store_planning_fails_closed_on_source_disagreement() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main {
+            selected: Item;
+            other: Item;
+        }
+
+        machine Main::run(&mut self) {
+            self.other.value = 17;
+            let erased: &dyn Shape = &self.selected as &dyn Item::Primary;
+            let result: i32 = erased.code();
+        }
+        "#,
+    );
+    assert!(
+        sole_direct_dynamic_plan(&checked)
+            .caller_structural_scalar_field_store
+            .is_none(),
+        "a store into a different carrier must not gain checked store custody"
+    );
+}
+
+#[test]
+fn structural_field_store_planning_rejects_tampered_checked_evidence() {
+    let mut mutation_tampered = check_dynamic_source(STRUCTURAL_INTEGER_STORE_SOURCE);
+    let caller_machine = sole_direct_dynamic_plan(&mutation_tampered).caller_machine;
+    let caller_state = sole_direct_dynamic_plan(&mutation_tampered).caller_state;
+    let mutation = mutation_tampered
+        .facts
+        .mutation
+        .machines
+        .iter_mut()
+        .find(|mutation| mutation.machine == caller_machine)
+        .expect("caller mutation fact");
+    let state_frame = mutation
+        .state_write_frames
+        .iter_mut()
+        .find(|frame| frame.state == caller_state)
+        .expect("caller state mutation frame");
+    state_frame.frame = psi_facts::NormalizedWriteFrame::opaque();
+    crate::rebuild_checked_unit_effect_plans_with_selected_operators(&mut mutation_tampered, &[]);
+    assert!(
+        sole_direct_dynamic_plan(&mutation_tampered)
+            .caller_structural_scalar_field_store
+            .is_none(),
+        "opaque mutation custody must suppress the optional store plan"
+    );
+
+    let mut scalar_tampered = check_dynamic_source(STRUCTURAL_INTEGER_STORE_SOURCE);
+    let caller_state = sole_direct_dynamic_plan(&scalar_tampered).caller_state;
+    let assignment_value = scalar_tampered
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter_mut()
+        .find(|expression| {
+            expression.state == caller_state
+                && expression.statement_ordinal == 0
+                && expression.role
+                    == psi_checked_trees::CheckedScalarExpressionRole::AssignmentValue
+        })
+        .expect("checked assignment scalar expression");
+    assignment_value.expression = psi_checked_trees::CheckedScalarExpression::Boolean(Box::new(
+        psi_checked_trees::CheckedBooleanExpression::Constant(true),
+    ));
+    crate::rebuild_checked_unit_effect_plans_with_selected_operators(&mut scalar_tampered, &[]);
+    assert!(
+        sole_direct_dynamic_plan(&scalar_tampered)
+            .caller_structural_scalar_field_store
+            .is_none(),
+        "wrong-typed scalar custody must suppress the optional store plan"
+    );
 }
