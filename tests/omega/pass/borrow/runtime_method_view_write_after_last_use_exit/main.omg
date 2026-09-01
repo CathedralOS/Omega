@@ -6,7 +6,7 @@
 // runtime assertion proves both writes landed: 7 through the view into
 // cells[2], then 63 directly into `other` (sum 70).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     value: i32;

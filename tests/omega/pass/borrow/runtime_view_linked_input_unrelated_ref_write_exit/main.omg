@@ -8,7 +8,7 @@
 // The runtime assertion proves both writes landed: the write through the
 // linked view into `a` and the direct write into `b`.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     value: i32;

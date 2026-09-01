@@ -6,7 +6,7 @@
 // runtime read-back through `self.bag.cells[2].value` proves the leaf write
 // reached the machine-owned array element (exit 70).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     value: i32;

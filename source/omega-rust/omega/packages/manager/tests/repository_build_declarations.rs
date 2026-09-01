@@ -334,6 +334,21 @@ fn filesystem_canaries_declare_ordinary_standard_library_edges() {
 }
 
 #[test]
+fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
+    for (category, expected_count) in [
+        ("backend", 2),
+        ("borrow", 3),
+        ("constants", 2),
+        ("errors", 1),
+    ] {
+        assert_canaries_declare_ordinary_standard_library_edges(
+            &repository_root().join("tests/omega/pass").join(category),
+            expected_count,
+        );
+    }
+}
+
+#[test]
 fn ordinary_omega_case_projects_declare_canonical_application_roles() {
     let cases = repository_root().join("tests/omega");
     let mut roots = Vec::new();

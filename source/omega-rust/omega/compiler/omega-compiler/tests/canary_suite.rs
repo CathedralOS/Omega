@@ -5,8 +5,8 @@ use omega_compiler::{
     compile_to_checked_with_packages,
 };
 use omega_package_compilation::{
-    AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding,
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
+    PackageDependencyBinding, PackageSourceBinding,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -2679,6 +2679,55 @@ fn fixture_accepts_filesystem_service(root_path: &Path) -> bool {
     })
 }
 
+fn fixture_accepts_console_exit(root_path: &Path) -> bool {
+    fs::read_to_string(root_path).is_ok_and(|source| {
+        source.contains("omega_language_std::console") && source.contains(".exit_process(")
+    })
+}
+
+fn candidate_console_exit_binding(
+    checked: &CheckedCompilation,
+) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
+    let standard_library = fixture_package_identity(2);
+    let candidates = checked
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(checked.selected_provider_provenance())
+        .filter(|(plan, provenance)| {
+            plan.schema.trait_name == "Console"
+                && plan.rows.iter().any(|row| row.method == "exit_process")
+                && checked
+                    .typed
+                    .symbols
+                    .symbol_package_identity(provenance.provider.schema.symbol())
+                    == Some(standard_library)
+        })
+        .collect::<Vec<_>>();
+    let [(plan, provenance)] = candidates.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "repository fixture Console exit acceptance resolved {} exact std provider plans instead of one",
+            candidates.len()
+        ))]);
+    };
+    let declaration_path = checked
+        .typed
+        .symbols
+        .display_path(provenance.provider.schema.symbol(), "::");
+    AcceptedSemanticBinding::new(
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        standard_library,
+        declaration_path,
+        plan.schema.identity_digest(),
+        plan.identity_digest(),
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "cannot construct repository fixture Console exit binding: {error}"
+        ))]
+    })
+}
+
 fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
@@ -2686,26 +2735,36 @@ fn reviewed_repository_fixture_package_inputs(
     let Some(package_inputs) = repository_fixture_package_inputs(root_path) else {
         return Ok(None);
     };
-    if !fixture_accepts_filesystem_service(root_path) {
+    let accepts_filesystem = fixture_accepts_filesystem_service(root_path);
+    let accepts_console_exit = fixture_accepts_console_exit(root_path);
+    if !accepts_filesystem && !accepts_console_exit {
         return Ok(Some(package_inputs));
     }
 
-    // These filesystem canaries explicitly exercise and accept the dangerous
-    // FilesystemHost service. Derive the row from a preliminary checked graph,
-    // then recompile with that exact compiler-issued candidate admitted. This
-    // is test policy, not evidence that an audit occurred and not production
-    // accepted-lock recovery.
+    // These canaries explicitly exercise and accept dangerous standard-library
+    // services. Source spelling selects only this repository's test policy;
+    // every admitted row is then derived from and replayed against the exact
+    // preliminary checked graph. This is not evidence that an audit occurred
+    // and is not production accepted-lock recovery.
     let preliminary =
         compile_to_checked_with_packages(root_path, target_name, package_inputs.clone())?;
-    let binding = preliminary
-        .candidate_service_binding(
-            AcceptedSemanticBindingRole::FilesystemHostService,
-            fixture_package_identity(2),
-            "FilesystemHost",
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let mut bindings = Vec::new();
+    if accepts_filesystem {
+        bindings.push(
+            preliminary
+                .candidate_service_binding(
+                    AcceptedSemanticBindingRole::FilesystemHostService,
+                    fixture_package_identity(2),
+                    "FilesystemHost",
+                )
+                .map_err(|diagnostic| vec![diagnostic])?,
+        );
+    }
+    if accepts_console_exit {
+        bindings.push(candidate_console_exit_binding(&preliminary)?);
+    }
     package_inputs
-        .with_accepted_semantic_bindings(vec![binding])
+        .with_accepted_semantic_bindings(bindings)
         .map(Some)
         .map_err(|errors| {
             vec![Diagnostic::error(format!(

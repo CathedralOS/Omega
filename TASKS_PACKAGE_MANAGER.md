@@ -387,16 +387,21 @@ explicitly.
 
   - migrate remaining package-aware fixtures to explicit std dependency edges;
     the compiler product, parser package, all 140 std-consuming sample
-    packages, all 14 packaged time canaries, and all 24 packaged filesystem
-    canaries already declare ordinary `omega-language-std` edges and import
-    through its derived alias; the
+    packages, all 14 packaged time canaries, all 24 packaged filesystem
+    canaries, and eight packaged backend/borrow/constants/error canaries already
+    declare ordinary `omega-language-std` edges and import through its derived
+    alias; the
     package-aware sample sweep introduces no failures beyond the seven
     independently reproduced on the prior standalone baseline, and the time
     and filesystem cohorts reach checked semantics through package
     compilation; the filesystem fixture harness admits the exact
     compiler-derived `FilesystemHostService` binding solely as explicit test
     policy, without claiming an audit or supplying production lock recovery;
-    the
+    the comptime cohort remains on standalone compatibility because real
+    package compilation still leaves the successfully checked parenthesized
+    bare call in `runtime_const_array_length_bare_call_arm_exit` as a late-bound
+    authored `CheckedCall`; finish that compiler-owned selection finalization
+    before migrating the cohort; the
     freestanding UEFI package remains dependency-free, the two proof-only
     sample sources remain standalone, and other standalone source fixtures stay
     on the compatibility path until they acquire real package roots;

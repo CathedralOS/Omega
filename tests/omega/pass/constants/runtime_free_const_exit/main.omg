@@ -5,7 +5,7 @@
 // the walk guarantees no local/param/field/case/machine anywhere in the
 // program spells the same name (collisions refuse at the const naming
 // both sites: fail/constants/free_const_{local,field}_collision).
-use omega::language::std::console;
+use omega_language_std::console;
 const PAGE_SIZE: u32 = 64;
 data Main { console: Console; }
 machine Main::main(&mut self) {
