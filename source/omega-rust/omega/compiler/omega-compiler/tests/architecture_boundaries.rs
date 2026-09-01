@@ -347,6 +347,72 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
 }
 
 #[test]
+fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
+    let repo_root = repo_root();
+    let compiler_path =
+        repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler.rs");
+    let driver_path =
+        repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs");
+    let reporting_path = repo_root.join(
+        "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/reporting/checked_observations.rs",
+    );
+    let compiler = fs::read_to_string(&compiler_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", compiler_path.display()));
+    let driver = fs::read_to_string(&driver_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    let reporting = fs::read_to_string(&reporting_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", reporting_path.display()));
+    let compact_compiler = without_ascii_whitespace(&compiler);
+    let compact_driver = without_ascii_whitespace(&driver);
+
+    assert_eq!(
+        compact_compiler.matches("pubfncompile(").count(),
+        2,
+        "the compiler surface must remain one typed operation exposed as the Compiler method and its free-function facade"
+    );
+    assert_eq!(
+        compact_compiler.matches("request:CompileRequest").count(),
+        2,
+        "both production facades must accept the same complete CompileRequest"
+    );
+    for retired in [
+        "compile_with_",
+        "CompileHarnessRequest",
+        "write_output",
+        "entry_override",
+        "worker_ceiling",
+    ] {
+        assert!(
+            !compiler.contains(retired) && !driver.contains(retired),
+            "retired compiler mode/control `{retired}` must not return to the production surface"
+        );
+    }
+
+    for reporting_policy in [
+        "emits_auxiliary_artifacts(",
+        "ArtifactWriter",
+        "write_checked_snapshots(",
+        "00_timings.html",
+    ] {
+        assert!(
+            !driver.contains(reporting_policy),
+            "the compiler driver must not branch or write reporting concern `{reporting_policy}`"
+        );
+    }
+    assert!(
+        reporting.contains("if input.artifact_policy.emits_auxiliary_artifacts()"),
+        "the checked-observation owner must retain the sole auxiliary-report policy branch"
+    );
+    assert_eq!(
+        compact_driver
+            .matches("report_checked_observations(")
+            .count(),
+        1,
+        "the driver must submit the complete checked result to one reporting operation"
+    );
+}
+
+#[test]
 fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     let repo_root = repo_root();
     let transition_path = repo_root
