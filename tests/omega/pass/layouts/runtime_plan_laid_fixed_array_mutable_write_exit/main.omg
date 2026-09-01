@@ -1,7 +1,7 @@
 // A mutable byte-region view reaches a fixed primitive array through one
 // validated aggregate `At` placement. Element writes must use the plan offset
 // and element stride in both the interpreter and native lowering.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data SpreadArray {

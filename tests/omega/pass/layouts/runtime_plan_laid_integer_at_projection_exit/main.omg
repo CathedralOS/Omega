@@ -3,7 +3,7 @@
 // value (33023); projection must load only those widths and apply the plan's
 // sign/zero-extension rule. Reading either field as its carrier width consumes
 // sibling bytes and fails this canary.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

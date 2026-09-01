@@ -1,7 +1,7 @@
 // One plan may independently place several whole aggregate fields. The array
 // remains one `Repeated` field and the record remains one `Nested` field;
 // authored entry order does not replace their compiler-issued keys.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data MultipleAggregateFields { entries: [FieldEntry; 64]; }

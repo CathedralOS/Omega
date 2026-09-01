@@ -5,7 +5,7 @@
 // with native packing (low @8, high @24); reading either field through native
 // layout would observe zero and exit 71. This is the foreign-record view bridge
 // used by the filesystem struct-stat migration.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 

@@ -2,7 +2,7 @@
 // recast may project through a recursively fact-free wrapper into a plan-laid
 // record. Writes use the policy's deliberately non-native offsets and reads
 // observe the same live bytes on both engines.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data Spread {

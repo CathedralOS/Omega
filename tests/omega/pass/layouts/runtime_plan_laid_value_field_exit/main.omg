@@ -9,7 +9,7 @@
 // zeros from the padding gaps and the program exits 71. Exits 70 only when
 // every value written through the plan placement survives the copy and reads
 // back intact.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

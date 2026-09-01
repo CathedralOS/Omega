@@ -1,7 +1,7 @@
 // The semantic field admits every i64, so its signed-byte encoding is not
 // total. This concrete write is nevertheless safe because the source carries
 // a checked declaration range wholly contained by signed 8-bit storage.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

@@ -2,7 +2,7 @@
 // array is placed through one `At` per element. The eight-byte physical stride
 // is distinct from each row's four-byte semantic width; the inner u16 stride
 // remains compiler-derived inside each destination extent.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data TiledNestedArray { entries: [FieldEntry; 64]; }
