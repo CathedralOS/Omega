@@ -550,18 +550,12 @@ fn validate_write_only_fixed_array_range_assignment(
     }
 
     let start = if range.start.is_valid() {
-        program
-            .expression_table
-            .constant_integer_value(range.start)
-            .and_then(|value| usize::try_from(value).ok())
+        crate::normalize_immutable_integer_bound_to_usize(program, range.start)
     } else {
         Some(0)
     };
-    let end = program
-        .expression_table
-        .constant_integer_value(range.end)
-        .and_then(|value| usize::try_from(value).ok())
-        .and_then(|end| {
+    let end =
+        crate::normalize_immutable_integer_bound_to_usize(program, range.end).and_then(|end| {
             if range.end_inclusive {
                 end.checked_add(1)
             } else {
@@ -570,7 +564,7 @@ fn validate_write_only_fixed_array_range_assignment(
         });
     let (Some(start), Some(end)) = (start, end) else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` replaces a write-only fixed-array range whose bounds are not statically known; exact range replacement currently requires literal bounds",
+            "machine `{}` state `{}` replaces a write-only fixed-array range whose bounds are not statically known; exact range replacement currently requires literal bounds or finite immutable local-copy aliases",
             machine.name, state.name,
         )));
         return true;

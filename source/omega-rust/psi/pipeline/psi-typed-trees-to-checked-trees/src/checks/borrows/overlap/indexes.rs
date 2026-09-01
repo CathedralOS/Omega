@@ -4,7 +4,6 @@ use psi_checked_trees::{
     BorrowCompatibilitySelectorSnapshot, BorrowCompatibilitySelectorValue,
 };
 use psi_symbols::SymbolHandle;
-use psi_typed_trees::statement::StatementNode;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NormalizedBound {
@@ -366,7 +365,7 @@ fn range_integer_bounds(
         selectors.bound(
             location,
             BorrowCompatibilitySelectorPosition::RangeStart,
-            || normalized_bound(program, range.start, &mut Vec::new()),
+            || normalized_bound(program, range.start),
         ),
         exclusive_end_bound(program, range, location, selectors),
     )
@@ -401,7 +400,7 @@ fn exclusive_end_bound(
         location,
         BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
         || {
-            let end = normalized_bound(program, range.end, &mut Vec::new())?;
+            let end = normalized_bound(program, range.end)?;
             if range.end_inclusive {
                 let NormalizedBound::Integer(end) = end else {
                     return None;
@@ -423,96 +422,18 @@ fn exclusive_end_bound(
 fn normalized_bound(
     program: &psi_typed_trees::TypedTrees,
     expression: ExpressionHandle,
-    seen_aliases: &mut Vec<SymbolHandle>,
 ) -> Option<NormalizedBound> {
-    if !expression.is_valid() {
-        return None;
-    }
-
+    let expression =
+        psi_validation::normalize_immutable_integer_bound_expression(program, expression)?;
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64().map(NormalizedBound::Integer),
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            if members.len() != 1 {
-                return None;
-            }
-            if path.symbol.is_valid() && path.head_symbol == path.symbol {
-                normalized_symbol_bound(program, path.symbol, seen_aliases)
-            } else {
-                normalized_unique_immutable_local_name(program, members[0].as_str(), seen_aliases)
-            }
+            (members.len() == 1 && path.symbol.is_valid() && path.head_symbol == path.symbol)
+                .then_some(NormalizedBound::Symbol(path.symbol))
         }
         _ => None,
     }
-}
-
-/// Typed local-name occurrences currently retain no resolved symbol on their
-/// expression node. Recover semantic identity only through one unique
-/// immutable local declaration; never compare the unresolved spelling itself.
-/// Ambiguous, absent, or mutable declarations remain unknown.
-fn normalized_unique_immutable_local_name(
-    program: &psi_typed_trees::TypedTrees,
-    name: &str,
-    seen_aliases: &mut Vec<SymbolHandle>,
-) -> Option<NormalizedBound> {
-    let mut matching_symbol = None;
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
-                if local.name.as_str() != name {
-                    continue;
-                }
-                if matching_symbol.is_some() || local.is_mutable {
-                    return None;
-                }
-                matching_symbol = Some(local.symbol);
-            }
-        }
-    }
-    normalized_symbol_bound(program, matching_symbol?, seen_aliases)
-}
-
-/// Normalize one exact bare-name bound. Parameters retain their own symbol.
-/// An immutable local initialized by one bare name follows that finite copy
-/// chain; mutable locals, duplicate/cyclic identities, and every computed
-/// initializer stay unknown.
-fn normalized_symbol_bound(
-    program: &psi_typed_trees::TypedTrees,
-    symbol: SymbolHandle,
-    seen_aliases: &mut Vec<SymbolHandle>,
-) -> Option<NormalizedBound> {
-    if seen_aliases.contains(&symbol) {
-        return None;
-    }
-
-    let mut matching_local = None;
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
-                if local.symbol != symbol {
-                    continue;
-                }
-                if matching_local.is_some() || local.is_mutable {
-                    return None;
-                }
-                matching_local = Some(local);
-            }
-        }
-    }
-
-    let Some(local) = matching_local else {
-        return Some(NormalizedBound::Symbol(symbol));
-    };
-    seen_aliases.push(symbol);
-    let normalized = normalized_bound(program, local.initial_value, seen_aliases);
-    seen_aliases.pop();
-    normalized
 }
 
 #[cfg(test)]
@@ -524,7 +445,7 @@ mod tests {
     use psi_typed_trees::machine::Machine;
     use psi_typed_trees::name::Identifier;
     use psi_typed_trees::state::State;
-    use psi_typed_trees::statement::TableLocalData;
+    use psi_typed_trees::statement::{StatementNode, TableLocalData};
 
     fn symbol(index: u32) -> SymbolHandle {
         SymbolHandle::from_arena_index(index)

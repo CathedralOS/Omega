@@ -113,7 +113,7 @@ pub(crate) fn statement_mutated_place(
     statement_index: usize,
     statement: &StatementNode,
 ) -> Option<CanonicalPlace> {
-    match statement {
+    let mut place = match statement {
         StatementNode::Assignment(assignment) => canonical_place_from_expression_in_state(
             program,
             state_symbol,
@@ -125,5 +125,82 @@ pub(crate) fn statement_mutated_place(
                 .and_then(canonical_place_from_symbol)
         }),
         _ => None,
+    }?;
+    normalize_write_only_range_place(program, state_symbol, &mut place);
+    Some(place)
+}
+
+fn normalize_write_only_range_place(
+    program: &psi_typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    place: &mut CanonicalPlace,
+) {
+    // Keep ordinary borrow selectors expression-backed for certificate replay.
+    // Only an admitted write-only mutation may collapse immutable copy bounds
+    // into the exact caller-visible range footprint.
+    let psi_facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+        return;
+    };
+    let Some(state) = find_state(program, state_symbol) else {
+        return;
+    };
+    let root_is_write_only = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root_symbol)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| match statement {
+                    StatementNode::LocalData(local) if local.symbol == root_symbol => {
+                        Some(local.type_reference)
+                    }
+                    _ => None,
+                })
+        })
+        .is_some_and(|type_reference| {
+            matches!(
+                program.type_reference_table.type_reference(type_reference),
+                psi_typed_trees::types::TypeReferenceNode::Reference {
+                    access: psi_language_semantics::ReferenceAccess::WriteOnly,
+                    ..
+                }
+            )
+        });
+    if !root_is_write_only {
+        return;
+    }
+
+    for segment in &mut place.segments {
+        let psi_facts::PlaceSegment::Index { expression } = *segment else {
+            continue;
+        };
+        let ExpressionNode::Range(range) = program.expression_table.expression(expression) else {
+            continue;
+        };
+        let start = if range.start.is_valid() {
+            psi_validation::normalize_immutable_integer_bound_to_usize(program, range.start)
+        } else {
+            Some(0)
+        };
+        let end = if !range.end.is_valid() {
+            None
+        } else {
+            psi_validation::normalize_immutable_integer_bound_to_usize(program, range.end).and_then(
+                |end| {
+                    if range.end_inclusive {
+                        end.checked_add(1)
+                    } else {
+                        Some(end)
+                    }
+                },
+            )
+        };
+        if let (Some(start), Some(end)) = (start, end) {
+            *segment = psi_facts::PlaceSegment::FixedRange { start, end };
+        }
     }
 }

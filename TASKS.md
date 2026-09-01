@@ -6599,8 +6599,9 @@ Owners:
   Literal mutation and caller-visible write frames retain the exact
   `FixedIndex`; a dynamic index retains its runtime expression internally and
   conservatively invalidates the whole collection in the caller-visible frame.
-  A fixed byte array also permits replacement of a
-  statically normalized half-open range by a same-width array literal. The
+  A fixed byte array also permits replacement of a half-open range whose
+  bounds are integer literals or finite immutable local-copy chains by a
+  same-width array literal. The
   mutation and invalidation facts retain an exact `FixedRange`; half-open
   overlap preserves untouched siblings, while range loans and Terminal/native
   lowering remain gated. Replacement through a finite common-field path is now
@@ -6625,21 +6626,25 @@ Owners:
   for a dynamic expression. Literal siblings remain distinct; existing overlap
   and invalidation conservatively treat the runtime index as the whole array
   leaf without losing disjoint record siblings. The same
-  eligible path may end in a statically normalized half-open byte range with a
-  required known end and an exact-width array-literal replacement. Its checked
+  eligible path may end in the same exactly normalized half-open byte range,
+  with a required known end and an exact-width array-literal replacement. Its
+  checked
   mutation and caller-visible write frame retain the ordered field symbols and
   exact `FixedRange`; existing half-open overlap preserves adjacent windows
-  and record siblings. The same statically normalized closed-range replacement
+  and record siblings. The same exactly normalized closed-range replacement
   now applies to every supported literal fixed array, directly or through an
   eligible record path. Primitive and eligible `[copy]` record or sum elements
   each remain one atomic array position: bounds normalize to one exact half-open
   element-ordinal `FixedRange`, and the replacement remains an array literal of
   exactly the same element count. Fixed/runtime element frames likewise retain
   only `FixedIndex`/`Index` and never decompose record members or sum tags and
-  payloads. Recursively literal fixed arrays now participate in that same
-  operation set, but each selected inner array remains one atomic outer element
-  or range position; a second inner index is not an admitted place. Symbolic or
-  open-ended ranges, slices, and nonliteral replacements remain fenced. Atomic,
+  payloads. Inclusive immutable-copy ends normalize to the corresponding exact
+  half-open endpoint. Recursively literal fixed arrays now participate in that
+  same operation set, but each selected inner array remains one atomic outer
+  element or range position; a second inner index is not an admitted place. Parameter-
+  backed or otherwise genuinely symbolic bounds, mutable, ambiguous, cyclic,
+  qualified, or computed aliases, open-ended ranges, slices, and nonliteral
+  replacements remain fenced. Atomic,
   qualified, constrained, generic, erased, noncopy, and other non-discardable
   ultimate element forms still reject; matching and case/payload projection
   remain observations rather than array operations.
@@ -6726,8 +6731,8 @@ Owners:
   physical address/width/store custody are specified.
 
   Remaining work is the broader executable access discipline: add
-  broader content-independent aggregate and symbolic range projection, finer
-  symbolic dynamic-index footprints,
+  broader content-independent aggregate and genuinely symbolic range
+  projection, finer symbolic dynamic-index footprints,
   reject take/swap/read-modify-write, content-driven projection,
   non-discardable displacement, and invariant restoration that depends on
   reading the referent, and retain exact per-outcome write footprints so

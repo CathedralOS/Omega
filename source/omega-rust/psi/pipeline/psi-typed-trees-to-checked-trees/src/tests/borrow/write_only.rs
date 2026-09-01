@@ -1024,6 +1024,52 @@ fn direct_and_nested_primitive_fixed_array_ranges_are_writable() {
 }
 
 #[test]
+fn immutable_local_copy_bounds_are_writable() {
+    lower_typed_trees(typed(
+        r#"
+            machine fill(values: &write [u16; 4]) {
+                let first: u64 = 1;
+                let first_alias: u64 = first;
+                let last: u64 = 2;
+                let last_alias: u64 = last;
+                values[first_alias..=last_alias] = [7, 8];
+            }
+        "#,
+    ))
+    .expect("finite immutable local-copy bounds should normalize without observing the referent");
+}
+
+#[test]
+fn mutable_and_computed_local_range_bounds_remain_closed() {
+    for (name, source) in [
+        (
+            "mutable local",
+            r#"
+                machine fill(values: &write [u16; 4]) {
+                    let mut start: u64 = 1;
+                    values[start..3] = [7, 8];
+                }
+            "#,
+        ),
+        (
+            "computed local",
+            r#"
+                machine fill(values: &write [u16; 4]) {
+                    let start: u64 = 0 + 1;
+                    values[start..3] = [7, 8];
+                }
+            "#,
+        ),
+    ] {
+        let rendered = rendered_rejection(source);
+        assert!(
+            rendered.contains("bounds are not statically known"),
+            "{name} unexpectedly crossed the immutable-copy gate: {rendered}"
+        );
+    }
+}
+
+#[test]
 fn non_byte_fixed_array_range_shape_fences_remain_closed() {
     for (name, source, expected) in [
         (

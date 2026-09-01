@@ -18,6 +18,7 @@ mod expression_types;
 mod fact_call_projections;
 mod float_projection_bindings;
 mod float_projection_invocations;
+mod immutable_integer_bounds;
 mod invocations;
 mod literals;
 mod locals;
@@ -153,6 +154,9 @@ pub struct ExactIntegerCastFact {
 
 pub use float_projection_invocations::{
     ValidatedFloatMeaningEqualityProposition, ValidatedFloatMeaningProjectionInvocation,
+};
+pub use immutable_integer_bounds::{
+    normalize_immutable_integer_bound_expression, normalize_immutable_integer_bound_to_usize,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
