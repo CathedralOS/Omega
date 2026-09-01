@@ -2414,9 +2414,13 @@ interpretation, and independent prefix mutation. An eighth bounded form admits
 exactly eight enclosing relevant record fields and replays the same complete
 ordered path through whole-root equality, inequality, Unit-call rebasing,
 codecs, verification, fixed fuel, interpretation, and independent prefix
-mutation. Nine or more enclosing fields, mixed values below case payloads or
-another mixed shape, two mixed sibling fields, direct projected mixed
-comparisons, recursive cycles, address and erased payload equality, written
+mutation. A ninth bounded form admits exactly nine enclosing relevant record
+fields and replays the same complete ordered path through whole-root equality,
+inequality, Unit-call rebasing, codecs, verification, fixed fuel,
+interpretation, and independent prefix mutation. Ten or more enclosing fields,
+mixed values below case payloads or another mixed shape, two mixed sibling
+fields, direct projected mixed comparisons, recursive cycles, address and
+erased payload equality, written
 `equals` bodies, and runtime sum layout remain outside this bounded terminal
 slice. When an acyclic
 relevant record field reaches a payload-bearing sum, the same sum proposition
