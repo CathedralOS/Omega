@@ -53,39 +53,58 @@ fn exact_pair_elides_once_and_independent_replay_agrees() {
     );
 }
 
+fn two_pair_budget() -> OptimizationWorkBudget {
+    OptimizationWorkBudget::new(5, 2, 2, 2, 3).unwrap()
+}
+
 #[test]
-fn bounded_scan_rejects_the_testable_first_unit_past_its_boundary() {
-    let fixture = super::fixture::fixture();
+fn two_pairs_pin_the_exact_nonzero_work_vector() {
+    let fixture = super::fixture::two_pair_fixture();
+    let plan = compute(&fixture, two_pair_budget()).unwrap();
+    let validated =
+        super::super::validate::validate_from_inputs(fixture.inputs(), plan.clone()).unwrap();
+
+    assert_eq!(validated.plan(), &plan);
+    assert_eq!(validated.receipt().action_count(), 2);
+    assert_eq!(plan.actions.len(), 2);
+    assert_eq!(plan.usage.rule_evaluations, 5);
+    assert_eq!(plan.usage.candidates, 2);
+    assert_eq!(plan.usage.validation_steps, 2);
+    assert_eq!(plan.usage.commits, 2);
+    assert_eq!(plan.usage.iterations, 3);
+}
+
+#[test]
+fn every_work_axis_rejects_the_first_unit_past_its_boundary() {
+    let fixture = super::fixture::two_pair_fixture();
     for (budget, axis) in [
         (
-            OptimizationWorkBudget::new(1, 1, 1, 1, 2).unwrap(),
+            OptimizationWorkBudget::new(4, 2, 2, 2, 3).unwrap(),
             Aarch64SameViewCopyElisionWorkAxis::RuleEvaluations,
         ),
         (
-            OptimizationWorkBudget::new(2, 1, 1, 1, 1).unwrap(),
+            OptimizationWorkBudget::new(5, 1, 2, 2, 3).unwrap(),
+            Aarch64SameViewCopyElisionWorkAxis::Candidates,
+        ),
+        (
+            OptimizationWorkBudget::new(5, 2, 1, 2, 3).unwrap(),
+            Aarch64SameViewCopyElisionWorkAxis::ValidationSteps,
+        ),
+        (
+            OptimizationWorkBudget::new(5, 2, 2, 1, 3).unwrap(),
+            Aarch64SameViewCopyElisionWorkAxis::Commits,
+        ),
+        (
+            OptimizationWorkBudget::new(5, 2, 2, 2, 2).unwrap(),
             Aarch64SameViewCopyElisionWorkAxis::Iterations,
         ),
     ] {
         assert_eq!(
             compute(&fixture, budget),
-            Err(Aarch64SameViewCopyElisionError::BudgetExceeded(axis))
+            Err(Aarch64SameViewCopyElisionError::BudgetExceeded(axis)),
+            "the first unit beyond the exact {axis:?} budget must fail closed",
         );
     }
-
-    // Candidate, validation, and commit usage are each exactly one. The shared
-    // budget type deliberately rejects zero-valued axes, so the exact positive
-    // run above is their tightest representable boundary.
-    let usage = compute(
-        &fixture,
-        OptimizationWorkBudget::new(2, 1, 1, 1, 2).unwrap(),
-    )
-    .unwrap()
-    .usage;
-    assert_eq!(usage.rule_evaluations, 2);
-    assert_eq!(usage.candidates, 1);
-    assert_eq!(usage.validation_steps, 1);
-    assert_eq!(usage.commits, 1);
-    assert_eq!(usage.iterations, 2);
 }
 
 #[test]

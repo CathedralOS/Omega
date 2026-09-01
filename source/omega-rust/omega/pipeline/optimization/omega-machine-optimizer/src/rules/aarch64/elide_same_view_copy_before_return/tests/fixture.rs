@@ -323,6 +323,25 @@ pub(super) fn fixture() -> Fixture {
     }
 }
 
+pub(super) fn two_pair_fixture() -> Fixture {
+    let mut fixture = fixture();
+    let second_machine = MachineId::new(2).unwrap();
+
+    let mut selected = fixture.selected.functions[0].clone();
+    selected.machine = second_machine;
+    fixture.selected.functions.push(selected);
+
+    let mut liveness = fixture.liveness.functions[0].clone();
+    liveness.machine = second_machine;
+    fixture.liveness.functions.push(liveness);
+
+    let mut source = fixture.source.functions[0].clone();
+    source.machine = second_machine;
+    fixture.source.functions.push(source);
+
+    fixture
+}
+
 fn sorted_units(units: impl IntoIterator<Item = RegisterUnitId>) -> Vec<RegisterUnitId> {
     let mut units = units.into_iter().collect::<Vec<_>>();
     units.sort_unstable();

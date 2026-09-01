@@ -1,6 +1,9 @@
 //! Terminal Unit-return and scalar-Crash receipts.
 
-use psi_core::{ClaimId, EdgeId, MachineId, ObligationId, OperationId, ScalarType, ServiceId};
+use psi_core::{
+    ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ScalarType,
+    ServiceId, ValueId,
+};
 use psi_terminal::{
     CrashCause, CrashPredicateTerm, CrashRouteBucket, StructuralPlaceDeclaration,
     StructuralTypeDeclaration,
@@ -184,6 +187,60 @@ impl StraightLineByteSequenceLiteralUnitReturnTranslationReceipt {
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineIntegerLiteralUnitReturnTranslationReceipt {
+    machine: MachineId,
+    literal_operation: OperationId,
+    literal_result: ValueId,
+    scalar_type: IntegerType,
+    value: IntegerValue,
+    return_edge: EdgeId,
+}
+
+impl StraightLineIntegerLiteralUnitReturnTranslationReceipt {
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        literal_operation: OperationId,
+        literal_result: ValueId,
+        scalar_type: IntegerType,
+        value: IntegerValue,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            literal_operation,
+            literal_result,
+            scalar_type,
+            value,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn literal_operation(&self) -> OperationId {
+        self.literal_operation
+    }
+
+    pub const fn literal_result(&self) -> ValueId {
+        self.literal_result
+    }
+
+    pub const fn scalar_type(&self) -> IntegerType {
+        self.scalar_type
+    }
+
+    pub const fn value(&self) -> IntegerValue {
+        self.value
     }
 
     pub const fn return_edge(&self) -> EdgeId {

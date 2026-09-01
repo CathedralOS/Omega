@@ -46,6 +46,7 @@ pub use parameter::{
 };
 pub use terminal::{
     StraightLineByteSequenceLiteralUnitReturnTranslationError,
+    StraightLineIntegerLiteralUnitReturnTranslationError,
     StraightLinePortWriteUnitReturnTranslationError, StraightLineScalarCrashTranslationError,
     StraightLineTrivialAffineLocalUnitReturnTranslationError,
     StraightLineUnitCallReturnTranslationError, StraightLineUnitReturnTranslationError,

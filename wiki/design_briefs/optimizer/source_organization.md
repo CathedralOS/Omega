@@ -217,6 +217,17 @@ vocabulary. The mirrored pipeline leaf is
 `register_allocation/spill_recovery_actions.rs`; no selectable optimization
 name or real memory/frame authority is introduced.
 
+Generalized epoch-zero/one insertion lives at
+`omega-regalloc/src/allocation/generalized_spill_insertion/mod.rs`. Its 28-line
+executable entrance joins the two validated logical-action sources. `compute.rs`
+owns direct first-fit coloring and event construction, while `replay.rs`
+reconstructs the source rows and occupied offsets independently; `model.rs`,
+`identity.rs`, and `validate.rs` own the closed carrier and admission boundary.
+The mirrored public fixture is
+`register_allocation/generalized_spill_insertion.rs`. The architecture guard
+registers both the entrance and semantic ladder explicitly; no selectable rule
+or real memory/frame authority is introduced.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
@@ -236,7 +247,7 @@ The machine peephole rung is itself navigable: `peephole_matching/mod.rs`
 coordinates one immutable terminal-pair input through `instruction.rs`,
 `registers.rs`, `relations.rs`, and `liveness.rs`, with vocabulary in
 `model.rs`. Exact pattern data stays with each rule, currently the cataloged
-`aarch64/compare_zero_branch_nonzero/pattern.rs` and the core-only
+`aarch64/compare_zero_branch_nonzero/pattern.rs` and
 `aarch64/elide_same_view_copy_before_return/pattern.rs`. The latter rule's tiny
 entrance visibly joins proposal to independent replay, while its `validate/`
 group reconstructs footprints and roots without importing the matcher. The

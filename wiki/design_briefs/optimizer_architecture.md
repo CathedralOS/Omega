@@ -232,8 +232,13 @@ neutral logical storage, store, later reload, and complete rewrite obligations.
 Its producer and independent replay bind the namespace, anchors, victim
 contract, roots, and exact work usage separately. It grants no real virtual
 register, instruction, slot/offset, memory, frame, trap, unwind, encoding,
-emission, or publication authority; generalized insertion and both-reload
-reanalysis remain next.
+emission, or publication authority. The following 28-line
+`generalized_spill_insertion` entrance recolors both closed lifetimes through
+direct production and independently keyed replay, then publishes one canonical
+store/reload/rewrite event schedule relative to an abstract spill-area origin.
+Closed endpoint conflicts, both source identities, environment/availability,
+optimization-unit/fuel roots, and exact work usage are retained. It grants no
+additional physical or semantic authority; both-reload reanalysis remains next.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
