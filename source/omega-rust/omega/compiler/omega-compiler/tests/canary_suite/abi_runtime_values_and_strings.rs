@@ -570,7 +570,7 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
 #[test]
 fn windows_external_import_canary_selects_exact_free_import_plan() {
     let canary = pass_canary("capabilities/windows_provides_import_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("free DllImport leaf should resolve the Beeper slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -634,7 +634,7 @@ fn windows_fs_wrapper_breadth_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_breadth_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows wrapper breadth canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -684,7 +684,7 @@ fn repeated_dir_walk_scan_exit_canary_runs() {
     let canary = pass_canary("filesystem/repeated_dir_walk_scan_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("repeated dir-walk canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -727,7 +727,7 @@ fn windows_fs_raw_breadth_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_raw_breadth_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows fs breadth canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -778,7 +778,7 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_entry_field_write_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("entry-field-write canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -828,7 +828,7 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_callee_post_entry_lets_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("post-entry-lets canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -871,7 +871,7 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
     let canary = pass_canary("backend/value_machine_self_array_local_index_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("value-machine self-array index canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -922,7 +922,7 @@ fn value_machine_const_index_self_array_exit_canary_runs() {
     let canary = pass_canary("backend/value_machine_const_index_self_array_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("value-machine const-index canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -970,7 +970,7 @@ fn runtime_post_entry_deep_chain_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_post_entry_deep_chain_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("post-entry deep-chain canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1013,7 +1013,7 @@ fn runtime_post_entry_chained_let_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_post_entry_chained_let_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("post-entry chained-let canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1053,7 +1053,7 @@ fn runtime_cross_callee_division_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_cross_callee_division_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("cross-callee division canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1100,7 +1100,7 @@ fn runtime_cross_callee_let_names_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_cross_callee_let_names_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("cross-callee let-names canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1148,7 +1148,7 @@ fn runtime_nested_value_call_guard_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nested_value_call_guard_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("nested-guard canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1195,7 +1195,7 @@ fn runtime_two_site_struct_result_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_two_site_struct_result_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("two-site struct result canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1242,7 +1242,7 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_same_callee_sites_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("same-callee-sites canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1289,7 +1289,7 @@ fn runtime_value_call_transition_args_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_transition_args_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("transition-args canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1333,7 +1333,7 @@ fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_transition_args_straight_line_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("transition-args straight-line canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1377,7 +1377,7 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_shared_slot_straight_line_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("shared-slot straight-line canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1424,7 +1424,7 @@ fn runtime_enum_self_method_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_enum_self_method_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("enum-self-method canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1471,7 +1471,7 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_dispatch_results_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("dispatch-results canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1519,7 +1519,7 @@ fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_literal_len_arm_guard_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("literal-len arm-guard canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1568,7 +1568,7 @@ fn runtime_value_call_guard_subject_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_guard_subject_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("guard-subject canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1609,7 +1609,7 @@ fn runtime_effectful_guard_local_and_self_terminal_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_effectful_guard_local_and_self_terminal_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("effectful guard/local and self-terminal canary should reach checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1649,7 +1649,7 @@ fn runtime_guarded_effectful_transition_argument_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_guarded_effectful_transition_argument_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("guarded effectful transition-argument canary should reach checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1696,7 +1696,7 @@ fn runtime_value_call_nested_entry_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_nested_entry_call_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("nested-entry-call canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1744,7 +1744,7 @@ fn runtime_value_call_shared_payload_name_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_value_call_shared_payload_name_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("shared-payload-name canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1789,7 +1789,7 @@ fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
     let main_path = canary.join("main.omg");
 
     // Interpreter oracle first: it must agree the exit is 70.
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("value-call cast-field payload canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1869,7 +1869,7 @@ fn value_call_entry_host_state_payload_canary_runs() {
     let canary = run_canary("value_call_entry_host_state_payload");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("entry-host-state payload canary should compile to checked trees");
     for (stdin, expected) in [(&b"ok\n"[..], 70), (&b"no\n"[..], 75)] {
         let outcome = interpret(&checked, stdin);
@@ -2697,7 +2697,7 @@ fn runtime_string_stored_suffix_exit_canary_runs() {
 fn runtime_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("runtime lookup carrier concat should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(outcome.exit_code, 190, "interpreter lookup carrier concat");
@@ -2732,7 +2732,7 @@ fn runtime_lookup_struct_field_concat_exit_canary_runs() {
 fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_large_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("large lookup carrier concat should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2771,7 +2771,7 @@ fn runtime_large_lookup_struct_field_concat_exit_canary_runs() {
 fn runtime_large_room_lookup_struct_field_concat_exit_canary_runs() {
     let canary = pass_canary("text/runtime_large_room_lookup_struct_field_concat_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("large room lookup carrier concat should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

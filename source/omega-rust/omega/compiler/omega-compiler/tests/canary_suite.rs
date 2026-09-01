@@ -1,10 +1,12 @@
 use omega_build_declarations::{BuildDeclaration, extract_build_declaration};
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileOptions as CompilerOptions, CompileReport,
-    CompileRequest, RequestedCompileProduct, compile_to_checked, compile_to_checked_with_packages,
+    CompileRequest, RequestedCompileProduct, compile_to_checked as compile_standalone_to_checked,
+    compile_to_checked_with_packages,
 };
 use omega_package_compilation::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    AcceptedSemanticBindingRole, PackageCompilationInputs, PackageDependencyBinding,
+    PackageSourceBinding,
 };
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;
@@ -45,7 +47,10 @@ fn production_compile(
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
         CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
     };
-    let package_inputs = repository_fixture_package_inputs(&options.root_path);
+    let package_inputs = reviewed_repository_fixture_package_inputs(
+        &options.root_path,
+        options.target_name.as_deref(),
+    )?;
     let mut request = CompileRequest::new(options).with_requested_product(requested_product);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
@@ -69,7 +74,10 @@ fn compile_with_artifact_policy(
         CanaryCompileProduct::Check => RequestedCompileProduct::Check,
         CanaryCompileProduct::NativeArtifactAndPublish => RequestedCompileProduct::NativeArtifact,
     };
-    let package_inputs = repository_fixture_package_inputs(&options.root_path);
+    let package_inputs = reviewed_repository_fixture_package_inputs(
+        &options.root_path,
+        options.target_name.as_deref(),
+    )?;
     let mut request = CompileRequest::new(options)
         .with_requested_product(requested_product)
         .with_artifact_policy(artifact_policy);
@@ -98,7 +106,10 @@ fn compile_with_auxiliary_artifacts(
     compile_with_artifact_policy(spec, ArtifactEmissionPolicy::Full)
 }
 
-use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
+use psi_checked_interpreter::{
+    FilesystemServiceBinding, InterpretOptions, InterpretOutcome, interpret_entry,
+    interpret_entry_with_options,
+};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
     ContentAlgebraIdentity, ContentArithmeticOperator, ContentConservationOwnerKind,
@@ -128,7 +139,22 @@ fn interpret(checked: &CheckedCompilation, stdin: &[u8]) -> InterpretOutcome {
     // These checked-only semantic fixtures predate target-owned build roots.
     // Their temporary execution choice is explicit in the harness rather than
     // inferred by CheckedCompilation.
-    interpret_entry(checked, "Main::main", stdin)
+    let Some(filesystem) =
+        checked.resolved_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
+    else {
+        return interpret_entry(checked, "Main::main", stdin);
+    };
+    let binding = FilesystemServiceBinding::from_compiler_resolved_declaration(
+        checked,
+        filesystem.declaration_symbol(),
+    )
+    .expect("accepted filesystem fixture binding resolves one exact declaration");
+    interpret_entry_with_options(
+        checked,
+        "Main::main",
+        stdin,
+        InterpretOptions::default().with_filesystem_service_binding(binding),
+    )
 }
 
 #[path = "canary_suite/inline_asm.rs"]
@@ -1415,7 +1441,7 @@ fn compile_rooted_backend_canary_without_output_for_target(
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
     let root_path = canary_dir.join("main.omg");
-    let package_inputs = repository_fixture_package_inputs(&root_path);
+    let package_inputs = reviewed_repository_fixture_package_inputs(&root_path, Some(target))?;
     let mut request = CompileRequest::new(CompilerOptions {
         root_path,
         build_dir: Some(build_dir.clone()),
@@ -2645,15 +2671,57 @@ fn repository_fixture_package_inputs(root_path: &Path) -> Option<PackageCompilat
     )
 }
 
-fn compile_repository_fixture_to_checked(
+fn fixture_accepts_filesystem_service(root_path: &Path) -> bool {
+    fs::read_to_string(root_path).is_ok_and(|source| {
+        source.contains("omega_language_std::filesystem")
+            || source.contains("omega_language_std::filesystem_host")
+    })
+}
+
+fn reviewed_repository_fixture_package_inputs(
+    root_path: &Path,
+    target_name: Option<&str>,
+) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
+    let Some(package_inputs) = repository_fixture_package_inputs(root_path) else {
+        return Ok(None);
+    };
+    if !fixture_accepts_filesystem_service(root_path) {
+        return Ok(Some(package_inputs));
+    }
+
+    // These filesystem canaries explicitly exercise and accept the dangerous
+    // FilesystemHost service. Derive the row from a preliminary checked graph,
+    // then recompile with that exact compiler-issued candidate admitted. This
+    // is test policy, not evidence that an audit occurred and not production
+    // accepted-lock recovery.
+    let preliminary =
+        compile_to_checked_with_packages(root_path, target_name, package_inputs.clone())?;
+    let binding = preliminary
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            fixture_package_identity(2),
+            "FilesystemHost",
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+    package_inputs
+        .with_accepted_semantic_bindings(vec![binding])
+        .map(Some)
+        .map_err(|errors| {
+            vec![Diagnostic::error(format!(
+                "cannot admit repository fixture semantic binding: {errors:?}"
+            ))]
+        })
+}
+
+fn compile_to_checked(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    match repository_fixture_package_inputs(root_path) {
+    match reviewed_repository_fixture_package_inputs(root_path, target_name)? {
         Some(package_inputs) => {
             compile_to_checked_with_packages(root_path, target_name, package_inputs)
         }
-        None => compile_to_checked(root_path, target_name),
+        None => compile_standalone_to_checked(root_path, target_name),
     }
 }
 

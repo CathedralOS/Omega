@@ -10,9 +10,9 @@
 // 82 chmod, 83 rename, 84 old name still opens, 85 mkdir, 86 remove file,
 // 87 rmdir.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

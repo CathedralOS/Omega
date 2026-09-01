@@ -15,4 +15,7 @@ target macos_arm64 {
 
 machine build(builder: &mut Build) {
     builder.application("windows-wrapper-set-times-exit");
+    builder.depend(Source::Path {
+        location: "../../../../../source/library/std"
+    });
 }

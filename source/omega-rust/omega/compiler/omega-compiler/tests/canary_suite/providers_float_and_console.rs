@@ -71,7 +71,7 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
     // differential row.
     let canary = pass_canary("providers/runtime_adapter_dispatch_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("adapter-dispatch canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -104,7 +104,7 @@ fn runtime_adapter_dispatch_exit_canary_runs() {
 fn checked_boundary_operator_dispatch_exit_canary_runs() {
     let canary = pass_canary("providers/checked_boundary_operator_dispatch_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("checked boundary-operator canary should compile to checked trees");
     assert!(!checked.facts.operators.boundary_applications.is_empty());
     let outcome = interpret(&checked, &[]);
@@ -121,7 +121,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
 fn checked_fixed_operator_dispatch_exit_canary_runs() {
     let canary = pass_canary("providers/checked_fixed_operator_dispatch_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("checked fixed-token operator canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -138,7 +138,7 @@ fn runtime_result_domain_requirement_overload_exit_canary_runs() {
     // selection, checked adapter dispatch, and both executable engines.
     let canary = pass_canary("providers/runtime_result_domain_requirement_overload_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("result-overloaded provider requirements should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -175,7 +175,7 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
     // FirstProvider in both engines.
     let canary = pass_canary("providers/provider_type_slot_selected");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("selected-provider adapter canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -213,7 +213,7 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
 #[test]
 fn provider_type_target_default_canary_selects_target_default() {
     let canary = pass_canary("providers/provider_type_target_default");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("target provider default should resolve the Pick slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -232,7 +232,7 @@ fn provider_type_target_default_canary_selects_target_default() {
 #[test]
 fn component_owner_provider_override_canary_selects_complete_pick_plan() {
     let canary = pass_canary("providers/component_owner_provider_override_compile");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("component-owned build override should resolve the Pick slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -260,7 +260,7 @@ fn component_owner_provider_override_canary_selects_complete_pick_plan() {
 #[test]
 fn test_owner_provider_override_canary_selects_complete_pick_plan() {
     let canary = pass_canary("providers/test_owner_provider_override_compile");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("test-owned build override should resolve the Pick slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -288,7 +288,7 @@ fn test_owner_provider_override_canary_selects_complete_pick_plan() {
 #[test]
 fn provider_type_target_default_override_canary_selects_build_override() {
     let canary = pass_canary("providers/provider_type_target_default_override");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("build provider override should resolve the Pick slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -307,7 +307,7 @@ fn provider_type_target_default_override_canary_selects_build_override() {
 #[test]
 fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
     let canary = pass_canary("providers/adapter_satisfies_compile");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("checked adapter provider should resolve the Echo slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -334,7 +334,7 @@ fn adapter_satisfies_canary_selects_exact_checked_adapter_plan() {
 #[test]
 fn external_leaf_via_canary_selects_exact_free_import_plan() {
     let canary = pass_canary("providers/external_leaf_via_compile");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("free external leaf should resolve the Shutdown slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -361,7 +361,7 @@ fn external_leaf_via_canary_selects_exact_free_import_plan() {
 #[test]
 fn external_leaf_dllimport_canary_selects_exact_free_import_plan() {
     let canary = pass_canary("providers/external_leaf_dllimport_compile");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("free DllImport leaf should resolve the Leaf slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -393,7 +393,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
     // cross the honest borrowed byte-view path.
     let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("forwarding-adapter canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -499,7 +499,7 @@ fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
 
     let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_x86_64"))
+    let checked = compile_to_checked(&main_path, Some("linux_x86_64"))
         .expect("Linux Console provider should compile to checked trees");
     let (plan, retained) = checked
         .selected_provider_plans()
@@ -581,7 +581,7 @@ fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
         );
     }
 
-    let targetless = omega_compiler::compile_to_checked(&main_path, None)
+    let targetless = compile_to_checked(&main_path, None)
         .expect("targetless Console provider should compile to checked trees");
     let (targetless_plan, targetless_retained) = targetless
         .selected_provider_plans()
@@ -944,7 +944,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
 fn runtime_boundary_capability_state_forwarding_exit_canary_runs() {
     let canary = pass_canary("providers/runtime_boundary_capability_state_forwarding_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("boundary capability should forward through a state parameter");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -983,7 +983,7 @@ fn runtime_console_byte_literal_exit_canary_runs() {
     // exit 70, both engines.
     let canary = pass_canary("host/runtime_console_byte_literal_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("byte-literal canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1095,7 +1095,7 @@ fn runtime_import_call_argument_exit_canary_runs() {
     // imports (its own rung).
     let canary = pass_canary("providers/runtime_import_call_argument_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("free DllImport leaf should resolve the Leaf slot");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -1147,7 +1147,7 @@ fn mutual_cycle_tail_admitted_canary_runs() {
     let canary = pass_canary("calls/mutual_cycle_tail_admitted_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("admitted mutual tail cycle should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1189,7 +1189,7 @@ fn const_fold_unsigned_landed_ops_canary_runs() {
     let canary = pass_canary("arithmetic/const_fold_unsigned_landed_ops_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("landed-ops const-fold canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1233,7 +1233,7 @@ fn const_fold_unsigned_shift_right_arg_canary_runs() {
     let canary = pass_canary("arithmetic/const_fold_unsigned_shift_right_arg_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("shift-right arg-delivery canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1276,7 +1276,7 @@ fn const_fold_unsigned_divide_arg_canary_runs() {
     let canary = pass_canary("arithmetic/const_fold_unsigned_divide_arg_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("divide/mod arg-delivery canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1320,7 +1320,7 @@ fn unsigned_min_max_wrapping_local_canary_runs() {
     let canary = pass_canary("arithmetic/unsigned_min_max_wrapping_local_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("unsigned min/max local canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1364,7 +1364,7 @@ fn unsigned_min_max_operand_position_canary_runs() {
     let canary = pass_canary("arithmetic/unsigned_min_max_operand_position_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("operand-position min/max canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1406,7 +1406,7 @@ fn suffix_boundary_magnitudes_canary_runs() {
     let canary = pass_canary("arithmetic/suffix_boundary_magnitudes_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("suffix boundary canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1446,7 +1446,7 @@ fn float_value_call_return_canary_runs() {
     let canary = pass_canary("calls/float_value_call_return_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("float return canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1484,7 +1484,7 @@ fn expansion_float_local_guard_canary_runs() {
     let canary = pass_canary("float/expansion_float_local_guard_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("expansion float guard canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1524,7 +1524,7 @@ fn float_value_call_runtime_arg_canary_runs() {
     let canary = pass_canary("calls/float_value_call_runtime_arg_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("float runtime-arg canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1565,7 +1565,7 @@ fn f32_chain_per_op_rounding_canary_runs() {
     let canary = pass_canary("float/f32_chain_per_op_rounding_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 chain canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1604,7 +1604,7 @@ fn runtime_std_is_finite_canary_runs() {
     let canary = pass_canary("float/runtime_std_is_finite_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("is_finite canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1644,7 +1644,7 @@ fn bool_value_call_return_canary_runs() {
     let canary = pass_canary("calls/bool_value_call_return_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("bool value-call canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1686,7 +1686,7 @@ fn struct_literal_transition_arg_canary_runs() {
     let canary = pass_canary("calls/struct_literal_transition_arg_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("struct-literal arg canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1729,7 +1729,7 @@ fn runtime_indexed_element_copy_write_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_element_copy_write_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("indexed element write canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1771,7 +1771,7 @@ fn suffix_landed_operand_position_canary_runs() {
     let canary = pass_canary("arithmetic/suffix_landed_operand_position_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("suffix-landed canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1812,7 +1812,7 @@ fn suffix_f32_single_rounding_canary_runs() {
     let canary = pass_canary("float/suffix_f32_single_rounding_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 single-rounding canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1852,7 +1852,7 @@ fn unsuffixed_f32_destination_single_rounding_canary_runs() {
     let canary = pass_canary("float/unsuffixed_f32_destination_single_rounding_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("unsuffixed f32 destination canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1891,7 +1891,7 @@ fn unsuffixed_f32_argument_single_rounding_canary_runs() {
     let canary = pass_canary("float/unsuffixed_f32_argument_single_rounding_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("unsuffixed f32 argument canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1927,7 +1927,7 @@ fn f32_per_operation_rounding_canary_runs() {
     let canary = pass_canary("float/f32_per_operation_rounding_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 per-operation rounding canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1961,7 +1961,7 @@ fn anonymous_exact_rat_const_canary_runs() {
     let canary = pass_canary("float/anonymous_exact_rat_const_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("anonymous exact-Rat canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1995,7 +1995,7 @@ fn finite_core_domain_range_discharge_canary_runs() {
     let canary = pass_canary("float/finite_core_domain_range_discharge");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("Finite core-domain canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2030,7 +2030,7 @@ fn struct_literal_field_coercion_canary_runs() {
     let canary = pass_canary("arithmetic/struct_literal_field_coercion");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("struct-literal coercion canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2069,7 +2069,7 @@ fn array_element_write_width_domain_canary_runs() {
     let canary = pass_canary("arithmetic/array_element_write_width_domain");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("array-element coercion canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2108,7 +2108,7 @@ fn int_transition_arg_width_wrap_canary_runs() {
     let canary = pass_canary("arithmetic/int_transition_arg_width_wrap");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("int transition-arg width canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2147,7 +2147,7 @@ fn f32_transition_arg_rounding_canary_runs() {
     let canary = pass_canary("arithmetic/f32_transition_arg_rounding");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 transition-arg canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2183,7 +2183,7 @@ fn f32_field_store_rounding_canary_runs() {
     let canary = pass_canary("arithmetic/f32_field_store_rounding");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("f32 field store canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -2221,7 +2221,7 @@ fn const_fold_cast_signedness_canary_runs() {
     let canary = pass_canary("arithmetic/const_fold_cast_signedness");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("const-fold cast canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

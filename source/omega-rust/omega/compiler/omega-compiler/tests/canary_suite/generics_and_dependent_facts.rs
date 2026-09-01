@@ -211,7 +211,7 @@ fn runtime_owned_string_byte_view_exit_canary_runs() {
     // interpreter shares the same byte cell; neither path passes the owned
     // String directly as a byte-slice argument.
     let canary = pass_canary("text/runtime_owned_string_byte_view_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("owned String byte-view canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
@@ -691,7 +691,7 @@ fn runtime_gui_foreground_window_exit_canary_runs() {
     let canary = pass_canary("host/runtime_gui_foreground_window_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("gui foreground-window canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -806,7 +806,7 @@ fn runtime_generic_value_call_exit_canary_runs() {
 #[test]
 fn trait_generic_bound_static_dispatch_canary_runs() {
     let canary = pass_canary("traits/trait_generic_bound_static_dispatch");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("bounded generic call should specialize to its nominal conformance");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -837,7 +837,7 @@ fn trait_generic_bound_static_dispatch_canary_runs() {
 #[test]
 fn runtime_generic_param_position_inference_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_param_position_inference_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("borrowed-place parameter inference canary should check");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None);
@@ -867,7 +867,7 @@ fn runtime_generic_param_position_inference_exit_canary_runs() {
 #[test]
 fn runtime_generic_multiple_specializations_exit_canary_runs() {
     let canary = pass_canary("generics/runtime_generic_multiple_specializations_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("multiple generic-machine specialization tuples should check");
     assert_eq!(
         checked
@@ -2449,7 +2449,7 @@ fn runtime_bounded_product_index_exit_canary_runs() {
     // R3: runtime dims coupled only by `requires rows * cols <= 12`; the
     // product rule store-proves the ranged temp and the index rides it.
     let canary = pass_canary("dependent/runtime_bounded_product_index_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("bounded-product canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(interpreted.error, None, "should interpret cleanly");

@@ -13,9 +13,9 @@
 // metadata not Ok; 75 wrong dst len; 76 binary write failed; 77 binary copy
 // not Ok / wrong count; 78 binary read-back not Ok / wrong count; 79 binary
 // byte values wrong.
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 data Main { console: Console; fs: Filesystem; raw: FilesystemHost; unit_result: UnitResult; io_result: IoResult; meta_result: MetadataResult; buffer: [u8; 64]; bin_src: [u8; 5]; bin_back: [u8; 8]; bin_fd: i32; bin_rc: i32; bin_n: i64; }
 machine Main::main(&mut self) {
     self.unit_result = self.fs.write_all("omega_cp_src.txt", "hello!");

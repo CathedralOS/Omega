@@ -121,7 +121,7 @@ fn windows_fs_wrapper_dark_methods_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_dark_methods_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("dark-methods canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -161,7 +161,7 @@ fn windows_fs_wrapper_results_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_results_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows fs wrapper canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -205,7 +205,7 @@ fn runtime_local_host_result_dispatch_exit_canary_runs() {
     let canary = pass_canary("filesystem/runtime_local_host_result_dispatch_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("local-host-result canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -250,7 +250,7 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_raw_roundtrip_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows fs roundtrip canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -299,7 +299,7 @@ fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
     let canary = pass_canary("filesystem/self_value_call_literal_path_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("self-value-call literal path canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -345,7 +345,7 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
     let canary = pass_canary("filesystem/discarded_self_call_literal_errno_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("discarded self-call literal canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -390,7 +390,7 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
     let canary = pass_canary("filesystem/wrapper_param_shadow_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("wrapper param-shadow canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -433,7 +433,7 @@ fn windows_fs_wrapper_open_with_exit_canary_runs() {
     let canary = pass_canary("filesystem/wrapper_open_with_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("open_with matrix canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -476,7 +476,7 @@ fn windows_fs_field_receiver_method_exit_canary_runs() {
     let canary = pass_canary("filesystem/field_receiver_method_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("field-receiver method canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -521,7 +521,7 @@ fn runtime_arm_target_host_result_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_arm_target_host_result_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("arm-target host-result canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -564,7 +564,7 @@ fn runtime_qualified_case_value_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_qualified_case_value_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("qualified-case-value canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -611,7 +611,7 @@ fn single_target_internal_machine_skipped_canary_runs() {
     let canary = pass_canary("targets/single_target_internal_machine_skipped");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("single-target internal canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -657,7 +657,7 @@ fn target_machine_gating_exit_canary_runs() {
     let canary = pass_canary("targets/target_machine_gating_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("target-machine canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -704,7 +704,7 @@ fn windows_wrapper_create_new_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_create_new_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("create_new canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -747,7 +747,7 @@ fn ring_requirement_satisfies_exit_canary_runs() {
     let canary = pass_canary("traits/ring_requirement_satisfies_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("ring-requirement canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -795,7 +795,7 @@ fn windows_find_enumeration_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_find_enumeration_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("find-enumeration canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -843,7 +843,7 @@ fn windows_read_dir_nth_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_read_dir_nth_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("read_dir_nth canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -885,7 +885,7 @@ fn windows_set_file_time_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_set_file_time_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("set_file_time canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -935,7 +935,7 @@ fn filesystem_set_times_target_implementations_compile() {
         "linux_arm64",
         "macos_arm64",
     ] {
-        omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
+        compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|d| panic!("set_times wrapper should check for {target}:\n{d:#?}"));
     }
 }
@@ -946,7 +946,7 @@ fn windows_wrapper_set_times_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_set_times_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows set_times wrapper canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -992,7 +992,7 @@ fn filesystem_lock_target_implementations_compile() {
         "linux_arm64",
         "macos_arm64",
     ] {
-        omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
+        compile_to_checked(&canary.join("main.omg"), Some(target))
             .unwrap_or_else(|d| panic!("lock wrappers should check for {target}:\n{d:#?}"));
     }
 }
@@ -1003,7 +1003,7 @@ fn windows_wrapper_lock_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_lock_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows lock wrapper canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1049,7 +1049,7 @@ fn windows_wrapper_lock_exit_canary_runs() {
 #[test]
 fn windows_canonicalize_canary_is_targetless_and_interprets() {
     let canary = pass_canary("filesystem/windows_canonicalize_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("windows canonicalize canary should compile to checked trees");
     assert_eq!(
         checked.selected_program_entry_machine(),
@@ -1107,7 +1107,7 @@ fn windows_hard_link_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_hard_link_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows hard-link canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1149,7 +1149,7 @@ fn windows_positioned_io_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_positioned_io_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows positioned-io canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1193,7 +1193,7 @@ fn windows_wrapper_metadata_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_metadata_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows metadata canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1237,7 +1237,7 @@ fn windows_wrapper_exists_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_exists_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("windows exists canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1275,7 +1275,7 @@ fn windows_wrapper_exists_exit_canary_runs() {
 fn windows_wrapper_set_len_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_set_len_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("set_len canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
@@ -1309,8 +1309,8 @@ fn windows_wrapper_set_len_exit_canary_runs() {
 fn windows_wrapper_copy_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_copy_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
-        .expect("copy canary should compile to checked trees");
+    let checked =
+        compile_to_checked(&main_path, None).expect("copy canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,

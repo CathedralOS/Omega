@@ -30,7 +30,7 @@ fn selected_intrinsic_diagnostic_label(
 #[test]
 fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
     let canary = pass_canary("domains/domain_operator_proven_fact_selects_meaning");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("signature-selected domain canary should compile to checked trees");
 
     let selected_domain_uses = checked
@@ -51,7 +51,7 @@ fn domain_operator_selection_records_signature_domain_meaning_as_evidence() {
 #[test]
 fn float_operator_spellings_record_named_core_identities() {
     let canary = pass_canary("operators/float_operator_identities");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("core float operation identities should compile");
 
     let selected_names: Vec<String> = checked
@@ -143,7 +143,7 @@ fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     }
 
     let canary = pass_canary("operators/float_operator_identities");
-    let baseline = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let baseline = compile_to_checked(&canary.join("main.omg"), None)
         .expect("baseline float provider plans should check");
     let baseline_snapshot = float_plan_snapshot(&baseline);
     assert!(
@@ -186,7 +186,7 @@ fn float_provider_plan_identities_ignore_arena_and_display_perturbations() {
     fs::copy(canary.join("build.omg"), scratch.join("build.omg"))
         .expect("copy float plan build configuration");
 
-    let perturbed = omega_compiler::compile_to_checked(&scratch.join("main.omg"), None)
+    let perturbed = compile_to_checked(&scratch.join("main.omg"), None)
         .expect("arena-perturbed float provider plans should check");
     assert_eq!(
         float_plan_snapshot(&perturbed),
@@ -311,10 +311,11 @@ fn migrated_float_provider_plans_are_selected_for_every_native_target() {
         "linux_arm64",
         "macos_arm64",
     ] {
-        let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), Some(target))
-            .unwrap_or_else(|diagnostics| {
+        let checked = compile_to_checked(&canary.join("main.omg"), Some(target)).unwrap_or_else(
+            |diagnostics| {
                 panic!("core float provider plans should check for {target}: {diagnostics:#?}")
-            });
+            },
+        );
         let operator_path = |operator: &psi_typed_trees::operator::OperatorDefinition| {
             checked
                 .typed
@@ -514,7 +515,7 @@ fn primitive_float_arithmetic_and_comparisons_execute_in_both_engines() {
 
     let canary = pass_canary("operators/float_operator_identities");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("primitive float arithmetic and comparisons should compile");
     let operator_path = |operator: &psi_typed_trees::operator::OperatorDefinition| {
         checked
@@ -671,7 +672,7 @@ fn named_float_format_conversion_requirements_execute_in_both_engines() {
 
     let canary = pass_canary("float/runtime_named_format_conversion_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("public float-format conversion requirements should compile");
 
     let selected = checked
@@ -850,7 +851,7 @@ fn named_integer_to_float_requirements_execute_in_both_engines() {
 
     let canary = pass_canary("float/runtime_named_integer_to_float_conversion_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("public integer-to-float requirements should compile");
 
     let selected = checked
@@ -982,7 +983,7 @@ fn named_float_to_integer_requirements_execute_in_both_engines() {
 
     let canary = pass_canary("float/runtime_named_float_to_integer_conversion_exit");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("public float-to-integer requirements should compile");
 
     let selected = checked
@@ -1176,7 +1177,7 @@ fn named_float_to_integer_trapping_requirements_trap_in_both_engines() {
     ] {
         let canary = pass_canary(name);
         let main_path = canary.join("main.omg");
-        let checked = omega_compiler::compile_to_checked(&main_path, None)
+        let checked = compile_to_checked(&main_path, None)
             .expect("named Trapping float-to-integer requirement should compile");
         let interpreted = interpret(&checked, &[]);
         assert!(
@@ -1232,7 +1233,7 @@ fn named_float_provider_calls_rewrite_to_selected_builtins() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x0b72_09a4_4518_814d;
 
     let canary = pass_canary("float/named_provider_min_max_sqrt_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float provider calls should compile to checked trees");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -1474,7 +1475,7 @@ fn named_float_negate_and_is_nan_preserve_selected_roots_and_execute() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3c92_46b9_d29d_254c;
 
     let canary = pass_canary("float/named_provider_negate_is_nan_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("named negate/is_nan provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -1642,7 +1643,7 @@ fn named_float_classification_predicates_select_and_execute() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xa6bf_7c01_3cb0_fd6a;
 
     let canary = pass_canary("float/named_provider_classification_predicates_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float classification calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -1797,7 +1798,7 @@ fn named_float_classify_preserves_enum_layout_and_executes() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x9a27_9424_1f02_d5fa;
 
     let canary = pass_canary("float/named_provider_classify_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("named float classify calls should compile to checked trees");
     let layouts =
         omega_layout::build_layout_plan(&checked, omega_target::NativeTarget::host(), &[])
@@ -1959,7 +1960,7 @@ fn named_float_multiply_then_add_preserves_two_roundings_and_executes() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x3469_73b6_84ba_8c5d;
 
     let canary = pass_canary("float/named_provider_multiply_then_add_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("named multiply-then-add provider calls should compile to checked trees");
 
     let main_machine = checked
@@ -2131,7 +2132,7 @@ fn named_float_fused_multiply_add_selects_aarch64_fmadd_and_executes() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xbb3f_d600_7ddf_03c0;
 
     let canary = pass_canary("float/named_provider_fused_multiply_add_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("named FMA provider calls should compile to checked trees on macOS AArch64");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -2263,7 +2264,7 @@ fn named_float_directed_fused_multiply_add_selects_aarch64_fmadd_and_executes() 
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x4b6d_5c3b_9fb5_54a6;
 
     let canary = pass_canary("float/named_provider_directed_fused_multiply_add_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-FMA provider calls should compile to checked trees on macOS AArch64");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -2506,7 +2507,7 @@ fn named_float_directed_add_selects_exact_plans_and_restores_control_state() {
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x7e9b_cd52_c66c_6510;
 
     let canary = pass_canary("float/named_provider_directed_add_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-add provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -2648,7 +2649,7 @@ fn named_float_directed_subtract_selects_exact_plans_and_restores_control_state(
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0xb40d_f240_a7b2_6e47;
 
     let canary = pass_canary("float/named_provider_directed_subtract_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-subtract provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -2791,7 +2792,7 @@ fn named_float_directed_multiply_selects_exact_plans_and_restores_control_state(
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x4411_b314_20a5_c04b;
 
     let canary = pass_canary("float/named_provider_directed_multiply_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-multiply provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -2934,7 +2935,7 @@ fn named_float_directed_divide_selects_exact_plans_and_restores_control_state() 
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5e1f_542f_ee21_0fd9;
 
     let canary = pass_canary("float/named_provider_directed_divide_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-divide provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -3077,7 +3078,7 @@ fn named_float_directed_square_root_selects_exact_plans_and_restores_control_sta
     const EXPECTED_DIFFERENTIAL_RESULT_IDENTITY: u64 = 0x5bfe_5610_aa74_88bf;
 
     let canary = pass_canary("float/named_provider_directed_square_root_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("directed-square-root provider calls should compile to checked trees");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -3224,8 +3225,8 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
         ),
     ] {
         let canary = pass_canary(canary_name);
-        let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
-            .unwrap_or_else(|diagnostics| {
+        let checked =
+            compile_to_checked(&canary.join("main.omg"), None).unwrap_or_else(|diagnostics| {
                 panic!("{canary_name} should compile to checked policy evidence: {diagnostics:?}")
             });
         assert!(
@@ -3242,7 +3243,7 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
 #[test]
 fn nested_attached_float_policy_operators_retain_checked_selected_evidence() {
     let canary = pass_canary("arithmetic/float_saturating_overflow_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("nested attached-data float policy canary should check");
     let machine = checked
         .typed
@@ -3356,10 +3357,9 @@ fn float_policy_adapters_retain_differential_results() {
     for (case_name, expected_exit, expected_error) in selected_cases.iter().copied() {
         let canary = pass_canary(case_name);
         let main_path = canary.join("main.omg");
-        let checked =
-            omega_compiler::compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
-                panic!("{case_name} should compile to checked policy evidence: {diagnostics:#?}")
-            });
+        let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+            panic!("{case_name} should compile to checked policy evidence: {diagnostics:#?}")
+        });
         for operator_use in checked.facts.operators.resolved_uses() {
             let adapter = match operator_use.policy_adapter {
                 psi_checked_trees::CheckedArithmeticPolicyAdapter::None => continue,
@@ -3570,7 +3570,7 @@ fn float_policy_adapters_retain_differential_results() {
 #[test]
 fn domain_operator_selection_records_builtin_fallback_without_binding_selection() {
     let canary = pass_canary("domains/domain_operator_unproven_keeps_builtin_meaning");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("unselected builtin fallback canary should compile to checked trees");
 
     let fallback_uses = checked
@@ -3602,7 +3602,7 @@ fn domain_operator_selection_records_builtin_fallback_without_binding_selection(
 #[test]
 fn domain_operator_inactive_same_carrier_meanings_coexist() {
     let canary = pass_canary("domains/domain_operator_inactive_same_carrier_coexists");
-    omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    compile_to_checked(&canary.join("main.omg"), None)
         .expect("inactive same-carrier domain meanings should coexist");
 }
 
@@ -3611,7 +3611,7 @@ fn domain_operator_inactive_same_carrier_meanings_coexist() {
 #[test]
 fn domain_operator_competing_binding_meanings_fail_at_use_site() {
     let canary = fail_canary("domains/domain_operator_competing_spelling_meanings");
-    let diagnostics = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let diagnostics = compile_to_checked(&canary.join("main.omg"), None)
         .err()
         .expect("competing selected domain meanings should fail");
     assert!(

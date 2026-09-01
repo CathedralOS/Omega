@@ -13,9 +13,9 @@
 // buffer with the SPELLED count, byte-exactly.
 // exits: 70 exact; 71 write failed; 72 read failed/short (count shadow);
 // 73..75 byte mismatch at 0/1/4 (73 = buffer shadow: bin_back stayed ZII).
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; count: u64; bin_src: [u8; 5]; bin_back: [u8; 8]; }
 machine Main::main(&mut self) {
     self.bin_src[0] = 65;

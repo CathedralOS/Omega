@@ -8,9 +8,9 @@
 // failed; 74 = read short; 75 = byte mismatch; 76 = remove failed; 77 =
 // removed file still opens; 78 = errno != ENOENT.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

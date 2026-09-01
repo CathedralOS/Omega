@@ -1310,7 +1310,7 @@ fn runtime_carrier_byte_write_width_coercion_canary_runs() {
     let canary = pass_canary("text/runtime_carrier_byte_write_width_coercion");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("carrier byte-write coercion canary should compile to checked trees");
     let outcome = interpret(&checked, &[]);
     assert_eq!(

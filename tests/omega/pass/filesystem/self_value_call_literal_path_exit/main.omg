@@ -14,9 +14,9 @@
 //      71 = create failed (setup); 72 = self-call open failed (the bug);
 //      73 = cleanup remove failed.
 
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

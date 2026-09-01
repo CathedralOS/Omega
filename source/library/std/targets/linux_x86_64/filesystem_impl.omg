@@ -266,7 +266,12 @@ linux_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) 
 // A name longer than 255 bytes is truncated (`name_len` is the copied length).
 // The descriptor cursor remains open across fills and closes at the found, EOF,
 // malformed-record, or syscall-error terminal.
-linux_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult {
+pub linux_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.read_flags = 0;
     self.rd_position = 0;
     self.rd_off = 0;
@@ -680,7 +685,12 @@ linux_x86_64 machine Filesystem::rda_step(&mut self, step: u64) {
 // slice 2): posix binds the ATOMIC pread/pwrite raw ops directly -- the
 // kernel reads/writes at the offset without touching the fd's cursor.
 // (The windows twin composes seek/op/restore; see its impl file.)
-linux_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult {
+pub linux_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: u64, offset: i64) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
     transition n >= 0 { true -> ok(n) _ -> err(n) }
@@ -691,7 +701,12 @@ linux_x86_64 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8
     state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
 }
 
-linux_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+pub linux_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err(n) }
@@ -706,7 +721,12 @@ linux_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], o
 // posix binds linkat(2) directly -- Linux's negative result carries the failure kind
 // (AlreadyExists / NotFound). (The windows twin rides the designed
 // create_hard_link seam op; see its impl file.)
-linux_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+pub linux_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     let rc: i32 = self.host.hard_link(original, link);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
@@ -715,7 +735,12 @@ linux_x86_64 machine Filesystem::hard_link(&mut self, original: &[u8] in Path, l
 
 // Set an open file's access + modification times. Compose two native timespec
 // records (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64}) and futimens.
-linux_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+pub linux_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.times_buf[0] = narrow_i64_to_u8_wrapping(accessed);
     self.times_buf[1] = narrow_i64_to_u8_wrapping(accessed >> 8);
     self.times_buf[2] = narrow_i64_to_u8_wrapping(accessed >> 16);
@@ -744,14 +769,24 @@ linux_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64,
 // existence-checked, writes the NUL-terminated absolute path into the
 // caller's >= 1024-byte buffer. (The windows twin composes the handle
 // bridge; see its impl file.)
-linux_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+pub linux_x86_64 machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     let rc: i64 = self.host.canonicalize(path, buffer);
     transition rc != 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self, rc: i64) -> UnitResult { let kind: ErrorKind = self.last_error_i64(rc); UnitResult::Error { kind: kind } }
 }
 
-linux_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+pub linux_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 2);
     transition rc == 0 { true -> ok() _ -> err(rc) }
@@ -759,7 +794,12 @@ linux_x86_64 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
     state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
 }
 
-linux_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+pub linux_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 1);
     transition rc == 0 { true -> ok() _ -> err(rc) }
@@ -767,7 +807,12 @@ linux_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResul
     state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
 }
 
-linux_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+pub linux_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 6);
     self.lock_errno = self.native_error_code_i32(rc);
@@ -778,7 +823,12 @@ linux_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResul
     state failed(&mut self, rc: i32) -> TryLockResult { let kind: ErrorKind = self.last_error_i32(rc); TryLockResult::Error { kind: kind } }
 }
 
-linux_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+pub linux_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 5);
     self.lock_errno = self.native_error_code_i32(rc);
@@ -789,7 +839,12 @@ linux_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLo
     state failed(&mut self, rc: i32) -> TryLockResult { let kind: ErrorKind = self.last_error_i32(rc); TryLockResult::Error { kind: kind } }
 }
 
-linux_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+pub linux_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult
+reaches
+    FilesystemHost
+invokes
+    FilesystemHost;
+{
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 8);
     transition rc == 0 { true -> ok() _ -> err(rc) }

@@ -9,10 +9,10 @@
 // must count both entries. The pre-clean remove_dir_all keeps reruns
 // hermetic; the tail remove_dir_all is a third walk call past the
 // measurement.
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

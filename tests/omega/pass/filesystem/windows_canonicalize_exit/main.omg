@@ -17,9 +17,9 @@
 // 76 directory creation failed; 77 directory canonicalize refused; 78 the
 // resolved directory buffer starts with neither model's spelling.
 
-use omega::language::std::filesystem;
+use omega_language_std::filesystem;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

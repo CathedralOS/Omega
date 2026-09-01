@@ -14,9 +14,9 @@
 // `read_metadata` seam binds `_stat64` only on windows_x86_64); darwin covers the
 // same wrapper path via the native_metadata_* canaries.
 // exits: 70 ok; 71 write failed; 72 metadata not Ok; 73 wrong len; 74 not regular file; 75 is dir.
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 data Main { console: Console; fs: Filesystem; unit_result: UnitResult; meta_result: MetadataResult; }
 machine Main::main(&mut self) {
     self.unit_result = self.fs.write_all("omega_winmeta_probe.txt", "hello!");

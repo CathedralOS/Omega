@@ -11,9 +11,9 @@
 // readback wrong; 74 original removal failed; 75 the link did not survive
 // the original's removal; 76 linking onto a TAKEN name did not error.
 
-use omega::language::std::filesystem;
+use omega_language_std::filesystem;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

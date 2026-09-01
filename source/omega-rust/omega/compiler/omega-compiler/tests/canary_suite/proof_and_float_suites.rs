@@ -587,7 +587,7 @@ fn exact_float_to_int_proof_canaries() {
 #[test]
 fn generic_float_builtins_retain_exact_provider_evidence() {
     let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
-    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+    let checked = compile_to_checked(&canary.join("main.omg"), None)
         .expect("generic float builtins should compile to checked trees");
     let uses = checked
         .facts
@@ -1317,7 +1317,7 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
     let canary = pass_canary("float/runtime_total_order_satisfiers_exit");
     let main_path = canary.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("total-order satisfier canary should compile to checked trees");
     let interpreted = interpret(&checked, &[]);
     assert_eq!(
@@ -1399,7 +1399,7 @@ fn build_runtime_float_semantics_twins_agree() {
 
     let canary = pass_canary("float/build_runtime_semantics_twins");
     let main_path = canary.join("main.omg");
-    let checked = omega_compiler::compile_to_checked(&main_path, None)
+    let checked = compile_to_checked(&main_path, None)
         .expect("float semantic twins should compile and evaluate their array length");
 
     let mut selected_intrinsics = std::collections::BTreeSet::new();
@@ -1574,7 +1574,7 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
     .expect("write Linux AArch64 semantic-edge target manifest");
     let main_path = source_dir.join("main.omg");
 
-    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_arm64"))
+    let checked = compile_to_checked(&main_path, Some("linux_arm64"))
         .expect("Linux AArch64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -1765,7 +1765,7 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_x86_64"))
+    let checked = compile_to_checked(&main_path, Some("linux_x86_64"))
         .expect("baseline x86 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();
@@ -1949,7 +1949,7 @@ fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
     ));
     let _ = fs::remove_dir_all(&scratch);
 
-    let checked = omega_compiler::compile_to_checked(&main_path, Some("windows_x86_64"))
+    let checked = compile_to_checked(&main_path, Some("windows_x86_64"))
         .expect("baseline Windows x64 float twin should compile and evaluate its array length");
     let mut selected_intrinsics = std::collections::BTreeSet::new();
     let mut selected_plan_identities = Vec::new();

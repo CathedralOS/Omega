@@ -11,9 +11,9 @@
 // and native agree -- and the differential is the drift guard on that mirror.
 // exits: 70 ok; 71 create_new not Ok; 72 close nonzero; 73 second create_new
 // not Error; 74 kind not AlreadyExists.
-use omega::language::std::filesystem;
-use omega::language::std::filesystem_host;
-use omega::language::std::console;
+use omega_language_std::filesystem;
+use omega_language_std::filesystem_host;
+use omega_language_std::console;
 data Main { console: Console; fs: Filesystem; unit_result: UnitResult; open_result: OpenResult; rc: i32; }
 machine Main::main(&mut self) {
     // ensure absent
