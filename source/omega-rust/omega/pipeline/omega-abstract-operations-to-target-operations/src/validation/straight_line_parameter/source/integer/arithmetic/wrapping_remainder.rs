@@ -1,14 +1,15 @@
-//! Wrapping `[WrappingIntegerDivide(parameter, parameter), Return]` source replay.
-//! Only a nonzero divisor is required; a signed `MIN / -1` quotient wraps.
+//! Wrapping `[WrappingIntegerRemainder(parameter, parameter), Return]` source replay.
+//! Truncation-toward-zero keeps the dividend sign; signed `MIN % -1` is zero.
+//! Only the nonzero-divisor obligation is required.
 
 use omega_abstract_operations::{AbstractFunction, AbstractOperation};
 use psi_core::{IntegerCarrier, ScalarType};
 
 use super::super::super::super::model::{
     IntegerArithmeticParametersSource, ParameterResultKind, ReconstructedEnvelope,
-    WrappingIntegerDivideParametersSource,
+    WrappingIntegerRemainderParametersSource,
 };
-use crate::validation::model::StraightLineWrappingIntegerDivideParametersTranslationError;
+use crate::validation::model::StraightLineWrappingIntegerRemainderParametersTranslationError;
 
 pub(in crate::validation::straight_line_parameter) fn is_candidate(
     function: &AbstractFunction,
@@ -17,7 +18,7 @@ pub(in crate::validation::straight_line_parameter) fn is_candidate(
         && matches!(
             function.operations.as_slice(),
             [
-                AbstractOperation::WrappingIntegerDivide { .. },
+                AbstractOperation::WrappingIntegerRemainder { .. },
                 AbstractOperation::Return {
                     cleanup_actions,
                     ..
@@ -30,14 +31,14 @@ pub(super) fn reconstruct(
     function: &AbstractFunction,
     envelope: &ReconstructedEnvelope<'_>,
 ) -> Result<
-    WrappingIntegerDivideParametersSource,
-    StraightLineWrappingIntegerDivideParametersTranslationError,
+    WrappingIntegerRemainderParametersSource,
+    StraightLineWrappingIntegerRemainderParametersTranslationError,
 > {
     let [
-        AbstractOperation::WrappingIntegerDivide {
+        AbstractOperation::WrappingIntegerRemainder {
             psi_operation,
             obligation,
-            result: divide_result,
+            result: remainder_result,
             scalar_type,
             left,
             right,
@@ -52,46 +53,48 @@ pub(super) fn reconstruct(
     ] = function.operations.as_slice()
     else {
         return Err(
-            StraightLineWrappingIntegerDivideParametersTranslationError::SourceOperationRoster,
+            StraightLineWrappingIntegerRemainderParametersTranslationError::SourceOperationRoster,
         );
     };
     if !cleanup_actions.is_empty() {
-        return Err(StraightLineWrappingIntegerDivideParametersTranslationError::SourceCleanup);
+        return Err(StraightLineWrappingIntegerRemainderParametersTranslationError::SourceCleanup);
     }
     if *result != envelope.function_result
         || *return_type != ScalarType::Integer(*scalar_type)
-        || *value != *divide_result
+        || *value != *remainder_result
     {
-        return Err(StraightLineWrappingIntegerDivideParametersTranslationError::SourceReturnLink);
+        return Err(
+            StraightLineWrappingIntegerRemainderParametersTranslationError::SourceReturnLink,
+        );
     }
     if envelope
         .parameters
         .iter()
-        .any(|parameter| parameter.value == *divide_result)
+        .any(|parameter| parameter.value == *remainder_result)
     {
         return Err(
-            StraightLineWrappingIntegerDivideParametersTranslationError::SourceDivideResultRoster,
+            StraightLineWrappingIntegerRemainderParametersTranslationError::SourceRemainderResultRoster,
         );
     }
     let (left_parameter_index, left_type) = super::super::parameter(envelope, *left).ok_or(
-        StraightLineWrappingIntegerDivideParametersTranslationError::SourceLeftOperandLink,
+        StraightLineWrappingIntegerRemainderParametersTranslationError::SourceLeftOperandLink,
     )?;
     let (right_parameter_index, right_type) = super::super::parameter(envelope, *right).ok_or(
-        StraightLineWrappingIntegerDivideParametersTranslationError::SourceRightOperandLink,
+        StraightLineWrappingIntegerRemainderParametersTranslationError::SourceRightOperandLink,
     )?;
     if scalar_type.carrier() != IntegerCarrier::Fixed
         || left_type != *scalar_type
         || right_type != *scalar_type
     {
         return Err(
-            StraightLineWrappingIntegerDivideParametersTranslationError::SourceOperandTypeMismatch,
+            StraightLineWrappingIntegerRemainderParametersTranslationError::SourceOperandTypeMismatch,
         );
     }
-    Ok(WrappingIntegerDivideParametersSource {
+    Ok(WrappingIntegerRemainderParametersSource {
         arithmetic: IntegerArithmeticParametersSource {
             operation: *psi_operation,
             return_edge: *psi_edge,
-            source_value: *divide_result,
+            source_value: *remainder_result,
             scalar_type: *scalar_type,
             left_value: *left,
             right_value: *right,

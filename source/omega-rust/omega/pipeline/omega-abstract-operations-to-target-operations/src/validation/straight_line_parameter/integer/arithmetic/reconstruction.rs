@@ -8,7 +8,7 @@ use super::super::super::model::{
     ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerDivideParameters,
     ReconstructedExactIntegerMultiplyParameters, ReconstructedExactIntegerRemainderParameters,
     ReconstructedExactIntegerSubtractParameters, ReconstructedIntegerArithmeticParameters,
-    ReconstructedWrappingIntegerDivideParameters,
+    ReconstructedWrappingIntegerDivideParameters, ReconstructedWrappingIntegerRemainderParameters,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
@@ -22,6 +22,7 @@ use crate::validation::model::{
     StraightLineWrappingIntegerAddParametersTranslationError,
     StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
+    StraightLineWrappingIntegerRemainderParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 
@@ -157,6 +158,29 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_divid
         StraightLineWrappingIntegerDivideParametersTranslationError::TargetProvenance,
     )?;
     Ok(ReconstructedWrappingIntegerDivideParameters {
+        arithmetic,
+        obligation: source.obligation,
+    })
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_remainder(
+    function: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<
+    ReconstructedWrappingIntegerRemainderParameters,
+    StraightLineWrappingIntegerRemainderParametersTranslationError,
+> {
+    let source =
+        super::super::super::source::integer::arithmetic::reconstruct_wrapping_remainder(function)?;
+    let arithmetic = super::replay::reconstruct_from_source(
+        function,
+        expected_target,
+        target,
+        source.arithmetic,
+        StraightLineWrappingIntegerRemainderParametersTranslationError::TargetProvenance,
+    )?;
+    Ok(ReconstructedWrappingIntegerRemainderParameters {
         arithmetic,
         obligation: source.obligation,
     })

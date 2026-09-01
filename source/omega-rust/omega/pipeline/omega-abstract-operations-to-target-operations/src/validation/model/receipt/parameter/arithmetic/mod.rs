@@ -11,6 +11,7 @@ mod saturating_subtract;
 mod wrapping_add;
 mod wrapping_divide;
 mod wrapping_multiply;
+mod wrapping_remainder;
 mod wrapping_subtract;
 
 pub use exact_add::*;
@@ -24,4 +25,5 @@ pub use saturating_subtract::*;
 pub use wrapping_add::*;
 pub use wrapping_divide::*;
 pub use wrapping_multiply::*;
+pub use wrapping_remainder::*;
 pub use wrapping_subtract::*;
