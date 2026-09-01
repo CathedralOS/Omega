@@ -1,7 +1,10 @@
 use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape};
 use omega_compiler::{compile_to_checked, compile_to_checked_with_packages};
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
-use omega_provider_planning::calling_policy_plans::evaluate_calling_policy_plan;
+use omega_provider_planning::calling_policy_plans::{
+    BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
+    BoundaryValueClass, evaluate_calling_policy_plan,
+};
 use omega_provider_planning::plans::{
     selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
     selected_external_root_provider_plan_id,
@@ -914,6 +917,66 @@ machine build(builder: &mut Build) {
 }
 "#;
 
+const INTERRUPT_OPAQUE_RESULT_POLICY: &str = r#"
+data InterruptResultPolicy { }
+InterruptResultPolicyCallingPolicy: InterruptResultPolicy satisfies CallingPolicy;
+
+machine InterruptResultPolicy::plan(
+    signature: BoundarySignature
+) -> BoundaryPlanResult
+    satisfies CallingPolicy::plan
+{
+    transition signature.parameter_count == 0 && signature.has_result {
+        true -> accept(signature, signature.result)
+        _ -> reject()
+    }
+
+    state accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+        transition result < 256 {
+            true -> build(signature, result)
+            _ -> reject()
+        }
+    }
+
+    state build(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
+        let mut output: BoundaryEntryPlan;
+        output.call.convention = CallingConvention::SystemVAMD64;
+        output.call.has_result = true;
+        output.call.result.shape.class = AbiValueClass::Integer;
+        output.call.result.shape.byte_size = signature.shapes[result].byte_size;
+        output.call.result.shape.alignment = signature.shapes[result].alignment;
+        output.call.result.location_count = 1;
+        output.call.result.locations[0] = ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register {
+                register: MachineRegister::X86Rdi,
+            },
+            has_copy: false,
+            copy_stack_byte_offset: 0,
+            byte_size: signature.shapes[result].byte_size,
+            alignment: signature.shapes[result].alignment,
+        };
+        output.call.stack_alignment = 16;
+        output.call.entry_control = EntryControl::CallReturn;
+        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.stack = EntryStack::ProviderSelected;
+        output.state.preemption = Preemption::NotApplicable;
+        BoundaryPlanResult::Accepted { plan: output }
+    }
+
+    state reject() -> BoundaryPlanResult {
+        BoundaryPlanResult::Rejected {
+            reason: CallingPolicyRejection {
+                reason: "opaque result policy requires exactly one result",
+            },
+        }
+    }
+}
+
+boundary trait InterruptResult: Calling<InterruptResultPolicy> {
+    machine issue() -> InterruptAcknowledgement;
+}
+"#;
+
 fn retained_interrupt_representation(
     checked: &omega_compiler::CheckedCompilation,
 ) -> &omega_representation_planning::OpaqueRepresentationSelection {
@@ -1494,6 +1557,154 @@ fn selected_opaque_representation_supplies_nested_general_layout() {
     );
     assert_eq!(acknowledgement.layout.size, 40);
     assert_eq!(acknowledgement.layout.alignment, 8);
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn opaque_result_rejoins_its_exact_result_placement() {
+    let source = format!("{INTERRUPT_POLICY}\n{INTERRUPT_OPAQUE_RESULT_POLICY}");
+    let main_path = write_project(
+        "interrupt-opaque-result-movement",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    let checked =
+        compile_to_checked(&main_path, None).expect("opaque result policy should compile");
+    let selection = retained_interrupt_representation(&checked);
+    let mut result_movements = 0;
+
+    for realization in checked.boundary_calling_plan_realizations() {
+        let (validated, _, _) = realization
+            .replayed_validated_application()
+            .expect("opaque result plan should replay exactly");
+        for representation in realization
+            .materialized_signature
+            .opaque_representation_uses()
+            .iter()
+            .filter(|representation| representation.opaque() == selection.opaque())
+        {
+            let movement = realization
+                .materialized_signature
+                .opaque_representation_movement(representation, &validated)
+                .expect("opaque result must rejoin one exact result placement");
+            if movement.role() != BoundaryOpaqueRepresentationMovementRole::Result {
+                continue;
+            }
+            result_movements += 1;
+            assert!(movement.path().is_empty());
+            assert_eq!(
+                realization.materialized_signature.result(),
+                Some(representation.shape_root())
+            );
+            assert_eq!(movement.placement().shape.byte_size, 40);
+            assert_eq!(movement.placement().shape.alignment, 8);
+            assert!(matches!(
+                movement.placement().locations.as_slice(),
+                [omega_calling_conventions::ValueLocation::Indirect { .. }]
+            ));
+        }
+    }
+
+    assert_eq!(
+        result_movements, 1,
+        "the authored result boundary should retain one opaque result movement"
+    );
+    let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
+}
+
+#[test]
+fn nested_opaque_path_ignores_an_identically_shaped_ordinary_field() {
+    let source = INTERRUPT_POLICY
+        .replace(
+            "boundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(acknowledgement: InterruptAcknowledgement in Pending)\n    reaches PortIo;\n}",
+            "data InterruptEnvelope {\n    ordinary: PicAckCarrier;\n    acknowledgement: InterruptAcknowledgement;\n}\n\nboundary trait LookalikeEntry: Calling<X86InterruptPolicy> {\n    machine enter(envelope: InterruptEnvelope)\n    reaches PortIo;\n}",
+        )
+        .replace(
+            "data LookalikeEntryProvider { }\nLookalikeEntryProviderLookalikeEntry: LookalikeEntryProvider satisfies LookalikeEntry;\n\nmachine LookalikeEntryProvider::enter(acknowledgement: InterruptAcknowledgement in Pending)\n    satisfies LookalikeEntry::enter\n    reaches PortIo\n{\n    acknowledgement.complete();\n}\n\n",
+            "",
+        )
+        .replace(
+            "signature.shapes[root].byte_size == 40",
+            "signature.shapes[root].byte_size == 40 || signature.shapes[root].byte_size == 80",
+        );
+    let main_path = write_project(
+        "interrupt-nested-opaque-movement",
+        &source,
+        INTERRUPT_REPRESENTATION_BUILD,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .expect("nested opaque representation policy should compile");
+    let selection = retained_interrupt_representation(&checked);
+    let mut nested_movements = 0;
+
+    for realization in checked.boundary_calling_plan_realizations() {
+        let (validated, _, _) = realization
+            .replayed_validated_application()
+            .expect("nested opaque plan should replay exactly");
+        for representation in realization
+            .materialized_signature
+            .opaque_representation_uses()
+            .iter()
+            .filter(|representation| representation.opaque() == selection.opaque())
+        {
+            let movement = realization
+                .materialized_signature
+                .opaque_representation_movement(representation, &validated)
+                .expect("nested opaque must rejoin one exact parameter placement");
+            if movement.path()
+                != [BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 1 }]
+            {
+                continue;
+            }
+            nested_movements += 1;
+            assert!(matches!(
+                movement.role(),
+                BoundaryOpaqueRepresentationMovementRole::Parameter {
+                    formal_ordinal: 0,
+                    native_ordinal: 0,
+                }
+            ));
+            assert_eq!(movement.placement().shape.byte_size, 80);
+            assert_eq!(movement.placement().shape.alignment, 8);
+
+            let [parameter_root] = realization.materialized_signature.parameters() else {
+                panic!("nested boundary should retain one semantic parameter")
+            };
+            let root = realization.materialized_signature.shapes()[usize::from(*parameter_root)];
+            let BoundaryValueClass::Record {
+                first_field,
+                field_count: 2,
+            } = root.class()
+            else {
+                panic!("nested boundary parameter should remain a two-field record")
+            };
+            let fields = &realization.materialized_signature.fields()
+                [usize::from(first_field)..usize::from(first_field) + 2];
+            let ordinary_root = fields[0].shape();
+            let opaque_root = fields[1].shape();
+            assert_eq!(opaque_root, representation.shape_root());
+            assert_ne!(ordinary_root, representation.shape_root());
+            let ordinary = realization.materialized_signature.shapes()[usize::from(ordinary_root)];
+            let opaque = realization.materialized_signature.shapes()[usize::from(opaque_root)];
+            assert_eq!(ordinary.byte_size(), opaque.byte_size());
+            assert_eq!(ordinary.alignment(), opaque.alignment());
+            assert_eq!(
+                realization
+                    .materialized_signature
+                    .opaque_representation_uses()
+                    .iter()
+                    .filter(|candidate| candidate.opaque() == selection.opaque())
+                    .count(),
+                1,
+                "the equal ordinary carrier field must not be marked as opaque"
+            );
+        }
+    }
+
+    assert_eq!(
+        nested_movements, 1,
+        "the authored envelope should retain one exact nested opaque movement"
+    );
     let _ = fs::remove_dir_all(main_path.parent().expect("temporary policy directory"));
 }
 

@@ -83,9 +83,9 @@ stop the item on one precise owner question before adding machinery.
   compiler-owned target-semantics application, replacement contract, or
   stable-handle era requires another closed case; do not infer one from
   size/alignment, compact fingerprints, or review prose.
-  Harden the landed movement join with result, nested record/fixed-array,
-  repeated and identically shaped opaque, `PlacementOnly`, callback-ordinal,
-  indirect-placement, and marker/commitment-tamper canaries.
+  Harden the remaining movement-join edge cases with repeated and identically
+  shaped opaque occurrences, callback ordinals, and malformed or out-of-range
+  marker-replay canaries.
 
 ## P3 — Recheckable evidence and accepted lock
 
