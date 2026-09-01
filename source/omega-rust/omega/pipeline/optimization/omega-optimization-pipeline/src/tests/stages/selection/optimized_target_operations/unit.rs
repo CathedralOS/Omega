@@ -1,4 +1,7 @@
 use super::*;
+use omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
+use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+use omega_target::{TargetProfile, X86_SCALAR_FMA_REQUIRED_FEATURES, X86ScalarFmaSlot};
 use psi_terminal::TerminalAffineCleanupAction;
 
 #[test]
@@ -184,6 +187,117 @@ fn optimized_target_lowering_retains_finite_ieee_literal_sequence_custody() {
             Some(TargetUnitOperation::Return { cleanup_actions, .. })
                 if cleanup_actions.is_empty()
         ));
+    }
+}
+
+#[test]
+fn optimized_target_lowering_retains_exact_nearest_ieee_fma_custody() {
+    for (target_profile, profile) in [
+        (NativeTarget::linux_x64(), TargetProfile::LinuxX64),
+        (NativeTarget::windows_x64(), TargetProfile::WindowsX64),
+        (NativeTarget::uefi_x64(), TargetProfile::UefiX64),
+    ] {
+        for (format, slot) in [
+            (
+                psi_core::IeeeFloatFormat::Binary32,
+                X86ScalarFmaSlot::Binary32,
+            ),
+            (
+                psi_core::IeeeFloatFormat::Binary64,
+                X86ScalarFmaSlot::Binary64,
+            ),
+        ] {
+            let (semantic, proof) =
+                nearest_ieee_float_fused_multiply_add_unit_return_artifact(format);
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let plan = ProviderPlan {
+                name: format!("test::optimized_nearest_fma::{format:?}"),
+                provider_type: "test::CanonicalX86FmaProvider".into(),
+                provider_type_package_identity: None,
+                target: profile.target_name().into(),
+                schema: ServiceSchema::default(),
+                rows: vec![ProviderPlanRow {
+                    method: "fused_multiply_add".into(),
+                    requirement_identity: slot.selected_plan_requirement_identity().into(),
+                    requirement_lifetime_partition: Vec::new(),
+                    binding: ProviderBinding::CompilerIntrinsic {
+                        machine: slot.realization_identity().into(),
+                    },
+                }],
+                origin_package_identity: None,
+                origin_package: "test".into(),
+            };
+            let provider = omega_target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                profile,
+                &X86_SCALAR_FMA_REQUIRED_FEATURES,
+            )
+            .unwrap();
+            let settlement = AdmittedIeeeFloatFmaSettlement {
+                terminal_operation: OperationId::new(3_536).unwrap(),
+                provider_plan: &plan,
+                format,
+                slot,
+                provider,
+            };
+            let target = lower_optimized_to_target_operations_with_ieee_float_fma_settlements(
+                optimized,
+                target_profile,
+                &[settlement],
+            )
+            .unwrap();
+            let AbstractToTargetFunctionTranslationDisposition::Validated(
+                AbstractToTargetFunctionTranslationReceipt::StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturn(row),
+            ) = target.translation_validation().function_roster()[0].translation()
+            else {
+                panic!("optimized nearest FMA must retain its exact validated family")
+            };
+            assert_eq!(row.fma_operation(), OperationId::new(3_536).unwrap());
+            assert_eq!(row.fma_result(), ValueId::new(3_537).unwrap());
+            assert_eq!(row.format(), format);
+            assert_eq!(row.slot(), slot);
+            assert_eq!(row.provider(), provider);
+            assert_eq!(
+                row.provider_plan_report_identity(),
+                plan.report_fingerprint()
+            );
+            assert_eq!(
+                row.provider_plan_digest(),
+                *plan.identity_digest().as_bytes()
+            );
+            let TargetOperation::UnitBody(body) =
+                &target.target_operations().functions[0].operation
+            else {
+                panic!("optimized nearest FMA must remain in the Unit-body carrier")
+            };
+            assert!(matches!(
+                body.operations.as_slice(),
+                [
+                    TargetUnitOperation::IeeeFloatConstant { .. },
+                    TargetUnitOperation::IeeeFloatConstant { .. },
+                    TargetUnitOperation::IeeeFloatConstant { .. },
+                    TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+                        psi_operation,
+                        result,
+                        format: target_format,
+                        settlement: target_settlement,
+                        ..
+                    },
+                    TargetUnitOperation::Return { cleanup_actions, .. },
+                ] if *psi_operation == OperationId::new(3_536).unwrap()
+                    && *result == ValueId::new(3_537).unwrap()
+                    && *target_format == format
+                    && target_settlement.provider_plan_digest == *plan.identity_digest().as_bytes()
+                    && target_settlement.slot == slot
+                    && target_settlement.provider == provider
+                    && cleanup_actions.is_empty()
+            ));
+        }
     }
 }
 

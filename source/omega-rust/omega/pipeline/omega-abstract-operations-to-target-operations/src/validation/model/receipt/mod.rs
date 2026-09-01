@@ -50,10 +50,12 @@ pub use roster::{
     AbstractToTargetTranslationValidationReceipt,
 };
 pub use terminal::{
-    IeeeFloatLiteralSequenceMember, StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
+    IeeeFloatFusedMultiplyAddOperandReceipt, IeeeFloatLiteralSequenceMember,
+    StraightLineByteSequenceLiteralUnitReturnTranslationReceipt,
     StraightLineIeeeFloatLiteralSequenceUnitReturnTranslationReceipt,
     StraightLineIeeeFloatLiteralUnitReturnTranslationReceipt,
     StraightLineIntegerLiteralUnitReturnTranslationReceipt,
+    StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationReceipt,
     StraightLinePortWriteUnitReturnTranslationReceipt, StraightLineScalarCrashTranslationReceipt,
     StraightLineTrivialAffineLocalUnitReturnTranslationReceipt,
     StraightLineUnitCallReturnTranslationReceipt, StraightLineUnitReturnTranslationReceipt,

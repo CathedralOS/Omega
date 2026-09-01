@@ -201,6 +201,12 @@ pub(crate) fn expected_uses(
         | O::SaturatingIntegerDivide { left, right, .. }
         | O::SaturatingIntegerRemainder { left, right, .. }
         | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        O::NearestIeeeFloatFusedMultiplyAdd {
+            left,
+            right,
+            addend,
+            ..
+        } => vec![*left, *right, *addend],
         O::WrappingIntegerShiftLeft { value, count, .. }
         | O::WrappingIntegerShiftRight { value, count, .. }
         | O::ExactIntegerShiftLeft { value, count, .. }

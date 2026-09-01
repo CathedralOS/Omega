@@ -263,7 +263,34 @@ impl StagedValidatedOptimizedObjectArtifact {
     }
 
     #[cfg(test)]
-    pub(crate) fn corrupt_custody_for_test(&mut self) {
+    pub(crate) fn corrupt_custody_psi_artifact_for_test(&mut self) {
+        self.custody.psi_artifact = [0xa1; 32];
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_object_container_manifest_for_test(&mut self) {
+        self.custody.object_container_manifest =
+            FunctionFragmentObjectContainerManifestIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_object_for_test(&mut self) {
+        self.custody.object = RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_object_container_for_test(&mut self) {
+        self.custody.object_container =
+            RelocationFreeObjectContainerIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_artifact_for_test(&mut self) {
+        self.custody.artifact = OptimizedObjectArtifactIdentity::from_canonical_bytes(b"corrupt");
+    }
+
+    #[cfg(test)]
+    pub(crate) fn corrupt_custody_manifest_for_test(&mut self) {
         self.custody.manifest =
             OptimizedObjectArtifactManifestIdentity::from_canonical_bytes(b"corrupt");
     }

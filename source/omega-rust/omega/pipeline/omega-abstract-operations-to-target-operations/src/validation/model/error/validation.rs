@@ -1,6 +1,6 @@
 //! Whole-translation validation failures above exact family replay.
 
-use psi_core::MachineId;
+use psi_core::{MachineId, OperationId};
 
 use super::super::AbstractToTargetTranslationFamily;
 use super::AbstractToTargetTranslationFamilyError;
@@ -20,6 +20,9 @@ pub enum AbstractToTargetTranslationValidationError {
     FunctionStructuralTypeRosterMismatch {
         machine: MachineId,
     },
+    DuplicateIeeeFloatFmaSettlement(OperationId),
+    UnknownIeeeFloatFmaSettlement(OperationId),
+    MissingIeeeFloatFmaSettlement(OperationId),
     AmbiguousFunctionFamily {
         machine: MachineId,
         first: AbstractToTargetTranslationFamily,

@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-three abstract-to-target families are covered,
+  machine-rule family. Forty-four abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -508,6 +508,16 @@ decision. Only true language-semantic questions belong in
   host-float conversion, and its optimized-target custody canary retains the
   typed sequence receipt. Its multi-operation grammar remains disjoint from
   both the singleton IEEE-literal and return-only families.
+  The x86-only nearest-even IEEE fused-multiply-add sibling admits exactly
+  three raw-bit constants, one fused operation consuming them in order, and
+  `ReturnUnit`. Independent replay binds every definition/operand identity and
+  bit pattern, Binary32/Binary64 format, exact operation/edge provenance,
+  empty native Unit call plan, and the complete settlement: canonical provider
+  identity and target, scalar FMA slot, selected requirement and compiler-
+  intrinsic realization, provider-plan report coordinate and strong digest.
+  Missing, duplicate, unknown, substituted, or cross-target settlements fail
+  closed. Both formats cross Linux, Windows, and UEFI x86-64 translation plus
+  optimized-target custody; Arm targets receive a typed applicability failure.
   Coverage also includes proof-bearing exact
   parameterized fixed-integer addition,
   subtraction, multiplication, division, and remainder, proof-bearing wrapping and
@@ -618,7 +628,12 @@ decision. Only true language-semantic questions belong in
   relocation-free object-container V1 slice now reauthenticates all 21
   representable manifest/subrecord fields, rejects every applicable closed
   wire and envelope axis plus all four unavailable-data positions, and mutates
-  all five receipt custody roots independently.
+  all five receipt custody roots independently. The adjacent optimized-object-
+  artifact V1 slice covers both publication records: all 23 representable
+  artifact fields and all 16 representable manifest fields are reauthenticated
+  independently; their envelope, vocabulary, optional-debug, target, machine,
+  stage, unavailable-data, trailing, and truncation wire axes fail closed; and
+  all six receipt custody roots are mutated separately.
 
 ## P3 — Psi optimizer
 
@@ -840,8 +855,18 @@ decision. Only true language-semantic questions belong in
   direct producer to separately keyed replay; root, item, domain, blocker,
   ordering, usage, representable budget, and cross-target corruption fail
   closed. The item is not a spill action or selected VReg and chooses no victim
-  or home. Remaining work consumes its blocker roster in a bounded epoch-two
-  victim-choice artifact.
+  or home. A twelfth independently replayed V1 artifact now consumes that work
+  item and its exact blocker roster. It reconstructs the original `v5` and
+  epoch-zero reload lifetimes/views, proves both are individually recoverable
+  contenders, and selects the farthest-ending then highest canonical value:
+  the epoch-zero reload `[12,17)` on both native architecture fixtures. Direct
+  traversal and separately keyed replay retain every root, work item,
+  pressure, candidate, resident, contender, selected view, and reclaimed view
+  under exact usage `{2, 2, 13, 1, 1}`; all representable budget axes and
+  cross-target custody fail closed. The 50-line entrance grants no eviction,
+  logical action, selected VReg, instruction, memory, frame, trap, or
+  publication authority. Remaining work converts that choice into a bounded
+  epoch-two logical recovery action.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

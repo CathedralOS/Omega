@@ -10,7 +10,9 @@ mod model;
 pub use model::*;
 
 use omega_abstract_operations_to_target_operations::{
-    AdmittedBoundarySettlement, LoweringError, validate_abstract_to_target_translation,
+    AdmittedBoundarySettlement, AdmittedIeeeFloatFmaSettlement, LoweringError,
+    validate_abstract_to_target_translation,
+    validate_abstract_to_target_translation_with_ieee_float_fma_settlements,
 };
 use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
@@ -23,6 +25,28 @@ pub fn lower_optimized_to_target_operations(
     let target_operations = lowering::lower_optimized_plan(&optimized, target)?;
     let translation_validation =
         validate_abstract_to_target_translation(optimized.plan(), target, &target_operations)?;
+    Ok(ValidatedOptimizedTargetOperations {
+        optimized,
+        target_operations,
+        translation_validation,
+        provider_installation: None,
+    })
+}
+
+pub fn lower_optimized_to_target_operations_with_ieee_float_fma_settlements(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedIeeeFloatFmaSettlement<'_>],
+) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
+    let target_operations =
+        lowering::lower_optimized_plan_with_ieee_float_fma(&optimized, target, settlements)?;
+    let translation_validation =
+        validate_abstract_to_target_translation_with_ieee_float_fma_settlements(
+            optimized.plan(),
+            target,
+            &target_operations,
+            settlements,
+        )?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
         target_operations,

@@ -252,6 +252,17 @@ guard registers the entrance and complete ladder and forbids replay from
 calling producer mechanics. This remains compiler-private scheduling custody,
 not a selectable rule or physical spill realization.
 
+Epoch-two victim choice continues at
+`omega-regalloc/src/allocation/generalized_spill_recovery_choice/mod.rs`. Its
+50-line executable entrance joins direct blocker traversal to independently
+keyed replay. `model.rs`, `identity.rs`, and `validate.rs` retain the closed
+resident/contender/choice vocabulary and admission receipt, while `compute.rs`
+and `replay.rs` own separate reconstruction mechanics. The mirrored pipeline
+leaf is `register_allocation/generalized_spill_recovery_choice.rs`; architecture
+guards register the full ladder and prohibit validator reentry into proposal.
+This is compiler-private choice evidence, not an optimization catalog or
+physical spill action.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
@@ -334,6 +345,13 @@ and operation rewriting. The former flat producer path is retired.
 The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
+
+Abstract-to-target validation follows the same entrance rule. Its 28-line
+`validation/mod.rs` exposes the module map and public validation calls;
+`whole_plan.rs` binds whole-plan roots, exact external settlement rosters,
+function order, and structural declarations before the catalog selects one
+named family leaf. Settlement-aware and plain validators are closed descriptor
+variants, not an ambient mode or a second family schedule.
 
 GVN's `expression_keys/` group owns a closed key model and three explicit
 classifiers: total, proof-certified, and directional compatible-policy. Those

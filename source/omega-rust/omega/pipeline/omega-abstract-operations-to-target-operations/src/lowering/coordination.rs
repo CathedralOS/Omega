@@ -116,8 +116,9 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             || plan.target != provider.profile().target_name()
             || !matches!(plan.rows.as_slice(), [row]
                 if row.requirement_identity == expected_selected_requirement
-                    && matches!(row.binding,
-                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }))
+                    && matches!(&row.binding,
+                        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine }
+                            if machine == expected_slot.realization_identity()))
         {
             return Err(LoweringError::InvalidIeeeFloatFmaSettlement(
                 settlement.terminal_operation,

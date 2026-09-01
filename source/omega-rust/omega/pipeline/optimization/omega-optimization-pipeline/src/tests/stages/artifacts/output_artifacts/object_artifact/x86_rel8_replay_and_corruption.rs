@@ -139,7 +139,7 @@ fn optimized_rel8_object_artifact_binds_replays_and_reports_without_authority() 
         Err(OptimizedObjectArtifactError::ManifestMismatch)
     );
     *staged.manifest_mut().record_mut() = original_manifest;
-    staged.corrupt_custody_for_test();
+    staged.corrupt_custody_manifest_for_test();
     assert_eq!(
         validate_optimized_object_artifact(&staged),
         Err(OptimizedObjectArtifactError::ReceiptMismatch)

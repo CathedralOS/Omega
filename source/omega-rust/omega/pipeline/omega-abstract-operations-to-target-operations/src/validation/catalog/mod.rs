@@ -25,6 +25,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::terminal::INTEGER_LITERAL_UNIT_RETURN,
     dispatch::terminal::IEEE_FLOAT_LITERAL_UNIT_RETURN,
     dispatch::terminal::IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN,
+    dispatch::terminal::NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD_UNIT_RETURN,
     dispatch::terminal::TRIVIAL_AFFINE_LOCAL_UNIT_RETURN,
     dispatch::terminal::SCALAR_CRASH,
     dispatch::parameter::direct::INTEGER,
@@ -65,15 +66,17 @@ pub(super) fn validate_function(
     source: &AbstractFunction,
     expected_target: NativeTarget,
     target: &TargetFunction,
+    ieee_float_fma: &[crate::AdmittedIeeeFloatFmaSettlement<'_>],
 ) -> Result<
     AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetTranslationValidationError,
 > {
-    selection::validate(
+    selection::validate_with_ieee_float_fma(
         source,
         expected_target,
         target,
         ENABLED_TRANSLATION_FAMILIES,
+        ieee_float_fma,
     )
 }
 

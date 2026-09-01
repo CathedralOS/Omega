@@ -59,6 +59,61 @@ impl Sources {
         )
     }
 
+    pub(super) fn choose_generalized_victim(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        worklist: &omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
+        budget: OptimizationWorkBudget,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        omega_regalloc::GeneralizedSpillRecoveryChoiceError,
+    > {
+        let legality = self.reloads.legality();
+        let environment = legality
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .register_environment();
+        omega_regalloc::choose_generalized_spill_recovery_victims(
+            worklist,
+            homes,
+            legality.legality(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            environment.allocation_constraint_keys(),
+            omega_regalloc::GeneralizedSpillRecoveryChoicePolicy::EpochTwoFarthestEndThenHighestValueV1,
+            budget,
+        )
+    }
+
+    pub(super) fn validate_generalized_victim(
+        &self,
+        homes: &omega_regalloc::ValidatedGeneralizedReloadValueHomes,
+        worklist: &omega_regalloc::ValidatedGeneralizedSpillRecoveryWorklist,
+        plan: omega_regalloc::GeneralizedSpillRecoveryChoicePlan,
+    ) -> Result<
+        omega_regalloc::ValidatedGeneralizedSpillRecoveryChoices,
+        omega_regalloc::GeneralizedSpillRecoveryChoiceError,
+    > {
+        let legality = self.reloads.legality();
+        let environment = legality
+            .live_range_stage()
+            .liveness_stage()
+            .selected_stage()
+            .register_environment();
+        omega_regalloc::validate_generalized_spill_recovery_choices(
+            worklist,
+            homes,
+            legality.legality(),
+            environment.physical(),
+            environment.constraints(),
+            environment.reservations(),
+            environment.allocation_constraint_keys(),
+            plan,
+        )
+    }
+
     fn validate(
         &self,
         candidate: omega_regalloc::GeneralizedReloadValueHomePlan,
