@@ -428,6 +428,9 @@ pub struct ObjectForeignCall {
     pub caller_live_bytes: u32,
     /// Sealed admitted demand for the opaque same-stack foreign leaf.
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+    /// Exact compiler-private callback address materialized before this call.
+    /// Every byte offset has been rebased to absolute object `.text`.
+    pub callback_address: Option<omega_machine_code::CallbackAddressMaterialization>,
     /// Result custody retained from machine emission. Its code offset is
     /// rebased to absolute object `.text`, like `text_offset` below.
     pub scalar_result: Option<omega_machine_code::ForeignCallScalarResultRecord>,
@@ -1673,6 +1676,36 @@ fn build_object_artifact_with_x86_feature_profile(
                     Ok(control)
                 })
                 .transpose()?;
+            let callback_address = call
+                .callback_address
+                .clone()
+                .map(|mut callback| {
+                    callback.code_offset = text_offset
+                        .checked_add(callback.code_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    match &mut callback.encoding {
+                        omega_machine_code::CallbackAddressEncoding::X86_64Relative32 {
+                            relocation_offset,
+                        } => {
+                            *relocation_offset = text_offset
+                                .checked_add(*relocation_offset)
+                                .ok_or(ObjectError::TextSizeOverflow)?;
+                        }
+                        omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                            page_relocation_offset,
+                            page_offset_relocation_offset,
+                        } => {
+                            *page_relocation_offset = text_offset
+                                .checked_add(*page_relocation_offset)
+                                .ok_or(ObjectError::TextSizeOverflow)?;
+                            *page_offset_relocation_offset = text_offset
+                                .checked_add(*page_offset_relocation_offset)
+                                .ok_or(ObjectError::TextSizeOverflow)?;
+                        }
+                    }
+                    Ok(callback)
+                })
+                .transpose()?;
             foreign_calls.push(ObjectForeignCall {
                 machine: function.machine,
                 owner: call.owner,
@@ -1680,6 +1713,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 provider_execution: call.provider_execution,
                 caller_live_bytes,
                 same_stack_contribution: call.same_stack_contribution.clone(),
+                callback_address,
                 scalar_result,
                 x86_floating_control,
                 aarch64_floating_control,
@@ -1803,12 +1837,24 @@ fn build_object_artifact_with_x86_feature_profile(
         }
     }
 
+    let ordinary_relocation_count = plan
+        .functions
+        .iter()
+        .map(|function| function.internal_calls.len() + function.foreign_calls.len())
+        .sum::<usize>();
+    let callback_relocation_count = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.foreign_calls)
+        .filter_map(|call| call.callback_address.as_ref())
+        .map(|callback| match callback.encoding {
+            omega_machine_code::CallbackAddressEncoding::X86_64Relative32 { .. } => 1,
+            omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
+        })
+        .sum::<usize>();
     let mut relocations = RelocationPlan::with_record_capacity(
         plan.target,
-        plan.functions
-            .iter()
-            .map(|function| function.internal_calls.len() + function.foreign_calls.len())
-            .sum(),
+        ordinary_relocation_count.saturating_add(callback_relocation_count),
     );
     for (function, emitted) in plan.functions.iter().zip(&functions) {
         for call in &function.internal_calls {
@@ -1849,6 +1895,86 @@ fn build_object_artifact_with_x86_feature_profile(
             });
         }
         for call in &function.foreign_calls {
+            let origin = match call.owner {
+                CallSiteOwner::Operation(operation) => RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: emitted.symbol,
+                    operation_identity: operation.get(),
+                },
+                CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
+                    function_symbol_handle: emitted.symbol,
+                    edge_identity: edge.get(),
+                },
+            };
+            if let Some(callback) = &call.callback_address {
+                let Some((callback_symbol, callback_symbol_plan)) =
+                    omega_object_file::object_function_symbol(
+                        &object,
+                        callback.target.callback_function,
+                    )
+                else {
+                    return Err(ObjectError::MissingCallbackPrivateFunction {
+                        caller: function.machine,
+                        owner: call.owner,
+                    });
+                };
+                let matching_private = object_private_functions
+                    .iter()
+                    .filter(|private| private.identity == callback.target.callback_function)
+                    .collect::<Vec<_>>();
+                let [private] = matching_private.as_slice() else {
+                    return Err(ObjectError::MissingCallbackPrivateFunction {
+                        caller: function.machine,
+                        owner: call.owner,
+                    });
+                };
+                if private.function.symbol != callback_symbol
+                    || private.function.text_offset != callback_symbol_plan.offset
+                    || private.function.byte_count != callback_symbol_plan.size
+                {
+                    return Err(ObjectError::MissingCallbackPrivateFunction {
+                        caller: function.machine,
+                        owner: call.owner,
+                    });
+                }
+                let mut push_callback_relocation =
+                    |local_offset: usize, kind: RelocationKind| -> Result<(), ObjectError> {
+                        let offset = emitted
+                            .text_offset
+                            .checked_add(local_offset)
+                            .ok_or(ObjectError::TextSizeOverflow)?;
+                        relocations.push_record(RelocationRecord {
+                            origin,
+                            section: SectionKind::Text,
+                            offset,
+                            byte_width: 4,
+                            symbol_handle: callback_symbol,
+                            addend: 0,
+                            kind,
+                        });
+                        Ok(())
+                    };
+                match callback.encoding {
+                    omega_machine_code::CallbackAddressEncoding::X86_64Relative32 {
+                        relocation_offset,
+                    } => push_callback_relocation(
+                        relocation_offset,
+                        RelocationKind::X86_64Relative32,
+                    )?,
+                    omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                        page_relocation_offset,
+                        page_offset_relocation_offset,
+                    } => {
+                        push_callback_relocation(
+                            page_relocation_offset,
+                            RelocationKind::Aarch64Page21,
+                        )?;
+                        push_callback_relocation(
+                            page_offset_relocation_offset,
+                            RelocationKind::Aarch64PageOffset12,
+                        )?;
+                    }
+                }
+            }
             let target_symbol = import_symbols
                 .iter()
                 .find_map(|(locator, symbol)| (locator == &call.locator).then_some(*symbol))
@@ -1866,16 +1992,6 @@ fn build_object_artifact_with_x86_feature_profile(
                 .text_offset
                 .checked_add(call.offset)
                 .ok_or(ObjectError::TextSizeOverflow)?;
-            let origin = match call.owner {
-                CallSiteOwner::Operation(operation) => RelocationOrigin::SemanticOperation {
-                    function_symbol_handle: emitted.symbol,
-                    operation_identity: operation.get(),
-                },
-                CallSiteOwner::CleanupAction { edge, .. } => RelocationOrigin::SemanticEdge {
-                    function_symbol_handle: emitted.symbol,
-                    edge_identity: edge.get(),
-                },
-            };
             relocations.push_record(RelocationRecord {
                 origin,
                 section: SectionKind::Text,
@@ -2147,7 +2263,15 @@ fn validate_foreign_call_floating_control(
         || {
             call.scalar_arguments
                 .first()
-                .map_or(call_start, |argument| argument.code_offset)
+                .map(|argument| argument.code_offset)
+                .into_iter()
+                .chain(
+                    call.callback_address
+                        .as_ref()
+                        .map(|callback| callback.code_offset),
+                )
+                .min()
+                .unwrap_or(call_start)
         },
         |outbound| outbound.allocation_offset,
     );
@@ -2174,6 +2298,190 @@ fn validate_foreign_call_floating_control(
         return Err(invalid());
     }
     Ok(())
+}
+
+fn validate_callback_plan_custody(
+    target: NativeTarget,
+    caller: MachineId,
+    call: &omega_machine_code::ForeignCallRelocation,
+    callback: &omega_machine_code::CallbackAddressMaterialization,
+    signature: &omega_calling_conventions::CallSignature,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidCallbackAddressCustody {
+        caller,
+        owner: call.owner,
+    };
+    let CallSiteOwner::Operation(operation) = call.owner else {
+        return Err(invalid());
+    };
+    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    let application = &callback.target.application;
+    let ordinal = usize::try_from(application.native_ordinal).map_err(|_| invalid())?;
+    let nominal_destination =
+        omega_calling_conventions::NativePlace::Parameter(application.parameter);
+    let expected_placement = match callback.destination {
+        omega_machine_code::CallbackAddressDestination::Register(register) => {
+            omega_calling_conventions::ValuePlacement {
+                shape: application.shape,
+                locations: vec![omega_calling_conventions::ValueLocation::Register {
+                    register,
+                    value_byte_offset: 0,
+                    byte_size: application.shape.byte_size,
+                }],
+            }
+        }
+        omega_machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+            omega_calling_conventions::ValuePlacement {
+                shape: application.shape,
+                locations: vec![omega_calling_conventions::ValueLocation::Stack {
+                    stack_byte_offset: byte_offset,
+                    value_byte_offset: 0,
+                    byte_size: application.shape.byte_size,
+                    alignment: application.shape.alignment,
+                }],
+            }
+        }
+    };
+    let context = &callback.target.registrar_context;
+    if callback.target.terminal_operation != operation
+        || callback
+            .target
+            .callback_function
+            .callback_thunk_placement_index()
+            != Some(callback.target.placement_index)
+        || callback.target.registrar_application_commitment == [0; 32]
+        || application.shape
+            != omega_calling_conventions::ValueShape::integer(pointer_size, pointer_alignment)
+        || application.placement != expected_placement
+        || call.call_plan.parameters.get(ordinal) != Some(&application.placement)
+        || callback.target.registrar_boundary_entry_plan.call != call.call_plan
+        || call.call_plan.callback_materializations.len() != 1
+        || call.call_plan.callback_materializations[0].destination != nominal_destination
+        || context.binders.len() != 1
+        || context.demands.len() != 1
+        || context.demands[0].destination != nominal_destination
+    {
+        return Err(invalid());
+    }
+    let validated =
+        omega_calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+            callback.target.registrar_boundary_entry_plan.clone(),
+            signature,
+            context,
+        )
+        .map_err(|_| invalid())?;
+    if validated.plan() != &callback.target.registrar_boundary_entry_plan {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_callback_address_bytes(
+    target: NativeTarget,
+    caller: MachineId,
+    owner: CallSiteOwner,
+    function: &omega_machine_code::MachineCodeFunction,
+    callback: &omega_machine_code::CallbackAddressMaterialization,
+) -> Result<usize, ObjectError> {
+    let invalid = || ObjectError::InvalidCallbackAddressCustody { caller, owner };
+    let mut expected = Vec::new();
+    match (target.architecture, callback.destination, callback.encoding) {
+        (
+            Architecture::X86_64,
+            omega_machine_code::CallbackAddressDestination::Register(register),
+            omega_machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
+        ) => {
+            let register = instruction_loads::x86_terminal_register(register)
+                .filter(|register| *register != 4)
+                .ok_or_else(invalid)?;
+            expected.extend_from_slice(&[
+                0x48 | (((register >> 3) & 1) << 2),
+                0x8d,
+                0x05 | ((register & 7) << 3),
+            ]);
+            if relocation_offset
+                != callback
+                    .code_offset
+                    .checked_add(expected.len())
+                    .ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&[0; 4]);
+        }
+        (
+            Architecture::X86_64,
+            omega_machine_code::CallbackAddressDestination::OutgoingStack { byte_offset },
+            omega_machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset },
+        ) => {
+            expected.extend_from_slice(&[0x4c, 0x8d, 0x1d]);
+            if relocation_offset
+                != callback
+                    .code_offset
+                    .checked_add(expected.len())
+                    .ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&[0; 4]);
+            unit_scalar_call_custody::expected_x86_stack_store(&mut expected, 11, byte_offset);
+        }
+        (
+            Architecture::Aarch64,
+            omega_machine_code::CallbackAddressDestination::Register(register),
+            omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            },
+        ) => {
+            let register =
+                instruction_loads::aarch64_terminal_register(register).ok_or_else(invalid)?;
+            if page_relocation_offset != callback.code_offset
+                || page_offset_relocation_offset
+                    != callback.code_offset.checked_add(4).ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&(0x9000_0000 | u32::from(register)).to_le_bytes());
+            expected.extend_from_slice(
+                &(0x9100_0000 | (u32::from(register) << 5) | u32::from(register)).to_le_bytes(),
+            );
+        }
+        (
+            Architecture::Aarch64,
+            omega_machine_code::CallbackAddressDestination::OutgoingStack { byte_offset },
+            omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            },
+        ) => {
+            if page_relocation_offset != callback.code_offset
+                || page_offset_relocation_offset
+                    != callback.code_offset.checked_add(4).ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            expected.extend_from_slice(&0x9000_0009u32.to_le_bytes());
+            expected.extend_from_slice(&0x9100_0129u32.to_le_bytes());
+            expected.extend_from_slice(
+                &unit_scalar_call_custody::expected_aarch64_stack_store(9, byte_offset)
+                    .ok_or_else(invalid)?
+                    .to_le_bytes(),
+            );
+        }
+        _ => return Err(invalid()),
+    }
+    let end = callback
+        .code_offset
+        .checked_add(callback.byte_count)
+        .ok_or_else(invalid)?;
+    if callback.byte_count != expected.len()
+        || function.bytes.get(callback.code_offset..end) != Some(expected.as_slice())
+    {
+        return Err(invalid());
+    }
+    Ok(end)
 }
 
 fn validate_foreign_scalar_arguments(
@@ -2229,8 +2537,38 @@ fn validate_foreign_scalar_arguments(
             Ok(expected_shape)
         })
         .transpose()?;
+    let callback_ordinal = call
+        .callback_address
+        .as_ref()
+        .map(|callback| usize::try_from(callback.target.application.native_ordinal))
+        .transpose()
+        .map_err(|_| invalid())?;
+    if callback_ordinal.is_some_and(|ordinal| ordinal > shapes.len()) {
+        return Err(invalid());
+    }
+    let native_parameter_count = shapes.len() + usize::from(callback_ordinal.is_some());
+    let mut native_shapes = Vec::with_capacity(native_parameter_count);
+    let mut scalar_shape_index = 0usize;
+    for native_index in 0..native_parameter_count {
+        if callback_ordinal == Some(native_index) {
+            native_shapes.push(
+                call.callback_address
+                    .as_ref()
+                    .expect("callback ordinal has callback custody")
+                    .target
+                    .application
+                    .shape,
+            );
+        } else {
+            native_shapes.push(*shapes.get(scalar_shape_index).ok_or_else(invalid)?);
+            scalar_shape_index += 1;
+        }
+    }
+    if scalar_shape_index != shapes.len() {
+        return Err(invalid());
+    }
     let signature = omega_calling_conventions::CallSignature {
-        parameters: shapes.clone(),
+        parameters: native_shapes,
         result: result_shape,
     };
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
@@ -2238,13 +2576,22 @@ fn validate_foreign_scalar_arguments(
         &signature,
     )
     .map_err(|_| invalid())?;
-    if call.call_plan != expected_plan
-        || !call.call_plan.callback_materializations.is_empty()
+    let mut ordinary_call_plan = call.call_plan.clone();
+    ordinary_call_plan.callback_materializations.clear();
+    if ordinary_call_plan != expected_plan
         || call.call_plan.policy
             != omega_calling_conventions::CallingPolicy::native_for_target(target)
         || call.call_plan.entry_control != omega_calling_conventions::EntryControl::CallReturn
+        || call.call_plan.parameters.len() != native_parameter_count
     {
         return Err(invalid());
+    }
+    match &call.callback_address {
+        Some(callback) => {
+            validate_callback_plan_custody(target, caller, call, callback, &signature)?
+        }
+        None if call.call_plan.callback_materializations.is_empty() => {}
+        None => return Err(invalid()),
     }
     let expected_outbound =
         expected_foreign_scalar_outbound_bytes(&expected_plan, target.architecture)
@@ -2273,7 +2620,15 @@ fn validate_foreign_scalar_arguments(
             || {
                 call.scalar_arguments
                     .first()
-                    .map_or(call_start, |argument| argument.code_offset)
+                    .map(|argument| argument.code_offset)
+                    .into_iter()
+                    .chain(
+                        call.callback_address
+                            .as_ref()
+                            .map(|callback| callback.code_offset),
+                    )
+                    .min()
+                    .unwrap_or(call_start)
             },
             |outbound| outbound.allocation_offset,
         )
@@ -2379,13 +2734,27 @@ fn validate_foreign_scalar_arguments(
         return Err(invalid());
     };
 
-    for (parameter_index, ((argument, shape), expected_placement)) in call
-        .scalar_arguments
-        .iter()
-        .zip(&shapes)
-        .zip(&expected_plan.parameters)
-        .enumerate()
-    {
+    let mut scalar_index = 0usize;
+    for native_index in 0..call.call_plan.parameters.len() {
+        if callback_ordinal == Some(native_index) {
+            let callback = call.callback_address.as_ref().ok_or_else(invalid)?;
+            if callback.code_offset != argument_cursor {
+                return Err(invalid());
+            }
+            argument_cursor =
+                validate_callback_address_bytes(target, caller, call.owner, function, callback)?;
+            continue;
+        }
+        let argument = call
+            .scalar_arguments
+            .get(scalar_index)
+            .ok_or_else(invalid)?;
+        let shape = shapes.get(scalar_index).ok_or_else(invalid)?;
+        let expected_placement = call
+            .call_plan
+            .parameters
+            .get(native_index)
+            .ok_or_else(invalid)?;
         let placed_bytes = match argument.placement.locations.as_slice() {
             [
                 omega_calling_conventions::ValueLocation::Register {
@@ -2403,7 +2772,7 @@ fn validate_foreign_scalar_arguments(
             ] => *byte_size,
             _ => return Err(invalid()),
         };
-        if argument.parameter_index != parameter_index as u32
+        if argument.parameter_index != native_index as u32
             || argument.placement != *expected_placement
             || argument.placement.shape != *shape
             || placed_bytes != shape.byte_size
@@ -2426,8 +2795,9 @@ fn validate_foreign_scalar_arguments(
             return Err(invalid());
         }
         argument_cursor = argument_end;
+        scalar_index += 1;
     }
-    if argument_cursor != call_start {
+    if scalar_index != call.scalar_arguments.len() || argument_cursor != call_start {
         return Err(invalid());
     }
     Ok(())
@@ -2680,6 +3050,14 @@ pub enum ObjectError {
         offset: usize,
     },
     InvalidForeignCallArgument {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    InvalidCallbackAddressCustody {
+        caller: MachineId,
+        owner: CallSiteOwner,
+    },
+    MissingCallbackPrivateFunction {
         caller: MachineId,
         owner: CallSiteOwner,
     },

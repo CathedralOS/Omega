@@ -6913,7 +6913,10 @@ Owners:
   native artifact or diagnostic rejection. It does not inspect, admit, lower,
   or fingerprint the rows. Separately, the compiler's canonical source-
   evaluated-import re-entry now interprets one direct row and consumes it
-  through target lowering and assignment before the explicit emission fence.
+  through target lowering, assignment, object construction, and final-image
+  replay. The exact callback-closed registrar plan is rejoined to its selected
+  normalized import while the checked calling-policy realization and canonical
+  Terminal operation coexist; check-only custody still requires no import.
   The neutral `NativeArtifact` remains free of checked/source carriers; the
   deleted legacy backend route is not authority to discard them. These custody
   milestones grant no callback registration,
@@ -8903,9 +8906,13 @@ Owners:
   replay requires one exact compiler-function region for the resulting span.
   The registrar machine-code body now loads the callback address at the exact
   native ordinal and retains the architecture-specific relocation fields and
-  destination. The remaining direct-form engineering is object relocation of
-  those fields to the retained private symbol, end-to-end native-artifact
-  replay, and executable publication.
+  destination. Object construction emits the exact x86-64 relative or AArch64
+  page relocations to the retained private symbol with semantic-operation
+  origin; final-image replay decodes the relocated address and requires it to
+  equal that private function's final text address. A source-derived Windows
+  x64 import canary now crosses the complete retained native-artifact path.
+  Runtime registration, installed-address/lifetime custody, and executable
+  publication remain open.
   The removed custom/unknown host-operation prototype must not be treated as
   authority for this ordinary normalized-import path. The direct-form negative
   matrix is complete. Source and retained-product canaries reject an

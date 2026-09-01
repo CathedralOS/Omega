@@ -18,7 +18,10 @@ pub use model::{
     TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError, TerminalAuthorityPolicyRow,
     UnclassifiedTerminalMechanism,
 };
-pub use normalized_foreign::normalized_foreign_terminal_mechanism;
+pub use normalized_foreign::{
+    normalized_foreign_terminal_mechanism,
+    normalized_foreign_terminal_mechanism_with_callback_materializations,
+};
 
 use commitment::complete_policy_commitment;
 

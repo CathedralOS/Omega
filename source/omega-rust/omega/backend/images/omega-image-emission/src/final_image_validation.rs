@@ -153,7 +153,176 @@ fn validate_terminal_image_with_import_count(
     if let Some(shim) = scalar_exit_shim {
         validate_linux_x86_scalar_exit_shim(artifact, object, text_bytes, shim, output)?;
     }
-    validate_final_text_relocation_envelope(text_bytes, &output.final_text_bytes, relocations)
+    let evidence =
+        validate_final_text_relocation_envelope(text_bytes, &output.final_text_bytes, relocations)?;
+    validate_callback_relocation_targets(artifact, object, relocations, output)?;
+    Ok(evidence)
+}
+
+fn validate_callback_relocation_targets(
+    artifact: &ObjectArtifact,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &omega_object_file::RelocationPlan,
+    output: &EmittedImageOutput,
+) -> Result<(), Diagnostic> {
+    for call in &artifact.foreign_calls {
+        let Some(callback) = &call.callback_address else {
+            continue;
+        };
+        let function = artifact
+            .functions
+            .iter()
+            .find(|function| function.machine == call.machine)
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "callback registrar call has no exact semantic function in the final image",
+                )
+            })?;
+        let operation = match call.owner {
+            omega_target_operations::CallSiteOwner::Operation(operation) => operation,
+            omega_target_operations::CallSiteOwner::CleanupAction { .. } => {
+                return Err(Diagnostic::error(
+                    "callback address relocation is not owned by a semantic registrar operation",
+                ));
+            }
+        };
+        let (callback_symbol, callback_symbol_plan) =
+            omega_object_file::object_function_symbol(object, callback.target.callback_function)
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "callback address relocation lost its compiler-private function symbol",
+                    )
+                })?;
+        let expected_origin = omega_object_file::RelocationOrigin::SemanticOperation {
+            function_symbol_handle: function.symbol,
+            operation_identity: operation.get(),
+        };
+        let expected = match callback.encoding {
+            omega_machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
+                vec![(
+                    relocation_offset,
+                    omega_object_file::RelocationKind::X86_64Relative32,
+                )]
+            }
+            omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            } => vec![
+                (
+                    page_relocation_offset,
+                    omega_object_file::RelocationKind::Aarch64Page21,
+                ),
+                (
+                    page_offset_relocation_offset,
+                    omega_object_file::RelocationKind::Aarch64PageOffset12,
+                ),
+            ],
+        };
+        let private_target_relocations = relocations
+            .records()
+            .filter(|(_, relocation)| relocation.symbol_handle == callback_symbol)
+            .map(|(_, relocation)| relocation)
+            .collect::<Vec<_>>();
+        if private_target_relocations.len() != expected.len()
+            || expected.iter().any(|(offset, kind)| {
+                private_target_relocations
+                    .iter()
+                    .filter(|relocation| {
+                        relocation.origin == expected_origin
+                            && relocation.section == omega_object_file::SectionKind::Text
+                            && relocation.offset == *offset
+                            && relocation.byte_width == 4
+                            && relocation.addend == 0
+                            && relocation.kind == *kind
+                    })
+                    .count()
+                    != 1
+            })
+        {
+            return Err(Diagnostic::error(
+                "callback address relocation set does not exactly target its private function",
+            ));
+        }
+        let expected_target = output
+            .executable_regions
+            .text_address
+            .checked_add(callback_symbol_plan.offset as u64)
+            .ok_or_else(|| Diagnostic::error("callback private function address overflows"))?;
+        let actual_target = match callback.encoding {
+            omega_machine_code::CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
+                decode_x86_relative_target(output, relocation_offset)?
+            }
+            omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            } => decode_aarch64_page_target(
+                output,
+                page_relocation_offset,
+                page_offset_relocation_offset,
+            )?,
+        };
+        if actual_target != expected_target {
+            return Err(Diagnostic::error(
+                "final callback address does not resolve to its exact private function",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn decode_x86_relative_target(
+    output: &EmittedImageOutput,
+    relocation_offset: usize,
+) -> Result<u64, Diagnostic> {
+    let displacement = output
+        .final_text_bytes
+        .get(relocation_offset..relocation_offset.saturating_add(4))
+        .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+        .map(i32::from_le_bytes)
+        .ok_or_else(|| Diagnostic::error("final callback rel32 field is truncated"))?;
+    output
+        .executable_regions
+        .text_address
+        .checked_add(relocation_offset as u64)
+        .and_then(|address| address.checked_add(4))
+        .and_then(|instruction_end| instruction_end.checked_add_signed(i64::from(displacement)))
+        .ok_or_else(|| Diagnostic::error("final callback rel32 target overflows"))
+}
+
+fn decode_aarch64_page_target(
+    output: &EmittedImageOutput,
+    page_relocation_offset: usize,
+    page_offset_relocation_offset: usize,
+) -> Result<u64, Diagnostic> {
+    let read_word = |offset: usize| {
+        output
+            .final_text_bytes
+            .get(offset..offset.saturating_add(4))
+            .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+            .map(u32::from_le_bytes)
+            .ok_or_else(|| Diagnostic::error("final callback AArch64 address field is truncated"))
+    };
+    let adrp = read_word(page_relocation_offset)?;
+    let add = read_word(page_offset_relocation_offset)?;
+    let immediate = (((adrp >> 5) & 0x7ffff) << 2) | ((adrp >> 29) & 0b11);
+    let signed_pages = i64::from((immediate << 11) as i32 >> 11);
+    let instruction_page = output
+        .executable_regions
+        .text_address
+        .checked_add(page_relocation_offset as u64)
+        .map(|address| address & !0xfff)
+        .ok_or_else(|| Diagnostic::error("final callback ADRP address overflows"))?;
+    let page_target = instruction_page
+        .checked_add_signed(
+            signed_pages
+                .checked_mul(4096)
+                .ok_or_else(|| Diagnostic::error("final callback ADRP page delta overflows"))?,
+        )
+        .ok_or_else(|| Diagnostic::error("final callback ADRP target overflows"))?;
+    let page_offset = u64::from((add >> 10) & 0xfff);
+    page_target
+        .checked_add(page_offset)
+        .ok_or_else(|| Diagnostic::error("final callback ADD target overflows"))
 }
 
 fn validate_linux_x86_scalar_exit_shim(

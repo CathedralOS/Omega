@@ -448,7 +448,7 @@ duplicate, unreachable, wrong-target, non-boundary-operation, native-
 application, and artifact drift, while native realization remains fenced. The
 first consuming rung is now closed for exactly one direct
 `NativePlace::Parameter` callback on the ordinary unoptimized normalized-import
-path for supported ELF/Mach-O targets, with only the established fixed-width
+path for the current x86-64/AArch64 native targets, with only the established fixed-width
 integer semantic arguments and result. It requires exactly one binder, demand,
 and materialization, a target-pointer-shaped application, and one complete
 register or stack placement. Target lowering joins the proposal to the
@@ -467,9 +467,13 @@ realization independently recompiles it into a disjoint compiler-private
 machine-code function; object construction binds its exact placement-derived
 symbol and final-image replay requires one matching executable region. The
 callback artifact's local `MachineId` remains nested and cannot impersonate a
-semantic program function. Address-load selection, registrar-call emission and
-relocation, end-to-end native-artifact replay, and executable registrar
-settlement remain later rungs. No registration, invocation, address, lifetime or lease,
+semantic program function. Machine emission materializes the private address at
+the authored native ordinal; object construction targets the exact private
+symbol with architecture-specific relocations, and final-image replay decodes
+the patched address and requires the private function's final text address.
+The source-evaluated import route rejoins the callback-closed registrar plan to
+the exact normalized locator and explicit receiving policy before this work.
+No runtime registration, invocation, installed-address lifetime or lease,
 installation, or publication authority follows.
 The application-v3 commitment travels as a compiler-origin provenance
 projection; target lowering cannot rederive it because the complete authored

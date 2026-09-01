@@ -37,6 +37,7 @@ pub(crate) fn settle_provider_executions<'request>(
         request.target,
         request.external_binding_rows,
         request.settlements,
+        request.native_callbacks,
     )?;
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(request.settlements.len());

@@ -481,6 +481,7 @@ dependencies = [
  "omega-image-emission",
  "omega-installation-evidence",
  "omega-layout",
+ "omega-machine-code",
  "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-pipeline",

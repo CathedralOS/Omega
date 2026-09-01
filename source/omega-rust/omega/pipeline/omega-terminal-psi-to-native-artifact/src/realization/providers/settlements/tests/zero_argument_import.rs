@@ -145,6 +145,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             target,
             &external_rows,
             &[normalized_settlement],
+            &[],
         )
         .expect("the demanded evaluated import has one normalized settlement");
         let unclassified = validate_source_evaluated_import_coverage(
@@ -153,6 +154,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             &crate::realization::current_terminal_authority_policy(),
             target,
             &external_rows,
+            &[],
             &[],
         )
         .expect_err("a demanded import cannot inherit an absent policy row");
@@ -168,6 +170,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             &policy,
             wrong_target,
             &external_rows,
+            &[],
             &[],
         )
         .expect_err("a normalized locator cannot cross receiving targets");
@@ -190,6 +193,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             target,
             &contract_substitution,
             &[],
+            &[],
         )
         .expect_err("a substituted implementation contract cannot reuse a policy row");
         assert!(contract_error[0].message.contains("does not classify"));
@@ -208,6 +212,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
             target,
             &external_rows,
             &[],
+            &[],
         )
         .expect_err("legacy strings never become classified terminal mechanisms");
         assert!(
@@ -222,6 +227,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
                 &policy,
                 target,
                 &external_rows,
+                &[],
                 &[],
             )
             .is_err(),
@@ -242,6 +248,7 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
                 target,
                 &external_rows,
                 &[builtin_substitution],
+                &[],
             )
             .is_err(),
             "a demanded evaluated import cannot fall back to a builtin realization",
