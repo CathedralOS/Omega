@@ -38,9 +38,11 @@ pub fn resolve_accepted_service_binding(
     checked: &CheckedTrees,
     binding: &omega_package_compilation::AcceptedSemanticBinding,
 ) -> Result<ResolvedAcceptedSemanticBinding, Diagnostic> {
-    if binding.role()
-        != omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService
-        || binding.selected_provider_plan_digest().is_some()
+    if !matches!(
+        binding.role(),
+        omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService
+            | omega_package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
+    ) || binding.selected_provider_plan_digest().is_some()
     {
         return Err(Diagnostic::error(format!(
             "accepted semantic binding {:?} is not a requirement-only service binding",
@@ -67,7 +69,10 @@ pub fn resolve_accepted_service_binding(
                 )
                 .is_some_and(|schema| {
                     schema.trait_package_identity == Some(binding.package())
-                        && schema.identity_digest() == binding.normalized_schema_digest()
+                        && omega_package_compilation::accepted_service_schema_digest(
+                            binding.role(),
+                            &schema,
+                        ) == binding.normalized_schema_digest()
                 })
         })
         .map(|definition| definition.symbol)

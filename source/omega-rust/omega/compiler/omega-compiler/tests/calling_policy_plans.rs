@@ -1,5 +1,6 @@
 use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape};
-use omega_compiler::compile_to_checked;
+use omega_compiler::{compile_to_checked, compile_to_checked_with_packages};
+use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use omega_provider_planning::calling_policy_plans::evaluate_calling_policy_plan;
 use omega_provider_planning::plans::{
     selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
@@ -8,6 +9,8 @@ use omega_provider_planning::plans::{
 
 use std::fs;
 use std::path::PathBuf;
+
+use psi_core::PackageKeyIdentity;
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let directory = std::env::temp_dir().join(format!(
@@ -41,21 +44,61 @@ fn compile_project_negative(name: &str, source: &str, build: &str) -> String {
 }
 
 fn compile_std_negative(name: &str, source: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(5)
-        .unwrap()
-        .join("source/library/std/tests")
-        .join(format!(".callback-{name}-{}.omg", std::process::id()));
-    fs::write(&path, source).expect("write hermetic callback source canary");
-    let result = compile_to_checked(&path, Some("windows_x86_64"));
-    fs::remove_file(&path).expect("remove hermetic callback source canary");
+    let (path, package_inputs) = write_callback_package(name, source);
+    let result = compile_to_checked_with_packages(&path, Some("windows_x86_64"), package_inputs);
     result
         .expect_err("negative callback source canary must reject")
         .iter()
         .map(|diagnostic| diagnostic.message.as_str())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn repository_root() -> PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("Omega repository root")
+        .to_path_buf()
+}
+
+fn callback_fixture_source(name: &str) -> String {
+    fs::read_to_string(
+        repository_root()
+            .join("source/library/std/tests")
+            .join(name),
+    )
+    .unwrap_or_else(|error| panic!("read callback fixture `{name}`: {error}"))
+}
+
+fn write_callback_package(name: &str, source: &str) -> (PathBuf, PackageCompilationInputs) {
+    let directory = std::env::temp_dir().join(format!(
+        "omega-calling-policy-package-{name}-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&directory);
+    fs::create_dir_all(&directory).expect("create callback package fixture");
+    fs::copy(
+        repository_root().join("source/library/std/calling.omg"),
+        directory.join("calling.omg"),
+    )
+    .expect("copy package-local calling vocabulary");
+    let main = directory.join("main.omg");
+    fs::write(&main, source).expect("write callback package source");
+
+    let package = PackageKeyIdentity::from_digest([73; 32])
+        .expect("nonzero callback fixture package identity");
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "calling-policy-fixture",
+            directory,
+        )],
+        Vec::new(),
+    )
+    .expect("callback fixture package graph");
+    (main, inputs)
 }
 
 fn selected_plan_for_external_root<'a>(
@@ -118,7 +161,7 @@ target windows_x86_64 {
 }
 
 use omega::language::core::layout;
-use omega::language::std::calling;
+use calling;
 
 boundary trait WindowProcedure {
     machine call(message: u64) -> u64;
@@ -259,29 +302,25 @@ machine Main::main(&mut self) { }
 
 #[test]
 fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
-    let main_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(5)
-        .unwrap()
-        .join("source/library/std/tests/callback_materialization_closure.omg");
+    let source = callback_fixture_source("callback_materialization_closure.omg");
     assert_eq!(
-        fs::read_to_string(&main_path).unwrap(),
+        source,
         CALLBACK_MATERIALIZATION_POLICY.trim_start_matches('\n'),
         "the source canary and its readable test fixture must remain identical"
     );
-    compile_to_checked(&main_path, Some("windows_x86_64"))
+    let (main_path, package_inputs) =
+        write_callback_package("materialization-closure", CALLBACK_MATERIALIZATION_POLICY);
+    compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
         .expect("target-selected registrar should consume both exact closed layout demands");
 }
 
 #[test]
 fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() {
-    let main_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(5)
-        .unwrap()
-        .join("source/library/std/tests/direct_callback_parameter.omg");
-    let checked = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect("target closure should place the declared direct callback parameter");
+    let source = callback_fixture_source("direct_callback_parameter.omg");
+    let (main_path, package_inputs) = write_callback_package("direct-callback", &source);
+    let checked =
+        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
+            .expect("target closure should place the declared direct callback parameter");
     let registrar = checked
         .typed
         .traits()
@@ -433,13 +472,10 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
         .direct_registrar_parameter_application
         .as_mut()
         .unwrap()
-        .parameter = omega_calling_conventions::callback_native_parameter_id(
-            &requirement_identity,
-            1,
-        );
+        .parameter =
+        omega_calling_conventions::callback_native_parameter_id(&requirement_identity, 1);
     assert!(
-        omega_backend_plan::validate_bound_nominal_callback_placement(&stale_v1_parameter)
-            .is_err(),
+        omega_backend_plan::validate_bound_nominal_callback_placement(&stale_v1_parameter).is_err(),
         "the retired ordinal-derived v1 parameter identity must not substitute for v2",
     );
 
@@ -453,14 +489,16 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
         .unwrap()
         .parameter = invented;
     assert!(
-        omega_backend_plan::validate_bound_nominal_callback_placement(&invented_parameter)
-            .is_err(),
+        omega_backend_plan::validate_bound_nominal_callback_placement(&invented_parameter).is_err(),
         "a locally coherent policy-created parameter must not enter the declared telescope",
     );
 
     let mut wrong_binder = placement.clone();
-    wrong_binder.private_materialization.as_mut().unwrap().binder =
-        omega_calling_conventions::StaticMachineBinderId::new(0xcafe).unwrap();
+    wrong_binder
+        .private_materialization
+        .as_mut()
+        .unwrap()
+        .binder = omega_calling_conventions::StaticMachineBinderId::new(0xcafe).unwrap();
     assert!(
         omega_backend_plan::validate_bound_nominal_callback_placement(&wrong_binder).is_err(),
         "a different binder identity must not retain the direct application",
@@ -480,18 +518,13 @@ fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() 
 
 #[test]
 fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
-    let source = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(5)
-            .unwrap()
-            .join("source/library/std/tests/direct_callback_parameter.omg"),
-    )
-    .unwrap()
-    .replace("boundary trait HookRegistrar", "trait HookRegistrar");
-    let main_path = write_program("direct-callback-nonboundary", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect_err("a non-boundary trait cannot declare a native callback parameter");
+    let source = callback_fixture_source("direct_callback_parameter.omg")
+        .replace("boundary trait HookRegistrar", "trait HookRegistrar");
+    let (main_path, package_inputs) =
+        write_callback_package("direct-callback-nonboundary", &source);
+    let diagnostics =
+        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
+            .expect_err("a non-boundary trait cannot declare a native callback parameter");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -501,21 +534,15 @@ fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
 
 #[test]
 fn direct_callback_parameter_requires_its_exact_nominal_binder() {
-    let source = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(5)
-            .unwrap()
-            .join("source/library/std/tests/direct_callback_parameter.omg"),
-    )
-    .unwrap()
-    .replace(
+    let source = callback_fixture_source("direct_callback_parameter.omg").replace(
         "native callback procedure from Handler",
         "native callback procedure from Missing",
     );
-    let main_path = write_program("direct-callback-missing-binder", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect_err("a direct callback cannot infer or invent its binder");
+    let (main_path, package_inputs) =
+        write_callback_package("direct-callback-missing-binder", &source);
+    let diagnostics =
+        compile_to_checked_with_packages(&main_path, Some("windows_x86_64"), package_inputs)
+            .expect_err("a direct callback cannot infer or invent its binder");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -525,14 +552,7 @@ fn direct_callback_parameter_requires_its_exact_nominal_binder() {
 
 #[test]
 fn direct_callback_parameter_rejects_inferred_duplicate_and_unconstrained_binders() {
-    let source = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(5)
-            .unwrap()
-            .join("source/library/std/tests/direct_callback_parameter.omg"),
-    )
-    .unwrap();
+    let source = callback_fixture_source("direct_callback_parameter.omg");
     for (name, mutated, expected) in [
         (
             "inferred-binder",
@@ -577,18 +597,8 @@ fn direct_callback_parameter_rejects_inferred_duplicate_and_unconstrained_binder
 
 #[test]
 fn authored_addr_parameter_cannot_substitute_for_a_native_callback_declaration() {
-    let source = fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(5)
-            .unwrap()
-            .join("source/library/std/tests/direct_callback_parameter.omg"),
-    )
-    .unwrap()
-    .replace(
-        "native callback procedure from Handler",
-        "procedure: addr",
-    );
+    let source = callback_fixture_source("direct_callback_parameter.omg")
+        .replace("native callback procedure from Handler", "procedure: addr");
     let rendered = compile_std_negative("authored-addr", &source);
     assert!(
         rendered.contains("invalid direct callback telescope"),
@@ -602,14 +612,7 @@ fn callback_private_materialization_requires_an_explicit_cited_demand() {
         "    let placed: Plan =\n        Plan::place_private<WndClassWindowProcedureSlot>(plan, 8);\n    Plan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)",
         "    plan",
     );
-    let main_path = write_program("callback-uncited-demand", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect_err("a nominal callback binder cannot assume an uncited private demand");
-    let rendered = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let rendered = compile_std_negative("callback-uncited-demand", &source);
 
     assert!(
         rendered.contains("omits a nominal callback binder"),
@@ -628,14 +631,7 @@ fn callback_private_materialization_rejects_a_foreign_layout_subject() {
             "Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
             "OtherSpread satisfies PrivateCallbackSlot<WindowProcedure::call>;",
         );
-    let main_path = write_program("callback-wrong-layout", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect_err("a private slot cannot be cited by a foreign layout policy");
-    let rendered = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let rendered = compile_std_negative("callback-wrong-layout", &source);
 
     assert!(
         rendered.contains("active layout producer") && rendered.contains("OtherSpread"),
@@ -649,14 +645,7 @@ fn callback_private_materialization_rejects_an_ambiguous_requirement_path() {
         "boundary trait WindowProcedure {\n    machine call(message: u64) -> u64;\n}",
         "boundary trait WindowProcedure {\n    machine call(message: u64) -> u64;\n    machine call(message: i64) -> u64;\n}",
     );
-    let main_path = write_program("callback-ambiguous-requirement", &source);
-    let diagnostics = compile_to_checked(&main_path, Some("windows_x86_64"))
-        .expect_err("a signature-free callback requirement must resolve uniquely");
-    let rendered = diagnostics
-        .iter()
-        .map(|diagnostic| diagnostic.message.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let rendered = compile_std_negative("callback-ambiguous-requirement", &source);
 
     assert!(
         rendered.contains("overloads requirement `call`")

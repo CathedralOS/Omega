@@ -1856,13 +1856,18 @@ pub fn select_compiler_program_entry(
     config: &BuildConfig,
     selected_profile: Option<omega_target::TargetProfile>,
     realizations: &[omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    accepted_uefi_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let Some(selected) = selected_program_entry_machine(config, selected_profile)? else {
         return Ok(None);
     };
     let source_signature = validate_selected_program_entry_shape(typed, selected)?;
-    let calling_plans =
-        validate_selected_program_entry_calling_plan(typed, selected, realizations)?;
+    let calling_plans = validate_selected_program_entry_calling_plan(
+        typed,
+        selected,
+        realizations,
+        accepted_uefi_binding,
+    )?;
     Ok(Some(SelectedCompilerProgramEntry::new(
         source_signature,
         calling_plans,
@@ -1873,6 +1878,7 @@ pub fn validate_selected_program_entry_calling_plan(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
     realizations: &[omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
+    accepted_uefi_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
 ) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
     let (
         Some(schema_name),
@@ -1973,6 +1979,13 @@ pub fn validate_selected_program_entry_calling_plan(
             ))]);
         }
     }
+    let (validated_physical_plan, _, _) = physical_realization
+        .replayed_validated_application()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "target boundary schema `{schema_name}` lost its validated physical calling plan: {error}"
+            ))]
+        })?;
     let expected_physical = match physical_convention {
         omega_target::ProgramEntryCallingConvention::MicrosoftX64 => {
             omega_calling_conventions::CallingPolicy::MicrosoftX64
@@ -2002,15 +2015,21 @@ pub fn validate_selected_program_entry_calling_plan(
             expected_semantic,
         ))]);
     }
-    let physical_source =
-        target_owned_physical_contract_source(typed, selected.slot, schema.symbol, &physical)
-            .map_err(|diagnostic| vec![diagnostic])?;
     let service_schema = omega_effects::provider_plan::ServiceSchema::from_typed(typed, schema)
         .ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "target entry schema `{schema_name}` is not a boundary service schema"
             ))]
         })?;
+    let physical_source = target_owned_physical_contract_source(
+        typed,
+        selected.slot,
+        schema.symbol,
+        &service_schema,
+        &physical,
+        accepted_uefi_binding,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let storage_entry =
         omega_program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
             selected.slot,
@@ -2035,7 +2054,7 @@ pub fn validate_selected_program_entry_calling_plan(
             .map(|parameter| parameter.identity.into_string())
             .collect(),
         result_type_identity.into_string(),
-        physical_realization.report_fingerprint,
+        validated_physical_plan.contract_report_fingerprint(),
         physical_realization.boundary_entry_plan.clone(),
     )
     .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;
@@ -2059,7 +2078,9 @@ fn target_owned_physical_contract_source(
     typed: &TypedTrees,
     slot: omega_target::ProgramEntrySlotDeclaration,
     schema: psi_symbols::SymbolHandle,
+    service_schema: &omega_effects::provider_plan::ServiceSchema,
     contract: &ArrivalRequirementContract,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
 ) -> Result<TargetOwnedPhysicalContractSource, Diagnostic> {
     let expected_package = slot.physical_contract_package.ok_or_else(|| {
         Diagnostic::error("target physical entry requirement has no owning package identity")
@@ -2089,25 +2110,56 @@ fn target_owned_physical_contract_source(
         .path
         .strip_prefix(&source_file.package_root)
         .ok();
-    if source_file.origin != psi_source::SourceOrigin::Toolchain
-        || schema_source_file.source_id != source_file.source_id
-        || package_relative_source
-            != Some(std::path::Path::new(
-                expected_package.package_relative_source(),
-            ))
-    {
-        return Err(Diagnostic::error(format!(
-            "target physical entry requirement and schema `{}` must come from exact toolchain package `{}`, not `{}`",
-            contract.requirement_identity,
-            expected_package.manifest_identity(),
-            source_file.path.display()
-        )));
-    }
     let package_source_digest =
         omega_program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
             expected_package,
             source_file.source.as_bytes(),
         );
+    if schema_source_file.source_id != source_file.source_id {
+        return Err(Diagnostic::error(format!(
+            "target physical entry requirement `{}` and its selected schema must come from one exact source unit",
+            contract.requirement_identity,
+        )));
+    }
+    match accepted_binding {
+        Some(binding) => {
+            let exact_package_binding = binding.role()
+                == omega_package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
+                && binding.selected_provider_plan_digest().is_none()
+                && source_file.package_identity == Some(binding.package())
+                && schema_source_file.package_identity == Some(binding.package())
+                && typed.symbols.symbol_package_identity(schema) == Some(binding.package())
+                && typed.symbols.display_path(schema, "::") == binding.declaration_path()
+                && service_schema.trait_package_identity == Some(binding.package())
+                && omega_package_compilation::accepted_service_schema_digest(
+                    binding.role(),
+                    service_schema,
+                ) == binding.normalized_schema_digest();
+            if !exact_package_binding {
+                return Err(Diagnostic::error(format!(
+                    "target physical entry schema `{}` does not match the exact accepted UEFI package binding",
+                    typed.symbols.display_path(schema, "::"),
+                )));
+            }
+        }
+        None => {
+            let exact_bundled_source = source_file.package_identity.is_none()
+                && schema_source_file.package_identity.is_none()
+                && package_relative_source
+                    == Some(std::path::Path::new(
+                        expected_package.package_relative_source(),
+                    ))
+                && package_source_digest
+                    == omega_program_entry_plan::exact_uefi_x64_physical_contract_package_source_digest();
+            if !exact_bundled_source {
+                return Err(Diagnostic::error(format!(
+                    "target physical entry requirement and schema `{}` require either the exact bundled UEFI contract or one accepted package-owned UEFI binding, not `{}`",
+                    contract.requirement_identity,
+                    source_file.path.display(),
+                )));
+            }
+        }
+    }
     let package_source_report_fingerprint = physical_contract_package_source_report_fingerprint(
         expected_package.manifest_identity().as_bytes(),
         source_file.source.as_bytes(),
@@ -5287,6 +5339,7 @@ mod tests {
             &BuildConfig::default(),
             None,
             &[],
+            None,
         )
         .expect("an absent ProgramEntry is a complete settlement");
 
@@ -5317,6 +5370,7 @@ mod tests {
             &config,
             Some(omega_target::TargetProfile::WindowsX64),
             &[],
+            None,
         );
         let Err(diagnostics) = result else {
             panic!("missing source entry must reject before calling-plan selection")

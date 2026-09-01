@@ -674,12 +674,15 @@ or discover an export by spelling. Binding is selection, not invocation:
 `build.omg` supplies neither the machine's receiver nor its entry arguments.
 
 The resulting physical-contract plan retains a domain-separated SHA-256
-commitment to the exact toolchain package identity, canonical package-relative
-source path, and source bytes. The prior FNV source value remains only as an
-explicitly non-authoritative report fingerprint. Exact toolchain origin, source
-membership, contract identities, and the complete calling plan remain separate
-checks; holding the compact report value equal cannot substitute different
-package source bytes.
+commitment to its exact target-contract source bytes alongside the target role.
+The prior FNV source value remains only as an explicitly non-authoritative
+report fingerprint. Source custody, accepted package nominal/schema identity,
+contract identities, and the complete calling plan remain separate checks;
+holding the compact report value equal cannot substitute different source
+bytes. Standalone UEFI compatibility requires the byte-exact bundled contract.
+Package-aware UEFI compilation instead requires one exact consumer-accepted
+ordinary-package binding and does not infer authority from source origin or
+location.
 
 ## Target-declared slots
 
@@ -3981,6 +3984,19 @@ different checked-program instance. The token grants no filesystem access and
 proves no admission; interpreter options still supply provider authority
 separately. Standalone interpretation retains only the exact bundled
 `filesystem_host.omg` source fallback.
+
+The requirement-only `UefiX64ProgramEntry` role likewise binds the exact
+package, canonical `UefiApplication` declaration path, and normalized service
+schema selected by the UEFI x86-64 target consumer. Candidate review may derive
+that row from a semantic-only checked compilation, but target compilation must
+consume it exactly. Its schema commitment deliberately omits the two
+target-evaluated calling-plan fields: the UEFI target independently replays and
+retains the exact semantic and physical plans, so duplicating those values in
+the package nominal binding would create a second ABI authority. Missing,
+foreign, stale, unmatched, or non-UEFI use rejects. The source remains an
+ordinary package source; selection of the target or a same-spelled declaration
+does not grant the role.
+
 The deliberately non-std `host-services` fixture exercises both Console and
 Filesystem roles so package, repository, alias, and bundled-library identity
 cannot accidentally become the authority test.
@@ -3988,8 +4004,8 @@ cannot accidentally become the authority test.
 These roles are deliberately narrow. Their present schema normalization is
 exact for their checked signatures and reaches; it is not yet a generic
 accepted-boundary mechanism for arbitrary package-owned nominal carrier types.
-The legacy toolchain-owned Console lane remains a standalone-compatibility path
-only.
+The legacy Console lane remains only as byte-exact bundled standalone
+compatibility; it no longer depends on blanket std toolchain provenance.
 
 The vertical implementation canary resolves the repository's real std
 directory as an ordinary local package, derives its default
@@ -4001,10 +4017,18 @@ rather than consulting bundled std. Package-aware compilation rejects every
 non-core `omega::language::*` path with ordinary-dependency guidance, admits
 only the exact bundled core directory into its toolchain source frontier, and
 classifies ordinary std sources as package-owned. Standalone compilation keeps
-a compatibility route over the bundled library root while remaining consumers
-migrate. Remaining target/provider bindings, standalone source classification,
-and macOS GUI injection remain explicit seams to remove. Only
-`omega::language::core` has a magic mount in package-aware compilation.
+the legacy compiler-bundle route and provenance over bundled std/alloc until
+every standalone compiler consumer has migrated. Console and UEFI already use
+narrow byte-exact bundled fallbacks rather than directory authority; the other
+standalone consumers must gain equivalent exact source-role recognition before
+the broad compatibility classification can be removed. Relabeling the same
+directory-derived authority would not complete that migration. Package-aware
+compilation does not inherit this lane: its toolchain-overlap gate is limited
+to the actual bundled core root, allowing the repository's std directory to
+enter as an ordinary package. Remaining product/parser/sample migration,
+standalone consumer migration, accepted-lock replay, and macOS GUI injection
+remain explicit seams to remove. Only `omega::language::core` has a magic mount
+in package-aware compilation.
 
 Making std ordinary also makes core's package boundary concrete. Source-facing
 float namespaces, formats, meanings, semantic operators, and boundary

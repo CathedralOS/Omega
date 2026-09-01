@@ -230,7 +230,7 @@ impl CheckedCompilation {
             role,
             package,
             declaration_path,
-            schema.identity_digest(),
+            omega_package_compilation::accepted_service_schema_digest(role, schema),
         )
         .map_err(Diagnostic::error)
     }
@@ -1158,6 +1158,11 @@ fn compile_to_checked_inner_with_replay(
         &build_config,
         selected_target_profile,
         &boundary_calling_plan_realizations,
+        package_inputs.and_then(|inputs| {
+            inputs.accepted_semantic_binding(
+                omega_package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry,
+            )
+        }),
     )?;
     let target_provider_defaults =
         selected_target_machine_declarations.settle_provider_defaults(&typed)?;
@@ -1271,6 +1276,11 @@ fn compile_to_checked_inner_with_replay(
             accepted_filesystem_binding: package_inputs.and_then(|inputs| {
                 inputs.accepted_semantic_binding(
                     omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
+                )
+            }),
+            accepted_uefi_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    omega_package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry,
                 )
             }),
         },

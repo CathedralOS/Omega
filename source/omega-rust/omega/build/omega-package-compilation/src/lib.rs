@@ -14,7 +14,9 @@ use psi_checked_interpreter::{
 };
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
-pub use semantic_bindings::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+pub use semantic_bindings::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
+};
 use sha2::{Digest, Sha256};
 pub use source_consumption::{
     ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,

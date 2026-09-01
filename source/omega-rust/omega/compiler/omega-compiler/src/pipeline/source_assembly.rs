@@ -243,10 +243,13 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         imports.seed(root);
     }
 
-    let toolchain_root = crate::pipeline::frontend::bundled_omega_root();
+    let bundled_library_root = crate::pipeline::frontend::bundled_omega_root();
     let mut source_storage = match package_inputs {
         Some(package_inputs) => {
-            package_inputs.validate_for_compilation(root_path, &toolchain_root)?;
+            package_inputs.validate_for_compilation(
+                root_path,
+                &crate::pipeline::frontend::bundled_core_root(),
+            )?;
             let root_package = package_inputs
                 .package_root(package_inputs.root())
                 .expect("validated package inputs retain their root")
@@ -266,7 +269,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
                 .parent()
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| PathBuf::from("."));
-            SourceStorage::for_compilation(root_package, toolchain_root)
+            SourceStorage::for_compilation(root_package, bundled_library_root)
         }
     };
     let generated_source_custody = match package_inputs {

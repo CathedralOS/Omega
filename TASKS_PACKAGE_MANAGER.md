@@ -387,9 +387,10 @@ explicitly.
 
   - migrate package-aware product, parser, sample, and fixture consumers to
     explicit std dependency edges;
-  - replace UEFI physical-entry recognition and standalone std/alloc source
-    classification with consumer-approved exact nominal/schema bindings where
-    recognition is actually required;
+  - replace the remaining standalone std/alloc `Toolchain` compatibility
+    classification only after every compiler consumer has an exact
+    source-byte catalog entry or accepted semantic role; a new label derived
+    from directory location is not a security boundary;
   - feed accepted Filesystem and UEFI bindings through lock replay into normal
     package-aware compilation.
 
