@@ -205,6 +205,7 @@ fn stage_terminal_component(
             compiler_builtins: &[],
             ieee_float_fma: &[],
             native_callbacks: &[],
+            callback_thunks: &[],
         },
     )?;
     let stack_demand = omega_image_emission::derive_stack_demand(

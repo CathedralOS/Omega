@@ -1926,8 +1926,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let (baseline_conveyor, optimized_conveyor) = native_conveyor
         .split_once("NativeRealizationInput::ExplicitOptimization")
         .expect("native realization retains an explicit optimized conveyor arm");
+    let (optimized_conveyor, _) = optimized_conveyor
+        .split_once("\nfn emit_callback_thunks(")
+        .expect("optimized conveyor ends before the ordinary callback-thunk helper");
     let transitional_assignment =
-        "omega_target_operations_to_assigned_target_operations::assign_registers(";
+        "omega_target_operations_to_assigned_target_operations::assign_registers";
     assert!(
         baseline_conveyor.contains(transitional_assignment)
             && !optimized_conveyor.contains(transitional_assignment),
