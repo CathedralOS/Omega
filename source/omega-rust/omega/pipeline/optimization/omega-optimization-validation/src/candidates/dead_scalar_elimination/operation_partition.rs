@@ -40,6 +40,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. } => Some(DeadScalarFamily::ProofCertified),
         O::WriteOnlyPrimitiveStore { .. }
+        | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
@@ -52,6 +53,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanStructuralField { .. }
+        | O::IntegerStructuralField { .. }
         | O::Jump { .. }
         | O::Conditional { .. }
         | O::Return { .. }

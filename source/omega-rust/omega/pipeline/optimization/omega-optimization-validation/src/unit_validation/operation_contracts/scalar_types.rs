@@ -18,7 +18,9 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
-        O::WriteOnlyPrimitiveStore { value, .. } => scalar(value.value) == Some(value.scalar_type),
+        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
+            scalar(value.value) == Some(value.scalar_type)
+        }
         O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
@@ -27,6 +29,9 @@ pub(crate) fn operation_scalar_types_match(
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => true,
+        O::IntegerStructuralField { result, .. } => {
+            matches!(result.scalar_type, ScalarType::Integer(_))
+        }
         O::IntegerConstant {
             scalar_type, value, ..
         } => match scalar_type {

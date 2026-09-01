@@ -78,7 +78,8 @@ pub(crate) fn validate_structural_place_availability(
 
 pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = match operation {
-        O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place],
+        O::WriteOnlyPrimitiveStore { destination, .. }
+        | O::StructuralScalarFieldStore { destination, .. } => vec![destination.place],
         O::CallUnit {
             structural_arguments,
             ..
@@ -101,6 +102,7 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
             vec![*source]
         }
+        O::IntegerStructuralField { source, .. } => vec![source.place],
         _ => Vec::new(),
     };
     match operation {
@@ -143,6 +145,15 @@ pub(crate) fn validate_structural_root_operations(
         .flat_map(|block| &block.nodes)
         .filter_map(|node| match node.operation {
             O::BooleanStructuralField { source, field, .. } => Some((source, field)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let integer_observations = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            O::IntegerStructuralField { source, field, .. } => Some((source.place, *field)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -193,68 +204,168 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
-                O::BooleanStructuralField { source, field, .. } => {
-                    let valid = function.machine == unit_entry
-                        && observations
-                            .iter()
-                            .all(|candidate| candidate == &(*source, *field))
-                        && function.content_entry_claims.is_empty()
-                        && function
-                            .parameters
-                            .iter()
-                            .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
+                O::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } => {
+                    let parent = super::super::structural_catalog::resolve_structural_path(
+                        structural_types,
+                        destination.structural_type,
+                        path,
+                    );
+                    let valid = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == destination.place)
+                        == Some(destination)
+                        && destination.multiplicity
+                            == psi_terminal::StructuralMultiplicity::Unrestricted
+                        && matches!(
+                            destination.access,
+                            psi_terminal::StructuralAccess::MutableBorrow
+                                | psi_terminal::StructuralAccess::WriteOnlyBorrow
+                        )
+                        && destination.qualifications.is_empty()
+                        && destination.projected_qualifications.is_empty()
+                        && matches!(
+                            path.as_slice(),
+                            [psi_terminal::StructuralPathSegment::Field(_)]
+                        )
                         && function
                             .entry_claim_declarations
                             .iter()
-                            .all(|claim| claim.input != *source)
-                        && matches!(
-                            place_kinds.get(source),
-                            Some(StructuralPlaceKind::Parameter { .. })
-                        )
+                            .all(|claim| claim.input != destination.place)
                         && function
-                            .structural_parameters
+                            .content_entry_claims
                             .iter()
-                            .find(|parameter| parameter.place == *source)
-                            .is_some_and(|parameter| {
-                                parameter.multiplicity
-                                    == psi_terminal::StructuralMultiplicity::Affine
-                                    && parameter.qualifications.is_empty()
-                                    && parameter.access
-                                        != psi_terminal::StructuralAccess::WriteOnlyBorrow
-                                    && function.structural_places.iter().any(|place| {
-                                        place.id == parameter.place
-                                            && matches!(
-                                                place.kind,
-                                                StructuralPlaceKind::Parameter {
-                                                    position,
-                                                    is_self,
-                                                } if position == parameter.position
-                                                    && is_self == parameter.is_self
-                                            )
+                            .all(|claim| claim.input.root != destination.place)
+                        && matches!(
+                            place_kinds.get(&destination.place),
+                            Some(StructuralPlaceKind::Parameter { position, is_self })
+                                if *position == destination.position
+                                    && *is_self == destination.is_self
+                        )
+                        && parent.is_some_and(|parent| {
+                            direct_relevant_scalar_field(structural_types, parent, *field)
+                                == Some(value.scalar_type)
+                        });
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidStructuralScalarFieldStore {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
+                O::BooleanStructuralField { source, field, .. } => {
+                    let parameter = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == *source);
+                    let valid = parameter.is_some_and(|parameter| {
+                        let affine_entry_observation = function.machine == unit_entry
+                            && parameter.multiplicity
+                                == psi_terminal::StructuralMultiplicity::Affine
+                            && function
+                                .parameters
+                                .iter()
+                                .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
+                            && every_scalar_return_nominally_cleans(function, *source);
+                        let unrestricted_shared_observation = parameter.multiplicity
+                            == psi_terminal::StructuralMultiplicity::Unrestricted
+                            && parameter.access == psi_terminal::StructuralAccess::SharedBorrow;
+
+                        (affine_entry_observation || unrestricted_shared_observation)
+                            && parameter.qualifications.is_empty()
+                            && parameter.access != psi_terminal::StructuralAccess::WriteOnlyBorrow
+                            && observations
+                                .iter()
+                                .all(|candidate| candidate == &(*source, *field))
+                            && function.content_entry_claims.is_empty()
+                            && function
+                                .entry_claim_declarations
+                                .iter()
+                                .all(|claim| claim.input != *source)
+                            && matches!(
+                                place_kinds.get(source),
+                                Some(StructuralPlaceKind::Parameter { position, is_self })
+                                    if *position == parameter.position
+                                        && *is_self == parameter.is_self
+                            )
+                            && structural_types
+                                .get(&parameter.structural_type)
+                                .is_some_and(|declaration| {
+                                    let psi_terminal::StructuralTypeShape::Record { fields } =
+                                        &declaration.shape
+                                    else {
+                                        return false;
+                                    };
+                                    fields.iter().any(|candidate| {
+                                        candidate.id == *field
+                                            && !candidate.relevance.is_erased()
+                                            && candidate.field_type
+                                                == psi_terminal::StructuralFieldType::Scalar(
+                                                    ScalarType::Boolean,
+                                                )
                                     })
-                                    && structural_types
-                                        .get(&parameter.structural_type)
-                                        .is_some_and(|declaration| {
-                                            let psi_terminal::StructuralTypeShape::Record {
-                                                fields,
-                                            } = &declaration.shape
-                                            else {
-                                                return false;
-                                            };
-                                            fields.iter().any(|candidate| {
-                                                candidate.id == *field
-                                                    && !candidate.relevance.is_erased()
-                                                    && candidate.field_type
-                                                        == psi_terminal::StructuralFieldType::Scalar(
-                                                            ScalarType::Boolean,
-                                                        )
-                                            })
-                                        })
-                            })
-                        && every_scalar_return_nominally_cleans(function, *source);
+                                })
+                    });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidBooleanStructuralField {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
+                O::IntegerStructuralField {
+                    result,
+                    source,
+                    field,
+                    ..
+                } => {
+                    let valid = function
+                        .structural_parameters
+                        .iter()
+                        .find(|parameter| parameter.place == source.place)
+                        == Some(source)
+                        && source.multiplicity
+                            == psi_terminal::StructuralMultiplicity::Unrestricted
+                        && source.access == psi_terminal::StructuralAccess::SharedBorrow
+                        && source.qualifications.is_empty()
+                        && source.projected_qualifications.is_empty()
+                        && matches!(result.scalar_type, ScalarType::Integer(_))
+                        && integer_observations
+                            .iter()
+                            .all(|candidate| candidate == &(source.place, *field))
+                        && function
+                            .entry_claim_declarations
+                            .iter()
+                            .all(|claim| claim.input != source.place)
+                        && function
+                            .content_entry_claims
+                            .iter()
+                            .all(|claim| claim.input.root != source.place)
+                        && matches!(
+                            place_kinds.get(&source.place),
+                            Some(StructuralPlaceKind::Parameter { position, is_self })
+                                if *position == source.position && *is_self == source.is_self
+                        )
+                        && direct_relevant_scalar_field(
+                            structural_types,
+                            source.structural_type,
+                            *field,
+                        ) == Some(result.scalar_type);
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidIntegerStructuralField {
                                 machine: function.machine,
                                 block: block.id,
                                 node: node_index,
@@ -350,6 +461,25 @@ pub(crate) fn validate_structural_root_operations(
         }
     }
     Ok(())
+}
+
+fn direct_relevant_scalar_field(
+    structural_types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+    field: psi_core::StructuralFieldId,
+) -> Option<ScalarType> {
+    let declaration = structural_types.get(&structural_type)?;
+    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    fields.iter().find_map(|candidate| {
+        (candidate.id == field && !candidate.relevance.is_erased())
+            .then_some(&candidate.field_type)
+            .and_then(|field_type| match field_type {
+                psi_terminal::StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+                _ => None,
+            })
+    })
 }
 
 pub(crate) fn every_scalar_return_nominally_cleans(

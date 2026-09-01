@@ -19,8 +19,9 @@ pub(crate) use structural_roots::{
     multiple_installation_root_service_unit, provider_service_unit, service_effect_unit,
 };
 pub(crate) use type_declarations::{
-    boolean_structural_field_unit, structural_case, structural_catalog_unit, structural_field,
-    structural_leaf_field, structural_type,
+    boolean_structural_field_unit, direct_realization_boolean_structural_field_unit,
+    direct_realization_integer_structural_field_unit, structural_case, structural_catalog_unit,
+    structural_field, structural_leaf_field, structural_scalar_field_store_unit, structural_type,
 };
 pub(crate) use witnesses::{
     compressed_trivial_affine_return_unit, compressed_trivial_affine_return_unit_with_prefix,

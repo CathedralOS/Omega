@@ -128,6 +128,16 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    InvalidStructuralScalarFieldStore {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
+    InvalidIntegerStructuralField {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     StructuralReturnSourceContractMismatch {
         machine: MachineId,
         block: BlockId,

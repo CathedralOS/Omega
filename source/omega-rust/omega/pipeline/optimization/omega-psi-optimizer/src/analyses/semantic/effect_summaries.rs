@@ -296,10 +296,12 @@ fn operation_effect(
         | O::SaturatingIntegerRemainder { .. }
         | O::SaturatingIntegerMultiply { .. } => (EffectClass::PureScalar, No, No, No, No),
         O::WriteOnlyPrimitiveStore { .. }
+        | O::StructuralScalarFieldStore { .. }
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::BooleanStructuralField { .. }
+        | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
