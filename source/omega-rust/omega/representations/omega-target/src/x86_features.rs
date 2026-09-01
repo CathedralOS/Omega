@@ -44,6 +44,20 @@ impl X86ScalarFmaSlot {
             Self::Binary64 => "x86_64::VFMADD132SD",
         }
     }
+
+    /// Exact normalized operator requirement carried by the selected
+    /// `ProviderPlan` row for this semantic slot. This is deliberately
+    /// distinct from the stable human-facing slot identity above.
+    pub const fn selected_plan_requirement_identity(self) -> &'static str {
+        match self {
+            Self::Binary32 => {
+                "operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))"
+            }
+            Self::Binary64 => {
+                "operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))"
+            }
+        }
+    }
 }
 
 /// The exact feature pair required by canonical scalar FMA3 encodings.

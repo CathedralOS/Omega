@@ -12,7 +12,8 @@ use omega_machine_code::{
     InternalUnitCallArgumentRecord, InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord,
     InternalUnitScalarCallRecord, PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite,
     StackAdjustmentPair, UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
-    derive_completion_provider_custody,
+    X86FloatingControlRecord, X86ScalarFmaFormat, X86ScalarFmaOccurrenceRecord,
+    X86ScalarFmaOperandRecord, derive_completion_provider_custody,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
@@ -39,6 +40,9 @@ pub(super) struct UnitEmission {
     pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
     pub(super) integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub(super) x86_scalar_fma: Vec<omega_machine_code::X86ScalarFmaFragment>,
+    pub(super) x86_scalar_fma_occurrences: Vec<X86ScalarFmaOccurrenceRecord>,
+    pub(super) x86_floating_control: Option<X86FloatingControlRecord>,
     pub(super) semantic_code_attribution: Vec<SemanticCodeAttribution>,
     pub(super) port_effects: Vec<PortEffectRecord>,
     pub(super) boundary_settlements: Vec<BoundarySettlementRecord>,
@@ -534,6 +538,9 @@ pub(super) fn emit_unit_body(
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
+    let mut x86_scalar_fma = Vec::new();
+    let mut x86_scalar_fma_occurrences = Vec::new();
+    let mut x86_floating_control = None;
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
@@ -547,6 +554,15 @@ pub(super) fn emit_unit_body(
     let mut aarch64_link_store = None;
     let mut aarch64_link_load = None;
     let assigned_scalar_homes = assigned_unit_scalar_homes(body)?;
+    let has_ieee_float_fma = body.operations.iter().any(|operation| {
+        matches!(
+            operation,
+            AssignedUnitOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
+        )
+    });
+    if has_ieee_float_fma && target.architecture != Architecture::X86_64 {
+        return Err(EmissionError::IeeeFloatFmaUnsupported(target));
+    }
     let scalar_homes = assigned_scalar_homes
         .iter()
         .copied()
@@ -556,6 +572,19 @@ pub(super) fn emit_unit_body(
     match target.architecture {
         Architecture::X86_64 => {
             (x86_homes, x86_frame_bytes) = x86_unit_parameter_homes(body, &assigned_scalar_homes)?;
+            let floating_control_offsets = has_ieee_float_fma
+                .then(|| {
+                    let saved = u8::try_from(x86_frame_bytes)
+                        .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                    let canonical = saved
+                        .checked_add(4)
+                        .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                    x86_frame_bytes = x86_frame_bytes
+                        .checked_add(16)
+                        .ok_or(EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                    Ok::<_, EmissionError>((saved, canonical))
+                })
+                .transpose()?;
             parameter_homes = body
                 .parameters
                 .iter()
@@ -577,6 +606,31 @@ pub(super) fn emit_unit_body(
                 emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, false);
                 frame_allocation = Some((offset, bytes.len() - offset));
                 emit_x86_64_stage_unit_parameters(&mut bytes, &x86_homes, x86_frame_bytes)?;
+            }
+            if let Some((saved, canonical)) = floating_control_offsets {
+                let save_offset = bytes.len();
+                bytes.extend_from_slice(&omega_isa_x86_64::encode_stmxcsr_rsp_disp8(saved));
+                let canonical_store_offset = bytes.len();
+                bytes.extend_from_slice(&omega_isa_x86_64::encode_store_mxcsr_constant_rsp_disp8(
+                    canonical,
+                    omega_isa_x86_64::OMEGA_CANONICAL_MXCSR,
+                ));
+                let install_offset = bytes.len();
+                bytes.extend_from_slice(&omega_isa_x86_64::encode_ldmxcsr_rsp_disp8(canonical));
+                x86_floating_control = Some(X86FloatingControlRecord {
+                    target,
+                    canonical_mxcsr: omega_isa_x86_64::OMEGA_CANONICAL_MXCSR,
+                    canonical_slot_byte_offset: u32::from(canonical),
+                    saved_slot_byte_offset: u32::from(saved),
+                    save_offset,
+                    save_byte_count: 5,
+                    canonical_store_offset,
+                    canonical_store_byte_count: 8,
+                    install_offset,
+                    install_byte_count: 5,
+                    restore_offset: 0,
+                    restore_byte_count: 0,
+                });
             }
         }
         Architecture::Aarch64 => {
@@ -615,6 +669,7 @@ pub(super) fn emit_unit_body(
     let mut established_affine_locals = Vec::new();
     let mut established_byte_sequences = std::collections::BTreeMap::new();
     let mut established_integer_constants = std::collections::BTreeMap::new();
+    let mut established_ieee_float_constants = std::collections::BTreeMap::new();
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
         if returned {
             return Err(EmissionError::UnitOperationAfterReturn);
@@ -664,6 +719,110 @@ pub(super) fn emit_unit_body(
                     value: *value,
                     operation_ordinal,
                 });
+            }
+            AssignedUnitOperation::IeeeFloatConstant {
+                psi_operation,
+                result,
+                value,
+            } => {
+                operation_site = Some(*psi_operation);
+                if established_ieee_float_constants
+                    .insert(*result, (*psi_operation, *value))
+                    .is_some()
+                {
+                    return Err(EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation));
+                }
+            }
+            AssignedUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+                psi_operation,
+                result,
+                format,
+                left,
+                right,
+                addend,
+                destination,
+                settlement,
+            } => {
+                operation_site = Some(*psi_operation);
+                let expected_slot = match format {
+                    psi_core::IeeeFloatFormat::Binary32 => omega_target::X86ScalarFmaSlot::Binary32,
+                    psi_core::IeeeFloatFormat::Binary64 => omega_target::X86ScalarFmaSlot::Binary64,
+                };
+                if settlement.terminal_operation != *psi_operation
+                    || settlement.format != *format
+                    || settlement.slot != expected_slot
+                    || settlement.provider.profile().native_target() != target
+                    || !settlement.provider.has_canonical_identity()
+                    || !settlement
+                        .provider
+                        .admits(settlement.provider.requirement(), settlement.slot)
+                    || *destination != left.register
+                {
+                    return Err(EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation));
+                }
+                let mut emit_operand = |operand: &omega_assigned_target_operations::AssignedIeeeFloatFmaOperand|
+                 -> Result<X86ScalarFmaOperandRecord, EmissionError> {
+                    if established_ieee_float_constants.get(&operand.source_value)
+                        != Some(&(operand.defining_operation, operand.value))
+                        || operand.value.format() != *format
+                    {
+                        return Err(EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation));
+                    }
+                    let code_offset = bytes.len();
+                    let encoded = match operand.value {
+                        psi_core::IeeeFloatValue::Binary32(bits) => {
+                            omega_isa_x86_64::encode_binary32_bits_to_xmm(bits, operand.register)
+                        }
+                        psi_core::IeeeFloatValue::Binary64(bits) => {
+                            omega_isa_x86_64::encode_binary64_bits_to_xmm(bits, operand.register)
+                        }
+                    }
+                    .map_err(|_| EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation))?;
+                    bytes.extend_from_slice(&encoded);
+                    Ok(X86ScalarFmaOperandRecord {
+                        defining_operation: operand.defining_operation,
+                        source_value: operand.source_value,
+                        value: operand.value,
+                        register: operand.register,
+                        code_offset,
+                        byte_count: encoded.len(),
+                    })
+                };
+                let left_record = emit_operand(left)?;
+                let right_record = emit_operand(right)?;
+                let addend_record = emit_operand(addend)?;
+                drop(emit_operand);
+                let fma_format = match format {
+                    psi_core::IeeeFloatFormat::Binary32 => X86ScalarFmaFormat::Binary32,
+                    psi_core::IeeeFloatFormat::Binary64 => X86ScalarFmaFormat::Binary64,
+                };
+                let emitted = super::emit_feature_required_x86_scalar_fma(
+                    settlement.provider.requirement(),
+                    target,
+                    fma_format,
+                    *destination,
+                    addend.register,
+                    right.register,
+                    bytes.len(),
+                )
+                .map_err(|_| EmissionError::InvalidIeeeFloatFmaCustody(*psi_operation))?;
+                bytes.extend_from_slice(&emitted.bytes);
+                x86_scalar_fma_occurrences.push(X86ScalarFmaOccurrenceRecord {
+                    terminal_operation: *psi_operation,
+                    result: *result,
+                    format: fma_format,
+                    left: left_record,
+                    right: right_record,
+                    addend: addend_record,
+                    destination: *destination,
+                    provider_plan_report_identity: settlement.provider_plan_report_identity,
+                    provider_plan_digest: settlement.provider_plan_digest,
+                    slot: settlement.slot,
+                    admitted_provider: settlement.provider,
+                    fragment_identity: emitted.custody.identity,
+                    operation_ordinal,
+                });
+                x86_scalar_fma.push(emitted.custody);
             }
             AssignedUnitOperation::EstablishTrivialAffineLocal {
                 psi_operation,
@@ -1366,6 +1525,15 @@ pub(super) fn emit_unit_body(
                 }
                 match target.architecture {
                     Architecture::X86_64 => {
+                        if let Some(control) = &mut x86_floating_control {
+                            control.restore_offset = bytes.len();
+                            let saved = u8::try_from(control.saved_slot_byte_offset)
+                                .map_err(|_| EmissionError::IeeeFloatControlFrameNotEncodable)?;
+                            bytes.extend_from_slice(&omega_isa_x86_64::encode_ldmxcsr_rsp_disp8(
+                                saved,
+                            ));
+                            control.restore_byte_count = 5;
+                        }
                         if x86_frame_bytes != 0 {
                             let offset = bytes.len();
                             emit_x86_64_adjust_sp(&mut bytes, x86_frame_bytes, true);
@@ -1423,6 +1591,9 @@ pub(super) fn emit_unit_body(
         internal_unit_scalar_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
+        x86_scalar_fma,
+        x86_scalar_fma_occurrences,
+        x86_floating_control,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,

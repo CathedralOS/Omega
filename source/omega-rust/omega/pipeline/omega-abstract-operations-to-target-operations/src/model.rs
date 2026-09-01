@@ -3,6 +3,18 @@ use omega_target::NativeTarget;
 use omega_target_operations::BoundarySettlementRealization;
 use psi_core::{BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId};
 
+/// Borrowed exact-plan and deployment inputs for one Terminal nearest-FMA
+/// occurrence. Construction grants no authority: the Abstract-to-Target
+/// coordinator independently rejoins every field before producing target IR.
+#[derive(Debug, Clone, Copy)]
+pub struct AdmittedIeeeFloatFmaSettlement<'plan> {
+    pub terminal_operation: OperationId,
+    pub provider_plan: &'plan omega_effects::provider_plan::ProviderPlan,
+    pub format: psi_core::IeeeFloatFormat,
+    pub slot: omega_target::X86ScalarFmaSlot,
+    pub provider: omega_target::AdmittedX86ScalarFmaProvider,
+}
+
 /// One boundary realization sourced from a validated, admitted provider
 /// execution or the consuming lowerer's closed compiler-builtin catalog.
 #[derive(Debug, Clone)]
@@ -104,6 +116,11 @@ pub enum LoweringError {
     InvalidLinuxExitGroupShape(MachineId),
     UnsupportedOperationInScalarFunction(MachineId),
     UnsupportedOperationInUnitFunction(MachineId),
+    DuplicateIeeeFloatFmaSettlement(OperationId),
+    UnknownIeeeFloatFmaSettlement(OperationId),
+    MissingIeeeFloatFmaSettlement(OperationId),
+    InvalidIeeeFloatFmaSettlement(OperationId),
+    IeeeFloatFmaOperandMismatch(ValueId),
     /// Target-neutral custody retains this verified semantic write, but no
     /// target operation may realize it until parameter address, scalar width,
     /// and non-observing store authority are selected and replayable.

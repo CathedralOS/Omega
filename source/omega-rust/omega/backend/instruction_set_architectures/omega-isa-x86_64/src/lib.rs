@@ -5,6 +5,7 @@
 //! any source-shaped Psi representation.
 
 mod fma;
+mod ieee_float;
 mod machine_effects;
 mod mov_r32_imm32_i64_materialization;
 mod post_handoff_writer;
@@ -17,6 +18,10 @@ mod xor_zero_i64_materialization;
 pub use fma::{
     DecodedScalarFmaFormat, DecodedVfmadd132Scalar, decode_vfmadd132_scalar, encode_vfmadd132sd,
     encode_vfmadd132ss,
+};
+pub use ieee_float::{
+    OMEGA_CANONICAL_MXCSR, encode_binary32_bits_to_xmm, encode_binary64_bits_to_xmm,
+    encode_ldmxcsr_rsp_disp8, encode_stmxcsr_rsp_disp8, encode_store_mxcsr_constant_rsp_disp8,
 };
 pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,

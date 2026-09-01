@@ -1,6 +1,6 @@
 use omega_compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-    compile_to_checked,
+    compile_to_checked, realize_retained_terminal_artifact_with_source_evaluated_imports,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -413,6 +413,57 @@ machine Main::main(&mut self) {
     retained
         .validate()
         .expect("FMA occurrence proposal replays against canonical artifact");
+    let native = realize_retained_terminal_artifact_with_source_evaluated_imports(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        &[],
+    )
+    .unwrap_or_else(|diagnostics| panic!("FMA native custody failed: {diagnostics:#?}"));
+    native
+        .validate()
+        .expect("FMA native artifact independently replays");
+    let fma_functions = native
+        .object()
+        .functions()
+        .iter()
+        .filter(|function| !function.x86_scalar_fma_occurrences.is_empty())
+        .collect::<Vec<_>>();
+    let [function] = fma_functions.as_slice() else {
+        panic!("one bounded FMA function must survive ordinary object construction")
+    };
+    assert_eq!(function.x86_scalar_fma.len(), 1);
+    assert_eq!(function.x86_scalar_fma_occurrences.len(), 1);
+    let control = function
+        .x86_floating_control
+        .expect("native FMA function retains canonical MXCSR custody");
+    assert_eq!(control.canonical_mxcsr, 0x1f80);
+    assert_eq!(
+        native.object().x86_scalar_fma_provider(),
+        Some(function.x86_scalar_fma_occurrences[0].admitted_provider)
+    );
+    let occurrence = function.x86_scalar_fma_occurrences[0];
+    let mut parts = native.into_parts();
+    let selected = parts
+        .selected_provider_plans
+        .iter_mut()
+        .find(|plan| plan.report_identity() == occurrence.provider_plan_report_identity)
+        .expect("FMA occurrence rejoins one selected native plan");
+    let mut substituted_digest = *selected.plan_digest().as_bytes();
+    substituted_digest[0] ^= 1;
+    *selected = omega_terminal_psi_to_native_artifact::NativeSelectedProviderPlan::new(
+        selected.report_identity(),
+        omega_terminal_psi_to_native_artifact::NativeSelectedProviderPlanDigest::from_digest(
+            substituted_digest,
+        ),
+        selected.requirement_identities().to_vec(),
+    );
+    let error = omega_compilation_report::RetainedNativeArtifact::from_replayed_parts(parts)
+        .expect_err("a substituted exact selected plan must reject native FMA replay");
+    assert_eq!(
+        error,
+        "native artifact nearest-FMA does not rejoin one exact selected provider plan"
+    );
 }
 
 #[test]

@@ -27,6 +27,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   sources, reduces each argument to an exact register or outgoing-stack
   destination, and assigns one ordered, non-reused eight-byte result home after
   the structural parameter-home prefix.
+- `assignment/function/unit/operation.rs` owns the bounded x86 nearest-FMA XMM
+  homes and replays each raw-bit constant source before producing an assigned
+  FMA operation. The selected plan and admitted provider remain semantic
+  custody; this stage does not encode machine bytes or establish MXCSR.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is
@@ -53,6 +57,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - Must preserve target operation ordering unless a later allocator explicitly owns reordering.
 - The bounded O0 attached-Unit scalar lane does not reuse result homes; reuse is
   a later allocator decision requiring its own liveness evidence.
+- The bounded nearest-FMA lane currently uses fixed XMM homes. Widening or
+  reusing them is an allocator change and must preserve per-occurrence custody.
 
 ## Known Gaps
 

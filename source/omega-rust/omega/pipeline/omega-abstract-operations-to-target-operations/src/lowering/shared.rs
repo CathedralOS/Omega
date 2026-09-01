@@ -18,10 +18,11 @@ pub(super) use omega_target_operations::{
     BoundarySettlementBinding, FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi,
     MachineRegister, ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression,
     TargetCallArgument, TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetFunction,
-    TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
-    TargetRankedU32Countdown, TargetScalarExpression, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+    TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
+    TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression,
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitBody, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    TargetX86ScalarFmaSettlement, TerminalPsiProvenance,
 };
 pub(super) use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,

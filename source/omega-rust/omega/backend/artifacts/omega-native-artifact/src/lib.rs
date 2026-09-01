@@ -435,6 +435,7 @@ impl NativeArtifact {
             .map_err(|_| "native artifact image failed object-to-image replay")?;
         let module = psi_terminal_codec::decode_module(self.psi_artifact.semantic_bytes())
             .map_err(|_| "native artifact canonical semantics failed to decode")?;
+        validate_ieee_float_fma_occurrences(&module, &self.object, &self.selected_provider_plans)?;
         if module.entry != self.object.entry() {
             return Err("native artifact entry disagrees with canonical semantics");
         }
@@ -705,6 +706,127 @@ impl NativeArtifact {
             physical_evidence: self.physical_evidence,
         }
     }
+}
+
+fn validate_ieee_float_fma_occurrences(
+    module: &psi_terminal::TerminalModule,
+    object: &omega_image_emission::ObjectArtifact,
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+) -> Result<(), &'static str> {
+    let terminal_occurrences = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    matches!(
+                        operation.kind,
+                        psi_terminal::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+                    )
+                })
+                .map(move |operation| (machine, operation))
+        })
+        .collect::<Vec<_>>();
+    let object_occurrences = object
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            function
+                .x86_scalar_fma_occurrences
+                .iter()
+                .map(move |occurrence| (function, occurrence))
+        })
+        .collect::<Vec<_>>();
+    if terminal_occurrences.len() != object_occurrences.len() {
+        return Err(
+            "native artifact does not retain every Terminal nearest-FMA occurrence exactly once",
+        );
+    }
+    let mut operations = BTreeSet::new();
+    for (function, occurrence) in object_occurrences {
+        if !operations.insert(occurrence.terminal_operation) {
+            return Err("native artifact repeats one nearest-FMA occurrence");
+        }
+        let matching = terminal_occurrences
+            .iter()
+            .filter(|(machine, operation)| {
+                machine.id == function.machine && operation.id == occurrence.terminal_operation
+            })
+            .collect::<Vec<_>>();
+        let [(machine, operation)] = matching.as_slice() else {
+            return Err("native artifact nearest-FMA custody names no unique Terminal operation");
+        };
+        let psi_terminal::OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+            left,
+            right,
+            addend,
+        } = operation.kind
+        else {
+            unreachable!("Terminal occurrence roster contains only nearest FMA")
+        };
+        let result = operation
+            .result
+            .scalar()
+            .ok_or("Terminal nearest-FMA has no scalar result")?;
+        let expected_format = match occurrence.format {
+            omega_machine_code::X86ScalarFmaFormat::Binary32 => psi_core::IeeeFloatFormat::Binary32,
+            omega_machine_code::X86ScalarFmaFormat::Binary64 => psi_core::IeeeFloatFormat::Binary64,
+        };
+        if result.id != occurrence.result
+            || result.scalar_type != psi_core::ScalarType::IeeeFloat(expected_format)
+            || [left, right, addend]
+                != [
+                    occurrence.left.source_value,
+                    occurrence.right.source_value,
+                    occurrence.addend.source_value,
+                ]
+        {
+            return Err("native artifact nearest-FMA changed its Terminal value graph");
+        }
+        for operand in [occurrence.left, occurrence.right, occurrence.addend] {
+            let matching_constants = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|candidate| {
+                    candidate.id == operand.defining_operation
+                        && candidate.result.scalar().is_some_and(|result| {
+                            result.id == operand.source_value
+                                && result.scalar_type
+                                    == psi_core::ScalarType::IeeeFloat(expected_format)
+                        })
+                        && matches!(
+                            candidate.kind,
+                            psi_terminal::OperationKind::IeeeFloatConstant { value }
+                                if value == operand.value
+                        )
+                })
+                .count();
+            if matching_constants != 1 {
+                return Err("native artifact nearest-FMA changed one exact Terminal constant");
+            }
+        }
+        let matching_plans = selected_provider_plans
+            .iter()
+            .filter(|plan| {
+                plan.report_identity() == occurrence.provider_plan_report_identity
+                    && plan.plan_digest().as_bytes() == &occurrence.provider_plan_digest
+            })
+            .collect::<Vec<_>>();
+        let [selected_plan] = matching_plans.as_slice() else {
+            return Err(
+                "native artifact nearest-FMA does not rejoin one exact selected provider plan",
+            );
+        };
+        let expected_requirement = occurrence.slot.selected_plan_requirement_identity();
+        if selected_plan.requirement_identities() != [expected_requirement] {
+            return Err("native artifact nearest-FMA selected plan changed its exact requirement");
+        }
+    }
+    Ok(())
 }
 
 struct NativeArtifactIdentityFields<'a> {

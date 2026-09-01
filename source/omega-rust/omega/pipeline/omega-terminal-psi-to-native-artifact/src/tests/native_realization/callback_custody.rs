@@ -28,6 +28,7 @@ fn native_realization_returns_exact_ordered_callback_custody_on_success() {
             external_binding_rows: &[],
             settlements: &[],
             compiler_builtins: &[],
+            ieee_float_fma: &[],
         },
         custody.clone(),
     )
@@ -63,6 +64,7 @@ fn native_realization_rejection_returns_callback_custody_without_reordering() {
             external_binding_rows: &[],
             settlements: &[],
             compiler_builtins: &[],
+            ieee_float_fma: &[],
         },
         swapped.clone(),
     )

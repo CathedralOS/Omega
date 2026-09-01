@@ -148,6 +148,9 @@ fn emit_function(
     let mut internal_unit_scalar_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
+    let mut x86_scalar_fma = Vec::new();
+    let mut x86_scalar_fma_occurrences = Vec::new();
+    let mut x86_floating_control = None;
     let mut unit_affine_cleanup = None;
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
@@ -390,6 +393,9 @@ fn emit_function(
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            x86_scalar_fma = emitted.x86_scalar_fma;
+            x86_scalar_fma_occurrences = emitted.x86_scalar_fma_occurrences;
+            x86_floating_control = emitted.x86_floating_control;
             semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
             boundary_settlements = emitted.boundary_settlements;
@@ -766,7 +772,9 @@ fn emit_function(
         fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
         provenance: function.provenance.clone(),
         bytes,
-        x86_scalar_fma: Vec::new(),
+        x86_scalar_fma,
+        x86_scalar_fma_occurrences,
+        x86_floating_control,
         unit_stack,
         unit_parameter_homes,
         unit_parameters,
@@ -1030,6 +1038,9 @@ pub enum EmissionError {
     InvalidClaimCompletionOnlyCustody,
     InvalidCompletionProviderCustody,
     InvalidNormalizedForeignCallCustody,
+    InvalidIeeeFloatFmaCustody(psi_core::OperationId),
+    IeeeFloatFmaUnsupported(NativeTarget),
+    IeeeFloatControlFrameNotEncodable,
     IntegerWidthNotNativelySupported {
         value: ValueId,
         bits: u16,

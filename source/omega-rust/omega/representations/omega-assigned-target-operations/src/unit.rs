@@ -5,8 +5,8 @@ use omega_target_operations::{
     TargetStructuralParameter,
 };
 use psi_core::{
-    BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
-    ScalarType, ServiceId, StructuralTypeId, ValueId,
+    BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
+    MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, StructuralArgument, StructuralPathSegment,
@@ -33,6 +33,15 @@ pub struct AssignedUnitBody {
     pub call_plan: CallPlan,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<AssignedUnitOperation>,
+}
+
+/// One exact raw-bit IEEE FMA operand after physical XMM assignment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssignedIeeeFloatFmaOperand {
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub value: IeeeFloatValue,
+    pub register: MachineRegister,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,6 +135,21 @@ pub enum AssignedUnitOperation {
         result: ValueId,
         scalar_type: IntegerType,
         value: IntegerValue,
+    },
+    IeeeFloatConstant {
+        psi_operation: OperationId,
+        result: ValueId,
+        value: IeeeFloatValue,
+    },
+    NearestIeeeFloatFusedMultiplyAdd {
+        psi_operation: OperationId,
+        result: ValueId,
+        format: IeeeFloatFormat,
+        left: AssignedIeeeFloatFmaOperand,
+        right: AssignedIeeeFloatFmaOperand,
+        addend: AssignedIeeeFloatFmaOperand,
+        destination: MachineRegister,
+        settlement: omega_target_operations::TargetX86ScalarFmaSettlement,
     },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,

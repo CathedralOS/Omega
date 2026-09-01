@@ -27,6 +27,7 @@ pub(super) fn lower_unit_function(
         InstalledProviderUnitCallEvidence,
     >,
     fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
+    ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
 ) -> Result<TargetFunction, LoweringError> {
     if !function.parameters.is_empty() {
         return Err(LoweringError::UnitFunctionHasScalarParameters(
@@ -48,6 +49,26 @@ pub(super) fn lower_unit_function(
             machine: function.machine,
             operation: *psi_operation,
         });
+    }
+    let has_ieee_float_fma = function.operations.iter().any(|operation| {
+        matches!(
+            operation,
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
+        )
+    });
+    if has_ieee_float_fma
+        && function.operations.iter().any(|operation| {
+            !matches!(
+                operation,
+                AbstractOperation::IeeeFloatConstant { .. }
+                    | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
+                    | AbstractOperation::ReturnUnit { .. }
+            )
+        })
+    {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        ));
     }
 
     let mut shape_cache = BTreeMap::new();
@@ -104,6 +125,8 @@ pub(super) fn lower_unit_function(
         BTreeMap::<PlaceId, (OperationId, StructuralTypeDeclaration, Vec<u8>)>::new();
     let mut integer_constants =
         BTreeMap::<ValueId, (OperationId, IntegerType, IntegerValue)>::new();
+    let mut ieee_float_constants =
+        BTreeMap::<ValueId, (OperationId, psi_core::IeeeFloatValue)>::new();
     let mut scalar_values = BTreeMap::<ValueId, KnownUnitInteger>::new();
     let mut nonreturning_boundary = false;
     for operation in &function.operations {
@@ -527,6 +550,68 @@ pub(super) fn lower_unit_function(
                 });
                 provenance.operations.push(*psi_operation);
             }
+            AbstractOperation::IeeeFloatConstant {
+                psi_operation,
+                result,
+                value,
+            } => {
+                if nonreturning_boundary
+                    || ieee_float_constants
+                        .insert(*result, (*psi_operation, *value))
+                        .is_some()
+                {
+                    return Err(LoweringError::DuplicateValue(*result));
+                }
+                operations.push(TargetUnitOperation::IeeeFloatConstant {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    value: *value,
+                });
+                provenance.operations.push(*psi_operation);
+            }
+            AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+                psi_operation,
+                result,
+                format,
+                left,
+                right,
+                addend,
+            } => {
+                if nonreturning_boundary {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                let operand = |source: ValueId| {
+                    let Some((defining_operation, value)) =
+                        ieee_float_constants.get(&source).copied()
+                    else {
+                        return Err(LoweringError::IeeeFloatFmaOperandMismatch(source));
+                    };
+                    if value.format() != *format {
+                        return Err(LoweringError::IeeeFloatFmaOperandMismatch(source));
+                    }
+                    Ok(TargetIeeeFloatFmaOperand {
+                        defining_operation,
+                        source_value: source,
+                        value,
+                    })
+                };
+                let settlement = ieee_float_fma
+                    .get(psi_operation)
+                    .copied()
+                    .ok_or(LoweringError::MissingIeeeFloatFmaSettlement(*psi_operation))?;
+                operations.push(TargetUnitOperation::NearestIeeeFloatFusedMultiplyAdd {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    format: *format,
+                    left: operand(*left)?,
+                    right: operand(*right)?,
+                    addend: operand(*addend)?,
+                    settlement,
+                });
+                provenance.operations.push(*psi_operation);
+            }
             AbstractOperation::Crash { .. }
             | AbstractOperation::CallStructuralScalar { .. }
             | AbstractOperation::CallStructural { .. }
@@ -538,8 +623,6 @@ pub(super) fn lower_unit_function(
             | AbstractOperation::IntegerEqual { .. }
             | AbstractOperation::IntegerLessThan { .. }
             | AbstractOperation::IntegerLessOrEqual { .. }
-            | AbstractOperation::IeeeFloatConstant { .. }
-            | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
             | AbstractOperation::IntegerBitwiseNot { .. }
             | AbstractOperation::IntegerWiden { .. }
             | AbstractOperation::IntegerExactCast { .. }

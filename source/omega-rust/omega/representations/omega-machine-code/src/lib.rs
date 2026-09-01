@@ -46,6 +46,12 @@ pub struct MachineCodeFunction {
     /// not admit AVX/FMA3; they make the requirement impossible to erase
     /// before independent object replay.
     pub x86_scalar_fma: Vec<X86ScalarFmaFragment>,
+    /// Source/Terminal occurrences joined one-to-one to the mechanics
+    /// fragments above by exact fragment identity.
+    pub x86_scalar_fma_occurrences: Vec<X86ScalarFmaOccurrenceRecord>,
+    /// Canonical floating-control save/install/restore custody for functions
+    /// that execute IEEE scalar operations.
+    pub x86_floating_control: Option<X86FloatingControlRecord>,
     /// Target-emitter-owned stack facts for the aggregate-frame body closure:
     /// Unit bodies and the bounded direct structural-call/scalar-return
     /// carrier. Other terminal function forms remain deliberately unreported

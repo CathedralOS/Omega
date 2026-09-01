@@ -215,6 +215,8 @@ pub struct ObjectFunction {
     /// Independently replayed feature requirements for exact scalar FMA3
     /// intervals. These remain requirements, not executable admission.
     pub x86_scalar_fma: Vec<omega_machine_code::X86ScalarFmaFragment>,
+    pub x86_scalar_fma_occurrences: Vec<omega_machine_code::X86ScalarFmaOccurrenceRecord>,
+    pub x86_floating_control: Option<omega_machine_code::X86FloatingControlRecord>,
     /// Byte-validated stack facts for a completely accounted Unit body.
     pub unit_stack: Option<ObjectUnitStack>,
     /// Byte-validated stack facts for a branch-free scalar body.
@@ -1590,6 +1592,8 @@ fn build_object_artifact_with_x86_feature_profile(
             text_offset,
             byte_count: function.bytes.len(),
             x86_scalar_fma: function.x86_scalar_fma.clone(),
+            x86_scalar_fma_occurrences: function.x86_scalar_fma_occurrences.clone(),
+            x86_floating_control: function.x86_floating_control,
             unit_stack,
             scalar_stack,
             unit_call_stacks,
@@ -2234,6 +2238,8 @@ pub enum ObjectError {
         machine: MachineId,
         offset: usize,
     },
+    InvalidX86ScalarFmaSemanticCustody(MachineId),
+    InvalidX86ScalarFmaFloatingControl(MachineId),
     MissingX86ScalarFmaCustody {
         machine: MachineId,
         offset: usize,

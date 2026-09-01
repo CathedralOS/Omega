@@ -113,6 +113,37 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
             )
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let ieee_float_fma = proposal
+        .ieee_float_fma_occurrences()
+        .iter()
+        .map(|occurrence| {
+            let provider_plan = proposal
+                .selected_provider_plans()
+                .plans()
+                .get(occurrence.provider_plan_index())
+                .ok_or_else(|| {
+                    diagnostic(
+                        "Terminal nearest-FMA proposal",
+                        "occurrence names an absent exact selected provider plan",
+                    )
+                })?;
+            let admission = occurrence.x86_admission().ok_or_else(|| {
+                diagnostic(
+                    "Terminal nearest-FMA proposal",
+                    "ordinary native lowering currently requires admitted x86 FMA custody",
+                )
+            })?;
+            Ok(
+                omega_terminal_psi_to_native_artifact::AdmittedIeeeFloatFmaSettlement {
+                    terminal_operation: occurrence.terminal_operation(),
+                    provider_plan,
+                    format: occurrence.format(),
+                    slot: admission.slot(),
+                    provider: admission.provider(),
+                },
+            )
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     let calling_plans = proposal
         .program_entry()
         .calling_plans()
@@ -136,6 +167,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
             external_binding_rows: proposal.external_binding_rows(),
             settlements: &native_settlements,
             compiler_builtins: &compiler_builtins,
+            ieee_float_fma: &ieee_float_fma,
         },
     )
 }

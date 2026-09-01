@@ -11329,12 +11329,14 @@ Owner: `wiki/design_briefs/float_semantics.md`.
 
 Remaining F7 work:
 
-- consume the retained per-occurrence nearest-FMA proposal in ordinary
-  Abstract -> Target -> Assigned -> machine lowering, establish canonical
-  x86 floating control state, and enter the already admitted feature-qualified
-  x86-64 carrier (or add a checked binary32/binary64 software implementation);
 - extend the checked source lane beyond its first bounded attached-Unit shape
   (a first immutable local initialized directly from three landed literals);
+- extend ordinary FMA realization beyond the bounded no-call attached-Unit
+  lane, including explicit preservation rules around calls and foreign code;
+- add a checked binary32/binary64 software realization or corresponding
+  non-x86 target realizations, and collect native differential-execution
+  receipts rather than treating the fixed admission vectors as execution
+  evidence;
 - complete the wider proof/`Real` connection under N6/N8.
 
 The mechanical x86-64 prerequisite is live: `omega-isa-x86_64` owns exact
@@ -11368,10 +11370,20 @@ compiler-intrinsic provenance to the exact-profile admitted provider; repeated
 uses deduplicate, F32/F64 stay distinct, multiply-then-add and non-x86
 realizations remain outside the join, and an exact-profile x86 FMA demand
 without explicit AVX+FMA3 admission fails closed. The resulting immutable
-association is checked custody only: ordinary compiler/native lowering that
-consumes it and native differential execution receipts remain engineering
-work. Generic Linux/Windows x86-64 semantics remain SSE2 baseline unless that
-explicit deployment input is selected.
+association is checked custody. Its bounded ordinary compiler/native consumer
+is now live: exact per-occurrence plan and admitted-provider custody pass
+through Abstract, target, assigned-target, machine, object, and final native-
+artifact replay. Assignment owns the XMM homes; machine emission materializes
+the exact raw operand bits, installs canonical MXCSR `0x1f80`, emits the
+admitted scalar FMA instruction, and restores the caller's complete MXCSR
+value. Object and final-artifact validation independently rejoin the Terminal
+value graph, literal bits, selected-plan digest, admission, instruction bytes,
+and floating-control bytes. The bounded lane rejects unrelated Unit work
+instead of silently claiming call/foreign floating-control preservation.
+Wider source shapes, non-x86/software realization, and native differential-
+execution receipts remain engineering work. Generic Linux/Windows x86-64
+semantics remain SSE2 baseline unless that explicit deployment input is
+selected.
 
 The next target-neutral compiler rung is now live. `ScalarType` carries exact
 binary32/binary64 formats, Terminal Psi has raw-interchange-bit constants and a
@@ -11387,10 +11399,13 @@ x86, exactly one admitted profile/slot provider. Proposal replay requires
 complete one-to-one coverage of canonical Terminal FMA operations and rejects
 missing, duplicate, cross-format, cross-profile, or non-x86 admission drift.
 Abstract operations and optimization identities now preserve the exact
-constant/FMA vocabulary; target lowering remains explicitly unsupported, and
-optimized direct realization rejects retained occurrences rather than
-discarding their custody. This is a checked semantic and association
-milestone, not native FMA execution.
+constant/FMA vocabulary. The bounded ordinary path consumes the proposal
+through target legalization, assignment-owned XMM homes, raw-bit machine
+materialization, canonical MXCSR establishment/restoration, admitted FMA
+emission, and independent object/final-artifact replay. Optimized direct
+realization still rejects retained occurrences rather than discarding their
+custody. This is executable native realization for the bounded lane, not yet
+native differential-execution evidence or general FMA lowering.
 
 The generic Linux and Windows x86-64 baselines now retain target-specific
 semantic-edge suites. Each checked half pins the exact 36 nearest arithmetic,
