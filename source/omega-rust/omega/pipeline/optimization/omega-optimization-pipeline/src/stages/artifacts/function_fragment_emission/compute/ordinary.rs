@@ -31,6 +31,14 @@ pub(super) fn compute(
                 .expected_allocation_recovery_selections()
                 .identity()
         }
+        StagedOptimizedFunctionFragmentEmissionSource::PostAllocationMachine(realization) => {
+            match realization.source() {
+                crate::StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    recovery,
+                ) => recovery.expected_allocation_recovery_selections().identity(),
+                _ => OptimizationSelections::default().identity(),
+            }
+        }
         _ => OptimizationSelections::default().identity(),
     };
     if selected.selected_identity() != layout.selected()

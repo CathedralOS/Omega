@@ -4,6 +4,8 @@ use super::prelude::*;
 pub enum FunctionRelativeOptimizationRealizationError {
     Homes(OptimizedPostSelectedLoweringHomeCustodyError),
     DirectHomes(OptimizedRegisterHomeCustodyError),
+    FixedViewSource(OptimizedPostCopyRegisterHomeCustodyError),
+    ActiveResidentSource(OptimizedActiveResidentRematerializationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     Encoding(OptimizedSelectedFormEncodingError),

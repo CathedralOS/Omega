@@ -66,6 +66,12 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                         .optimized()
                         .pre_physical_manifest()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source
+                    .optimized_target()
+                    .optimized()
+                    .pre_physical_manifest(),
             },
             Self::AllocationRecovery { realization } => realization
                 .source()
@@ -104,6 +110,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
                     homes.post_allocation_manifest()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source.post_allocation_manifest(),
             },
             Self::AllocationRecovery { realization } => {
                 realization.source().post_allocation_manifest()
@@ -198,6 +207,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 StagedPostAllocationMachineFunctionRelativeSource::Direct(_) => None,
                 StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
                     Some(homes.selected_lowering_run().custody().identity())
+                }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(_) => {
+                    None
                 }
             },
             Self::SelectedLowering { realization } => Some(

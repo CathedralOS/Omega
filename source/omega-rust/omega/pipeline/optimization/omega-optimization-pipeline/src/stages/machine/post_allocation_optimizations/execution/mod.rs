@@ -14,18 +14,37 @@ use super::{
     StagedOptimizedPostAllocationMachineOptimization,
 };
 use crate::{
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
+    StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
 pub(crate) use dispatch::{
+    stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry,
     stage_optimized_post_allocation_machine_optimization_after_selected_lowering_for_catalog_entry,
     stage_optimized_post_allocation_machine_optimization_for_catalog_entry,
 };
 pub use validation::{
+    validate_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_custody,
     validate_optimized_post_allocation_machine_optimization_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_optimization_custody,
 };
+
+pub fn stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization(
+    source: &StagedOptimizedActiveResidentRematerialization,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+) -> Result<
+    StagedOptimizedPostAllocationMachineOptimization,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    let entry = selected_post_allocation_machine_rule(
+        source_lineage::active_resident_selections(source),
+        machine.machine().plan().target.architecture,
+    )?
+    .0;
+    stage_optimized_post_allocation_machine_optimization_after_active_resident_rematerialization_for_catalog_entry(
+        source, machine, entry,
+    )
+}
 
 pub fn stage_optimized_post_allocation_machine_optimization(
     source: &StagedOptimizedRegisterHomes,

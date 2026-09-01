@@ -5,7 +5,10 @@ use omega_optimization_core::Optimization;
 /// Psi selections are orthogonal and remain on every route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ResolvedPhysicalPhaseComposition {
-    AllocationRecovery { rule: Optimization },
+    AllocationRecovery {
+        rule: Optimization,
+        post_allocation: Option<PostAllocationMachineRuleCatalogEntry>,
+    },
     NonAllocation(ResolvedNonAllocationComposition),
 }
 

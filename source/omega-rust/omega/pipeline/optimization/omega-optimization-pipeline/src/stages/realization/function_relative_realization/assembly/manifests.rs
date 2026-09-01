@@ -1,7 +1,7 @@
 use super::super::prelude::*;
 use super::super::{
-    FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
-    FunctionRelativeOptimizationUnavailableData, error::*, model::*,
+    error::*, model::*, FunctionRelativeOptimizationRealizationScope,
+    FunctionRelativeOptimizationRealizationStage, FunctionRelativeOptimizationUnavailableData,
 };
 use super::rel8::{final_layout, rel8_selected, validate_relaxation_manifest_roots};
 use super::statistics::function_relative_statistics;
@@ -91,7 +91,7 @@ pub(in crate::stages::realization::function_relative_realization) fn expected_se
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn expected_post_allocation_machine_manifest(
+pub(in crate::stages::realization::function_relative_realization) fn expected_post_allocation_machine_manifest(
     selections: &OptimizationSelections,
     selected_lowering_selections: OptimizationSelectionIdentity,
     selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,

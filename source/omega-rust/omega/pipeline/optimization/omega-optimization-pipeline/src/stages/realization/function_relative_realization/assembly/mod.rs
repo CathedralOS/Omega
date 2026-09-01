@@ -11,6 +11,7 @@ mod validation;
 pub(super) use custody::*;
 pub(super) use manifests::{
     expected_direct_manifest, expected_direct_post_allocation_machine_manifest, expected_manifest,
+    expected_post_allocation_machine_manifest,
     expected_selected_lowering_post_allocation_machine_manifest,
 };
 pub(super) use rel8::*;

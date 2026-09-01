@@ -43,6 +43,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
                     selected_after_lowering(homes)
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source.selected_plan(),
             },
             Self::AllocationRecovery(realization) => realization.source().selected_plan(),
             Self::UnitBaseline(realization) => realization
@@ -73,6 +76,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
                     homes.homes()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source.homes(),
             },
             Self::AllocationRecovery(realization) => realization.source().homes(),
             Self::UnitBaseline(realization) => realization.homes().homes(),
@@ -113,6 +119,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                         .selected_stage()
                         .register_environment()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source.register_environment(),
             },
             Self::AllocationRecovery(realization) => realization.source().register_environment(),
             Self::UnitBaseline(realization) => realization
@@ -185,6 +194,12 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                         .optimized()
                         .pre_physical_manifest()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source
+                    .optimized_target()
+                    .optimized()
+                    .pre_physical_manifest(),
             },
             Self::AllocationRecovery(realization) => realization
                 .source()
@@ -238,6 +253,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 StagedPostAllocationMachineFunctionRelativeSource::AfterSelectedLowering(homes) => {
                     homes.post_allocation_manifest()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source.post_allocation_manifest(),
             },
             Self::AllocationRecovery(realization) => {
                 realization.source().post_allocation_manifest()
@@ -282,6 +300,9 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                         .selected_stage()
                         .optimized_target()
                 }
+                StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(
+                    source,
+                ) => source.optimized_target(),
             },
             Self::AllocationRecovery(realization) => realization.source().optimized_target(),
             Self::UnitBaseline(realization) => realization

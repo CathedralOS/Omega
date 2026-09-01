@@ -1,4 +1,5 @@
 use crate::{
+    StagedAllocationRecoveryFunctionRelativeSource,
     StagedPostAllocationMachineFunctionRelativeRealization,
     StagedPostAllocationMachineFunctionRelativeSource,
 };
@@ -42,6 +43,26 @@ pub(super) fn compute(
                 None => ordinary::compute(
                     source,
                     selected_stage.selected(),
+                    realization.layout(),
+                    realization.manifest().record(),
+                ),
+            }
+        }
+        StagedPostAllocationMachineFunctionRelativeSource::AfterAllocationRecovery(recovery) => {
+            match recovery {
+                StagedAllocationRecoveryFunctionRelativeSource::FixedViewCopies(homes) => {
+                    ordinary::compute(
+                        source,
+                        homes.reanalysis_stage().transformation_stage().copies(),
+                        realization.layout(),
+                        realization.manifest().record(),
+                    )
+                }
+                StagedAllocationRecoveryFunctionRelativeSource::ActiveResidentRematerialization(
+                    rematerialization,
+                ) => ordinary::compute(
+                    source,
+                    rematerialization.rematerialization(),
                     realization.layout(),
                     realization.manifest().record(),
                 ),

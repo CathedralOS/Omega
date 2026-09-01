@@ -1,12 +1,12 @@
 //! Fail-closed rejection of unsupported physical-phase compositions.
 
 use crate::tests::{
-    AdmissionProfile, ExplicitOptimizationRequest, IntegerValue, NativeTarget, Optimization,
-    OptimizationSelections, OptimizedVerifiedPhysicalPipelineError,
     conditional_active_resident_exact_add_chain_artifact,
     conditional_active_resident_exact_add_chain_artifact_with_false_literal,
     optimize_artifact_sections, selected_lowering_budget,
-    stage_optimized_verified_physical_pipeline_with_provider_executions,
+    stage_optimized_verified_physical_pipeline_with_provider_executions, AdmissionProfile,
+    ExplicitOptimizationRequest, IntegerValue, NativeTarget, Optimization, OptimizationSelections,
+    OptimizedVerifiedPhysicalPipelineError,
 };
 
 #[test]
@@ -57,6 +57,39 @@ fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_polic
                 Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
             ));
         }
+    }
+}
+
+#[test]
+fn unadmitted_allocation_recovery_machine_pairs_reject_without_fallback() {
+    let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+    for selections in [
+        OptimizationSelections::new([
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1,
+        ])
+        .unwrap(),
+        OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            Optimization::X86SelectXorZeroI64MaterializationV1,
+        ])
+        .unwrap(),
+    ] {
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                NativeTarget::linux_x64(),
+                &[],
+            ),
+            Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+        ));
     }
 }
 
