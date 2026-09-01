@@ -196,6 +196,18 @@ definition, value/type, provenance, fuel, and effect custody. The result names
 the existing preheader only as a prospective destination. It does not move a
 node, invalidate a component, or bypass the ranked-cycle frozen-block fence.
 
+The third authority-sensitive consumer turns those two invariant rows into
+exact placement facts without granting a transform. Its revision- and
+Terminal-bound snapshot retains the unique preheader insertion coordinate
+immediately before the entry jump, plus the sole guard-comparison consumer for
+zero and descent-subtract consumer for one. Independent replay maps the
+authenticated component/countdown/invariant custody and rescans current
+provenance, definitions, uses, jump shape, and consumer operations without
+calling the CFG, dominator, SCC, loop, use-definition, or effect producers. It
+remains outside the generic analysis manager and cannot bypass frozen ranked
+blocks; a later relocation boundary must invalidate and reconstruct this
+custody before LICM may exist.
+
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
 rematerialization proof custody; common encoding, layout, whole-function exit,
@@ -318,15 +330,20 @@ flexible post-pressure use suffix, and retains a closed `Original(VReg)` versus
 must agree before receipt sealing. Its action namespace remains
 compiler-private; the result grants no selected register, instruction,
 physical slot, address, memory effect, frame, trap, encoding, emission, or
-publication authority. Recursive insertion explicitly rejects the V2 original
-victim until that separate schedule boundary is implemented. The adjacent
-`recursive_spill_insertion` entrance now integrates the reload-victim case into
-one complete target-neutral schedule. Its producer and independently keyed
-replay recolor all closed logical lifetimes, order every store/reload/rewrite,
-and use a closed stored-value type so compiler-private reload actions cannot be
-confused with original selected VRegs. The result still grants no physical
-slot/address, instruction, memory effect, frame, trap, unwind, encoding,
-emission, or publication authority.
+publication authority. The adjacent `recursive_spill_insertion` entrance owns
+two exact policies rather than silently widening V1. Its legacy entry integrates
+only reload-victim obligations; the separate V2 entry admits only a matching
+original victim/store source and records typed
+`EpochTwoOriginal { work_item, source_pressure, victim: VReg }` lineage. The V1
+signature, behavior, and identity encoding remain unchanged, while V2 has a
+distinct identity domain. Producer and independently keyed replay recolor all
+closed logical lifetimes, order every store/reload/rewrite, and use a closed
+stored-value type so compiler-private reload actions cannot be confused with
+original selected VRegs. The public original-victim schedule retains three
+slots, eleven events, offsets `0, 8, 0`, and a 16-byte abstract spill area; its
+existing pseudo lowering preserves `Original(v5)`. The result still grants no
+physical slot/address, instruction, memory effect, frame, trap, unwind,
+encoding, emission, or publication authority.
 
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,

@@ -842,16 +842,23 @@ decision. Only true language-semantic questions belong in
   component/region/preheader custody, and the exact guard-zero and decrement-one
   rows. Twenty-four corruption axes, an empty acyclic session, and the existing
   ranked-cycle frozen-block rejection prove that this is loop-invariant
-  analysis authority only, not a hoist or cyclic rewrite.
+  analysis authority only, not a hoist or cyclic rewrite. A third consumer now
+  binds each authenticated invariant to the exact insertion coordinate before
+  the unique preheader jump and to its sole comparison/subtract consumer. Its
+  opaque revision/Terminal snapshot is independently replayed from current
+  provenance, definitions, uses, jump shape, and consumer operations without
+  calling prior graph or fact producers. Thirty-one retained corruption axes,
+  typed stale revision, empty acyclic behavior, and the unchanged ranked-block
+  freeze fail closed. This is placement analysis, not relocation authority.
 - [ ] Generalize the exact unsigned-countdown carrier into ordinary cyclic
   execution with fixed-point dominance/frontiers, well-founded ranking
   certificates, productive unranked components, and structured finite-work
   failures.
 - [>] Retarget LICM and other loop consumers to validated Terminal SCCs. The
-  exact countdown-induction and countdown-invariant-constant analyses are the
-  first non-transforming consumers of authenticated component, ranking, and
-  ordinary `LoopForest` custody; general consumers and rewrite-bearing passes
-  remain open.
+  exact countdown-induction, countdown-invariant-constant, and constant-
+  placement analyses are the first non-transforming consumers of authenticated
+  component, ranking, and ordinary `LoopForest` custody; general consumers and
+  rewrite-bearing passes remain open.
 - [ ] Implement LICM only after transforms can invalidate and reconstruct
   component, loop-carried custody, and ranking evidence.
 
@@ -947,6 +954,13 @@ decision. Only true language-semantic questions belong in
     replay cover signed/unsigned 8/16/32/64 and address64 at both boundaries
     across all five targets, retain both source operations in provenance, and
     prove the target contains only the exact complemented immediate.
+  - [x] Add constant integer-bitwise-AND-to-immediate as its own exact abstract-
+    to-target family. Its independently reconstructed four-operation grammar
+    retains both ordered constants, all three definitions, return edge, and
+    provenance; independent replay materializes the exact typed AND for signed/
+    unsigned fixed 8/16/32/64 and address64. Direct and optimized custody each
+    cover 180 type/pair/target cases, while catalog ambiguity, corruption, and
+    bitwise-not/OR/XOR/plain/parameter-family substitution fail closed.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both
@@ -1143,9 +1157,7 @@ decision. Only true language-semantic questions belong in
   compiler-private reload action. The public dual-target fixture stores `v5`
   before point 14, reloads it before the point-16 use, and rewrites that exact
   operand under usage `{1, 1, 38, 1, 1}`. Root, policy, action, usage, budget,
-  and cross-target corruption fail closed. Recursive insertion rejects this
-  new victim kind explicitly, so the slice grants no recursive schedule or
-  later physical authority. The
+  and cross-target corruption fail closed. The
   exact public prerequisite graph `r + ((r + (a + b)) + (b + r))` now reaches
   allocation honestly. Canonical Psi proof production has one
   bounded prerequisite slice: a 94-line direct-add entrance preserves the
@@ -1172,8 +1184,7 @@ decision. Only true language-semantic questions belong in
   `{4, 2, 46, 1, 1}`. Determinism, representable budget axes, forged choices,
   root mutation, and cross-target custody fail closed. The downstream V2
   logical-action policy now turns that exact choice into the independently
-  replayed original-victim obligations described above, while recursive
-  insertion retains a typed unsupported-original-victim fence. This remains
+  replayed original-victim obligations described above. This remains
   target-neutral logical spill authority rather than memory/frame, fault,
   unwind, or publication authority. A
   fourteenth independently replayed V1 artifact now integrates the validated epoch-two
@@ -1189,6 +1200,15 @@ decision. Only true language-semantic questions belong in
   axis, and cross-target corruption fail closed. The 26-line entrance grants
   no selected VReg, instruction, physical slot/address, memory effect, frame,
   trap, unwind, encoding, emission, or publication authority.
+  A separate V2 recursive-insertion policy now consumes only matching original-
+  victim actions without widening V1. It retains typed
+  `EpochTwoOriginal { work_item, source_pressure, victim: VReg }` lineage in a
+  distinct identity domain while a golden hash pins the V1 signature, behavior,
+  and encoding. The public dual-target schedule has three slots, eleven events,
+  offsets `0, 8, 0`, a 16-byte abstract spill area, and exact usage
+  `{1, 3, 15, 3, 4}`; its epoch-two store and existing pseudo lowering both
+  preserve `Original(v5)`. Policy/source substitution, roots, lineage, schedule,
+  budgets, and cross-target custody fail closed.
   A fifteenth independently replayed boundary now lowers that recursive logical
   schedule to target-neutral compiler-private spill pseudos. It assigns dense
   function-local pseudo identities to every store/reload, retains typed

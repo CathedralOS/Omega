@@ -153,6 +153,15 @@ definition, provenance, fuel, and effect bindings without calling the producer.
 exact pair, empty acyclic behavior, corruption axes, and the continuing frozen-
 body mutation refusal; this remains analysis authority rather than LICM or
 rewrite authority.
+Exact placement discovery descends one more rung through the 58-line
+`countdown_invariant_constant_placement/mod.rs` entrance. `model.rs` owns the
+opaque revision/Terminal snapshot and destination/consumer rows; `compute.rs`
+joins component, counted-loop, and invariant custody; `replay.rs` independently
+rescans definitions, uses, provenance, the preheader jump, and exact consumers;
+and `validate.rs` alone seals the result. The mirrored cyclic-Psi leaf covers
+the exact zero/one destinations, 31 retained corruption axes, stale revision,
+empty acyclic behavior, and the unchanged ranked-block freeze. No rewrite or
+generic-analysis-manager path is introduced.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -319,20 +328,22 @@ roots, while V1 retains its original signature and exact identity encoding. The
 mirrored pipeline leaf is
 `register_allocation/generalized_spill_recovery_actions.rs`;
 architecture guards register the complete ladder and forbid validation from
-calling producer mechanics. Original-victim obligations remain fenced from
-recursive insertion by a typed refusal. This stage remains target-neutral
-logical custody, not physical spill insertion or publication authority.
+calling producer mechanics. This stage remains target-neutral logical custody,
+not physical spill insertion or publication authority.
 
 Recursive logical insertion continues at
 `omega-regalloc/src/allocation/recursive_spill_insertion/mod.rs`. Its 26-line
 executable entrance visibly joins direct projection to independent keyed
-replay. `model.rs` owns the typed prior/epoch-two action sources, the distinct
-original-VReg/reload-action stored-value vocabulary, complete logical slots,
-and canonical events; `identity.rs` and `validate.rs` own custody and receipt
-admission while `compute.rs` and `replay.rs` retain separate mechanics. The
-mirrored pipeline leaf is
-`register_allocation/recursive_spill_insertion.rs`; architecture guards
-register the complete ladder and forbid validation from calling producer
+replay. `model.rs` owns the typed prior/reload/original epoch-two action sources,
+the distinct original-VReg/reload-action stored-value vocabulary, complete
+logical slots, and canonical events; `identity.rs` and `validate.rs` own custody
+and receipt admission while `compute.rs` and `replay.rs` retain separate
+mechanics. V1 remains a reload-only, byte-stable identity domain. A separately
+named V2 policy accepts only matching original victim/store rows and retains the
+selected VReg through the schedule and existing spill-pseudo boundary. The
+mirrored pipeline leaves are `register_allocation/recursive_spill_insertion.rs`
+and `register_allocation/original_recursive_spill_insertion.rs`; architecture
+guards register the complete ladder and forbid validation from calling producer
 mechanics. This is still an abstract spill-area schedule, not physical
 memory/frame or publication authority.
 
@@ -513,6 +524,13 @@ one Boolean immediate, with fixed signed/unsigned and address-width comparison
 semantics. Its dedicated fixture/corruption group, catalog adapter/canary, and
 optimized-custody leaf keep inclusive ordering explicitly selectable rather
 than hiding it behind the strict family.
+Constant integer bitwise-AND immediate translation is separately rooted under
+`straight_line_integer_bitwise_and_immediate/`. Its 27-line entrance joins the
+exact two-constant four-operation grammar to independent integer-immediate
+replay. Dedicated fixture, positive, source-corruption, target-corruption,
+catalog, and optimized-custody leaves cover signed/unsigned fixed 8/16/32/64
+and address64 across all five native targets. The catalog row remains visibly
+disjoint from plain immediate, bitwise-not, bitwise-OR/XOR, and parameter AND.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line
