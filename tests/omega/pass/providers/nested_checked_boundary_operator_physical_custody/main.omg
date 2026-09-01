@@ -1,0 +1,35 @@
+// The selected checked body reaches one ordinary scalar helper. Native custody
+// must retain both the D32 child for the authored operator occurrence and the
+// helper call inside its exact checked realization closure.
+use omega_language_std::console;
+
+data CheckedMath {}
+
+boundary operator CheckedMath::stable(value: i32) -> i32
+requires value == value
+ensures result == result && value == value;
+
+machine retain(value: i32) -> i32
+requires 70i32 == 70i32
+ensures 70i32 == 70i32
+{
+    transition { _ -> 70i32 }
+}
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::stable(input: i32) -> i32
+satisfies CheckedMath::stable
+requires input == input
+ensures result == result && input == input
+{
+    let retained: i32 = retain(input);
+    transition { _ -> retained }
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let result: i32 = CheckedMath::stable(70);
+    self.console.exit_process(70);
+}

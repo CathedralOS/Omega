@@ -40,8 +40,9 @@ stop the item on one precise owner question before adding machinery.
   Remaining work:
 
   - finish D29 artifact-qualified symbolic demand/final substitution for
-    separately compiled generic artifacts, nested calls, and remaining
-    supported operator categories;
+    separately compiled generic artifacts, nested authored operator
+    applications beyond the proven transitive scalar-helper closure, and
+    remaining supported operator categories;
   - complete D32 physical-child custody for verified non-identity optimization
     and remaining native roles, with an exact bijection to surviving optimized
     occurrences and reconstructible D29/D41 parents;

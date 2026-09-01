@@ -653,7 +653,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("dungeon", 14, 7),
         ("domains", 22, 19),
         ("host", 9, 8),
-        ("providers", 19, 12),
+        ("providers", 20, 13),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
