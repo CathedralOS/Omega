@@ -1640,6 +1640,62 @@ fn checked_proof_scc_retains_every_exact_structural_subterm_call_site() {
 }
 
 #[test]
+fn checked_singleton_proof_scc_retains_its_exact_self_edge() {
+    let source = r#"
+    data ProofTree {
+        case Leaf;
+        case Branch(first: ProofTree, second: ProofTree);
+    }
+
+    machine descend(n: ProofTree)
+    terminates by n;
+    -> ProofTree
+    {
+        transition n {
+            ProofTree::Leaf -> ProofTree::Leaf
+            ProofTree::Branch { first, second } -> ProofTree::Branch {
+                first: descend(first),
+                second: second,
+            }
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let descend = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "descend")
+        .expect("descend machine")
+        .symbol;
+    let checked = lower_typed_trees(typed).expect("measured self recursion should check");
+
+    let [component] = checked
+        .facts
+        .termination
+        .proof_recursive_components
+        .as_slice()
+    else {
+        panic!("one singleton proof SCC should be retained")
+    };
+    assert_eq!(component.members.len(), 1);
+    assert_eq!(component.members[0].machine, descend);
+    assert_eq!(component.edges.len(), 1);
+    assert_eq!(component.edges[0].caller, descend);
+    assert_eq!(component.edges[0].callee, descend);
+    assert_eq!(component.edges[0].strict_member_path.len(), 1);
+    assert!(matches!(
+        component.edges[0].site,
+        psi_checked_trees::CheckedProofRecursiveCallSite::Expression { .. }
+    ));
+}
+
+#[test]
 fn inferred_completion_never_publishes_a_promise() {
     use psi_language_semantics::TerminationGuarantee;
 
