@@ -96,6 +96,50 @@ fn review_admits_binary_fixed_token_boundary_checked_adapter() {
 }
 
 #[test]
+fn review_projects_fixed_token_generic_checked_adapter_application() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let checked = compile_fixture(
+        r#"pub data GenericMath {}
+pub boundary operator - GenericMath::subtract<Element>(
+    left: Element,
+    right: Element
+) -> Element;
+
+pub data GenericMathProvider {}
+pub machine GenericMathProvider::subtract<Value>(left: Value, right: Value) -> Value
+satisfies GenericMath::subtract
+{ left }
+
+pub machine exercise(left: i32, right: i32) -> i32
+requires 0i32 <= right, right <= left, left <= 100i32
+{
+    left - right
+}
+"#,
+    );
+    let review = project_checked_package_review(&checked)
+        .expect("fixed-token generic checked adapter application should project");
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact fixed-token generic application")
+    };
+    let PackageReviewBoundaryApplication::Exact(arguments) = application.application() else {
+        panic!("fixed-token generic use has a nonempty application")
+    };
+    let [PackageReviewBoundaryApplicationArgument::Type { type_identity, .. }] =
+        arguments.as_slice()
+    else {
+        panic!("fixed-token generic use retains one type argument")
+    };
+    assert!(type_identity.canonical().contains("i32"));
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
+    );
+}
+
+#[test]
 fn fixed_token_checked_adapter_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
@@ -312,6 +356,6 @@ satisfies CheckedMath::subtract
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("generic or lifetime-parameterized fixed-token boundary operator")
+            .contains("lifetime-parameterized fixed-token boundary operator")
     }));
 }

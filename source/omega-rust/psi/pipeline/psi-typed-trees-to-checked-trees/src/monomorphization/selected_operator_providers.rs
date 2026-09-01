@@ -52,7 +52,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             continue;
         }
 
-        let applications = match selected_named_operator_applications(&source, operator) {
+        let applications = match selected_operator_applications(&source, operator) {
             Ok(applications) => applications,
             Err(mut errors) => {
                 diagnostics.append(&mut errors);
@@ -325,7 +325,7 @@ fn const_identity_type_reference(
         .map(|(handle, _, _)| handle)
 }
 
-fn selected_named_operator_applications(
+fn selected_operator_applications(
     program: &TypedTrees,
     operator: &psi_typed_trees::operator::OperatorDefinition,
 ) -> Result<Vec<Vec<psi_typed_trees::operator::ClosedOperatorApplicationArgument>>, Vec<Diagnostic>>
@@ -353,39 +353,8 @@ fn selected_named_operator_applications(
                 let Some(expression) = expression else {
                     continue;
                 };
-                let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-                else {
-                    continue;
-                };
-                if psi_typed_trees::operator::resolve_named_expression_call(program, call)
-                    .is_none_or(|resolved| resolved.symbol != operator.symbol)
-                {
-                    continue;
-                }
-                let explicit = program.expression_table.expression_handles(call.arguments);
-                let parameters = program.operator_parameters(operator);
-                let mut operands = Vec::with_capacity(explicit.len() + 1);
-                if call.receiver.is_valid() && parameters.len() == explicit.len() + 1 {
-                    operands.push(call.receiver);
-                }
-                operands.extend_from_slice(explicit);
-                let operand_types = operands
-                    .iter()
-                    .map(|operand| {
-                        psi_validation::declared_place_type_raw(
-                            program,
-                            machine,
-                            Some(state),
-                            *operand,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                match psi_validation::validate_named_operator_application(
-                    program,
-                    &symbols,
-                    operator,
-                    &call.machine_arguments,
-                    &operand_types,
+                match selected_operator_application_at_expression(
+                    program, &symbols, operator, machine, state, expression,
                 ) {
                     Ok(Some(application)) if !application.is_empty() => {
                         if !applications.contains(&application) {
@@ -393,15 +362,7 @@ fn selected_named_operator_applications(
                         }
                     }
                     Ok(Some(_)) => {}
-                    Ok(None) => diagnostics.push(Diagnostic::error(format!(
-                        "selected generic operator `{}` has an open application",
-                        program
-                            .operator_path_members(operator.name)
-                            .iter()
-                            .map(|member| member.as_str())
-                            .collect::<Vec<_>>()
-                            .join("::"),
-                    ))),
+                    Ok(None) => {}
                     Err(error) => diagnostics.push(error),
                 }
             }
@@ -412,4 +373,134 @@ fn selected_named_operator_applications(
     } else {
         Err(diagnostics)
     }
+}
+
+fn selected_operator_application_at_expression(
+    program: &TypedTrees,
+    symbols: &psi_validation::TopLevelSymbols<'_>,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> Result<Option<Vec<psi_typed_trees::operator::ClosedOperatorApplicationArgument>>, Diagnostic> {
+    let (operands, explicit_static_arguments) =
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                if psi_typed_trees::operator::resolve_named_expression_call(program, call)
+                    .is_none_or(|resolved| resolved.symbol != operator.symbol)
+                {
+                    return Ok(None);
+                }
+                let explicit = program.expression_table.expression_handles(call.arguments);
+                let parameters = program.operator_parameters(operator);
+                let mut operands = Vec::with_capacity(explicit.len() + 1);
+                if call.receiver.is_valid() && parameters.len() == explicit.len() + 1 {
+                    operands.push(call.receiver);
+                }
+                operands.extend_from_slice(explicit);
+                (operands, Some(call.machine_arguments.as_ref()))
+            }
+            ExpressionNode::Binary(binary) => {
+                let Some(spelling) = binary_operator_spelling(binary.operator) else {
+                    return Ok(None);
+                };
+                if operator.spelling != Some(spelling) {
+                    return Ok(None);
+                }
+                (vec![binary.left, binary.right], None)
+            }
+            ExpressionNode::Indexed(indexed)
+                if !matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) && operator.spelling
+                    == Some(psi_language_core::operator_spelling::OperatorSpelling::Index) =>
+            {
+                (vec![indexed.collection, indexed.index], None)
+            }
+            _ => return Ok(None),
+        };
+    let operand_types = operands
+        .iter()
+        .map(|operand| {
+            psi_validation::declared_place_type_raw(program, machine, Some(state), *operand)
+        })
+        .collect::<Vec<_>>();
+
+    if let Some(explicit_static_arguments) = explicit_static_arguments {
+        return match psi_validation::validate_named_operator_application(
+            program,
+            symbols,
+            operator,
+            explicit_static_arguments,
+            &operand_types,
+        )? {
+            Some(application) => Ok(Some(application)),
+            None => Err(open_operator_application(program, operator)),
+        };
+    }
+    let Some(spelling) = operator.spelling else {
+        return Ok(None);
+    };
+    if !psi_typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types)
+        .iter()
+        .any(|candidate| candidate.operator.symbol == operator.symbol)
+    {
+        return Ok(None);
+    }
+    let Some(application) = psi_typed_trees::operator::closed_operator_application_for_operands(
+        program,
+        operator,
+        &operand_types,
+    ) else {
+        // Generic templates and declaration-derived expressions may retain
+        // the spelling while their operands are still open. They are symbolic
+        // demand, not a concrete specialization request.
+        return Ok(None);
+    };
+    psi_validation::validate_closed_operator_application(program, symbols, operator, &application)?;
+    Ok(Some(application))
+}
+
+fn open_operator_application(
+    program: &TypedTrees,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "selected generic operator `{}` has an open application",
+        program
+            .operator_path_members(operator.name)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::"),
+    ))
+}
+
+fn binary_operator_spelling(
+    operator: psi_typed_trees::expression::BinaryOperator,
+) -> Option<psi_language_core::operator_spelling::OperatorSpelling> {
+    use psi_language_core::operator_spelling::OperatorSpelling;
+    use psi_typed_trees::expression::BinaryOperator;
+
+    Some(match operator {
+        BinaryOperator::Add => OperatorSpelling::Add,
+        BinaryOperator::Subtract => OperatorSpelling::Subtract,
+        BinaryOperator::Multiply => OperatorSpelling::Multiply,
+        BinaryOperator::Divide => OperatorSpelling::Divide,
+        BinaryOperator::Modulo => OperatorSpelling::Modulo,
+        BinaryOperator::Equal => OperatorSpelling::Equal,
+        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => return None,
+    })
 }

@@ -68,8 +68,11 @@ stop the item on one precise owner question before adding machinery.
   value-machine expressions as well as the attached-`Unit` plan lane. Named
   and fixed-token uses rejoin the exact authored selection, selected plan,
   checked realization, and independently rederived body contract; the two
-  lanes must agree when both exist. Generic final substitution, cross-artifact
-  symbolic demand, and D32 physical-child completion remain open.
+  lanes must agree when both exist. Local fixed-token generic type applications
+  now use ordinary authoritative specialization and project the same exact D29
+  row as named generic applications. Cross-artifact symbolic substitution,
+  remaining unsupported telescope categories, and D32 physical-child
+  completion remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
