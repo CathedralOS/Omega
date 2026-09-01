@@ -362,6 +362,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-boundary-applications"
+version = "0.1.0"
+dependencies = [
+ "psi-core",
+ "psi-terminal",
+]
+
+[[package]]
 name = "omega-bounded-process"
 version = "0.1.0"
 dependencies = [
@@ -431,6 +439,7 @@ name = "omega-compilation-report"
 version = "0.1.0"
 dependencies = [
  "omega-backend-plan",
+ "omega-boundary-applications",
  "omega-build-evaluation",
  "omega-calling-conventions",
  "omega-effects",
@@ -456,6 +465,7 @@ dependencies = [
  "omega-abstract-operations-to-target-operations",
  "omega-artifacts",
  "omega-backend-plan",
+ "omega-boundary-applications",
  "omega-bounded-process",
  "omega-build-declarations",
  "omega-build-evaluation",

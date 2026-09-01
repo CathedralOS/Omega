@@ -48,6 +48,28 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
     let [operator_occurrence] = proposal.checked_boundary_operator_scope().occurrences() else {
         panic!("{label} should retain one exact checked-to-Terminal operator occurrence")
     };
+    let [source_free_demand] = proposal.boundary_application_demands().rows() else {
+        panic!("{label} should retain one exact source-free boundary application demand")
+    };
+    assert_eq!(
+        source_free_demand.terminal_operation(),
+        operator_occurrence.terminal_operation(),
+        "{label} source-free demand should retain the exact Terminal occurrence",
+    );
+    assert!(
+        !source_free_demand
+            .requirement()
+            .declaration()
+            .canonical()
+            .is_empty()
+            && !source_free_demand.requirement().overload().is_empty(),
+        "{label} source-free demand should retain exact nominal and overload identity",
+    );
+    assert_eq!(
+        source_free_demand.application(),
+        &omega_boundary_applications::BoundaryApplication::Empty,
+        "{label} nongeneric operator should retain the canonical empty application",
+    );
     assert!(
         module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
@@ -890,6 +912,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.compiler_builtins().to_vec(),
             proposal.callback_occurrences().to_vec(),
             proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.boundary_application_demands().clone(),
             proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),

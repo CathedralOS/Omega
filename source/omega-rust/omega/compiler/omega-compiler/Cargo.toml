@@ -24,6 +24,7 @@ omega-provider-planning = { path = "../../build/omega-provider-planning" }
 omega-representation-planning = { path = "../../build/omega-representation-planning" }
 omega-trust-model = { path = "../../build/omega-trust-model" }
 omega-core = { path = "../../representations/omega-core" }
+omega-boundary-applications = { path = "../../representations/omega-boundary-applications" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-optimization-policy = { path = "../../pipeline/optimization/omega-optimization-policy", optional = true }
 omega-optimization-pipeline = { path = "../../pipeline/optimization/omega-optimization-pipeline" }
