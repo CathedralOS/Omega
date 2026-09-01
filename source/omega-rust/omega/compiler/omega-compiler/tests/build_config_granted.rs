@@ -178,7 +178,7 @@ machine build(builder: &mut Build) {{
 }
 
 #[test]
-fn generated_local_primitive_instance_preserves_build_symbol_and_source_custody() {
+fn generated_local_instance_collection_preserves_build_symbol_and_source_custody() {
     let profile = omega_target::TargetProfile::host();
     let project = Project::new("generated-local-instance");
     project.write("main.omg", "data Main { value: u8; }\n");
@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T> {{ value: T; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; base: Main; }}\n"
+        "data Cell<T> {{ value: T; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Item {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -246,12 +246,18 @@ machine build(builder: &mut Build) {{
         .iter()
         .find(|definition| definition.name.as_str() == "Cell")
         .expect("generated template");
-    let instance = checked
+    let instances = checked
         .typed
         .data_definitions()
         .iter()
-        .find(|definition| definition.generic_instance.is_some())
-        .expect("one generated closed instance");
+        .filter(|definition| definition.generic_instance.is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 3, "three deduplicated closed instances");
+    let instance = instances
+        .iter()
+        .copied()
+        .find(|definition| definition.name.as_str() == "Cell<u32>")
+        .expect("selected Cell<u32> instance");
     let wrapper = checked
         .typed
         .data_definitions()

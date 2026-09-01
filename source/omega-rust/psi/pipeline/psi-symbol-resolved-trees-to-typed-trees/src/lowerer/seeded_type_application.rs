@@ -14,6 +14,7 @@ use psi_symbol_resolved_trees::{SymbolResolvedTrees, types::GenericTypeReference
 pub(super) fn is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
+    local_instances: &[psi_symbols::SymbolHandle],
     owner: psi_symbols::SymbolHandle,
     owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
     owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
@@ -69,6 +70,7 @@ pub(super) fn is_supported(
                     && plain_type_is_supported(
                         source,
                         data_frontier,
+                        local_instances,
                         owner,
                         owner_lifetimes,
                         owner_type_parameters,

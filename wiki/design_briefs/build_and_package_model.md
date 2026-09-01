@@ -306,25 +306,26 @@ runtime-parameter data declaration at its complete arity without runtime
 arguments. Uninstantiated generated data with owner-local, type-only parameters
 and default bounds also continues from that retained frontend; those parameters
 may appear directly or beneath the admitted reference, slice, and literal
-fixed-array shells. The first closed instance continuation is deliberately
-narrower: each already-parsed generated unit is normalized independently into
-a seeded-only clone while its raw tree remains owned by the fallback. One unit
-may contribute exactly one methodless record template with one default-bound
-Type parameter, one wrapper naming exactly two direct uses of one deduplicated
-builtin-argument instance, and that synthesized instance. Template companions
-are direct Unit/builtin fields only; wrapper companions are direct Unit/builtin
-or exact zero-parameter retained-base data, excluding extension-local cycles.
-The retained continuation checks the exact template/argument/origin tuple,
-canonical instance spelling and retired identities, direct `T` field
-substitution, declaration/parameter/field symbol ownership, same-unit source
-ownership, and the two direct nominal wrapper uses; it
-does not infer an instance across generated units. Broader extension-local
-synthesis, cross-generated-unit synthesis, multiple local instances, const/
-constrained applications, indirect local parameter shells, fact-bearing,
-quotient, zero-gated, generated-method-bearing, dynamic, or non-data forms
-return the owned base and raw parsed extension to the existing full rebuild/
-rebind. Retained-base type applications are structural and do not require
-cross-unit synthesis. Any number of generated data roots may carry any number
+fixed-array shells. Each already-parsed generated unit is normalized
+independently into a seeded-only clone while its raw tree remains owned by the
+fallback. Within one unit, the closed-instance continuation validates a
+collection of methodless record templates, instances, ordinary records, and
+use sites without declaration-count or ordering assumptions. A template may
+have any nonzero number of default-bound Type parameters. Direct parameter
+fields replay the retained arguments; direct Unit and exact named companions
+remain unchanged. Arguments may be builtins or exact nongeneric nominal data.
+Instances may have any number of direct or admitted-shell ordinary-record use
+sites, repeated uses deduplicate, and ordinary local data cycles remain graph
+edges rather than special cases. The retained continuation checks every exact
+template/argument/origin tuple, canonical instance spelling and retired
+identities, field substitution, declaration/parameter/field ownership,
+same-unit source ownership, and use-site spelling. It does not infer an
+instance across generated units. Nested local instances, lifetime/const/
+constrained applications, nondefault bounds, indirect local parameter shells,
+fact-bearing, quotient, zero-gated, generated-method-bearing, dynamic, or
+non-data forms return the owned base and raw parsed extension to the existing
+full rebuild/rebind. Retained-base type applications are structural and do not
+require cross-unit synthesis. Any number of generated data roots may carry any number
 of differently argued or recursively nested applications of retained-base
 data. The continuation checks the exact base declaration symbol and name, each
 Type binder's symbol/name/owner and arity, erased lifetime arity and owner-local
