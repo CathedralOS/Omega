@@ -13,6 +13,7 @@ omega-build-evaluation = { path = "../../../build/omega-build-evaluation" }
 omega-compiler = { path = "../../../compiler/omega-compiler" }
 omega-package-compilation = { path = "../../../build/omega-package-compilation" }
 omega-provider-planning = { path = "../../../build/omega-provider-planning" }
+omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
 omega-representation-planning = { path = "../../../build/omega-representation-planning" }
 omega-selected-dispatch = { path = "../../../build/omega-selected-dispatch" }
 omega-effects = { path = "../../../representations/omega-effects" }

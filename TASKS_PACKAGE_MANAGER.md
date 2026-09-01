@@ -73,30 +73,19 @@ stop the item on one precise owner question before adding machinery.
   assembler consumes the resulting gate under
   `PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION`.
 
-- [ ] **REPRESENTATION-TCB-EVIDENCE.** Add D26 consumer demand only for an
-  actual runtime by-value use, consuming the exact retained
-  `BoundaryOpaqueRepresentationUse` and validated calling-plan realization
-  rather than reconstructing either from an aggregate digest. Rejoin the exact
-  boundary requirement application, opaque declaration, named conformance or
-  compiler-owned target-semantics application, carrier, selected immutable
-  producer source, closed shape graph, physical movement and role-tagged
-  lifecycle disposition,
-  target/representation version, evidence origin, closed-conformance
-  commitment, and complete boundary-plan commitment. Keep selecting-build
-  occurrence/source custody as provenance outside ABI comparison. Checked
-  carrier derivation is recheckable evidence; foreign representation supply
-  remains a disclosed admission.
-  Claim-free opaque data stays review-visible without fabricating a
-  proposition, minting authority, or service reach claim.
-
-  Carry the retained selected copy receipt into eventual D26 consumer demand
-  and complete target-ABI movement closure. Do not publish a partial demand row
-  from the copy receipt, calling-convention shape, or size/alignment alone. Add
-  canaries proving that
-  independently reviewed dependencies may retain different historical
-  selections while one later source consumer selects its own application. The
-  future `PackageInstance` composition canary must reject unequal commitments
-  only at an actual by-value exchange.
+- [ ] **REPRESENTATION-TCB-EVIDENCE.** Complete D26 at independently compiled
+  artifact composition. Rejoin a foreign consumer demand to the producer's
+  reviewed opaque/conformance/carrier declarations and immutable resolved
+  source instance, then reject unequal strong application commitments only at
+  an actual by-value exchange. Add the corresponding `PackageInstance`
+  composition and independently reviewed historical-selection canaries.
+  Extend the landed named-conformance demand vocabulary only when a real
+  compiler-owned target-semantics application, replacement contract, or
+  stable-handle era requires another closed case; do not infer one from
+  size/alignment, compact fingerprints, or review prose.
+  Harden the landed movement join with result, nested record/fixed-array,
+  repeated and identically shaped opaque, `PlacementOnly`, callback-ordinal,
+  indirect-placement, and marker/commitment-tamper canaries.
 
 ## P3 — Recheckable evidence and accepted lock
 
@@ -116,6 +105,11 @@ after the complete current-version lock payload exists.
   propagation and pre-policy rejection. Do not persist this partial lane, cite
   standalone `psi-proof` as production enforcement, or add an empty generic
   certificate framework.
+
+  **Implementation dependency:** `TASKS.md` `PROOF-CERTIFICATION-BRIDGE` must
+  first produce a real compiler-owned checked-IR discharge/certificate class.
+  Current Terminal modules do not represent authored source stand-down goals,
+  so a coordinate sidecar must not pretend to establish that custody.
 
 - [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
   after exact source and artifact subjects, obligation-semantics identity,
@@ -233,11 +227,9 @@ explicitly.
 - [ ] **OPAQUE-BY-VALUE-BOUNDARY-ABI — propagate the selected application.**
   - [ ] complete physical movement/lifecycle planning, including D44's
     transitive inert-carrier proof and multiplicity checks;
-  - **IMPLEMENTATION — D26 representation application attribution:** publish
-    consumer demand from retained compiler custody, rejoin foreign demand to
-    landed producer-availability rows and immutable source, and preserve strong
-    application equality at actual independently compiled by-value composition
-    edges;
+  - rejoin landed consumer demand to foreign producer-availability rows and
+    immutable source, and preserve strong application equality at actual
+    independently compiled by-value composition edges;
   - bind the application into artifacts, replacement compatibility, stable-
     handle era rules, and independently replaceable provider contracts;
   - add compiler-sealed `Ptr<T>` target-semantic closure plus proof-only `Real`,

@@ -187,7 +187,7 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
                 })
             })
     }));
-    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 18);
+    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 19);
 
     for row in rows {
         let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");

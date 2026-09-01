@@ -944,6 +944,15 @@ boundary-calling-plan commitment. A foreign demand must rejoin the producer's
 exact canonical rows and selected immutable source instance. Names, compact report fingerprints,
 lockfile strings, and review prose are never agreement.
 
+The compiler records the exact carrier shape root at the moment each opaque is
+materialized. Review groups all occurrences of one opaque under the exact
+target-closed boundary requirement application and retains, for each
+occurrence, its parameter/result role, path through the complete checked shape
+graph, and replay-validated placement. Structural equality, carrier size, or
+alignment cannot identify an occurrence. The marker and shape root enter the
+strong boundary-plan application commitment. The compact report fingerprint
+remains diagnostic compatibility data and is not canonical demand evidence.
+
 The selecting build-machine identity, source occurrence, and authored spelling
 are retained as audit provenance and source custody, not ABI identity. Moving
 or renaming an unchanged selection cannot make equal applications

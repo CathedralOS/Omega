@@ -1100,7 +1100,10 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
             .iter()
             .filter(|use_| use_.opaque() == selection.opaque())
             .all(|use_| {
-                use_.carrier() == selection.carrier()
+                use_.conformance() == selection.application().declaration
+                    && use_.carrier() == selection.carrier()
+                    && usize::from(use_.shape_root())
+                        < realization.materialized_signature.shapes().len()
                     && use_.application_report_fingerprint()
                         == selection.application().report_fingerprint
                     && use_.conformance_application_commitment()
@@ -1121,6 +1124,29 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
                 },
             )
     }));
+    for realization in &demanded_realizations {
+        let (validated, _, _) = realization
+            .replayed_validated_application()
+            .expect("opaque boundary use must replay its exact validated plan");
+        for representation in realization
+            .materialized_signature
+            .opaque_representation_uses()
+            .iter()
+            .filter(|use_| use_.opaque() == selection.opaque())
+        {
+            let movement = realization
+                .materialized_signature
+                .opaque_representation_movement(representation, &validated)
+                .expect("opaque shape node must rejoin one exact ABI placement");
+            assert!(matches!(
+                movement.role(),
+                omega_provider_planning::calling_policy_plans::BoundaryOpaqueRepresentationMovementRole::Parameter { .. }
+            ));
+            assert_eq!(movement.placement().shape.byte_size, 40);
+            assert_eq!(movement.placement().shape.alignment, 8);
+            assert!(!movement.placement().locations.is_empty());
+        }
+    }
 
     let timer = checked
         .typed
