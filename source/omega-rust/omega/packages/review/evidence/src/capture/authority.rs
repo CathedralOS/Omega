@@ -160,14 +160,26 @@ pub(crate) fn callable_exposes_service(
             .any(|invocation| invocation.service() == Some(service))
 }
 
-/// Compiler-owned intrinsic metadata for the standard authority catalog.
-/// Both the declaration path and immutable toolchain source coordinate must
-/// match. A package-authored lookalike therefore cannot acquire or suppress a
-/// risk class by choosing a declaration name.
+/// Compiler-owned risk classification for exact service declarations.
+///
+/// Ordinary Console enters only through its compiler-resolved accepted
+/// semantic binding. Remaining legacy catalog entries require both declaration
+/// path and immutable toolchain source coordinate. A package-authored
+/// lookalike therefore cannot acquire or suppress a risk class by choosing a
+/// declaration name.
 pub(crate) fn dangerous_authority_class(
     compilation: &CheckedCompilation,
     definition: &psi_language_semantics::ServiceReachDefinition,
 ) -> Option<PackageReviewDangerousAuthorityClass> {
+    if compilation
+        .resolved_semantic_binding(
+            omega_package_compilation::AcceptedSemanticBindingRole::LinuxConsoleExitGroupI32,
+        )
+        .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
+    {
+        return Some(PackageReviewDangerousAuthorityClass::Process);
+    }
+
     let source_file = compilation
         .typed
         .symbols
@@ -206,6 +218,8 @@ pub(crate) fn dangerous_authority_class(
         (path, "ExtentRootProvider") if path == std::path::Path::new("extent.omg") => {
             Some(PackageReviewDangerousAuthorityClass::RootMemory)
         }
+        // Temporary compatibility for the bundled Console source. Remove with
+        // the legacy Toolchain intrinsic lane and std mount.
         (path, "Console") if path == std::path::Path::new("console.omg") => {
             Some(PackageReviewDangerousAuthorityClass::Process)
         }

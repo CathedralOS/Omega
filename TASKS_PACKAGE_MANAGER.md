@@ -393,11 +393,13 @@ explicitly.
   declaration symbol for independent package-review replay. The row is
   consumer policy, not proof that an audit occurred. Its current normalization
   is intentionally claimed only for Console's compiler-primitive signature and
-  self reach, not arbitrary package-owned nominal carrier types.
+  self reach, not arbitrary package-owned nominal carrier types. Package review
+  now also classifies the resolved exact declaration as Process authority;
+  package spelling alone remains inert.
 
   The remaining stale std-specific consumers are the legacy Toolchain Console
-  lane and mount, UEFI physical-entry recognition, FilesystemHost/Console
-  dangerous-authority classification, checked-interpreter FilesystemHost
+  lane and mount, UEFI physical-entry recognition, FilesystemHost dangerous-
+  authority classification, checked-interpreter FilesystemHost
   dispatch, whole-library source-frontier admission, and standalone std/alloc
   source classification. Migrate each through a consumer-approved exact nominal
   declaration and normalized schema commitment. A package name, source path,
