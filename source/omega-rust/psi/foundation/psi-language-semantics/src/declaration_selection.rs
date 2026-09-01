@@ -129,6 +129,14 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// Exact toolchain `BuildLog::write_line` selection. Build logging is a
     /// compiler-owned build observation, not a package or boundary service.
     BuildLogWriteLine,
+    /// Compiler-owned wire-schema encoder selected by an exact checked
+    /// `Schema::encode(..)` statement. The separately retained schema/type
+    /// selections own nominal declaration authority.
+    WireEncode,
+    /// Compiler-owned wire-schema decoder selected by an exact checked
+    /// `Schema::decode(..)` statement. The separately retained schema/type
+    /// selections own nominal declaration authority.
+    WireDecode,
     InlineAssemblyOperation,
 }
 

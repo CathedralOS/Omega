@@ -182,6 +182,10 @@ Must own:
   bitwise, and shifts—finalize as compiler intrinsics after ordinary type
   checking, including when their operands are nested expressions without an
   independent value-origin type reference.
+  Exact checked wire-schema `Schema::encode(..)` and `Schema::decode(..)`
+  statement calls likewise finalize as distinct compiler-owned intrinsics;
+  the schema and value type remain separate nominal selections, so this does
+  not manufacture package declaration authority from the codec spelling.
 - Exact inferred-conformance custody for generic specialization and trait-backed
   operators. Unique unbound generic-bound validation retains the selected
   package-scoped symbol in the machine specialization, separately from explicit

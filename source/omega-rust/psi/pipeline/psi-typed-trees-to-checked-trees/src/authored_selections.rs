@@ -670,6 +670,12 @@ fn checked_statement_call_intrinsic(
     if call.target_symbol.is_valid() {
         return None;
     }
+    if program.wire_encode_call_schema(call).is_some() {
+        return Some(Intrinsic::WireEncode);
+    }
+    if program.wire_decode_call_schema(call).is_some() {
+        return Some(Intrinsic::WireDecode);
+    }
     if exact_statement_build_output_receiver(program, state, call) {
         return Some(Intrinsic::BuildIncludedSourceHandoff);
     }
