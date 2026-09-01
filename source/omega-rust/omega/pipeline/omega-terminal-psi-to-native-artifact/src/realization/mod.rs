@@ -1,5 +1,4 @@
-//! Optimizer module role: executable entrance. Native realization validates
-//! custody, chooses the exact path, admits providers, emits, and replays.
+//! Optimizer module role: executable entrance. Validate custody, admit providers, emit, and replay.
 
 mod boundary_applications;
 mod callback_custody;
@@ -39,9 +38,8 @@ use output::assemble_native_artifact;
 use providers::{AdmittedNativeProviders, admit_native_providers};
 use psi_diagnostics::Diagnostic;
 
-/// Realize one canonical Terminal-Psi artifact into an authority-free object
-/// and image while retaining source-entry settlement. Ordinary compilation and
-/// component packaging share this operation.
+/// Realize a canonical Terminal-Psi artifact into an authority-free object and
+/// image while retaining source-entry settlement for every compilation route.
 pub fn realize_native_artifact(
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     request: NativeRealizationRequest<'_>,

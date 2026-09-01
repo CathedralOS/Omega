@@ -327,6 +327,14 @@ rejection. The matrix deliberately stops at the existing canonical manifest
 replay; it does not claim the unavailable physical adapter or a full staged
 publication route.
 
+Receiving terminal-authority classification enters through the 90-line
+`realization/terminal_authority_policy/mod.rs` coordinator. It visibly owns
+explicit foreign-row admission and current-policy construction, while named
+`model`, `normalized_foreign`, `classification`, `inventory`, and `commitment`
+leaves own the corresponding vocabulary and mechanics. Inventory and foreign-
+row tests mirror that split. The entrance remains meaningful without restoring
+the former 810-line mixed policy, codec, inventory, and test file.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport
