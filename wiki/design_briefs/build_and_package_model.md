@@ -326,7 +326,13 @@ identities. Lifetime-bearing templates and instances may form finite acyclic
 field or case-payload dependency graphs, including through the admitted shells.
 Every synthesized definition retains its template's exact erased lifetime
 binder roster; internal and ordinary applications retain exact arity and order
-from their owner's lifetime binders.
+from their owner's lifetime binders. An already-validated lifetime-bearing
+local closed instance may also become a Type argument to a later local instance
+when it forwards the later template's complete lifetime application
+positionally. Concrete use-site names are rebound to that template's own exact
+binder roster in the retained origin and substituted members, giving nested
+chains one stable synthesized identity without invented binders. Permuted,
+subset, or extra lifetime routing remains outside this exact cohort.
 Scalar const binders retain an exact compiler-owned signed/unsigned integer,
 address, or Boolean carrier. Closed integer arguments use canonical in-range
 decimal leaves, and already-normalized closed expressions share that identity.
@@ -359,8 +365,8 @@ template/argument/origin tuple, canonical instance spelling and retired
 identities, recursive field/payload substitution, declaration/parameter/field/
 case ownership, same-unit source ownership, and use-site spelling. It does not
 infer an instance across generated units. Cyclic instance dependencies,
-lifetime-bearing local instances used as Type arguments, broader or custom-
-canonical structured const applications, constrained applications,
+permuted/subset/extra lifetime routing through extension-local Type arguments,
+broader or custom-canonical structured const applications, constrained applications,
 parameter-bearing constrained/dynamic/other composite shells, fact-bearing,
 quotient, zero-gated,
 generated-method-bearing, dynamic, or non-data forms return the owned base and raw parsed extension to
@@ -380,10 +386,10 @@ constrained/dynamic arguments, invalid lifetime custody, missing or redirected
 identities, wrong arity, and broader extension roots return the untouched
 checkpoint and raw extension to the fallback. Every retained symbol/table and
 authored-selection prefix, generated-source custody row, and the selected
-build symbol remain unchanged. Lifetime-bearing local instances used as Type
-arguments, broader/custom-canonical const and constrained extension-
-local instances, generated attached methods, non-data continuation, and removal
-of that fallback remain open.
+build symbol remain unchanged. Permuted/subset/extra lifetime routing through
+extension-local Type arguments, broader/custom-canonical const and constrained
+extension-local instances, generated attached methods, non-data continuation,
+and removal of that fallback remain open.
 Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is
