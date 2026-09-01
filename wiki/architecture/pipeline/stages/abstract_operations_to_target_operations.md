@@ -87,6 +87,13 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   internal Unit calls or the bounded zero-argument, zero-result
   source-evaluated foreign leaf after those FMA definitions; their existing
   call custody remains distinct.
+- `lowering/unit/dynamic_scalar.rs` independently rejoins one rebound dynamic
+  descriptor with its exact initializer, latest source, indirect dispatch, and
+  selected realization. It derives the realization's structural argument and
+  scalar result ABI while preserving both source copies; physical assignment
+  later allocates the canonical two-word descriptor and durable result home.
+- `lowering/unit/projected_argument.rs` owns the shared target-layout lowering
+  for one structural argument projected from an attached Unit parameter.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
 - `tests.rs` owns exact stage-boundary and rejection canaries.
 
@@ -133,6 +140,10 @@ It also preserves ownership summaries without yet lowering them into target
 copy/cleanup operations.
 Value summaries are preserved through target legalization, but are not yet used
 to drive target storage or ownership policy.
+Rebound dynamic calls now cross target legalization and physical assignment.
+Machine emission still needs selected-conformance table materialization,
+indirect-call encoding, and object relocations; multi-block continuation
+control remains a separate native-lowering gap.
 Boundary-edge summaries are preserved through target legalization, including
 source-level boundary edges, exact registrar occurrence/native-parameter
 identity rows, target-aware links, and lowered host-operation edges. These rows

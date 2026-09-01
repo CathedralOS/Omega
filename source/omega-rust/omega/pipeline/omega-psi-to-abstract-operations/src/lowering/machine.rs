@@ -27,6 +27,7 @@ pub(super) fn lower_machine(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    dynamic_dispatch: &psi_terminal::TerminalDynamicDispatchCatalog,
     retain_payloadless_for_optimization: bool,
 ) -> Result<AbstractFunction, LoweringError> {
     if !retain_payloadless_for_optimization
@@ -55,6 +56,7 @@ pub(super) fn lower_machine(
     lower_ordinary_machine(
         machine,
         structural_types,
+        dynamic_dispatch,
         retain_payloadless_for_optimization,
     )
 }

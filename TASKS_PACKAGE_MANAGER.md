@@ -293,11 +293,16 @@ explicitly.
     as a distinct checked call lane and crosses canonical Terminal format 62 /
     vocabulary 65 through exact selection/descriptor/indirect-dispatch custody,
     independent verification, codec replay, reference interpretation, and
-    transitive fixed-fuel accounting. Native production stops honestly at
-    `UnsupportedDynamicScalarCall`; the remaining work is the abstract/target
-    operation, two-word carrier and private table/function materialization,
-    relocations, and the end-to-end native canary. The two build/runtime float
-    twins
+    transitive fixed-fuel accounting. The exact initializer, rebound source,
+    descriptor, selected realization, result ABI, and canonical two-word
+    runtime carrier now cross abstract operations, optimizer reconstruction and
+    validation, target legalization, and physical frame assignment. A
+    service-free straight-line body stops honestly at
+    `DynamicScalarTableMaterializationPending`; the Console canary first stops
+    at the independent multi-block target-control gap. The remaining work is
+    table address/function materialization, indirect-call emission and
+    relocations, multi-block continuation control, and the end-to-end native
+    canary. The two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema

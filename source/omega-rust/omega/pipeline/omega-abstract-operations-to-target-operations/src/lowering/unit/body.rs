@@ -2,6 +2,7 @@
 
 use super::super::shared::*;
 use super::boundary_call::lower_boundary_call;
+use super::dynamic_scalar::lower_dynamic_scalar_call;
 use super::return_unit::lower_unit_return;
 use super::scalar_call::{KnownUnitInteger, lower_scalar_call};
 use super::scalar_definitions::{
@@ -163,6 +164,19 @@ pub(super) fn lower_unit_body(
                 &parameters_by_place,
                 &mut shape_cache,
                 &mut active,
+                &mut operations,
+                &mut provenance,
+            )?,
+            AbstractOperation::CallDynamicScalar { .. } => lower_dynamic_scalar_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut scalar_values,
                 &mut operations,
                 &mut provenance,
             )?,

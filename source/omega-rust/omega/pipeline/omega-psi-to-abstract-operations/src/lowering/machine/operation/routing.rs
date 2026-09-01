@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use omega_abstract_operations::AbstractOperation;
-use psi_terminal::{OperationKind, TerminalMachine};
+use psi_terminal::{OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
 
 use super::{
     LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, boolean, calls, effects,
@@ -18,6 +18,7 @@ pub(super) fn lower(
     block: &psi_terminal::Block,
     machine: &TerminalMachine,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     retain_payloadless_for_optimization: bool,
     value_types: &BTreeMap<psi_core::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -41,11 +42,9 @@ pub(super) fn lower(
         ),
         OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
+        | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallStructural { .. }
-        | OperationKind::BoundaryCall { .. } => calls::lower(operation, machine),
-        OperationKind::CallDynamicScalar { .. } => {
-            Err(LoweringError::UnsupportedDynamicScalarCall(operation.id))
-        }
+        | OperationKind::BoundaryCall { .. } => calls::lower(operation, machine, dynamic_dispatch),
         OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }
@@ -53,7 +52,7 @@ pub(super) fn lower(
         | OperationKind::IntegerStructuralField { .. } => {
             structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
-        OperationKind::Call { .. } => calls::lower(operation, machine),
+        OperationKind::Call { .. } => calls::lower(operation, machine, dynamic_dispatch),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
         OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => ieee_float::lower(operation),

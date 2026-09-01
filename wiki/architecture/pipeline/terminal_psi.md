@@ -615,9 +615,17 @@ single structural parameter, requires exact row/callable/result/service reach,
 and rejects orphan, duplicate, reordered, retargeted, or direct-call-
 substituted custody. Canonical encoding, call composition, call-graph/service
 reach, reference execution, and fixed-fuel derivation all resolve the same
-descriptor table. Terminal-to-abstract lowering deliberately rejects
-`CallDynamicScalar` until target-neutral table/carrier operations exist; this
-is the current native boundary, not permission to devirtualize the call.
+descriptor table. Terminal-to-abstract lowering rejoins those exact rows into
+one target-neutral dynamic operation. Target legalization derives both source
+copies and the selected realization's structural-argument/scalar-result ABI.
+Optimizer reconstruction and independent validation retain the dynamic result,
+both declared source places, descriptor-version relation, selected-realization
+call graph, service closure, and non-rewritable call observation;
+physical assignment allocates the canonical runtime `{ instance, table }`
+carrier and durable result home. Machine emission currently rejects the row as
+`DynamicScalarTableMaterializationPending` until table address/function
+materialization, indirect-call encoding, and relocations exist. This boundary
+is not permission to devirtualize the call.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

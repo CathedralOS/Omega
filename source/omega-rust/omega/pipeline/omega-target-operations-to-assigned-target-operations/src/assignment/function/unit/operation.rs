@@ -1,4 +1,4 @@
-use super::{foreign_call, scalar_call, structural_scalar};
+use super::{dynamic_scalar, foreign_call, scalar_call, structural_scalar};
 use crate::assignment::shared::*;
 
 pub(super) fn assign(
@@ -208,6 +208,31 @@ pub(super) fn assign(
             claim_transfers,
             requirement_obligations,
             crash_continuations,
+        )?,
+        TargetUnitOperation::DynamicScalarCall {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            call_plan,
+            result_home,
+            initial_argument,
+            rebound_argument,
+            requirement_obligations,
+            crash_continuations,
+        } => dynamic_scalar::assign(
+            machine,
+            target,
+            *psi_operation,
+            *result,
+            dynamic_dispatch,
+            call_plan,
+            *result_home,
+            initial_argument,
+            rebound_argument,
+            requirement_obligations,
+            crash_continuations,
+            assigned_scalar_homes,
+            next_scalar_home,
         )?,
         TargetUnitOperation::InstalledProviderCall {
             psi_operation,

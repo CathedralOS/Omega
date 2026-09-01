@@ -2,7 +2,9 @@
 
 mod body;
 mod boundary_call;
+mod dynamic_scalar;
 mod preflight;
+mod projected_argument;
 mod return_unit;
 mod scalar_call;
 mod scalar_definitions;

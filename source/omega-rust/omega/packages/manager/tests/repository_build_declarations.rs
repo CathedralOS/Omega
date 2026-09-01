@@ -601,7 +601,6 @@ fn trait_canaries_retain_only_the_known_compiler_compatibility_seams() {
             "runtime_generic_trait_default_exit",
             "runtime_inherited_trait_default_exit",
             "runtime_local_named_dyn_devirtualized_exit",
-            "runtime_local_named_dyn_rebound_direct_exit",
         ],
     );
 }

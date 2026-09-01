@@ -89,8 +89,10 @@ fn lower_integer_read(
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
     let source = exact_parameter(machine, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
-    if source.multiplicity != StructuralMultiplicity::Unrestricted
-        || source.access != StructuralAccess::SharedBorrow
+    if !matches!(
+        source.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || source.access != StructuralAccess::SharedBorrow
         || !has_empty_structural_custody(machine, source.place)
         || !matches!(result.scalar_type, ScalarType::Integer(_))
         || direct_relevant_scalar_field(structural_types, source.structural_type, field)

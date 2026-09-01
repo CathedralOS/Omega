@@ -88,12 +88,22 @@ pub(super) fn validate_current_ownership_cfg(
                     structural_arguments,
                     ..
                 } => structural_arguments.as_slice(),
+                O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
                 O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructural { callee, .. } => functions[callee]
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.multiplicity)
+                    .collect::<Vec<_>>(),
+                O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                } => functions[&dynamic_dispatch.dispatch.realization]
                     .structural_parameters
                     .iter()
                     .map(|parameter| parameter.multiplicity)
@@ -163,7 +173,10 @@ pub(super) fn validate_current_ownership_cfg(
             for (argument, _) in structural_arguments
                 .iter()
                 .zip(&parameter_multiplicities)
-                .filter(|(_, multiplicity)| **multiplicity != StructuralMultiplicity::Unrestricted)
+                .filter(|(argument, multiplicity)| {
+                    argument.access == StructuralAccess::Owned
+                        && **multiplicity != StructuralMultiplicity::Unrestricted
+                })
             {
                 if !frontier.owned_places.contains_key(&argument.place) {
                     return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {

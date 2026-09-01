@@ -19,6 +19,11 @@ pub(crate) fn operation_service_contract_matches(
         | O::CallStructural { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+        O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => functions
+            .get(&dynamic_dispatch.dispatch.realization)
+            .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
         O::BoundaryCall { boundary, .. } => boundaries
             .get(boundary)
             .is_some_and(|boundary| reached_is_published(&boundary.published_service_ceiling)),
@@ -85,6 +90,27 @@ pub(crate) fn operation_structural_call_contract_matches(
                 claim_transfers,
             )
         }),
+        O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => functions
+            .get(&dynamic_dispatch.dispatch.realization)
+            .is_some_and(|callee| {
+                structural_arguments_match(
+                    caller,
+                    std::slice::from_ref(&dynamic_dispatch.initial.source),
+                    &callee.structural_parameters,
+                    types,
+                    StructuralProjectionPolicy::Projected,
+                    false,
+                ) && structural_arguments_match(
+                    caller,
+                    std::slice::from_ref(&dynamic_dispatch.rebound.source),
+                    &callee.structural_parameters,
+                    types,
+                    StructuralProjectionPolicy::Projected,
+                    false,
+                )
+            }),
         O::CallStructural {
             result,
             callee,

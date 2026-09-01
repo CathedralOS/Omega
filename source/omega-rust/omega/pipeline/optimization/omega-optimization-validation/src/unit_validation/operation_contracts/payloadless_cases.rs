@@ -55,6 +55,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
                     O::Call { .. }
                         | O::CallUnit { .. }
                         | O::CallStructuralScalar { .. }
+                        | O::CallDynamicScalar { .. }
                         | O::CallStructural { .. }
                         | O::BoundaryCall { .. }
                 )

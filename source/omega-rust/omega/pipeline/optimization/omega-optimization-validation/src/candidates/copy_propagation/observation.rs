@@ -172,6 +172,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallDynamicScalar { .. }
         | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }

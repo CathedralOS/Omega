@@ -9,10 +9,9 @@ pub enum LoweringError {
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(psi_core::OperationId),
-    /// Terminal retains an exact descriptor-selected scalar call, but Omega
-    /// has not yet materialized its two-word carrier, private table/function,
-    /// indirect abstract operation, or relocations.
-    UnsupportedDynamicScalarCall(psi_core::OperationId),
+    /// Independent Terminal-to-Omega projection could not rejoin one exact
+    /// descriptor, its initializer/latest selections, and its indirect row.
+    InvalidDynamicScalarCall(psi_core::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// whole-root write-only parameter and its preceding scalar definition.
     InvalidWriteOnlyPrimitiveStore(psi_core::OperationId),

@@ -4,7 +4,8 @@
 //! requirements.
 
 pub use omega_abstract_operations::{
-    AbstractResult, CompletionClaimSource, RankedU32CountdownCustody,
+    AbstractReboundDynamicScalarDispatch, AbstractResult, CompletionClaimSource,
+    RankedU32CountdownCustody,
 };
 use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
@@ -619,6 +620,21 @@ pub enum TargetUnitOperation {
         call_plan: CallPlan,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// One exact rebound dynamic invocation. Both source versions are lowered
+    /// against the selected realization ABI, but only `rebound_argument`
+    /// supplies the runtime instance. The retained dispatch row is private
+    /// table content; later assignment/emission must call through that table.
+    DynamicScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+        call_plan: CallPlan,
+        result_home: TargetUnitScalarHomeRequirement,
+        initial_argument: TargetStructuralArgument,
+        rebound_argument: TargetStructuralArgument,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

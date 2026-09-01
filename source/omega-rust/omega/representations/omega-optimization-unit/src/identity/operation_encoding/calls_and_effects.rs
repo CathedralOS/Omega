@@ -45,6 +45,43 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
+        O::CallDynamicScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(52);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            let encode_selection =
+                |bytes: &mut CanonicalBytes,
+                 selection: &psi_terminal::TerminalDynamicConformanceSelection| {
+                    bytes.id(selection.owner);
+                    bytes.u32(selection.ordinal);
+                    encode_structural_argument(bytes, &selection.source);
+                    bytes.u64(selection.conformance_application_report_fingerprint);
+                    bytes.bytes(&selection.conformance_application_commitment.as_bytes());
+                };
+            encode_selection(bytes, &dynamic_dispatch.initial);
+            encode_selection(bytes, &dynamic_dispatch.rebound);
+            bytes.id(dynamic_dispatch.descriptor.owner);
+            bytes.u32(dynamic_dispatch.descriptor.ordinal);
+            bytes.u32(dynamic_dispatch.descriptor.initial_selection_ordinal);
+            bytes.u32(dynamic_dispatch.descriptor.rebound_selection_ordinal);
+            bytes.id(dynamic_dispatch.dispatch.owner);
+            bytes.id(dynamic_dispatch.dispatch.operation);
+            bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
+            bytes.string(&dynamic_dispatch.dispatch.declaring_trait_identity);
+            bytes.string(&dynamic_dispatch.dispatch.public_requirement_identity);
+            bytes.string(&dynamic_dispatch.dispatch.requirement_identity);
+            bytes.string(&dynamic_dispatch.dispatch.realization_identity);
+            bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
+            bytes.id(dynamic_dispatch.dispatch.realization);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
         O::CallStructural {
             psi_operation,
             result,

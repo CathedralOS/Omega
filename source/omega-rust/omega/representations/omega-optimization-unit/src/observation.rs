@@ -419,6 +419,7 @@ fn operation_observations(
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallDynamicScalar { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),

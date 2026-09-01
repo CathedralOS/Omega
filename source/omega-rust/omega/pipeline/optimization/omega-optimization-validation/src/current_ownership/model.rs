@@ -54,7 +54,8 @@ pub(super) fn reconstruct_entry_ownership(function: &PsiOptimizationFunction) ->
             .structural_parameters
             .iter()
             .filter_map(|parameter| {
-                (parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                (parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
                     .then_some((parameter.place, parameter.multiplicity))
             })
             .collect(),

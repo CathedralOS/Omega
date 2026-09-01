@@ -99,6 +99,12 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             .iter()
             .map(|argument| argument.place)
             .collect(),
+        O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        } => vec![
+            dynamic_dispatch.initial.source.place,
+            dynamic_dispatch.rebound.source.place,
+        ],
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
             vec![*source]
         }
@@ -336,8 +342,11 @@ pub(crate) fn validate_structural_root_operations(
                         .iter()
                         .find(|parameter| parameter.place == source.place)
                         == Some(source)
-                        && source.multiplicity
-                            == psi_terminal::StructuralMultiplicity::Unrestricted
+                        && matches!(
+                            source.multiplicity,
+                            psi_terminal::StructuralMultiplicity::Unrestricted
+                                | psi_terminal::StructuralMultiplicity::Affine
+                        )
                         && source.access == psi_terminal::StructuralAccess::SharedBorrow
                         && source.qualifications.is_empty()
                         && source.projected_qualifications.is_empty()

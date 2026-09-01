@@ -336,6 +336,7 @@ name = "omega-assigned-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-runtime-abi",
  "omega-target",
  "omega-target-operations",
  "psi-core",
@@ -1092,14 +1093,20 @@ dependencies = [
  "omega-optimization-policy",
  "omega-optimization-unit",
  "omega-psi-to-abstract-operations",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-language-semantics",
  "psi-proof-admission",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
  "psi-terminal-semantics",
  "psi-terminal-verifier",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -1449,6 +1456,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-function-identity",
  "omega-psi-to-abstract-operations",
+ "omega-runtime-abi",
  "omega-target",
  "omega-target-operations",
  "omega-task-plans",

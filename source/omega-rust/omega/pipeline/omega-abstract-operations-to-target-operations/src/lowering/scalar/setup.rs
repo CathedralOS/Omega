@@ -65,7 +65,11 @@ pub(super) fn prepare_scalar_lowering(
             // their claim toward provider custody.
             let carries_boundary_custody = boundary_custody_places.contains(&parameter.place);
             let direct_shared_self = parameter.is_self
-                && parameter.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+                && matches!(
+                    parameter.multiplicity,
+                    psi_terminal::StructuralMultiplicity::Unrestricted
+                        | psi_terminal::StructuralMultiplicity::Affine
+                )
                 && parameter.access == psi_terminal::StructuralAccess::SharedBorrow
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty();
