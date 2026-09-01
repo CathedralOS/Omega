@@ -8,9 +8,8 @@ directly against the exact Alpha tape that executes it:
 
 ```text
 Beta-written Gamma compiler   ─▶ gamma_compiler_bytecode.tape
-Gamma-written Delta compiler  ─▶ delta_compiler_bytecode.tape
-Delta-written Epsilon compiler ─▶ epsilon_compiler_bytecode.tape
-Epsilon-written Omega D       ─▶ omega0_compiler_bytecode.tape
+Gamma-written Delta compiler ─▶ delta_compiler_bytecode.tape
+Delta-written Omega D       ─▶ omega0_compiler_bytecode.tape
 Omega-written Omega C         ─▶ omega_compiler_bytecode.tape
 ```
 

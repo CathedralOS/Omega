@@ -1,56 +1,28 @@
-# `source/gamma/` — Gamma language and compiler implementations
+# Gamma functional language
 
-This directory owns the Gamma language and the compiler accepting Gamma. Under
-D11 the canonical compiler edge is implemented in Beta and produces the
-platform-independent Gamma compiler tape. No Gamma self-host participates in or
-shadows that edge.
+Gamma is the typed, pure functional rung above Beta. It supplies nominal
+algebraic data, exhaustive pattern matching, checked signed integers, immutable
+bytes, forward and mutual recursion, and proper tail calls. It is deliberately
+small and exists to implement the Delta compiler.
 
-`compiler/` contains only the canonical source, artifact, code table, and owner
-documentation. Construction tools live under `tools/bootstrap/gamma/`; tests
-and executable references live under `tests/gamma/`.
-
-## Canonical construction
+[`LANGUAGE.md`](LANGUAGE.md) is normative. The canonical edge is:
 
 ```text
-gamma_compiler.beta --(direct Beta assembler tape)--> gamma_compiler_bytecode.tape
+Beta evaluator + gamma_compiler.beta -> gamma_compiler_bytecode.tape
 ```
 
-`tools/bootstrap/gamma/rebuild-artifact.sh` owns the direct construction. It rebuilds the accepted
-[`compiler/gamma_compiler_bytecode.tape`](compiler/gamma_compiler_bytecode.tape)
-directly, without a Rust producer or Gamma self-host stage. The current tape is
-27,087 bytes.
+The Beta-written compiler source and its Alpha tape do not exist yet. The
+former imperative Gamma compiler and the incomplete compiler previously written
+in that language were deleted rather than preserved as alternate authority.
+No old interpreter or differential oracle stands in for the direct edge.
 
-The Beta-written [`compiler/gamma_compiler.beta`](compiler/gamma_compiler.beta)
-is the complete canonical Gamma compiler used by the direct chain.
-
-`tests/gamma/compiler/validation/` retains the general
-Alpha-tape structure checker that targets the canonical compiler. The
-status-only encoding reconstructor and the
-60k-line former self-host obligation tree, source/PC witnesses, and toy FOL
-capability seam were deleted because none reconstructed the exact
-Beta-written source/tape proposition.
-
-## Role in the bootstrap chain
-
-The admitted `gamma_compiler_bytecode.tape` consumes the Gamma-written Delta
-compiler and emits `delta_compiler_bytecode.tape`. It does not parse Delta.
-The Alpha-owned derivation checker is a trust-floor service beside these
-producer edges, not another compiler rung.
-
-Run the construction and diagnostic gates directly with:
-
-```sh
-sh tools/bootstrap/gamma/rebuild-artifact.sh --check
-sh tests/gamma/compiler/test.sh
-sh tests/gamma/compiler/validation/admission/gc-artifact-structure.sh
-```
-
-The active reduction and admission work is tracked in
-[`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
+The Gamma compiler may know only Beta, Gamma, Alpha tape, and the exact Delta
+compiler application profile. It may not parse Delta source itself, invoke a
+host translator, serialize an interpreter as output, or acquire general-purpose
+runtime facilities.
 
 ## Retention inventory
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `compiler/` | The sole Beta-written compiler accepting Gamma, its exact Alpha tape, and current outcome sidecar. | Replace only atomically with the admitted immediate-predecessor compiler edge; retire the sidecar under the minimal-boundary task if detailed codes have no external consumer. |
-| `LANGUAGE.md`, `SEMANTICS.md`, `CALLING_CONVENTION.md` | The accepted Gamma surface, execution relation, and compiler/Alpha frame contract. | Replace only atomically with a ruled Gamma revision and synchronized compiler tests. |
+| `LANGUAGE.md` | Normative Gamma source and execution contract. | Replace only with a versioned contract and synchronized compiler/customer gates. |

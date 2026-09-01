@@ -1,140 +1,103 @@
-# Beta assembly language and encoding
+# Beta language
 
-This document defines the source language whose deterministic encoding produces
-an Alpha bytecode payload. [`../alpha/SEMANTICS.md`](../alpha/SEMANTICS.md)
-defines execution of that payload; Beta defines only the text-to-bytes
-correspondence.
+Beta is a strict, first-order functional bootstrap calculus. Its only customers
+are the Gamma compiler and named bootstrap tools. General-purpose language
+features have no standing.
 
-The encoding is a partial function `assemble(P) = T`. `P` must be a
-well-formed assembly source below. `T` is the raw platform-independent bytecode
-payload stored in a `.tape` file. Stamping a payload into a native seed adds its
-four-byte length and host container; neither is part of `assemble` or compiler
-identity.
+## Source form
 
-## Lexical form
+Source bytes are HT, LF, CR, and printable ASCII. Every other byte rejects
+before tokenization at its exact byte offset. Space, tab, CR, and LF separate
+tokens; `;` begins a comment through the next CR, LF, or source end.
 
-Assembly source is a byte stream in the bootstrap textual-ASCII envelope. The
-only admitted source bytes are horizontal tab (`0x09`), line feed (`0x0A`),
-carriage return (`0x0D`), and printable ASCII (`0x20..0x7E`). NUL, DEL, bytes
-above `0x7F`, and every other control byte reject before tokenization at their
-byte offset. There is no source decoding, BOM, Unicode classification, or
-locale-dependent character rule. Outside a quoted `db` string:
-
-- space, tab, CR, LF, and comma separate tokens;
-- `;` begins a comment through the next CR, LF, or end of source; and
-- separators and comments otherwise have no meaning.
-
-The grammar is:
+Identifiers match `[A-Za-z_][A-Za-z0-9_]*`. Integers are an optional `-`
+followed by decimal digits and must fit signed 64-bit `Int`. A byte literal is
+`#x` followed by an even number of hexadecimal digits and denotes the exact
+immutable byte sequence represented by those pairs.
 
 ```text
-program     := item*
-item        := label-definition | instruction | data
-label-definition := IDENT ':'
-instruction := MNEMONIC operand*
-data        := 'db' STRING
+program      := form+
+form         := (data TYPE constructor+)
+              | (def NAME (NAME*) expression)
+              | (entry NAME)
+constructor  := (CONSTRUCTOR NAT)
 
-IDENT       := [A-Za-z_.$][A-Za-z0-9_.$]*
-REGISTER    := 'r' DECIMAL
-DECIMAL     := [0-9]+
-STRING      := '"' string-byte* '"'
-string-byte := printable-ASCII-except-'"'-and-'\\' | ESCAPE
-ESCAPE      := '\\n' | '\\t' | '\\r' | '\\0' | '\\\\' | '\\"' | "\\'"
+expression   := INTEGER | BYTE_LITERAL | NAME
+              | (if expression expression expression)
+              | (let NAME expression expression)
+              | (+ expression expression)
+              | (- expression expression)
+              | (* expression expression)
+              | (/ expression expression)
+              | (% expression expression)
+              | (= expression expression)
+              | (< expression expression)
+              | (bytes-length expression)
+              | (bytes-get expression expression)
+              | (bytes-slice expression expression expression)
+              | (bytes-concat expression expression)
+              | (NAME expression*)
+              | (CONSTRUCTOR expression*)
+              | (match expression arm+)
+
+arm          := ((CONSTRUCTOR NAME*) expression)
+              | (_ expression)
 ```
 
-Leading zeroes in a decimal are permitted. A decimal operand denotes one
-unsigned word in `0..2^64-1`. A register is well formed only when its decimal
-value is in `0..255`. Identifiers are case-sensitive. Every label definition is
-unique and every label operand resolves to one definition. A label such as
-`r256x` is an identifier, not a register; only the complete form `r` followed
-solely by decimal digits can be a register.
+`TYPE` and `CONSTRUCTOR` begin with `A..Z`; `NAME` begins with `a..z` or `_`.
+`NAT` is a nonnegative decimal arity. Exactly one `entry` is required and it
+must name a function of one parameter. Global type, constructor, and function
+names are unique in their grammar-selected namespaces. Constructors are
+globally unique because constructor use is unqualified. Parameters, `let`
+bindings, and pattern bindings may not shadow an active local.
 
-The decoded string bytes for `\\n`, `\\t`, `\\r`, `\\0`, `\\\\`, `\\"`, and
-`\\'` are respectively `10`, `9`, `13`, `0`, `92`, `34`, and `39`. Every other
-permitted string byte is emitted unchanged. `db` bytes are data, not implicitly
-decoded instructions; ordinary Alpha control flow must jump around embedded
-data when it is reachable by address order.
+Every function and constructor application has exact declared arity. Function
+names occur only in call position: Beta has no function values. Declarations
+are mutually visible, permitting forward and mutual recursion.
 
-The source envelope does not restrict assembled data. `db` may produce control
-bytes through its closed escapes, and instructions may compute or write any
-byte. It only forbids embedding non-ASCII or invisible control bytes raw in the
-audited assembly source.
+Every `match` evaluates its subject once. Its constructor arms must name every
+constructor of exactly one declared type once, in declaration order, or end in
+one wildcard arm after a nonempty prefix. A constructor from another type, a
+duplicate arm, a missing arm, or an arm after `_` rejects. Pattern binder count
+must equal constructor arity.
 
-## Instructions
+## Values and evaluation
 
-Operand kind `r` encodes a register. Operand kind `x` accepts either a decimal
-word or a label and encodes an eight-byte word/address.
+Values are `Int`, immutable `Bytes`, or immutable constructor applications.
+Evaluation is strict and left-to-right. `if` evaluates only its selected branch;
+integer zero is false and every other integer is true. `match` evaluates only
+its selected arm. A call evaluates each argument exactly once before entering
+the callee. Tail calls must run without consuming an additional return frame.
 
-| Mnemonic | Opcode | Operands | Width |
-| --- | ---: | --- | ---: |
-| `halt` | `0x00` | `r` | 2 |
-| `imm` | `0x01` | `r x` | 10 |
-| `mov` | `0x02` | `r r` | 3 |
-| `add` | `0x03` | `r r` | 3 |
-| `sub` | `0x04` | `r r` | 3 |
-| `mul` | `0x05` | `r r` | 3 |
-| `div` | `0x06` | `r r` | 3 |
-| `mod` | `0x07` | `r r` | 3 |
-| `loadb` | `0x08` | `r r` | 3 |
-| `storeb` | `0x09` | `r r` | 3 |
-| `load` | `0x0a` | `r r` | 3 |
-| `store` | `0x0b` | `r r` | 3 |
-| `jmp` | `0x0c` | `x` | 9 |
-| `jz` | `0x0d` | `r x` | 10 |
-| `jnz` | `0x0e` | `r x` | 10 |
-| `jlt` | `0x0f` | `r r x` | 11 |
-| `jeq` | `0x10` | `r r x` | 11 |
-| `read` | `0x11` | `r` | 2 |
-| `write` | `0x12` | `r` | 2 |
-| `call` | `0x13` | `x` | 9 |
-| `ret` | `0x14` | none | 1 |
+Integer addition, subtraction, and multiplication trap when the mathematical
+result is outside signed 64-bit range. Division and remainder use truncation
+toward zero and trap for zero divisors and `INT64_MIN / -1`. `=` compares
+complete values structurally and returns `0` or `1`; `<` accepts only `Int`.
 
-Each instruction begins with its one-byte opcode. An `r` operand is its
-one-byte register number. An `x` operand is its value as exactly eight bytes,
-least significant byte first. A label operand's value is the absolute byte
-offset of its definition from byte zero of the raw output payload.
+`bytes-length` returns a nonnegative `Int`. `bytes-get` traps on a negative or
+out-of-range index. `bytes-slice` takes start and length and traps unless that
+half-open range is contained in the source. `bytes-concat` traps before
+allocation if the exact result length exceeds `INT64_MAX`. Byte sequences are
+not lists, addresses, mutable buffers, or host strings.
 
-## Deterministic two-pass encoding
+The entry function receives the invocation's sealed input as one `Bytes` value
+and returns one value. A customer profile validates that returned value before
+publishing bytes or a diagnostic. Expected customer failures are ordinary
+source-declared constructors in that returned value, not exceptions. Beta has
+no ambient input, output, clock,
+filesystem, process, or foreign-call operation.
 
-Pass one starts `pc = 0` and processes items in source order:
+An authored arithmetic or bytes trap is part of Beta execution. Malformed
+private evaluator state is `InternalFailure`. Exhausted source, value, frame,
+fuel, input, or output capacity is `Incomplete` under the selected evaluator
+profile. Neither implementation outcome is a Beta value or judgment, and no
+failure publishes partial output. Divergence remains divergence; fuel does not
+reclassify it.
 
-1. a label records `labels[name] = pc` and contributes zero bytes;
-2. an instruction advances `pc` by the fixed width in the table; and
-3. `db s` advances `pc` by the number of decoded string bytes.
+## Deliberate exclusions
 
-Pass two processes the same item sequence and concatenates:
-
-1. no bytes for a label;
-2. the opcode followed by each encoded operand for an instruction; and
-3. the decoded bytes for `db`.
-
-The pass-two output length must equal the final pass-one `pc`. Because label
-names are unique and all references are defined, both the label map and every
-fixup value are unique. Consequently a well-formed source has exactly one
-encoded payload.
-
-Malformed text, unknown mnemonics, invalid operands, duplicate or unresolved
-labels, arithmetic overflow, and implementation capacity exhaustion are not
-assembly programs and produce no `assemble(P) = T` judgment. Tool-level failure
-carriers and private resource profiles are specified separately; accepting a
-malformed input does not extend this language.
-
-## Canonical Gamma-compiler encoding subject
-
-The current exact subject is small enough for total checked reconstruction:
-
-| Subject fact | Value |
-| --- | ---: |
-| Source bytes | 104,878 |
-| Instructions | 3,760 |
-| Label definitions | 457 |
-| `db` rows | 12 |
-| Encoded payload bytes | 27,087 |
-
-An admission certificate must bind the raw source and tape outside the proof
-producer, partition every source item and output byte exactly once, reconstruct
-every label value, and prove the pass-one extent equals the pass-two extent and
-the persisted tape length. Byte equality then gives identical Alpha initial
-programs under the same input and resource profile. By deterministic Alpha
-semantics, defined output, halt, trap, resource, and divergence observations
-are preserved in lockstep; no stuttering argument is needed for this encoding
-edge.
+Beta has no mutation, raw memory, closures, higher-order values, macros,
+polymorphism, general garbage collector, continuations, exceptions, modules,
+packages, interactive evaluation, implicit conversion, subtyping, concurrency,
+or ambient effects. A new primitive or form is admitted only when a named
+Gamma-compiler or checker workload lowers the complete audited chain cost.

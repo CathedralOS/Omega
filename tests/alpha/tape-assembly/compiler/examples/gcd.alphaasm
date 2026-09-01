@@ -1,0 +1,23 @@
+; gcd.alphaasm - Euclid's gcd, recursive, two parameters. gcd(48, 36) = 12.
+; Exercises the parts factorial/fib don't: args in r0 AND r1, and a TAIL call that
+; needs NO frame (nothing must survive the call, so it skips the frame entirely).
+; See ../CALLING_CONVENTION.md.
+
+        imm   r0, 48
+        imm   r1, 36
+        call  gcd
+        halt  r0                ; exit code = 12
+
+gcd:                            ; gcd(a in r0, b in r1)
+        imm   r2, 0
+        jeq   r1, r2, gcd_done  ; b == 0  ->  return a
+        ; r2 = a % b
+        mov   r2, r0
+        mod   r2, r1
+        ; (a, b) <- (b, a % b)
+        mov   r0, r1
+        mov   r1, r2
+        call  gcd               ; tail call - no frame: nothing lives across it
+        ret
+gcd_done:
+        ret                     ; return a (already in r0)

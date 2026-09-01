@@ -8,12 +8,12 @@ This page is a map and a placement guide. It should help answer two questions:
 The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
-How Omega reaches its hosted compiler—the trust architecture and the currently
-implemented `Alpha → Beta → Gamma → Delta → Epsilon` baseline—is a build-graph property
+How Omega reaches its hosted compiler—the selected
+`Alpha → Beta → Gamma → Delta → Omega` trust lattice—is a build-graph property
 described by [The Bootstrap Chain](bootstrap_chain/bootstrap_chain.md)
 and its [target repository structure](bootstrap_chain/repository_structure.md).
-It is not a separate source ownership domain. Competing smaller topologies are
-defined in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_alternatives.md).
+It is not a separate source ownership domain. The completed alternatives audit
+is retained in [Bootstrap chain alternatives](../design_briefs/bootstrap_chain_alternatives.md).
 
 ## Design Bias
 
@@ -164,28 +164,25 @@ Omega/
 |       |-- src/                                         # Tiny `omega` product command.
 |       `-- tests/                                       # Cargo integration tests for that product command.
 |-- source/
-|   |-- alpha/                                             # Alpha semantics, native VM seeds, and root checker artifact.
-|   |   `-- checker/                                       # Universal derivation checker source and tape.
-|   |-- beta/                                              # Beta textual assembly.
-|   |   `-- compiler/                                      # Direct assembler tape and self-host source.
-|   |-- gamma/                                             # Gamma language and Beta-written compiler owner.
-|   |   `-- compiler/                                      # Gamma compiler source, Alpha tape, and closed tables.
-|   |-- delta/                                             # Delta language and compiler artifacts.
-|   |   `-- compiler/                                      # Gamma-written compiler and closed tables.
-|   |-- epsilon/                                           # Epsilon language and Delta-written compiler.
-|   |   `-- compiler/                                      # Epsilon compiler source and eventual Alpha tape.
+|   |-- alpha/                                             # Alpha semantics and native VM seeds.
+|   |-- beta/                                              # Strict first-order functional calculus.
+|   |-- gamma/                                             # Typed pure functional compiler language.
+|   |-- delta/                                             # Fixed-storage compiler-host language.
+|   |   `-- compiler/                                      # Incomplete Gamma-written Delta compiler.
 |   |-- library/                                           # Core, allocation, and standard library source.
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
 |   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
-|   |-- omega/                                             # Epsilon- and Omega-written product compiler implementations.
-|   |   |-- omega_compiler.epsilon                        # Epsilon-written full Omega compiler D.
+|   |-- omega/                                             # Delta- and Omega-written product compiler implementations.
+|   |   |-- omega_compiler.delta                          # Delta-written full Omega compiler D.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
-|-- tools/bootstrap/                                      # Bootstrap invocation and path gates.
+|-- tools/
+|   |-- alpha/tape-assembly/                              # Off-chain readable Alpha tape tooling.
+|   `-- bootstrap/                                        # Bootstrap invocation and path gates.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -194,10 +191,6 @@ Omega/
 |
 |-- tests/
 |   |-- alpha/                                         # Alpha conformance and reference differential.
-|   |-- beta/                                          # Beta assembler tests and fixtures.
-|   |-- gamma/                                         # Gamma compiler and reference tests.
-|   |-- delta/                                         # Delta compiler, interpreter, and reference tests.
-|   |-- proof-checker/                                 # Checker reconstruction, gates, and reference.
 |   |-- bootstrap/                                     # Tests whose subject spans multiple rungs.
 |   |-- omega/
 |   |   |-- pass/                                       # Focused Omega cases expected to check.
@@ -215,16 +208,15 @@ The displayed tree is the canonical ownership shape. The unblocked relocation
 steps are complete:
 
 ```text
-source/{alpha,beta,gamma,delta,epsilon}/ canonical language rungs
+source/{alpha,beta,gamma,delta}/         canonical language rungs
 source/library/                        core, allocation, and standard libraries
 source/psi/                            Omega-written target-neutral phases through terminal Psi
 source/omega/                          Terminal-Psi consumer and product root
-source/alpha/checker/                  root derivation checker source and tape
-source/beta/compiler/                  direct Beta assembler source and tape
 source/omega-rust/                     current Rust product implementation and comparator
-tests/{alpha,beta,gamma,delta,proof-checker,bootstrap,omega,fixtures}/
+tests/{alpha,bootstrap,omega,fixtures}/
                                       executable validation by subject
 tools/bootstrap/                       bootstrap invocation and artifact construction
+tools/alpha/tape-assembly/             off-chain assembler and reconstruction source
 tools/                                 other repository maintenance scripts
 ```
 

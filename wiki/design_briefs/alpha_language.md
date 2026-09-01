@@ -66,17 +66,17 @@ standing design brief as universal constants.
 
 ## Bootstrap role
 
-The currently implemented baseline and hosted build are:
+The selected bootstrap lattice is:
 
 ```text
-Alpha VM → Beta assembler → Gamma → Delta → Epsilon
-Epsilon-written Omega compiler D ──▶ omega₀
+Alpha VM + audited Beta evaluator → Gamma → Delta
+Delta-written Omega compiler D ──▶ omega₀
 omega₀ + Omega-written compiler C ──▶ omega
 ```
 
-The native Alpha executor is the sole per-platform binary. Beta is a real
-language rung; its direct assembler tape is loaded into Alpha on demand rather
-than retained as a second native executable.
+The native Alpha executor is the sole per-platform binary. Alpha Tape Assembly
+is off-chain tooling; Beta is the first functional language and its evaluator
+tape is directly audited as root material.
 
 Self-reproduction at any compiler stage establishes deterministic dependency
 closure, not correctness. Compiler artifacts become authoritative only when the

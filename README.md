@@ -129,20 +129,27 @@ portable format.
 
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
-The current bootstrap baseline has the language-capability progression Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape execution; Beta is its textual assembly. The Epsilon-written compiler closure `D` is intended to produce the first full Omega compiler `omega₀`, which compiles the Omega-written closure `C` into production `omega`. Its active queue lives in
+The selected bootstrap lattice is Alpha → Beta → Gamma → Delta → Omega. Alpha
+is raw tape execution; Beta is a tiny first-order functional calculus executed
+by one directly audited Alpha evaluator tape; Gamma is the typed functional
+compiler language; and Delta is the fixed-storage compiler host. The
+Delta-written compiler closure `D` is intended to produce the first full Omega
+compiler `omega₀`, which compiles the Omega-written closure `C` into production
+`omega`. Intermediate self-hosting is not a goal. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_chain/repository_structure.md).
-The rung order is now an experimental baseline rather than a fixed constraint.
+The former textual assembler is off-chain tooling under
+`tools/alpha/tape-assembly/`; Epsilon and the imperative Gamma rung are retired.
 The whole-chain audit is defined in
 [`bootstrap_minimization.md`](wiki/design_briefs/bootstrap_minimization.md), and
 the candidate shorter chains and common audit experiment are defined in
 [`bootstrap_chain_alternatives.md`](wiki/design_briefs/bootstrap_chain_alternatives.md).
-The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
+The literal Delta v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
 [`source/omega/README.md`](source/omega/README.md) describes the product-source side;
-the proof kernel is Alpha-owned checker infrastructure, not another language rung.
+the replacement derivation checker is a future Beta tool, not another language rung.
 
 ## Samples And Language Cases
 

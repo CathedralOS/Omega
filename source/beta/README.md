@@ -1,39 +1,26 @@
-# Beta assembly language
+# Beta bootstrap calculus
 
-Beta is the first textual rung above Alpha. Alpha owns only the raw portable
-instruction tape and the native VM that executes it; Beta gives those
-instructions human-readable mnemonics, labels, decimal operands, and data
-spelling.
+Beta is the first language above Alpha. It is a strict, first-order,
+S-expression functional calculus for writing the Gamma compiler and small
+bootstrap tools such as the derivation checker.
 
-[`LANGUAGE.md`](LANGUAGE.md) defines the exact deterministic relation from one
-Beta source byte sequence to one raw Alpha `.tape`. The compiler is the
-platform-independent [`compiler/beta_assembler_bytecode.tape`](compiler/beta_assembler_bytecode.tape),
-the one directly retained Alpha program at the cold-start boundary. Its
-readable [`compiler/assembler.beta`](compiler/assembler.beta) source must
-self-host back to that exact tape.
+The cold-start implementation will be one directly admitted Alpha evaluator
+tape. That tape is part of the audited root: it is not justified by an
+assembly-language rung or by self-hosting. Its obligation is the exact Beta
+evaluation relation in [`LANGUAGE.md`](LANGUAGE.md), under explicit resource
+bounds.
 
 ```text
-audited native Alpha VM
-  + beta_assembler_bytecode.tape
-  + program.beta
-    -> program.tape
+audited Alpha VM + audited Beta evaluator tape
+  + Beta source + sealed input
+    -> returned Beta value
 ```
 
-Callers materialize that tape in the selected Alpha VM only for the duration of
-an invocation. No second platform-native assembler binary is retained.
-
-Beta exists to author the Gamma compiler and other trust-floor Alpha programs.
-It has no independent runtime semantics: successful assembly yields Alpha tape,
-whose execution is governed solely by [`../alpha/SEMANTICS.md`](../alpha/SEMANTICS.md).
+The evaluator artifact and Beta-written Gamma compiler are currently open.
+No former Gamma artifact or host interpreter stands in for either edge.
 
 ## Retention inventory
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `LANGUAGE.md` | Exact Beta-text-to-Alpha-tape relation. | Replace only with a versioned Beta encoding and synchronized assembler. |
-| `compiler/` | Direct assembler tape and readable reconstruction source. | Delete only when an equally direct Beta implementation replaces the owner. |
-| `compiler/assembler.beta` | Readable self-host source for the Beta assembler. | Delete only if another exact reconstruction of the direct assembler tape replaces it. |
-| `compiler/beta_assembler_bytecode.tape` | Direct portable Alpha implementation of Beta assembly. | Replace atomically with its source, reconstruction, and checked relation. |
-
-Assembler tests and examples live under `tests/beta/compiler/`; host
-materialization lives under `tools/bootstrap/beta/`.
+| `LANGUAGE.md` | Exact Beta syntax and evaluation relation. | Replace only with a versioned contract and synchronized evaluator and customer gates. |
