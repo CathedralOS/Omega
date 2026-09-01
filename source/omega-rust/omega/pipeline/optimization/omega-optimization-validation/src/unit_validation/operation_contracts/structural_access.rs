@@ -82,9 +82,14 @@ pub(crate) fn structural_arguments_match(
             && source.access == psi_terminal::StructuralAccess::WriteOnlyBorrow
             && parameter.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
             && source.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted;
+        let unrestricted_shared_field = is_nonempty_field_path(&argument.path)
+            && argument.access == psi_terminal::StructuralAccess::SharedBorrow
+            && parameter.access == psi_terminal::StructuralAccess::SharedBorrow
+            && parameter.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+            && source.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted;
         let actual_multiplicity = if argument.path.is_empty() {
             source.multiplicity
-        } else if unrestricted_write_only_field {
+        } else if unrestricted_write_only_field || unrestricted_shared_field {
             psi_terminal::StructuralMultiplicity::Unrestricted
         } else if parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine
             && source.multiplicity == psi_terminal::StructuralMultiplicity::Affine
