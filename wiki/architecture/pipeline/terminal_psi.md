@@ -828,16 +828,18 @@ machine-contract commitment. The task runtime receipt binding carries both
 values but derives invocation identity from the strong commitment alone, so
 compact equality never authorizes a different specialization.
 
-For the first attached static trait-requirement proof call, the public target
+For the first bounded static trait-requirement proof calls, the public target
 is the requirement's normalized callable identity rather than the concrete machine.
 A separate private dispatch row retains the caller-owned closed-conformance
 application, its domain-separated commitment, exact declaring trait/
 requirement/realization row, and emitted
-Unit callee. The selected output has no satisfier callee-term or forwarding
+runtime callee. The bounded result is Unit or exact signed 32-bit scalar; the
+scalar form is receiverless, zero-ordinary-argument, and selected from a free
+caller. The selected output has no satisfier callee-term or forwarding
 coordinate: its requirement proposition and public selector authorize one
 fresh caller-local opaque term. Representation validation rejoins the public
 identity to the canonical row, the row to the owner-scoped application, and
-the private realization to the ordinary `CallUnit`; it rejects missing
+the private realization to the ordinary `CallUnit` or scalar `Call`; it rejects missing
 dispatch, identity, commitment, or report-fingerprint drift, private
 forwarding/provenance leakage, and reuse of an input or prior output term. Codec
 format 33 / vocabulary 38 preserve this split and serialize the application
@@ -846,13 +848,25 @@ commitment from its complete source-free structure, selects dispatch by owner
 plus that commitment, and then replays the exact row. The compact fingerprint
 is named a report fingerprint and remains report/index data only. Erasing the
 proof rows leaves runtime parameter/result shape, storage, operations, and fixed
-fuel unchanged.
+fuel unchanged. Scalar type, operation ID/kind, runtime callee, and dispatch
+realization drift reject independently.
+
+Independent Terminal replay rejoins the closed conformance row to its retained
+source realization identity and the artifact-local realization machine ID to
+the exact ordinary call. The current proof-only row does not independently
+reconstruct that source identity from the machine ID; canonical Terminal and
+artifact identity plus retained compilation custody bind the pair. Portable
+untrusted standalone replay will require an explicit source callable identity
+to machine-ID map so a coordinated identity/machine-ID retarget rejects
+independently. That is a standalone-replay engineering follow-up, not a
+language-design dependency of this bounded carrier.
 
 Static-requirement evidence does not select the executable lowering family.
 Checked-to-Terminal dispatch first selects the exact retained structural,
 cleanup, attached-Unit, or scalar plan and returns that route as typed data.
-Only an actually selected attached-Unit route may use static dispatch evidence
-when reconstructing its source-machine closure. A proof row therefore cannot
+Only an actually selected attached-Unit route or the exact bounded scalar route
+may use static dispatch evidence when reconstructing its source-machine
+closure. A proof row therefore cannot
 preempt a more specific executable plan or redirect its operations.
 
 Outcome

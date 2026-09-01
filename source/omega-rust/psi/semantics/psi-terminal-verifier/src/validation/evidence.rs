@@ -660,6 +660,51 @@ fn validate_static_requirement_dispatch(
         caller: invocation.caller,
         ordinal: invocation.ordinal,
     };
+    let i32_type = ScalarType::Integer(
+        IntegerType::new(IntegerSign::Signed, 32).expect("i32 is a valid terminal scalar type"),
+    );
+    let bounded_runtime = match (invocation.runtime_result, invocation.runtime_call) {
+        (
+            Some(psi_terminal::ProofOutputRuntimeResult::Unit),
+            Some(psi_terminal::ProofOutputRuntimeCall { callee, .. }),
+        ) => callee == dispatch.realization,
+        (Some(psi_terminal::ProofOutputRuntimeResult::Scalar(scalar)), Some(runtime_call))
+            if scalar == i32_type && runtime_call.callee == dispatch.realization =>
+        {
+            let Some(caller) = machines.get(&invocation.caller).copied() else {
+                return Err(invalid());
+            };
+            let Some(realization) = machines.get(&dispatch.realization).copied() else {
+                return Err(invalid());
+            };
+            let mut linked_operations = caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| operation.id == runtime_call.operation);
+            let Some(linked_operation) = linked_operations.next() else {
+                return Err(invalid());
+            };
+            caller.attachment.is_none()
+                && realization.attachment.is_none()
+                && realization.parameters.is_empty()
+                && realization.structural_parameters.is_empty()
+                && matches!(
+                    realization.result,
+                    TerminalMachineResult::Scalar(result) if result.scalar_type == i32_type
+                )
+                && linked_operations.next().is_none()
+                && matches!(
+                    &linked_operation.kind,
+                    psi_terminal::OperationKind::Call {
+                        callee,
+                        arguments,
+                        ..
+                    } if *callee == dispatch.realization && arguments.is_empty()
+                )
+        }
+        _ => false,
+    };
     if dispatch.conformance_application_report_fingerprint == 0
         || dispatch.conformance_application_commitment.is_zero()
         || dispatch.public_requirement_identity.is_empty()
@@ -669,13 +714,7 @@ fn validate_static_requirement_dispatch(
         || dispatch.realization_identity.is_empty()
         || invocation.outputs.is_empty()
         || !machines.contains_key(&dispatch.realization)
-        || !matches!(
-            (invocation.runtime_result, invocation.runtime_call),
-            (
-                Some(psi_terminal::ProofOutputRuntimeResult::Unit),
-                Some(psi_terminal::ProofOutputRuntimeCall { callee, .. })
-            ) if callee == dispatch.realization
-        )
+        || !bounded_runtime
     {
         return Err(invalid());
     }

@@ -7,6 +7,7 @@ pub(super) fn checked_scalar_call_closure(
     entry: psi_symbols::SymbolHandle,
 ) -> Result<Vec<psi_symbols::SymbolHandle>, LoweringError> {
     let mut closure = vec![entry];
+    let mut authorized_static_i32_realizations = Vec::new();
     let mut next = 0usize;
     while let Some(machine) = closure.get(next).copied() {
         next += 1;
@@ -20,7 +21,10 @@ pub(super) fn checked_scalar_call_closure(
             .ok_or(LoweringError::Unsupported(
                 "direct scalar call target has no checked terminal selection",
             ))?;
-        if selection.signature != CheckedTerminalSignatureEligibility::Eligible {
+        if selection.signature != CheckedTerminalSignatureEligibility::Eligible
+            && !(selection.signature == CheckedTerminalSignatureEligibility::Attached
+                && authorized_static_i32_realizations.contains(&machine))
+        {
             return unsupported("direct scalar call target has an unsupported terminal signature");
         }
         let graph = checked
@@ -31,21 +35,161 @@ pub(super) fn checked_scalar_call_closure(
             .ok_or(LoweringError::Unsupported(
                 "direct scalar call target has no checked scalar graph",
             ))?;
-        for target in graph.states.iter().flat_map(|state| {
+        for (target, authorized_static_i32) in graph.states.iter().flat_map(|state| {
             state.bindings.iter().filter_map(|binding| {
                 let CheckedScalarBindingValue::DirectCall { target_machine, .. } = &binding.value
                 else {
                     return None;
                 };
-                Some(*target_machine)
+                Some((
+                    *target_machine,
+                    bounded_static_i32_dispatch_edge(checked, machine, state.state, binding),
+                ))
             })
         }) {
+            let target_selection = checked
+                .facts
+                .flow
+                .terminal_machines
+                .machines
+                .iter()
+                .find(|selection| selection.machine == target)
+                .ok_or(LoweringError::Unsupported(
+                    "direct scalar call target has no checked terminal selection",
+                ))?;
+            if target_selection.signature == CheckedTerminalSignatureEligibility::Attached
+                && !authorized_static_i32
+            {
+                return unsupported(
+                    "attached scalar call target is not the exact bounded static i32 realization",
+                );
+            }
+            if authorized_static_i32 {
+                if !authorized_static_i32_realizations.contains(&target) {
+                    authorized_static_i32_realizations.push(target);
+                }
+            }
             if !closure.contains(&target) {
                 closure.push(target);
             }
         }
     }
     Ok(closure)
+}
+
+/// The first scalar named-witness rung is the sole exception that may pull an
+/// attached static realization into a free scalar caller's closure. Rejoin the
+/// exact proof-output call coordinate here so an unrelated proof row cannot
+/// grant scalar eligibility to another attached machine.
+fn bounded_static_i32_dispatch_edge(
+    checked: &CheckedTrees,
+    caller_machine: psi_symbols::SymbolHandle,
+    caller_state: psi_symbols::SymbolHandle,
+    binding: &psi_checked_trees::CheckedScalarBinding,
+) -> bool {
+    let CheckedScalarBindingValue::DirectCall {
+        target_machine,
+        target_state,
+        call_ordinal,
+        argument_count,
+    } = &binding.value
+    else {
+        return false;
+    };
+    if *argument_count != 0 {
+        return false;
+    }
+    let Some(runtime_statement) = usize::try_from(binding.statement_ordinal).ok() else {
+        return false;
+    };
+    let Some(runtime_call_ordinal) = usize::try_from(*call_ordinal).ok() else {
+        return false;
+    };
+    let mut invocations =
+        checked
+            .facts
+            .proof
+            .proof_output_calls
+            .iter()
+            .filter_map(|(_, invocation)| {
+                let runtime_call = invocation.runtime_call?;
+                let dispatch = invocation.static_requirement_dispatch?;
+                (invocation.caller_machine_symbol == caller_machine
+                    && invocation.caller_state_symbol == caller_state
+                    && runtime_call.statement_index == runtime_statement
+                    && runtime_call.call_ordinal == runtime_call_ordinal
+                    && invocation.target_machine_symbol == *target_machine
+                    && invocation.target_state_symbol == *target_state
+                    && dispatch.realization_machine == *target_machine
+                    && dispatch.realization_state == *target_state)
+                    .then_some((invocation, dispatch))
+            });
+    let Some((_invocation, dispatch)) = invocations.next() else {
+        return false;
+    };
+    if invocations.next().is_some() {
+        return false;
+    }
+
+    let caller_is_free = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == caller_machine)
+        .is_some_and(|machine| machine.attached_data.is_none());
+    let realization_is_attached_checked_body = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == *target_machine)
+        .is_some_and(|machine| {
+            machine.attached_data.is_some()
+                && machine.supply_mode == psi_language_semantics::MachineSupplyMode::CheckedBody
+                && checked.typed.machine_states(machine).len() == 1
+        });
+    let realization_is_exact_i32 = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(*target_machine)
+        .and_then(|graph| {
+            let [state] = graph.states.as_slice() else {
+                return None;
+            };
+            Some(
+                state.state == *target_state
+                    && state.parameter_types.is_empty()
+                    && state.result_type == PrimitiveType::I32,
+            )
+        })
+        .unwrap_or(false);
+    let requirement_is_exact_i32 = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|trait_definition| trait_definition.symbol == dispatch.declaring_trait)
+        .and_then(|trait_definition| {
+            checked
+                .typed
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .find(|requirement| requirement.symbol == dispatch.requirement)
+        })
+        .is_some_and(|requirement| {
+            checked
+                .typed
+                .state_signature_parameters(requirement)
+                .is_empty()
+                && checked
+                    .typed
+                    .primitive_type_reference(requirement.return_type)
+                    == Some(PrimitiveType::I32)
+        });
+
+    caller_is_free
+        && realization_is_attached_checked_body
+        && realization_is_exact_i32
+        && requirement_is_exact_i32
 }
 
 pub(super) fn lower_scalar_call_closure(
