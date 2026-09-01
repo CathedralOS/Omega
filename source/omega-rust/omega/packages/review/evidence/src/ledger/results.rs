@@ -7,7 +7,8 @@ use super::{
 };
 use crate::record::{
     CheckedPackageCallableReview, CheckedPackageReviewProjection, PackageReviewCallableSupply,
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewDangerousAuthority,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewContractEntailmentOpenObligation, PackageReviewDangerousAuthority,
     PackageReviewExternalExecutableSupply,
 };
 use omega_package_compilation::PackageDependencyClosure;
@@ -21,6 +22,30 @@ use psi_core::PackageKeyIdentity;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum OrdinaryPackageObligationStatus {
     OpenRootAdmission,
+    OpenLaterDischarge,
+}
+
+/// One exact compiler-retained contract obligation for which no current local
+/// proof engine issued a discharge. It remains blocking until a concrete later
+/// discharge route rechecks the same canonical obligation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrdinaryPackageContractEntailmentOpenObligation {
+    obligation: PackageReviewContractEntailmentOpenObligation,
+    row: OrdinaryPackageObligationRow,
+}
+
+impl OrdinaryPackageContractEntailmentOpenObligation {
+    pub const fn obligation(&self) -> &PackageReviewContractEntailmentOpenObligation {
+        &self.obligation
+    }
+
+    pub const fn row(&self) -> &OrdinaryPackageObligationRow {
+        &self.row
+    }
+
+    pub const fn status(&self) -> OrdinaryPackageObligationStatus {
+        OrdinaryPackageObligationStatus::OpenLaterDischarge
+    }
 }
 
 /// One exact bodyless package claim reconstructed from checked compiler state.
@@ -113,6 +138,7 @@ pub struct OrdinaryPackageObligationResultSet {
     target: TargetProfile,
     dependency_closure: PackageDependencyClosure,
     open_accepted_claims: Vec<OrdinaryPackageAcceptedClaimObligation>,
+    open_contract_entailment_obligations: Vec<OrdinaryPackageContractEntailmentOpenObligation>,
     open_external_executable_supplies: Vec<OrdinaryPackageExternalExecutableSupplyObligation>,
     open_dangerous_authorities: Vec<OrdinaryPackageDangerousAuthorityObligation>,
 }
@@ -136,6 +162,12 @@ impl OrdinaryPackageObligationResultSet {
 
     pub fn open_accepted_claims(&self) -> &[OrdinaryPackageAcceptedClaimObligation] {
         &self.open_accepted_claims
+    }
+
+    pub fn open_contract_entailment_obligations(
+        &self,
+    ) -> &[OrdinaryPackageContractEntailmentOpenObligation] {
+        &self.open_contract_entailment_obligations
     }
 
     pub fn open_external_executable_supplies(
@@ -223,6 +255,42 @@ pub fn ordinary_package_obligation_results_from_projection(
         });
     }
 
+    let contract_entailment_obligations = projection.contract_entailment_open_obligations();
+    let contract_entailment_rows = ledger
+        .rows()
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation)
+        .collect::<Vec<_>>();
+    if contract_entailment_obligations.len() != contract_entailment_rows.len() {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "ordinary package contract-entailment obligations are not bijective with their canonical rows",
+        ));
+    }
+    let mut open_contract_entailment_obligations = Vec::new();
+    open_contract_entailment_obligations
+        .try_reserve_exact(contract_entailment_rows.len())
+        .map_err(|_| {
+            OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package contract-entailment result allocation failed",
+            )
+        })?;
+    for (obligation, row) in contract_entailment_obligations
+        .iter()
+        .zip(contract_entailment_rows)
+    {
+        if row.risk() != PackageReviewCanonicalRowRisk::Blocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "ordinary package contract-entailment obligation is not blocking",
+            ));
+        }
+        open_contract_entailment_obligations.push(
+            OrdinaryPackageContractEntailmentOpenObligation {
+                obligation: obligation.clone(),
+                row: row.clone(),
+            },
+        );
+    }
+
     let external_supplies = projection.external_executable_supply();
     let external_supply_rows = ledger
         .rows()
@@ -293,6 +361,7 @@ pub fn ordinary_package_obligation_results_from_projection(
         target: ledger.target(),
         dependency_closure: ledger.dependency_closure().clone(),
         open_accepted_claims,
+        open_contract_entailment_obligations,
         open_external_executable_supplies,
         open_dangerous_authorities,
     })

@@ -3,7 +3,9 @@ use super::super::behavior::{
     project_installation_reaches, project_mutation, project_service_row,
     project_synchronous_invocations, project_termination,
 };
-use super::super::contracts::facts::project_callable_contracts;
+use super::super::contracts::facts::{
+    project_callable_contract_entailment_stand_down, project_callable_contracts,
+};
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::facts::exactly_one;
 use super::super::semantics::signatures::parameters::project_type_parameters;
@@ -308,6 +310,34 @@ pub(in crate::capture) fn project_callable(
         },
         external_executable_supply,
     ))
+}
+
+pub(in crate::capture) fn project_contract_entailment_open_contract(
+    compilation: &CheckedCompilation,
+    machine: &psi_typed_trees::machine::Machine,
+    contract_index: usize,
+    fact_index: usize,
+) -> Result<crate::record::PackageReviewCallableContract, Vec<Diagnostic>> {
+    let Some(entry) = compilation.machine_states(machine).first() else {
+        return Err(vec![Diagnostic::error(
+            "contract-entailment stand-down callable has no canonical entry signature",
+        )]);
+    };
+    let (binders, _) = project_type_parameters(
+        compilation,
+        compilation.machine_type_parameters(machine),
+        "callable",
+        machine.name.as_str(),
+        &machine.lifetime_parameters,
+    )?;
+    project_callable_contract_entailment_stand_down(
+        compilation,
+        machine,
+        entry,
+        &binders,
+        contract_index,
+        fact_index,
+    )
 }
 
 pub(in crate::capture) fn project_private_external_executable_supply(

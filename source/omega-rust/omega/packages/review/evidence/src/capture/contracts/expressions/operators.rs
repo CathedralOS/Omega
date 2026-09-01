@@ -13,8 +13,8 @@ pub(crate) fn exact_checked_contract_operator_meaning(
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
-        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
     };
 
     let selections = compilation
@@ -35,9 +35,9 @@ pub(crate) fn exact_checked_contract_operator_meaning(
             selections.len()
         ))]);
     };
-    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+    if selection.exposure() != context.selection_exposure {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract operator is not retained as a public-interface selection",
+            "reviewed {} `{}` contract operator has the wrong retained selection exposure",
             context.subject_kind, context.subject_name
         ))]);
     }

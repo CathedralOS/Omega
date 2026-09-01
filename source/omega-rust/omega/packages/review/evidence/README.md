@@ -55,12 +55,13 @@ selected local compiler reconstructs the complete row set and requires exact
 equality.
 
 The supported result lanes do not pretend to prove a bodyless accepted claim,
-grant dangerous authority, or validate externally supplied executable code.
-`ledger/results.rs` rejoins each typed compiler fact to its canonical row,
-assigns only `OpenRootAdmission`, and supports fresh local equality checking.
-The manager may propagate those open obligations to a consuming root, but this
-crate provides no certificate, policy decision, persistence codec, accepted
-lock, or `PackageInstance` route.
+grant dangerous authority, validate externally supplied executable code, or
+discharge a compiler-retained contract-entailment stand-down.
+`ledger/results.rs` rejoins each typed compiler fact to its canonical row and
+assigns either `OpenRootAdmission` or `OpenLaterDischarge`. The manager may
+propagate those open obligations to a consuming root, but root policy cannot
+admit a later-discharge obligation. This crate provides no certificate,
+persistence codec, accepted lock, or `PackageInstance` route.
 
 The crate root exports `project_checked_package_review` for ordinary checked
 review and the separately non-executable
@@ -69,7 +70,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 120, row schema version 78, and
-canonical-row recovery envelope version 16. Exact vocabulary and revision
+The canonical review schema is version 121, row schema version 79, and
+canonical-row recovery envelope version 17. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

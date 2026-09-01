@@ -118,6 +118,7 @@ pub(crate) fn project_public_propositions(
                     domain_symbol: None,
                     data_symbol: None,
                     lifetime_binders: &[],
+                    selection_exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
                 };
                 let mut visiting = vec![declaration.symbol];
                 let expansion = match proposition {

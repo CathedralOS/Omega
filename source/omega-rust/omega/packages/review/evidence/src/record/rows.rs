@@ -56,6 +56,9 @@ pub enum PackageReviewCanonicalRowKind {
     /// One bounded proof-only direct quotient correspondence, rederived
     /// transactionally from source and carrying no executable authority.
     NonExecutableQuotientCorrespondence,
+    /// One exact checked contract obligation that remains open for a later
+    /// discharge route. This row is blocking and is not a certificate.
+    ContractEntailmentOpenObligation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -296,6 +299,12 @@ impl CheckedPackageReviewProjection {
 
     pub fn callables(&self) -> &[CheckedPackageCallableReview] {
         &self.callables
+    }
+
+    pub fn contract_entailment_open_obligations(
+        &self,
+    ) -> &[super::contracts::PackageReviewContractEntailmentOpenObligation] {
+        &self.contract_entailment_open_obligations
     }
 
     pub fn external_executable_supply(&self) -> &[PackageReviewExternalExecutableSupply] {

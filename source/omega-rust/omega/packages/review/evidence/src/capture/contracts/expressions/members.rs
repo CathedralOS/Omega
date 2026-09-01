@@ -53,8 +53,7 @@ pub(crate) fn exact_checked_contract_nominal_member(
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
     let selections = compilation
@@ -75,9 +74,9 @@ pub(crate) fn exact_checked_contract_nominal_member(
             selections.len()
         ))]);
     };
-    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+    if selection.exposure() != context.selection_exposure {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` nominal member is not retained as a public-interface selection",
+            "reviewed {} `{}` nominal member has the wrong retained selection exposure",
             context.subject_kind, context.subject_name
         ))]);
     }
@@ -97,8 +96,8 @@ pub(crate) fn require_exact_checked_contract_collection_length(
     member: &psi_typed_trees::expression::TableMemberExpression,
 ) -> Result<(), Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
-        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
     };
 
     let selections = compilation
@@ -119,9 +118,9 @@ pub(crate) fn require_exact_checked_contract_collection_length(
             selections.len()
         ))]);
     };
-    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+    if selection.exposure() != context.selection_exposure {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` collection-length projection is not retained as a public-interface selection",
+            "reviewed {} `{}` collection-length projection has the wrong retained selection exposure",
             context.subject_kind, context.subject_name
         ))]);
     }

@@ -55,6 +55,7 @@ pub enum FreshPackageRootPolicyError {
     InvalidRootPolicy(ReviewOnlyRootPolicyResolutionError),
     RootPolicyReplayMismatch,
     RejectedBlockingConflict,
+    UnresolvedLaterDischarge(PackageReviewCanonicalRowKind),
     OpenObligationConflictShapeMismatch(PackageReviewCanonicalRowKind),
     OpenObligationConflictSetMismatch(PackageReviewCanonicalRowKind),
     AllocationFailed,
@@ -84,6 +85,10 @@ impl fmt::Display for FreshPackageRootPolicyError {
             }
             Self::RejectedBlockingConflict => formatter
                 .write_str("fresh package root policy rejects at least one exact blocking row"),
+            Self::UnresolvedLaterDischarge(kind) => write!(
+                formatter,
+                "fresh {kind:?} obligation requires a concrete later discharge and cannot be admitted by root policy",
+            ),
             Self::OpenObligationConflictShapeMismatch(kind) => write!(
                 formatter,
                 "fresh {kind:?} conflict is not an added blocking row against the empty admission baseline",
@@ -109,6 +114,7 @@ impl std::error::Error for FreshPackageRootPolicyError {
             | Self::UnexpectedRootPolicy
             | Self::RootPolicyReplayMismatch
             | Self::RejectedBlockingConflict
+            | Self::UnresolvedLaterDischarge(_)
             | Self::OpenObligationConflictShapeMismatch(_)
             | Self::OpenObligationConflictSetMismatch(_)
             | Self::AllocationFailed => None,
@@ -134,6 +140,15 @@ pub fn bind_fresh_package_root_policy(
         reconstruction_limits,
     )
     .map_err(FreshPackageRootPolicyError::Reconstruction)?;
+    if obligations
+        .root_open_contract_entailment_obligations()
+        .next()
+        .is_some()
+    {
+        return Err(FreshPackageRootPolicyError::UnresolvedLaterDischarge(
+            PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation,
+        ));
+    }
     let conflicts = compare_review_only_initial_capabilities(reviews, closure, conflict_limits)
         .map_err(FreshPackageRootPolicyError::ConflictComparison)?;
 

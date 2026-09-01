@@ -33,7 +33,10 @@ pub(crate) fn project_contract_cast(
                 "package review requires package-aware checked compilation",
             )]
         })?;
-        if reviewed_package_owns(&identity, reviewed_package)? && !domain.is_public {
+        if context.requires_public_nominals()
+            && reviewed_package_owns(&identity, reviewed_package)?
+            && !domain.is_public
+        {
             return Err(vec![Diagnostic::error(format!(
                 "reviewed {} `{}` exposes non-public semantic domain `{}` in a cast",
                 context.subject_kind, context.subject_name, domain.name

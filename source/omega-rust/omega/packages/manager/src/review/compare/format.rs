@@ -12,7 +12,7 @@ use omega_package_evidence::record::{
 use omega_package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V16\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V17\n";
 
 pub(super) trait ConflictRenderOutput {
     fn push_str(&mut self, value: &str);
@@ -329,6 +329,9 @@ pub(super) const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'sta
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => {
             "non_executable_quotient_correspondence"
         }
+        PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => {
+            "contract_entailment_open_obligation"
+        }
     }
 }
 
@@ -352,6 +355,7 @@ pub(super) const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::ExternalExecutableSupply => 15,
         PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => 17,
+        PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => 18,
     }
 }
 

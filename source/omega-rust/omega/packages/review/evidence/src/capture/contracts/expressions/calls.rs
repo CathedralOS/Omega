@@ -248,8 +248,7 @@ pub(crate) fn exact_checked_contract_call_target(
     call: &psi_typed_trees::expression::TableCallExpression,
 ) -> Result<PackageReviewContractCallTarget, Vec<Diagnostic>> {
     use psi_language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
-        AuthoredDeclarationSelectionTarget,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
     };
 
     let selections = compilation
@@ -270,9 +269,9 @@ pub(crate) fn exact_checked_contract_call_target(
             selections.len()
         ))]);
     };
-    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+    if selection.exposure() != context.selection_exposure {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed {} `{}` contract call is not retained as a public-interface selection",
+            "reviewed {} `{}` contract call has the wrong retained selection exposure",
             context.subject_kind, context.subject_name
         ))]);
     }

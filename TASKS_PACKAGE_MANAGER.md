@@ -166,10 +166,14 @@ after the complete current-version lock payload exists.
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
   certificate required by an ordinary package claim.
-  Add another result class only with a concrete compiler-owned obligation and
-  certificate route or explicit open status. Do not persist this partial lane,
-  cite the standalone `psi-proof` ledger as production enforcement, or invent
-  a deferred-proof row before the compiler owns such a status.
+  Contract-entailment stand-downs now have an exact `OpenLaterDischarge` lane:
+  fresh typed-graph rederivation, callable and contract/fact coordinates,
+  complete machine-contract commitment, readable goal/reason, canonical row,
+  transitive owner-preserving composition, and categorical rejection before
+  root policy. Remaining work is limited to concrete compiler-owned
+  certificate/discharge classes and required final-realization joins. Do not
+  persist this partial lane, cite standalone `psi-proof` as production
+  enforcement, or add an empty generic certificate framework.
 
 - [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
   after exact source and artifact subjects, obligation-semantics identity,

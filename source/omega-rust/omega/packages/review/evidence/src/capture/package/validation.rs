@@ -24,34 +24,6 @@ pub(super) fn validate_review_compilation(
             "package review target disagrees with the evaluated `via` binding table",
         )]);
     }
-    let package_stand_downs = compilation
-        .contract_entailment_stand_downs()
-        .iter()
-        .filter(|stand_down| {
-            compilation
-                .symbols
-                .symbol_package_identity(stand_down.machine_symbol)
-                == Some(package)
-        })
-        .collect::<Vec<_>>();
-    if !package_stand_downs.is_empty() {
-        return Err(package_stand_downs
-            .into_iter()
-            .map(|stand_down| {
-                Diagnostic::error(format!(
-                    "package review rejects unresolved contract-entailment stand-down in machine `{}` (symbol {}), contract {}, fact {}: {}",
-                    compilation
-                        .symbols
-                        .display_path(stand_down.machine_symbol, "::"),
-                    stand_down.machine_symbol.arena_index(),
-                    stand_down.contract_index,
-                    stand_down.fact_index,
-                    stand_down.reason.label(),
-                ))
-            })
-            .collect());
-    }
-
     let derived_operator_realizations =
         psi_typed_trees_to_checked_trees::derive_checked_operator_realization_contracts(
             &compilation.typed,
@@ -65,6 +37,15 @@ pub(super) fn validate_review_compilation(
                 .operator_realization_contracts
                 .len(),
             derived_operator_realizations.len(),
+        ))]);
+    }
+    let derived_stand_downs =
+        psi_validation::collect_contract_entailment_stand_downs(&compilation.typed);
+    if derived_stand_downs != compilation.contract_entailment_stand_downs() {
+        return Err(vec![Diagnostic::error(format!(
+            "retained contract-entailment stand-downs do not equal fresh compiler rederivation (retained {} rows, derived {} rows)",
+            compilation.contract_entailment_stand_downs().len(),
+            derived_stand_downs.len(),
         ))]);
     }
 

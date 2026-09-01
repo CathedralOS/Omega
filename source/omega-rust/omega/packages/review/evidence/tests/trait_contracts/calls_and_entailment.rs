@@ -103,7 +103,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
-fn review_rejects_contract_entailment_stand_downs() {
+fn review_retains_contract_entailment_stand_downs_as_open_later_discharge_obligations() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -145,11 +145,150 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         psi_validation::ContractEntailmentStandDownReason::OutsideEntailmentLanguage
     );
 
-    let diagnostics = project_checked_package_review(&checked)
-        .expect_err("package review must fail closed on an unresolved stand-down");
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("rejects unresolved contract-entailment stand-down")
-    }));
+    let projection = project_checked_package_review(&checked)
+        .expect("package review retains an unresolved stand-down as an open obligation");
+    let [obligation] = projection.contract_entailment_open_obligations() else {
+        panic!("one exact open contract-entailment obligation")
+    };
+    assert_eq!(obligation.callable().path(), "unchecked_claim");
+    assert_eq!(obligation.contract_position(), 1);
+    assert_eq!(obligation.fact_position(), 0);
+    assert_ne!(obligation.machine_contract_commitment(), [0; 32]);
+    assert_eq!(obligation.goal().kind(), PackageReviewContractKind::Ensures);
+    assert_eq!(
+        obligation.reason(),
+        PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage
+    );
+    assert!(matches!(
+        obligation.goal().fact(),
+        PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+            operator: PackageReviewContractBinaryOperator::GreaterOrEqual,
+            ..
+        })
+    ));
+    let rows = projection
+        .canonical_rows()
+        .expect("open obligation has one canonical blocking row");
+    let matching_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation)
+        .collect::<Vec<_>>();
+    let [row] = matching_rows.as_slice() else {
+        panic!("one canonical open contract-entailment row")
+    };
+    assert_eq!(row.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    let locations = row
+        .source()
+        .authored_locations()
+        .expect("open obligation retains authored source custody");
+    for role in [
+        PackageReviewSourceLocationRole::Declaration,
+        PackageReviewSourceLocationRole::ContractClause,
+        PackageReviewSourceLocationRole::ProofFact,
+    ] {
+        assert!(
+            locations.iter().any(|location| location.role() == role),
+            "open obligation source custody is missing {role:?}"
+        );
+    }
+    let recovered = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(row).expect("encode open-obligation row"),
+    )
+    .expect("recover open-obligation row");
+    assert_eq!(
+        recovered.kind(),
+        PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+    );
+    assert_eq!(recovered.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert_eq!(recovered.key_bytes(), row.key_bytes());
+    assert_eq!(recovered.canonical_bytes(), row.canonical_bytes());
+
+    let results = reconstruct_ordinary_package_obligation_results(&checked)
+        .expect("ordinary reconstruction retains the exact open obligation");
+    let [result] = results.open_contract_entailment_obligations() else {
+        panic!("one reconstructed open contract-entailment result")
+    };
+    assert_eq!(
+        result.status(),
+        OrdinaryPackageObligationStatus::OpenLaterDischarge
+    );
+    assert_eq!(result.obligation(), obligation);
+    assert_eq!(result.row().canonical_bytes(), row.canonical_bytes());
+}
+
+#[test]
+fn equal_contract_entailment_goals_retain_distinct_positions_and_complete_hypotheses() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let project = |minimum: u64| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"machine unchecked_claim(a: u64, b: u64)
+requires
+    min(a, b) >= {minimum}
+ensures
+    a >= 1
+ensures
+    a >= 1
+{{
+}}
+"#,
+            ),
+        );
+        package.write(
+            "build.omg",
+            r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("duplicate open-goal fixture should check");
+        project_checked_package_review(&checked)
+            .expect("duplicate equal goals retain exact coordinates")
+    };
+
+    let first = project(1);
+    let obligations = first.contract_entailment_open_obligations();
+    assert_eq!(obligations.len(), 2);
+    assert_eq!(
+        obligations
+            .iter()
+            .map(|obligation| (obligation.contract_position(), obligation.fact_position()))
+            .collect::<Vec<_>>(),
+        vec![(1, 0), (2, 0)]
+    );
+    assert_eq!(obligations[0].goal(), obligations[1].goal());
+    let rows = first.canonical_rows().expect("encode duplicate open goals");
+    let open_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation)
+        .collect::<Vec<_>>();
+    assert_eq!(open_rows.len(), 2);
+    assert_ne!(open_rows[0].key_bytes(), open_rows[1].key_bytes());
+
+    let changed_hypothesis = project(2);
+    assert_ne!(
+        first.contract_entailment_open_obligations()[0].machine_contract_commitment(),
+        changed_hypothesis.contract_entailment_open_obligations()[0].machine_contract_commitment(),
+        "the complete machine contract, not only the displayed goal, binds the open question"
+    );
+    assert_ne!(
+        first
+            .canonical_review_bytes()
+            .expect("encode first open question"),
+        changed_hypothesis
+            .canonical_review_bytes()
+            .expect("encode changed open question"),
+        "whole-review identity must retain the open-obligation lane"
+    );
 }
