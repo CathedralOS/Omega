@@ -4004,19 +4004,16 @@ fn accepted_package_console_binding_closes_linux_intrinsic_without_toolchain_ori
     let console = tree.package("accepted-console-package");
     let root_package = identity(48);
     let console_package = identity(49);
-    TempTree::write(
-        console.join("console.omg"),
-        r#"pub boundary trait Console {
+    let exact_console_source = r#"pub boundary trait Console {
     machine exit_process(return_code: i32)
     reaches Console;
 }
 
 pub data ConsoleNativeProvider { }
-linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
-    satisfies Console::exit_process
-    via Binding::CompilerIntrinsic;
-"#,
-    );
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+"#;
+    TempTree::write(console.join("console.omg"), exact_console_source);
     TempTree::write(
         root.join("main.omg"),
         r#"use accepted_console::console;
@@ -4149,6 +4146,83 @@ machine build(builder: &mut Build) {
         provider_plan_digest,
     )
     .expect("candidate-derived accepted Console binding");
+
+    for (label, declaration) in [
+        (
+            "unscoped boundary realization",
+            "boundary machine ConsoleNativeProvider::exit_process(return_code: i32)\n    satisfies Console::exit_process;",
+        ),
+        (
+            "wrong-target boundary realization",
+            "windows_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)\n    satisfies Console::exit_process;",
+        ),
+    ] {
+        TempTree::write(
+            console.join("console.omg"),
+            &format!(
+                "pub boundary trait Console {{\n    machine exit_process(return_code: i32)\n    reaches Console;\n}}\n\npub data ConsoleNativeProvider {{ }}\n{declaration}\n"
+            ),
+        );
+        let diagnostics = compile_to_checked_with_packages(
+            &root.join("main.omg"),
+            Some("linux_x86_64"),
+            base_inputs()
+                .with_accepted_semantic_bindings(vec![accepted.clone()])
+                .expect("negative binding remains graph-scoped authority"),
+        )
+        .expect_err("non-selected catalog origin must not consume accepted authority");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("was not consumed by one exact selected provider plan")
+                    || diagnostic
+                        .message
+                        .contains("unknown boundary slot `Console`")
+            }),
+            "unexpected {label} diagnostics: {diagnostics:#?}",
+        );
+    }
+
+    TempTree::write(
+        console.join("console.omg"),
+        r#"pub boundary trait Console {
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
+"#,
+    );
+    let legacy = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+        base_inputs()
+            .with_accepted_semantic_bindings(vec![accepted.clone()])
+            .expect("legacy-via binding remains graph-scoped authority"),
+    )
+    .expect("legacy `via` remains semantically selectable during migration");
+    let (legacy_plan, legacy_retained) = legacy
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .zip(legacy.selected_provider_provenance())
+        .find(|(plan, _)| plan.schema.trait_name == "Console")
+        .expect("legacy Console plan");
+    let legacy_exit = legacy_plan
+        .rows
+        .iter()
+        .position(|row| row.method == "exit_process")
+        .expect("legacy Console exit row");
+    assert_eq!(
+        legacy_retained.row_compiler_intrinsic_executions[legacy_exit], None,
+        "authored legacy `via` must remain outside physical compiler-intrinsic closure",
+    );
+
+    TempTree::write(console.join("console.omg"), exact_console_source);
     let accepted_inputs = base_inputs()
         .with_accepted_semantic_bindings(vec![accepted])
         .expect("accepted binding names the exact package closure");

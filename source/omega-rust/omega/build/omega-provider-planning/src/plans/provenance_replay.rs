@@ -25,6 +25,16 @@ pub struct ProviderPlanProvenance {
     pub provider_type: Option<psi_symbols::SymbolHandle>,
     pub row_requirements: Vec<psi_symbols::SymbolHandle>,
     pub row_realizations: Vec<psi_symbols::SymbolHandle>,
+    /// Exact pre-resolution target-scoped declaration custody for catalog-
+    /// inferred rows. `None` is mandatory for ordinary checked, legacy
+    /// external, and evaluated-payload rows.
+    pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedTargetMachineOrigin {
+    pub machine: psi_symbols::SymbolHandle,
+    pub target: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +47,7 @@ pub fn derive_satisfies_plans_with_provenance(
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<DerivedProviderPlan> {
-    derive_satisfies_plans_with_optional_evaluated_bindings(typed, selected_target, None)
+    derive_satisfies_plans_with_optional_evaluated_bindings(typed, selected_target, None, &[])
 }
 
 /// Strict production derivation after all ordinary `via` expressions have
@@ -63,6 +73,32 @@ pub fn derive_satisfies_plans_with_evaluated_bindings(
         typed,
         selected_target,
         Some(evaluated_bindings),
+        &[],
+    ))
+}
+
+pub fn derive_satisfies_plans_with_evaluated_bindings_and_target_machine_origins(
+    typed: &TypedTrees,
+    selected_target: Option<&str>,
+    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
+) -> Result<Vec<DerivedProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
+    evaluated_bindings.validate_against_typed(typed)?;
+    let retained_target = evaluated_bindings
+        .target()
+        .map(omega_target::TargetProfile::target_name);
+    if retained_target != selected_target {
+        return Err(vec![psi_diagnostics::Diagnostic::error(format!(
+            "evaluated `via` binding table target `{}` does not match provider derivation target `{}`",
+            retained_target.unwrap_or("<none>"),
+            selected_target.unwrap_or("<none>"),
+        ))]);
+    }
+    Ok(derive_satisfies_plans_with_optional_evaluated_bindings(
+        typed,
+        selected_target,
+        Some(evaluated_bindings),
+        target_machine_origins,
     ))
 }
 
@@ -70,6 +106,7 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
     typed: &TypedTrees,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Vec<DerivedProviderPlan> {
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Target filtering has already admitted only unscoped and selected-target
@@ -102,72 +139,100 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
             let Some(requirement) = clause.requirement.as_ref() else {
                 continue;
             };
-            let row_binding = match (machine.supply_mode, clause.external_binding) {
-                (
-                    psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
-                    Some(conformance_binding),
-                ) if !clause.via_expression.is_valid() => {
-                    let Some(binding) = exact_installed_external_binding_identity(
-                        typed,
-                        machine,
-                        conformance_binding,
-                        clause.name.as_str(),
-                        requirement.as_str(),
-                    ) else {
-                        continue;
-                    };
-                    external_provider_binding(
-                        binding,
-                        machine
-                            .attached_data
-                            .as_ref()
-                            .map(|name| name.as_str())
-                            .unwrap_or_default(),
-                        &realization_machine_identity(typed, machine.name.as_str()),
-                    )
-                }
-                (
-                    psi_language_semantics::MachineSupplyMode::ExternalRealization {
-                        binding: None,
-                        mechanism: None,
-                    },
-                    None,
-                ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(row) = evaluated_bindings.and_then(|table| {
-                        table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
-                    }) else {
-                        continue;
-                    };
-                    ProviderBinding::Import {
-                        evaluated: row.evaluated().clone(),
+            let (row_binding, target_machine_origin) =
+                match (machine.supply_mode, clause.external_binding) {
+                    (psi_language_semantics::MachineSupplyMode::Boundary, None)
+                        if !machine.body_is_present
+                            && !clause.via_expression.is_valid()
+                            && clause.external_binding_source_span.is_none() =>
+                    {
+                        let Some((binding, origin)) =
+                            inferred_linux_console_exit_compiler_intrinsic(
+                                typed,
+                                machine,
+                                clause,
+                                selected_target,
+                                target_machine_origins,
+                            )
+                        else {
+                            continue;
+                        };
+                        (binding, Some(origin))
                     }
-                }
-                (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
-                    if machine.body_is_present && !clause.via_expression.is_valid() =>
-                {
-                    // A CHECKED ADAPTER derives a plan row only over a
-                    // BOUNDARY trait (a service schema). A plain trait's
-                    // conformance -- including its service-reach ceiling -- is the
-                    // existing trait machinery's business (the decision-20
-                    // admission fixtures pin it) and derives nothing here.
-                    let is_boundary_trait = typed.traits().iter().any(|definition| {
-                        definition.is_boundary && definition.symbol == clause.symbol
-                    });
-                    if !is_boundary_trait {
-                        continue;
+                    (
+                        psi_language_semantics::MachineSupplyMode::ExternalRealization { .. },
+                        Some(conformance_binding),
+                    ) if !clause.via_expression.is_valid() => {
+                        let Some(binding) = exact_installed_external_binding_identity(
+                            typed,
+                            machine,
+                            conformance_binding,
+                            clause.name.as_str(),
+                            requirement.as_str(),
+                        ) else {
+                            continue;
+                        };
+                        (
+                            external_provider_binding(
+                                binding,
+                                machine
+                                    .attached_data
+                                    .as_ref()
+                                    .map(|name| name.as_str())
+                                    .unwrap_or_default(),
+                                &realization_machine_identity(typed, machine.name.as_str()),
+                            ),
+                            None,
+                        )
                     }
-                    ProviderBinding::CheckedAdapter {
-                        machine_identity: typed
-                            .normalized_machine_overload_identity(machine)
-                            .map(|identity| identity.identity())
-                            .unwrap_or_default(),
-                        machine_package_identity: typed
-                            .symbols
-                            .symbol_package_identity(machine.symbol),
+                    (
+                        psi_language_semantics::MachineSupplyMode::ExternalRealization {
+                            binding: None,
+                            mechanism: None,
+                        },
+                        None,
+                    ) if !machine.body_is_present && clause.via_expression.is_valid() => {
+                        let Some(row) = evaluated_bindings.and_then(|table| {
+                            table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
+                        }) else {
+                            continue;
+                        };
+                        (
+                            ProviderBinding::Import {
+                                evaluated: row.evaluated().clone(),
+                            },
+                            None,
+                        )
                     }
-                }
-                _ => continue, // refused elsewhere (via rungs)
-            };
+                    (psi_language_semantics::MachineSupplyMode::CheckedBody, None)
+                        if machine.body_is_present && !clause.via_expression.is_valid() =>
+                    {
+                        // A CHECKED ADAPTER derives a plan row only over a
+                        // BOUNDARY trait (a service schema). A plain trait's
+                        // conformance -- including its service-reach ceiling -- is the
+                        // existing trait machinery's business (the decision-20
+                        // admission fixtures pin it) and derives nothing here.
+                        let is_boundary_trait = typed.traits().iter().any(|definition| {
+                            definition.is_boundary && definition.symbol == clause.symbol
+                        });
+                        if !is_boundary_trait {
+                            continue;
+                        }
+                        (
+                            ProviderBinding::CheckedAdapter {
+                                machine_identity: typed
+                                    .normalized_machine_overload_identity(machine)
+                                    .map(|identity| identity.identity())
+                                    .unwrap_or_default(),
+                                machine_package_identity: typed
+                                    .symbols
+                                    .symbol_package_identity(machine.symbol),
+                            },
+                            None,
+                        )
+                    }
+                    _ => continue, // refused elsewhere (via rungs)
+                };
             let target = selected_target.unwrap_or_default().to_owned();
             let provider_type = machine
                 .attached_data
@@ -220,6 +285,7 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
                                 provider_type: provider_type_symbol,
                                 row_requirements: Vec::new(),
                                 row_realizations: Vec::new(),
+                                row_target_machine_origins: Vec::new(),
                             },
                         });
                         plans.len() - 1
@@ -246,6 +312,10 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
                     .provenance
                     .row_realizations
                     .push(machine.symbol);
+                plans[position]
+                    .provenance
+                    .row_target_machine_origins
+                    .push(target_machine_origin.clone());
             }
         }
     }
@@ -406,6 +476,7 @@ fn derive_top_level_requirement_plans_with_provenance(
                             provider_type: Some(provider_type_symbol),
                             row_requirements: Vec::new(),
                             row_realizations: Vec::new(),
+                            row_target_machine_origins: Vec::new(),
                         },
                     });
                     plans.len() - 1
@@ -424,6 +495,10 @@ fn derive_top_level_requirement_plans_with_provenance(
                 .provenance
                 .row_realizations
                 .push(machine.symbol);
+            plans[position]
+                .provenance
+                .row_target_machine_origins
+                .push(None);
         }
     }
     plans
@@ -621,6 +696,7 @@ fn derive_boundary_operator_plans_with_provenance(
                             provider_type: provider_type_symbol,
                             row_requirements: Vec::new(),
                             row_realizations: Vec::new(),
+                            row_target_machine_origins: Vec::new(),
                         },
                     });
                     plans.len() - 1
@@ -647,6 +723,10 @@ fn derive_boundary_operator_plans_with_provenance(
                 .provenance
                 .row_realizations
                 .push(machine.symbol);
+            plans[position]
+                .provenance
+                .row_target_machine_origins
+                .push(None);
         }
     }
     plans
@@ -807,6 +887,101 @@ fn exact_installed_external_binding_identity<'typed>(
     }
     let binding = exact_external_binding_identity(typed, machine, trait_name, requirement_name)?;
     (binding.mechanism() == supply_mechanism).then_some(binding)
+}
+
+/// The first payload-free source-inferred compiler catalog leaf. This is only
+/// candidate derivation: selected-dispatch independently rejoins package
+/// custody and the canonical target before granting a closed execution.
+fn inferred_linux_console_exit_compiler_intrinsic(
+    typed: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    conformance: &psi_typed_trees::machine::TraitConformance,
+    selected_target: Option<&str>,
+    target_machine_origins: &[SelectedTargetMachineOrigin],
+) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
+    if matches!(selected_target, Some(target) if !matches!(target, "linux_x86_64" | "linux_arm64"))
+        || machine.supply_mode != psi_language_semantics::MachineSupplyMode::Boundary
+        || machine.body_is_present
+        || machine.name.as_str() != "ConsoleNativeProvider::exit_process"
+        || machine.attached_data.as_ref().map(|name| name.as_str()) != Some("ConsoleNativeProvider")
+        || !machine.lifetime_parameters.is_empty()
+        || !typed.machine_type_parameters(machine).is_empty()
+        || conformance.name.as_str() != "Console"
+        || conformance.requirement.as_ref().map(|name| name.as_str()) != Some("exit_process")
+        || conformance.external_binding.is_some()
+        || conformance.via_expression.is_valid()
+        || conformance.external_binding_source_span.is_some()
+    {
+        return None;
+    }
+    let origins = target_machine_origins
+        .iter()
+        .filter(|origin| {
+            origin.machine == machine.symbol
+                && match selected_target {
+                    Some(target) => origin.target == target,
+                    None => matches!(origin.target.as_str(), "linux_x86_64" | "linux_arm64"),
+                }
+        })
+        .collect::<Vec<_>>();
+    let [origin] = origins.as_slice() else {
+        return None;
+    };
+    let psi_typed_trees::machine::SatisfiedDeclaration::Trait {
+        definition,
+        requirement,
+    } = psi_typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)?
+    else {
+        return None;
+    };
+    if !definition.is_boundary
+        || definition.symbol != conformance.symbol
+        || definition.name.as_str() != "Console"
+        || !definition.lifetime_parameters.is_empty()
+        || !typed.trait_type_parameters(definition).is_empty()
+        || requirement.symbol != conformance.requirement_symbol
+        || requirement.name.as_str() != "exit_process"
+        || !exact_catalog_i32_to_unit_signature(
+            typed,
+            typed.state_signature_parameters(requirement),
+            requirement.return_type,
+        )
+    {
+        return None;
+    }
+    let [entry] = typed.machine_states(machine) else {
+        return None;
+    };
+    if !exact_catalog_i32_to_unit_signature(typed, typed.state_parameters(entry), entry.return_type)
+    {
+        return None;
+    }
+    let machine = typed
+        .normalized_machine_overload_identity(machine)?
+        .identity();
+    (!machine.is_empty()).then_some((
+        ProviderBinding::CompilerIntrinsic { machine },
+        (*origin).clone(),
+    ))
+}
+
+fn exact_catalog_i32_to_unit_signature(
+    typed: &TypedTrees,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+    return_type: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let [parameter] = parameters else {
+        return false;
+    };
+    !parameter.is_self
+        && !parameter.is_const
+        && !parameter.is_mutable
+        && typed.primitive_type_reference(parameter.type_reference)
+            == Some(psi_typed_trees::types::PrimitiveType::I32)
+        && matches!(
+            typed.type_reference_table.type_reference(return_type),
+            psi_typed_trees::types::TypeReferenceNode::Unit
+        )
 }
 
 fn external_provider_binding(
@@ -1996,11 +2171,13 @@ fn replay_provider_row_binding(
     row: &ProviderPlanRow,
     realization: &psi_typed_trees::machine::Machine,
     conformance: &psi_typed_trees::machine::TraitConformance,
+    target_machine_origin: Option<&SelectedTargetMachineOrigin>,
 ) -> Result<(), psi_diagnostics::Diagnostic> {
     match &row.binding {
         ProviderBinding::CheckedAdapter { .. } => {
             let adapter = exact_checked_adapter(typed, plan, row)?;
-            if adapter.symbol != realization.symbol
+            if target_machine_origin.is_some()
+                || adapter.symbol != realization.symbol
                 || adapter.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
                 || !adapter.body_is_present
                 || conformance.external_binding.is_some()
@@ -2021,6 +2198,37 @@ fn replay_provider_row_binding(
                 )));
             }
             let replayed = match (realization.supply_mode, conformance.external_binding) {
+                (psi_language_semantics::MachineSupplyMode::Boundary, None)
+                    if !conformance.via_expression.is_valid()
+                        && conformance.external_binding_source_span.is_none() =>
+                {
+                    let Some(origin) = target_machine_origin else {
+                        return Err(psi_diagnostics::Diagnostic::error(format!(
+                            "ProviderPlan `{}` row `{}` lost its selected target-machine origin",
+                            plan.name, row.requirement_identity,
+                        )));
+                    };
+                    let (binding, replayed_origin) = inferred_linux_console_exit_compiler_intrinsic(
+                        typed,
+                        realization,
+                        conformance,
+                        (!plan.target.is_empty()).then_some(plan.target.as_str()),
+                        std::slice::from_ref(origin),
+                    )
+                    .ok_or_else(|| {
+                        psi_diagnostics::Diagnostic::error(format!(
+                            "ProviderPlan `{}` row `{}` has no exact source-inferred compiler catalog candidate",
+                            plan.name, row.requirement_identity,
+                        ))
+                    })?;
+                    if &replayed_origin != origin {
+                        return Err(psi_diagnostics::Diagnostic::error(format!(
+                            "ProviderPlan `{}` row `{}` selected target-machine origin drifted",
+                            plan.name, row.requirement_identity,
+                        )));
+                    }
+                    binding
+                }
                 (
                     psi_language_semantics::MachineSupplyMode::ExternalRealization {
                         binding: Some(supply_binding),
@@ -2031,6 +2239,12 @@ fn replay_provider_row_binding(
                     && !conformance.via_expression.is_valid()
                     && conformance.external_binding_source_span.is_some() =>
                 {
+                    if target_machine_origin.is_some() {
+                        return Err(psi_diagnostics::Diagnostic::error(format!(
+                            "ProviderPlan `{}` row `{}` assigns target-machine origin to legacy external supply",
+                            plan.name, row.requirement_identity,
+                        )));
+                    }
                     let Some(binding) = typed.external_bindings.identity(supply_binding) else {
                         return Err(psi_diagnostics::Diagnostic::error(format!(
                             "ProviderPlan `{}` row `{}` has no exact legacy external binding identity",
@@ -2061,6 +2275,12 @@ fn replay_provider_row_binding(
                 ) if conformance.via_expression.is_valid()
                     && conformance.external_binding_source_span.is_some() =>
                 {
+                    if target_machine_origin.is_some() {
+                        return Err(psi_diagnostics::Diagnostic::error(format!(
+                            "ProviderPlan `{}` row `{}` assigns target-machine origin to evaluated `via` supply",
+                            plan.name, row.requirement_identity,
+                        )));
+                    }
                     let Some(evaluated) = evaluated_bindings.exact(
                         realization.symbol,
                         conformance.symbol,
@@ -2117,13 +2337,15 @@ pub(super) fn validate_derived_provider_plan_provenance(
     }
     if provenance.row_requirements.len() != plan.rows.len()
         || provenance.row_realizations.len() != plan.rows.len()
+        || provenance.row_target_machine_origins.len() != plan.rows.len()
     {
         diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` has {} rows, {} retained requirement symbols, and {} retained realization symbols",
+            "ProviderPlan `{}` has {} rows, {} retained requirement symbols, {} retained realization symbols, and {} target-machine origins",
             plan.name,
             plan.rows.len(),
             provenance.row_requirements.len(),
             provenance.row_realizations.len(),
+            provenance.row_target_machine_origins.len(),
         )));
         return diagnostics;
     }
@@ -2186,6 +2408,7 @@ pub(super) fn validate_derived_provider_plan_provenance(
             row,
             realization,
             conformance,
+            provenance.row_target_machine_origins[row_index].as_ref(),
         ) {
             diagnostics.push(diagnostic);
         }

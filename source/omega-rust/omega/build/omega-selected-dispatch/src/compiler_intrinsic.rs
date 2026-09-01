@@ -8,9 +8,7 @@ use omega_provider_planning::plans::{
 };
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
-use psi_language_semantics::{
-    ExternalBindingIdentity, ExternalBindingMechanism, MachineSupplyMode,
-};
+use psi_language_semantics::MachineSupplyMode;
 use psi_symbols::{BuiltinTypeAtom, SymbolHandle};
 use psi_typed_trees::types::TypeReferenceNode;
 
@@ -20,7 +18,8 @@ use psi_typed_trees::types::TypeReferenceNode;
 /// Boundary-operator rows preserve the established float catalog. The first
 /// boundary-trait catalog entry is deliberately singular: the exact Linux
 /// `Console::exit_process(i32) -> Unit` requirement and
-/// `ConsoleNativeProvider::exit_process(i32) -> Unit` realization. Legacy
+/// `ConsoleNativeProvider::exit_process(i32) -> Unit` realization. The source
+/// leaf is bodyless boundary supply without an authored payload-free `via`;
 /// toolchain custody or one settled ordinary-package consumer binding must
 /// additionally own that row.
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
@@ -182,6 +181,7 @@ fn linux_console_exit_row(
         trait_symbol,
         requirement_symbol,
         realization_symbol,
+        true,
     )
 }
 
@@ -266,6 +266,7 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
         trait_symbol,
         requirement_symbol,
         realization_symbol,
+        false,
     )
 }
 
@@ -276,6 +277,7 @@ fn console_exit_process_i32_row_shape(
     trait_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
+    require_inferred_supply: bool,
 ) -> Result<bool, Diagnostic> {
     let typed = &checked.typed;
 
@@ -363,16 +365,20 @@ fn console_exit_process_i32_row_shape(
     {
         return Ok(false);
     }
-    let MachineSupplyMode::ExternalRealization { binding, mechanism } = realization.supply_mode
-    else {
-        return Ok(false);
+    let inferred_supply = realization.supply_mode == MachineSupplyMode::Boundary;
+    let legacy_binding = match realization.supply_mode {
+        MachineSupplyMode::ExternalRealization {
+            binding: Some(binding),
+            mechanism: Some(psi_language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+        } if typed.external_bindings.identity(binding)
+            == Some(&psi_language_semantics::ExternalBindingIdentity::CompilerIntrinsic) =>
+        {
+            Some(binding)
+        }
+        _ => None,
     };
-    let (Some(binding), Some(mechanism)) = (binding, mechanism) else {
-        return Ok(false);
-    };
-    if mechanism != ExternalBindingMechanism::CompilerIntrinsic
-        || typed.external_bindings.identity(binding)
-            != Some(&ExternalBindingIdentity::CompilerIntrinsic)
+    if (!inferred_supply && legacy_binding.is_none())
+        || (require_inferred_supply && !inferred_supply)
     {
         return Ok(false);
     }
@@ -390,7 +396,14 @@ fn console_exit_process_i32_row_shape(
                 && conformance.requirement_symbol == requirement_symbol
                 && conformance.requirement.as_ref().map(|name| name.as_str())
                     == Some("exit_process")
-                && conformance.external_binding == Some(binding)
+                && ((inferred_supply
+                    && conformance.external_binding.is_none()
+                    && !conformance.via_expression.is_valid()
+                    && conformance.external_binding_source_span.is_none())
+                    || (!require_inferred_supply
+                        && conformance.external_binding == legacy_binding
+                        && !conformance.via_expression.is_valid()
+                        && conformance.external_binding_source_span.is_some()))
                 && psi_typed_trees::machine::resolve_satisfied_declaration(
                     typed,
                     realization,

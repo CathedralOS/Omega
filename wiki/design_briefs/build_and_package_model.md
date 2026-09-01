@@ -2873,9 +2873,15 @@ provider type, selected plan when present, and realization declaration.
 Disclosure of an unselected leaf still implies no selection or audit.
 Package review v97/canonical row v55 closes the first compiler-intrinsic catalog
 identity for the exact selected Linux `Console::exit_process(i32) -> Unit`
-requirement and realization. Targetless, non-Linux, wrong-symbol,
-wrong-signature, and sibling rows remain closed; further intrinsic entries still
-require their own catalog settlement. Canonical recovery remains v14. This is
+requirement and realization. Its target-library declaration is a bodyless
+target-scoped `boundary machine ... satisfies ...;`; the candidate compiler-
+intrinsic binding is derived from exact accepted package/toolchain custody,
+realization, signature, and retained selected-target origin, never an authored
+payload-free `via`. A targetless Linux-host check may retain that inferred row
+with an empty plan target, but cannot close its physical execution. Non-Linux,
+wrong-origin, wrong-symbol, wrong-signature, legacy-authored-via, and sibling rows
+remain physically closed; further intrinsic entries still require their own catalog
+settlement. Canonical recovery remains v14. This is
 physical execution identity, not the D39 semantic external-termination row:
 Unit and a provider-known nonreturning realization do not establish successful
 termination. That authority remains closed until one explicit checked

@@ -854,11 +854,16 @@ Remaining:
   The first ordinary boundary-trait compiler-intrinsic catalog entry is now
   physically closed through provider selection and native emission for Linux
   `Console::exit_process(i32) -> Unit`. Checked
-  settlement rejoins the exact toolchain-owned requirement and realization
-  symbols, their normalized signatures and conformance, the payloadless
-  `CompilerIntrinsic` binding, and the independently selected canonical Linux
-  profile; targetless, non-Linux, wrong-symbol, wrong-signature, and sibling
-  Console rows remain outside the catalog. Package review v97/canonical row
+  settlement rejoins requirement and realization symbols under exact accepted
+  package/toolchain custody, their normalized signatures and conformance, and
+  the independently selected canonical Linux profile. The Linux target libraries now author the
+  exact exit leaf as a target-scoped bodyless `boundary machine ... satisfies
+  ...;`; provider planning derives its compiler-intrinsic row without retaining
+  an authored payload-free `via` binding. A targetless Linux-host check may
+  retain that inferred plan row from its exact selected-source origin while its
+  plan target stays empty; it receives no physical intrinsic closure. Non-Linux,
+  wrong-origin, wrong-symbol, wrong-signature, legacy-authored-via, and sibling
+  Console rows remain outside this physical catalog entry. Package review v97/canonical row
   v55 retains and rederives the closed execution identity. Terminal planning
   preserves a selected bodyless intrinsic as its exact boundary requirement
   without granting execution authority, and the compiler projects only
@@ -873,9 +878,8 @@ Remaining:
   identity through the boundary contract, checked trees, Terminal, and target
   realization before using this path in `TerminalTraceV1`. Compiler-function
   publication certification remains a later engineering rung; read/write
-  Console leaves, Darwin/Windows exits,
-  source-form inference, and removal of `via Binding::CompilerIntrinsic`
-  remain open.
+  Console leaves, Darwin/Windows exits, their source-form inference, and broader
+  removal of `via Binding::CompilerIntrinsic` remain open.
 
   `InterruptMaskGuard::restore`, `InterruptAcknowledgement::complete`,
   `Task::request_cancel`, and `Task::finish` now use the public top-level
@@ -6660,19 +6664,23 @@ Owners:
   every segment is an eligible common field and the leaf satisfies the existing
   non-observing replacement referee. One successor additionally permits that
   field path to end in exactly one in-bounds literal index of a nonempty literal
-  fixed-array leaf with an unrestricted primitive element. Checked and Terminal
-  custody retain the ordered `Field` identities followed by the exact
-  `FixedIndex`; the independent verifier replays the field and array shapes,
-  bounds, type, multiplicity, and write-only access. The same literal-index
-  subloan now also accepts one direct `&write [P; N]` parameter root when `N`
-  is nonzero and literal and `P` is an unrestricted non-Atomic primitive. Its
-  complete path is the sole exact `FixedIndex`, and checked planning plus
-  Terminal replay independently rejoin its array shape, bounds, element type,
-  multiplicity, and write-only access. Reusable local aliases, dynamic or
-  range projection, a second index, case/payload, qualified/generic/invariant/
-  constrained paths, aggregate or recursively nested array elements,
+  fixed-array leaf with an unrestricted primitive element. The bounded nested
+  successor now permits exactly two in-bounds literal indexes when the field
+  leaf is a recursively literal fixed array whose ultimate element is an
+  unrestricted non-Atomic primitive. Checked and Terminal custody retain the
+  ordered `Field` identities followed by the exact one or two `FixedIndex`
+  segments; the independent verifier replays every field and array shape,
+  bound, type, multiplicity, and write-only access. The same literal-index
+  subloan accepts a direct `&write [P; N]` parameter root, or the exact nested
+  `&write [[P; I]; O]` form for the two-index rung, when every selected length
+  is nonzero and literal and `P` is an unrestricted non-Atomic primitive.
+  Checked planning plus Terminal replay independently rejoin the complete
+  ordered path, array shapes, bounds, element type, multiplicity, and
+  write-only access. Reusable local aliases, dynamic or range projection, a
+  third index, case/payload, qualified/generic/invariant/constrained paths,
+  whole nested-array or aggregate elements,
   multi-parameter structural calls, and provider boundaries remain fenced.
-  Exact unrestricted record-leaf and literal-index canaries cross
+  Exact unrestricted record-leaf and one- or two-index canaries cross
   checked Unit planning, Terminal codec replay, and verification. Neither form
   creates a Terminal write event.
 
@@ -9378,9 +9386,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to twenty-four unary, binary, primitive-cast,
+  call producers in up to twenty-five unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  twenty-fifth direct scalar shell remains fenced; aggregate fields and projected
+  twenty-sixth direct scalar shell remains fenced; aggregate fields and projected
   concrete record, selected-case, or fixed-array literals retain their
   separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9424,7 +9432,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a twenty-fifth direct scalar computed shell,
+  aggregate/literal computed shell, a twenty-sixth direct scalar computed shell,
   other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries

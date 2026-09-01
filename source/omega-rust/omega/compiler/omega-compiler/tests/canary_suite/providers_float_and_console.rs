@@ -590,11 +590,8 @@ fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
             retained.provider.row_realizations[exit],
             Some("linux_x86_64"),
         ),
-        Some(
-            omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Closed(
-                CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
-            ),
-        ),
+        Some(omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Unsupported),
+        "package-owned std source requires the accepted package binding that produced retained closed custody",
     );
     for unsupported in [
         derive(

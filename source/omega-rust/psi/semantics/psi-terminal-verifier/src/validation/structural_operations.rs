@@ -329,7 +329,9 @@ pub(super) fn validate_unit_operation_static(
                 .zip(&callee.structural_parameters)
                 .position(|(argument, expected)| {
                     (is_literal_indexed_field_path(&argument.path)
-                        || (is_single_literal_index_path(&argument.path)
+                        || is_double_literal_indexed_field_path(&argument.path)
+                        || ((is_single_literal_index_path(&argument.path)
+                            || is_double_literal_index_path(&argument.path))
                             && argument.access == StructuralAccess::WriteOnlyBorrow))
                         && !is_unrestricted_write_only_subloan(module, machine, expected, argument)
                 })
@@ -1050,10 +1052,37 @@ fn is_single_literal_index_path(path: &[StructuralPathSegment]) -> bool {
     matches!(path, [StructuralPathSegment::FixedIndex(_)])
 }
 
-fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {
-    is_nonempty_field_path(path)
-        || is_literal_indexed_field_path(path)
+fn is_double_literal_index_path(path: &[StructuralPathSegment]) -> bool {
+    matches!(
+        path,
+        [
+            StructuralPathSegment::FixedIndex(_),
+            StructuralPathSegment::FixedIndex(_),
+        ]
+    )
+}
+
+fn is_double_literal_indexed_field_path(path: &[StructuralPathSegment]) -> bool {
+    let [
+        fields @ ..,
+        StructuralPathSegment::FixedIndex(_),
+        StructuralPathSegment::FixedIndex(_),
+    ] = path
+    else {
+        return false;
+    };
+    is_nonempty_field_path(fields)
+}
+
+fn is_literal_indexed_write_only_path(path: &[StructuralPathSegment]) -> bool {
+    is_literal_indexed_field_path(path)
+        || is_double_literal_indexed_field_path(path)
         || is_single_literal_index_path(path)
+        || is_double_literal_index_path(path)
+}
+
+fn is_write_only_subloan_path(path: &[StructuralPathSegment]) -> bool {
+    is_nonempty_field_path(path) || is_literal_indexed_write_only_path(path)
 }
 
 fn is_unrestricted_write_only_subloan(

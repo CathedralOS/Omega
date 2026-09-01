@@ -5811,6 +5811,40 @@ fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
 }
 
 #[test]
+fn parses_target_scoped_bodyless_boundary_machine() {
+    let source = r#"
+        boundary trait Console { machine exit_process(code: i32); }
+        data ConsoleNativeProvider {}
+        linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(code: i32)
+            satisfies Console::exit_process;
+        "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize target-scoped catalog leaf");
+    let parsed = parse_syntax_trees(&tokens).expect("parse target-scoped catalog leaf");
+    let machine = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            psi_syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .find(|machine| machine.name.as_str() == "ConsoleNativeProvider::exit_process")
+        .expect("target-scoped catalog leaf");
+    assert!(machine.boundary);
+    assert!(machine.bodyless);
+    assert_eq!(
+        machine.target.as_ref().map(|target| target.as_str()),
+        Some("linux_x86_64"),
+    );
+    let [conformance] = parsed.items.satisfies_clauses(machine.satisfies) else {
+        panic!("one exact satisfies edge")
+    };
+    assert!(conformance.via.is_none());
+    assert!(!conformance.via_expression.is_valid());
+}
+
+#[test]
 fn parses_structural_and_nominal_machine_parameter_contracts_together() {
     let source = r#"
         machine apply<machine Schema, machine Selected>()

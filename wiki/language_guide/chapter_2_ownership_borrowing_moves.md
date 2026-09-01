@@ -160,14 +160,14 @@ storage containing no live `T` is a separate feature.
 > the loan explicitly. One bounded subloan form may pass
 > `&write root.field...leaf` directly to a checked call when the complete field
 > path and leaf meet that same non-observation referee. That direct-call form may
-> now finish with exactly one in-bounds literal index into a nonempty fixed-array
-> leaf of unrestricted primitive elements; the ordered fields and `FixedIndex`
-> cross checked and Terminal replay.
-> The same literal-index form now accepts a direct `&write [P; N]` parameter
-> root when `N` is nonzero and literal and `P` is an unrestricted non-Atomic
-> primitive; its complete path is the sole exact `FixedIndex`.
-> It cannot be retained in a local alias. Dynamic, range, and second
-> index subloans remain gated, as do aggregate/nested-array elements,
+> finish with exactly one in-bounds literal index into a nonempty fixed-array
+> leaf of unrestricted primitive elements. Its bounded nested successor may use
+> exactly two ordered literal indexes through a recursively literal fixed array,
+> either directly or after the eligible field prefix, when the ultimate leaf is
+> an unrestricted non-Atomic primitive. The ordered fields and one or two
+> `FixedIndex` segments cross checked and Terminal replay.
+> It cannot be retained in a local alias. Dynamic, range, and third-index
+> subloans remain gated, as do whole nested-array and aggregate elements,
 > record-held slice descriptors, sum projection, and opaque providers.
 > Structural parameters and calls preserve
 > owned/shared/mutable/write-only access (first introduced in Terminal format

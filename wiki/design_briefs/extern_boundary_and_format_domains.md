@@ -81,13 +81,17 @@ slot ordinals are not binding identity. Compiler intrinsics carry no binding
 value at all: the exact realization declaration, signature, and selected target
 select the sealed catalog entry.
 The first production catalog row is Linux `Console::exit_process(i32) -> Unit`.
-It requires exact toolchain-owned requirement and realization symbols, the
-normalized signature and satisfaction edge, a payloadless
-`CompilerIntrinsic` binding, and a selected canonical Linux profile. Canonical
-Terminal replay contributes only the exact demanded boundary identity; later
-compiler-owned evidence rejoins that demand to the selected plan before choosing
-the existing `exit_group` realization. Lookalike symbols, targetless plans,
-sibling Console operations, and non-Linux targets confer no catalog identity.
+Its target library authors an exact target-scoped bodyless `boundary machine`
+and satisfaction edge without a payload-free `via`; provider planning derives
+the compiler-intrinsic candidate from the retained selected-source origin. The
+physical catalog entry requires exact accepted-package/toolchain custody of the
+requirement and realization symbols, their normalized signatures and
+conformance, and a selected canonical Linux profile. Canonical Terminal replay
+contributes only the exact demanded boundary identity; later compiler-owned
+evidence rejoins that demand to the selected plan before choosing the existing
+`exit_group` realization. Lookalike or unscoped symbols, targetless plans,
+legacy-authored `via`, sibling Console operations, and non-Linux targets confer
+no physical catalog identity.
 This row closes physical provider selection and emission only. D39 requires a
 distinct checked terminal-effect completion identity before
 `TerminalTraceV1` may observe successful external termination; neither the Unit

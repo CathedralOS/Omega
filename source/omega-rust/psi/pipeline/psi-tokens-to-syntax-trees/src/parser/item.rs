@@ -309,6 +309,27 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Trait(item), rest));
     }
 
+    // Identifier-led TARGET-SCOPED boundary machine --
+    // `<target> boundary machine Path(..);`. Compiler-catalog leaves retain
+    // both facts independently: `boundary` says that the bodyless declaration
+    // is irreducible, while the target name participates in catalog lookup.
+    if input.at_identifier_then_contextual("boundary") {
+        let (target, input) = input.take_identifier()?;
+        let input = input.take_contextual("boundary")?;
+        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        let (mut machine, rest) = parse_machine(syntax_trees, input)?;
+        machine.boundary = true;
+        machine.target = Some(target);
+        if machine.service_reach_is_installation_bound
+            && (!machine.bodyless || !machine.satisfies.is_empty())
+        {
+            return Err(rest.error_here(
+                "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement, not on a checked body or realization",
+            ));
+        }
+        return Ok((Item::Machine(machine), rest));
+    }
+
     // Identifier-led TARGET-SCOPED machine -- `<target> machine Path(..) {..}`
     // (fs portable-contract settle 2026-07-18): a per-target implementation of
     // a portable contract signature. The machine parses

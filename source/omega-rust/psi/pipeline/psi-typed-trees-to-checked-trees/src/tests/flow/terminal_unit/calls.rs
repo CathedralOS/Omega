@@ -784,6 +784,88 @@ fn retains_exact_direct_root_literal_indexed_write_only_subloan() {
 }
 
 #[test]
+fn retains_exact_two_index_direct_root_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(values: &write [[u16; 3]; 2]) {
+            Sink::fill(&write values[1][2]);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("two-index write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("two-index attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one two-index write-only argument")
+    };
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    assert_eq!(
+        argument.path,
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+        ]
+    );
+}
+
+#[test]
+fn retains_exact_field_prefixed_two_index_write_only_subloan() {
+    let checked = checked(
+        r#"
+        data Outer [copy] { values: [[u16; 3]; 2]; sibling: u16; }
+        data Sink {}
+        machine Sink::fill(destination: &write u16) {}
+
+        data Root {}
+        machine Root::forward(outer: &write Outer) {
+            Sink::fill(&write outer.values[1][2]);
+        }
+        "#,
+    );
+    let forward = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::forward"))
+        .expect("field-prefixed two-index write-only caller plan");
+    let CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &forward.operations[0]
+    else {
+        panic!("field-prefixed two-index attenuation should retain its checked call")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one field-prefixed two-index write-only argument")
+    };
+    assert!(matches!(
+        argument.path.as_slice(),
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field(_),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(1),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+        ]
+    ));
+}
+
+#[test]
 fn write_only_common_field_subloan_does_not_bypass_ordinary_call_shape() {
     for (name, source) in [
         (
@@ -899,30 +981,37 @@ fn retains_static_boundary_scalar_parameter_and_literal_argument() {
 fn selected_console_exit_intrinsic_projects_the_exact_boundary_requirement() {
     let checked = checked(
         r#"
-        boundary trait Console {
+        pub boundary trait Console {
             machine exit_process(return_code: i32)
             reaches Console;
         }
 
-        data ConsoleNativeProvider {}
-        machine ConsoleNativeProvider::exit_process(return_code: i32)
-            satisfies Console::exit_process
-            via Binding::CompilerIntrinsic;
+        pub data ConsoleNativeProvider {}
+        boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+            satisfies Console::exit_process;
 
-        data Root { console: Console; }
-        machine Root::enter(&mut self)
+        data Root {}
+        machine Root::enter()
         reaches Console
         {
-            self.console.exit_process(37);
+            ConsoleNativeProvider::exit_process(37);
         }
         "#,
     );
 
     let plans = &checked.facts.flow.terminal_unit_effects;
+    let requirement_symbol = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Console")
+        .and_then(|definition| checked.typed.trait_machine_signatures(definition).first())
+        .map(|requirement| requirement.symbol)
+        .expect("exact Console exit requirement symbol");
     let requirement = plans
         .boundary_machines
         .iter()
-        .find(|boundary| boundary.scalar_parameters.len() == 1)
+        .find(|boundary| boundary.machine == requirement_symbol)
         .expect("exact Console exit requirement");
     let root = plans
         .for_machine(machine_named(&checked, "Root::enter"))
@@ -953,9 +1042,11 @@ fn selected_console_exit_intrinsic_projects_the_exact_boundary_requirement() {
 }
 
 #[test]
-fn other_external_mechanisms_and_signatures_do_not_rejoin_as_intrinsic_boundaries() {
-    for source in [
-        r#"
+fn other_external_mechanisms_signatures_and_names_do_not_rejoin_as_intrinsic_boundaries() {
+    for (label, source) in [
+        (
+            "DllImport mechanism",
+            r#"
         boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
         data ConsoleNativeProvider {}
         machine ConsoleNativeProvider::exit_process(return_code: i32)
@@ -966,7 +1057,10 @@ fn other_external_mechanisms_and_signatures_do_not_rejoin_as_intrinsic_boundarie
             ConsoleNativeProvider::exit_process(37);
         }
         "#,
-        r#"
+        ),
+        (
+            "wrong intrinsic signature",
+            r#"
         boundary trait Console { machine write_byte(byte: i64) reaches Console; }
         data ConsoleNativeProvider {}
         machine ConsoleNativeProvider::write_byte(byte: i64)
@@ -977,6 +1071,7 @@ fn other_external_mechanisms_and_signatures_do_not_rejoin_as_intrinsic_boundarie
             ConsoleNativeProvider::write_byte(37);
         }
         "#,
+        ),
     ] {
         let checked = checked(source);
         assert!(
@@ -986,9 +1081,66 @@ fn other_external_mechanisms_and_signatures_do_not_rejoin_as_intrinsic_boundarie
                 .terminal_unit_effects
                 .for_machine(machine_named(&checked, "Root::enter"))
                 .is_none(),
-            "unsupported external mechanism or signature unexpectedly rejoined a boundary"
+            "unsupported {label} unexpectedly rejoined a boundary"
         );
     }
+}
+
+#[test]
+fn wrong_named_boundary_realization_does_not_rejoin_as_console_intrinsic() {
+    let checked = checked(
+        r#"
+        pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
+        pub data OtherProvider {}
+        boundary machine OtherProvider::exit_process(return_code: i32)
+            satisfies Console::exit_process;
+        data Root {}
+        machine Root::enter() reaches Console {
+            OtherProvider::exit_process(37);
+        }
+        "#,
+    );
+    let console_requirement = checked
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Console")
+        .and_then(|definition| checked.typed.trait_machine_signatures(definition).first())
+        .map(|requirement| requirement.symbol)
+        .expect("exact Console exit requirement symbol");
+    let root = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::enter"))
+        .expect("ordinary boundary-application custody retains the wrong-named caller");
+    assert!(
+        matches!(
+            root.operations.first(),
+            Some(CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. })
+                if *target_machine != console_requirement
+        ),
+        "a same-shaped wrong-named boundary realization must remain its own boundary application rather than rejoin Console intrinsic custody"
+    );
+    let realization = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_named(&checked, "OtherProvider::exit_process"))
+        .expect("wrong-named boundary realization");
+    let [state] = checked.typed.machine_states(realization) else {
+        panic!("one wrong-named realization state")
+    };
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .boundary_machines
+            .iter()
+            .any(|boundary| boundary.state == state.symbol),
+        "the wrong-named declaration keeps ordinary boundary-application custody",
+    );
 }
 
 #[test]

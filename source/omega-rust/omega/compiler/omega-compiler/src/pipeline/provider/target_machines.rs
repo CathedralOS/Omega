@@ -37,13 +37,24 @@ use std::collections::BTreeMap;
 /// consumes it exactly once when rebinding the corresponding typed machines.
 pub(crate) struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<String>,
+    selected_machine_origins: Vec<(String, String)>,
+}
+
+pub(crate) struct SettledTargetMachineDeclarations {
+    pub(crate) provider_defaults: Vec<omega_provider_planning::ProviderSelection>,
+    pub(crate) origins: Vec<omega_provider_planning::plans::SelectedTargetMachineOrigin>,
 }
 
 impl SelectedTargetMachineDeclarations {
-    fn new(mut provider_default_machine_names: Vec<String>) -> Self {
+    fn new(
+        mut provider_default_machine_names: Vec<String>,
+        mut selected_machine_origins: Vec<(String, String)>,
+    ) -> Self {
         provider_default_machine_names.sort();
+        selected_machine_origins.sort();
         Self {
             provider_default_machine_names,
+            selected_machine_origins,
         }
     }
 
@@ -52,8 +63,9 @@ impl SelectedTargetMachineDeclarations {
     pub(crate) fn settle_provider_defaults(
         self,
         typed: &TypedTrees,
-    ) -> Result<Vec<omega_provider_planning::ProviderSelection>, Vec<Diagnostic>> {
+    ) -> Result<SettledTargetMachineDeclarations, Vec<Diagnostic>> {
         let mut defaults = Vec::new();
+        let mut origins = Vec::new();
         let mut diagnostics = Vec::new();
         for machine_name in self.provider_default_machine_names {
             let Some(machine) = typed
@@ -71,8 +83,31 @@ impl SelectedTargetMachineDeclarations {
                 Err(mut errors) => diagnostics.append(&mut errors),
             }
         }
+        for (machine_name, target) in self.selected_machine_origins {
+            let matches = typed
+                .machines()
+                .iter()
+                .filter(|machine| machine.name.as_str() == machine_name)
+                .collect::<Vec<_>>();
+            let [machine] = matches.as_slice() else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected target machine `{machine_name}` for `{target}` resolves to {} typed declarations",
+                    matches.len(),
+                )));
+                continue;
+            };
+            origins.push(
+                omega_provider_planning::plans::SelectedTargetMachineOrigin {
+                    machine: machine.symbol,
+                    target,
+                },
+            );
+        }
         if diagnostics.is_empty() {
-            Ok(defaults)
+            Ok(SettledTargetMachineDeclarations {
+                provider_defaults: defaults,
+                origins,
+            })
         } else {
             Err(diagnostics)
         }
@@ -147,9 +182,19 @@ pub(crate) fn filter_target_machines(
     // the selected declarations' full names before erasing the target marker;
     // typed machines intentionally carry no deployment marker after this pass.
     let mut provider_default_machines = Vec::new();
+    let mut selected_machine_origins = Vec::new();
     for (full_name, (selected_handles, _)) in &rows {
         if !selected_handles.is_empty() && full_name.ends_with("::provider_defaults") {
             provider_default_machines.push(full_name.clone());
+        }
+        for handle in selected_handles {
+            let Item::Machine(machine) = syntax.root_item(*handle) else {
+                continue;
+            };
+            let Some(target) = machine.target.as_ref() else {
+                continue;
+            };
+            selected_machine_origins.push((full_name.clone(), target.as_str().to_owned()));
         }
     }
     // Clear the selected machines' markers LAST, after the loud edges passed:
@@ -167,6 +212,7 @@ pub(crate) fn filter_target_machines(
 
     Ok(SelectedTargetMachineDeclarations::new(
         provider_default_machines,
+        selected_machine_origins,
     ))
 }
 
@@ -176,19 +222,23 @@ mod tests {
 
     #[test]
     fn empty_target_declarations_settle_to_canonical_empty_defaults() {
-        let defaults = SelectedTargetMachineDeclarations::new(Vec::new())
+        let settled = SelectedTargetMachineDeclarations::new(Vec::new(), Vec::new())
             .settle_provider_defaults(&psi_typed_trees::TypedTrees::default())
             .expect("empty target declaration custody has no typed dependency");
 
-        assert!(defaults.is_empty());
+        assert!(settled.provider_defaults.is_empty());
+        assert!(settled.origins.is_empty());
     }
 
     #[test]
     fn missing_typed_provider_default_machines_report_sorted_full_names() {
-        let declarations = SelectedTargetMachineDeclarations::new(vec![
-            "Zed::provider_defaults".into(),
-            "Alpha::provider_defaults".into(),
-        ]);
+        let declarations = SelectedTargetMachineDeclarations::new(
+            vec![
+                "Zed::provider_defaults".into(),
+                "Alpha::provider_defaults".into(),
+            ],
+            Vec::new(),
+        );
         let Err(diagnostics) =
             declarations.settle_provider_defaults(&psi_typed_trees::TypedTrees::default())
         else {

@@ -645,9 +645,9 @@ fn write_only_element_assignment_index(
 
 /// Admit one exact literal primitive element of either a direct fixed-array
 /// root or an already-admitted common-field path only at the direct checked-call
-/// boundary. The ordinary element-place judgment remains the authority for
-/// fixed-array shape and bounds; this wrapper deliberately excludes dynamic
-/// indices, ranges, aggregate elements, and a second array projection.
+/// boundary. The bounded nested successor admits exactly two literal indexes
+/// through recursively literal fixed arrays. Dynamic indices, ranges,
+/// aggregate elements, and a third array projection remain excluded.
 fn write_only_literal_indexed_direct_call_subloan(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -656,27 +656,72 @@ fn write_only_literal_indexed_direct_call_subloan(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return false;
     };
+    if !matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Integer(_)
+    ) {
+        return false;
+    }
     let collection_type = direct_write_only_root(program, indexed.collection, roots)
         .filter(|root| root.is_parameter)
         .map(|root| root.referee)
         .or_else(|| write_only_record_field_type(program, indexed.collection, roots));
+    if let Some(collection_type) = collection_type {
+        let Some((element_type, _)) =
+            fixed_unrestricted_write_only_array_shape(program, collection_type)
+        else {
+            return false;
+        };
+        return is_unrestricted_scalar(program, element_type)
+            && write_only_element_assignment_index(program, expression, roots)
+                == Some(indexed.index);
+    }
+
+    let ExpressionNode::Indexed(outer_indexed) =
+        program.expression_table.expression(indexed.collection)
+    else {
+        return false;
+    };
+    if !matches!(
+        program.expression_table.expression(outer_indexed.index),
+        ExpressionNode::Integer(_)
+    ) {
+        return false;
+    }
+    let collection_type = direct_write_only_root(program, outer_indexed.collection, roots)
+        .filter(|root| root.is_parameter)
+        .map(|root| root.referee)
+        .or_else(|| write_only_record_field_type(program, outer_indexed.collection, roots));
     let Some(collection_type) = collection_type else {
         return false;
     };
-    let Some((element_type, _)) =
+    let Some((inner_array_type, outer_length)) =
         fixed_unrestricted_write_only_array_shape(program, collection_type)
     else {
         return false;
     };
-    if !is_unrestricted_scalar(program, element_type)
-        || !matches!(
-            program.expression_table.expression(indexed.index),
-            ExpressionNode::Integer(_)
-        )
-    {
+    let Some((element_type, inner_length)) =
+        fixed_unrestricted_write_only_array_shape(program, inner_array_type)
+    else {
         return false;
-    }
-    write_only_element_assignment_index(program, expression, roots) == Some(indexed.index)
+    };
+    let Some(outer_index) = program
+        .expression_table
+        .constant_integer_value(outer_indexed.index)
+        .and_then(|value| usize::try_from(value).ok())
+    else {
+        return false;
+    };
+    let Some(inner_index) = program
+        .expression_table
+        .constant_integer_value(indexed.index)
+        .and_then(|value| usize::try_from(value).ok())
+    else {
+        return false;
+    };
+    outer_index < outer_length
+        && inner_index < inner_length
+        && is_unrestricted_scalar(program, element_type)
 }
 
 fn diagnose_unsupported_write_only_assignment_target(
@@ -775,7 +820,7 @@ fn validate_expression(
             ReferenceAccess::WriteOnly => {
                 if !is_direct_name(program, borrow.target) {
                     diagnostics.push(Diagnostic::error(format!(
-                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by one in-bounds literal fixed-array index only as a direct checked-call argument"
+                        "machine `{machine}` state `{state}` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, plus one eligible content-independent common-field path optionally followed by one or two in-bounds literal fixed-array indexes only as a direct checked-call argument"
                     )));
                 }
             }
