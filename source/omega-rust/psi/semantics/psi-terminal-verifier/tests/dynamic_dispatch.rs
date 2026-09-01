@@ -3,15 +3,16 @@ use psi_core::{
     PsiSemanticId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    Block, ClaimTransfer, ClosedConformanceApplication, ClosedConformanceCallableResult,
-    ClosedConformanceParameterBinding, ClosedConformanceRealizationCallable, ClosedConformanceRow,
-    CrashCause, CrashRouteBucket, CrashRouteGuard, MachineContract, Operation, OperationKind,
-    OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
-    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker, closed_conformance_application_commitment,
-    closed_conformance_application_report_fingerprint,
+    BindingRelevance, Block, ClaimTransfer, ClosedConformanceApplication,
+    ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, CrashCause, CrashRouteBucket,
+    CrashRouteGuard, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalDirectDynamicDispatch,
+    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 use psi_terminal_verifier::{ModuleError, validate_module};
 
@@ -19,6 +20,8 @@ const CARRIER_IDENTITY: &str =
     "package:0101010101010101010101010101010101010101010101010101010101010101::Carrier";
 const OTHER_CARRIER_IDENTITY: &str =
     "package:0202020202020202020202020202020202020202020202020202020202020202::OtherCarrier";
+const OWNER_IDENTITY: &str =
+    "package:0303030303030303030303030303030303030303030303030303030303030303::Owner";
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).expect("test identity is nonzero")
@@ -34,13 +37,17 @@ fn empty_contract(raw: u64) -> MachineContract {
     }
 }
 
-fn parameter(place: u64) -> StructuralParameterDeclaration {
+fn parameter(
+    place: u64,
+    structural_type: u64,
+    multiplicity: StructuralMultiplicity,
+) -> StructuralParameterDeclaration {
     StructuralParameterDeclaration {
         place: id::<PlaceId>(place),
         position: 0,
         is_self: false,
-        structural_type: id::<StructuralTypeId>(1),
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        structural_type: id::<StructuralTypeId>(structural_type),
+        multiplicity,
         access: StructuralAccess::SharedBorrow,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
@@ -96,7 +103,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
     let operation = id::<OperationId>(1);
     let source = StructuralArgument {
         place: id::<PlaceId>(1),
-        path: Vec::new(),
+        path: vec![StructuralPathSegment::Field("carrier".into())],
         access: StructuralAccess::SharedBorrow,
     };
     let application = closed_application(caller, realization);
@@ -106,11 +113,23 @@ fn dynamic_dispatch_module() -> TerminalModule {
         structural_types: vec![
             StructuralTypeDeclaration {
                 id: id::<StructuralTypeId>(1),
+                identity: OWNER_IDENTITY.into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: id(1),
+                        identity: "carrier".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(id::<StructuralTypeId>(2)),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: id::<StructuralTypeId>(2),
                 identity: CARRIER_IDENTITY.into(),
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
             StructuralTypeDeclaration {
-                id: id::<StructuralTypeId>(2),
+                id: id::<StructuralTypeId>(3),
                 identity: OTHER_CARRIER_IDENTITY.into(),
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             },
@@ -158,7 +177,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 id: caller,
                 attachment: None,
                 parameters: Vec::new(),
-                structural_parameters: vec![parameter(1)],
+                structural_parameters: vec![parameter(1, 1, StructuralMultiplicity::Unrestricted)],
                 ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![parameter_place(1)],
@@ -196,7 +215,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                 id: realization,
                 attachment: None,
                 parameters: Vec::new(),
-                structural_parameters: vec![parameter(2)],
+                structural_parameters: vec![parameter(2, 2, StructuralMultiplicity::Unrestricted)],
                 ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: id::<ValueId>(2),

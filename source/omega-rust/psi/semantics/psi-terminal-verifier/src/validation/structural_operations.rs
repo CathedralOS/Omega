@@ -13,8 +13,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
     if !super::structural_result_contracts::has_empty_qualification_rosters(
         &result.qualifications,
         &result.projected_qualifications,
-    )
-        || result.multiplicity != StructuralMultiplicity::Unrestricted
+    ) || result.multiplicity != StructuralMultiplicity::Unrestricted
         || machine
             .blocks
             .iter()
@@ -441,15 +440,6 @@ pub(super) fn validate_unit_operation_static(
                     actual,
                 });
             }
-            if let Some(argument_index) = structural_arguments
-                .iter()
-                .position(|argument| !argument.path.is_empty())
-            {
-                return Err(ModuleError::InvalidStructuralArgumentPath {
-                    operation: operation.id,
-                    argument_index: argument_index as u32,
-                });
-            }
             validate_structural_arguments(
                 module,
                 machine,
@@ -549,10 +539,7 @@ pub(super) fn validate_unit_operation_static(
                 || callee.structural_parameters.len() != 1
                 || result.structural_type != callee_result.structural_type
                 || result.multiplicity != callee_result.multiplicity
-                || !super::structural_result_contracts::call_result_matches(
-                    result,
-                    callee_result,
-                )
+                || !super::structural_result_contracts::call_result_matches(result, callee_result)
                 || result.multiplicity != StructuralMultiplicity::Linear
             {
                 return Err(ModuleError::StructuralCallTargetMismatch {
@@ -986,9 +973,11 @@ fn validate_structural_arguments(
         }
         let unrestricted_write_only_field_subloan =
             is_unrestricted_write_only_subloan(module, caller, expected, argument);
+        let unrestricted_shared_field_subloan =
+            is_unrestricted_shared_subloan(caller, expected, argument);
         let actual_multiplicity = if argument.path.is_empty() {
             actual_multiplicity
-        } else if unrestricted_write_only_field_subloan {
+        } else if unrestricted_write_only_field_subloan || unrestricted_shared_field_subloan {
             StructuralMultiplicity::Unrestricted
         } else if expected.multiplicity == StructuralMultiplicity::Affine
             && is_bounded_partial_affine_path(module, root_type, &argument.path)
@@ -1179,6 +1168,25 @@ fn is_unrestricted_write_only_subloan(
         && indexed_leaf_is_primitive
 }
 
+fn is_unrestricted_shared_subloan(
+    caller: &TerminalMachine,
+    expected: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+) -> bool {
+    let Some(actual) = caller
+        .structural_parameters
+        .iter()
+        .find(|actual| actual.place == argument.place)
+    else {
+        return false;
+    };
+    is_nonempty_field_path(&argument.path)
+        && argument.access == StructuralAccess::SharedBorrow
+        && expected.access == StructuralAccess::SharedBorrow
+        && expected.multiplicity == StructuralMultiplicity::Unrestricted
+        && actual.multiplicity == StructuralMultiplicity::Unrestricted
+}
+
 pub(super) fn validate_service_reach(
     operation: OperationId,
     caller: &[ServiceId],
@@ -1219,6 +1227,13 @@ fn validate_unit_call_claim_transfers(
                         .entry_claims
                         .iter()
                         .all(|claim| claim.input != argument.place);
+            let claim_free_unrestricted_shared_field =
+                is_unrestricted_shared_subloan(caller, parameter, argument)
+                    && callee_claims.is_empty()
+                    && caller
+                        .entry_claims
+                        .iter()
+                        .all(|claim| claim.input != argument.place);
             let claim_free_direct_affine = caller
                 .structural_parameters
                 .iter()
@@ -1233,6 +1248,7 @@ fn validate_unit_call_claim_transfers(
                     .iter()
                     .all(|claim| claim.input != argument.place);
             if !claim_free_unrestricted_write_only_field
+                && !claim_free_unrestricted_shared_field
                 && !claim_free_direct_affine
                 && !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty())
             {
