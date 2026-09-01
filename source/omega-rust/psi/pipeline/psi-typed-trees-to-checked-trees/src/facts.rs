@@ -2157,6 +2157,7 @@ fn build_qualification_facts(program: &TypedTrees) -> psi_checked_trees::Qualifi
                 .collect(),
             identity_reshuffles: Vec::new(),
             partition_compositions: Vec::new(),
+            retained_borrow_custodies: Vec::new(),
         },
     }
 }

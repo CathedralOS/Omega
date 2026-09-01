@@ -1137,7 +1137,17 @@ several compatible owned inputs exist, one exact authored equality may select
 the source by relating the whole entry projection of that parameter directly to
 the whole current result projection in the same content algebra. Partition
 equations and structural subplaces do not select custody. Borrow-only retention
-still rejects even if a content equality names the borrow.
+is admitted only by the first exact checked-only lifetime rung: one
+content-bearing linear result with one erased lifetime slot, one compatible
+whole direct shared parameter, and the same explicit callable lifetime on the
+parameter and result. Its retained fact carries the exact callable, source and
+result places, lifetime/slot coordinates, result nominal and semantic domain,
+and both full projection plans. An unparameterized or elided result, a lifetime
+mismatch, multiple compatible borrowed sources, mutable/write-only access,
+`self`, nested/indirect carriers, structural subplaces or partitions, runtime
+generic arguments, and authored-equality laundering all reject. Terminal and
+native-slot lowering do not yet consume this fact; private snapshots,
+completion/reclamation, and provider-specific backing remain later rungs.
 
 The reverse direction uses the same types. A provider-owned view whose
 invalidators require exclusive access to one receiver is an ordinary borrow

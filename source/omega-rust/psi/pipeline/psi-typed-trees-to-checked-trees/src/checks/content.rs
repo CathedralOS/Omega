@@ -1,15 +1,15 @@
 //! Content-bearing signature conservation gates.
 //!
-//! A borrow lends access; it never supplies an owned claim that can survive
-//! the call. This first P1c consumer rejects the exact retained-custody shape
-//! where a content-bearing result has compatible content-bearing inputs, but
-//! every compatible source is borrowed. It deliberately keys compatibility by
-//! the retained compiler-owned algebra identity, never carrier or operation
-//! names.
+//! A borrow lends access; it never supplies an owned claim. Retained custody
+//! may nevertheless remain lifetime-bound to one explicit shared input loan.
+//! This consumer admits only that exact whole-parameter/whole-result shape and
+//! otherwise requires owned custody. Compatibility keys on the retained
+//! compiler-owned algebra identity, never carrier or operation names.
 
 use psi_checked_trees::{
     CheckFacts, ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, FlowClaimOutcomeSource,
+    RetainedBorrowCustodyFact,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
@@ -20,12 +20,13 @@ use psi_language_semantics::content::{
 };
 use psi_language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, SemanticDomainId,
+    PermissionEventSource, ReferenceAccess, SemanticDomainId,
 };
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::domain::ProofFact;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use psi_typed_trees::name::Identifier;
 use psi_typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
 use psi_typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -1380,13 +1381,19 @@ fn data_field_name(program: &TypedTrees, field_symbol: SymbolHandle) -> Option<&
 
 pub(crate) fn check_retained_content_custody(
     program: &TypedTrees,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     if facts.qualifications.content.plans.is_empty() {
+        facts
+            .qualifications
+            .content
+            .retained_borrow_custodies
+            .clear();
         return Ok(());
     }
 
     let mut diagnostics = Vec::new();
+    let mut retained_borrow_custodies = Vec::new();
 
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
@@ -1399,10 +1406,12 @@ pub(crate) fn check_retained_content_custody(
                 facts,
                 &format!("{}::{}", trait_definition.name, signature.name),
                 signature.symbol,
+                &signature.lifetime_parameters,
                 program.state_signature_parameters(signature),
                 signature.return_type,
                 &contracts,
                 &mut diagnostics,
+                &mut retained_borrow_custodies,
             );
         }
     }
@@ -1423,17 +1432,25 @@ pub(crate) fn check_retained_content_custody(
                 facts,
                 &label,
                 state.symbol,
+                &machine.lifetime_parameters,
                 program.state_parameters(state),
                 state.return_type,
                 &contracts,
                 &mut diagnostics,
+                &mut retained_borrow_custodies,
             );
         }
     }
 
     if diagnostics.is_empty() {
+        facts.qualifications.content.retained_borrow_custodies = retained_borrow_custodies;
         Ok(())
     } else {
+        facts
+            .qualifications
+            .content
+            .retained_borrow_custodies
+            .clear();
         Err(diagnostics)
     }
 }
@@ -1444,10 +1461,12 @@ fn check_callable(
     facts: &CheckFacts,
     label: &str,
     callable: SymbolHandle,
+    callable_lifetime_parameters: &[Identifier],
     parameters: &[StateParameter],
     return_type: TypeReferenceHandle,
     contracts: &[&SignatureContract],
     diagnostics: &mut Vec<Diagnostic>,
+    retained_borrow_custodies: &mut Vec<RetainedBorrowCustodyFact>,
 ) {
     let mut result_domains = Vec::new();
     append_type_domains(program, return_type, &mut result_domains);
@@ -1467,6 +1486,17 @@ fn check_callable(
         }
     }
 
+    let content_result_domain_count = result_domains
+        .iter()
+        .filter(|domain| {
+            facts
+                .qualifications
+                .content
+                .for_semantic_domain(domain.semantic_domain)
+                .is_some()
+        })
+        .count();
+
     for result_domain in result_domains {
         let Some(result_plan) = facts
             .qualifications
@@ -1478,7 +1508,7 @@ fn check_callable(
         let mut borrowed_sources = Vec::new();
         let mut owned_sources = Vec::new();
 
-        for parameter in parameters {
+        for (parameter_position, parameter) in parameters.iter().enumerate() {
             let mut parameter_domains = Vec::new();
             append_type_domains(program, parameter.type_reference, &mut parameter_domains);
             for contract in contracts
@@ -1499,19 +1529,31 @@ fn check_callable(
                 }
             }
 
-            let compatible = parameter_domains.iter().any(|domain| {
-                facts
+            let mut compatible_plans = Vec::new();
+            for domain in parameter_domains {
+                let Some(input_plan) = facts
                     .qualifications
                     .content
                     .for_semantic_domain(domain.semantic_domain)
-                    .is_some_and(|input_plan| compatible_content(input_plan, result_plan))
-            });
-            if !compatible {
+                else {
+                    continue;
+                };
+                if compatible_content(input_plan, result_plan)
+                    && !compatible_plans.contains(input_plan)
+                {
+                    compatible_plans.push(input_plan.clone());
+                }
+            }
+            if compatible_plans.is_empty() {
                 continue;
             }
 
             if type_contains_reference(program, parameter.type_reference) {
-                borrowed_sources.push(parameter.name.as_str());
+                borrowed_sources.push(BorrowedContentSource {
+                    parameter_position,
+                    parameter,
+                    compatible_plans,
+                });
             } else if program.type_multiplicity(parameter.type_reference) == Multiplicity::Linear {
                 owned_sources.push(parameter.name.as_str());
             }
@@ -1532,6 +1574,32 @@ fn check_callable(
             continue;
         }
 
+        if owned_sources.is_empty() && !borrowed_sources.is_empty() {
+            match lifetime_bound_borrow_custody(
+                program,
+                label,
+                callable,
+                callable_lifetime_parameters,
+                return_type,
+                result_domain.semantic_domain,
+                result_plan,
+                content_result_domain_count,
+                &borrowed_sources,
+            ) {
+                Ok(fact) => {
+                    retained_borrow_custodies.push(fact);
+                    continue;
+                }
+                Err(BorrowCustodyFailure::Directed(reason)) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "callable `{label}` cannot retain borrowed content-bearing custody: {reason}",
+                    )));
+                    continue;
+                }
+                Err(BorrowCustodyFailure::RequiresOwnedCustody) => {}
+            }
+        }
+
         let result_name = domain_name(program, result_domain.symbol);
         if owned_sources.len() > 1 {
             let owned = owned_sources
@@ -1546,7 +1614,7 @@ fn check_callable(
         }
         let borrowed = borrowed_sources
             .iter()
-            .map(|name| format!("`{name}`"))
+            .map(|source| format!("`{}`", source.parameter.name))
             .collect::<Vec<_>>()
             .join(", ");
         diagnostics.push(Diagnostic::error(format!(
@@ -1554,6 +1622,185 @@ fn check_callable(
             if borrowed_sources.len() == 1 { "" } else { "s" },
         )));
     }
+}
+
+struct BorrowedContentSource<'a> {
+    parameter_position: usize,
+    parameter: &'a StateParameter,
+    compatible_plans: Vec<ContentProjectionPlan>,
+}
+
+enum BorrowCustodyFailure {
+    RequiresOwnedCustody,
+    Directed(String),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lifetime_bound_borrow_custody(
+    program: &TypedTrees,
+    label: &str,
+    callable: SymbolHandle,
+    callable_lifetime_parameters: &[Identifier],
+    return_type: TypeReferenceHandle,
+    retained_semantic_domain: SemanticDomainId,
+    result_plan: &ContentProjectionPlan,
+    content_result_domain_count: usize,
+    borrowed_sources: &[BorrowedContentSource<'_>],
+) -> Result<RetainedBorrowCustodyFact, BorrowCustodyFailure> {
+    let Some((result_data, result_lifetime)) = lifetime_bound_result(program, return_type) else {
+        return Err(BorrowCustodyFailure::RequiresOwnedCustody);
+    };
+    if content_result_domain_count != 1 {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "the bounded shared-loan rung requires exactly one content-bearing result domain, but `{label}` has {content_result_domain_count}",
+        )));
+    }
+    let Some(callable_lifetime_parameter_ordinal) = callable_lifetime_parameters
+        .iter()
+        .position(|candidate| candidate == &result_lifetime)
+    else {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "result lifetime `'{}'` does not name an explicit lifetime parameter of `{label}`",
+            result_lifetime.as_str(),
+        )));
+    };
+    if borrowed_sources.len() != 1 {
+        let names = borrowed_sources
+            .iter()
+            .map(|source| format!("`{}`", source.parameter.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "the result lifetime has ambiguous compatible borrowed inputs {names}; exactly one whole direct shared source is required",
+        )));
+    }
+    let source = &borrowed_sources[0];
+    if source.parameter.is_self {
+        return Err(BorrowCustodyFailure::Directed(
+            "retained `self` loans are outside the bounded whole-parameter rung".to_owned(),
+        ));
+    }
+    let Some((access, source_lifetime)) =
+        direct_reference(program, source.parameter.type_reference)
+    else {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "borrowed parameter `{}` carries its loan through a nested or indirect shape; only a whole direct reference is admitted",
+            source.parameter.name,
+        )));
+    };
+    if access != ReferenceAccess::Shared {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "borrowed parameter `{}` uses {access:?} access; retained lifetime-bound custody currently admits shared access only",
+            source.parameter.name,
+        )));
+    }
+    let Some(source_lifetime) = source_lifetime else {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "borrowed parameter `{}` elides its lifetime; retained custody requires the same explicit callable lifetime on source and result",
+            source.parameter.name,
+        )));
+    };
+    if source_lifetime != result_lifetime {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "borrowed parameter `{}` uses lifetime `'{}'`, which does not match result lifetime `'{}'`",
+            source.parameter.name,
+            source_lifetime.as_str(),
+            result_lifetime.as_str(),
+        )));
+    }
+    let [source_projection] = source.compatible_plans.as_slice() else {
+        return Err(BorrowCustodyFailure::Directed(format!(
+            "borrowed parameter `{}` has {} compatible content projections; exactly one exact projection is required",
+            source.parameter.name,
+            source.compatible_plans.len(),
+        )));
+    };
+
+    Ok(RetainedBorrowCustodyFact {
+        callable,
+        source: ContentStructuralPlace {
+            version: ContentPlaceVersion::Entry,
+            root: ContentPlaceRoot::Parameter {
+                position: u32::try_from(source.parameter_position)
+                    .expect("state parameter position fits in u32"),
+                symbol: source.parameter.symbol,
+                name: source.parameter.name.as_str().to_owned(),
+                is_self: false,
+            },
+            segments: Vec::new(),
+        },
+        result: ContentStructuralPlace {
+            version: ContentPlaceVersion::Current,
+            root: ContentPlaceRoot::Result,
+            segments: Vec::new(),
+        },
+        access,
+        lifetime: result_lifetime,
+        callable_lifetime_parameter_ordinal: u32::try_from(callable_lifetime_parameter_ordinal)
+            .expect("callable lifetime parameter ordinal fits in u32"),
+        result_data,
+        result_lifetime_argument_ordinal: 0,
+        retained_semantic_domain,
+        source_projection: source_projection.clone(),
+        result_projection: result_plan.clone(),
+    })
+}
+
+fn lifetime_bound_result(
+    program: &TypedTrees,
+    return_type: TypeReferenceHandle,
+) -> Option<(SymbolHandle, Identifier)> {
+    let return_type = strip_constraints(program, return_type);
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(return_type)
+    else {
+        return None;
+    };
+    let definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *base_symbol)?;
+    if program.type_multiplicity(return_type) != Multiplicity::Linear
+        || definition.lifetime_parameters.len() != 1
+        || lifetime_arguments.len() != 1
+        || !program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty()
+    {
+        return None;
+    }
+    Some((*base_symbol, lifetime_arguments[0].clone()))
+}
+
+fn direct_reference(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(ReferenceAccess, Option<Identifier>)> {
+    let type_reference = strip_constraints(program, type_reference);
+    let TypeReferenceNode::Reference {
+        access, lifetime, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    Some((*access, lifetime.clone()))
+}
+
+fn strip_constraints(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *base_type;
+    }
+    type_reference
 }
 
 /// Return the one parameter selected by an exact authored custody equality.
@@ -1677,16 +1924,7 @@ fn nominal_domain_application(
 }
 
 fn type_contains_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    if !type_reference.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_contains_reference(program, *base_type)
-        }
-        _ => false,
-    }
+    type_reference.is_valid() && crate::borrow::view_link::returns_borrow(program, type_reference)
 }
 
 fn expression_is_bare_result(program: &TypedTrees, expression: ExpressionHandle) -> bool {
