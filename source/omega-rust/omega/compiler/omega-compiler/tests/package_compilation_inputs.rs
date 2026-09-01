@@ -376,12 +376,14 @@ fn dependency_data_members_and_collection_length_finalize_exactly() {
     TempTree::write(
         root.join("main.omg"),
         r#"use dep::observation;
-machine inspect(observation: Observation, bytes: &[u8]) -> u64 {
+data Inspector { items: [u8; 4]; }
+machine Inspector::inspect(&self, observation: Observation, bytes: &[u8]) -> u64 {
     transition { _ -> nested() }
 
     state nested() -> u64 {
         let tag: u8 = observation.tag;
-        bytes.len
+        let direct_length: u64 = bytes.len;
+        (self.items[1..3]).len
     }
 }
 "#,
@@ -409,14 +411,20 @@ machine inspect(observation: Observation, bytes: &[u8]) -> u64 {
         .expect("public dependency fields and intrinsic length should finalize");
     let selections = checked.authored_declaration_selections();
     assert!(selections.all_finalized(), "selections={selections:#?}");
-    assert!(selections.iter().any(|selection| {
-        selection.kind()
-            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
-            && selection.target()
-                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
-                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
-                )
-    }));
+    assert_eq!(
+        selections
+            .iter()
+            .filter(|selection| {
+                selection.kind()
+                    == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+                    && selection.target()
+                        == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                        )
+            })
+            .count(),
+        2,
+    );
 }
 
 #[test]
