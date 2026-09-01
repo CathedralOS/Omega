@@ -1,6 +1,11 @@
 //! Cleanup-sensitive Unit return validation and lowering.
 
-use super::*;
+use super::super::cleanup::validate_bounded_nominal_cleanup_body;
+use super::super::shared::*;
+use super::super::structural::exact_fully_consumed_affine_pair_root;
+use super::super::structural_layout::{
+    expected_maximal_residual_subtrees, is_partial_cleanup_path,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_unit_return(
