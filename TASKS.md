@@ -12550,8 +12550,9 @@ can produce installed code; validation binds exact final bytes and placement.
 These are pointers to the owning question or open design item, not duplicate
 specifications:
 
-- **SUM-MATERIALIZATION:** tagged-case placement vocabulary in
-  `wiki/language_guide/appendix_open_questions.md`.
+- **SUM-MATERIALIZATION:** tagged/untagged case-placement vocabulary deferred
+  in `wiki/design_briefs/programmable_layouts.md`; the conventional read-only
+  materialization reports do not settle authorable `Layout` placement.
 - **ATOMIC-EVENT-MODEL:** portable atomic axioms and target refinement choices
   in `wiki/language_guide/appendix_open_questions.md`.
 - **CHECKED-RESULT-ARITHMETIC:** public carrier ruling for failure-returning
