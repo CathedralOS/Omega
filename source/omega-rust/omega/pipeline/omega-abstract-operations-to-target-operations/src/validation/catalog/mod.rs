@@ -38,6 +38,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::parameter::arithmetic::SATURATING_INTEGER_SUBTRACT,
     dispatch::parameter::arithmetic::WRAPPING_INTEGER_SUBTRACT,
     dispatch::parameter::arithmetic::WRAPPING_INTEGER_MULTIPLY,
+    dispatch::parameter::arithmetic::SATURATING_INTEGER_MULTIPLY,
 ];
 
 pub(super) fn validate_function(
