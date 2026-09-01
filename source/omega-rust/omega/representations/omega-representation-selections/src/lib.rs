@@ -9,6 +9,15 @@ use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::typed_trees::ClosedConformanceApplication;
 
+/// Compiler-derived lifecycle role for one selected opaque representation.
+///
+/// V1 has exactly one role: the carrier contributes storage only and owns no
+/// independently invoked lifecycle semantics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpaqueRepresentationLifecycleDisposition {
+    Inert,
+}
+
 /// One exact, build-selected `Carrier satisfies OpaqueRepresentation<Opaque>`
 /// application. The concrete carrier is the sole source of physical shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +25,7 @@ pub struct OpaqueRepresentationSelection {
     opaque: SymbolHandle,
     carrier: SymbolHandle,
     application: ClosedConformanceApplication,
+    lifecycle: OpaqueRepresentationLifecycleDisposition,
     selecting_machine: SymbolHandle,
     source_span: SourceSpan,
 }
@@ -26,6 +36,7 @@ impl OpaqueRepresentationSelection {
         opaque: SymbolHandle,
         carrier: SymbolHandle,
         application: ClosedConformanceApplication,
+        lifecycle: OpaqueRepresentationLifecycleDisposition,
         selecting_machine: SymbolHandle,
         source_span: SourceSpan,
     ) -> Self {
@@ -33,6 +44,7 @@ impl OpaqueRepresentationSelection {
             opaque,
             carrier,
             application,
+            lifecycle,
             selecting_machine,
             source_span,
         }
@@ -48,6 +60,10 @@ impl OpaqueRepresentationSelection {
 
     pub fn application(&self) -> &ClosedConformanceApplication {
         &self.application
+    }
+
+    pub fn lifecycle(&self) -> OpaqueRepresentationLifecycleDisposition {
+        self.lifecycle
     }
 
     pub fn selecting_machine(&self) -> SymbolHandle {

@@ -10,12 +10,16 @@
 
 use std::path::Path;
 
-pub use omega_representation_selections::{OpaqueRepresentationSelection, selection_for_opaque};
+pub use omega_representation_selections::{
+    OpaqueRepresentationLifecycleDisposition, OpaqueRepresentationSelection, selection_for_opaque,
+};
 use psi_diagnostics::Diagnostic;
 use psi_source::{SourceOrigin, SourceSpan};
 use psi_symbols::{SymbolHandle, SymbolKind};
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::data::TypeParameterKind;
+
+mod carrier_closure;
 
 const REPRESENTATION_TRAIT_NAME: &str = "OpaqueRepresentation";
 const REPRESENTATION_TRAIT_SOURCE: &str = "core/representation.omg";
@@ -185,11 +189,13 @@ fn close_selection(
             carrier_definition.name,
         )));
     }
+    carrier_closure::validate_inert_carrier(typed, carrier_definition)?;
 
     Ok(OpaqueRepresentationSelection::from_validated_application(
         opaque,
         carrier,
         application,
+        OpaqueRepresentationLifecycleDisposition::Inert,
         selecting_machine,
         source_span,
     ))

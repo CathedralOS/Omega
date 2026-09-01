@@ -141,9 +141,13 @@ stop the item on one precise owner question before adding machinery.
   Claim-free opaque data stays review-visible without fabricating a
   proposition, minting authority, or service reach claim.
 
-  Complete movement/lifecycle planning under D44's inert-carrier rule. Do not
-  publish a partial demand row from
-  calling-convention shape or size/alignment alone. Add canaries proving that
+  Selection admission now derives D44's transitive v1 inert closure across
+  records, arrays, and every sum payload, rejects nominal cleanup, linear debt,
+  nested opaque/external storage, and retains the explicit `Inert` lifecycle
+  even for unused selections. Complete target-ABI movement closure, bind that
+  lifecycle into the strong application commitment, and close the copyable
+  carrier receipt route. Do not publish a partial demand row from calling-
+  convention shape or size/alignment alone. Add canaries proving that
   independently reviewed dependencies may retain different historical
   selections while one later source consumer selects its own application. The
   future `PackageInstance` composition canary must reject unequal commitments
