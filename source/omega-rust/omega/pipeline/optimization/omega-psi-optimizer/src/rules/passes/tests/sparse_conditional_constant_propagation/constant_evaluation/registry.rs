@@ -113,6 +113,39 @@ fn sccp_registry_pins_every_binary_integer_constant_rule_position() {
 }
 
 #[test]
+fn sccp_registry_pins_every_unary_integer_constant_rule_position() {
+    let registry =
+        registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();
+    let contracts = registry.contracts().collect::<Vec<_>>();
+    let expected = [
+        (
+            ExactIntegerCastConstantsRule::contract(),
+            OptimizationSafetyClass::ProofCertified,
+        ),
+        (
+            IntegerWidenConstantsRule::contract(),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+        (
+            IntegerBitwiseNotConstantsRule::contract(),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        ),
+    ];
+    for (position, (expected, safety)) in (19..=21).zip(expected) {
+        assert_eq!(
+            contracts[position].identity(),
+            expected.identity(),
+            "unary integer constant rule at SCCP position {position}",
+        );
+        assert_eq!(
+            contracts[position].safety_class(),
+            safety,
+            "unary integer constant-rule safety at SCCP position {position}",
+        );
+    }
+}
+
+#[test]
 fn sccp_registry_places_boolean_result_constant_rules_before_range_rules() {
     let registry =
         registry_for_optimization(Optimization::SparseConditionalConstantPropagation).unwrap();

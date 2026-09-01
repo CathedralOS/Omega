@@ -605,8 +605,12 @@ unchecked rewrite or opt into lossy floating-point semantics.
   rule now has a direct positive semantic canary with independently validated
   typed output, exact safety class, and proof/exact witness form. Thirteen
   proof-certified overflow, zero-divisor, signed-quotient, and shift-domain
-  cases pin refusal. The remaining axes and other rule families are not yet
-  complete.
+  cases pin refusal. The three unary integer rules now pin their exact roster
+  positions, signed and unsigned endpoint semantics, cross-kind refusal, and
+  proof/exact witness forms. Independent validation also binds all 25 integer
+  constant-evaluation operation shapes to their exact rule identities and
+  rejects a candidate relabelled with another same-safety contract. The
+  remaining axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

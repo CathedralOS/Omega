@@ -10,6 +10,7 @@ mod binary_operation_shape;
 mod binary_semantics;
 mod literal_facts;
 mod model;
+mod rule_identity;
 mod unary_operations;
 
 use omega_optimization_unit::{OptimizationNode, PsiOptimizationFunction, PsiRewriteCandidate};
@@ -26,6 +27,7 @@ pub(crate) fn evaluate_integer_operation(
     node: &OptimizationNode,
     candidate: &PsiRewriteCandidate,
 ) -> Result<IntegerEvaluation, OptimizationUnitValidationError> {
+    rule_identity::validate(&node.operation, candidate.rule())?;
     if let Some(evaluation) = unary_operations::evaluate(function, node, candidate) {
         return evaluation;
     }

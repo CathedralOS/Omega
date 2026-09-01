@@ -229,7 +229,13 @@ the SCCP fixture family and construct fresh typed units instead of mutating an
 unrelated rule fixture. The 22-row positive matrix distinguishes wrapping and
 saturating overflow behavior, signed quotient policies, distinct shift-count
 types, and bitwise results; a separate proof-certified refusal matrix covers
-overflow and undefined domains.
+overflow and undefined domains. Unary fixtures use the same fresh-unit
+discipline to pin signed and unsigned endpoints and cross-kind refusal. On the
+independent-validation side, the integer-evaluation entrance descends first
+through an exhaustive operation-to-rule identity replay, then through unary or
+binary operation reconstruction. Consequently a semantically valid candidate
+cannot be relabelled as another same-safety integer rule, and the architecture
+guard makes that validation ladder directly navigable.
 
 ## Semantic folder templates
 
