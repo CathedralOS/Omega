@@ -184,6 +184,14 @@ three source operations retained in order. Signed/unsigned fixed 8/16/32/64
 and address64 cross four ordered boundary pairs at direct and public optimized
 custody on all five targets. Its catalog row is disjoint from bitwise-not,
 bitwise-OR/XOR, plain immediate, and parameter AND.
+Constant integer bitwise-OR is an independent sibling rather than an AND-mode
+inside one broad rule. It validates two ordered same-type native integer
+constants, `IntegerBitwiseOr`, and `Return`; computes the exact typed result
+through `IntegerType::bitwise_or`; and independently requires one
+`ReturnIntegerImmediate` with all source operations retained in order. The nine
+fixed/address carriers, four ordered boundary pairs, and five targets produce
+180 direct plus 180 optimized-custody cases. Plain immediate, bitwise-not,
+AND/XOR, parameter OR, and runtime-expression substitution all fail closed.
 Constant wrapping integer add is a separate exact four-operation family. It
 validates two ordered same-type constants, `WrappingIntegerAdd`, and `Return`,
 computes modulo the declared width through `IntegerType::wrapping_add`, and
@@ -696,6 +704,17 @@ keyed replay agree on order, roots, identity, and bounded work across both
 victim lineages and architectures. The model intentionally has no fault field,
 address base, frame coordinate, opcode, encoding, emission, or publication
 carrier; executable spill realization remains behind Q1.
+
+Abstract spill-access constraints are the next target-neutral boundary. The V1
+policy assigns each effect its dense within-block placement and records exact
+`StoredValue`, `DeclaredBeforeReload`, and `OverlappingAbstractSlice`
+dependencies while retaining the pseudo, point, instruction anchor, and
+relative geometry. Direct construction and a separately keyed replay agree on
+six placements, three data edges, two declared barriers, seven overlap edges,
+and usage `{7, 15, 33, 18, 22}` for both victim lineages on x86-64 and AArch64.
+No row establishes cross-block order, program-memory non-aliasing, an executable
+address, frame layout, spill-fault behavior, opcode, encoding, emission, or
+publication authority.
 
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is
