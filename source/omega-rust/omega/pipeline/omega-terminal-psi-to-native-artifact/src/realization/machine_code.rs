@@ -392,5 +392,110 @@ mod tests {
             .is_err(),
             "callback ABI drift must reject",
         );
+
+        let semantic_function = private.function.clone();
+        let semantic_psi = psi_terminal::TerminalPsiIdentity {
+            vocabulary_marker: private.source_psi.vocabulary_marker,
+            program_fingerprint: psi_terminal::SemanticFingerprint::from_bytes([0x44; 32]),
+        };
+        let object_input = omega_machine_code::MachineCodePlanWithPrivateFunctions {
+            plan: omega_machine_code::MachineCodePlan {
+                psi: semantic_psi,
+                target: omega_target::NativeTarget::windows_x64(),
+                entry: semantic_function.machine,
+                functions: vec![semantic_function],
+            },
+            private_functions: emitted,
+        };
+        let object =
+            omega_image_emission::build_object_artifact_with_private_functions(&object_input)
+                .expect("private callback object custody");
+        let [private] = object.private_functions() else {
+            panic!("object must retain one private callback function");
+        };
+        assert_eq!(object.functions().len(), 1);
+        assert_eq!(private.identity, identity);
+        assert_ne!(private.source_psi, object.psi());
+        assert_eq!(
+            private.function.machine,
+            object.functions()[0].machine,
+            "artifact-local callback MachineId may equal a semantic MachineId without joining namespaces",
+        );
+        assert_eq!(
+            private.function.text_offset,
+            object.functions()[0].byte_count
+        );
+        assert_eq!(
+            private.bytes(&object),
+            &object_input.private_functions[0].function.bytes
+        );
+        let (symbol, plan) = omega_object_file::object_function_symbol(object.object(), identity)
+            .expect("exact callback identity symbol");
+        assert_eq!(symbol, private.function.symbol);
+        assert_eq!(plan.name, "__omega_test_callback");
+        assert_eq!(plan.offset, private.function.text_offset);
+        assert_eq!(plan.size, private.function.byte_count);
+
+        let image = omega_image_emission::emit_executable_image(&object, 3)
+            .expect("private callback executable image custody");
+        assert_eq!(image.private_functions(), object.private_functions());
+        omega_image_emission::validate_executable_image(&object, &image)
+            .expect("private callback executable replay");
+        assert!(matches!(
+            omega_image_emission::build_installation_record(
+                &image,
+                psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+            ),
+            Err(omega_image_emission::InstallationError::UnsettledCompilerPrivateFunctions)
+        ));
+
+        let mut wrong_role = object_input.clone();
+        wrong_role.private_functions[0].identity =
+            omega_function_identity::MachineFunctionIdentity::source(
+                identity.associated_source_continuation(),
+            );
+        assert!(matches!(
+            omega_image_emission::build_object_artifact_with_private_functions(&wrong_role),
+            Err(omega_image_emission::ObjectError::InvalidPrivateFunctionIdentity)
+        ));
+
+        let mut empty_symbol = object_input.clone();
+        empty_symbol.private_functions[0].private_symbol = std::sync::Arc::from("");
+        assert!(matches!(
+            omega_image_emission::build_object_artifact_with_private_functions(&empty_symbol),
+            Err(omega_image_emission::ObjectError::EmptyPrivateFunctionSymbol)
+        ));
+
+        let mut colliding_symbol = object_input.clone();
+        colliding_symbol.private_functions[0].private_symbol = std::sync::Arc::from("main");
+        assert!(matches!(
+            omega_image_emission::build_object_artifact_with_private_functions(&colliding_symbol),
+            Err(omega_image_emission::ObjectError::PrivateFunctionSymbolCollision)
+        ));
+
+        let mut missing_abi = object_input.clone();
+        missing_abi.private_functions[0]
+            .function
+            .fixed_integer_scalar_abi = None;
+        assert!(matches!(
+            omega_image_emission::build_object_artifact_with_private_functions(&missing_abi),
+            Err(omega_image_emission::ObjectError::InvalidPrivateFunctionAbi)
+        ));
+
+        let mut empty_body = object_input.clone();
+        empty_body.private_functions[0].function.bytes.clear();
+        assert!(matches!(
+            omega_image_emission::build_object_artifact_with_private_functions(&empty_body),
+            Err(omega_image_emission::ObjectError::InvalidPrivateFunctionBody)
+        ));
+
+        let mut duplicate = object_input;
+        duplicate
+            .private_functions
+            .push(duplicate.private_functions[0].clone());
+        assert!(matches!(
+            omega_image_emission::build_object_artifact_with_private_functions(&duplicate),
+            Err(omega_image_emission::ObjectError::TooManyPrivateFunctions)
+        ));
     }
 }

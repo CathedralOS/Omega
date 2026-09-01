@@ -19,19 +19,26 @@ pub(crate) fn assemble_native_artifact(
     physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
-    if !machine_code.private_functions.is_empty() {
+    if !machine_code.private_functions.is_empty() && !request.ieee_float_fma.is_empty() {
         return Err(realization_error(
             "terminal object construction",
-            "compiler-private callback functions require private object-symbol custody",
+            "compiler-private callback functions cannot yet share the feature-authorized x86 FMA object cohort",
         ));
     }
     validate_ieee_float_fma_rejoin(&machine_code.plan, request)?;
-    let object = match request.ieee_float_fma.first() {
-        Some(first) => omega_image_emission::build_admitted_x86_fma_object_artifact(
+    let object = match (
+        machine_code.private_functions.is_empty(),
+        request.ieee_float_fma.first(),
+    ) {
+        (false, None) => {
+            omega_image_emission::build_object_artifact_with_private_functions(machine_code)
+        }
+        (true, Some(first)) => omega_image_emission::build_admitted_x86_fma_object_artifact(
             &machine_code.plan,
             first.provider,
         ),
-        None => omega_image_emission::build_object_artifact(&machine_code.plan),
+        (true, None) => omega_image_emission::build_object_artifact(&machine_code.plan),
+        (false, Some(_)) => unreachable!("mixed callback/FMA cohort rejected above"),
     }
     .map_err(|error| realization_error("terminal object construction", error))?;
     let image = omega_image_emission::emit_executable_image(&object, request.subsystem)

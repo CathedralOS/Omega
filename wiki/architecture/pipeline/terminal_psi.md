@@ -461,10 +461,15 @@ parameter destination. The callback contributes no Terminal operand, source
 destinations and multiple callback entries remain fenced. This remains
 compiler-owned target custody: Terminal Psi does not encode the thunk identity
 or physical assignment, and the source-free artifact cannot reconstruct either
-from the operation alone. Thunk-body and private/object-symbol synthesis,
-address-load selection, registrar-call emission, relocation,
-object/native-artifact replay, and executable registrar settlement remain
-later rungs. No registration, invocation, address, lifetime or lease,
+from the operation alone. A separate retained-product row now owns the exact
+checked callback body as an isolated canonical Terminal artifact. Native
+realization independently recompiles it into a disjoint compiler-private
+machine-code function; object construction binds its exact placement-derived
+symbol and final-image replay requires one matching executable region. The
+callback artifact's local `MachineId` remains nested and cannot impersonate a
+semantic program function. Address-load selection, registrar-call emission and
+relocation, end-to-end native-artifact replay, and executable registrar
+settlement remain later rungs. No registration, invocation, address, lifetime or lease,
 installation, or publication authority follows.
 The application-v3 commitment travels as a compiler-origin provenance
 projection; target lowering cannot rederive it because the complete authored

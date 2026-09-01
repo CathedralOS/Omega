@@ -429,6 +429,9 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
+    if !image.private_functions().is_empty() {
+        return Err(InstallationError::UnsettledCompilerPrivateFunctions);
+    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -863,6 +866,9 @@ pub fn validate_installation_record(
     record: &InstallationRecord,
     image: &ExecutableImage,
 ) -> Result<(), InstallationError> {
+    if !image.private_functions().is_empty() {
+        return Err(InstallationError::UnsettledCompilerPrivateFunctions);
+    }
     validate_record_shape(record)?;
     if record.psi != image.psi()
         || record.target != image.target()
@@ -2766,6 +2772,7 @@ pub enum InstallationError {
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
+    UnsettledCompilerPrivateFunctions,
     TooManyStackCallFacts,
     InvalidForeignStackContribution,
     TooManyStructuralReturns,

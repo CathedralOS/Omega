@@ -6936,10 +6936,15 @@ Owners:
   position, or trailing hidden argument. Missing, duplicate, wrong-operation,
   field, multiple-callback, native-order, or thunk-identity drift remains
   fenced; invalid destination geometry rejects during assignment. This is an
-  address-free assignment receipt
-  only: thunk-body and private/object-symbol synthesis, address-load selection,
-  registrar-call emission, callback relocation, object/native-artifact replay,
-  and executable registrar settlement remain open. It grants no registration,
+  address-free assignment receipt only. Separately, the retained checked
+  callback body now lowers to one isolated canonical Terminal artifact, is
+  independently recompiled through target assignment into one disjoint
+  compiler-private machine-code function, and enters object/final-image
+  custody under the exact placement-derived symbol and function identity.
+  Artifact-local callback `MachineId` values never join the semantic program
+  namespace. Callback-address selection, registrar-call emission and
+  relocation, end-to-end native-artifact replay, and executable registrar
+  settlement remain open. It grants no registration,
   invocation, address, lifetime or lease, installation, or publication
   authority.
   The application-v3 commitment is retained from the compiler-owned placement
@@ -8883,9 +8888,15 @@ Owners:
   stable Terminal `OperationId`; abstract and target lowering retain the
   native-only callback argument and selected thunk identity, and assignment
   binds it to the plan-selected complete register or stack destination without
-  inventing a source `ValueId` or Omega runtime type. The remaining direct-form
-  engineering is thunk/private-symbol synthesis, callback-address loading,
-  registrar-call emission and relocation, and downstream artifact replay.
+  inventing a source `ValueId` or Omega runtime type. The retained callback
+  body now independently lowers through canonical Terminal Psi to a separate
+  compiler-private machine-code function. Object construction replays that
+  body, appends its bytes under the exact placement-derived private symbol,
+  binds the callback `MachineFunctionIdentity` to that symbol, and final-image
+  replay requires one exact compiler-function region for the resulting span.
+  The remaining direct-form engineering is callback-address loading,
+  registrar-call emission and relocation, and end-to-end native-artifact
+  replay/publication.
   The removed custom/unknown host-operation prototype must not be treated as
   authority for this ordinary normalized-import path. The direct-form negative
   matrix is complete. Source and retained-product canaries reject an

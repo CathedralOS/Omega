@@ -920,10 +920,14 @@ target lowering, and assigns the policy-selected physical destination. The
 cohort is limited to the established fixed-width integer semantic arguments
 and result and requires exactly one binder, demand, and materialization, a
 target-pointer-shaped application, and one complete register or stack placement.
-Carrying that identity does not create a code pointer, source argument, emitted
-thunk, private symbol, relocation, or executable registration. Field-projected
-and multiple callbacks remain fenced, as do thunk-body and symbol synthesis,
-address-load and registrar-call emission, object/native-artifact replay, and
+Carrying that identity does not create a code pointer, source argument,
+relocation, or executable registration. The separately retained checked body
+now lowers to an isolated canonical Terminal artifact, compiles into a
+disjoint compiler-private machine-code function, and is replayed into one exact
+private object symbol and final executable-function span. Its artifact-local
+`MachineId` never joins the semantic program namespace. Field-projected and
+multiple callbacks remain fenced, as do callback-address loading,
+registrar-call emission and relocation, end-to-end native-artifact replay, and
 executable registrar settlement.
 
 A projected native callback field is a typed private-materialization demand in

@@ -685,6 +685,7 @@ dependencies = [
  "omega-abstract-operations-to-target-operations",
  "omega-calling-conventions",
  "omega-executable-installation",
+ "omega-function-identity",
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",

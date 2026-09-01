@@ -92,7 +92,9 @@ fn validate_terminal_image_with_import_count(
         .iter()
         .filter(|region| region.origin == FinalExecutableRegionOrigin::CompilerFunction)
         .collect::<Vec<_>>();
-    let expected_region_count = artifact.functions.len() + usize::from(scalar_exit_shim.is_some());
+    let expected_region_count = artifact.functions.len()
+        + artifact.private_functions.len()
+        + usize::from(scalar_exit_shim.is_some());
     if compiler_regions.len() != expected_region_count {
         return Err(Diagnostic::error(format!(
             "terminal-Psi image retained {} compiler function region(s), expected {}",
@@ -114,6 +116,37 @@ fn validate_terminal_image_with_import_count(
             return Err(Diagnostic::error(format!(
                 "terminal-Psi function {} must bind exactly one final executable region; found {matching}",
                 function.machine
+            )));
+        }
+    }
+    for private in &artifact.private_functions {
+        let function = &private.function;
+        let Some((symbol_handle, symbol_plan)) =
+            omega_object_file::object_function_symbol(object, private.identity)
+        else {
+            return Err(Diagnostic::error(
+                "compiler-private callback function has no exact object identity binding",
+            ));
+        };
+        if symbol_handle != function.symbol
+            || symbol_plan.offset != function.text_offset
+            || symbol_plan.size != function.byte_count
+        {
+            return Err(Diagnostic::error(
+                "compiler-private callback function identity changed its exact object span",
+            ));
+        }
+        let matching = compiler_regions
+            .iter()
+            .filter(|region| {
+                region.symbol == symbol_plan.name
+                    && region.section_offset == function.text_offset
+                    && region.byte_count == function.byte_count
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "compiler-private callback function must bind exactly one final executable region; found {matching}"
             )));
         }
     }
