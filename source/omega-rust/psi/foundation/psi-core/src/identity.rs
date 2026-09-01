@@ -147,6 +147,14 @@ semantic_id!(
     "Stable identity of one verifier-reconstructed obligation."
 );
 semantic_id!(
+    RecursiveComponentId,
+    "Stable semantic identity of one verifier-reconstructed recursive component."
+);
+semantic_id!(
+    RankingRelationId,
+    "Stable semantic identity of one verifier-reconstructed ranking relation."
+);
+semantic_id!(
     AdmissionSiteId,
     "Stable identity of one semantic-module-authorized admission site."
 );

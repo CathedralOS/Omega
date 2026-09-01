@@ -204,6 +204,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
             if obligation == obligation_id(1)
     ));
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -221,6 +222,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_receiver_requir
         .expect("caller requirement discharges contextual cleanup premise");
 
     let wrong_bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -333,6 +335,7 @@ fn scalar_return_contextual_cleanups_require_reverse_root_order() {
         );
     }
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .into_iter()
@@ -400,6 +403,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_and_discharges_false_receiver_
     assert_eq!(obligations[0].obligation.proposition, caller_requirement);
 
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -454,6 +458,7 @@ fn contextual_nominal_affine_cleanup_orders_mixed_polarities_before_field_bytes(
     }
 
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .into_iter()
@@ -519,6 +524,7 @@ fn contextual_nominal_affine_cleanup_reconstructs_finite_ordered_requirements() 
     }
 
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: expected
             .into_iter()
@@ -801,6 +807,7 @@ fn distinct_contextual_cleanup_targets_use_distinct_receivers_and_reconstruct_ea
     }
 
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: obligations
             .into_iter()
@@ -3753,6 +3760,7 @@ fn write_only_primitive_store_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
@@ -3926,6 +3934,7 @@ fn hard_root_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
@@ -4128,6 +4137,7 @@ fn partial_affine_field_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
@@ -4386,6 +4396,7 @@ fn nominal_affine_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller, cleanup],

@@ -15,3 +15,4 @@ psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-proof-admission = { path = "../psi-proof-admission" }
 psi-terminal = { path = "../../representations/psi-terminal" }
 psi-terminal-semantics = { path = "../psi-terminal-semantics" }
+sha2 = "0.10.9"

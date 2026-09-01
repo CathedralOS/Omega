@@ -12,7 +12,13 @@ use psi_terminal_verifier::{VerifiedNativeRankedTerminalModule, VerifiedTerminal
 pub fn render_verified_proof_synopsis(
     verified: &VerifiedTerminalModule<'_>,
 ) -> Result<String, ProofCodecError> {
-    render_verified_proof_synopsis_body(verified.proof_bundle(), verified.accepted_facts(), None)
+    render_verified_proof_synopsis_body(
+        verified.proof_bundle(),
+        verified.accepted_facts(),
+        verified.accepted_recursive_components(),
+        verified.module(),
+        false,
+    )
 }
 
 /// Render the proof review view for the exact native-ranked countdown slice.
@@ -27,14 +33,18 @@ pub fn render_verified_native_ranked_countdown_synopsis(
     render_verified_proof_synopsis_body(
         verified.proof_bundle(),
         verified.accepted_facts(),
-        Some(verified.module()),
+        verified.accepted_recursive_components(),
+        verified.module(),
+        true,
     )
 }
 
 fn render_verified_proof_synopsis_body(
     proof_bundle: &psi_terminal_verifier::ProofBundle,
     accepted_facts: &[psi_proof_admission::AcceptedFact],
-    ranked_module: Option<&TerminalModule>,
+    recursive_components: &[psi_proof_admission::RecursiveComponentAcceptance],
+    module: &TerminalModule,
+    render_ranked_countdowns: bool,
 ) -> Result<String, ProofCodecError> {
     use std::fmt::Write;
 
@@ -125,7 +135,8 @@ fn render_verified_proof_synopsis_body(
             .expect("writing a synopsis to a String cannot fail");
         }
     }
-    if let Some(module) = ranked_module {
+    render_verified_recursive_components(&mut output, module, recursive_components);
+    if render_ranked_countdowns {
         render_verified_ranked_countdowns(&mut output, module);
     }
     let trust_graph = crate::current_terminal_trust_graph().map_err(ProofCodecError::TrustGraph)?;
@@ -134,6 +145,62 @@ fn render_verified_proof_synopsis_body(
             .expect("writing a trust graph to a String cannot fail"),
     );
     Ok(output)
+}
+
+fn render_verified_recursive_components(
+    output: &mut String,
+    module: &TerminalModule,
+    acceptances: &[psi_proof_admission::RecursiveComponentAcceptance],
+) {
+    use std::fmt::Write;
+
+    for (component, acceptance) in module
+        .proof_recursive_components
+        .iter()
+        .zip(acceptances.iter())
+    {
+        let identity = psi_terminal_verifier::proof_recursive_component_identity(component);
+        writeln!(
+            output,
+            "recursive-component {identity} certificate {} relation {} rank-type {}",
+            acceptance.certificate, acceptance.ranking_relation, component.rank_type_identity,
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        for member in &component.members {
+            writeln!(
+                output,
+                "  member {} machine {} rank-parameter {}",
+                member.contract, member.machine_identity, member.rank_parameter_identity,
+            )
+            .expect("writing a synopsis to a String cannot fail");
+        }
+        writeln!(
+            output,
+            "  well-founded obligation {} route {:?}",
+            acceptance.well_foundedness.obligation, acceptance.well_foundedness.route,
+        )
+        .expect("writing a synopsis to a String cannot fail");
+        for edge in &component.edges {
+            let obligation =
+                psi_terminal_verifier::proof_recursive_edge_obligation_id(component, edge);
+            let accepted = acceptance
+                .decreases
+                .iter()
+                .find(|fact| fact.obligation == obligation)
+                .expect("verified recursive component retains one acceptance per exact edge");
+            writeln!(
+                output,
+                "  decrease obligation {} caller {} callee {} site {:?} path {:?} route {:?}",
+                obligation,
+                edge.caller,
+                edge.callee,
+                edge.site,
+                edge.strict_member_path,
+                accepted.route,
+            )
+            .expect("writing a synopsis to a String cannot fail");
+        }
+    }
 }
 
 fn render_verified_ranked_countdowns(output: &mut String, module: &TerminalModule) {

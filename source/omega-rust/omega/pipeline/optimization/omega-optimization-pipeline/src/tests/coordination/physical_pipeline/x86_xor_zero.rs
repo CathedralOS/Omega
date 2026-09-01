@@ -24,6 +24,7 @@ fn x86_xor_zero_uses_the_generic_post_allocation_join_for_both_source_routes() {
         let module = conditional_immediate_module(machine.id, vec![machine]);
         let semantic = psi_terminal_codec::encode_module(&module).unwrap();
         let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: Vec::new(),
         })

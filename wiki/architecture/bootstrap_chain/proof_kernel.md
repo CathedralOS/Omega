@@ -229,6 +229,9 @@ machine carrier into a bounded subset of proof `Int`; exact `as Nat` separately
 consumes nonnegativity. `terminates by` maps operational states to a
 well-founded mathematical rank and owes a decrease proof on every cycle edge.
 These forms identify where a bridge applies; none authenticates its own bridge.
+Recursive-component and ranking-relation keys are semantic identities
+reconstructed from the complete checked question; certificate, provider, and
+admission identities remain evidence identities outside semantic identity.
 
 Representation is indexed by carrier, mathematical model, arithmetic domain,
 operation, and semantics version. Exact arithmetic owes a no-overflow proof and

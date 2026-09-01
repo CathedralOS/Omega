@@ -114,6 +114,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
@@ -145,6 +146,7 @@ fn verified_integer_control_contract_slice_executes_directly() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -405,6 +407,7 @@ fn verified_crashes_are_stable_terminal_outcomes() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],
@@ -515,6 +518,7 @@ fn interpreter_rejects_an_out_of_range_integer_argument() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![machine],

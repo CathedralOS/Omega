@@ -47,6 +47,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -113,6 +114,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_cse_unit()
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -197,6 +199,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -315,6 +318,7 @@ pub(in crate::pass_manager::tests) fn verified_compatible_policy_phi_gvn_unit()
         }],
     };
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,

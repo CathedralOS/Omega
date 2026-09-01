@@ -69,6 +69,7 @@ pub(crate) fn operation_proof_bundle(module: &TerminalModule) -> ProofBundle {
         .collect::<Vec<_>>();
     evidence.sort_by_key(|evidence| evidence.obligation);
     ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence,
     }
@@ -105,6 +106,7 @@ pub(crate) fn artifact() -> (Vec<u8>, Vec<u8>) {
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -304,6 +306,7 @@ pub(crate) fn conditional_immediate_module(
         proposition_applications: Vec::new(),
         evidence_terms: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
@@ -317,6 +320,7 @@ pub(crate) fn conditional_immediate_artifact_with_type(
     let machine = conditional_immediate_machine(3_000, integer_type, [7, 9]);
     let module = conditional_immediate_module(machine.id, vec![machine]);
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };
@@ -332,6 +336,7 @@ pub(crate) fn disconnected_conditional_artifact() -> (Vec<u8>, Vec<u8>) {
     let detached = conditional_immediate_machine(17_000, integer_type, [11, 13]);
     let module = conditional_immediate_module(entry.id, vec![entry, detached]);
     let proof = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: Vec::new(),
     };

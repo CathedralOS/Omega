@@ -14,11 +14,11 @@ use psi_proof_admission::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, CorrelatedAffineBranchWitness,
     CorrelatedAffineStepWitness, EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
     IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
-    ProofSystemMarker,
+    ProofSystemMarker, RecursiveComponentCertificate, RecursiveEdgeCertificate,
 };
 use psi_terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
-    ObligationEvidence, ProofBundle,
+    ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
 };
 use sha2::{Digest, Sha256};
 pub use synopsis::{
@@ -29,7 +29,7 @@ use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 21;
+pub(crate) const FORMAT_MARKER: u16 = 22;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-proof-bundle-fingerprint\0";
 const MAX_PROPOSITION_DEPTH: usize = 256;
 const MAX_SCALAR_TERM_DEPTH: usize = 256;
@@ -80,6 +80,14 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
     for _ in 0..evidence_count {
         evidence.push(decode_evidence(&mut reader, format_marker)?);
     }
+    let recursive_component_count = reader.count()?;
+    let mut recursive_components = Vec::new();
+    for _ in 0..recursive_component_count {
+        recursive_components.push(decode_recursive_component_evidence(
+            &mut reader,
+            format_marker,
+        )?);
+    }
     let producer_count = reader.count()?;
     let mut evidence_producers = Vec::new();
     for _ in 0..producer_count {
@@ -90,6 +98,7 @@ pub fn decode_proof_bundle(bytes: &[u8]) -> Result<ProofBundle, ProofCodecError>
     }
     let bundle = ProofBundle {
         evidence,
+        recursive_components,
         evidence_producers,
     };
     validate_bundle(&bundle)?;
@@ -118,6 +127,13 @@ fn encode_raw(bundle: &ProofBundle, format_marker: u16) -> Result<Vec<u8>, Proof
     writer.len("evidence", bundle.evidence.len())?;
     for evidence in &bundle.evidence {
         encode_evidence(&mut writer, evidence, format_marker)?;
+    }
+    writer.len(
+        "recursive component evidence",
+        bundle.recursive_components.len(),
+    )?;
+    for component in &bundle.recursive_components {
+        encode_recursive_component_evidence(&mut writer, component, format_marker)?;
     }
     writer.len("evidence producers", bundle.evidence_producers.len())?;
     for producer in &bundle.evidence_producers {
@@ -216,7 +232,15 @@ fn encode_evidence(
     format_marker: u16,
 ) -> Result<(), ProofCodecError> {
     writer.id(evidence.obligation);
-    match &evidence.route {
+    encode_evidence_route(writer, &evidence.route, format_marker)
+}
+
+fn encode_evidence_route(
+    writer: &mut Writer,
+    route: &EvidenceRoute,
+    format_marker: u16,
+) -> Result<(), ProofCodecError> {
+    match route {
         EvidenceRoute::KernelDerived(judgment) => {
             writer.u8(1);
             encode_primitive(writer, *judgment);
@@ -235,6 +259,30 @@ fn encode_evidence(
             writer.id(evidence.evidence_identity);
             writer.id(evidence.profile_decision);
         }
+    }
+    Ok(())
+}
+
+fn encode_recursive_component_evidence(
+    writer: &mut Writer,
+    evidence: &RecursiveComponentEvidence,
+    format_marker: u16,
+) -> Result<(), ProofCodecError> {
+    writer.id(evidence.component);
+    writer.id(evidence.certificate.identity);
+    writer.id(evidence.certificate.ranking_relation);
+    encode_evidence_route(
+        writer,
+        &evidence.certificate.well_foundedness,
+        format_marker,
+    )?;
+    writer.len(
+        "recursive component edge evidence",
+        evidence.certificate.edges.len(),
+    )?;
+    for edge in &evidence.certificate.edges {
+        writer.id(edge.obligation);
+        encode_evidence_route(writer, &edge.evidence, format_marker)?;
     }
     Ok(())
 }
@@ -1112,7 +1160,15 @@ fn decode_evidence(
     format_marker: u16,
 ) -> Result<ObligationEvidence, ProofCodecError> {
     let obligation = reader.id("ObligationId")?;
-    let route = match reader.u8()? {
+    let route = decode_evidence_route(reader, format_marker)?;
+    Ok(ObligationEvidence { obligation, route })
+}
+
+fn decode_evidence_route(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<EvidenceRoute, ProofCodecError> {
+    Ok(match reader.u8()? {
         1 => EvidenceRoute::KernelDerived(decode_primitive(reader)?),
         2 => {
             let identity = reader.id("EvidenceIdentity")?;
@@ -1132,8 +1188,34 @@ fn decode_evidence(
             profile_decision: reader.id("ProfileDecisionId")?,
         }),
         tag => return Err(ProofCodecError::InvalidTag("EvidenceRoute", tag)),
-    };
-    Ok(ObligationEvidence { obligation, route })
+    })
+}
+
+fn decode_recursive_component_evidence(
+    reader: &mut Reader<'_>,
+    format_marker: u16,
+) -> Result<RecursiveComponentEvidence, ProofCodecError> {
+    let component = reader.id("RecursiveComponentId")?;
+    let identity = reader.id("EvidenceIdentity")?;
+    let ranking_relation = reader.id("RankingRelationId")?;
+    let well_foundedness = decode_evidence_route(reader, format_marker)?;
+    let edge_count = reader.count()?;
+    let mut edges = Vec::new();
+    for _ in 0..edge_count {
+        edges.push(RecursiveEdgeCertificate {
+            obligation: reader.id("ObligationId")?,
+            evidence: decode_evidence_route(reader, format_marker)?,
+        });
+    }
+    Ok(RecursiveComponentEvidence {
+        component,
+        certificate: RecursiveComponentCertificate {
+            identity,
+            ranking_relation,
+            well_foundedness,
+            edges,
+        },
+    })
 }
 
 fn decode_proof_node(
@@ -1854,6 +1936,7 @@ pub enum ProofCodecError {
     IndexTooLarge(&'static str),
     IndexOutsideHost,
     NonCanonicalEvidenceOrder,
+    NonCanonicalRecursiveComponentEvidence,
     NonCanonicalEvidenceProducerOrder,
     NonCanonicalEvidenceProducerRows,
     InvalidEvidenceProducer,

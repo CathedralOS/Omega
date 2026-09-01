@@ -1,12 +1,21 @@
 //! Canonical proof-artifact evidence and producer provenance model.
 
-use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId};
-use psi_proof_admission::EvidenceRoute;
+use psi_core::{EvidenceIdentity, EvidenceTermId, ObligationId, RecursiveComponentId};
+use psi_proof_admission::{EvidenceRoute, RecursiveComponentCertificate};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObligationEvidence {
     pub obligation: ObligationId,
     pub route: EvidenceRoute,
+}
+
+/// Grouped evidence for one exact verifier-reconstructed recursive component.
+/// The semantic component key joins the certificate without relying on bundle
+/// position or producer-selected topology.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecursiveComponentEvidence {
+    pub component: RecursiveComponentId,
+    pub certificate: RecursiveComponentCertificate,
 }
 
 /// Checked provenance for one freshly introduced carrierless evidence term.
@@ -40,5 +49,6 @@ pub enum EvidenceProducerRowSource {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProofBundle {
     pub evidence: Vec<ObligationEvidence>,
+    pub recursive_components: Vec<RecursiveComponentEvidence>,
     pub evidence_producers: Vec<EvidenceProducerProvenance>,
 }

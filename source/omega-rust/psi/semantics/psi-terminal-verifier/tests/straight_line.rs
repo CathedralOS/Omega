@@ -9,7 +9,8 @@ use psi_core::{
 };
 use psi_proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, PrimitiveJudgment,
-    ProofError, ProofNode, ProofRule, ProofSystemMarker,
+    ProofError, ProofNode, ProofRule, ProofSystemMarker, RecursiveComponentCertificate,
+    RecursiveEdgeCertificate,
 };
 use psi_terminal::{
     Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer, CompletionReceipt,
@@ -24,13 +25,16 @@ use psi_terminal::{
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultClaimBinding, StructuralResultClaimTransfer,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalPlacedViewInput, Terminator,
-    ValueDeclaration, VocabularyMarker,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalPlacedViewInput,
+    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
+    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
+    TerminalProofRecursiveType, Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_verifier::{
     ContractClauseKind, EvidenceProducerProvenance, ModuleError, ObligationEvidence, ProofBundle,
-    VerificationError, reconstruct_operation_obligations, reconstruct_terminal_obligations,
-    validate_module, verify_module,
+    RecursiveComponentEvidence, VerificationError, proof_recursive_component_identity,
+    reconstruct_operation_obligations, reconstruct_proof_recursive_component_obligations,
+    reconstruct_terminal_obligations, validate_module, verify_module,
 };
 
 #[test]
@@ -45,6 +49,122 @@ fn unit_machine_is_a_value_less_normal_return() {
 
     assert_eq!(verified.module(), &module);
     assert!(verified.accepted_facts().is_empty());
+}
+
+#[test]
+fn exact_proof_recursive_component_is_verified_as_one_grouped_certificate() {
+    let module = proof_recursive_module();
+    let bundle = proof_recursive_bundle(&module);
+    let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("the exact grouped recursive certificate should verify");
+
+    assert!(verified.accepted_facts().is_empty());
+    let [acceptance] = verified.accepted_recursive_components() else {
+        panic!("one recursive component acceptance")
+    };
+    assert_eq!(
+        acceptance.members,
+        vec![contract_id(1001), contract_id(1002)]
+    );
+    assert_eq!(acceptance.decreases.len(), 4);
+}
+
+#[test]
+fn proof_recursive_component_rejects_stale_missing_extra_and_reordered_evidence() {
+    let module = proof_recursive_module();
+    let bundle = proof_recursive_bundle(&module);
+
+    let mut stale_module = module.clone();
+    stale_module.proof_recursive_components[0].edges[0].strict_member_path =
+        vec!["package::Node::right".into()];
+    assert!(matches!(
+        verify_module(&stale_module, &bundle, &AdmissionProfile::default()),
+        Err(VerificationError::MissingRecursiveComponentEvidence(_))
+    ));
+
+    let mut missing_component = bundle.clone();
+    missing_component.recursive_components.clear();
+    assert!(matches!(
+        verify_module(&module, &missing_component, &AdmissionProfile::default()),
+        Err(VerificationError::MissingRecursiveComponentEvidence(_))
+    ));
+
+    let mut missing_edge = bundle.clone();
+    missing_edge.recursive_components[0].certificate.edges.pop();
+    assert!(matches!(
+        verify_module(&module, &missing_edge, &AdmissionProfile::default()),
+        Err(VerificationError::RejectedRecursiveComponent { .. })
+    ));
+
+    let mut reordered_edges = bundle.clone();
+    reordered_edges.recursive_components[0]
+        .certificate
+        .edges
+        .reverse();
+    assert_eq!(
+        verify_module(&module, &reordered_edges, &AdmissionProfile::default()).unwrap_err(),
+        VerificationError::RejectedRecursiveComponent {
+            component: proof_recursive_component_identity(&module.proof_recursive_components[0]),
+            error: psi_proof_admission::RecursiveComponentError::NonCanonicalCertificateEdges,
+        }
+    );
+
+    let mut extra = bundle;
+    let mut extra_row = extra.recursive_components[0].clone();
+    extra_row.component = psi_core::RecursiveComponentId::new(u64::MAX).unwrap();
+    extra.recursive_components.push(extra_row);
+    assert!(matches!(
+        verify_module(&module, &extra, &AdmissionProfile::default()),
+        Err(VerificationError::UnknownRecursiveComponentEvidence(_))
+    ));
+}
+
+#[test]
+fn proof_recursive_component_representation_rejects_noncanonical_or_unresolved_graphs() {
+    let module = proof_recursive_module();
+
+    let mut empty_path = module.clone();
+    empty_path.proof_recursive_components[0].edges[0]
+        .strict_member_path
+        .clear();
+    assert!(matches!(
+        validate_module(&empty_path),
+        Err(ModuleError::InvalidProofRecursiveEdge { .. })
+    ));
+
+    let mut unknown_field = module.clone();
+    unknown_field.proof_recursive_components[0].edges[0].strict_member_path =
+        vec!["package::Node::missing".into()];
+    assert!(matches!(
+        validate_module(&unknown_field),
+        Err(ModuleError::InvalidProofRecursiveEdge { .. })
+    ));
+
+    let mut noncanonical_edges = module.clone();
+    noncanonical_edges.proof_recursive_components[0]
+        .edges
+        .reverse();
+    assert_eq!(
+        validate_module(&noncanonical_edges).unwrap_err(),
+        ModuleError::InvalidProofRecursiveComponent
+    );
+
+    let mut duplicate_site = module.clone();
+    duplicate_site.proof_recursive_components[0].edges[1].site =
+        duplicate_site.proof_recursive_components[0].edges[0]
+            .site
+            .clone();
+    assert!(matches!(
+        validate_module(&duplicate_site),
+        Err(ModuleError::InvalidProofRecursiveEdge { .. })
+    ));
+
+    let mut outside = module.clone();
+    outside.proof_recursive_components[0].edges[3].callee = contract_id(1999);
+    assert!(matches!(
+        validate_module(&outside),
+        Err(ModuleError::InvalidProofRecursiveEdge { .. })
+    ));
 }
 
 fn placed_view_input(machine: MachineId, position: u32) -> TerminalPlacedViewInput {
@@ -384,6 +504,7 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
         proposition: Proposition::Truth,
     }];
     let kernel_bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -391,6 +512,7 @@ fn proof_route_changes_do_not_change_the_reconstructed_question() {
         }],
     };
     let certificate_bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -424,6 +546,7 @@ fn verifier_does_not_rediscover_an_alternate_route_for_a_malformed_certificate()
         proposition: Proposition::Truth,
     }];
     let malformed_selected_route = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -498,6 +621,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -560,6 +684,7 @@ fn boolean_constant_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -603,6 +728,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -655,6 +781,7 @@ fn boolean_not_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -742,6 +869,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -800,6 +928,7 @@ fn boolean_equality_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -890,6 +1019,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -948,6 +1078,7 @@ fn integer_equality_axiom_proves_the_return_contract() {
         }],
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1060,6 +1191,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
@@ -1118,6 +1250,7 @@ fn integer_ordering_axioms_prove_return_contracts() {
             }],
         };
         let bundle = ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -1219,6 +1352,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
@@ -1277,6 +1411,7 @@ fn integer_bitwise_axioms_prove_exact_result_contracts() {
             }],
         };
         let bundle = ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -1357,6 +1492,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -1409,6 +1545,7 @@ fn integer_bitwise_not_reconstructs_its_exact_result_axiom() {
         }],
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1475,6 +1612,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -1527,6 +1665,7 @@ fn integer_widen_reconstructs_its_exact_result_axiom_and_rejects_partial_casts()
         }],
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -1621,6 +1760,7 @@ fn preserves_address_carrier_identity() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -1695,6 +1835,7 @@ fn exact_integer_cast_requires_a_distinct_fixed_partial_conversion_and_obligatio
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -1815,6 +1956,7 @@ fn exact_right_shift_requires_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -1911,6 +2053,7 @@ fn exact_left_shift_requires_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2006,6 +2149,7 @@ fn exact_add_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2086,6 +2230,7 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2166,6 +2311,7 @@ fn exact_multiply_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2254,6 +2400,7 @@ fn exact_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2360,6 +2507,7 @@ fn exact_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2439,6 +2587,7 @@ fn wrapping_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2518,6 +2667,7 @@ fn wrapping_remainder_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2597,6 +2747,7 @@ fn saturating_divide_requires_same_fixed_integer_operands_and_an_obligation() {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2676,6 +2827,7 @@ fn saturating_remainder_requires_same_fixed_integer_operands_and_an_obligation()
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2784,6 +2936,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
@@ -2842,6 +2995,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
             }],
         };
         let bundle = ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation,
@@ -2901,6 +3055,7 @@ fn wrapping_shift_axioms_preserve_the_count_type() {
 fn content_conservation_accepts_a_replaceable_certificate() {
     let (module, goal, obligation) = reflexive_content_module();
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -2924,6 +3079,7 @@ fn content_conservation_accepts_a_replaceable_certificate() {
 fn identity_reshuffle_reconstructs_content_equality_as_a_semantic_axiom() {
     let (module, goal, obligation) = identity_reshuffle_module();
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -3369,6 +3525,7 @@ fn sum_case_identity_reshuffle_reconstructs_content_equality() {
         .expect("one projection yields one proposition");
     module.machines[0].contract.ensures[0].proposition = goal.clone();
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -3607,6 +3764,7 @@ fn exact_payloadless_guard_rebases_result_case_and_replays_only_matching_unnamed
             })
     );
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: success_obligation,
@@ -3789,6 +3947,7 @@ fn multi_exit_payloadless_guards_intersect_only_exits_of_the_same_case() {
     );
 
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: [global_obligation, success_obligation, failure_obligation]
             .into_iter()
@@ -3880,6 +4039,7 @@ fn multi_exit_payloadless_guards_activate_named_producers_by_reached_case_set() 
         rows: Vec::new(),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: vec![producer(1), producer(2)],
         evidence: Vec::new(),
     };
@@ -3903,6 +4063,7 @@ fn partition_composition_is_available_after_its_exact_successful_call() {
     let (module, goal, obligation) = partition_composition_module();
     validate_module(&module).expect("the partition substitution remains valid replay evidence");
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -4462,6 +4623,7 @@ fn identity_reshuffle_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -4662,6 +4824,7 @@ fn structural_call_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![caller_machine, callee_machine],
@@ -4987,6 +5150,7 @@ fn partition_composition_module() -> (TerminalModule, Proposition, ObligationId)
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -5132,6 +5296,7 @@ fn reflexive_content_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -5162,6 +5327,7 @@ fn wrapping_add_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5225,6 +5391,7 @@ fn saturating_add_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5288,6 +5455,7 @@ fn wrapping_subtract_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5351,6 +5519,7 @@ fn saturating_subtract_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5414,6 +5583,7 @@ fn wrapping_multiply_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5477,6 +5647,7 @@ fn saturating_multiply_axiom_proves_the_return_contract() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation,
@@ -5645,6 +5816,7 @@ fn wrapping_add_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -5741,6 +5913,7 @@ fn saturating_add_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -5837,6 +6010,7 @@ fn wrapping_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -5933,6 +6107,7 @@ fn saturating_subtract_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -6029,6 +6204,7 @@ fn wrapping_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -6125,6 +6301,7 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
             evidence_terms: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
+            proof_recursive_components: Vec::new(),
             closed_conformance_applications: Vec::new(),
             quotient_correspondences: Vec::new(),
             machines: vec![machine],
@@ -6132,6 +6309,125 @@ fn saturating_multiply_module() -> (TerminalModule, Proposition, ObligationId) {
         goal,
         obligation,
     )
+}
+
+fn contract_id(raw: u64) -> ContractId {
+    ContractId::new(raw).expect("nonzero contract identity")
+}
+
+fn proof_recursive_module() -> TerminalModule {
+    let mut module = unit_module();
+    module.proof_recursive_components = vec![TerminalProofRecursiveComponent {
+        ranking_relation: TerminalProofRankingRelation::StructuralSubterm,
+        rank_type_identity: "package::Node".into(),
+        types: vec![TerminalProofRecursiveType {
+            identity: "package::Node".into(),
+            fields: vec![
+                TerminalProofRecursiveField {
+                    identity: "package::Node::left".into(),
+                    type_identity: "package::Node".into(),
+                },
+                TerminalProofRecursiveField {
+                    identity: "package::Node::right".into(),
+                    type_identity: "package::Node".into(),
+                },
+            ],
+        }],
+        members: vec![
+            TerminalProofRecursiveMember {
+                contract: contract_id(1001),
+                machine_identity: "package::left".into(),
+                rank_parameter_identity: "package::left::node".into(),
+            },
+            TerminalProofRecursiveMember {
+                contract: contract_id(1002),
+                machine_identity: "package::right".into(),
+                rank_parameter_identity: "package::right::node".into(),
+            },
+        ],
+        edges: vec![
+            TerminalProofRecursiveEdge {
+                caller: contract_id(1001),
+                callee: contract_id(1002),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::left::step".into(),
+                    statement_index: 0,
+                },
+                strict_member_path: vec!["package::Node::left".into()],
+            },
+            TerminalProofRecursiveEdge {
+                caller: contract_id(1001),
+                callee: contract_id(1002),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::left::step".into(),
+                    statement_index: 1,
+                },
+                strict_member_path: vec!["package::Node::right".into()],
+            },
+            TerminalProofRecursiveEdge {
+                caller: contract_id(1002),
+                callee: contract_id(1001),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::right::step".into(),
+                    statement_index: 0,
+                },
+                strict_member_path: vec!["package::Node::left".into()],
+            },
+            TerminalProofRecursiveEdge {
+                caller: contract_id(1002),
+                callee: contract_id(1001),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::right::step".into(),
+                    statement_index: 1,
+                },
+                strict_member_path: vec!["package::Node::right".into()],
+            },
+        ],
+    }];
+    module
+}
+
+fn proof_recursive_bundle(module: &TerminalModule) -> ProofBundle {
+    let [component] = module.proof_recursive_components.as_slice() else {
+        panic!("one recursive component")
+    };
+    let mut reconstructed =
+        reconstruct_proof_recursive_component_obligations(module).expect("canonical component");
+    let obligation = reconstructed.pop().expect("one recursive obligation");
+    let route = |identity, obligation: &psi_proof_admission::CertificateObligation| {
+        EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: EvidenceIdentity::new(identity).expect("nonzero certificate identity"),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof: ProofNode {
+                conclusion: obligation.obligation.proposition.clone(),
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            },
+        })
+    };
+    ProofBundle {
+        evidence: Vec::new(),
+        recursive_components: vec![RecursiveComponentEvidence {
+            component: proof_recursive_component_identity(component),
+            certificate: RecursiveComponentCertificate {
+                identity: EvidenceIdentity::new(2000).unwrap(),
+                ranking_relation: obligation.ranking_relation.expect("measured component"),
+                well_foundedness: route(2001, &obligation.well_foundedness),
+                edges: obligation
+                    .edges
+                    .iter()
+                    .enumerate()
+                    .map(|(index, edge)| RecursiveEdgeCertificate {
+                        obligation: edge.decrease.obligation.id,
+                        evidence: route(
+                            2010 + u64::try_from(index).expect("edge index fits u64"),
+                            &edge.decrease,
+                        ),
+                    })
+                    .collect(),
+            },
+        }],
+        evidence_producers: Vec::new(),
+    }
 }
 
 fn unit_module() -> TerminalModule {
@@ -6154,6 +6450,7 @@ fn unit_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -6519,6 +6816,7 @@ impl Fixture {
                 evidence_terms: Vec::new(),
                 evidence_contract_lanes: Vec::new(),
                 proof_output_calls: Vec::new(),
+                proof_recursive_components: Vec::new(),
                 closed_conformance_applications: Vec::new(),
                 quotient_correspondences: Vec::new(),
                 machines: vec![machine],
@@ -6563,6 +6861,7 @@ impl Fixture {
             },
         };
         ProofBundle {
+            recursive_components: Vec::new(),
             evidence_producers: Vec::new(),
             evidence: vec![ObligationEvidence {
                 obligation: self.obligation,

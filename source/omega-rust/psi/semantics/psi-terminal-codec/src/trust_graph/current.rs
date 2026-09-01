@@ -32,7 +32,7 @@ fn terminal_vocabulary_version() -> String {
 }
 
 fn canonical_terminal_bytes_identity() -> &'static str {
-    "root:canonical-terminal-bytes-format-54-vocabulary-57"
+    "root:canonical-terminal-bytes-format-55-vocabulary-58"
 }
 
 fn canonical_terminal_bytes_version() -> String {
@@ -43,7 +43,7 @@ fn canonical_terminal_bytes_version() -> String {
 }
 
 fn canonical_proof_calculus_identity() -> &'static str {
-    "root:canonical-proof-calculus-format-21"
+    "root:canonical-proof-calculus-format-22"
 }
 
 fn canonical_proof_calculus_version() -> String {

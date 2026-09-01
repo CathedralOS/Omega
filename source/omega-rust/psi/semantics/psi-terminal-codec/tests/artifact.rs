@@ -4,18 +4,23 @@ use psi_core::{
     ContentPlaceVersion, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
     ContractId, EdgeId, EvidenceIdentity, IeeeFloatFormat, IeeeFloatStructuralField, IntegerSign,
     IntegerType, IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ProfileDecisionId,
-    Proposition, PropositionContext, PropositionError, ScalarTerm, ScalarType, StructuralCaseId,
-    StructuralCaseSubject, StructuralFieldId, StructuralPlaceKind, ValueId,
+    Proposition, PropositionContext, PropositionError, RankingRelationId, RecursiveComponentId,
+    ScalarTerm, ScalarType, StructuralCaseId, StructuralCaseSubject, StructuralFieldId,
+    StructuralPlaceKind, ValueId,
 };
 use psi_proof_admission::{
     AdmissionEvidence, AdmissionKind, AdmissionProfile, CertificateEnvelope,
     CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, EvidenceRoute,
     IntegerAffineWitness, IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness,
-    PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
+    PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker, RecursiveComponentCertificate,
+    RecursiveEdgeCertificate,
 };
 use psi_terminal::{
     Block, ContractClause, MachineContract, Operation, OperationKind, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, TerminalProofRankingRelation,
+    TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent, TerminalProofRecursiveEdge,
+    TerminalProofRecursiveField, TerminalProofRecursiveMember, TerminalProofRecursiveType,
+    Terminator, ValueDeclaration, VocabularyMarker,
 };
 use psi_terminal_codec::{
     ArtifactManifestError, CanonicalTerminalArtifact, ProofCodecError, build_artifact_manifest,
@@ -23,7 +28,11 @@ use psi_terminal_codec::{
     decode_proof_bundle, encode_proof_bundle, proof_bundle_fingerprint,
     render_verified_proof_synopsis, terminal_psi_identity, validate_artifact_manifest,
 };
-use psi_terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
+use psi_terminal_verifier::{
+    ObligationEvidence, ProofBundle, RecursiveComponentEvidence,
+    proof_recursive_component_identity, reconstruct_proof_recursive_component_obligations,
+    verify_module,
+};
 
 #[test]
 fn proof_bundle_uses_one_current_canonical_vocabulary() {
@@ -31,7 +40,7 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
     let bytes = encode_proof_bundle(&bundle).expect("representative proof bundle should encode");
 
     assert_eq!(&bytes[..8], b"PSIPRF\0\0");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bytes.clone();
@@ -53,6 +62,76 @@ fn proof_bundle_uses_one_current_canonical_vocabulary() {
         decode_proof_bundle(&stale),
         Err(ProofCodecError::UnsupportedFormatMarker(1))
     );
+}
+
+#[test]
+fn grouped_recursive_component_evidence_round_trips_and_rejects_reordering() {
+    let route = |identity| {
+        EvidenceRoute::CertificateDerived(CertificateEnvelope {
+            identity: evidence_id(identity),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof: ProofNode {
+                conclusion: Proposition::Truth,
+                rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+            },
+        })
+    };
+    let component = |component_raw, certificate_raw, edge_base| RecursiveComponentEvidence {
+        component: RecursiveComponentId::new(component_raw).unwrap(),
+        certificate: RecursiveComponentCertificate {
+            identity: evidence_id(certificate_raw),
+            ranking_relation: RankingRelationId::new(77).unwrap(),
+            well_foundedness: route(certificate_raw + 1),
+            edges: vec![
+                RecursiveEdgeCertificate {
+                    obligation: obligation_id(edge_base),
+                    evidence: route(certificate_raw + 2),
+                },
+                RecursiveEdgeCertificate {
+                    obligation: obligation_id(edge_base + 1),
+                    evidence: route(certificate_raw + 3),
+                },
+            ],
+        },
+    };
+    let bundle = ProofBundle {
+        evidence: Vec::new(),
+        recursive_components: vec![component(301, 401, 501), component(302, 411, 511)],
+        evidence_producers: Vec::new(),
+    };
+    let bytes = encode_proof_bundle(&bundle).expect("grouped recursion evidence encodes");
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
+    assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
+
+    let mut reordered = bundle;
+    reordered.recursive_components.reverse();
+    assert_eq!(
+        encode_proof_bundle(&reordered),
+        Err(ProofCodecError::NonCanonicalRecursiveComponentEvidence),
+    );
+}
+
+#[test]
+fn verified_synopsis_reports_one_shared_well_foundedness_and_every_exact_recursive_call() {
+    let mut module = semantic_module();
+    module.proof_recursive_components = vec![proof_recursive_component()];
+    let mut bundle = kernel_bundle();
+    bundle.recursive_components = proof_recursive_evidence(&module);
+    let verified = verify_module(&module, &bundle, &AdmissionProfile::default())
+        .expect("recursive proof bundle should verify before synopsis rendering");
+    let synopsis = render_verified_proof_synopsis(&verified).expect("verified synopsis");
+
+    assert_eq!(synopsis.matches("recursive-component ").count(), 1);
+    assert_eq!(synopsis.matches("  member ").count(), 2);
+    assert_eq!(synopsis.matches("  well-founded obligation ").count(), 1);
+    assert_eq!(synopsis.matches("  decrease obligation ").count(), 4);
+    assert!(synopsis.contains("package::left::step"));
+    assert!(synopsis.contains("package::right::step"));
+
+    let mut stale = module;
+    stale.proof_recursive_components[0].edges[0].strict_member_path =
+        vec!["package::Node::right".into()];
+    assert!(verify_module(&stale, &bundle, &AdmissionProfile::default()).is_err());
 }
 
 #[test]
@@ -91,6 +170,7 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(71),
@@ -121,7 +201,7 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
     assert_eq!(accepted.assumptions[0].proposition, Proposition::Truth);
 
     let bytes = encode_proof_bundle(&bundle).expect("disjunction proof bytes encode");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(bytes[40], 9, "canonical disjunction-introduction tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
@@ -165,6 +245,7 @@ fn proof_format_assigns_tag_ten_to_integer_order_transitivity() {
         rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(72),
@@ -183,7 +264,7 @@ fn proof_format_assigns_tag_ten_to_integer_order_transitivity() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer-order proof node encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(bytes[34], 10, "canonical integer-order-transitivity tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -202,6 +283,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
         rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
     };
     let wire_bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(74),
@@ -221,7 +303,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     };
 
     let bytes = encode_proof_bundle(&wire_bundle).expect("integer substitution node encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(bytes[34], 11, "canonical integer-order-substitution tag");
     assert_eq!(&bytes[41..45], &1_u32.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(wire_bundle));
@@ -248,6 +330,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     let equality = Proposition::Equal(literal(5), divisor.clone());
     let conclusion = Proposition::LessOrEqual(literal(1), divisor);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(75),
@@ -273,7 +356,9 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     };
     let mut corrupt_endpoint =
         encode_proof_bundle(&bundle).expect("checked substitution certificate encodes");
-    let endpoint = corrupt_endpoint.len() - 8;
+    let trailing_empty_section_counts = 2 * std::mem::size_of::<u32>();
+    let endpoint =
+        corrupt_endpoint.len() - trailing_empty_section_counts - std::mem::size_of::<u32>();
     corrupt_endpoint[endpoint..endpoint + 4].copy_from_slice(&2_u32.to_le_bytes());
     let decoded = decode_proof_bundle(&corrupt_endpoint)
         .expect("an out-of-range endpoint remains syntactically canonical");
@@ -301,6 +386,7 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
     let root = ScalarTerm::value(value_id(76), ScalarType::Integer(integer));
     let target = ScalarTerm::value(value_id(77), ScalarType::Integer(integer));
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(76),
@@ -327,7 +413,7 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer affine bound node encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(bytes[34], 12, "canonical integer-affine-bound tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -362,6 +448,7 @@ fn proof_format_assigns_tag_thirteen_to_integer_cast_chain_bound() {
     let source = IntegerType::new(IntegerSign::Signed, 16).expect("i16");
     let target = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(77),
@@ -387,7 +474,7 @@ fn proof_format_assigns_tag_thirteen_to_integer_cast_chain_bound() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer cast bound node encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(bytes[34], 13, "canonical integer-cast-bound tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -407,6 +494,7 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     let divisor = ScalarTerm::value(value_id(82), ScalarType::Integer(integer));
     let conclusion = Proposition::Truth;
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(80),
@@ -445,7 +533,7 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer correlated proof node encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(bytes[34], 14, "canonical correlated-forbidden-roots tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -501,6 +589,7 @@ fn proof_format_round_trips_negative_nonzero_certificate() {
         },
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(73),
@@ -524,7 +613,7 @@ fn proof_format_round_trips_negative_nonzero_certificate() {
     .expect("negative nonzero certificate checks before encoding");
 
     let bytes = encode_proof_bundle(&bundle).expect("negative nonzero proof encodes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     let decoded = decode_proof_bundle(&bytes).expect("negative nonzero proof decodes");
     assert_eq!(decoded, bundle);
     let EvidenceRoute::CertificateDerived(certificate) = &decoded.evidence[0].route else {
@@ -559,6 +648,7 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
         right,
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(72),
@@ -573,7 +663,7 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("IEEE proof bytes encode");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut inequality = bundle.clone();
@@ -621,6 +711,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
     )
     .expect("right byte-sequence field");
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(73),
@@ -635,7 +726,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("byte-sequence proof bytes encode");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bundle;
@@ -657,6 +748,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
 #[test]
 fn proof_format_round_trips_structural_case_membership() {
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(74),
@@ -679,7 +771,7 @@ fn proof_format_round_trips_structural_case_membership() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("case-membership proof bytes encode");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -733,6 +825,7 @@ fn synopsis_is_projected_from_the_exact_accepted_certificate() {
 
     let goal = module.machines[0].contract.ensures[0].proposition.clone();
     let assumption_bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -765,6 +858,7 @@ fn proof_format_canonically_encodes_boolean_equality() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(101),
@@ -779,7 +873,7 @@ fn proof_format_canonically_encodes_boolean_equality() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-equality certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut stale = bytes;
@@ -802,6 +896,7 @@ fn proof_format_round_trips_nested_boolean_field_paths() {
     );
     let goal = Proposition::Equal(field.clone(), field);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -858,6 +953,7 @@ fn proof_format_round_trips_typed_integer_field_paths() {
     );
     let goal = Proposition::Equal(field.clone(), field);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -910,6 +1006,7 @@ fn proof_format_canonically_encodes_integer_equality() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(102),
@@ -924,7 +1021,7 @@ fn proof_format_canonically_encodes_integer_equality() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-equality certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -940,6 +1037,7 @@ fn proof_format_canonically_encodes_integer_ordering() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(103),
@@ -954,7 +1052,7 @@ fn proof_format_canonically_encodes_integer_ordering() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-ordering certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -970,6 +1068,7 @@ fn proof_format_canonically_encodes_integer_bitwise_terms() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(104),
@@ -984,7 +1083,7 @@ fn proof_format_canonically_encodes_integer_bitwise_terms() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1002,6 +1101,7 @@ fn proof_format_canonically_encodes_wrapping_shift_terms() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(105),
@@ -1016,7 +1116,7 @@ fn proof_format_canonically_encodes_wrapping_shift_terms() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1031,6 +1131,7 @@ fn proof_format_canonically_encodes_integer_bitwise_not() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(106),
@@ -1045,7 +1146,7 @@ fn proof_format_canonically_encodes_integer_bitwise_not() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-bitwise-not certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1061,6 +1162,7 @@ fn proof_format_canonically_encodes_integer_widening() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(107),
@@ -1075,7 +1177,7 @@ fn proof_format_canonically_encodes_integer_widening() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive integer-widen certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1089,6 +1191,7 @@ fn proof_format_canonically_encodes_address_carriers() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(108),
@@ -1103,7 +1206,7 @@ fn proof_format_canonically_encodes_address_carriers() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive address certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1121,6 +1224,7 @@ fn proof_format_canonically_encodes_exact_right_shifts() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(110),
@@ -1135,7 +1239,7 @@ fn proof_format_canonically_encodes_exact_right_shifts() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-right-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1153,6 +1257,7 @@ fn proof_format_canonically_encodes_exact_left_shifts() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(111),
@@ -1167,7 +1272,7 @@ fn proof_format_canonically_encodes_exact_left_shifts() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-left-shift certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1183,6 +1288,7 @@ fn proof_format_canonically_encodes_exact_integer_addition() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(112),
@@ -1197,7 +1303,7 @@ fn proof_format_canonically_encodes_exact_integer_addition() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-add certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1213,6 +1319,7 @@ fn proof_format_canonically_encodes_exact_integer_subtraction() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(113),
@@ -1227,7 +1334,7 @@ fn proof_format_canonically_encodes_exact_integer_subtraction() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-subtract certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1243,6 +1350,7 @@ fn proof_format_canonically_encodes_exact_integer_multiplication() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(114),
@@ -1257,7 +1365,7 @@ fn proof_format_canonically_encodes_exact_integer_multiplication() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-multiply certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1273,6 +1381,7 @@ fn proof_format_canonically_encodes_exact_integer_division() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(115),
@@ -1287,7 +1396,7 @@ fn proof_format_canonically_encodes_exact_integer_division() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1303,6 +1412,7 @@ fn proof_format_canonically_encodes_exact_integer_remainder() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(116),
@@ -1317,7 +1427,7 @@ fn proof_format_canonically_encodes_exact_integer_remainder() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive exact-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1333,6 +1443,7 @@ fn proof_format_canonically_encodes_wrapping_integer_division() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(117),
@@ -1347,7 +1458,7 @@ fn proof_format_canonically_encodes_wrapping_integer_division() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1363,6 +1474,7 @@ fn proof_format_canonically_encodes_wrapping_integer_remainder() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(118),
@@ -1377,7 +1489,7 @@ fn proof_format_canonically_encodes_wrapping_integer_remainder() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive wrapping-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1393,6 +1505,7 @@ fn proof_format_canonically_encodes_saturating_integer_division() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(119),
@@ -1407,7 +1520,7 @@ fn proof_format_canonically_encodes_saturating_integer_division() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-divide certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1423,6 +1536,7 @@ fn proof_format_canonically_encodes_saturating_integer_remainder() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(120),
@@ -1437,7 +1551,7 @@ fn proof_format_canonically_encodes_saturating_integer_remainder() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive saturating-remainder certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 }
 
@@ -1450,6 +1564,7 @@ fn proof_format_canonically_encodes_boolean_negation() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(100),
@@ -1464,7 +1579,7 @@ fn proof_format_canonically_encodes_boolean_negation() {
     psi_proof_admission::check_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
         .expect("reflexive Boolean-negation certificate");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1477,6 +1592,7 @@ fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
     let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(44)).unwrap();
     let goal = Proposition::Equal(sum, reduced);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1503,7 +1619,7 @@ fn proof_format_canonically_encodes_closed_wrapping_arithmetic() {
     )
     .expect("closed u8 wrapping addition proves 44");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1534,6 +1650,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(80),
@@ -1559,7 +1676,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         .expect("reflexive content certificate");
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1572,6 +1689,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap();
     let goal = Proposition::Equal(sum, clamped);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1598,7 +1716,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     )
     .expect("closed u8 saturating addition proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1611,6 +1729,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(251)).unwrap();
     let goal = Proposition::Equal(difference, reduced);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1637,7 +1756,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     )
     .expect("closed u8 wrapping subtraction proves 251");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1650,6 +1769,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).unwrap();
     let goal = Proposition::Equal(difference, clamped);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1676,7 +1796,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     )
     .expect("closed u8 saturating subtraction proves zero");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1689,6 +1809,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     let reduced = ScalarTerm::integer(integer, IntegerValue::Unsigned(4)).unwrap();
     let goal = Proposition::Equal(product, reduced);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1715,7 +1836,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     )
     .expect("closed u8 wrapping multiplication proves four");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1749,6 +1870,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
     };
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(90),
@@ -1761,7 +1883,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1774,6 +1896,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     let clamped = ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap();
     let goal = Proposition::Equal(product, clamped);
     let bundle = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1800,7 +1923,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     )
     .expect("closed u8 saturating multiplication proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &21_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &22_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -1827,6 +1950,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
         };
     }
     let too_deep = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1860,6 +1984,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
         };
     }
     let too_deep_substitution = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1882,6 +2007,7 @@ fn proof_evidence_order_and_proof_depth_fail_closed() {
         term = ScalarTerm::wrapping_integer_add(integer, term, literal()).unwrap();
     }
     let deep_term = ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -1984,6 +2110,7 @@ fn representative_bundle() -> ProofBundle {
         ScalarTerm::value(value_id(1), ScalarType::Integer(i32_type())),
     );
     ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![
             ObligationEvidence {
@@ -2024,6 +2151,121 @@ fn representative_bundle() -> ProofBundle {
     }
 }
 
+fn proof_recursive_component() -> TerminalProofRecursiveComponent {
+    let contract = |raw| ContractId::new(raw).expect("nonzero proof contract identity");
+    TerminalProofRecursiveComponent {
+        ranking_relation: TerminalProofRankingRelation::StructuralSubterm,
+        rank_type_identity: "package::Node".into(),
+        types: vec![TerminalProofRecursiveType {
+            identity: "package::Node".into(),
+            fields: vec![
+                TerminalProofRecursiveField {
+                    identity: "package::Node::left".into(),
+                    type_identity: "package::Node".into(),
+                },
+                TerminalProofRecursiveField {
+                    identity: "package::Node::right".into(),
+                    type_identity: "package::Node".into(),
+                },
+            ],
+        }],
+        members: vec![
+            TerminalProofRecursiveMember {
+                contract: contract(1001),
+                machine_identity: "package::left".into(),
+                rank_parameter_identity: "package::left::node".into(),
+            },
+            TerminalProofRecursiveMember {
+                contract: contract(1002),
+                machine_identity: "package::right".into(),
+                rank_parameter_identity: "package::right::node".into(),
+            },
+        ],
+        edges: vec![
+            TerminalProofRecursiveEdge {
+                caller: contract(1001),
+                callee: contract(1002),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::left::step".into(),
+                    statement_index: 0,
+                },
+                strict_member_path: vec!["package::Node::left".into()],
+            },
+            TerminalProofRecursiveEdge {
+                caller: contract(1001),
+                callee: contract(1002),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::left::step".into(),
+                    statement_index: 1,
+                },
+                strict_member_path: vec!["package::Node::right".into()],
+            },
+            TerminalProofRecursiveEdge {
+                caller: contract(1002),
+                callee: contract(1001),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::right::step".into(),
+                    statement_index: 0,
+                },
+                strict_member_path: vec!["package::Node::left".into()],
+            },
+            TerminalProofRecursiveEdge {
+                caller: contract(1002),
+                callee: contract(1001),
+                site: TerminalProofRecursiveCallSite::Statement {
+                    state_identity: "package::right::step".into(),
+                    statement_index: 1,
+                },
+                strict_member_path: vec!["package::Node::right".into()],
+            },
+        ],
+    }
+}
+
+fn proof_recursive_evidence(module: &TerminalModule) -> Vec<RecursiveComponentEvidence> {
+    let obligations = reconstruct_proof_recursive_component_obligations(module)
+        .expect("canonical recursive component obligations");
+    module
+        .proof_recursive_components
+        .iter()
+        .zip(obligations)
+        .enumerate()
+        .map(|(component_index, (component, obligation))| {
+            let route = |identity, obligation: &psi_proof_admission::CertificateObligation| {
+                EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: evidence_id(identity),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: obligation.obligation.proposition.clone(),
+                        rule: ProofRule::SemanticAxiom { index: 0 },
+                    },
+                })
+            };
+            let base = 9_000 + u64::try_from(component_index).unwrap() * 100;
+            RecursiveComponentEvidence {
+                component: proof_recursive_component_identity(component),
+                certificate: RecursiveComponentCertificate {
+                    identity: evidence_id(base),
+                    ranking_relation: obligation.ranking_relation.expect("measured component"),
+                    well_foundedness: route(base + 1, &obligation.well_foundedness),
+                    edges: obligation
+                        .edges
+                        .iter()
+                        .enumerate()
+                        .map(|(edge_index, edge)| RecursiveEdgeCertificate {
+                            obligation: edge.decrease.obligation.id,
+                            evidence: route(
+                                base + 2 + u64::try_from(edge_index).unwrap(),
+                                &edge.decrease,
+                            ),
+                        })
+                        .collect(),
+                },
+            }
+        })
+        .collect()
+}
+
 fn semantic_module() -> TerminalModule {
     let integer = i32_type();
     let scalar_type = ScalarType::Integer(integer);
@@ -2048,6 +2290,7 @@ fn semantic_module() -> TerminalModule {
         evidence_terms: Vec::new(),
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
         closed_conformance_applications: Vec::new(),
         quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
@@ -2102,6 +2345,7 @@ fn semantic_module() -> TerminalModule {
 
 fn kernel_bundle() -> ProofBundle {
     ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
@@ -2115,6 +2359,7 @@ fn certificate_bundle() -> ProofBundle {
     let literal = ScalarTerm::integer(integer, IntegerValue::Signed(7)).unwrap();
     let goal = Proposition::Equal(literal.clone(), literal);
     ProofBundle {
+        recursive_components: Vec::new(),
         evidence_producers: Vec::new(),
         evidence: vec![ObligationEvidence {
             obligation: obligation_id(1),
