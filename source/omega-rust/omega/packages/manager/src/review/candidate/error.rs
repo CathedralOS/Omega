@@ -80,6 +80,15 @@ pub enum CompileResolvedPackageReviewsError {
         consumer: PackageKey,
         role: AcceptedSemanticBindingRole,
     },
+    AmbiguousCandidateSemanticBinding {
+        consumer: PackageKey,
+        role: AcceptedSemanticBindingRole,
+        candidate_count: usize,
+    },
+    InvalidCandidateSemanticBinding {
+        consumer: PackageKey,
+        role: AcceptedSemanticBindingRole,
+    },
     CompilationInputs {
         package: PackageKey,
         errors: Vec<PackageCompilationInputError>,
@@ -222,6 +231,20 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::DuplicateConsumerSemanticBindingRole { consumer, role } => write!(
                 formatter,
                 "semantic-binding review inputs contain duplicate role {role:?} for consumer `{}`",
+                consumer.name().as_str()
+            ),
+            Self::AmbiguousCandidateSemanticBinding {
+                consumer,
+                role,
+                candidate_count,
+            } => write!(
+                formatter,
+                "candidate review found {candidate_count} package-owned providers for semantic role {role:?} in consumer `{}`; expected at most one",
+                consumer.name().as_str()
+            ),
+            Self::InvalidCandidateSemanticBinding { consumer, role } => write!(
+                formatter,
+                "candidate review could not construct exact semantic role {role:?} for consumer `{}`",
                 consumer.name().as_str()
             ),
             Self::CompilationInputs { package, errors } => write!(

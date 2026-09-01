@@ -34,6 +34,12 @@ consuming package, while every resulting blocker still requires fresh root
 policy. It still has no codec, `omega.lock` mutation route, `PackageInstance`,
 or transaction authority.
 
+`compile_resolved_package_candidate_reviews` is the install/update candidate
+entrance. It uses one preliminary compiler review only to discover supported
+package-owned semantic surfaces, then recompiles with exact consumer-scoped
+bindings. Only that final review may proceed to conflicts and admission; the
+discovery pass is neither policy nor evidence that an audit occurred.
+
 Install and update belong in `operations/` when their remaining acceptance and
 transaction gates are closed. The source and review crates remain subordinate
 and cannot admit packages independently.

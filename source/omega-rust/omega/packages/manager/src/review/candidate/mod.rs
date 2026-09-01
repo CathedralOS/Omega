@@ -8,12 +8,13 @@ mod evidence;
 mod ledger;
 mod model;
 mod rows;
+mod semantic_bindings;
 mod session;
 pub(crate) mod validation;
 
 pub(crate) use commitments::{build_observation_commitment, whole_review_commitment};
 pub use compilation::{
-    ConsumerScopedSemanticBindingReviewInput, compile_resolved_package_reviews,
+    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
 };
 pub use error::CompileResolvedPackageReviewsError;
@@ -22,3 +23,4 @@ pub use model::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
 };
 pub use rows::{ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment};
+pub use semantic_bindings::ConsumerScopedSemanticBindingReviewInput;

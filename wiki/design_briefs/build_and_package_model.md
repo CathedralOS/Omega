@@ -2199,6 +2199,14 @@ accepted ordinary evidence. This is consumer policy input, not proof of an
 audit or admission: every dangerous-authority and provider conflict produced
 by the bound compilation still requires the complete fresh root policy.
 
+The install/update candidate entrance derives those inputs through a bounded
+two-pass review. Its preliminary pass may only identify the closed supported
+role from exact package-owned selected-provider evidence. It has no admission
+authority and never reaches conflict comparison. The candidate is compiled
+again with the proposed row; compiler settlement must consume the exact
+package, declaration, normalized schema, complete selected plan, target, and
+intrinsic ABI. Only this final bound review can enter root-policy handling.
+
 Accepted-lock implementation starts only after the supported authority-bearing
 evidence classes are complete and joined into `PackageInstance`. The present
 in-memory gate is deliberately not a serializable subset of `omega.lock`:

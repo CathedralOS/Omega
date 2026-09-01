@@ -192,6 +192,24 @@ impl CheckedPackageProviderReview {
         &self.rows
     }
 
+    /// Exact schema methods whose selected provider rows request compiler-
+    /// intrinsic realization. This describes candidate mechanism; it does not
+    /// claim that the compiler supports or accepted that realization.
+    pub fn compiler_intrinsic_methods(
+        &self,
+    ) -> impl Iterator<Item = &omega_effects::provider_plan::ServiceMethod> {
+        self.rows.iter().filter_map(|row| {
+            if matches!(
+                row.binding,
+                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+            ) {
+                self.schema.method_for_row(row)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Collision-resistant identity of the complete selected plan retained by
     /// this review row. The readable origin label is deliberately absent from
     /// provider-plan identity, so reconstruction uses no display substitute.

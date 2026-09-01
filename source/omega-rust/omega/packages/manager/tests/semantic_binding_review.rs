@@ -11,7 +11,8 @@ use omega_package_manager::review::{
     CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
     ConsumerScopedSemanticBindingReviewInput, ReviewOnlyCapabilityConflictLimits,
     ReviewOnlyRootPolicyDisposition, compare_review_only_initial_capabilities,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_with_semantic_bindings,
+    compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
+    compile_resolved_package_reviews_with_semantic_bindings,
     resolve_review_only_root_policy_decisions,
 };
 use omega_package_source::{
@@ -192,13 +193,12 @@ invokes console;
         ) if consumer == root_key
     ));
 
-    let reviews = compile_resolved_package_reviews_with_semantic_bindings(
+    let reviews = compile_resolved_package_candidate_reviews(
         &closure,
         "linux_x86_64",
         &temporary.0.join("accepted-build"),
-        &[binding_input],
     )
-    .expect("compile exact consumer-bound Console review");
+    .expect("discover and compile exact consumer-bound Console review");
     let root_review = reviews.review(&root_key).expect("bound root review");
     assert_eq!(root_review.semantic_bindings(), &[binding.clone()]);
     let [authority] = root_review.projection().dangerous_authorities() else {
