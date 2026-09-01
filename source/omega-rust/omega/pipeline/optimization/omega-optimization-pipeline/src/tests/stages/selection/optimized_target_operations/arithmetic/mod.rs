@@ -6,6 +6,7 @@ mod exact_remainder;
 mod exact_subtract;
 mod saturating_divide;
 mod saturating_multiply;
+mod saturating_remainder;
 mod wrapping_add;
 mod wrapping_divide;
 mod wrapping_multiply;

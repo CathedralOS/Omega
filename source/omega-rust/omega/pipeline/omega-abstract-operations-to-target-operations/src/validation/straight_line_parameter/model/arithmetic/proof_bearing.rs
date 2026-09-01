@@ -52,3 +52,7 @@ proof_bearing_arithmetic_carriers!(
     SaturatingIntegerDivideParametersSource,
     ReconstructedSaturatingIntegerDivideParameters
 );
+proof_bearing_arithmetic_carriers!(
+    SaturatingIntegerRemainderParametersSource,
+    ReconstructedSaturatingIntegerRemainderParameters
+);

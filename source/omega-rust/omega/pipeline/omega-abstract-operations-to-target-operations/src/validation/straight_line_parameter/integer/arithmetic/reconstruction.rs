@@ -1,30 +1,29 @@
 //! Shared arithmetic source, ABI, provenance, and target reconstruction.
 
+mod quotient;
+
+pub(in crate::validation::straight_line_parameter) use quotient::{
+    reconstruct_exact_divide, reconstruct_exact_remainder, reconstruct_saturating_divide,
+    reconstruct_saturating_remainder, reconstruct_wrapping_divide, reconstruct_wrapping_remainder,
+};
+
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
 
 use super::super::super::model::{
-    ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerDivideParameters,
-    ReconstructedExactIntegerMultiplyParameters, ReconstructedExactIntegerRemainderParameters,
+    ReconstructedExactIntegerAddParameters, ReconstructedExactIntegerMultiplyParameters,
     ReconstructedExactIntegerSubtractParameters, ReconstructedIntegerArithmeticParameters,
-    ReconstructedSaturatingIntegerDivideParameters, ReconstructedWrappingIntegerDivideParameters,
-    ReconstructedWrappingIntegerRemainderParameters,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
-    StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
-    StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
-    StraightLineSaturatingIntegerDivideParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
-    StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    StraightLineWrappingIntegerRemainderParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
 
@@ -91,121 +90,6 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_multiply
         StraightLineExactIntegerMultiplyParametersTranslationError::TargetProvenance,
     )?;
     Ok(ReconstructedExactIntegerMultiplyParameters {
-        arithmetic,
-        obligation: source.obligation,
-    })
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_divide(
-    function: &AbstractFunction,
-    expected_target: NativeTarget,
-    target: &TargetFunction,
-) -> Result<
-    ReconstructedExactIntegerDivideParameters,
-    StraightLineExactIntegerDivideParametersTranslationError,
-> {
-    let source =
-        super::super::super::source::integer::arithmetic::reconstruct_exact_divide(function)?;
-    let arithmetic = super::replay::reconstruct_from_source(
-        function,
-        expected_target,
-        target,
-        source.arithmetic,
-        StraightLineExactIntegerDivideParametersTranslationError::TargetProvenance,
-    )?;
-    Ok(ReconstructedExactIntegerDivideParameters {
-        arithmetic,
-        obligation: source.obligation,
-    })
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_remainder(
-    function: &AbstractFunction,
-    expected_target: NativeTarget,
-    target: &TargetFunction,
-) -> Result<
-    ReconstructedExactIntegerRemainderParameters,
-    StraightLineExactIntegerRemainderParametersTranslationError,
-> {
-    let source =
-        super::super::super::source::integer::arithmetic::reconstruct_exact_remainder(function)?;
-    let arithmetic = super::replay::reconstruct_from_source(
-        function,
-        expected_target,
-        target,
-        source.arithmetic,
-        StraightLineExactIntegerRemainderParametersTranslationError::TargetProvenance,
-    )?;
-    Ok(ReconstructedExactIntegerRemainderParameters {
-        arithmetic,
-        obligation: source.obligation,
-    })
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_divide(
-    function: &AbstractFunction,
-    expected_target: NativeTarget,
-    target: &TargetFunction,
-) -> Result<
-    ReconstructedWrappingIntegerDivideParameters,
-    StraightLineWrappingIntegerDivideParametersTranslationError,
-> {
-    let source =
-        super::super::super::source::integer::arithmetic::reconstruct_wrapping_divide(function)?;
-    let arithmetic = super::replay::reconstruct_from_source(
-        function,
-        expected_target,
-        target,
-        source.arithmetic,
-        StraightLineWrappingIntegerDivideParametersTranslationError::TargetProvenance,
-    )?;
-    Ok(ReconstructedWrappingIntegerDivideParameters {
-        arithmetic,
-        obligation: source.obligation,
-    })
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_wrapping_remainder(
-    function: &AbstractFunction,
-    expected_target: NativeTarget,
-    target: &TargetFunction,
-) -> Result<
-    ReconstructedWrappingIntegerRemainderParameters,
-    StraightLineWrappingIntegerRemainderParametersTranslationError,
-> {
-    let source =
-        super::super::super::source::integer::arithmetic::reconstruct_wrapping_remainder(function)?;
-    let arithmetic = super::replay::reconstruct_from_source(
-        function,
-        expected_target,
-        target,
-        source.arithmetic,
-        StraightLineWrappingIntegerRemainderParametersTranslationError::TargetProvenance,
-    )?;
-    Ok(ReconstructedWrappingIntegerRemainderParameters {
-        arithmetic,
-        obligation: source.obligation,
-    })
-}
-
-pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_divide(
-    function: &AbstractFunction,
-    expected_target: NativeTarget,
-    target: &TargetFunction,
-) -> Result<
-    ReconstructedSaturatingIntegerDivideParameters,
-    StraightLineSaturatingIntegerDivideParametersTranslationError,
-> {
-    let source =
-        super::super::super::source::integer::arithmetic::reconstruct_saturating_divide(function)?;
-    let arithmetic = super::replay::reconstruct_from_source(
-        function,
-        expected_target,
-        target,
-        source.arithmetic,
-        StraightLineSaturatingIntegerDivideParametersTranslationError::TargetProvenance,
-    )?;
-    Ok(ReconstructedSaturatingIntegerDivideParameters {
         arithmetic,
         obligation: source.obligation,
     })

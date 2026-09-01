@@ -64,6 +64,7 @@ impl AbstractToTargetFunctionTranslationReceipt {
             | Self::StraightLineWrappingIntegerDivideParameters(_)
             | Self::StraightLineWrappingIntegerRemainderParameters(_)
             | Self::StraightLineSaturatingIntegerDivideParameters(_)
+            | Self::StraightLineSaturatingIntegerRemainderParameters(_)
             | Self::StraightLineSaturatingIntegerAddParameters(_)
             | Self::StraightLineWrappingIntegerAddParameters(_)
             | Self::StraightLineSaturatingIntegerSubtractParameters(_)

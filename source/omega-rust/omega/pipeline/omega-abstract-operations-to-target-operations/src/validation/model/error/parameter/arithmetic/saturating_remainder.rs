@@ -1,0 +1,23 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineSaturatingIntegerRemainderParametersTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceParameterRoster,
+    SourceParameterShape,
+    SourceRemainderResultRoster,
+    SourceLeftOperandLink,
+    SourceRightOperandLink,
+    SourceOperandTypeMismatch,
+    SourceReturnLink,
+    SourceCleanup,
+    AbiPlan,
+    AbiParameterCount,
+    AbiParameterPlacement,
+    TargetProvenance,
+    TargetOperation,
+}
