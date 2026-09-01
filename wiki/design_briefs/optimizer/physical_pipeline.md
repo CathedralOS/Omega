@@ -161,6 +161,13 @@ definitions, and the exact Boolean result; and requires
 cross four ordered boundary pairs at both direct and public optimized custody
 on all five native targets. It does not share the parameter integer-equality
 carrier and cannot be reclassified as a plain Boolean immediate family.
+Constant integer less-than follows as a separate ordered-comparison sibling.
+It validates two same-type native integer constants, `IntegerLessThan`, and
+`Return`, compares their exact signed or unsigned mathematical values without
+host-width conversion, and requires `ReturnBooleanImmediate`. Equal endpoints
+and both minimum/maximum directions for fixed 8/16/32/64 and address64 cross
+direct and public optimized custody on all five native targets. Its catalog row
+is disjoint from constant equality and parameter ordering.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
