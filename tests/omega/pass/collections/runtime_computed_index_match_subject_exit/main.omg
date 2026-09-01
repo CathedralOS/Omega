@@ -8,7 +8,7 @@
 // every other position (landed 2026-07-11; swept dungeon_render onto the
 // direct spelling). Bounds discharge through the dominating compound
 // guard, same as read/write positions.
-use omega::language::std::console;
+use omega_language_std::console;
 data Cell { case Empty; case Wall; case Goal; }
 data Main {
     console: Console;

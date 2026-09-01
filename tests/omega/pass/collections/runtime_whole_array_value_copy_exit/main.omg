@@ -8,7 +8,7 @@
 // previously ALIASED this (shared the backing element cells) while native deep-copied; the
 // fix deep-clones a Value::Array on assignment/`let` ONLY when the target type is an owned
 // [T; N] (a slice &[T] stays a shared view), so this now verifies interp==native.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

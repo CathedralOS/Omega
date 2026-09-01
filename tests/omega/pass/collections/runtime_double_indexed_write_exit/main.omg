@@ -12,7 +12,7 @@
 // clobber validated throughout.
 // Direct RMW (`grid[i][j] = grid[i][j] + 1`) is covered separately by
 // runtime_double_indexed_rmw_exit; this canary isolates copy/immediate writes.
-use omega::language::std::console;
+use omega_language_std::console;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;

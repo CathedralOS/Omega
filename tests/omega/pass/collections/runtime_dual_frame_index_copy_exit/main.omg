@@ -6,7 +6,7 @@
 // a frame-held pointee in both directions while the array, index, and pointer
 // slot retain that one frame root, then repeat with the index in machine
 // storage and its exact second root.
-use omega::language::std::console;
+use omega_language_std::console;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Console;

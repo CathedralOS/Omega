@@ -9,7 +9,7 @@
 // outermost-index-swallow would have read/written weird[1][0][k] silently --
 // the consumer byte gate could not catch it. Validates written elements AND
 // would-be-alias victims. Exit 1 on success.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     cube: [[[i32; 2]; 2]; 2];

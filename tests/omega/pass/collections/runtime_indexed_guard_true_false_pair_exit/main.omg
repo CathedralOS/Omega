@@ -8,7 +8,7 @@
 // so it reads correctly (the storage fix). DISCRIMINATING: arr[1]=20 so 20 > 5 is
 // TRUE -> ok (exit 70); a below-threshold element would take the false arm (71).
 // Native must match the interpreter (differential).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32; 3]; i: i32; }
 machine Main::main(&mut self) {
     self.arr[0] = 3;

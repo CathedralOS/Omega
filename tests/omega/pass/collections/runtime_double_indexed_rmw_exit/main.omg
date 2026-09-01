@@ -8,7 +8,7 @@
 // now stops the prefix BELOW the outermost runtime-indexed level. And the
 // hoist-temp typing walks interleaved Indexed/Member chains (rows[i].data[j]
 // minted an untypeable Unit temp before).
-use omega::language::std::console;
+use omega_language_std::console;
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
 data Main {
     console: Console;

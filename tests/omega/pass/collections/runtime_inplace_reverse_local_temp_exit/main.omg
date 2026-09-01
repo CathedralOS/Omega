@@ -8,7 +8,7 @@
 //   arr[hi] = t;              -- the frame-source indexed write
 // The loop head's compound guard proves both indices for the body.
 // [1,2,3,4,5] -> [5,4,3,2,1]; checks arr[0], arr[1], arr[4] -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 5];

@@ -5,7 +5,7 @@
 // `grid[anything][i]` where `i` is a runtime value -- is not yet supported: the READ is cleanly
 // refused, but the WRITE silently NO-OPS (see memory nested-runtime-indexed-write-gap). A runtime
 // ROW with a const column (`grid[i][0]`) does work. This canary stays in the working const subset.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

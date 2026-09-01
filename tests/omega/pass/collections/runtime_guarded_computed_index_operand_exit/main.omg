@@ -4,7 +4,7 @@
 // slotted `__hoist` temp, and the index prover consults guard facts under the
 // temp's INITIALIZER label ("self.k + 1") -- sound because the synthesized
 // `let` is adjacent to its use. k = arr[0] = 1, so acc = arr[2] = 30 = exit.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

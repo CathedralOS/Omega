@@ -7,7 +7,7 @@
 // computed index is refused in a subscript), and a slot's `adj`/`visited` value is read
 // into a field before being a guard subject (a runtime-indexed array can't be one directly).
 // Checks the visit order and count -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -6,7 +6,7 @@
 // silently copy nums[0]. nums=[10,20,30,40,50], i=0, j=4: nums[0] becomes 50
 // and the program exits it -- 50 proves the copy read element j (the historic
 // bug exits 10; a no-op also exits 10).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

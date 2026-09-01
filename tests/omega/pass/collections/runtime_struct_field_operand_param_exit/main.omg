@@ -1,6 +1,6 @@
 // Array-of-structs element field as a binary operand through a BY-VALUE
 // machine param (`pick(cells: [Cell; 3], i)` computing `cells[i].x + 5`).
-use omega::language::std::console;
+use omega_language_std::console;
 data Cell {
     x: i32 [0..=100];
     y: i32 [0..=100];

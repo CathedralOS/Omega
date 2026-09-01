@@ -4,7 +4,7 @@
 // load, which must be 32-bit zero-extending (a 64-bit load would pull `marker` into the index's
 // high dword and store out of bounds). Fills [0,10,20,30,40] -> sum 100, and marker must survive
 // unchanged (997). Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.marker = 997;

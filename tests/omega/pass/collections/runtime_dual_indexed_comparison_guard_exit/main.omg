@@ -6,7 +6,7 @@
 // operand silently read element 0; a regression to that would make this compare arr[0] with itself
 // (40 < 40 = false) and take the WRONG arm, diverging from the interpreter. arr[4]=20 < arr[2]=70 is
 // true -> exit 70. Differential (native must match the interpreter -- the discriminator here).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32 in Wrapping; 5];

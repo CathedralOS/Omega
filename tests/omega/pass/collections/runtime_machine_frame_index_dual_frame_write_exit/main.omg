@@ -1,7 +1,7 @@
 // MACHINE-owned array WRITE where BOTH the source and the index are
 // FRAME-resident params (`self.put(1, 44) { self.arr[k] = v }`) -- the
 // three-relocation case (frame source, machine re-load, frame index). -> 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

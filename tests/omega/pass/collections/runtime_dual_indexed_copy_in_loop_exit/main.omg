@@ -4,7 +4,7 @@
 // silently NO-OP); the copy now lowers through
 // CopyRuntimeMachineIndexedToRuntimeMachineIndexed. b=[10,20,40] copies into
 // a=[0,0,0]; the sum of a afterwards is 70 (a no-op loop exits 0).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

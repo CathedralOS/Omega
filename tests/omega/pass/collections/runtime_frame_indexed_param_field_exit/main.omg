@@ -1,7 +1,7 @@
 // Element-FIELD read of a by-value struct-array param at a runtime index
 // (`points[k].y` -- field_byte_offset in the frame-base-indexed copy).
 // points[1].y=42, k=1 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Point {
     x: i32;
     y: i32;

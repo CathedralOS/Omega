@@ -6,7 +6,7 @@
 // world). Elements are compared through field temps because a direct `arr[i] == arr[j]`
 // guard is a separate, cleanly-errored gap (two runtime-indexed comparison operands).
 // The palindrome [3,7,9,7,3] is confirmed -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

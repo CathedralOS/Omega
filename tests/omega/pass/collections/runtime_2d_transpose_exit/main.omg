@@ -4,7 +4,7 @@
 // computed expression directly in a subscript -- `out[i*2 + j]` -- is refused; compute it
 // into a field first.) [[1,2,3],[4,5,6]] transposes to [[1,4],[2,5],[3,6]] = [1,4,2,5,3,6].
 // Self-checks four transposed cells -> exit 70. Proves Omega handles 2D/matrix data.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -4,7 +4,7 @@
 // then copied to the element works (a field source is machine-resident). Combines the write-first
 // loop-invariant bound with the field-source indexed write. Fills [0,10,20,30,40], sums to 100,
 // self-checks. Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; tmp: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.j = 0;

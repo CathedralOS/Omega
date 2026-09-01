@@ -2,7 +2,7 @@
 // (`let v = self.arr[k]`): used to be a clean encoder error. The machine-
 // indexed copy encoder now loads the index off a second (frame) base
 // relocation. arr[2]=9, k=2 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 4];

@@ -10,7 +10,7 @@
 // Idiom (proven in runtime_palindrome_two_pointer_exit): compound bound guards
 // discharge each indexed access, and `Wrapping` on the loop/stack indices frees
 // the +1/-1 from an overflow obligation while the guards keep them in range.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     input: [i32; 4];

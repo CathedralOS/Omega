@@ -5,7 +5,7 @@
 // p2 = {30, 40}; p1 = p2 (copy); then p2.x = 99. A correct value copy leaves
 // p1 = {30, 40} (p1.x still 30, p1.y still 40); an aliasing bug would show p1.x = 99.
 // Both fields correct -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point {
     x: i32;

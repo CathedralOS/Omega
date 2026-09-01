@@ -6,7 +6,7 @@
 // bound, forcing a re-guard right before every indexed access (the ripple_field /
 // binary_search_viz idiom). Reads arr[3] = 70 -> exit 70. (Reassigning x mid-chain still
 // drops the bound -- the survives-check keeps it sound.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

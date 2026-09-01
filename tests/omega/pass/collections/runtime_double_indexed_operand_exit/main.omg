@@ -2,7 +2,7 @@
 // operand hoist mints the temp and infer_hoist_temp_type descends one
 // element level per Indexed layer (nested collections used to yield an
 // untypeable Unit temp). 37 + 5 = 42 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     grid: [[i32 in Wrapping; 4]; 3];

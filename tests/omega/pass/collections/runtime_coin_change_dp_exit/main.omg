@@ -4,7 +4,7 @@
 // With coins {1,3,4} the minimum for 6 is 2 (3+3), so dp[6] == 2. The subproblem index
 // a-c is a computed value formed into a field (a computed index is refused in a subscript),
 // and the two dp reads are taken into fields before the comparison. Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

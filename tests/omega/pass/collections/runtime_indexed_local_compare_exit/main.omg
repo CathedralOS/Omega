@@ -9,7 +9,7 @@
 // the slot. DISCRIMINATING: arr[1]=20 so 20 > 5 is TRUE -> good (exit 70); the
 // pre-fix miscompile read `over` as false -> bad (exit 71). A const-index element
 // (arr[0]=3, 3 > 5 false) checks the other direction. Native must match interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32; 3]; i: i32; }
 machine Main::main(&mut self) {
     self.arr[0] = 3;

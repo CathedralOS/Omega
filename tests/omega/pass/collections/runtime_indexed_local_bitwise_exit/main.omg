@@ -7,7 +7,7 @@
 // counts is_bitwise_operator). DISCRIMINATING: arr[1]=20 (10100b); (20 & 6)=4,
 // (20 | 1)=21, (20 ^ 4)=16 -> sum 41; +29 = 70. A miscompile that read the
 // operands as 0 would give 0+0+0+29 = 29 -> bad. Native must match the interpreter.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32; 3]; i: i32; }
 machine Main::main(&mut self) {
     self.arr[0] = 10;

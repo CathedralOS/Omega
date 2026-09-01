@@ -4,7 +4,7 @@
 // [4, 15, 8, 42, 16, 23] the maximum 42 sits at index 3 (neither first nor last,
 // so an off-by-one or a "keep the last index" bug is caught). Exits 70 only when
 // best_idx == 3.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     arr: [i32; 6];

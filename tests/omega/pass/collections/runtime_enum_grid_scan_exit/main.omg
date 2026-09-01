@@ -7,7 +7,7 @@
 // arms test -- exhaustiveness still groups the arms, and the compare reads the right element. This
 // locks the direct form. grid = [Wall, Door, Floor, Door, Wall] -> 2 Doors. Exits 70 iff the scan
 // counts 2. Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Cell {
     case Wall;

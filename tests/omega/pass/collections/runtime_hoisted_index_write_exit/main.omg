@@ -10,7 +10,7 @@
 // value-side slot carve-out (local_used_as_runtime_indexed_write_value,
 // the twin of the runtime-INDEX carve-out). Static-folding RHS values
 // always lowered (probed); this pins the runtime-RHS shape.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; cells: [u8; 12]; rows: u32 [0..=2]; cols: u32 [0..=3]; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.rows = 2;

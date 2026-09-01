@@ -4,7 +4,7 @@
 // loop, so arr = [10,11,12,13,14] and sum = 60. `marker` sits after the index field, set non-zero,
 // guarding the 32-bit zero-extending index load (a 64-bit load would corrupt the index). The RMW
 // index bound is still proven by the loop guard. Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; arr: [i32 in Wrapping; 5]; i: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.marker = 42;

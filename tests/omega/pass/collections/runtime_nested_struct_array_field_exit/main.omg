@@ -7,7 +7,7 @@
 // the working subset -- it locks that const-indexed array-of-structs field arithmetic works.
 //
 // Sum = pts[0].x + pts[1].x + pts[2].x + pts[2].y = 20 + 30 + 18 + 2 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pt {
     x: i32 in Wrapping;
