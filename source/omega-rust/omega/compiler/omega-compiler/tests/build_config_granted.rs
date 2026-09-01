@@ -193,7 +193,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata StructuredConfig {{ count: u8; enabled: bool; }}\ndata StructuredConfigs {{}}\nconst StructuredConfigs::PRIMARY: StructuredConfig = StructuredConfig {{ count: 7, enabled: true }};\ndata StructuredIndexed<const C: StructuredConfig> {{ marker: u8; }}\ndata StructuredNested<const C: StructuredConfig> {{ value: StructuredIndexed<C>; }}\ndata WithStructured {{ value: StructuredNested<StructuredConfigs::PRIMARY>; }}\ndata StructuredMode {{ case Left(value: u8); case Right; }}\ndata StructuredModes {{}}\nconst StructuredModes::LEFT: StructuredMode = StructuredMode::Left {{ value: 9 }};\ndata StructuredByMode<const M: StructuredMode> {{ marker: u8; }}\ndata WithStructuredMode {{ value: StructuredByMode<StructuredModes::LEFT>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -265,7 +265,11 @@ machine build(builder: &mut Build) {{
         .iter()
         .filter(|definition| definition.generic_instance.is_some())
         .collect::<Vec<_>>();
-    assert_eq!(instances.len(), 11, "eleven deduplicated closed instances");
+    assert_eq!(
+        instances.len(),
+        14,
+        "fourteen deduplicated closed instances"
+    );
     let instance = instances
         .iter()
         .copied()
@@ -541,6 +545,102 @@ machine build(builder: &mut Build) {{
     let nested_bool_instance = instance_for_template(find_data("NestedBool").symbol);
     assert_named_field(nested_bool_instance, bool_flag_instance.symbol);
     assert_named_field(find_data("WithBool"), nested_bool_instance.symbol);
+    assert_eq!(
+        checked.typed.const_declarations().len(),
+        2,
+        "the two private structured support consts retain exact provenance"
+    );
+    let structured_indexed_instance = instance_for_template(find_data("StructuredIndexed").symbol);
+    let structured_origin = structured_indexed_instance
+        .generic_instance
+        .expect("structured record instance retains its origin");
+    let psi_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(structured_origin)
+    else {
+        panic!("structured record instance origin remains structural")
+    };
+    let [structured_argument] = checked
+        .typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("structured record instance origin retains one argument")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } = checked
+        .typed
+        .type_reference_table
+        .type_reference(*structured_argument)
+    else {
+        panic!("structured record argument remains one compiler-owned atom")
+    };
+    assert!(!symbol.is_valid());
+    let structured_value =
+        psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            .expect("structured record atom decodes");
+    assert!(matches!(
+        structured_value.decode_encoding(),
+        Some(psi_language_semantics::const_value::DecodedCanonicalConstValue::Record {
+            type_name,
+            fields,
+        }) if type_name == "StructuredConfig"
+            && fields.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>()
+                == ["count", "enabled"]
+    ));
+    let structured_nested_instance = instance_for_template(find_data("StructuredNested").symbol);
+    assert_named_field(
+        structured_nested_instance,
+        structured_indexed_instance.symbol,
+    );
+    assert_named_field(
+        find_data("WithStructured"),
+        structured_nested_instance.symbol,
+    );
+
+    let structured_mode_instance = instance_for_template(find_data("StructuredByMode").symbol);
+    let structured_mode_origin = structured_mode_instance
+        .generic_instance
+        .expect("structured sum instance retains its origin");
+    let psi_typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(structured_mode_origin)
+    else {
+        panic!("structured sum instance origin remains structural")
+    };
+    let [structured_mode_argument] = checked
+        .typed
+        .type_reference_table
+        .type_reference_handles(*arguments)
+    else {
+        panic!("structured sum instance origin retains one argument")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, name } = checked
+        .typed
+        .type_reference_table
+        .type_reference(*structured_mode_argument)
+    else {
+        panic!("structured sum argument remains one compiler-owned atom")
+    };
+    assert!(!symbol.is_valid());
+    let structured_mode_value =
+        psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+            .expect("structured sum atom decodes");
+    assert!(matches!(
+        structured_mode_value.decode_encoding(),
+        Some(psi_language_semantics::const_value::DecodedCanonicalConstValue::Variant {
+            type_name,
+            case_name,
+            fields,
+        }) if type_name == "StructuredMode"
+            && case_name == "Left"
+            && fields.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>() == ["value"]
+    ));
+    assert_named_field(
+        find_data("WithStructuredMode"),
+        structured_mode_instance.symbol,
+    );
     let wrapper = checked
         .typed
         .data_definitions()

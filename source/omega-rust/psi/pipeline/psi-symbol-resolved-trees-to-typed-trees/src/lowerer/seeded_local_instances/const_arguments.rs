@@ -27,7 +27,11 @@ pub(super) fn parameter_is_supported(
             TypeParameterKind::Type => true,
             TypeParameterKind::Const { type_reference } => {
                 parameter.bounds == psi_symbol_resolved_trees::data::DataProperties::default()
-                    && scalar_carrier(source, type_reference).is_some()
+                    && (scalar_carrier(source, type_reference).is_some()
+                        || super::structured_const_arguments::carrier_is_supported(
+                            source,
+                            type_reference,
+                        ))
             }
             TypeParameterKind::Machine { .. } | TypeParameterKind::Proposition { .. } => false,
         }
@@ -41,20 +45,22 @@ pub(super) fn closed_argument_is_supported(
     let TypeParameterKind::Const { type_reference } = &parameter.kind else {
         return false;
     };
-    let Some(carrier) = scalar_carrier(source, type_reference) else {
-        return false;
-    };
     let TypeReference::Named { symbol, name } = argument else {
         return false;
     };
     if symbol.is_valid() {
         return false;
     }
-    match carrier {
-        ScalarConstCarrier::Integer(carrier) => {
+    match scalar_carrier(source, type_reference) {
+        Some(ScalarConstCarrier::Integer(carrier)) => {
             canonical_integer(name.as_str()).is_some_and(|value| integer_fits(carrier, value))
         }
-        ScalarConstCarrier::Boolean => canonical_boolean(name.as_str()),
+        Some(ScalarConstCarrier::Boolean) => canonical_boolean(name.as_str()),
+        None => super::structured_const_arguments::closed_argument_is_supported(
+            source,
+            type_reference,
+            name.as_str(),
+        ),
     }
 }
 
@@ -208,7 +214,7 @@ fn canonical_boolean(spelling: &str) -> bool {
     value == CanonicalConstValue::boolean(decoded)
 }
 
-fn integer_fits(carrier: BuiltinTypeAtom, value: i128) -> bool {
+pub(super) fn integer_fits(carrier: BuiltinTypeAtom, value: i128) -> bool {
     match carrier {
         BuiltinTypeAtom::I8 => i8::try_from(value).is_ok(),
         BuiltinTypeAtom::I16 => i16::try_from(value).is_ok(),

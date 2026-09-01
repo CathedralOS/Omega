@@ -2,6 +2,7 @@ use super::{
     SeededPlainDataContinuationError, exact_field_symbol, exact_top_level_data_symbol,
     lower_seeded_plain_data_extension, lower_symbol_resolved_trees,
     lower_symbol_resolved_trees_to_seeded_plain_data_base, plain_data_extension_shape_is_supported,
+    resolved_root_shape_is_supported,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -4908,6 +4909,123 @@ fn seeded_boolean_const_instance_gate_rejects_carrier_origin_and_forwarding_muta
 }
 
 #[test]
+fn seeded_structured_const_instance_gate_replays_declarations_values_and_carriers_exactly() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Config { count: u8; enabled: bool; } data Configs {} const Configs::PRIMARY: Config = Config { count: 7, enabled: true }; data Indexed<const C: Config> { marker: u8; } data Generated { value: Indexed<Configs::PRIMARY>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(resolved_root_shape_is_supported(&resolved, &base.resolved));
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let config_index = (frontier..resolved.data_definitions.len())
+        .find(|index| resolved.data_definitions[*index].name.as_str() == "Config")
+        .expect("Config carrier");
+    let config_symbol = resolved.data_definitions[config_index].symbol;
+    let config_members = resolved.data_definitions[config_index].members;
+    let instance_index = (frontier..resolved.data_definitions.len())
+        .find(|index| {
+            matches!(
+                resolved.data_definitions[*index].generic_instance.as_ref(),
+                Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin))
+                    if origin.base_name.as_str() == "Indexed"
+            )
+        })
+        .expect("closed Indexed instance");
+    let origin_arguments = match resolved.data_definitions[instance_index]
+        .generic_instance
+        .as_ref()
+    {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        _ => unreachable!(),
+    };
+    let original_atom = match &resolved
+        .tables
+        .declarations
+        .child_type_references
+        .span_or_empty(origin_arguments)[0]
+    {
+        psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name }
+            if !symbol.is_valid() =>
+        {
+            psi_language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+                .expect("canonical structured const atom")
+        }
+        _ => unreachable!(),
+    };
+
+    let mut display_drift = resolved.clone();
+    display_drift
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(origin_arguments)[0] =
+        psi_symbol_resolved_trees::types::TypeReference::Named {
+            symbol: psi_symbols::SymbolHandle::invalid(),
+            name: psi_symbol_resolved_trees::name::DiagnosticName::generated(
+                psi_language_semantics::const_value::CanonicalConstValue::new(
+                    original_atom.type_name.clone(),
+                    original_atom.encoding.clone(),
+                    "Config { enabled: true, count: 7 }",
+                )
+                .atom(),
+            ),
+        };
+    assert!(
+        !plain_data_extension_shape_is_supported(&display_drift, frontier),
+        "diagnostic display cannot drift from the decoded canonical value"
+    );
+
+    let mut type_claim_drift = resolved.clone();
+    type_claim_drift
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(origin_arguments)[0] =
+        psi_symbol_resolved_trees::types::TypeReference::Named {
+            symbol: psi_symbols::SymbolHandle::invalid(),
+            name: psi_symbol_resolved_trees::name::DiagnosticName::generated(
+                psi_language_semantics::const_value::CanonicalConstValue::new(
+                    "Other",
+                    original_atom.encoding.clone(),
+                    original_atom.display.clone(),
+                )
+                .atom(),
+            ),
+        };
+    assert!(
+        !plain_data_extension_shape_is_supported(&type_claim_drift, frontier),
+        "the encoded value must claim the exact resolved carrier"
+    );
+
+    let mut recursive_carrier = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(first_field) = &mut recursive_carrier
+        .tables
+        .declarations
+        .data_members
+        .span_mut_or_empty(config_members)[0]
+    else {
+        unreachable!()
+    };
+    first_field.type_reference = psi_symbol_resolved_trees::types::TypeReference::Named {
+        symbol: config_symbol,
+        name: psi_symbol_resolved_trees::name::DiagnosticName::generated("Config"),
+    };
+    assert!(
+        !plain_data_extension_shape_is_supported(&recursive_carrier, frontier),
+        "recursive structured const carriers remain fenced"
+    );
+
+    let mut public_support_const = resolved;
+    public_support_const.const_declarations[0].is_public = true;
+    assert!(
+        !resolved_root_shape_is_supported(&public_support_const, &base.resolved),
+        "the bounded data continuation cannot grow the public const surface"
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_accepts_local_instance_collections() {
     for (name, extension_source) in [
         (
@@ -5026,13 +5144,27 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
             "boolean_const_instance_as_type_argument",
             "data Flag<const ENABLED: bool> { marker: u8; } data Box<T> { value: T; } data Generated { value: Box<Flag<false> >; }",
         ),
+        (
+            "structured_record_const_instance_graph",
+            "data Leaf { count: u8; enabled: bool; } data Config { leaves: [Leaf; 2]; } data Configs {} const Configs::PRIMARY: Config = Config { leaves: [Leaf { count: 1, enabled: true }, Leaf { count: 2, enabled: false }] }; data Indexed<const C: Config> { marker: u8; } data Nested<const C: Config> { value: Indexed<C>; } data Generated { value: Nested<Configs::PRIMARY>; }",
+        ),
+        (
+            "structured_sum_const_instance_as_type_argument",
+            "data Mode { case Left(value: u8); case Right; } data Modes {} const Modes::LEFT: Mode = Mode::Left { value: 7 }; data Indexed<const M: Mode> { marker: u8; } data Box<T> { value: T; } data Generated { value: Box<Indexed<Modes::LEFT> >; }",
+        ),
     ] {
         let (base, extension) =
             seeded_normalized_plain_data_inputs("data Authored { value: u16; }", extension_source);
         let before = base.typed().data_definitions().len();
+        let const_before = base.typed().const_declarations().len();
         let typed = lower_seeded_plain_data_extension(extension, base)
             .unwrap_or_else(|_| panic!("{name} should use the seeded continuation"));
         assert!(typed.data_definitions().len() > before, "{name}");
+        assert_eq!(
+            typed.const_declarations().len(),
+            const_before + usize::from(name.starts_with("structured_")),
+            "{name} retains only its exact supporting const provenance"
+        );
     }
 }
 

@@ -336,6 +336,17 @@ const binder and carrier; only integer binders may supply literal-array lengths,
 whose instance fields replay the substituted value. These instances join the
 same finite dependency graph and may themselves become Type arguments to later
 local instances.
+The first exact structured-data const cohort is admitted by the same
+continuation. A generated unit may append private named-literal structured
+const provenance alongside its local data instances; it cannot enlarge the
+public const surface. The gate completely decodes each compiler-owned atom
+under fixed bounds and replays the exact monomorphic checked record or pure-sum
+carrier, declaration-ordered fields, selected case and payload order, nested
+literal arrays/data, and in-range integer/Boolean leaves. Recursive, mixed, empty,
+erased, boundary-opaque, generic, constrained, quotient/default-domain/
+zero-gated, custom-canonical, malformed, or display-drifted shapes fail closed.
+Admitted structured instances join the same finite dependency graph and may be
+later local Type arguments while every base prefix remains exact.
 Arguments may be builtins, exact nongeneric nominal data, or already-validated
 local closed instances. Finite acyclic nested-instance dependency chains are
 reconstructed in dependency order, every instance must remain transitively
@@ -348,9 +359,10 @@ template/argument/origin tuple, canonical instance spelling and retired
 identities, recursive field/payload substitution, declaration/parameter/field/
 case ownership, same-unit source ownership, and use-site spelling. It does not
 infer an instance across generated units. Cyclic instance dependencies,
-lifetime-bearing local instances used as Type arguments, structured-canonical
-const applications, constrained applications, parameter-bearing
-constrained/dynamic/other composite shells, fact-bearing, quotient, zero-gated,
+lifetime-bearing local instances used as Type arguments, broader or custom-
+canonical structured const applications, constrained applications,
+parameter-bearing constrained/dynamic/other composite shells, fact-bearing,
+quotient, zero-gated,
 generated-method-bearing, dynamic, or non-data forms return the owned base and raw parsed extension to
 the existing full rebuild/rebind. Retained-base type applications
 are structural and do not require cross-unit synthesis. Any number of generated
@@ -369,7 +381,7 @@ identities, wrong arity, and broader extension roots return the untouched
 checkpoint and raw extension to the fallback. Every retained symbol/table and
 authored-selection prefix, generated-source custody row, and the selected
 build symbol remain unchanged. Lifetime-bearing local instances used as Type
-arguments, structured-canonical const and constrained extension-
+arguments, broader/custom-canonical const and constrained extension-
 local instances, generated attached methods, non-data continuation, and removal
 of that fallback remain open.
 Own generated outputs are now

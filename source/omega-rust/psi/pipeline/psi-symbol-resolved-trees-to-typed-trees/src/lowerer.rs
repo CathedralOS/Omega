@@ -75,9 +75,10 @@ pub fn lower_symbol_resolved_trees_to_seeded_plain_data_base(
     })
 }
 
-/// Append the first bounded generated-source cohort to one exact retained
-/// typed base. Mutation occurs on a clone, so every error returns the input
-/// base byte-for-byte for either rejection or the explicit rebuild fallback.
+/// Append the first bounded generated-source data cohort, including its
+/// private structured-literal const provenance, to one exact retained typed
+/// base. Mutation occurs on a clone, so every error returns the input base
+/// byte-for-byte for either rejection or the explicit rebuild fallback.
 pub fn lower_seeded_plain_data_extension(
     source: psi_syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
     retained: SeededPlainDataTypingBase,
@@ -107,6 +108,7 @@ pub fn lower_seeded_plain_data_extension(
         ));
     }
     let data_frontier = resolved_base.data_definitions.len();
+    let const_frontier = resolved_base.const_declarations.len();
     if !resolved_root_shape_is_supported(&source, &resolved_base)
         || !plain_data_extension_shape_is_supported(&source, data_frontier)
     {
@@ -150,6 +152,31 @@ pub fn lower_seeded_plain_data_extension(
         type_reference_exposure:
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
     };
+    for declaration in source.const_declarations.iter().skip(const_frontier) {
+        let declared_type = match lowerer.with_type_reference_exposure(
+            declaration_exposure(declaration.is_public),
+            |lowerer| {
+                crate::type_reference::lower_type_reference_into_table(
+                    lowerer,
+                    &declaration.declared_type,
+                )
+            },
+        ) {
+            Ok(declared_type) => declared_type,
+            Err(error) => {
+                return Err((retained, SeededPlainDataContinuationError::Lowering(error)));
+            }
+        };
+        lowerer
+            .typed_trees
+            .push_const_declaration(psi_typed_trees::constant::ConstDeclaration {
+                symbol: declaration.symbol,
+                is_public: declaration.is_public,
+                declared_type,
+                initializer_source_span: declaration.initializer_source_span,
+                canonical_value_encoding: declaration.canonical_value_encoding.clone(),
+            });
+    }
     for data_definition in source.data_definitions.iter().skip(data_frontier) {
         let lowered = match lowerer.with_type_reference_exposure(
             declaration_exposure(data_definition.is_public),
@@ -180,7 +207,19 @@ fn resolved_root_shape_is_supported(
     source: &SymbolResolvedTrees,
     base: &SymbolResolvedTrees,
 ) -> bool {
-    source.const_declarations == base.const_declarations
+    source
+        .const_declarations
+        .iter()
+        .take(base.const_declarations.len())
+        .eq(base.const_declarations.iter())
+        && source.const_declarations.len() >= base.const_declarations.len()
+        && source
+            .const_declarations
+            .iter()
+            .skip(base.const_declarations.len())
+            .all(|declaration| {
+                seeded_local_instances::const_declaration_is_supported(source, declaration)
+            })
         && source
             .data_definitions
             .iter()

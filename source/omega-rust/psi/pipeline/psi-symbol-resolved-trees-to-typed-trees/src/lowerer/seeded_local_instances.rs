@@ -6,6 +6,7 @@ use psi_symbols::SymbolHandle;
 
 mod const_arguments;
 mod reachability;
+mod structured_const_arguments;
 mod substitution;
 
 pub(super) fn parameter_is_supported(
@@ -14,6 +15,13 @@ pub(super) fn parameter_is_supported(
     parameter: &psi_symbol_resolved_trees::data::TypeParameter,
 ) -> bool {
     const_arguments::parameter_is_supported(source, owner, parameter)
+}
+
+pub(super) fn const_declaration_is_supported(
+    source: &SymbolResolvedTrees,
+    declaration: &psi_symbol_resolved_trees::constant::ConstDeclaration,
+) -> bool {
+    structured_const_arguments::declaration_is_supported(source, declaration)
 }
 
 pub(super) fn array_length_is_supported(
