@@ -2,7 +2,6 @@ use super::{
     SeededPlainDataContinuationError, exact_field_symbol, exact_top_level_data_symbol,
     lower_seeded_plain_data_extension, lower_symbol_resolved_trees,
     lower_symbol_resolved_trees_to_seeded_plain_data_base, plain_data_extension_shape_is_supported,
-    seeded_base_application,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -4331,10 +4330,10 @@ fn seeded_plain_data_continuation_fences_broader_normalized_generic_instances() 
 }
 
 #[test]
-fn seeded_plain_data_continuation_retains_one_exact_base_owned_primitive_application() {
+fn seeded_plain_data_continuation_retains_base_owned_type_application_graph() {
     let (mut base, extension) = seeded_normalized_plain_data_inputs(
-        "data Cell<T> { value: T; } data Main { value: u8; }",
-        "data Generated { first: Cell<u32>; second: Cell<u32>; base: Main; }",
+        "data Cell<T> { value: T; } data Pair<A, B> { first: A; second: B; } data Main { value: u8; }",
+        "data Generated { one: Cell<u32>; two: Cell<u64>; nested: Pair<Cell<u32>, u64>; indirect: [Cell<u16>; 2]; base: Main; } data AlsoGenerated { only: Cell<u8>; }",
     );
     base.typed_mut()
         .evidence_forwardings
@@ -4359,7 +4358,7 @@ fn seeded_plain_data_continuation_retains_one_exact_base_owned_primitive_applica
     let resolved_ledger = extension.trees().authored_declaration_selections().clone();
 
     let typed = lower_seeded_plain_data_extension(extension, base)
-        .expect("one exact base-owned primitive application should append");
+        .expect("the complete base-owned type-application graph should append");
 
     assert_eq!(
         &typed.data_definitions()[..before.data_definitions().len()],
@@ -4395,6 +4394,11 @@ fn seeded_plain_data_continuation_retains_one_exact_base_owned_primitive_applica
         .iter()
         .find(|definition| definition.name.as_str() == "Cell")
         .expect("retained base template");
+    let pair = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Pair")
+        .expect("retained two-parameter base template");
     let wrapper = typed
         .data_definitions()
         .iter()
@@ -4428,35 +4432,84 @@ fn seeded_plain_data_continuation_retains_one_exact_base_owned_primitive_applica
             Some((*base_symbol, lifetime_arguments, *arguments))
         })
         .collect::<Vec<_>>();
-    assert_eq!(applications.len(), 2);
-    for (base_symbol, lifetime_arguments, arguments) in applications {
-        assert_eq!(base_symbol, template.symbol);
-        assert!(lifetime_arguments.is_empty());
-        let [argument] = typed.type_reference_table.type_reference_handles(arguments) else {
-            panic!("one retained builtin argument")
-        };
-        let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            typed.type_reference_table.type_reference(*argument)
-        else {
-            panic!("the exact application argument remains nominal")
-        };
-        assert_eq!(
-            typed.symbols.get(*symbol).kind,
-            psi_symbols::SymbolKind::BuiltinType
-        );
-        assert_eq!(typed.symbols.name(*symbol), "u32");
-    }
+    assert_eq!(applications.len(), 3);
+    assert_eq!(
+        applications
+            .iter()
+            .filter(|(base_symbol, _, _)| *base_symbol == template.symbol)
+            .count(),
+        2
+    );
+    let (_, pair_lifetimes, pair_arguments) = applications
+        .iter()
+        .find(|(base_symbol, _, _)| *base_symbol == pair.symbol)
+        .expect("nested pair application remains explicit");
+    assert!(pair_lifetimes.is_empty());
+    let pair_arguments = typed
+        .type_reference_table
+        .type_reference_handles(*pair_arguments);
+    assert_eq!(pair_arguments.len(), 2);
+    let pair_argument_nodes = pair_arguments
+        .iter()
+        .map(|argument| typed.type_reference_table.type_reference(*argument))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        pair_argument_nodes[0],
+        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+            if *base_symbol == template.symbol
+    ));
+    assert!(matches!(
+        pair_argument_nodes[1],
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+            if typed.symbols.name(*symbol) == "u64"
+    ));
+
+    let indirect = typed
+        .data_members(wrapper)
+        .iter()
+        .find_map(|member| {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.name.as_str() == "indirect").then_some(field.type_reference)
+        })
+        .expect("indirect generic field");
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+        typed.type_reference_table.type_reference(indirect)
+    else {
+        panic!("indirect application retains its fixed-array shell")
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(*element_type),
+        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+            if *base_symbol == template.symbol
+    ));
+
+    let second_wrapper = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "AlsoGenerated")
+        .expect("second generated wrapper");
+    let [psi_typed_trees::data::DataMember::Field(only)] = typed.data_members(second_wrapper)
+    else {
+        panic!("second wrapper retains one field")
+    };
+    assert!(matches!(
+        typed.type_reference_table.type_reference(only.type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+            if *base_symbol == template.symbol
+    ));
 }
 
 #[test]
-fn seeded_base_owned_application_gate_rejects_identity_and_shape_mutations() {
+fn seeded_base_owned_type_application_validator_rejects_identity_and_arity_mutations() {
     let (base, extension) = seeded_normalized_plain_data_inputs(
         "data Cell<T> { value: T; } data Main { value: u8; }",
         "data Generated { first: Cell<u32>; second: Cell<u32>; base: Main; }",
     );
     let frontier = base.typed().data_definitions().len();
     let resolved = extension.trees().clone();
-    assert!(seeded_base_application::is_supported(&resolved, frontier));
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
     let wrapper = resolved.data_definitions.iter().nth(frontier).unwrap();
     let wrapper_members = wrapper.members;
 
@@ -4475,7 +4528,7 @@ fn seeded_base_owned_application_gate_rejects_identity_and_shape_mutations() {
         unreachable!()
     };
     application.base_name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Other");
-    assert!(!seeded_base_application::is_supported(
+    assert!(!plain_data_extension_shape_is_supported(
         &wrong_base_name,
         frontier
     ));
@@ -4501,7 +4554,7 @@ fn seeded_base_owned_application_gate_rejects_identity_and_shape_mutations() {
         unreachable!()
     };
     application.base_symbol = wrapper_symbol;
-    assert!(!seeded_base_application::is_supported(
+    assert!(!plain_data_extension_shape_is_supported(
         &wrong_base_symbol,
         frontier
     ));
@@ -4521,22 +4574,27 @@ fn seeded_base_owned_application_gate_rejects_identity_and_shape_mutations() {
         unreachable!()
     };
     application.arguments = psi_arena::HandleSpan::empty();
-    assert!(!seeded_base_application::is_supported(
+    assert!(!plain_data_extension_shape_is_supported(
         &missing_argument,
         frontier
     ));
 
-    let mut fact_bearing_template = resolved;
-    fact_bearing_template.data_definitions[0].where_facts =
-        psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(1), 1);
-    assert!(!seeded_base_application::is_supported(
-        &fact_bearing_template,
+    let mut wrong_parameter_name = resolved;
+    let parameter_span = wrong_parameter_name.data_definitions[0].type_parameters;
+    wrong_parameter_name
+        .tables
+        .declarations
+        .data_type_parameters
+        .get_mut(parameter_span.start())
+        .name = psi_symbol_resolved_trees::name::DiagnosticName::generated("U");
+    assert!(!plain_data_extension_shape_is_supported(
+        &wrong_parameter_name,
         frontier
     ));
 }
 
 #[test]
-fn seeded_plain_data_continuation_fences_broader_base_owned_generic_applications() {
+fn seeded_plain_data_continuation_accepts_broader_base_owned_generic_applications() {
     for (name, base_source, extension_source) in [
         (
             "single_use",
@@ -4563,18 +4621,27 @@ fn seeded_plain_data_continuation_fences_broader_base_owned_generic_applications
             "data Cell<T> { values: [T; 2]; }",
             "data Generated { first: Cell<u32>; second: Cell<u32>; }",
         ),
+        (
+            "nominal_argument",
+            "data Item { value: u8; } data Cell<T> { value: T; }",
+            "data Generated { value: Cell<Item>; }",
+        ),
+        (
+            "nondefault_bound",
+            "data Cell<T [copy]> { value: T; }",
+            "data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "lifetime_and_type_arguments",
+            "data Cell<'item, T> { value: &'item T; }",
+            "data Generated<'owner> { value: Cell<'owner, u32>; }",
+        ),
     ] {
         let (base, extension) = seeded_normalized_plain_data_inputs(base_source, extension_source);
-        let expected = base.typed().clone();
-        let Err((returned, error)) = lower_seeded_plain_data_extension(extension, base) else {
-            panic!("{name} must remain on the rebuild path")
-        };
-        assert_eq!(
-            error,
-            SeededPlainDataContinuationError::UnsupportedExtensionShape,
-            "{name}"
-        );
-        assert_eq!(returned.into_typed(), expected, "{name}");
+        let before = base.typed().data_definitions().len();
+        let typed = lower_seeded_plain_data_extension(extension, base)
+            .unwrap_or_else(|(_, error)| panic!("{name} should continue: {error:?}"));
+        assert!(typed.data_definitions().len() > before, "{name}");
     }
 }
 
@@ -4597,8 +4664,8 @@ fn seeded_plain_data_continuation_returns_exact_base_for_non_data_suffix() {
 #[test]
 fn seeded_plain_data_continuation_fences_runtime_generic_and_invalid_lifetime_fields() {
     for extension_source in [
-        "data Generated { value: Generic<u32>; }",
         "data Generated { value: Missing; }",
+        "data Generated { value: Generic<u32 in Wrapping>; }",
         "data Generated<'scope> { value: &'missing Plain; }",
         "data Generated { value: Borrowed; }",
         "data Generated<'scope> { value: Borrowed<'scope, 'scope>; }",

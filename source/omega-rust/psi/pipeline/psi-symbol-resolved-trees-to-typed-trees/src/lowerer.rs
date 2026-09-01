@@ -9,7 +9,7 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_typed_trees::TypedTrees;
 
-mod seeded_base_application;
+mod seeded_type_application;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeededPlainDataContinuationError {
@@ -236,6 +236,7 @@ fn plain_data_extension_shape_is_supported(
                             fields.iter().all(|field| {
                                 plain_type_is_supported(
                                     source,
+                                    data_frontier,
                                     definition.symbol,
                                     &definition.lifetime_parameters,
                                     type_parameters,
@@ -244,8 +245,7 @@ fn plain_data_extension_shape_is_supported(
                             })
                         })
             })
-            || exact_local_single_type_instance_is_supported(source, data_frontier)
-            || seeded_base_application::is_supported(source, data_frontier))
+            || exact_local_single_type_instance_is_supported(source, data_frontier))
 }
 
 /// Admit one deliberately tiny normalized generic-data cohort. The ordinary
@@ -551,6 +551,7 @@ fn direct_closed_template_member_type_is_supported(
 
 fn plain_type_is_supported(
     source: &SymbolResolvedTrees,
+    data_frontier: usize,
     owner: psi_symbols::SymbolHandle,
     owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
     owner_type_parameters: &[psi_symbol_resolved_trees::data::TypeParameter],
@@ -581,6 +582,7 @@ fn plain_type_is_supported(
                     .any(|parameter| parameter.as_str() == lifetime.as_str())
             }) && plain_type_is_supported(
                 source,
+                data_frontier,
                 owner,
                 owner_lifetimes,
                 owner_type_parameters,
@@ -589,6 +591,7 @@ fn plain_type_is_supported(
         }
         TypeReference::Slice(slice) => plain_type_is_supported(
             source,
+            data_frontier,
             owner,
             owner_lifetimes,
             owner_type_parameters,
@@ -598,32 +601,21 @@ fn plain_type_is_supported(
             matches!(array.length, FixedArrayLength::Literal(_))
                 && plain_type_is_supported(
                     source,
+                    data_frontier,
                     owner,
                     owner_lifetimes,
                     owner_type_parameters,
                     source.child_type_reference(array.element_type),
                 )
         }
-        TypeReference::Generic(generic) => {
-            source.child_type_references(generic.arguments).is_empty()
-                && generic.base_symbol.is_valid()
-                && source
-                    .data_definitions
-                    .iter()
-                    .find(|definition| definition.symbol == generic.base_symbol)
-                    .is_some_and(|definition| {
-                        definition.type_parameters.is_empty()
-                            && !definition.lifetime_parameters.is_empty()
-                            && definition.lifetime_parameters.len()
-                                == generic.lifetime_arguments.len()
-                            && generic.lifetime_arguments.iter().all(|argument| {
-                                owner_lifetimes
-                                    .iter()
-                                    .any(|parameter| parameter.as_str() == argument.as_str())
-                            })
-                            && definition.generic_instance.is_none()
-                    })
-        }
+        TypeReference::Generic(generic) => seeded_type_application::is_supported(
+            source,
+            data_frontier,
+            owner,
+            owner_lifetimes,
+            owner_type_parameters,
+            generic,
+        ),
         TypeReference::Constrained(_)
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. } => false,

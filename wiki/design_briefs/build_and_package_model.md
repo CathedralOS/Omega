@@ -318,23 +318,28 @@ The retained continuation checks the exact template/argument/origin tuple,
 canonical instance spelling and retired identities, direct `T` field
 substitution, declaration/parameter/field symbol ownership, same-unit source
 ownership, and the two direct nominal wrapper uses; it
-does not infer an instance across generated units. Multiple, nested,
-cross-unit, lifetime, const, constrained, nondefault, indirect-shell, fact-
-bearing, quotient, zero-gated, method-bearing, dynamic, or non-data forms
+does not infer an instance across generated units. Broader extension-local
+synthesis, cross-generated-unit synthesis, multiple local instances, const/
+constrained applications, indirect local parameter shells, fact-bearing,
+quotient, zero-gated, generated-method-bearing, dynamic, or non-data forms
 return the owned base and raw parsed extension to the existing full rebuild/
-rebind. One base-owned application cohort now continues from the same
-checkpoint without inventing a cross-unit instance: exactly one generated
-wrapper may contain exactly two direct applications of one retained-base,
-methodless record template with one default-bound Type parameter and one shared
-builtin argument. The template uses that parameter directly and otherwise has
-only Unit/builtin fields; wrapper companions are Unit/builtin or zero-parameter
-retained-base data. The resolved and typed application retains the exact base
-symbol, builtin argument, and authored-selection rows as explicit `Generic`
-structure. Every retained symbol/table prefix and the selected build symbol
-remain unchanged. Single-use, differently argued, indirect, attached-method,
-fact-bearing, redirected, or otherwise broader base applications return the
-untouched checkpoint and raw extension to the fallback. Additional base-owned
-and general continuation and removal of that fallback remain open.
+rebind. Retained-base type applications are structural and do not require
+cross-unit synthesis. Any number of generated data roots may carry any number
+of differently argued or recursively nested applications of retained-base
+data. The continuation checks the exact base declaration symbol and name, each
+Type binder's symbol/name/owner and arity, erased lifetime arity and owner-local
+arguments, and the whole recursively admitted argument graph. It preserves
+that resolved structure as explicit typed `Generic` nodes rather than minting
+later-unit instances. Multiple base templates and Type parameters, nondefault
+bounds, attached base methods, nominal/builtin arguments, and the admitted
+reference/slice/literal-array shells therefore share one validator; ordinary
+checked semantics still enforce their bounds and uses. Const/machine binders,
+constrained/dynamic arguments, invalid lifetime custody, missing or redirected
+identities, wrong arity, and broader extension roots return the untouched
+checkpoint and raw extension to the fallback. Every retained symbol/table and
+authored-selection prefix, generated-source custody row, and the selected
+build symbol remain unchanged. Broader extension-local and non-data
+continuation and removal of that fallback remain open.
 Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is
