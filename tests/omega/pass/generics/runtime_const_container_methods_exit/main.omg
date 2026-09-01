@@ -1,6 +1,6 @@
 // Parameter-free attached methods clone onto each const-specialized record,
 // preserving receiver identity and the instance's concrete fixed-array layout.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FixedBuffer<const N: u64> {
     items: [i32 in Wrapping; N];

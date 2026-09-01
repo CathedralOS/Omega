@@ -1,6 +1,6 @@
 // Distinct const arguments synthesize distinct concrete record identities, so
 // their array layouts coexist instead of colliding under the template symbol.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FixedBuffer<T, const N: u64> {
     items: [T; N];

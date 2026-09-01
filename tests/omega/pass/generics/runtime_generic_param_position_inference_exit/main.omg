@@ -3,7 +3,7 @@
 // inferred through the authored `&T` parameter from the declared type of
 // `self.light` behind the borrowed-place argument. T := Light satisfies the
 // bound and the specialized value result materializes in both engines.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Light [copy] {
     weight: i32 in Wrapping;

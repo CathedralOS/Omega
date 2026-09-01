@@ -5,7 +5,7 @@
 // Square::code() == 4, so n == 9 * 10 + 4 == 94 -> exit 70. (Pre-fix the dyn
 // call resolved to nothing and both calls returned 0.) Mirrors the interpreter
 // coverage test dyn_two_impl_dispatch_selects_impl_by_runtime_type.
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

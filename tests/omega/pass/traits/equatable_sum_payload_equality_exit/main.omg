@@ -8,7 +8,7 @@
 // payload-less sum call also pins native tag reads through the `&Self`
 // argument. Exits 70 only when all six compares are right.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;

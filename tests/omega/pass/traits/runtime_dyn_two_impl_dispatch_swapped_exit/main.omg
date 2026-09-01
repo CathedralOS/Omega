@@ -3,7 +3,7 @@
 // picks the lexically-first impl scores 99 on this program and 99 on the
 // unswapped one -- it cannot pass both. Mirrors the interpreter coverage test
 // dyn_two_impl_dispatch_swapped_order.
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

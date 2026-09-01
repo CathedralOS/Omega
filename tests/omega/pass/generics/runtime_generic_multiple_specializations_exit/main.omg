@@ -1,7 +1,7 @@
 // MP4b: one template called with two concrete type tuples gets one checked
 // body per tuple. Both interpreter and native execution must route each call
 // to its concrete clone and materialize the combined result (exit 14).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Light [copy] {
     weight: i32 in Wrapping;

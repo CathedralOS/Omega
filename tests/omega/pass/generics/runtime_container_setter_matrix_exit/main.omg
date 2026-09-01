@@ -7,7 +7,7 @@
 // `in Wrapping` field used to refuse the whole container), and the layout
 // builder skips machines attached to generic TEMPLATE data even when they
 // declare no type params of their own.
-use omega::language::std::console;
+use omega_language_std::console;
 data Cell<T> {
     value: T;
     touched: i32 in Wrapping;

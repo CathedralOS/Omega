@@ -11,7 +11,7 @@ requires
 // initializer write was silently dropped (ZII false -> native exit 71 while
 // the interpreter exited 70).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tag {
     name: &[u8] in Utf8;

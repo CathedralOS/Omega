@@ -3,7 +3,7 @@
 // detector must NOT fire), substitutes once, and both results materialize. The results are
 // let-bound and combined in an expression (the safe eager-capture pattern; see the shared-
 // result-slot fence). id(30) + id(40) = 70. Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
 machine Main::main(&mut self) {

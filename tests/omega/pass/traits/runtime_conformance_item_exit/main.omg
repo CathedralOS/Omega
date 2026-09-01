@@ -4,7 +4,7 @@
 // nothing trait-shaped appears on the data declaration, and the call path is
 // unchanged at runtime.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Shape {
     machine code(&mut self) -> i32;

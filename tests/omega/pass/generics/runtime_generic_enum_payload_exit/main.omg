@@ -3,7 +3,7 @@
 // the payload forwarded to a sub-state. The case also carries omitted nullary evidence whose
 // semantic binding survives checking but whose storage is erased. Exit 70 via the material payload.
 // Differential (native must match the interpreter).
-use omega::language::std::console;
+use omega_language_std::console;
 data Evidence { case Only; }
 data Maybe<T> { case None; case Some(value: T, proof [erased]: Evidence); }
 data Main { console: Console; m: Maybe<i32 in Wrapping>; }

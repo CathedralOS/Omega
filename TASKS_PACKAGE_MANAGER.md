@@ -299,6 +299,10 @@ explicitly.
     freestanding UEFI package roots remain dependency-free, and standalone
     source fixtures stay on the compatibility path until they acquire real
     package roots;
+    current trait-fixture compatibility seams are the two synthesized
+    trait-default roots whose copied call token still loses its original
+    requirement identity and the two local named-`dyn` roots rejected by the
+    native LET-receiver realization fence;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

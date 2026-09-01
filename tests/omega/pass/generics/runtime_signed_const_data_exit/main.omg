@@ -1,7 +1,7 @@
 // Signed const expressions retain their negative value through instance
 // naming, domain-membership discharge, attached-machine specialization, and
 // both runtimes.
-use omega::language::std::console;
+use omega_language_std::console;
 
 domain i8::Negative
 requires

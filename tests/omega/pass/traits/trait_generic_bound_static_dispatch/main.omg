@@ -2,7 +2,7 @@
 // its nominal bound. Specialization selects Counter's authored conformance and
 // lowers subject.increment() to Counter::increment; there is no runtime trait
 // dictionary. Expected exit: 1.
-use omega::language::std::console;
+use omega_language_std::console;
 
 trait Incrementable {
     machine increment(&mut self);

@@ -36,6 +36,7 @@ struct CandidateGroup {
 }
 
 fn reconcile_copy_targets(
+    program: &SymbolResolvedTrees,
     source_span: SourceSpan,
     kind: Kind,
     retained: CandidateTarget,
@@ -50,11 +51,47 @@ fn reconcile_copy_targets(
         }
         (CandidateTarget::Resolved(_), CandidateTarget::LateBound(_)) => Ok(retained),
         (CandidateTarget::LateBound(_), CandidateTarget::Resolved(_)) => Ok(candidate),
+        // Const/type specialization copies declaration symbols as well as the
+        // authored expression. Equal source-backed declaration coordinates
+        // and symbol kinds therefore identify one authored declaration even
+        // when the executable copy has a distinct arena handle. Retain the
+        // earliest symbol, which is the unspecialized authored declaration.
+        (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right))
+            if resolved_symbols_share_authored_declaration(program, left, right) =>
+        {
+            Ok(CandidateTarget::Resolved(earlier_symbol(left, right)))
+        }
+        (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right)) => {
+            Err(Diagnostic::error(format!(
+                "compiler-derived copies of one authored {kind:?} selection resolved inconsistently: `{}` versus `{}`",
+                program.symbols.display_path(left, "::"),
+                program.symbols.display_path(right, "::"),
+            ))
+            .with_source_span(source_span))
+        }
         _ => Err(Diagnostic::error(format!(
             "compiler-derived copies of one authored {kind:?} selection resolved inconsistently"
         ))
         .with_source_span(source_span)),
     }
+}
+
+fn earlier_symbol(left: SymbolHandle, right: SymbolHandle) -> SymbolHandle {
+    if left.arena_index() <= right.arena_index() {
+        left
+    } else {
+        right
+    }
+}
+
+fn resolved_symbols_share_authored_declaration(
+    program: &SymbolResolvedTrees,
+    left: SymbolHandle,
+    right: SymbolHandle,
+) -> bool {
+    program.symbols.get(left).kind == program.symbols.get(right).kind
+        && program.symbols.symbol_source_span(left).is_some()
+        && program.symbols.symbol_source_span(left) == program.symbols.symbol_source_span(right)
 }
 
 pub(crate) fn finalize_authored_expression_selections(
@@ -116,6 +153,7 @@ pub(crate) fn finalize_authored_expression_selections(
                     && group.kind == candidate.kind
             }) {
                 group.target = reconcile_copy_targets(
+                    program,
                     candidate.source_span,
                     candidate.kind,
                     group.target,
@@ -359,6 +397,7 @@ fn existing_statement_call_occurrence(
             }
         };
         reconcile_copy_targets(
+            program,
             candidate.source_span,
             Kind::Call,
             existing_target,
