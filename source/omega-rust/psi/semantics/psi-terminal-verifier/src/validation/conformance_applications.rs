@@ -1,11 +1,41 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use psi_core::{IntegerSign, IntegerType, ScalarType};
 use psi_terminal::{
-    TerminalModule, closed_conformance_application_commitment,
+    ClosedConformanceCallableResult, ProofOutputRuntimeResult, TerminalMachine,
+    TerminalMachineResult, TerminalModule, closed_conformance_application_commitment,
     closed_conformance_application_report_fingerprint,
 };
 
 use super::ModuleError;
+
+fn callable_runtime_result(result: ClosedConformanceCallableResult) -> ProofOutputRuntimeResult {
+    match result {
+        ClosedConformanceCallableResult::Unit => ProofOutputRuntimeResult::Unit,
+        ClosedConformanceCallableResult::I32 => {
+            ProofOutputRuntimeResult::Scalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Signed, 32)
+                    .expect("i32 is a valid Terminal scalar type"),
+            ))
+        }
+        ClosedConformanceCallableResult::Bool => {
+            ProofOutputRuntimeResult::Scalar(ScalarType::Boolean)
+        }
+    }
+}
+
+fn callable_result_matches_machine(
+    callable: &psi_terminal::ClosedConformanceRealizationCallable,
+    machine: &TerminalMachine,
+) -> bool {
+    match (callable_runtime_result(callable.result), &machine.result) {
+        (ProofOutputRuntimeResult::Unit, TerminalMachineResult::Unit) => true,
+        (ProofOutputRuntimeResult::Scalar(expected), TerminalMachineResult::Scalar(actual)) => {
+            expected == actual.scalar_type
+        }
+        _ => false,
+    }
+}
 
 pub(super) fn validate_closed_conformance_applications(
     module: &TerminalModule,
@@ -43,7 +73,8 @@ pub(super) fn validate_closed_conformance_applications(
                     || !module
                         .machines
                         .iter()
-                        .any(|machine| machine.id == callable.machine)
+                        .find(|machine| machine.id == callable.machine)
+                        .is_some_and(|machine| callable_result_matches_machine(callable, machine))
             })
             || application
                 .realization_callables
@@ -67,11 +98,19 @@ pub(super) fn validate_closed_conformance_applications(
         }
         for callable in &application.realization_callables {
             if callable_machines
-                .insert(callable.source_callable_identity.as_str(), callable.machine)
-                .is_some_and(|existing| existing != callable.machine)
+                .insert(
+                    callable.source_callable_identity.as_str(),
+                    (callable.machine, callable.result),
+                )
+                .is_some_and(|existing| existing != (callable.machine, callable.result))
                 || machine_callables
-                    .insert(callable.machine, callable.source_callable_identity.as_str())
-                    .is_some_and(|existing| existing != callable.source_callable_identity)
+                    .insert(
+                        callable.machine,
+                        (callable.source_callable_identity.as_str(), callable.result),
+                    )
+                    .is_some_and(|existing| {
+                        existing != (callable.source_callable_identity.as_str(), callable.result)
+                    })
             {
                 return Err(ModuleError::InvalidClosedConformanceApplication {
                     owner: application.owner,
@@ -136,6 +175,8 @@ pub(super) fn validate_closed_conformance_applications(
                                     && dispatch.realization_callable_identity
                                         == callable.source_callable_identity
                                     && dispatch.realization == callable.machine
+                                    && invocation.runtime_result
+                                        == Some(callable_runtime_result(callable.result))
                             })
                 });
                 if !consumed {

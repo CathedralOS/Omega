@@ -1,0 +1,41 @@
+// The bounded scalar static named-witness call also admits exact bool: a free
+// specialized caller selects a concrete conformance whose direct requirement
+// and realization are receiverless and take no ordinary arguments. The value
+// remains an ordinary scalar call result and proof output remains erased.
+
+trait Evidence {
+}
+
+proposition ready() evidence Evidence;
+
+trait Producer {
+    machine Self::produce() -> bool
+    requires public_in: ready()
+    ensures public_out: ready();
+}
+
+data Token {
+}
+
+TokenProducer: Token satisfies Producer {
+    machine produce() -> bool
+    requires local_in: ready()
+    ensures public_out: ready()
+    {
+        public_out = local_in;
+        true
+    }
+}
+
+machine invoke<Element, Order: Element satisfies Producer>() -> bool
+requires incoming: ready()
+{
+    let (value; public_out: result) = Order::produce(; incoming);
+    value
+}
+
+machine caller() -> bool
+requires incoming: ready()
+{
+    invoke<Token, TokenProducer>(; incoming)
+}

@@ -669,7 +669,8 @@ fn validate_static_requirement_dispatch(
             Some(psi_terminal::ProofOutputRuntimeCall { callee, .. }),
         ) => callee == dispatch.realization,
         (Some(psi_terminal::ProofOutputRuntimeResult::Scalar(scalar)), Some(runtime_call))
-            if scalar == i32_type && runtime_call.callee == dispatch.realization =>
+            if (matches!(scalar, ScalarType::Boolean) || scalar == i32_type)
+                && runtime_call.callee == dispatch.realization =>
         {
             let Some(caller) = machines.get(&invocation.caller).copied() else {
                 return Err(invalid());
@@ -691,7 +692,7 @@ fn validate_static_requirement_dispatch(
                 && realization.structural_parameters.is_empty()
                 && matches!(
                     realization.result,
-                    TerminalMachineResult::Scalar(result) if result.scalar_type == i32_type
+                    TerminalMachineResult::Scalar(result) if result.scalar_type == scalar
                 )
                 && linked_operations.next().is_none()
                 && matches!(
@@ -700,7 +701,8 @@ fn validate_static_requirement_dispatch(
                         callee,
                         arguments,
                         ..
-                    } if *callee == dispatch.realization && arguments.is_empty()
+                    } if *callee == dispatch.realization
+                        && arguments.is_empty()
                 )
         }
         _ => false,
@@ -752,9 +754,22 @@ fn validate_static_requirement_dispatch(
     if rows.next().is_none() || rows.next().is_some() {
         return Err(invalid());
     }
+    let callable_result = match invocation.runtime_result {
+        Some(psi_terminal::ProofOutputRuntimeResult::Unit) => {
+            psi_terminal::ClosedConformanceCallableResult::Unit
+        }
+        Some(psi_terminal::ProofOutputRuntimeResult::Scalar(ScalarType::Boolean)) => {
+            psi_terminal::ClosedConformanceCallableResult::Bool
+        }
+        Some(psi_terminal::ProofOutputRuntimeResult::Scalar(scalar)) if scalar == i32_type => {
+            psi_terminal::ClosedConformanceCallableResult::I32
+        }
+        _ => return Err(invalid()),
+    };
     let mut callables = application.realization_callables.iter().filter(|callable| {
         callable.source_callable_identity == dispatch.realization_callable_identity
             && callable.machine == dispatch.realization
+            && callable.result == callable_result
     });
     if callables.next().is_none() || callables.next().is_some() {
         return Err(invalid());

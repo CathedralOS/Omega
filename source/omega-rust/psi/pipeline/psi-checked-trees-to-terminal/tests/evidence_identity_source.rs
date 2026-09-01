@@ -321,6 +321,64 @@ const STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE: &str = r#"
     }
 "#;
 
+const STATIC_REQUIREMENT_BOOL_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+
+    trait Producer {
+        machine Self::produce() -> bool
+        requires public_in: ready()
+        ensures public_out: ready();
+    }
+
+    data Token {}
+    TokenProducer: Token satisfies Producer {
+        machine produce() -> bool
+        requires local_in: ready()
+        requires true == true
+        ensures public_out: ready()
+        ensures true == true
+        {
+            public_out = local_in;
+            true
+        }
+    }
+
+    machine invoke<Element, Order: Element satisfies Producer>() -> bool
+    requires incoming: ready()
+    requires true == true
+    ensures true == true
+    {
+        let (value; public_out: result) = Order::produce(; incoming);
+        value
+    }
+
+    machine caller() -> bool
+    requires incoming: ready()
+    requires true == true
+    ensures true == true
+    {
+        invoke<Token, TokenProducer>(; incoming)
+    }
+"#;
+
+const STATIC_REQUIREMENT_BOOL_RUNTIME_BASELINE_SOURCE: &str = r#"
+    machine produce() -> bool
+    requires true == true
+    ensures true == true
+    {
+        true
+    }
+
+    machine caller() -> bool
+    requires true == true
+    ensures true == true
+    {
+        let value: bool = produce();
+        value
+    }
+"#;
+
 const ORDINARY_ATTACHED_SCALAR_SOURCE: &str = r#"
     data Root {}
 
@@ -1680,6 +1738,10 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         .expect("the row reference resolves in its application registry");
     assert_eq!(realization_callable.machine, dispatch.realization);
     assert_eq!(
+        realization_callable.result,
+        psi_terminal::ClosedConformanceCallableResult::Unit
+    );
+    assert_eq!(
         lowered
             .semantic_module
             .closed_conformance_applications
@@ -1742,6 +1804,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         vec![psi_terminal::ClosedConformanceRealizationCallable {
             source_callable_identity: spurious_identity.clone(),
             machine: spurious_application.owner,
+            result: psi_terminal::ClosedConformanceCallableResult::Unit,
         }];
     spurious_application.rows[0].realization_callable_identity = Some(spurious_identity);
     spurious_application.report_fingerprint =
@@ -1767,6 +1830,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         psi_terminal::ClosedConformanceRealizationCallable {
             source_callable_identity: second_identity.clone(),
             machine: widened_application.owner,
+            result: psi_terminal::ClosedConformanceCallableResult::Unit,
         },
     );
     widened_application.realization_callables.sort();
@@ -2298,6 +2362,10 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         .expect("i32 registry retains its standalone callable binding");
     assert_eq!(callable.machine, dispatch.realization);
     assert_eq!(
+        callable.result,
+        psi_terminal::ClosedConformanceCallableResult::I32
+    );
+    assert_eq!(
         callable.source_callable_identity,
         dispatch.realization_callable_identity
     );
@@ -2523,6 +2591,304 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         invalid(&forged_argument),
         "a coherent argument-bearing scalar dispatch remains outside the bounded rung"
     );
+}
+
+#[test]
+fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_overhead() {
+    let checked = check(STATIC_REQUIREMENT_BOOL_PROOF_OUTPUT_SOURCE);
+    let checked_invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|_| invocation)
+        })
+        .expect("one checked bool static requirement proof-output call");
+    let machine_name = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| {
+            (selection.machine == checked_invocation.caller_machine_symbol)
+                .then_some(selection.name.clone())
+        })
+        .expect("the free specialized bool caller is terminal-selected");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, &machine_name)
+        .expect("the exact bool static requirement call crosses Terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one terminal bool static requirement proof-output call")
+    };
+    let dispatch = invocation
+        .static_requirement_dispatch
+        .as_ref()
+        .expect("private bool realization dispatch");
+    assert_eq!(
+        invocation.runtime_result,
+        Some(psi_terminal::ProofOutputRuntimeResult::Scalar(
+            psi_core::ScalarType::Boolean
+        ))
+    );
+    let runtime_call = invocation
+        .runtime_call
+        .expect("static bool proof output links its ordinary call");
+    assert_eq!(runtime_call.callee, dispatch.realization);
+    let application = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .iter()
+        .find(|application| {
+            application.owner == invocation.caller
+                && application.commitment == dispatch.conformance_application_commitment
+        })
+        .expect("bool dispatch retains its closed application");
+    let row_identity = application
+        .rows
+        .iter()
+        .find_map(|row| row.realization_callable_identity.as_ref())
+        .expect("bool row references its standalone callable registry");
+    assert!(application.realization_callables.iter().any(|callable| {
+        callable.source_callable_identity == *row_identity
+            && callable.source_callable_identity == dispatch.realization_callable_identity
+            && callable.machine == dispatch.realization
+            && callable.result == psi_terminal::ClosedConformanceCallableResult::Bool
+    }));
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == invocation.caller)
+        .expect("bool proof-output caller");
+    let realization = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == dispatch.realization)
+        .expect("bool static realization");
+    assert_eq!(caller.attachment, None);
+    assert_eq!(realization.attachment, None);
+    assert!(realization.parameters.is_empty());
+    assert!(realization.structural_parameters.is_empty());
+    assert!(matches!(
+        realization.result,
+        psi_terminal::TerminalMachineResult::Scalar(result)
+            if result.scalar_type == psi_core::ScalarType::Boolean
+    ));
+    let operation = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == runtime_call.operation)
+        .expect("linked bool call operation");
+    assert!(matches!(
+        (&operation.result, &operation.kind),
+        (
+            psi_terminal::OperationResult::Scalar(result),
+            OperationKind::Call {
+                callee,
+                arguments,
+                ..
+            }
+        ) if result.scalar_type == psi_core::ScalarType::Boolean
+            && *callee == dispatch.realization
+            && arguments.is_empty()
+    ));
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("static bool module encodes");
+    let proof_bytes =
+        encode_proof_bundle(&lowered.proof_bundle).expect("static bool proof encodes");
+    let decoded = decode_module(&semantic_bytes).expect("static bool module decodes");
+    let decoded_proof = decode_proof_bundle(&proof_bytes).expect("static bool proof decodes");
+    assert_eq!(decoded, lowered.semantic_module);
+    assert_eq!(decoded_proof, lowered.proof_bundle);
+    let mut callable_wire = Vec::new();
+    callable_wire.extend(
+        u32::try_from(row_identity.len())
+            .expect("callable identity length")
+            .to_le_bytes(),
+    );
+    callable_wire.extend(row_identity.as_bytes());
+    callable_wire.extend(dispatch.realization.get().to_le_bytes());
+    callable_wire.push(3);
+    let callable_offset = semantic_bytes
+        .windows(callable_wire.len())
+        .position(|window| window == callable_wire)
+        .expect("canonical Bool callable registry wire row");
+    let mut invalid_callable_tag = semantic_bytes.clone();
+    invalid_callable_tag[callable_offset + callable_wire.len() - 1] = u8::MAX;
+    assert_eq!(
+        decode_module(&invalid_callable_tag),
+        Err(psi_terminal_codec::CodecError::InvalidTag(
+            "ClosedConformanceCallableResult",
+            u8::MAX,
+        ))
+    );
+    let verified = psi_terminal_verifier::verify_module(
+        &decoded,
+        &decoded_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("the exact static bool operation and dispatch verify together");
+
+    let baseline_checked = check(STATIC_REQUIREMENT_BOOL_RUNTIME_BASELINE_SOURCE);
+    let baseline_name = baseline_checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| (selection.name == "caller").then(|| selection.name.clone()))
+        .expect("the bool runtime baseline is terminal-selected");
+    let baseline = psi_checked_trees_to_terminal::lower_machine(&baseline_checked, &baseline_name)
+        .expect("the bool runtime baseline lowers");
+    let baseline_verified = psi_terminal_verifier::verify_module(
+        &baseline.semantic_module,
+        &baseline.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the bool runtime baseline verifies");
+    let baseline_entry = baseline
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == baseline.semantic_module.entry)
+        .expect("bool baseline entry");
+    assert_eq!(caller.parameters, baseline_entry.parameters);
+    assert_eq!(caller.result, baseline_entry.result);
+    assert_eq!(
+        caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .map(|operation| std::mem::discriminant(&operation.kind))
+            .collect::<Vec<_>>(),
+        baseline_entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .map(|operation| std::mem::discriminant(&operation.kind))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("static bool call has fixed fuel")
+            .ceiling_units(),
+        derive_fixed_entry_fuel(&baseline_verified, baseline.semantic_module.entry)
+            .expect("baseline bool call has fixed fuel")
+            .ceiling_units()
+    );
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+    )
+    .expect("static bool artifact starts");
+    assert_eq!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("execute static bool requirement call"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Boolean(true)
+        ))
+    );
+
+    let invalid = |module: &psi_terminal::TerminalModule| {
+        matches!(
+            psi_terminal_verifier::validate_module_representation(module),
+            Err(
+                psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. }
+                    | psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. }
+            )
+        )
+    };
+    let i32_type = psi_core::ScalarType::Integer(
+        psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).expect("i32"),
+    );
+    let mut wrong_invocation_type = lowered.semantic_module.clone();
+    wrong_invocation_type.proof_output_calls[0].runtime_result =
+        Some(psi_terminal::ProofOutputRuntimeResult::Scalar(i32_type));
+    assert!(invalid(&wrong_invocation_type));
+    let mut wrong_realization_type = lowered.semantic_module.clone();
+    let psi_terminal::TerminalMachineResult::Scalar(result) = &mut wrong_realization_type
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == dispatch.realization)
+        .expect("bool realization")
+        .result
+    else {
+        panic!("bool realization remains scalar")
+    };
+    result.scalar_type = i32_type;
+    assert!(invalid(&wrong_realization_type));
+
+    let mut coordinated_runtime_retarget = lowered.semantic_module.clone();
+    coordinated_runtime_retarget.proof_output_calls[0].runtime_result =
+        Some(psi_terminal::ProofOutputRuntimeResult::Scalar(i32_type));
+    for machine in &mut coordinated_runtime_retarget.machines {
+        if matches!(
+            machine.result,
+            psi_terminal::TerminalMachineResult::Scalar(_)
+        ) {
+            let psi_terminal::TerminalMachineResult::Scalar(result) = &mut machine.result else {
+                unreachable!()
+            };
+            result.scalar_type = i32_type;
+        }
+        for operation in machine
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+        {
+            if let psi_terminal::OperationResult::Scalar(result) = &mut operation.result {
+                result.scalar_type = i32_type;
+            }
+            if matches!(operation.kind, OperationKind::BooleanConstant { .. }) {
+                operation.kind = OperationKind::IntegerConstant {
+                    value: IntegerValue::Signed(1),
+                };
+            }
+        }
+    }
+    assert!(
+        matches!(
+            psi_terminal_verifier::validate_module_representation(&coordinated_runtime_retarget),
+            Err(psi_terminal_verifier::ModuleError::InvalidClosedConformanceApplication { .. })
+        ),
+        "the source-derived registry class blocks a coherent Bool-to-i32 runtime retarget"
+    );
+
+    let mut retargeted_registry = coordinated_runtime_retarget;
+    retargeted_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("bool closed application")
+        .realization_callables[0]
+        .result = psi_terminal::ClosedConformanceCallableResult::I32;
+    let application = retargeted_registry
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| application.owner == invocation.caller)
+        .expect("bool closed application");
+    application.report_fingerprint =
+        psi_terminal::closed_conformance_application_report_fingerprint(application);
+    retargeted_registry.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("bool static dispatch")
+        .conformance_application_report_fingerprint = application.report_fingerprint;
+    assert!(matches!(
+        psi_terminal_verifier::validate_module_representation(&retargeted_registry),
+        Err(psi_terminal_verifier::ModuleError::ClosedConformanceCommitmentMismatch { .. })
+    ));
 }
 
 #[test]

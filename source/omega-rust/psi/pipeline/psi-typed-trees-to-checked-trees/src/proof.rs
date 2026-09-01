@@ -915,10 +915,16 @@ fn checked_static_requirement_dispatch<'program>(
     }
     let unit_result =
         !requirement.return_type.is_valid() && !realization_state.return_type.is_valid();
-    let i32_result = program.primitive_type_reference(requirement.return_type)
-        == Some(psi_typed_trees::types::PrimitiveType::I32)
-        && program.primitive_type_reference(realization_state.return_type)
-            == Some(psi_typed_trees::types::PrimitiveType::I32)
+    let requirement_result = program.primitive_type_reference(requirement.return_type);
+    let realization_result = program.primitive_type_reference(realization_state.return_type);
+    let bounded_scalar_result = requirement_result == realization_result
+        && matches!(
+            requirement_result,
+            Some(
+                psi_typed_trees::types::PrimitiveType::I32
+                    | psi_typed_trees::types::PrimitiveType::Bool
+            )
+        )
         && program.state_signature_parameters(requirement).is_empty()
         && program.state_parameters(realization_state).is_empty()
         && program
@@ -933,10 +939,10 @@ fn checked_static_requirement_dispatch<'program>(
             .is_some_and(|machine| machine.attached_data.is_none());
     if program.machine_states(realization_machine).len() != 1
         || realization_machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
-        || !(unit_result || i32_result)
+        || !(unit_result || bounded_scalar_result)
     {
         return Err(rejected(
-            "the requirement and realization must be one-state Unit callables, or the scalar extension must be exact i32 with a free caller, receiverless requirement and realization, and zero ordinary arguments",
+            "the requirement and realization must be one-state Unit callables, or the scalar extension must be exact i32 or bool with a free caller, receiverless requirement and realization, and zero ordinary arguments",
         ));
     }
 

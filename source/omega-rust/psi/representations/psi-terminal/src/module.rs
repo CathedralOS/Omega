@@ -28,7 +28,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        55
+        56
     }
 }
 
@@ -387,6 +387,18 @@ pub struct ClosedConformanceRealizationCallable {
     pub source_callable_identity: String,
     /// Artifact-local Terminal machine emitted for that exact callable.
     pub machine: MachineId,
+    /// Source-derived matched requirement/realization result class for the
+    /// bounded static requirement cohort.
+    /// Callable identity intentionally excludes return type, so this separately
+    /// committed value prevents coordinated scalar-result retargeting.
+    pub result: ClosedConformanceCallableResult,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ClosedConformanceCallableResult {
+    Unit,
+    I32,
+    Bool,
 }
 
 pub fn closed_conformance_application_report_fingerprint(
@@ -433,6 +445,11 @@ pub fn closed_conformance_application_report_fingerprint(
     for callable in &application.realization_callables {
         push(&mut bytes, &callable.source_callable_identity);
         bytes.extend(callable.machine.get().to_le_bytes());
+        bytes.push(match callable.result {
+            ClosedConformanceCallableResult::Unit => 1,
+            ClosedConformanceCallableResult::I32 => 2,
+            ClosedConformanceCallableResult::Bool => 3,
+        });
     }
     bytes.extend((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
@@ -464,7 +481,7 @@ pub fn closed_conformance_application_commitment(
     }
 
     let mut digest = Sha256::new();
-    digest.update(b"omega.psi.terminal.closed-conformance-application.v2\0");
+    digest.update(b"omega.psi.terminal.closed-conformance-application.v3\0");
     push(&mut digest, &application.declaration_identity);
     push(
         &mut digest,
@@ -497,6 +514,11 @@ pub fn closed_conformance_application_commitment(
     for callable in &application.realization_callables {
         push(&mut digest, &callable.source_callable_identity);
         digest.update(callable.machine.get().to_le_bytes());
+        digest.update([match callable.result {
+            ClosedConformanceCallableResult::Unit => 1,
+            ClosedConformanceCallableResult::I32 => 2,
+            ClosedConformanceCallableResult::Bool => 3,
+        }]);
     }
     digest.update((application.rows.len() as u64).to_le_bytes());
     for row in &application.rows {
