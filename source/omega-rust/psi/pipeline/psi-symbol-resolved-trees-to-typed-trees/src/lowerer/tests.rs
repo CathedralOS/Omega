@@ -2,6 +2,7 @@ use super::{
     SeededPlainDataContinuationError, exact_field_symbol, exact_top_level_data_symbol,
     lower_seeded_plain_data_extension, lower_symbol_resolved_trees,
     lower_symbol_resolved_trees_to_seeded_plain_data_base, plain_data_extension_shape_is_supported,
+    seeded_base_application,
 };
 use psi_source::{SourceMap, SourceOrigin, SourceResolutionStratum};
 use psi_source_files_to_tokens::Lexer;
@@ -4330,19 +4331,251 @@ fn seeded_plain_data_continuation_fences_broader_normalized_generic_instances() 
 }
 
 #[test]
-fn seeded_plain_data_continuation_fences_base_owned_generic_application() {
-    let (base, extension) = seeded_normalized_plain_data_inputs(
-        "data Cell<T> { value: T; }",
-        "data Generated { value: Cell<u32>; }",
+fn seeded_plain_data_continuation_retains_one_exact_base_owned_primitive_application() {
+    let (mut base, extension) = seeded_normalized_plain_data_inputs(
+        "data Cell<T> { value: T; } data Main { value: u8; }",
+        "data Generated { first: Cell<u32>; second: Cell<u32>; base: Main; }",
     );
-    let expected = base.typed().clone();
-    let (returned, error) = lower_seeded_plain_data_extension(extension, base)
-        .expect_err("base-owned applications require the whole-program normalizer");
+    base.typed_mut()
+        .evidence_forwardings
+        .push(psi_typed_trees::typed_trees::EvidenceForwarding {
+            machine_symbol: psi_symbols::SymbolHandle::invalid(),
+            state_symbol: psi_symbols::SymbolHandle::invalid(),
+            statement_index: 37,
+            source_statement_index: 41,
+            target: psi_typed_trees::name::Identifier::generated_static("base-application-target"),
+            source: psi_typed_trees::name::Identifier::generated_static("base-application-source"),
+            source_conformance: None,
+        });
+    let before = base.typed().clone();
+    let before_type_count = before.type_reference_table.type_reference_count();
+    let before_symbols = before
+        .symbols
+        .symbols()
+        .nodes()
+        .iter()
+        .map(|(handle, symbol)| (handle, symbol.clone()))
+        .collect::<Vec<_>>();
+    let resolved_ledger = extension.trees().authored_declaration_selections().clone();
+
+    let typed = lower_seeded_plain_data_extension(extension, base)
+        .expect("one exact base-owned primitive application should append");
+
     assert_eq!(
-        error,
-        SeededPlainDataContinuationError::UnsupportedExtensionShape
+        &typed.data_definitions()[..before.data_definitions().len()],
+        before.data_definitions()
     );
-    assert_eq!(returned.into_typed(), expected);
+    assert_eq!(typed.evidence_forwardings, before.evidence_forwardings);
+    for arena_index in 1..=u32::try_from(before_type_count).expect("type count") {
+        let handle = psi_arena::Handle::from_arena_index(arena_index);
+        assert_eq!(
+            typed.type_reference_table.type_reference(handle),
+            before.type_reference_table.type_reference(handle)
+        );
+    }
+    assert_eq!(
+        typed
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .take(before_symbols.len())
+            .map(|(handle, symbol)| (handle, symbol.clone()))
+            .collect::<Vec<_>>(),
+        before_symbols
+    );
+    assert!(
+        typed
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(resolved_ledger.as_slice())
+    );
+    let template = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Cell")
+        .expect("retained base template");
+    let wrapper = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Generated")
+        .expect("generated wrapper");
+    assert!(
+        typed
+            .data_definitions()
+            .iter()
+            .all(|definition| definition.generic_instance.is_none()),
+        "a cross-unit application stays structurally generic instead of inventing an extension-local instance"
+    );
+    let applications = typed
+        .data_members(wrapper)
+        .iter()
+        .filter_map(|member| {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            let psi_typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } = typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            else {
+                return None;
+            };
+            Some((*base_symbol, lifetime_arguments, *arguments))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(applications.len(), 2);
+    for (base_symbol, lifetime_arguments, arguments) in applications {
+        assert_eq!(base_symbol, template.symbol);
+        assert!(lifetime_arguments.is_empty());
+        let [argument] = typed.type_reference_table.type_reference_handles(arguments) else {
+            panic!("one retained builtin argument")
+        };
+        let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+            typed.type_reference_table.type_reference(*argument)
+        else {
+            panic!("the exact application argument remains nominal")
+        };
+        assert_eq!(
+            typed.symbols.get(*symbol).kind,
+            psi_symbols::SymbolKind::BuiltinType
+        );
+        assert_eq!(typed.symbols.name(*symbol), "u32");
+    }
+}
+
+#[test]
+fn seeded_base_owned_application_gate_rejects_identity_and_shape_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Cell<T> { value: T; } data Main { value: u8; }",
+        "data Generated { first: Cell<u32>; second: Cell<u32>; base: Main; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(seeded_base_application::is_supported(&resolved, frontier));
+    let wrapper = resolved.data_definitions.iter().nth(frontier).unwrap();
+    let wrapper_members = wrapper.members;
+
+    let mut wrong_base_name = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(first) = wrong_base_name
+        .tables
+        .declarations
+        .data_members
+        .get_mut(wrapper_members.start())
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut first.type_reference
+    else {
+        unreachable!()
+    };
+    application.base_name = psi_symbol_resolved_trees::name::DiagnosticName::generated("Other");
+    assert!(!seeded_base_application::is_supported(
+        &wrong_base_name,
+        frontier
+    ));
+
+    let mut wrong_base_symbol = resolved.clone();
+    let wrapper_symbol = wrong_base_symbol
+        .data_definitions
+        .iter()
+        .nth(frontier)
+        .unwrap()
+        .symbol;
+    let psi_symbol_resolved_trees::data::DataMember::Field(first) = wrong_base_symbol
+        .tables
+        .declarations
+        .data_members
+        .get_mut(wrapper_members.start())
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut first.type_reference
+    else {
+        unreachable!()
+    };
+    application.base_symbol = wrapper_symbol;
+    assert!(!seeded_base_application::is_supported(
+        &wrong_base_symbol,
+        frontier
+    ));
+
+    let mut missing_argument = resolved.clone();
+    let psi_symbol_resolved_trees::data::DataMember::Field(first) = missing_argument
+        .tables
+        .declarations
+        .data_members
+        .get_mut(wrapper_members.start())
+    else {
+        unreachable!()
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(application) =
+        &mut first.type_reference
+    else {
+        unreachable!()
+    };
+    application.arguments = psi_arena::HandleSpan::empty();
+    assert!(!seeded_base_application::is_supported(
+        &missing_argument,
+        frontier
+    ));
+
+    let mut fact_bearing_template = resolved;
+    fact_bearing_template.data_definitions[0].where_facts =
+        psi_arena::HandleSpan::from_parts(psi_arena::Handle::from_arena_index(1), 1);
+    assert!(!seeded_base_application::is_supported(
+        &fact_bearing_template,
+        frontier
+    ));
+}
+
+#[test]
+fn seeded_plain_data_continuation_fences_broader_base_owned_generic_applications() {
+    for (name, base_source, extension_source) in [
+        (
+            "single_use",
+            "data Cell<T> { value: T; }",
+            "data Generated { value: Cell<u32>; }",
+        ),
+        (
+            "distinct_arguments",
+            "data Cell<T> { value: T; }",
+            "data Generated { first: Cell<u32>; second: Cell<u64>; }",
+        ),
+        (
+            "indirect_use",
+            "data Cell<T> { value: T; }",
+            "data Generated { first: [Cell<u32>; 2]; second: Cell<u32>; }",
+        ),
+        (
+            "attached_method",
+            "data Cell<T> { value: T; } machine Cell::clear<T>(&self) {}",
+            "data Generated { first: Cell<u32>; second: Cell<u32>; }",
+        ),
+        (
+            "indirect_parameter",
+            "data Cell<T> { values: [T; 2]; }",
+            "data Generated { first: Cell<u32>; second: Cell<u32>; }",
+        ),
+    ] {
+        let (base, extension) = seeded_normalized_plain_data_inputs(base_source, extension_source);
+        let expected = base.typed().clone();
+        let Err((returned, error)) = lower_seeded_plain_data_extension(extension, base) else {
+            panic!("{name} must remain on the rebuild path")
+        };
+        assert_eq!(
+            error,
+            SeededPlainDataContinuationError::UnsupportedExtensionShape,
+            "{name}"
+        );
+        assert_eq!(returned.into_typed(), expected, "{name}");
+    }
 }
 
 #[test]
