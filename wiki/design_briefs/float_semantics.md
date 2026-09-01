@@ -65,16 +65,19 @@ SSE2 x86-64 targets.
 Terminal Psi now owns exact binary32/binary64 scalar types, raw interchange-bit
 constants, and a distinct nearest-even fused-multiply-add operation. Its codec,
 verifier, fuel schedule, and reference interpreter preserve the bits and use
-one rounding. The first bounded source lane accepts a first immutable local in
-an attached Unit machine whose selected FMA has three landed literal operands.
-Checked lowering emits exact Terminal constants/FMA and retains a per-occurrence
-sidecar containing the source coordinate, full selected-plan commitment,
-requirement symbol, format, and emitted Terminal operation. The compiler
-consumes that ephemeral row into a source-free Terminal realization proposal,
-rejoins the exact selected plan, and, for x86 profiles, requires exactly one
-admitted profile/slot provider. Proposal replay requires one-to-one coverage of
+one rounding. The bounded source lane accepts a nonempty source-ordered
+sequence of immutable locals in an attached Unit machine. Each local is an
+independent selected F32/F64 FMA over three landed literal operands; aliases,
+earlier-local operands, result chaining/use, scalar parameters, and unrelated
+operations remain outside this lane. Checked lowering emits exact Terminal
+constants/FMA and retains a per-occurrence sidecar containing the source
+coordinate, full selected-plan commitment, requirement symbol, format, and
+emitted Terminal operation. The compiler consumes those ephemeral rows into
+source-free Terminal realization proposals, rejoins each exact selected plan,
+and, for x86 profiles, requires exactly one admitted profile/slot provider per
+occurrence. Proposal replay requires source-ordered one-to-one coverage of
 every canonical Terminal FMA operation. Abstract IR and optimizer identities
-also preserve the operation. For the bounded no-call attached-Unit lane, the
+also preserve the operations. For the bounded no-call attached-Unit lane, the
 ordinary Abstract -> Target -> Assigned -> machine path consumes that proposal
 without a side channel. Target legalization retains the exact selected-plan
 digest and admitted provider while remaining address-free; assignment owns the
@@ -251,17 +254,21 @@ feature-qualified x86 FMA carrier supports source-free custody and final-image
 replay, and ordinary exact-target build selection retains that carrier on the
 checked compilation. Linux and Windows target sources now select nearest-FMA
 plans, and each actual checked use is associated with the exact admitted
-provider by full-plan/profile/slot replay. A bounded first immutable-local lane
-now carries the selected use through exact Terminal constants/FMA, canonical
-verification/reference execution, Abstract IR, and a retained source-free
-native-realization proposal. Target/assigned/machine lowering that consumes
-this proposal is still pending.
+provider by full-plan/profile/slot replay. A bounded source-ordered sequence of
+independent literal-backed immutable FMA locals now carries every selected use
+through exact Terminal constants/FMA, canonical verification/reference
+execution, Abstract IR, target legalization, assignment-owned XMM homes,
+machine emission, object construction, and final native-artifact replay. One
+function-level MXCSR envelope covers every occurrence.
 Multiply-then-add and FMA stay distinct through lowering and result-policy
 adaptation.
 
-Generated call/return and foreign callback frames preserve the complete
-MXCSR/FPCR control state and install Omega's canonical controls. Returning
-foreign calls use the same conservative envelope; direct syscalls do not.
+The bounded x86 FMA function saves the complete incoming MXCSR, installs
+Omega's canonical controls for its body, and restores the saved value before
+return. Ordinary returning foreign calls and callback entries do not yet carry
+the corresponding MXCSR/FPCR envelope in the maintained pipeline; the calling-
+convention policy predicate records the requirement but is not execution
+evidence. Direct syscalls require no returning-foreign envelope.
 Provider-plan identity, semantic edge cases, interpreter/native agreement, and
 cross-target builds are retained as executable evidence rather than copied here
 as per-cohort hashes. Remaining provider coverage is tracked in `TASKS.md`.

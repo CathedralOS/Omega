@@ -969,46 +969,45 @@ pub(super) fn build_checked_machine(
         statements,
         selected_operator_applications,
     );
-    let selected_ieee_float_fma_result_local = selected_ieee_float_fma_result_local(
+    let selected_ieee_float_fma_result_locals = selected_ieee_float_fma_result_locals(
         program,
         machine,
         state,
         statements,
         selected_ieee_float_fma_applications,
     );
-    if selected_scalar_result_local.is_some() && selected_ieee_float_fma_result_local.is_some() {
+    if selected_scalar_result_local.is_some() && selected_ieee_float_fma_result_locals.is_some() {
         return None;
     }
     let scalar_result_local = (selected_scalar_result_local.is_none()
-        && selected_ieee_float_fma_result_local.is_none())
+        && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
-    let has_scalar_result_local = scalar_result_local.is_some()
-        || selected_scalar_result_local.is_some()
-        || selected_ieee_float_fma_result_local.is_some();
+    let scalar_result_local_count = selected_ieee_float_fma_result_locals.as_ref().map_or_else(
+        || usize::from(scalar_result_local.is_some() || selected_scalar_result_local.is_some()),
+        Vec::len,
+    );
+    let has_scalar_result_local = scalar_result_local_count != 0;
     if has_scalar_result_local && (write_only_store.is_some() || construction.is_some()) {
         return None;
     }
     let restored_call_alias_prefix =
         reborrow_restored_call_alias_prefix(program, facts, machine, state, statements);
-    let local_count = has_scalar_result_local.then_some(1).map_or_else(
-        || {
-            construction.as_ref().map_or_else(
-                || {
-                    restored_call_alias_prefix.unwrap_or_else(|| {
-                        statements
-                            .iter()
-                            .take_while(|statement| {
-                                matches!(statement, StatementNode::LocalData(_))
-                            })
-                            .count()
-                    })
-                },
-                |(_, local_statement_count)| *local_statement_count,
-            )
-        },
-        |_| 1,
-    );
+    let local_count = if has_scalar_result_local {
+        scalar_result_local_count
+    } else {
+        construction.as_ref().map_or_else(
+            || {
+                restored_call_alias_prefix.unwrap_or_else(|| {
+                    statements
+                        .iter()
+                        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
+                        .count()
+                })
+            },
+            |(_, local_statement_count)| *local_statement_count,
+        )
+    };
     let call_statements = if construction.is_some() {
         &statements[statements.len()..]
     } else {
@@ -1119,14 +1118,16 @@ pub(super) fn build_checked_machine(
                 result,
             )?);
             0
-        } else if let Some((application, result)) = selected_ieee_float_fma_result_local {
-            operations.push(build_selected_ieee_float_fma(
-                program,
-                facts,
-                state,
-                application,
-                result,
-            )?);
+        } else if let Some(locals) = selected_ieee_float_fma_result_locals {
+            for (application, result) in locals {
+                operations.push(build_selected_ieee_float_fma(
+                    program,
+                    facts,
+                    state,
+                    application,
+                    result,
+                )?);
+            }
             0
         } else if let Some(result) = scalar_result_local {
             let call = calls.first()?;

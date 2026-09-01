@@ -11329,8 +11329,11 @@ Owner: `wiki/design_briefs/float_semantics.md`.
 
 Remaining F7 work:
 
-- extend the checked source lane beyond its first bounded attached-Unit shape
-  (a first immutable local initialized directly from three landed literals);
+- extend the checked source lane beyond its current nonempty source-ordered
+  sequence of immutable attached-Unit locals, each initialized by an
+  independent F32/F64 FMA over three landed literals; earlier-local operands,
+  result chaining/use, scalar parameters, and unrelated operations require
+  corresponding value-home and liveness custody rather than alias folding;
 - extend ordinary FMA realization beyond the bounded no-call attached-Unit
   lane, including explicit preservation rules around calls and foreign code;
 - add a checked binary32/binary64 software realization or corresponding
@@ -11390,14 +11393,16 @@ binary32/binary64 formats, Terminal Psi has raw-interchange-bit constants and a
 distinct nearest-even fused-multiply-add operation, and canonical codec,
 verifier, fuel, and reference-interpreter paths preserve and execute that
 meaning without integer laundering. The bounded source producer recognizes a
-first immutable attached-Unit local initialized directly by a selected FMA
-over three landed literals. It retains the exact checked requirement, complete
-ProviderPlan commitment, source coordinate, Terminal operation identity, and
-format as an ephemeral occurrence row. Terminal-product construction consumes
-that row into a source-free proposal joined to the exact selected plan and, on
-x86, exactly one admitted profile/slot provider. Proposal replay requires
-complete one-to-one coverage of canonical Terminal FMA operations and rejects
-missing, duplicate, cross-format, cross-profile, or non-x86 admission drift.
+nonempty source-ordered sequence of immutable attached-Unit locals, each
+initialized directly by an independent selected F32/F64 FMA over three landed
+literals. It retains each exact checked requirement, complete ProviderPlan
+commitment, source coordinate, Terminal operation identity, and format as an
+ephemeral occurrence row. Terminal-product construction consumes those rows
+into source-free proposals joined to the exact selected plans and, on x86,
+exactly one admitted profile/slot provider per occurrence. Proposal replay
+requires complete one-to-one coverage of canonical Terminal FMA operations and
+rejects missing, duplicate, reordered, cross-format, cross-profile, or non-x86
+admission drift.
 Abstract operations and optimization identities now preserve the exact
 constant/FMA vocabulary. The bounded ordinary path consumes the proposal
 through target legalization, assignment-owned XMM homes, raw-bit machine
