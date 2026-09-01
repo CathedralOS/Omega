@@ -3641,7 +3641,7 @@ retains tag 12 and canonically encodes the aligned optional indices; the
 registered calculus is v16 and the Rust kernel v8, with the affine and cast
 checkers included in both trust-graph source
 sets.
-The first bounded producer family uses the rule for one to nine prior signed
+The first bounded producer family uses the rule for one to ten prior signed
 fixed affine definitions whose exact retained root bound maps directly to a
 canonical safe-divisor arm. Production enumerates shortest words first and
 advances only prefixes accepted by the affine witness checker; within each
@@ -3649,9 +3649,9 @@ depth, semantic-axiom indices remain strictly ordered. The kernel
 independently checks continuity, algebra, the mapped conclusion, and
 accepted-premise custody. Missing root custody, incomplete, reversed,
 redirected, or stale words, wrong targets, and noncanonical mapped arms reject.
-The nine-definition successor changes only that fixed producer-enumeration
+The ten-definition successor changes only that fixed producer-enumeration
 ceiling. Proof-bundle v19, registered calculus v16, Rust kernel v8, and logical
-and fixed-fuel accounting remain unchanged: the nine source arithmetic
+and fixed-fuel accounting remain unchanged: the ten source arithmetic
 operations retain their ordinary charges, while certificate replay adds no
 executable units.
 Root custody may now also use one exact prior landed literal or value-alias
@@ -3665,7 +3665,7 @@ transitivity; equality facts stay in ledger order, while bound and second-leg
 indexes use their exact value endpoint. A missing bound, equality, or order
 leg, unsafe or mistyped literal, identity, non-value, disconnected, redirected,
 cross-carrier, or same-citation join rejects. Three-or-more-alias or
-three-or-more-leg root reconstruction, words of ten or more definitions, joins,
+three-or-more-leg root reconstruction, words of eleven or more definitions, joins,
 cast/shift compositions, and correlated results
 remain trusted-reducer work; neither complete exact row changes trust.
 An exact mapped affine bound may also close to the canonical arm through one
@@ -3676,7 +3676,7 @@ kernel rechecks the exact affine conclusion and the enclosing transitivity
 certificate. A nonclosed, mistyped, redirected, or weaker bridge rejects, and
 no variable-endpoint or cited-fact search is added.
 Affine completion now lives in dedicated producer-local `affine_custody`
-modules. Production alone owns the fixed nine-definition witness frontier,
+modules. Production alone owns the fixed ten-definition witness frontier,
 exact mapped bound, and optional closed relaxation. Verification and the kernel
 independently replay the exact supplied `IntegerAffineBound` witness without a
 search frontier; no authority is shared.

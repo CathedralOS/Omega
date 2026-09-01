@@ -4260,7 +4260,7 @@ Remaining:
   reject. Proof-bundle v19 retains tag 12; the registered calculus is v16 and
   the Rust kernel v8, with the affine and cast checkers included in both
   trust-graph source sets. The first bounded producer family now uses the rule
-  for one to nine prior signed fixed affine definitions whose exact retained
+  for one to ten prior signed fixed affine definitions whose exact retained
   root bound maps directly to a canonical safe-divisor arm. Production
   enumerates shortest words first and advances only prefixes accepted by the
   affine witness checker; within each depth, semantic-axiom indices stay
@@ -4268,9 +4268,9 @@ Remaining:
   mapped conclusion, and accepted-premise custody. Missing root custody,
   incomplete, reversed, redirected, or stale words, wrong targets, and
   noncanonical mapped arms reject.
-  The nine-definition successor changes only that fixed producer-enumeration
+  The ten-definition successor changes only that fixed producer-enumeration
   ceiling. Proof vocabulary, codec, calculus, kernel identities, and logical
-  and fixed-fuel accounting remain unchanged: the nine source arithmetic
+  and fixed-fuel accounting remain unchanged: the ten source arithmetic
   operations retain their ordinary charges, while certificate replay adds no
   executable units. Root custody may now also use one exact prior landed
   literal or value-alias transport. A typed `root == literal`
@@ -4284,7 +4284,7 @@ Remaining:
   value endpoint. A missing bound, equality, or order leg, unsafe or mistyped
   literal, identity, non-value, disconnected, redirected, cross-carrier, or
   same-citation join rejects. Three-or-more-alias or three-or-more-leg root
-  reconstruction, words of ten or more definitions, joins, cast/shift
+  reconstruction, words of eleven or more definitions, joins, cast/shift
   compositions, and correlated results
   remain on trusted reduction; neither complete exact row changes trust and
   `fully-derived false` remains. An exact mapped affine bound may also close to
@@ -4296,14 +4296,14 @@ Remaining:
   mistyped, redirected, or weaker bridge rejects, and no variable-endpoint or
   cited-fact search is added. Affine completion now lives in dedicated,
   producer-local `affine_custody` modules. Production alone owns the fixed
-  nine-definition witness frontier, exact mapped bound, and optional closed
+  ten-definition witness frontier, exact mapped bound, and optional closed
   relaxation; verification and the kernel independently replay the exact
   supplied `IntegerAffineBound` witness without a search frontier. Fixed affine-
   witness candidate enumeration now lives in producer-local
   `affine_custody/frontier` modules. Production enumerates shortest definition
   words first, preserves source-ordered semantic-axiom indices, advances only
   prefixes independently accepted by the affine witness checker, and stops at
-  the explicit nine-definition ceiling. Candidate pruning grants no proof
+  the explicit ten-definition ceiling. Candidate pruning grants no proof
   authority: mapped-bound construction, optional closed
   relaxation, and final proof checking remain in producer affine custody and
   the proof kernel. Witness order, rejection behavior, proof shapes, and the
@@ -4313,7 +4313,7 @@ Remaining:
   precedence, and asks the proof kernel to replay the exact accumulated
   definition word before that prefix advances. Verification performs no
   candidate search. Fixed-depth frontier expansion, proof shape, rejection, and
-  the nine-definition boundary remain unchanged.
+  the ten-definition boundary remain unchanged.
   Ordered affine-witness candidates now live in paired, side-local
   `affine_custody/candidates` modules. Producer and reconstruction independently
   require an exact `LessOrEqual` goal, enumerate left-before-right Value targets

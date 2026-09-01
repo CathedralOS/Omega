@@ -190,6 +190,10 @@ cast-intersection endpoints may start from a checked `Truth` child. This adds no
 proof rule and gives the verifier no search authority. Exact shift-left and
 exact add/subtract/multiply remain behind the optional projection and legacy
 reducer; those fences are implementation status, not alternate semantics.
+The current untrusted certificate producer searches direct signed affine words
+through exactly ten source-ordered definitions. Eleven or more definitions
+remain outside that fixed producer frontier; the verifier still replays only
+the supplied witness against the unchanged canonical goal and proof calculus.
 
 `Float::meaning32` and `Float::meaning64` are the corresponding explicit total
 projections for floats. They produce `FloatMeaning`, retaining signed zero,
