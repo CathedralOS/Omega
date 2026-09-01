@@ -3802,10 +3802,14 @@ Remaining:
   ninth bounded rung now admits exactly nine enclosing acyclic relevant record
   fields before that sole mixed occurrence, with the same whole-root equality,
   inequality, Unit-call rebasing, codec, verifier, fuel, interpreter, and
-  per-prefix mutation replay covering all nine ordered field identities. Ten or
-  more enclosing fields, case-payload or mixed-under-mixed placement, two mixed
-  sibling fields, direct projected mixed comparisons, recursive cycles, address
-  and erased payload equality, and runtime sum layout remain fenced.
+  per-prefix mutation replay covering all nine ordered field identities. A
+  tenth bounded rung now admits exactly ten enclosing acyclic relevant record
+  fields before that sole mixed occurrence, with the same whole-root equality,
+  inequality, Unit-call rebasing, codec, verifier, fuel, interpreter, and
+  per-prefix mutation replay covering all ten ordered field identities. Eleven
+  or more enclosing fields, case-payload or mixed-under-mixed placement, two
+  mixed sibling fields, direct projected mixed comparisons, recursive cycles,
+  address and erased payload equality, and runtime sum layout remain fenced.
   Semantic codec format 33 / vocabulary
   35, proof-bundle v19, and installation-record v40 retain the structural
   shapes, case-payload paths, and proposition. Continue with those fenced
