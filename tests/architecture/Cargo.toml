@@ -17,6 +17,10 @@ name = "optimizer_source_organization"
 path = "optimizer_source_organization/mod.rs"
 
 [[test]]
+name = "optimizer_rollout"
+path = "optimizer_rollout/mod.rs"
+
+[[test]]
 name = "package_source_organization"
 path = "package_source_organization.rs"
 

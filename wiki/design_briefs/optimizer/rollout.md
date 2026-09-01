@@ -65,10 +65,11 @@ cannot truthfully report the rule as disabled. Rejection occurs before frontend
 work or auxiliary output. An empty request retains existing behavior and
 produces no rollback receipt.
 
-Successful native production retains a separate receipt containing the build
-selection, requested disabled set, actually disabled set, and effective set.
-Publication preserves that receipt, and the command prints the exact requested,
-applied, and effective names. This provenance is intentionally separate from
+Successful native production retains a separate in-memory receipt containing
+the build selection, requested disabled set, actually disabled set, and
+effective set. Successful CLI publication preserves it in the returned report
+and prints the exact requested, applied, and effective names; the receipt is
+not yet persisted as a file. This provenance is intentionally separate from
 the effective optimizer/artifact identity.
 
 The rollback regression enumerates `Optimization::ALL`: each exact name must
@@ -117,6 +118,15 @@ work and are not part of ordinary builds.
 
 ## Documentation
 
-Release notes name exact supported rules and compositions. `TASKS_OPTIMIZER.md`
-tracks implementation status; design choices live in the architecture briefs;
-language-semantic blockers alone live in `OWNER_QUESTIONS.md`.
+The versioned [V1 release inventory](../../releases/optimizer_exact_rules_v1.md)
+names every exact rule, phase, applicability, status, rollback command, and
+supported composition. The adjacent
+[rollback runbook](../../releases/optimizer_rollback.md) owns operational
+disable, verification, log-capture, and restoration steps. A separate
+`optimizer_rollout` architecture test derives the exact vocabulary from its
+canonical source and rejects inventory drift, invalid status, inexact rollback,
+and promotion without a completed owner-reviewed per-rule record.
+
+`TASKS_OPTIMIZER.md` tracks implementation status; design choices live in the
+architecture briefs; language-semantic blockers alone live in
+`OWNER_QUESTIONS.md`.

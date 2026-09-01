@@ -676,6 +676,13 @@ unchecked rewrite or opt into lossy floating-point semantics.
 - [ ] Add supported target/OS allocator, encoding, unwind, object, and callable
   matrices.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
-- [ ] Publish exact-rule release notes and rollback procedures.
-- [ ] Require owner-reviewed promotion criteria per exact rule; never promote
-  an implicit broad level.
+- [x] Publish exact-rule release notes and rollback procedures. The versioned
+  V1 inventory names all 15 canonical exact rules, phases, target
+  applicability, experimental status, exact rollback spelling, supported
+  compositions, and fail-closed carrier limits; its native-only runbook owns
+  receipt capture, verification, and restoration.
+- [x] Require owner-reviewed promotion criteria per exact rule; never promote
+  an implicit broad level. The standalone rollout architecture gate rejects
+  canonical inventory drift and any `Recommended` or `Default` row without a
+  matching completed exact-name evidence record. Broad optimization levels
+  remain absent.
