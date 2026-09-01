@@ -50,6 +50,17 @@ pub(super) fn validate_root_service_reach_exact(
                 | OperationKind::CallUnit { callee, .. }
                 | OperationKind::CallStructuralScalar { callee, .. }
                 | OperationKind::CallStructural { callee, .. } => pending.push(*callee),
+                OperationKind::CallDynamicScalar { .. } => {
+                    let dispatch = module
+                        .dynamic_dispatch
+                        .indirect_dispatches
+                        .iter()
+                        .find(|dispatch| {
+                            dispatch.owner == machine.id && dispatch.operation == operation.id
+                        })
+                        .expect("validated dynamic call has one dispatch row");
+                    pending.push(dispatch.realization);
+                }
                 OperationKind::BoundaryCall { boundary, .. } => {
                     let declaration = boundaries.get(boundary).copied().ok_or(
                         ModuleError::UnknownBoundaryCallTarget {

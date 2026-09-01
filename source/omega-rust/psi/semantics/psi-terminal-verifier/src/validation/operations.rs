@@ -533,6 +533,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
+        | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::BoundaryCall { .. }

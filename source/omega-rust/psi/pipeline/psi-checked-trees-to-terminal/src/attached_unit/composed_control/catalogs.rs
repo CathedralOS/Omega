@@ -99,7 +99,7 @@ pub(super) fn lower_composed_catalogs(
     )
 }
 
-pub(crate) fn lower_direct_dynamic_catalogs(
+pub(crate) fn lower_dynamic_catalogs(
     checked: &CheckedTrees,
     plan: &psi_checked_trees::CheckedDynamicScalarCallPlan,
     continuation: &psi_checked_trees::CheckedDynamicUnitContinuationPlan,

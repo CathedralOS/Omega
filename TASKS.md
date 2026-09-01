@@ -10374,8 +10374,9 @@ Remaining N6/N8 work:
   telescopes, inherited requirement rows, direct named-conformance calls,
   scalar results other than exact `i32` or `bool`, receiver/ordinary-argument-
   bearing scalar results, attached scalar callers, subject-bearing lanes,
-  unnamed public contract rows, and
-  dynamic dispatch remain fail closed.
+  unnamed public contract rows, and dynamic named-witness dispatch remain fail
+  closed. The separate bounded contract-free `i32`/`bool` dynamic scalar lane
+  does not mint or expose a named witness.
   Next extend broader static calls and runtime trait dispatch. A satisfying
   machine must assign every inherited output on each applicable ordinary exit
   and may not omit, rename, weaken, or replace it. Direct concrete calls may

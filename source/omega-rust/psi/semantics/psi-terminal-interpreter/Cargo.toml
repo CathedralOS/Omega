@@ -16,3 +16,6 @@ psi-terminal-codec = { path = "../psi-terminal-codec" }
 psi-terminal-fuel = { path = "../psi-terminal-fuel" }
 psi-terminal-verifier = { path = "../psi-terminal-verifier" }
 psi-proof-admission = { path = "../psi-proof-admission" }
+
+[dev-dependencies]
+psi-terminal-fixed-fuel = { path = "../psi-terminal-fixed-fuel" }

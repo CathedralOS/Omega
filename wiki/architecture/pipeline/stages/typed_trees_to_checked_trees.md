@@ -1030,8 +1030,14 @@ Current ownership is:
   input. Concrete strengthening stays visible only to direct concrete calls.
   Generic substitution on the public trait/requirement/satisfier surface,
   inherited rows, defaults, scalar results, subject-bearing or wider public
-  lanes, direct named-conformance calls, and dynamic dispatch remain
-  conservative fences. Package review already owns the declaration-level lane
+  lanes, direct named-conformance calls, and dynamic named-witness dispatch
+  remain conservative fences. The separate contract-free dynamic scalar lane
+  admits one attached Unit caller, one exact closed conformance row, one shared
+  field source, and an exact `bool` or `i32` result. It retains either one
+  never-rebound selection or an initializer plus one reassignment and latest
+  call as distinct direct/rebound checked catalogs; it grants no
+  implementation-private witness or authored contract lane. Package review
+  already owns the declaration-level lane
   compatibility surface; this private call-site carrier adds no package
   schema. A
   proof-static `term.member` binder argument resolves in its named-contract

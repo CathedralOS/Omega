@@ -167,66 +167,68 @@ pub(super) fn compose_call_operation(
                 .get(callee)
                 .copied()
                 .expect("validated structural scalar-call target exists");
-            let structural_substitutions = callee
-                .structural_parameters
+            compose_structural_scalar_call(
+                module,
+                machine,
+                operation,
+                callee,
+                structural_arguments,
+                requirement_obligations,
+                value_types,
+                axioms,
+                operation_obligations,
+            );
+        }
+        (
+            CallResultRule::ScalarCalleeResult,
+            OperationKind::CallDynamicScalar {
+                descriptor_ordinal,
+                requirement_obligations,
+                ..
+            },
+        ) => {
+            let dispatch = module
+                .dynamic_dispatch
+                .indirect_dispatches
                 .iter()
-                .zip(structural_arguments)
-                .map(|(parameter, argument)| {
-                    (
-                        parameter.place,
-                        (
-                            argument.place,
-                            crate::validation::structural_argument_canonical_prefix(
-                                module, machine, argument,
-                            )
-                            .expect("validated structural argument has a canonical path"),
-                        ),
-                    )
+                .find(|dispatch| {
+                    dispatch.owner == machine.id
+                        && dispatch.operation == operation.id
+                        && dispatch.descriptor_ordinal == *descriptor_ordinal
                 })
-                .collect::<BTreeMap<_, _>>();
-            let result_substitution = BTreeMap::from([(
-                callee
-                    .result
-                    .scalar()
-                    .expect("validated structural scalar-call target has a scalar result")
-                    .id,
-                value_term(operation.result.expect_scalar().id, value_types),
-            )]);
-            let substitute = |proposition: &Proposition| {
-                substitute_proposition_values(
-                    &substitute_proposition_structural_places(
-                        proposition,
-                        &structural_substitutions,
-                    ),
-                    &result_substitution,
-                )
-            };
-            for (requirement_position, (required, obligation)) in callee
-                .contract
-                .requires
+                .expect("validated dynamic call has one indirect dispatch row");
+            let descriptor = module
+                .dynamic_dispatch
+                .rebound_descriptors
                 .iter()
-                .zip(requirement_obligations)
-                .enumerate()
-            {
-                operation_obligations.push(ReconstructedOperationObligation {
-                    owner: ReconstructedTerminalObligationOwner::CallRequires {
-                        machine: machine.id,
-                        operation: operation.id,
-                        requirement_position: u32::try_from(requirement_position)
-                            .expect("validated call requirement position fits u32"),
-                    },
-                    obligation: Obligation {
-                        id: *obligation,
-                        proposition: substitute(required),
-                        class: ObligationClass::Derivable,
-                    },
-                    semantic_axioms: axioms.clone(),
-                    canonical_certificate: false,
-                });
-            }
-            for guarantee in &callee.contract.ensures {
-                push_unique(axioms, substitute(&guarantee.proposition));
-            }
+                .find(|descriptor| {
+                    descriptor.owner == machine.id && descriptor.ordinal == *descriptor_ordinal
+                })
+                .expect("validated dynamic call has one descriptor row");
+            let selection = module
+                .dynamic_dispatch
+                .selections
+                .iter()
+                .find(|selection| {
+                    selection.owner == machine.id
+                        && selection.ordinal == descriptor.rebound_selection_ordinal
+                })
+                .expect("validated dynamic descriptor has one latest selection");
+            let callee = machines
+                .get(&dispatch.realization)
+                .copied()
+                .expect("validated dynamic realization exists");
+            compose_structural_scalar_call(
+                module,
+                machine,
+                operation,
+                callee,
+                std::slice::from_ref(&selection.source),
+                requirement_obligations,
+                value_types,
+                axioms,
+                operation_obligations,
+            );
         }
         (
             CallResultRule::StructuralCalleeResult,
@@ -341,6 +343,77 @@ pub(super) fn compose_call_operation(
         }
     }
     Ok(true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compose_structural_scalar_call(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    callee: &TerminalMachine,
+    structural_arguments: &[psi_terminal::StructuralArgument],
+    requirement_obligations: &[psi_core::ObligationId],
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    axioms: &mut Vec<Proposition>,
+    operation_obligations: &mut Vec<ReconstructedOperationObligation>,
+) {
+    let structural_substitutions = callee
+        .structural_parameters
+        .iter()
+        .zip(structural_arguments)
+        .map(|(parameter, argument)| {
+            (
+                parameter.place,
+                (
+                    argument.place,
+                    crate::validation::structural_argument_canonical_prefix(
+                        module, machine, argument,
+                    )
+                    .expect("validated structural argument has a canonical path"),
+                ),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let result_substitution = BTreeMap::from([(
+        callee
+            .result
+            .scalar()
+            .expect("validated structural scalar-call target has a scalar result")
+            .id,
+        value_term(operation.result.expect_scalar().id, value_types),
+    )]);
+    let substitute = |proposition: &Proposition| {
+        substitute_proposition_values(
+            &substitute_proposition_structural_places(proposition, &structural_substitutions),
+            &result_substitution,
+        )
+    };
+    for (requirement_position, (required, obligation)) in callee
+        .contract
+        .requires
+        .iter()
+        .zip(requirement_obligations)
+        .enumerate()
+    {
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::CallRequires {
+                machine: machine.id,
+                operation: operation.id,
+                requirement_position: u32::try_from(requirement_position)
+                    .expect("validated call requirement position fits u32"),
+            },
+            obligation: Obligation {
+                id: *obligation,
+                proposition: substitute(required),
+                class: ObligationClass::Derivable,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: false,
+        });
+    }
+    for guarantee in &callee.contract.ensures {
+        push_unique(axioms, substitute(&guarantee.proposition));
+    }
 }
 
 fn value_term(value: ValueId, value_types: &BTreeMap<ValueId, ScalarType>) -> ScalarTerm {

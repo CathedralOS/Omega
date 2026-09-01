@@ -9,15 +9,20 @@ use psi_proof_admission::{
 };
 use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimTransfer,
-    CompletionReceipt, CrashCause, CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract,
-    NominalAffineCleanup, Operation, OperationKind, OperationResult, ServiceDeclaration,
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
+    ClosedConformanceApplication, ClosedConformanceCallableResult,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, CompletionReceipt, CrashCause,
+    CrashRouteBucket, CrashRouteGuard, EntryClaim, MachineContract, NominalAffineCleanup,
+    Operation, OperationKind, OperationResult, ServiceDeclaration, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralDomainDeclaration,
     StructuralDomainRequirement, StructuralFieldDeclaration, StructuralFieldType,
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimBinding,
     StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
+    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
+    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
+    closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 use psi_terminal_codec::{decode_module, encode_module, encode_proof_bundle};
 use psi_terminal_fuel::{FuelChargeSite, FuelExhaustion, TerminalFuelMeter, TerminalFuelSchedule};
@@ -319,6 +324,46 @@ fn structural_scalar_field_store_is_visible_through_a_projected_call_without_rep
         1,
         "the committed field store is not replayed after replenishment",
     );
+}
+
+#[test]
+fn rebound_dynamic_scalar_call_executes_and_composes_its_fixed_fuel_callee() {
+    let module = rebound_dynamic_scalar_call_module();
+    let proof_bundle = ProofBundle::default();
+    let verified = verify_module(&module, &proof_bundle, &AdmissionProfile::default())
+        .expect("rebound dynamic scalar module verifies");
+    let certificate = psi_terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry)
+        .expect("rebound dynamic scalar module has a fixed bound");
+    psi_terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate)
+        .expect("rebound dynamic scalar fixed-fuel certificate replays");
+
+    let semantic = encode_module(&module).expect("rebound dynamic scalar semantics encode");
+    let proof = encode_proof_bundle(&proof_bundle).expect("empty proof encodes");
+    let structural = TerminalStructuralValue {
+        opaque_identity: 95,
+        structural_type: structural_type_id(95),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural],
+    )
+    .expect("verified rebound dynamic scalar call starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(99),
+            },
+        )),
+    );
+    assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
 }
 
 fn assert_write_only_store_atomic(
@@ -3182,6 +3227,98 @@ fn structural_scalar_field_call_module() -> TerminalModule {
         }],
         contract: empty_contract(contract_id(96)),
     });
+    module
+}
+
+fn rebound_dynamic_scalar_call_module() -> TerminalModule {
+    let mut module = structural_scalar_field_call_module();
+    let caller = machine_id(1);
+    let realization = machine_id(96);
+    let operation = operation_id(3);
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        panic!("owner is a record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: structural_field_id(2),
+        identity: "selected".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(structural_type_id(96)),
+    });
+    module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    module.machines[0].blocks[0]
+        .operations
+        .retain(|operation| operation.id == operation_id(3));
+    module.machines[1].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    module.machines[1].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Signed(99),
+    };
+
+    let mut application = ClosedConformanceApplication {
+        owner: caller,
+        declaration_identity: "test::ItemSatisfiesMeasure".into(),
+        telescope: Vec::new(),
+        subject_identity: Some("test::Item".into()),
+        trait_identity: "test::Measure".into(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![ClosedConformanceRealizationCallable {
+            source_callable_identity: "test::Item::measure#callable".into(),
+            machine: realization,
+            result: ClosedConformanceCallableResult::I32,
+        }],
+        rows: vec![ClosedConformanceRow {
+            declaring_trait_identity: "test::Measure".into(),
+            public_requirement_identity: "test::Measure::measure()".into(),
+            requirement_identity: "test::Measure::measure".into(),
+            realization_identity: "test::Item::measure".into(),
+            realization_callable_identity: Some("test::Item::measure#callable".into()),
+        }],
+        report_fingerprint: 0,
+        commitment: Default::default(),
+    };
+    application.report_fingerprint =
+        closed_conformance_application_report_fingerprint(&application);
+    application.commitment = closed_conformance_application_commitment(&application);
+    let application_report_fingerprint = application.report_fingerprint;
+    let application_commitment = application.commitment;
+    let selection = |ordinal, field: &str| TerminalDynamicConformanceSelection {
+        owner: caller,
+        ordinal,
+        source: StructuralArgument {
+            place: place_id(95),
+            path: vec![StructuralPathSegment::Field(field.into())],
+            access: StructuralAccess::SharedBorrow,
+        },
+        conformance_application_report_fingerprint: application_report_fingerprint,
+        conformance_application_commitment: application_commitment,
+    };
+    module.closed_conformance_applications = vec![application];
+    module.dynamic_dispatch = TerminalDynamicDispatchCatalog {
+        selections: vec![selection(0, "item"), selection(1, "selected")],
+        rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
+            owner: caller,
+            ordinal: 0,
+            initial_selection_ordinal: 0,
+            rebound_selection_ordinal: 1,
+        }],
+        direct_dispatches: Vec::new(),
+        indirect_dispatches: vec![TerminalIndirectDynamicDispatch {
+            owner: caller,
+            operation,
+            descriptor_ordinal: 0,
+            declaring_trait_identity: "test::Measure".into(),
+            public_requirement_identity: "test::Measure::measure()".into(),
+            requirement_identity: "test::Measure::measure".into(),
+            realization_identity: "test::Item::measure".into(),
+            realization_callable_identity: "test::Item::measure#callable".into(),
+            realization,
+        }],
+    };
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallDynamicScalar {
+        descriptor_ordinal: 0,
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
     module
 }
 

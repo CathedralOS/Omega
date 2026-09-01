@@ -1,13 +1,14 @@
-//! Dedicated source-free lowering for one direct local dynamic scalar call.
+//! Source-free lowering for bounded local dynamic scalar calls.
 //!
-//! The caller's named dynamic value never escapes this closed use, so no
-//! descriptor or private table is materialized. The emitted direct call still
-//! retains the exact selected conformance application, source field subloan,
-//! requirement row, and realization callable in Terminal custody.
+//! A never-rebound value lowers to a direct call. A value rebound exactly once
+//! retains two selections and an indirect descriptor call. Both lanes preserve
+//! the exact conformance application, source field subloan, requirement row,
+//! and realization callable in Terminal custody.
 
 use psi_checked_trees::{
-    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
-    CheckedStructuralAccess, CheckedStructuralPredicatePathSegment, CheckedUnitStructuralFieldType,
+    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan,
+    CheckedReboundDynamicScalarCallPlan, CheckedScalarExpression, CheckedStructuralAccess,
+    CheckedStructuralPredicatePathSegment, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 use psi_core::StructuralPlaceKind;
@@ -17,8 +18,9 @@ use psi_terminal::{
     ClosedConformanceRealizationCallable, ClosedConformanceRow, MachineContract, Operation,
     OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalDirectDynamicDispatch,
-    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
+    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 
@@ -26,20 +28,50 @@ use super::*;
 
 mod continuation;
 
-struct DirectCallerShape {
+struct DynamicCallerShape {
     attachment_type_identity: String,
+}
+
+#[derive(Clone, Copy)]
+enum DynamicLoweringLane<'a> {
+    Direct,
+    Rebound(&'a CheckedDynamicSelectionPlan),
 }
 
 pub(super) fn lower_direct_dynamic_composed_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let caller = validate_exact_direct_plan(checked, plan)?;
+    lower_dynamic_composed_unit_machine(checked, plan, DynamicLoweringLane::Direct)
+}
+
+pub(super) fn lower_rebound_dynamic_composed_unit_machine(
+    checked: &CheckedTrees,
+    plan: &CheckedReboundDynamicScalarCallPlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    lower_dynamic_composed_unit_machine(
+        checked,
+        &plan.latest,
+        DynamicLoweringLane::Rebound(&plan.initial),
+    )
+}
+
+fn lower_dynamic_composed_unit_machine(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    lane: DynamicLoweringLane<'_>,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let caller = match lane {
+        DynamicLoweringLane::Direct => validate_exact_direct_plan(checked, plan)?,
+        DynamicLoweringLane::Rebound(initial) => {
+            validate_exact_rebound_plan(checked, plan, initial)?
+        }
+    };
     if let Some(unit_continuation) = &plan.unit_continuation {
-        return continuation::lower(checked, plan, unit_continuation, caller);
+        return continuation::lower(checked, plan, unit_continuation, caller, lane);
     }
     let (structural_types, type_ids) =
-        lower_direct_structural_types(checked, plan, &caller.attachment_type_identity)?;
+        lower_dynamic_structural_types(checked, plan, &caller.attachment_type_identity)?;
     let caller_attachment = lookup_type_id(&type_ids, &caller.attachment_type_identity)?;
     let caller_access = match plan.caller_parameter_access {
         CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
@@ -83,24 +115,20 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
         callable_result,
         &callable_identity,
     )?;
-    let selection = TerminalDynamicConformanceSelection {
-        owner: caller_machine,
-        ordinal: 0,
-        source: source.clone(),
-        conformance_application_report_fingerprint: application.report_fingerprint,
-        conformance_application_commitment: application.commitment,
-    };
-    let dispatch = TerminalDirectDynamicDispatch {
-        owner: caller_machine,
-        operation: call_operation,
-        selection_ordinal: 0,
-        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-        public_requirement_identity: selected_row.public_requirement_identity.clone(),
-        requirement_identity: selected_row.requirement_identity.clone(),
-        realization_identity: selected_row.realization_identity.clone(),
-        realization_callable_identity: callable_identity,
-        realization: realization_machine,
-    };
+    let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
+        lane,
+        &caller_self,
+        plan,
+        &structural_types,
+        &type_ids,
+        caller_machine,
+        call_operation,
+        source,
+        &application,
+        &selected_row,
+        callable_identity,
+        realization_machine,
+    )?;
 
     let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
     let realization_parameter = StructuralParameterDeclaration {
@@ -159,13 +187,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
             id: call_result_value,
             scalar_type: call_result_type,
         }),
-        kind: OperationKind::CallStructuralScalar {
-            callee: realization_machine,
-            structural_arguments: vec![source],
-            claim_transfers: Vec::new(),
-            requirement_obligations: Vec::new(),
-            crash_continuations: Vec::new(),
-        },
+        kind: call_kind,
     });
 
     Ok(LoweredTerminalPsi {
@@ -190,10 +212,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
             closed_conformance_applications: vec![application],
-            dynamic_dispatch: TerminalDynamicDispatchCatalog {
-                selections: vec![selection],
-                direct_dispatches: vec![dispatch],
-            },
+            dynamic_dispatch,
             quotient_correspondences: Vec::new(),
             machines: vec![
                 TerminalMachine {
@@ -292,7 +311,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
 fn validate_exact_direct_plan(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
-) -> Result<DirectCallerShape, LoweringError> {
+) -> Result<DynamicCallerShape, LoweringError> {
     let store = plan.caller_structural_scalar_field_store.as_ref();
     if store.is_some() && plan.unit_continuation.is_some() {
         return unsupported(
@@ -301,6 +320,60 @@ fn validate_exact_direct_plan(
     }
     let selection_statement_index = usize::from(store.is_some());
     let call_statement_index = u32::from(store.is_some()) + 1;
+    validate_exact_dynamic_plan(
+        checked,
+        plan,
+        selection_statement_index,
+        call_statement_index,
+    )
+}
+
+fn validate_exact_rebound_plan(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    initial: &CheckedDynamicSelectionPlan,
+) -> Result<DynamicCallerShape, LoweringError> {
+    if plan.caller_structural_scalar_field_store.is_some()
+        || initial.fact.statement_index.checked_add(1) != Some(plan.selection.statement_index)
+        || plan.selection.statement_index.checked_add(1)
+            != usize::try_from(plan.coordinate.statement_index).ok()
+        || initial.fact.machine != plan.caller_machine
+        || initial.fact.state != plan.caller_state
+        || initial.fact.binding != plan.receiver_binding
+        || initial.fact.target_trait != plan.target_trait
+        || initial.fact.conformance != Some(plan.selected_conformance)
+        || initial.fact.source_symbol != initial.field
+        || initial.fact.source_data != plan.selection.source_data
+        || initial.fact.rows != plan.selection.rows
+        || initial.type_identity != plan.source_type_identity
+        || initial.path.len() != 1
+        || checked
+            .facts
+            .dynamic_conformances
+            .binding_facts()
+            .selections
+            .into_iter()
+            .filter(|selection| selection == &initial.fact)
+            .count()
+            != 1
+    {
+        return unsupported("rebound dynamic selection versions drifted from checked custody");
+    }
+    validate_exact_dynamic_plan(
+        checked,
+        plan,
+        plan.selection.statement_index,
+        plan.coordinate.statement_index,
+    )
+}
+
+fn validate_exact_dynamic_plan(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    selection_statement_index: usize,
+    call_statement_index: u32,
+) -> Result<DynamicCallerShape, LoweringError> {
+    let store = plan.caller_structural_scalar_field_store.as_ref();
     let exact_selections = checked
         .facts
         .dynamic_conformances
@@ -452,7 +525,10 @@ fn validate_exact_direct_plan(
             plan.caller_multiplicity,
             Multiplicity::Unrestricted | Multiplicity::Affine
         )
-        || plan.source_multiplicity != Multiplicity::Unrestricted
+        || !matches!(
+            plan.source_multiplicity,
+            Multiplicity::Unrestricted | Multiplicity::Affine
+        )
         || !matches!(
             plan.caller_parameter_access,
             CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
@@ -483,7 +559,7 @@ fn validate_exact_direct_plan(
     if plan.unit_continuation.is_none() {
         validate_empty_service_summary(checked, caller_service_reach)?;
     }
-    Ok(DirectCallerShape {
+    Ok(DynamicCallerShape {
         attachment_type_identity: plan.caller_attachment_type_identity.clone(),
     })
 }
@@ -507,6 +583,24 @@ fn validate_and_lower_source(
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
     type_ids: &[(String, psi_core::StructuralTypeId)],
 ) -> Result<StructuralArgument, LoweringError> {
+    validate_and_lower_selection_source(
+        caller_self,
+        plan,
+        &plan.source_path,
+        &plan.source_type_identity,
+        structural_types,
+        type_ids,
+    )
+}
+
+fn validate_and_lower_selection_source(
+    caller_self: &StructuralParameterDeclaration,
+    plan: &CheckedDynamicScalarCallPlan,
+    source_path: &[CheckedUnitStructuralPathSegment],
+    source_type_identity: &str,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    type_ids: &[(String, psi_core::StructuralTypeId)],
+) -> Result<StructuralArgument, LoweringError> {
     if plan.source_parameter_position != caller_self.position
         || plan.caller_parameter_access
             != match caller_self.access {
@@ -521,15 +615,14 @@ fn validate_and_lower_source(
         return unsupported("direct dynamic caller self does not license a shared field subloan");
     }
     let attachment_id = lookup_type_id(type_ids, &plan.caller_attachment_type_identity)?;
-    let source_type = lookup_type_id(type_ids, &plan.source_type_identity)?;
+    let source_type = lookup_type_id(type_ids, source_type_identity)?;
     let attachment = structural_types
         .iter()
         .find(|declaration| declaration.id == attachment_id)
         .ok_or(LoweringError::Unsupported(
             "direct dynamic caller attachment declaration is absent",
         ))?;
-    let [CheckedUnitStructuralPathSegment::Field(field_identity)] = plan.source_path.as_slice()
-    else {
+    let [CheckedUnitStructuralPathSegment::Field(field_identity)] = source_path else {
         unreachable!("direct source path was validated")
     };
     let psi_terminal::StructuralTypeShape::Record { fields } = &attachment.shape else {
@@ -547,8 +640,108 @@ fn validate_and_lower_source(
     }
     Ok(StructuralArgument {
         place: caller_self.place,
-        path: lower_structural_path(&plan.source_path),
+        path: lower_structural_path(source_path),
         access: StructuralAccess::SharedBorrow,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_dynamic_call_custody(
+    lane: DynamicLoweringLane<'_>,
+    caller_self: &StructuralParameterDeclaration,
+    plan: &CheckedDynamicScalarCallPlan,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    type_ids: &[(String, psi_core::StructuralTypeId)],
+    caller_machine: psi_core::MachineId,
+    call_operation: psi_core::OperationId,
+    latest_source: StructuralArgument,
+    application: &ClosedConformanceApplication,
+    selected_row: &ClosedConformanceRow,
+    callable_identity: String,
+    realization_machine: psi_core::MachineId,
+) -> Result<(TerminalDynamicDispatchCatalog, OperationKind), LoweringError> {
+    let latest_selection = TerminalDynamicConformanceSelection {
+        owner: caller_machine,
+        ordinal: u32::from(matches!(lane, DynamicLoweringLane::Rebound(_))),
+        source: latest_source.clone(),
+        conformance_application_report_fingerprint: application.report_fingerprint,
+        conformance_application_commitment: application.commitment,
+    };
+    let row_dispatch = |descriptor_ordinal| TerminalIndirectDynamicDispatch {
+        owner: caller_machine,
+        operation: call_operation,
+        descriptor_ordinal,
+        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+        public_requirement_identity: selected_row.public_requirement_identity.clone(),
+        requirement_identity: selected_row.requirement_identity.clone(),
+        realization_identity: selected_row.realization_identity.clone(),
+        realization_callable_identity: callable_identity.clone(),
+        realization: realization_machine,
+    };
+    Ok(match lane {
+        DynamicLoweringLane::Direct => (
+            TerminalDynamicDispatchCatalog {
+                selections: vec![latest_selection],
+                rebound_descriptors: Vec::new(),
+                direct_dispatches: vec![TerminalDirectDynamicDispatch {
+                    owner: caller_machine,
+                    operation: call_operation,
+                    selection_ordinal: 0,
+                    declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+                    public_requirement_identity: selected_row.public_requirement_identity.clone(),
+                    requirement_identity: selected_row.requirement_identity.clone(),
+                    realization_identity: selected_row.realization_identity.clone(),
+                    realization_callable_identity: callable_identity,
+                    realization: realization_machine,
+                }],
+                indirect_dispatches: Vec::new(),
+            },
+            OperationKind::CallStructuralScalar {
+                callee: realization_machine,
+                structural_arguments: vec![latest_source],
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        ),
+        DynamicLoweringLane::Rebound(initial) => {
+            let initial_source = validate_and_lower_selection_source(
+                caller_self,
+                plan,
+                &initial.path,
+                &initial.type_identity,
+                structural_types,
+                type_ids,
+            )?;
+            (
+                TerminalDynamicDispatchCatalog {
+                    selections: vec![
+                        TerminalDynamicConformanceSelection {
+                            owner: caller_machine,
+                            ordinal: 0,
+                            source: initial_source,
+                            conformance_application_report_fingerprint: application
+                                .report_fingerprint,
+                            conformance_application_commitment: application.commitment,
+                        },
+                        latest_selection,
+                    ],
+                    rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
+                        owner: caller_machine,
+                        ordinal: 0,
+                        initial_selection_ordinal: 0,
+                        rebound_selection_ordinal: 1,
+                    }],
+                    direct_dispatches: Vec::new(),
+                    indirect_dispatches: vec![row_dispatch(0)],
+                },
+                OperationKind::CallDynamicScalar {
+                    descriptor_ordinal: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            )
+        }
     })
 }
 
@@ -572,7 +765,7 @@ fn terminal_projected_source_multiplicity(
     }
 }
 
-fn lower_direct_structural_types(
+fn lower_dynamic_structural_types(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     caller_attachment: &str,

@@ -474,9 +474,9 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::CallComposition)
                 .count(),
-            5
+            6
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 47);
+        assert_eq!(OperationSemanticRow::ALL.len(), 48);
         let store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::WriteOnlyPrimitiveStore)
@@ -501,7 +501,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::CallComposition)
                 .count(),
-            5
+            6
         );
         assert_eq!(
             OperationSemanticRow::ALL

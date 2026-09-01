@@ -13,10 +13,7 @@ pub(super) struct MachineReconstructionContext<'a> {
 }
 
 impl<'a> MachineReconstructionContext<'a> {
-    pub(super) fn new(
-        module: &'a TerminalModule,
-        machine: &'a TerminalMachine,
-    ) -> Self {
+    pub(super) fn new(module: &'a TerminalModule, machine: &'a TerminalMachine) -> Self {
         let reconstruct_path_facts = machine.blocks.iter().any(|block| {
             block.operations.iter().any(|operation| {
                 matches!(
@@ -24,6 +21,7 @@ impl<'a> MachineReconstructionContext<'a> {
                     OperationKind::Call { .. }
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallDynamicScalar { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::IntegerExactCast { .. }
                         | OperationKind::ExactIntegerShiftLeft { .. }

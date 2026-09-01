@@ -78,6 +78,28 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     }
     if !strictly_increasing(
         module
+            .dynamic_dispatch
+            .rebound_descriptors
+            .iter()
+            .map(|descriptor| (descriptor.owner, descriptor.ordinal)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "rebound dynamic descriptors by owner and ordinal",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .dynamic_dispatch
+            .indirect_dispatches
+            .iter()
+            .map(|dispatch| (dispatch.owner, dispatch.operation)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "indirect dynamic dispatches by owner and operation",
+        ));
+    }
+    if !strictly_increasing(
+        module
             .quotient_correspondences
             .iter()
             .map(|correspondence| correspondence.identity.0.as_slice()),
@@ -383,6 +405,10 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     ..
                 }
                 | OperationKind::CallStructuralScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicScalar {
                     crash_continuations,
                     ..
                 }

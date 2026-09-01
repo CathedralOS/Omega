@@ -52,11 +52,16 @@ pub(super) fn lower_operation(
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::BoundaryCall { .. } => calls::lower(operation, machine),
-        OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } =>
-            effects::lower(operation, machine, structural_types, value_types),
+        OperationKind::CallDynamicScalar { .. } => {
+            Err(LoweringError::UnsupportedDynamicScalarCall(operation.id))
+        }
+        OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
+            effects::lower(operation, machine, structural_types, value_types)
+        }
         OperationKind::StructuralScalarFieldStore { .. }
-        | OperationKind::IntegerStructuralField { .. } =>
-            structural_scalar_fields::lower(operation, block, machine, structural_types),
+        | OperationKind::IntegerStructuralField { .. } => {
+            structural_scalar_fields::lower(operation, block, machine, structural_types)
+        }
         OperationKind::Call { .. } => calls::lower(operation, machine),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
         OperationKind::IeeeFloatConstant { .. }
@@ -67,11 +72,13 @@ pub(super) fn lower_operation(
         | OperationKind::BooleanEqual { .. } => boolean::lower(operation),
         OperationKind::IntegerEqual { .. }
         | OperationKind::IntegerLessThan { .. }
-        | OperationKind::IntegerLessOrEqual { .. } =>
-            integer_constants_and_relations::lower(operation),
+        | OperationKind::IntegerLessOrEqual { .. } => {
+            integer_constants_and_relations::lower(operation)
+        }
         OperationKind::IntegerBitwiseNot { .. } => integer_bitwise::lower(operation),
-        OperationKind::IntegerWiden { .. } | OperationKind::IntegerExactCast { .. } =>
-            integer_conversion::lower(operation, value_types),
+        OperationKind::IntegerWiden { .. } | OperationKind::IntegerExactCast { .. } => {
+            integer_conversion::lower(operation, value_types)
+        }
         OperationKind::IntegerBitwiseAnd { .. }
         | OperationKind::IntegerBitwiseOr { .. }
         | OperationKind::IntegerBitwiseXor { .. } => integer_bitwise::lower(operation),

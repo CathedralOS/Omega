@@ -1,6 +1,9 @@
 //! Canonical wire rows for direct local dynamic dispatch custody.
 
-use psi_terminal::{TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection};
+use psi_terminal::{
+    TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+    TerminalIndirectDynamicDispatch, TerminalReboundDynamicDescriptor,
+};
 
 use super::wire::{Reader, Writer};
 use super::{CodecError, decode_counted, decode_structural_arguments, encode_structural_arguments};
@@ -98,12 +101,97 @@ pub(super) fn decode_direct_dynamic_dispatches(
     })
 }
 
+pub(super) fn encode_rebound_dynamic_descriptors(
+    writer: &mut Writer,
+    descriptors: &[TerminalReboundDynamicDescriptor],
+) -> Result<(), CodecError> {
+    writer.len("rebound dynamic descriptors", descriptors.len())?;
+    for descriptor in descriptors {
+        writer.id(descriptor.owner);
+        writer.u32(descriptor.ordinal);
+        writer.u32(descriptor.initial_selection_ordinal);
+        writer.u32(descriptor.rebound_selection_ordinal);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_rebound_dynamic_descriptors(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalReboundDynamicDescriptor>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(TerminalReboundDynamicDescriptor {
+            owner: reader.id("MachineId")?,
+            ordinal: reader.u32()?,
+            initial_selection_ordinal: reader.u32()?,
+            rebound_selection_ordinal: reader.u32()?,
+        })
+    })
+}
+
+pub(super) fn encode_indirect_dynamic_dispatches(
+    writer: &mut Writer,
+    dispatches: &[TerminalIndirectDynamicDispatch],
+) -> Result<(), CodecError> {
+    writer.len("indirect dynamic dispatches", dispatches.len())?;
+    for dispatch in dispatches {
+        writer.id(dispatch.owner);
+        writer.id(dispatch.operation);
+        writer.u32(dispatch.descriptor_ordinal);
+        writer.string(
+            "indirect dynamic dispatch declaring trait identity",
+            &dispatch.declaring_trait_identity,
+        )?;
+        writer.string(
+            "indirect dynamic dispatch public requirement identity",
+            &dispatch.public_requirement_identity,
+        )?;
+        writer.string(
+            "indirect dynamic dispatch requirement identity",
+            &dispatch.requirement_identity,
+        )?;
+        writer.string(
+            "indirect dynamic dispatch realization identity",
+            &dispatch.realization_identity,
+        )?;
+        writer.string(
+            "indirect dynamic dispatch realization callable identity",
+            &dispatch.realization_callable_identity,
+        )?;
+        writer.id(dispatch.realization);
+    }
+    Ok(())
+}
+
+pub(super) fn decode_indirect_dynamic_dispatches(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<TerminalIndirectDynamicDispatch>, CodecError> {
+    decode_counted(reader, |reader| {
+        Ok(TerminalIndirectDynamicDispatch {
+            owner: reader.id("MachineId")?,
+            operation: reader.id("OperationId")?,
+            descriptor_ordinal: reader.u32()?,
+            declaring_trait_identity: reader
+                .string("indirect dynamic dispatch declaring trait identity")?,
+            public_requirement_identity: reader
+                .string("indirect dynamic dispatch public requirement identity")?,
+            requirement_identity: reader
+                .string("indirect dynamic dispatch requirement identity")?,
+            realization_identity: reader
+                .string("indirect dynamic dispatch realization identity")?,
+            realization_callable_identity: reader
+                .string("indirect dynamic dispatch realization callable identity")?,
+            realization: reader.id("MachineId")?,
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use psi_core::{MachineId, OperationId, PlaceId, PsiSemanticId};
     use psi_terminal::{
         ClosedConformanceApplicationCommitment, StructuralAccess, StructuralArgument,
         TerminalDirectDynamicDispatch, TerminalDynamicConformanceSelection,
+        TerminalIndirectDynamicDispatch, TerminalReboundDynamicDescriptor,
     };
 
     use super::*;
@@ -138,9 +226,28 @@ mod tests {
             realization_callable_identity: "package::Carrier::measure#callable".into(),
             realization: id::<MachineId>(2),
         }];
+        let descriptors = vec![TerminalReboundDynamicDescriptor {
+            owner: id::<MachineId>(1),
+            ordinal: 0,
+            initial_selection_ordinal: 0,
+            rebound_selection_ordinal: 1,
+        }];
+        let indirect_dispatches = vec![TerminalIndirectDynamicDispatch {
+            owner: id::<MachineId>(1),
+            operation: id::<OperationId>(2),
+            descriptor_ordinal: 0,
+            declaring_trait_identity: "package::Measure".into(),
+            public_requirement_identity: "package::Measure::measure()".into(),
+            requirement_identity: "package::Measure::measure".into(),
+            realization_identity: "package::Carrier::measure".into(),
+            realization_callable_identity: "package::Carrier::measure#callable".into(),
+            realization: id::<MachineId>(2),
+        }];
         let mut writer = Writer::default();
         encode_dynamic_conformance_selections(&mut writer, &selections).unwrap();
+        encode_rebound_dynamic_descriptors(&mut writer, &descriptors).unwrap();
         encode_direct_dynamic_dispatches(&mut writer, &dispatches).unwrap();
+        encode_indirect_dynamic_dispatches(&mut writer, &indirect_dispatches).unwrap();
         let bytes = writer.finish();
 
         let mut reader = Reader::new(&bytes);
@@ -149,8 +256,16 @@ mod tests {
             Ok(selections)
         );
         assert_eq!(
+            decode_rebound_dynamic_descriptors(&mut reader),
+            Ok(descriptors)
+        );
+        assert_eq!(
             decode_direct_dynamic_dispatches(&mut reader),
             Ok(dispatches)
+        );
+        assert_eq!(
+            decode_indirect_dynamic_dispatches(&mut reader),
+            Ok(indirect_dispatches)
         );
         assert_eq!(reader.remaining(), 0);
     }

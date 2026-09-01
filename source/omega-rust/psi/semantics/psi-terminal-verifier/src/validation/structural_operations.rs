@@ -24,6 +24,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
                     OperationKind::Call { .. }
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallDynamicScalar { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::BoundaryCall { .. }
                 )
@@ -884,7 +885,7 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
         )
 }
 
-fn validate_structural_arguments(
+pub(super) fn validate_structural_arguments(
     module: &TerminalModule,
     caller: &TerminalMachine,
     arguments: &[StructuralArgument],

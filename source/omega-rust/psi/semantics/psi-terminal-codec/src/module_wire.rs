@@ -29,7 +29,9 @@ use psi_terminal::{
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
 use super::dynamic_dispatch_wire::{
     decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
+    decode_indirect_dynamic_dispatches, decode_rebound_dynamic_descriptors,
     encode_direct_dynamic_dispatches, encode_dynamic_conformance_selections,
+    encode_indirect_dynamic_dispatches, encode_rebound_dynamic_descriptors,
 };
 use super::proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
@@ -929,7 +931,15 @@ fn encode_raw_for_result_paths(
     }
     if result_path_format == ResultPathWireFormat::Current {
         encode_dynamic_conformance_selections(&mut writer, &module.dynamic_dispatch.selections)?;
+        encode_rebound_dynamic_descriptors(
+            &mut writer,
+            &module.dynamic_dispatch.rebound_descriptors,
+        )?;
         encode_direct_dynamic_dispatches(&mut writer, &module.dynamic_dispatch.direct_dispatches)?;
+        encode_indirect_dynamic_dispatches(
+            &mut writer,
+            &module.dynamic_dispatch.indirect_dispatches,
+        )?;
     }
     writer.len(
         "quotient correspondences",
@@ -1279,15 +1289,21 @@ pub(super) fn decode_module_body(
             commitment: ClosedConformanceApplicationCommitment::from_digest(reader.array()?),
         })
     })?;
-    let (dynamic_conformance_selections, direct_dynamic_dispatches) =
-        if result_path_format == ResultPathWireFormat::Current {
-            (
-                decode_dynamic_conformance_selections(reader)?,
-                decode_direct_dynamic_dispatches(reader)?,
-            )
-        } else {
-            (Vec::new(), Vec::new())
-        };
+    let (
+        dynamic_conformance_selections,
+        rebound_dynamic_descriptors,
+        direct_dynamic_dispatches,
+        indirect_dynamic_dispatches,
+    ) = if result_path_format == ResultPathWireFormat::Current {
+        (
+            decode_dynamic_conformance_selections(reader)?,
+            decode_rebound_dynamic_descriptors(reader)?,
+            decode_direct_dynamic_dispatches(reader)?,
+            decode_indirect_dynamic_dispatches(reader)?,
+        )
+    } else {
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+    };
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
     let machine_count = reader.count()?;
     let mut machines = Vec::new();
@@ -1323,7 +1339,9 @@ pub(super) fn decode_module_body(
         closed_conformance_applications,
         dynamic_dispatch: psi_terminal::TerminalDynamicDispatchCatalog {
             selections: dynamic_conformance_selections,
+            rebound_descriptors: rebound_dynamic_descriptors,
             direct_dispatches: direct_dynamic_dispatches,
+            indirect_dispatches: indirect_dynamic_dispatches,
         },
         quotient_correspondences,
         machines,

@@ -334,6 +334,7 @@ operation_semantic_rows! {
     Call => ("algebra:call:call", CallComposition, None),
     CallUnit => ("algebra:call:call-unit", CallComposition, None),
     CallStructuralScalar => ("algebra:call:call-structural-scalar", CallComposition, None),
+    CallDynamicScalar => ("algebra:call:call-dynamic-scalar", CallComposition, None),
     CallStructural => ("algebra:call:call-structural", CallComposition, None),
     BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
     PortWrite => ("schema:operation:port-write", LeafDenotation, None),
@@ -711,8 +712,8 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 47);
-        assert_eq!(OperationSemanticRow::ALL.len(), 47);
+        assert_eq!(OperationSemanticTag::ALL.len(), 48);
+        assert_eq!(OperationSemanticRow::ALL.len(), 48);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
@@ -725,7 +726,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::CallComposition)
                 .count(),
-            5,
+            6,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -740,7 +741,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            47,
+            48,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -748,7 +749,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            47,
+            48,
         );
         assert!(
             OperationSemanticRow::ALL
