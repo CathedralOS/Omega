@@ -138,6 +138,25 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "constant wrapping integer-subtract immediate translation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_wrapping_integer_subtract_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_wrapping_integer_subtract_immediate/grammar.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_wrapping_integer_subtract_immediate/replay.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/model/receipt/immediate/wrapping_integer_subtract.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate/wrapping_integer_subtract.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/tests/wrapping_integer_subtract_immediate.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_immediate/mod.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_immediate/fixture.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_immediate/positive.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_immediate/source_corruption.rs",
+            "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/tests/translation_validation_wrapping_integer_subtract_immediate/target_corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/fixtures/target_translation/arithmetic/wrapping_subtract_immediate.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/optimized_target_operations/arithmetic/wrapping_subtract_immediate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "constant Boolean-not immediate translation",
         paths: &[
             "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_boolean_not_immediate/mod.rs",

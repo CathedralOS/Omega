@@ -16,6 +16,7 @@ use super::immediate::{
     StraightLineIntegerImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
     StraightLineWrappingIntegerAddImmediateTranslationReceipt,
+    StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
 };
 use super::parameter::{
     StraightLineBooleanEqualParametersTranslationReceipt,
@@ -68,6 +69,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineWrappingIntegerAddImmediate(
         StraightLineWrappingIntegerAddImmediateTranslationReceipt,
+    ),
+    StraightLineWrappingIntegerSubtractImmediate(
+        StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
     ),
     StraightLineIntegerBitwiseNotImmediate(
         StraightLineIntegerBitwiseNotImmediateTranslationReceipt,

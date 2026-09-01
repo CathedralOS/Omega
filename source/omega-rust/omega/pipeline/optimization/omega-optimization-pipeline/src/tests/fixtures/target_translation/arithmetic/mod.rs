@@ -13,6 +13,7 @@ mod wrapping_divide;
 mod wrapping_multiply;
 mod wrapping_remainder;
 mod wrapping_subtract;
+mod wrapping_subtract_immediate;
 
 pub(crate) use exact_divide::*;
 pub(crate) use exact_multiply::*;
@@ -27,3 +28,4 @@ pub(crate) use wrapping_divide::*;
 pub(crate) use wrapping_multiply::*;
 pub(crate) use wrapping_remainder::*;
 pub(crate) use wrapping_subtract::*;
+pub(crate) use wrapping_subtract_immediate::*;
