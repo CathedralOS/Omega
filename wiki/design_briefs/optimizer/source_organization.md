@@ -208,6 +208,17 @@ the module map, test-only classifier visibility, and exact sixteen-row roster;
 all local, dominating, phi-translated, and identity leaves name their own
 dependencies.
 
+GVN total scalar identity tests mirror the seven exact roster rows beneath
+`tests/global_value_numbering/total_scalar_identity/`. The group entrance is a
+map to one leaf each for wrapping neutral arithmetic, shift-by-zero,
+multiply-by-zero, saturating neutral arithmetic, saturating multiply-by-zero,
+bitwise neutral literals, and bitwise absorbing literals; `catalog.rs` alone
+pins their opt-in registry placement. Independent validation admits the exact
+required-analysis set, invalidation set, safety class, cost, and matching rule
+identity, then publishes the matching validator identity. Its 26-law positive
+matrix and seven-family corruption matrix prevent a semantically valid patch
+from being relabelled across same-shaped contracts.
+
 SCCP range comparisons follow the same descent. The pass entrance retains the
 sole 39-row local order, while `range_comparisons/` first separates
 range-against-constant from range-against-range evidence. Each of the nine

@@ -140,6 +140,21 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "Psi GVN total scalar identity tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/catalog.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/wrapping_neutral.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/wrapping_shift_zero_count.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/wrapping_multiply_zero.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/saturating_neutral.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/saturating_multiply_zero.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/bitwise_neutral.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/total_scalar_identity/bitwise_absorbing.rs",
+        ],
+    },
+    SemanticLadder {
         family: "transformation ledger",
         paths: &[
             "source/omega-rust/omega/representations/omega-optimization-unit/src/ledger/model.rs",

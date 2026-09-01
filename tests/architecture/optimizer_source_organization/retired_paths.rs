@@ -71,6 +71,12 @@ pub(crate) fn check(audit: &mut Audit) {
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/sparse_conditional_constant_propagation/constant_evaluation/integer.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/identities.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/multiply_zero.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/saturating_neutral.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/saturating_multiply_zero.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/bitwise_neutral.rs",
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/rules/passes/tests/global_value_numbering/bitwise_absorbing.rs",
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy/validate.rs",
         "source/omega-rust/omega/pipeline/omega-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
