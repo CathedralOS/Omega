@@ -58,7 +58,9 @@ pub use image_output::{
 pub use installation::*;
 #[cfg(feature = "installed-artifact")]
 pub use installed_artifact::{
-    InstalledArtifact, InstalledArtifactBindingError, bind_installed_artifact,
+    InstalledArtifact, InstalledArtifactBindingError, InstalledCompilerPrivateFunctionEntry,
+    InstalledCompilerPrivateFunctionEntryBindingError, bind_installed_artifact,
+    bind_installed_compiler_private_function_entry,
 };
 pub use omega_machine_code::BoundaryExecutionRecord;
 pub(crate) use partial_cleanup_partition::exact_partial_cleanup_partition;

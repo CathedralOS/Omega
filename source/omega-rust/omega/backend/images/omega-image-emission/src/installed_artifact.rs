@@ -1,6 +1,14 @@
-use omega_executable_installation::{ArtifactId, InstalledCode, InstalledCodeId};
+use omega_executable_installation::{
+    ArtifactId, InstalledCode, InstalledCodeContext, InstalledCodeId,
+};
+use omega_function_identity::MachineFunctionIdentity;
+use omega_installation_evidence::InstalledArtifactOccurrenceDigest;
+use psi_layout_plans::EntryStubId;
 
-use crate::{ExecutableImage, InstallationRecord, ObjectArtifact, validate_installation_record};
+use crate::{
+    ExecutableImage, InstallationRecord, InstalledCompilerPrivateFunction, ObjectArtifact,
+    validate_installation_record,
+};
 
 /// Exact join between one canonical terminal installation record and the
 /// installed code occurrence containing that record's compiler-authored text.
@@ -98,6 +106,176 @@ impl std::fmt::Display for InstalledArtifactBindingError {
 }
 
 impl std::error::Error for InstalledArtifactBindingError {}
+
+/// Exact attribution of one already-admitted entry to one compiler-private
+/// function in one installed artifact occurrence.
+///
+/// This carrier is descriptive custody only. It exposes neither a resolved
+/// address nor external-root, registrar, capacity, or lifetime authority.
+pub struct InstalledCompilerPrivateFunctionEntry {
+    private_function: InstalledCompilerPrivateFunction,
+    entry: EntryStubId,
+    artifact: ArtifactId,
+    installed_code: InstalledCodeId,
+    installed_context: InstalledCodeContext,
+}
+
+impl std::fmt::Debug for InstalledCompilerPrivateFunctionEntry {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("InstalledCompilerPrivateFunctionEntry")
+            .field("private_function", &self.private_function)
+            .field("entry", &self.entry)
+            .field("artifact", &self.artifact)
+            .field("installed_code", &self.installed_code)
+            .field("occurrence_digest", &self.occurrence_digest())
+            .finish_non_exhaustive()
+    }
+}
+
+impl InstalledCompilerPrivateFunctionEntry {
+    pub const fn private_function(&self) -> &InstalledCompilerPrivateFunction {
+        &self.private_function
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    pub const fn artifact(&self) -> ArtifactId {
+        self.artifact
+    }
+
+    pub const fn installed_code(&self) -> InstalledCodeId {
+        self.installed_code
+    }
+
+    pub fn occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
+        self.installed_context.occurrence_digest()
+    }
+
+    /// Compare complete opaque installation evidence, not compact IDs.
+    pub fn binds_installed_code(&self, installed: &InstalledCode) -> bool {
+        self.installed_context == installed.receipt_context()
+    }
+}
+
+/// Fail-closed diagnostic from private-function entry attribution. The
+/// caller-supplied identities are retained so orchestration can retry without
+/// deriving or minting replacements.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledCompilerPrivateFunctionEntryBindingError {
+    private_function: MachineFunctionIdentity,
+    entry: EntryStubId,
+    diagnostic: String,
+}
+
+impl InstalledCompilerPrivateFunctionEntryBindingError {
+    pub const fn private_function(&self) -> MachineFunctionIdentity {
+        self.private_function
+    }
+
+    pub const fn entry(&self) -> EntryStubId {
+        self.entry
+    }
+
+    pub fn diagnostic(&self) -> &str {
+        &self.diagnostic
+    }
+}
+
+impl std::fmt::Display for InstalledCompilerPrivateFunctionEntryBindingError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic.fmt(formatter)
+    }
+}
+
+impl std::error::Error for InstalledCompilerPrivateFunctionEntryBindingError {}
+
+/// Bind a caller-supplied, already-admitted entry to the exact compiler-private
+/// function row and installed occurrence that contain its executable bytes.
+/// This gate never derives an entry identity or resolves an executable address.
+pub fn bind_installed_compiler_private_function_entry(
+    installed_artifact: &InstalledArtifact,
+    private_function: MachineFunctionIdentity,
+    entry: EntryStubId,
+) -> Result<InstalledCompilerPrivateFunctionEntry, InstalledCompilerPrivateFunctionEntryBindingError>
+{
+    let reject = |diagnostic: &str| InstalledCompilerPrivateFunctionEntryBindingError {
+        private_function,
+        entry,
+        diagnostic: diagnostic.into(),
+    };
+    let mut matches = installed_artifact
+        .installation
+        .private_functions()
+        .iter()
+        .filter(|candidate| candidate.identity == private_function);
+    let Some(candidate) = matches.next() else {
+        return Err(reject(
+            "installed artifact does not retain the requested compiler-private function",
+        ));
+    };
+    if matches.next().is_some() {
+        return Err(reject(
+            "installed artifact retains the compiler-private function more than once",
+        ));
+    }
+    let Some(end) = candidate.text_offset.checked_add(candidate.byte_count) else {
+        return Err(reject(
+            "compiler-private function text interval is not representable",
+        ));
+    };
+    let Some(expected_bytes) = installed_artifact
+        .image
+        .output()
+        .final_text_bytes
+        .get(candidate.text_offset..end)
+        .filter(|bytes| !bytes.is_empty())
+    else {
+        return Err(reject(
+            "compiler-private function text interval is empty or outside the final image",
+        ));
+    };
+    let Ok(expected_offset) = u64::try_from(candidate.text_offset) else {
+        return Err(reject(
+            "compiler-private function entry offset is not representable",
+        ));
+    };
+    if installed_artifact
+        .installed
+        .selected_entry_target(entry)
+        .is_err()
+    {
+        return Err(reject(
+            "entry is not admitted by the exact installed artifact",
+        ));
+    }
+    if !installed_artifact
+        .installed
+        .binds_entry_offset(entry, expected_offset)
+    {
+        return Err(reject(
+            "entry does not begin at the compiler-private function text offset",
+        ));
+    }
+    if !installed_artifact
+        .installed
+        .binds_exact_materialized_entry_bytes(entry, expected_bytes)
+    {
+        return Err(reject(
+            "entry does not retain the compiler-private function's exact final bytes",
+        ));
+    }
+
+    Ok(InstalledCompilerPrivateFunctionEntry {
+        private_function: candidate.clone(),
+        entry,
+        artifact: installed_artifact.installed.artifact(),
+        installed_code: installed_artifact.installed.identity(),
+        installed_context: installed_artifact.installed.receipt_context(),
+    })
+}
 
 /// Bind canonical terminal installation metadata to one exact installed code
 /// occurrence. Neither an image fingerprint nor an artifact ID can substitute

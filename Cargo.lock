@@ -704,6 +704,8 @@ dependencies = [
  "omega-x86-encoding",
  "psi-core",
  "psi-diagnostics",
+ "psi-extents",
+ "psi-layout-plans",
  "psi-proof-admission",
  "psi-symbols",
  "psi-terminal",
