@@ -40,6 +40,18 @@ pub fn typed_operator_authored_selection_candidates(
     authored_selections::typed_operator_authored_selection_candidates(program, expression)
 }
 
+/// Independently rederive the exact visible boundary requirement selected by
+/// one normalized `min`, `max`, or `sqrt` builtin call. This compiler-private
+/// seam lets selected execution reject drift without trusting the checked fact
+/// it is validating.
+pub fn resolve_checked_builtin_float_operator_requirement(
+    program: &psi_typed_trees::TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    origin: psi_checked_trees::CheckedValueOrigin,
+) -> Option<psi_symbols::SymbolHandle> {
+    operators::resolve_builtin_float_operator_requirement(program, expression, origin)
+}
+
 pub fn lower_typed_trees(
     program: psi_typed_trees::TypedTrees,
 ) -> Result<CheckedTrees, Vec<psi_diagnostics::Diagnostic>> {

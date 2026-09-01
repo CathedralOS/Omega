@@ -58,15 +58,20 @@ pub fn settle_selected_execution_dispatch(
         float_intrinsic::selected_ieee_float_fma_unit_applications(checked, &float_rewrites)
             .map_err(|diagnostic| vec![diagnostic])?;
     let mut staged = checked.as_ref().clone();
-    psi_typed_trees_to_checked_trees::rebuild_checked_unit_effect_plans_with_selected_execution(
-        &mut staged,
-        &operator_applications,
-        &fma_applications,
-    );
-    operator_adapter::validate_selected_unit_applications(&staged, &operator_rewrites)
+    if !operator_applications.is_empty() || !fma_applications.is_empty() {
+        psi_typed_trees_to_checked_trees::rebuild_checked_unit_effect_plans_with_selected_execution(
+            &mut staged,
+            &operator_applications,
+            &fma_applications,
+        );
+        operator_adapter::validate_selected_unit_applications(&staged, &operator_rewrites)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        float_intrinsic::validate_selected_ieee_float_fma_unit_applications(
+            &staged,
+            &fma_applications,
+        )
         .map_err(|diagnostic| vec![diagnostic])?;
-    float_intrinsic::validate_selected_ieee_float_fma_unit_applications(&staged, &fma_applications)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    }
     operator_adapter::apply_selected_operator_adapter_rewrites(&mut staged, &operator_rewrites);
     float_intrinsic::apply_selected_float_intrinsic_rewrites(&mut staged, float_rewrites);
     *std::sync::Arc::make_mut(checked) = staged;
