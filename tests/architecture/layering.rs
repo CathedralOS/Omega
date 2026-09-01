@@ -1810,6 +1810,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
             &[
                 "assembly",
                 "custody",
+                "dynamic_result",
                 "guards",
                 "leaves",
                 "nested_control",
@@ -1824,6 +1825,7 @@ fn composed_unit_lowering_keeps_small_taxonomic_entrances() {
                 "admission",
                 "catalogs",
                 "custody",
+                "dynamic_result",
                 "emission",
                 "internal_calls",
                 "nested_control",
