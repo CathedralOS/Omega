@@ -786,7 +786,11 @@ unchecked rewrite or opt into lossy floating-point semantics.
   fixtures and pins default-disabled behavior, exact roster evaluation counts,
   repeated-run and iteration-budget determinism, typed fact custody through
   declarations and manifests, exact validator/commit/ledger joins, and
-  fixed-point idempotence. The x86 sign-extending MOV-r64-imm32 rule now pins
+  fixed-point idempotence. A graph-shape fixture matrix now gives all seven
+  ControlFlowCleanup roster rows isolated whole-engine coverage for
+  default-disabled behavior, exact evaluation and commit counts, repeated-run
+  and iteration-budget determinism, declaration/manifest/fact/ledger custody,
+  and fixed-point idempotence. The x86 sign-extending MOV-r64-imm32 rule now pins
   exact successful usage and first-over-boundary failure across all five work
   axes. Its direct publication path independently sums baseline and selected
   bytes, binds the complete and phase-local selection identities, and rejects
