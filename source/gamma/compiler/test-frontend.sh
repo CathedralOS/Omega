@@ -2593,7 +2593,7 @@ stamp_seed "$T/match-metadata.tape" "$SEED" "$T/match-metadata.exe" >/dev/null 2
 stamp_seed "$T/resolver-metadata.tape" "$SEED" "$T/resolver-metadata.exe" >/dev/null 2>&1
 
 PASS=0; FAIL=0
-# Pin Q2's measured retained call-row pressure without adding a production
+# Pin D58's pre-completion call-row baseline without adding a production
 # entry or adapter. Fifty-nine appended references exactly fill 1,024 rows;
 # the sixtieth must be the Beta compiler's canonical adjacent refusal.
 for gamma_call_probe_count in 59 60; do

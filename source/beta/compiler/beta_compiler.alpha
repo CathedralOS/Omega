@@ -47,7 +47,10 @@
 ;   524824 INIT_STATE_TOTAL 524832 INIT_BLOCK_COUNT 524840 INIT_LOCAL
 ;   524848 INIT_EDGE 524856 INIT_SLOT 524864 INIT_SOURCE_LOCAL
 ;   524872 INIT_TARGET_LOCAL 524880 INIT_FIRST_EDGE 524888 INIT_EDGE_TOTAL
-; Buffers:
+; Buffers. D58 leaves these canonical addresses and limits unchanged until the
+; complete Gamma compiler selects and atomically publishes a measured profile.
+; Any changed count tables and derived initialization rows then move to one new
+; aligned private region above FIXUP_TABLE rather than repacking this block.
 ;   1048576 SOURCE (1048576-byte checked compiler extent)
 ;   550000 CALL_TABLE (1024 x 24: start, len, argc)
 ;   575000 CALL_TARGET_PROC (1024 x 8)

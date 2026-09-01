@@ -2542,6 +2542,64 @@ fact. Any structurally impossible field result from a sum-case-only lookup is
 removed through a narrower carrier or treated as an internal invariant failure,
 never ignored as source recovery.
 
+## D58 — The complete Gamma compiler selects one measured Beta resource profile
+
+The current canonical Alpha-written Beta compiler continues to admit 256
+procedures, 1,024 non-builtin call rows, 1,024 global states, and 1,024 global
+edges until the replacement profile is measured and published atomically. The
+incomplete `gamma_compiler.beta` already consumes 116 procedures, 965 call rows,
+739 states, and 586 edges before its production entry, returned-`Bytes`
+preflight, D19 adapters, and final publication exist. The call-row adjacent gate
+therefore describes a real staging obstruction, not Beta language invalidity.
+
+Final capacity is measured from the complete canonical Gamma compiler rather
+than projected from the current calls-to-states ratio. A noncanonical staging
+Beta compiler may give the global count tables a deliberately roomy provisional
+capacity so every required Gamma component can be authored as ordinary Beta
+source. That staging artifact proves no published edge and cannot replace the
+canonical compiler, weaken output preflight, or hide an instruction plan or
+Alpha bytes outside the Beta source.
+
+Once the complete source exists, measurement covers the conjunctive compiler
+profile: procedures; global call rows; global and per-procedure state/edge
+counts; every state- and edge-derived initialization table; labels, fixups,
+emitted tape, and the execution bounds exercised by maximum cases. For each
+independently provisioned authored-structure count, the selected provision is
+the least power of two for which measured demand occupies at most 75 percent.
+Derived corruption guards continue to derive from their owner, and the emitted
+tape remains governed by D23 rather than this headroom rule. Limits remain
+independent: conjunctive means every limit is measured and jointly satisfied,
+not that unrelated tables receive one numeric capacity.
+
+Per-procedure state and edge limits require separate justification because they
+size initialization/reachability work and bound its fixed point. Global state
+storage grows linearly, but the current state-name collector scans prior global
+rows and therefore has quadratic maximum work; an enlarged global-state limit
+must retain an executed maximum-work gate or first narrow that scan to the
+current procedure. Calls and global edges retain their own measured work gates.
+
+Derived storage is never treated as an independent magic constant.
+`INIT_BLOCK_REQUIRED`, `INIT_BLOCK_GENERATED`, and
+`INIT_BLOCK_TERMINATOR` are sized from procedure capacity plus global-state
+capacity. `INIT_IN_WORK` and `INIT_REACH_WORK` are sized from the per-procedure
+state limit plus the entry block. `INIT_EDGE_GENERATED` and
+`INIT_EDGE_SOURCE_BLOCK` are sized from global-edge capacity. Every dependent
+guard, address, and exact/adjacent case moves with its owning limit.
+
+Changed tables move together into a new aligned compiler-private region above
+the existing fixup table rather than repacking the dense low-memory table block.
+Memory scarcity is not the reason for the selected limits; bounded maximum work
+and avoiding repeated atomic profile rebuilds are. The final revision rebuilds
+the Beta compiler tape, source/tape admission subject, memory-map documentation,
+and canonical `Incomplete(limit, requested)` gates as one change while leaving
+Alpha instructions, Beta semantics, BCOUT resource identities, and the
+AlphaBootstrapV2 tape maximum unchanged.
+
+Emitter or instruction-plan consolidation remains ordinary source-quality work.
+It is accepted only when Beta-authored checked source demonstrably reduces total
+source and proof complexity. It neither gates the measurement revision nor
+licenses preserving 1,024 by code golf.
+
 ## Dependency order
 
 1. finish the Alpha-written Beta compiler edge and common tape boundary;

@@ -156,6 +156,17 @@ and exact/adjacent gates now share that profile. The closed `BCOUT` v1
 reason/resource identities do not change; their producer-owned numeric limits
 do.
 
+D58 governs the next private-table revision without changing the current
+canonical limits prematurely. A roomy noncanonical compiler first stages the
+complete `gamma_compiler.beta`; the completed source then selects each
+independently provisioned authored-structure count as the least power of two
+with measured occupancy no greater than 75 percent. Procedures, global calls,
+global/per-procedure states and edges, derived initialization storage, labels,
+fixups, tape, and maximum execution work are measured conjunctively rather than
+projecting call pressure onto the other dimensions. Derived guards remain bound
+to their owners and tape capacity remains D23-owned. The resulting memory map,
+compiler tape, admission subject, and exact/adjacent gates publish atomically.
+
 The generated data stack is separately guarded in `[1048576,2097152)` and every
 procedure reserves at least its caller-frame word, as specified in
 `../CALLING_CONVENTION.md`. Generated programs receive 134,217,728 zeroed bytes
@@ -175,6 +186,11 @@ by the shortest 9-byte direct-reference encoding. The 262,144-row internal-PC
 table conservatively admits one identity per four emitted bytes. Both remain
 secondary corruption guards: reaching either while the payload bound still
 holds is `InternalFailure`, not an advertised resource refusal.
+When D58 lands, changed count tables and their derived initialization rows move
+to a new aligned private region above the fixup table rather than repacking this
+dense low-memory block. Global-state maximum work receives an executed gate
+because the current name collector scans prior global rows; per-procedure state
+and edge limits separately own initialization/reachability fixed-point work.
 `test.sh` pins practical source limits at the exact accepted boundary and the
 adjacent fail-closed case. Single-site temporary compiler mutations lower each
 otherwise dominated invariant and positively exercise all six closed

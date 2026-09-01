@@ -27,6 +27,14 @@ gate entry, the compiled gate uses 117 of Beta's 256 procedure slots and
 compiles to 333,928 bytes. The remaining 714,644 bytes under
 Alpha's runnable payload ceiling are a measured implementation budget, not a
 Gamma language limit or evidence that every remaining compiler component fits.
+Before the production entry and D19 adapters exist, the source also consumes
+965 of 1,024 non-builtin call rows, 739 of 1,024 global states, and 586 of 1,024
+global edges. D58 keeps those current limits canonical only as a staging
+baseline. A roomy noncanonical Beta compiler completes this source, after which
+the full conjunctive demand selects independently provisioned authored-
+structure counts with no more than 75 percent occupancy. Derived guards remain
+bound to their owners and tape capacity remains D23-owned when the Beta compiler
+profile republishes atomically.
 
 `../interp.beta` remains a bounded execution oracle. It may contribute an
 isolated lowering/runtime algorithm where economical, but no interpreter loop,
@@ -408,6 +416,13 @@ both adapters, and final publication still gate the tape. No incomplete slice
 authorizes a subset compiler or blocks the settled parser, private target ABI,
 runtime helpers, direct emitter, or profile-independent lowering described
 above.
+
+D58's final measurement occurs only after every item above is present in this
+canonical source. The current 965-row call measurement and adjacent refusal are
+retained as a pre-completion baseline, not promoted into a guessed 2,048-row
+published profile. Emitter-plan consolidation may proceed when it independently
+reduces source and proof complexity; it cannot replace the measurement or hide
+adapter behavior outside Beta source.
 
 Any future validation placed here must reconstruct the exact
 Beta-source-to-Alpha-tape edge for `gamma_compiler.beta`. Generic evidence,
