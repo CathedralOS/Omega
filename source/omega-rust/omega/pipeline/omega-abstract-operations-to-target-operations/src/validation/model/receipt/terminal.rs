@@ -1,7 +1,30 @@
-//! Terminal scalar-Crash receipt.
+//! Terminal Unit-return and scalar-Crash receipts.
 
 use psi_core::{ClaimId, EdgeId, MachineId, ScalarType};
 use psi_terminal::{CrashCause, CrashPredicateTerm};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLineUnitReturnTranslationReceipt {
+    machine: MachineId,
+    return_edge: EdgeId,
+}
+
+impl StraightLineUnitReturnTranslationReceipt {
+    pub(in crate::validation) const fn new(machine: MachineId, return_edge: EdgeId) -> Self {
+        Self {
+            machine,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StraightLineScalarCrashTranslationReceipt {

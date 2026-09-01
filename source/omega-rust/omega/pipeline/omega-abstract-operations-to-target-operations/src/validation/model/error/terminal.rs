@@ -1,4 +1,23 @@
-//! Terminal scalar replay errors.
+//! Terminal Unit-return and scalar-Crash replay errors.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineUnitReturnTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceCleanupActions,
+    TargetFixedIntegerScalarAbi,
+    TargetProvenance,
+    TargetOperation,
+    TargetCallPlan,
+    TargetParameters,
+    TargetOperationRoster,
+    TargetReturn,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineScalarCrashTranslationError {

@@ -20,7 +20,9 @@ use super::parameter::{
     StraightLineIntegerParameterTranslationError,
     StraightLineIntegerWidenParameterTranslationError,
 };
-use super::terminal::StraightLineScalarCrashTranslationError;
+use super::terminal::{
+    StraightLineScalarCrashTranslationError, StraightLineUnitReturnTranslationError,
+};
 use arithmetic::{
     ExactAddError, ExactDivideError, ExactMultiplyError, ExactRemainderError, ExactSubtractError,
     SaturatingAddError, SaturatingDivideError, SaturatingMultiplyError, SaturatingRemainderError,
@@ -35,6 +37,7 @@ use shift::{
 pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
+    StraightLineUnitReturn(StraightLineUnitReturnTranslationError),
     StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
     StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
     StraightLineBooleanParameter(StraightLineBooleanParameterTranslationError),

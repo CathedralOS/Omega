@@ -15,6 +15,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineBooleanImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineBooleanImmediate
             }
+            Self::StraightLineUnitReturn(_) => {
+                AbstractToTargetTranslationFamily::StraightLineUnitReturn
+            }
             Self::StraightLineScalarCrash(_) => {
                 AbstractToTargetTranslationFamily::StraightLineScalarCrash
             }

@@ -49,4 +49,6 @@ pub use roster::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetTranslationValidationReceipt,
 };
-pub use terminal::StraightLineScalarCrashTranslationReceipt;
+pub use terminal::{
+    StraightLineScalarCrashTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
+};

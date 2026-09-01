@@ -21,7 +21,9 @@ use super::parameter::{
     StraightLineIntegerParameterTranslationReceipt,
     StraightLineIntegerWidenParameterTranslationReceipt,
 };
-use super::terminal::StraightLineScalarCrashTranslationReceipt;
+use super::terminal::{
+    StraightLineScalarCrashTranslationReceipt, StraightLineUnitReturnTranslationReceipt,
+};
 use arithmetic::{
     ExactAddReceipt, ExactDivideReceipt, ExactMultiplyReceipt, ExactRemainderReceipt,
     ExactSubtractReceipt, SaturatingAddReceipt, SaturatingDivideReceipt, SaturatingMultiplyReceipt,
@@ -38,6 +40,7 @@ use shift::{
 pub enum AbstractToTargetFunctionTranslationReceipt {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationReceipt),
     StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationReceipt),
+    StraightLineUnitReturn(StraightLineUnitReturnTranslationReceipt),
     StraightLineScalarCrash(StraightLineScalarCrashTranslationReceipt),
     StraightLineIntegerParameter(StraightLineIntegerParameterTranslationReceipt),
     StraightLineBooleanParameter(StraightLineBooleanParameterTranslationReceipt),

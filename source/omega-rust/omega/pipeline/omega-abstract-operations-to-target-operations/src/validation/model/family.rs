@@ -4,6 +4,7 @@
 pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerImmediate,
     StraightLineBooleanImmediate,
+    StraightLineUnitReturn,
     StraightLineScalarCrash,
     StraightLineIntegerParameter,
     StraightLineBooleanParameter,
