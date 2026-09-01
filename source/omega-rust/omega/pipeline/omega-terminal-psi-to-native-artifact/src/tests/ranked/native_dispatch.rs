@@ -157,8 +157,8 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution
         )
         .expect("encode canonical ranked artifact");
         let native =
-            omega_native_artifact::NativeArtifact::from_replayed_parts(
-                omega_native_artifact::NativeArtifactParts {
+            omega_native_artifact::NativeArtifact::from_emitted_parts(
+                omega_native_artifact::NativeArtifactEmissionParts {
                     target,
                     psi_artifact: canonical,
                     object,
@@ -170,6 +170,8 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution
                         ),
                     selected_provider_plans: Vec::new(),
                     provider_executions: Vec::new(),
+                    physical_evidence_scope:
+                        omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
                 },
             )
             .expect("ranked object and final image should enter native-artifact custody");

@@ -42,7 +42,7 @@ pub fn realize_program_entry_native_artifact(
     produced: ProducedProgramEntryTerminalArtifact,
     request: NativeRealizationRequest<'_>,
 ) -> Result<SettledNativeArtifact, Vec<Diagnostic>> {
-    let (artifact, checked_entry) = produced.into_parts();
+    let (artifact, checked_entry, checked_scope) = produced.into_parts();
     let program_entry = validate_native_program_entry_settlement(
         &artifact,
         &checked_entry,
@@ -50,7 +50,11 @@ pub fn realize_program_entry_native_artifact(
         request.target,
     )
     .map_err(|error| realization_error("checked ProgramEntry settlement", error))?;
-    let artifact = realize_native_artifact(artifact, request)?;
+    let artifact = realize_native_artifact_with_checked_boundary_operator_scope(
+        artifact,
+        &checked_scope,
+        request,
+    )?;
     Ok(SettledNativeArtifact {
         artifact,
         program_entry,
@@ -63,6 +67,28 @@ pub fn realize_program_entry_native_artifact(
 /// exact operation.
 pub fn realize_native_artifact(
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    request: NativeRealizationRequest<'_>,
+) -> Result<NativeArtifact, Vec<Diagnostic>> {
+    realize_native_artifact_with_optional_checked_scope(artifact, None, request)
+}
+
+/// Realize an artifact while retaining the exact checked D29 scope emitted by
+/// the same canonical Terminal production. Generic artifact callers cannot
+/// replace this receipt with a count or Boolean assertion.
+pub fn realize_native_artifact_with_checked_boundary_operator_scope(
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+    request: NativeRealizationRequest<'_>,
+) -> Result<NativeArtifact, Vec<Diagnostic>> {
+    checked_scope
+        .validate_for_artifact(&artifact)
+        .map_err(|error| realization_error("checked boundary-operator scope", error))?;
+    realize_native_artifact_with_optional_checked_scope(artifact, Some(checked_scope), request)
+}
+
+fn realize_native_artifact_with_optional_checked_scope(
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
     request: NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
     request
@@ -80,8 +106,15 @@ pub fn realize_native_artifact(
         executions,
         installation,
     } = admit_native_providers(&input, semantic_bytes, proof_bytes, &request)?;
+    let physical_evidence_scope = input.physical_evidence_scope(checked_scope);
     let machine_code = emit_realization_machine_code(input, installation, &settlements, &request)?;
-    assemble_native_artifact(artifact, &machine_code, executions, &request)
+    assemble_native_artifact(
+        artifact,
+        &machine_code,
+        executions,
+        physical_evidence_scope,
+        &request,
+    )
 }
 
 #[cfg(test)]

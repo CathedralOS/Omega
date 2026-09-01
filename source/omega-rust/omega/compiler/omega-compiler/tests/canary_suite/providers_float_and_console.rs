@@ -106,6 +106,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
     let main_path = canary.join("main.omg");
     let checked = omega_compiler::compile_to_checked(&main_path, None)
         .expect("checked boundary-operator canary should compile to checked trees");
+    assert!(!checked.facts.operators.boundary_applications.is_empty());
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
@@ -602,6 +603,37 @@ fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
 
 #[test]
 fn linux_console_exit_catalog_settlement_emits_elf() {
+    use omega_terminal_psi_to_native_artifact as native;
+
+    fn replay_parts(parts: &native::NativeArtifactParts) -> native::NativeArtifactParts {
+        let module = psi_terminal_codec::decode_module(parts.psi_artifact.semantic_bytes())
+            .expect("replay Terminal semantics");
+        let proof = psi_terminal_codec::decode_proof_bundle(parts.psi_artifact.proof_bytes())
+            .expect("replay Terminal proof");
+        let debug = parts
+            .psi_artifact
+            .debug_bytes()
+            .map(|bytes| psi_terminal_codec::decode_debug_map(&module, bytes).expect("debug map"));
+        native::NativeArtifactParts {
+            target: parts.target,
+            psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+                &module,
+                &proof,
+                debug.as_ref(),
+            )
+            .expect("reconstruct canonical Terminal artifact"),
+            object: parts.object.clone(),
+            image: parts.image.clone(),
+            selected_provider_closure_report_identity: parts
+                .selected_provider_closure_report_identity,
+            selected_provider_closure_digest: parts.selected_provider_closure_digest,
+            selected_provider_plans: parts.selected_provider_plans.clone(),
+            provider_executions: parts.provider_executions.clone(),
+            physical_evidence_scope: parts.physical_evidence_scope,
+            physical_evidence: parts.physical_evidence.clone(),
+        }
+    }
+
     let canary = pass_canary("providers/adapter_satisfies_compile");
     for target in ["linux_x86_64", "linux_arm64"] {
         let compilation = compile_rooted_backend_canary_without_output_for_target(&canary, target)
@@ -634,7 +666,140 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             0,
             "compiler builtins must not mint provider execution evidence for {target}",
         );
+        let evidence = artifact
+            .physical_evidence()
+            .unwrap_or_else(|| panic!("{target} exit_group must retain complete D32 evidence"));
+        assert_eq!(
+            artifact.physical_evidence_scope(),
+            native::NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
+        );
+        assert_eq!(evidence.projection().boundary_occurrences().len(), 1);
+        let [child] = evidence.children() else {
+            panic!("{target} exit_group must have exactly one physical child")
+        };
+        assert_eq!(child.projection(), evidence.projection().identity());
+        assert_eq!(
+            child.machine_span().byte_count(),
+            settlement.settlement.byte_count
+        );
+        assert_eq!(child.object_span().offset(), settlement.text_offset);
+        assert_eq!(child.final_image_span(), child.object_span());
+        let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent();
+        assert_eq!(parent.target(), artifact.target());
+        assert_eq!(
+            parent.execution(),
+            omega_target_operations::BoundaryExecutionBinding::CompilerBuiltin(
+                omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+            ),
+        );
+
+        let artifact = compilation
+            .into_retained_native_artifact()
+            .expect("NativeArtifact report should transfer exact custody");
+        let parts = artifact.into_parts();
+        let _replayed = native::NativeArtifact::from_replayed_parts(replay_parts(&parts))
+            .expect("unchanged physical evidence must replay");
+
+        let mut missing = replay_parts(&parts);
+        missing.physical_evidence = None;
+        assert!(
+            native::NativeArtifact::from_replayed_parts(missing).is_err(),
+            "removing the only physical child must reject",
+        );
+
+        let mut unavailable = replay_parts(&parts);
+        unavailable.physical_evidence_scope = native::NativePhysicalEvidenceScope::Unavailable;
+        unavailable.physical_evidence = None;
+        let unavailable = native::NativeArtifact::from_replayed_parts(unavailable)
+            .expect("an explicitly unavailable projection retains no D32 claim");
+        assert!(unavailable.physical_evidence().is_none());
+
+        let mutate_child = |mutate: fn(&mut native::NativePhysicalChildParts)| {
+            let mut corrupted = replay_parts(&parts);
+            let evidence = corrupted
+                .physical_evidence
+                .take()
+                .expect("exit_group physical evidence")
+                .into_parts();
+            let mut children = evidence.children;
+            let mut child = children.remove(0).into_parts();
+            mutate(&mut child);
+            children.push(native::NativePhysicalChild::from_replayed_parts(child));
+            corrupted.physical_evidence =
+                Some(native::NativePhysicalEvidence::from_replayed_parts(
+                    native::NativePhysicalEvidenceParts {
+                        projection: evidence.projection,
+                        children,
+                        identity: evidence.identity,
+                    },
+                ));
+            assert!(native::NativeArtifact::from_replayed_parts(corrupted).is_err());
+        };
+        mutate_child(|child| {
+            child.object_span = native::NativeByteSpan::from_replayed_parts(
+                child.object_span.offset() + 1,
+                child.object_span.byte_count(),
+            );
+        });
+        mutate_child(|child| {
+            child.projection =
+                omega_optimization_core::NativeOptimizationProjectionIdentity::from_bytes([7; 32]);
+        });
+        mutate_child(|child| {
+            let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent.clone();
+            let mut parent = parent.into_parts();
+            parent.selected_plan_digest =
+                native::NativeSelectedProviderPlanDigest::from_digest([11; 32]);
+            child.parent = native::PhysicalChildParent::BoundaryTraitSettlement(
+                native::BoundaryTraitSettlement::from_replayed_parts(parent),
+            );
+        });
+
+        let mut duplicate = replay_parts(&parts);
+        let evidence = duplicate
+            .physical_evidence
+            .take()
+            .expect("exit_group physical evidence")
+            .into_parts();
+        let mut children = evidence.children;
+        children.push(children[0].clone());
+        duplicate.physical_evidence = Some(native::NativePhysicalEvidence::from_replayed_parts(
+            native::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children,
+                identity: evidence.identity,
+            },
+        ));
+        assert!(native::NativeArtifact::from_replayed_parts(duplicate).is_err());
+
+        let mut padded = replay_parts(&parts);
+        let evidence = padded
+            .physical_evidence
+            .take()
+            .expect("exit_group physical evidence")
+            .into_parts();
+        padded.physical_evidence = Some(native::NativePhysicalEvidence::from_replayed_parts(
+            native::NativePhysicalEvidenceParts {
+                projection: evidence.projection,
+                children: evidence.children,
+                identity: [13; 32],
+            },
+        ));
+        assert!(native::NativeArtifact::from_replayed_parts(padded).is_err());
     }
+
+    let port_canary = pass_canary("inline_asm/asm_port_out_final_validation");
+    let port_report =
+        compile_rooted_backend_canary_without_output_for_target(&port_canary, "linux_x86_64")
+            .expect("immediate-port checked assembly should retain its native artifact");
+    let port_artifact = port_report
+        .retained_native_artifact()
+        .expect("immediate-port checked assembly should retain exact native custody");
+    assert!(!port_artifact.object().port_effects().is_empty());
+    assert!(
+        port_artifact.physical_evidence().is_none(),
+        "the first D32 lane must not publish partial evidence for an uncovered D29 port effect",
+    );
 }
 
 #[test]
@@ -673,6 +838,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.external_binding_rows().to_vec(),
             proposal.compiler_builtins().to_vec(),
             proposal.callback_occurrences().to_vec(),
+            proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),
         "a target-profile substitution must not re-enter Terminal product custody",
@@ -699,8 +865,9 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         .collect::<Vec<_>>();
     let profile = psi_proof_admission::AdmissionProfile::default();
     let optimizations = omega_optimization_core::OptimizationSelections::default();
-    let native = omega_terminal_psi_to_native_artifact::realize_native_artifact(
+    let native = omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
         artifact,
+        proposal.checked_boundary_operator_scope(),
         omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
             target: proposal.native_target(),
             subsystem: proposal.subsystem(),
@@ -716,6 +883,14 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
     .expect("retained Terminal product and independent local admission should realize natively");
     assert!(native.image().output().bytes.starts_with(b"\x7fELF"));
     assert_eq!(native.provider_executions().len(), 0);
+    assert_eq!(
+        native
+            .physical_evidence()
+            .expect("reloaded Terminal product retains D32 evidence")
+            .children()
+            .len(),
+        1,
+    );
     let [settlement] = native.image().boundary_settlements() else {
         panic!("reloaded product should retain one Console exit settlement")
     };

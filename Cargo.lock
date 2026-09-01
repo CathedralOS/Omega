@@ -426,6 +426,7 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-trust-model",
+ "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-terminal",
  "psi-terminal-codec",
@@ -848,7 +849,13 @@ version = "0.1.0"
 dependencies = [
  "omega-image-emission",
  "omega-installation-evidence",
+ "omega-machine-code",
+ "omega-object-file",
+ "omega-optimization-core",
  "omega-target",
+ "omega-target-operations",
+ "psi-core",
+ "psi-terminal",
  "psi-terminal-codec",
  "sha2",
 ]

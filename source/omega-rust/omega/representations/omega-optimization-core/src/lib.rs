@@ -27,6 +27,7 @@ pub use identities::{
     OptimizationIdentityBundleIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizationWorkloadProfileIdentity, OptimizedAbstractPlanProjectionIdentity,
+    NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
     OptimizedOrdinaryCallableEntryManifestIdentity,
     OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,

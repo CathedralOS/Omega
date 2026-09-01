@@ -8,14 +8,18 @@ pub(super) fn realize(
     optimization_selections: &OptimizationSelections,
 ) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
     let entry_machine = admission.program_entry.machine_name().to_owned();
-    let artifact =
-        psi_checked_trees_to_terminal::produce_terminal_artifact(checked, &entry_machine).map_err(
+    let produced =
+        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            checked,
+            &entry_machine,
+        ).map_err(
             |error| {
                 vec![Diagnostic::error(format!(
                     "native-artifact Terminal production failed: {error}"
                 ))]
             },
         )?;
+    let (artifact, checked_boundary_operator_scope) = produced.into_parts();
     let terminal_module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
         |error| {
             vec![Diagnostic::error(format!(
@@ -49,8 +53,9 @@ pub(super) fn realize(
         admission.program_entry.source_signature(),
         calling_plans,
     );
-    omega_terminal_psi_to_native_artifact::realize_native_artifact(
+    omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
         artifact,
+        &checked_boundary_operator_scope,
         omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
             target: admission.target,
             subsystem: checked.subsystem(),

@@ -227,6 +227,61 @@ pub struct LoweredSourceCallOccurrence {
     pub source_target: psi_symbols::SymbolHandle,
 }
 
+/// Checked source demand scope retained beside one exact Terminal artifact.
+///
+/// The fields are private so downstream realization cannot replace checked
+/// D29 custody with a caller-authored count. The receipt is useful only for
+/// the canonical artifact produced by the same lowering operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedBoundaryOperatorApplicationScope {
+    terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
+    application_count: usize,
+}
+
+impl CheckedBoundaryOperatorApplicationScope {
+    pub fn validate_for_artifact(
+        &self,
+        artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    ) -> Result<(), &'static str> {
+        if self.terminal_artifact_identity != artifact.manifest().identity() {
+            return Err("checked boundary-operator scope belongs to a different Terminal artifact");
+        }
+        Ok(())
+    }
+
+    pub const fn application_count(&self) -> usize {
+        self.application_count
+    }
+}
+
+/// Canonical Terminal output coupled to its non-caller-authored checked D29
+/// demand scope.
+#[derive(Debug, PartialEq, Eq)]
+#[must_use = "checked Terminal production retains boundary-operator demand custody"]
+pub struct ProducedTerminalArtifact {
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
+}
+
+impl ProducedTerminalArtifact {
+    pub const fn artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
+        &self.boundary_operator_scope
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        psi_terminal_codec::CanonicalTerminalArtifact,
+        CheckedBoundaryOperatorApplicationScope,
+    ) {
+        (self.artifact, self.boundary_operator_scope)
+    }
+}
+
 /// Canonical Terminal artifact coupled to an opaque callback-use sidecar.
 ///
 /// Psi does not interpret target-owned callback placement. This carrier only
@@ -238,6 +293,7 @@ pub struct LoweredSourceCallOccurrence {
 #[must_use = "Terminal production must preserve callback-use custody"]
 pub struct ProducedTerminalArtifactWithCallbackCustody<C> {
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
     callback_custody: C,
     source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
 }
@@ -251,23 +307,39 @@ impl<C> ProducedTerminalArtifactWithCallbackCustody<C> {
         &self.callback_custody
     }
 
+    pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
+        &self.boundary_operator_scope
+    }
+
     pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
         &self.source_call_occurrences
     }
 
-    pub fn into_parts(self) -> (psi_terminal_codec::CanonicalTerminalArtifact, C) {
-        (self.artifact, self.callback_custody)
+    pub fn into_parts(
+        self,
+    ) -> (
+        psi_terminal_codec::CanonicalTerminalArtifact,
+        CheckedBoundaryOperatorApplicationScope,
+        C,
+    ) {
+        (
+            self.artifact,
+            self.boundary_operator_scope,
+            self.callback_custody,
+        )
     }
 
     pub fn into_parts_with_source_calls(
         self,
     ) -> (
         psi_terminal_codec::CanonicalTerminalArtifact,
+        CheckedBoundaryOperatorApplicationScope,
         C,
         Vec<LoweredSourceCallOccurrence>,
     ) {
         (
             self.artifact,
+            self.boundary_operator_scope,
             self.callback_custody,
             self.source_call_occurrences,
         )
@@ -340,6 +412,7 @@ impl CheckedProgramEntryTerminalReceipt {
 pub struct ProducedProgramEntryTerminalArtifact {
     artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     receipt: CheckedProgramEntryTerminalReceipt,
+    boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
 }
 
 impl ProducedProgramEntryTerminalArtifact {
@@ -351,13 +424,18 @@ impl ProducedProgramEntryTerminalArtifact {
         &self.receipt
     }
 
+    pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
+        &self.boundary_operator_scope
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         psi_terminal_codec::CanonicalTerminalArtifact,
         CheckedProgramEntryTerminalReceipt,
+        CheckedBoundaryOperatorApplicationScope,
     ) {
-        (self.artifact, self.receipt)
+        (self.artifact, self.receipt, self.boundary_operator_scope)
     }
 }
 
@@ -1228,6 +1306,30 @@ pub fn produce_terminal_artifact(
     .map_err(TerminalArtifactProductionError::Artifact)
 }
 
+/// Produce canonical Terminal semantics while preserving the exact checked
+/// D29 demand scope needed by compiler-owned native evidence derivation.
+pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
+    checked: &CheckedTrees,
+    machine_name: &str,
+) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
+    let artifact = produce_terminal_artifact(checked, machine_name)?;
+    let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact);
+    Ok(ProducedTerminalArtifact {
+        artifact,
+        boundary_operator_scope,
+    })
+}
+
+fn checked_boundary_operator_scope(
+    checked: &CheckedTrees,
+    artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+) -> CheckedBoundaryOperatorApplicationScope {
+    CheckedBoundaryOperatorApplicationScope {
+        terminal_artifact_identity: artifact.manifest().identity(),
+        application_count: checked.facts.operators.boundary_applications.len(),
+    }
+}
+
 /// Produce the canonical source-free artifact without losing the caller's
 /// exact callback-use sidecar.
 ///
@@ -1265,6 +1367,7 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
         }
     };
     Ok(ProducedTerminalArtifactWithCallbackCustody {
+        boundary_operator_scope: checked_boundary_operator_scope(checked, &artifact),
         artifact,
         callback_custody,
         source_call_occurrences: lowered.source_call_occurrences,
@@ -1321,6 +1424,7 @@ pub fn produce_program_entry_terminal_artifact(
         ));
     }
     Ok(ProducedProgramEntryTerminalArtifact {
+        boundary_operator_scope: checked_boundary_operator_scope(checked, &artifact),
         artifact,
         receipt: CheckedProgramEntryTerminalReceipt {
             source_signature_identity,

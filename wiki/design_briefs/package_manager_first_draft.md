@@ -1301,6 +1301,22 @@ the survivor set and rejects missing, duplicate, stale, substituted, padded,
 or role-swapped children. Package review does not claim assigned homes,
 relocation, or emitted bytes merely because its semantic D29 row is complete.
 
+The first concrete D32 lane now realizes Linux ELF `exit_group(i32)` on x86-64
+and AArch64. The compiler first establishes the positive scope: its complete
+checked D29 boundary-operator demand roster is empty and the native handoff is
+unoptimized. The standalone Terminal companion retains a non-caller-authored
+scope receipt bound to the exact Terminal artifact. The native-artifact owner
+binds the scope, derives an identity projection
+directly from canonical Terminal semantics, then retains one child binding the
+exact D41 settlement, strong selected-plan digest, target/catalog role, scalar
+ABI, machine/object/final-image spans, and direct no-relocation byte custody.
+Standalone replay rederives the complete relation. A nonempty D29 roster,
+explicit optimization, port effect, normalized foreign call, admitted native
+provider, or other unsupported executable evidence role produces no D32
+evidence; it does not receive a partial or optimistic receipt or invalidate an
+otherwise valid artifact. D29 parents, admitted-provider parents, and
+non-identity optimization projections remain open.
+
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
 fact rows, and domains are absent from trust reports. Exact selected-provider

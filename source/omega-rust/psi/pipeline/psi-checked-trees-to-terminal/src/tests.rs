@@ -503,7 +503,7 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
             .expect("opaque callback custody crosses canonical Terminal production");
     assert_eq!(produced.callback_custody(), &custody);
     produced.artifact().validate().expect("canonical artifact");
-    let (_, returned) = produced.into_parts();
+    let (_, _, returned) = produced.into_parts();
     assert_eq!(returned, custody);
 
     let swapped = vec![(29u64, "second"), (11u64, "first")];
@@ -521,6 +521,36 @@ fn callback_custody_crosses_terminal_production_in_exact_order_and_returns_on_re
     ));
     let (_, returned) = rejected.into_parts();
     assert_eq!(returned, custody);
+}
+
+#[test]
+fn checked_boundary_operator_scope_rejects_terminal_artifact_substitution() {
+    let first = checked_source(
+        r#"
+            data Main {}
+            machine Main::launch() {}
+        "#,
+    );
+    let produced =
+        produce_terminal_artifact_with_checked_boundary_operator_scope(&first, "Main::launch")
+            .expect("checked Terminal production");
+
+    let second = checked_source(
+        r#"
+            data Helper {}
+            machine Helper::touch() {}
+            data Main {}
+            machine Main::launch() { Helper::touch(); }
+        "#,
+    );
+    let substituted = produce_terminal_artifact(&second, "Main::launch")
+        .expect("distinct canonical Terminal artifact");
+    assert!(
+        produced
+            .boundary_operator_scope()
+            .validate_for_artifact(&substituted)
+            .is_err()
+    );
 }
 
 #[test]

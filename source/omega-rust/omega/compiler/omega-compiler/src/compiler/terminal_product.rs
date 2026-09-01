@@ -37,12 +37,13 @@ pub(super) fn produce_retained_terminal_artifact(
             error.error(),
         ))]
     })?;
-    let (artifact, callback_placements, source_call_occurrences) =
+    let (artifact, checked_boundary_operator_scope, callback_placements, source_call_occurrences) =
         produced.into_parts_with_source_calls();
     verify_terminal_artifact(&artifact, profile)?;
     let native_realization_proposal = project_terminal_native_realization_proposal(
         checked,
         &artifact,
+        checked_boundary_operator_scope,
         &callback_placements,
         &source_call_occurrences,
     )?;
@@ -57,6 +58,7 @@ pub(super) fn produce_retained_terminal_artifact(
 fn project_terminal_native_realization_proposal(
     checked: &crate::pipeline::CheckedCompilation,
     artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_boundary_operator_scope: psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
     callback_placements: &[omega_backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[psi_checked_trees_to_terminal::LoweredSourceCallOccurrence],
 ) -> Result<omega_compilation_report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
@@ -139,6 +141,7 @@ fn project_terminal_native_realization_proposal(
         checked.external_binding_rows().to_vec(),
         builtin_proposals,
         callback_occurrences,
+        checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

@@ -495,6 +495,8 @@ impl ProgressClosedComponentDeployment {
             selected_provider_closure_digest,
             selected_provider_plans: native_selected_provider_plans,
             provider_executions,
+            physical_evidence_scope,
+            physical_evidence,
         } = native_artifact.into_parts();
         let artifact = match bind_installed_artifact(object, image, record, installed) {
             Ok(artifact) => artifact,
@@ -515,6 +517,8 @@ impl ProgressClosedComponentDeployment {
                                         selected_provider_closure_digest,
                                         selected_provider_plans: native_selected_provider_plans,
                                         provider_executions,
+                                        physical_evidence_scope,
+                                        physical_evidence,
                                     },
                                 )
                                 .expect("failed installation must return the validated native artifact unchanged"),
@@ -552,6 +556,8 @@ impl ProgressClosedComponentDeployment {
                                         selected_provider_closure_digest,
                                         selected_provider_plans: native_selected_provider_plans,
                                         provider_executions,
+                                        physical_evidence_scope,
+                                        physical_evidence,
                                     },
                                 )
                                 .expect("failed runnable binding must return the validated native artifact unchanged"),
