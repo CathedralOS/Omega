@@ -4211,6 +4211,36 @@ fn u32_value(value: &BuildTimeValue, context: &str) -> Result<u32, String> {
 mod tests {
     use super::*;
 
+    fn test_opaque_representation_use(shape_root: u16) -> BoundaryOpaqueRepresentationUse {
+        let conformance_application_commitment = [0x41; 32];
+        let lifecycle =
+            omega_representation_planning::OpaqueRepresentationLifecycleDisposition::Inert;
+        let copy_disposition =
+            omega_representation_planning::OpaqueRepresentationCopyDisposition::PlacementOnly;
+        let origin =
+            omega_representation_planning::OpaqueRepresentationApplicationOrigin::NamedConformance;
+        BoundaryOpaqueRepresentationUse {
+            opaque: psi_symbols::SymbolHandle::from_arena_index(1),
+            conformance: psi_symbols::SymbolHandle::from_arena_index(2),
+            carrier: psi_symbols::SymbolHandle::from_arena_index(3),
+            shape_root,
+            application_report_fingerprint: 17,
+            conformance_application_commitment,
+            representation_schema_version:
+                omega_representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION,
+            origin,
+            lifecycle,
+            copy_disposition,
+            selected_application_commitment:
+                omega_representation_planning::selected_application_commitment(
+                    conformance_application_commitment,
+                    lifecycle,
+                    copy_disposition,
+                    origin,
+                ),
+        }
+    }
+
     #[test]
     fn opaque_shape_path_rejects_one_marker_reused_by_multiple_record_fields() {
         let shapes = vec![
@@ -4242,6 +4272,104 @@ mod tests {
         let error = boundary_shape_path(&shapes, &fields, 1, 0)
             .expect_err("one opaque shape marker cannot name two record occurrences");
         assert!(error.contains("multiple record fields"), "{error}");
+    }
+
+    #[test]
+    fn opaque_shape_path_retains_fixed_array_and_record_coordinates() {
+        let shapes = vec![
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Record {
+                    first_field: 0,
+                    field_count: 1,
+                },
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::FixedArray {
+                    element: 1,
+                    length: 4,
+                },
+                byte_size: 32,
+                alignment: 8,
+            },
+        ];
+        let fields = vec![BoundaryValueField {
+            shape: 0,
+            byte_offset: 0,
+        }];
+
+        assert_eq!(
+            boundary_shape_path(&shapes, &fields, 2, 0)
+                .expect("closed postorder shape graph")
+                .expect("target shape is reachable"),
+            vec![
+                BoundaryOpaqueRepresentationPathElement::FixedArrayElement,
+                BoundaryOpaqueRepresentationPathElement::RecordField { ordinal: 0 },
+            ]
+        );
+    }
+
+    #[test]
+    fn boundary_plan_application_commitment_binds_opaque_shape_root() {
+        let shape = ValueShape::integer(8, 8);
+        let call_signature = CallSignature {
+            parameters: vec![shape, shape],
+            result: None,
+        };
+        let validated = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(NativeTarget::host()),
+            &call_signature,
+        )
+        .expect("ordinary two-parameter plan");
+        let mut signature = materialized_boundary_signature_from_abi(&call_signature)
+            .expect("materialized two-parameter signature");
+        signature
+            .opaque_representations
+            .push(test_opaque_representation_use(0));
+
+        let first = boundary_plan_application_identity(&signature, &validated);
+        signature.opaque_representations[0].shape_root = 1;
+        let second = boundary_plan_application_identity(&signature, &validated);
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn opaque_movement_rejoins_an_exact_result_placement() {
+        let shape = ValueShape::integer(8, 8);
+        let call_signature = CallSignature {
+            parameters: vec![shape],
+            result: Some(shape),
+        };
+        let validated = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(NativeTarget::host()),
+            &call_signature,
+        )
+        .expect("ordinary parameter-and-result plan");
+        let mut signature = materialized_boundary_signature_from_abi(&call_signature)
+            .expect("materialized parameter-and-result signature");
+        let result_root = signature.result.expect("materialized result root");
+        signature
+            .opaque_representations
+            .push(test_opaque_representation_use(result_root));
+
+        let movement = signature
+            .opaque_representation_movement(&signature.opaque_representations[0], &validated)
+            .expect("result marker rejoins one exact validated placement");
+        assert_eq!(
+            movement.role(),
+            BoundaryOpaqueRepresentationMovementRole::Result
+        );
+        assert!(movement.path().is_empty());
+        assert_eq!(
+            movement.placement(),
+            validated.plan().call.result.as_ref().unwrap()
+        );
     }
 
     fn legacy_boundary_plan_application_v2_identity(

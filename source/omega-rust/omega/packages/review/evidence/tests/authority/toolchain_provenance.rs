@@ -481,8 +481,8 @@ fn by_value_opaque_use_retains_exact_consumer_demand() {
         r#"use calling;
 use omega::language::core::representation;
 
-pub boundary data TransferToken [copy];
-pub data TransferCarrier [copy] { value: u64; }
+pub boundary data TransferToken;
+pub data TransferCarrier { value: u64; }
 pub TransferTokenRepresentation:
     TransferCarrier satisfies OpaqueRepresentation<TransferToken>;
 
@@ -541,6 +541,7 @@ machine build(builder: &mut Build) {
                 target,
                 conformance,
                 carrier,
+                copy_disposition,
                 shape_graph,
                 occurrences,
                 calling_policy,
@@ -552,6 +553,7 @@ machine build(builder: &mut Build) {
                 target,
                 conformance,
                 carrier,
+                copy_disposition,
                 shape_graph,
                 occurrences,
                 calling_policy,
@@ -568,11 +570,15 @@ machine build(builder: &mut Build) {
     );
     assert_eq!(demand.1.path(), "TransferTokenRepresentation");
     assert_eq!(demand.2.path(), "TransferCarrier");
-    assert!(!demand.3.shapes().is_empty());
-    let [occurrence] = demand.4.as_slice() else {
+    assert_eq!(
+        *demand.3,
+        PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly
+    );
+    assert!(!demand.4.shapes().is_empty());
+    let [occurrence] = demand.5.as_slice() else {
         panic!("one opaque occurrence in one boundary parameter")
     };
-    assert!(usize::from(occurrence.carrier_shape_root()) < demand.3.shapes().len());
+    assert!(usize::from(occurrence.carrier_shape_root()) < demand.4.shapes().len());
     assert!(matches!(
         occurrence.role(),
         PackageReviewOpaqueRepresentationMovementRole::Parameter {
@@ -590,10 +596,10 @@ machine build(builder: &mut Build) {
             }
         ]
     );
-    assert_eq!(*demand.5, PackageReviewBoundaryCallingPolicy::MicrosoftX64);
-    assert_ne!(*demand.6, [0; 32]);
+    assert_eq!(*demand.6, PackageReviewBoundaryCallingPolicy::MicrosoftX64);
     assert_ne!(*demand.7, [0; 32]);
     assert_ne!(*demand.8, [0; 32]);
+    assert_ne!(*demand.9, [0; 32]);
 
     let canonical = review
         .canonical_rows()
@@ -612,7 +618,7 @@ machine build(builder: &mut Build) {
                 && row
                     .canonical_bytes()
                     .windows(32)
-                    .any(|window| window == demand.8)
+                    .any(|window| window == demand.9)
         })
         .expect("consumer-demand canonical row with selection and boundary source custody");
     assert_eq!(
