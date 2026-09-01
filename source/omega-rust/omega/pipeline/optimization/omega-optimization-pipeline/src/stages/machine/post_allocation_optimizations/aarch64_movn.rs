@@ -1,7 +1,7 @@
 use omega_machine_optimizer::{
-    Aarch64MovnMaterializationIdentity, ValidatedAarch64MovnMaterialization,
     optimize_aarch64_materialize_i64_with_shortest_movn_seed, require_post_allocation_machine_rule,
-    validate_aarch64_movn_materialization,
+    validate_aarch64_movn_materialization, Aarch64MovnMaterializationIdentity,
+    ValidatedAarch64MovnMaterialization,
 };
 use omega_optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
@@ -10,10 +10,11 @@ use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::{
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
+    StagedOptimizedActiveResidentRematerialization, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
 use super::OptimizedPostAllocationMachineOptimizationError;
@@ -191,6 +192,60 @@ pub fn validate_optimized_aarch64_movn_materialization_after_selected_lowering_c
             staged,
         ),
     }
+}
+
+pub fn stage_optimized_aarch64_movn_materialization_after_active_resident_rematerialization(
+    source: &StagedOptimizedActiveResidentRematerialization,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+) -> Result<
+    StagedOptimizedAarch64MovnMaterialization,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
+        source, machine,
+    )
+    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
+    let selected_stage = source
+        .source()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let optimized = selected_stage.optimized_target().optimized();
+    stage_with_inputs(
+        source.rematerialization(),
+        machine,
+        selected_stage.register_environment().physical(),
+        optimized.selections(),
+        optimized.budget_per_pass(),
+    )
+}
+
+pub fn validate_optimized_aarch64_movn_materialization_after_active_resident_rematerialization_custody(
+    source: &StagedOptimizedActiveResidentRematerialization,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    staged: &StagedOptimizedAarch64MovnMaterialization,
+) -> Result<
+    StagedOptimizedAarch64MovnMaterializationCustodyReceipt,
+    OptimizedPostAllocationMachineOptimizationError,
+> {
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
+        source, machine,
+    )
+    .map_err(OptimizedPostAllocationMachineOptimizationError::Source)?;
+    let selected_stage = source
+        .source()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let optimized = selected_stage.optimized_target().optimized();
+    validate_with_inputs(
+        source.rematerialization(),
+        machine,
+        selected_stage.register_environment().physical(),
+        optimized.selections(),
+        optimized.budget_per_pass(),
+        staged,
+    )
 }
 
 fn stage_with_inputs<S: ValidatedSelectedAnalysis>(

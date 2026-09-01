@@ -40,8 +40,8 @@ the repository gate.
 - Selected lowering may precede one target-compatible post-allocation rule, or
   x86-64 function-relative branch relaxation.
 - One allocation-recovery rule may run alone; active-resident immediate-U64
-  multi-use rematerialization may also precede either exact x86 imm32
-  materialization rule.
+  multi-use rematerialization may also precede AArch64 MOVN materialization or
+  either exact x86 imm32 materialization rule on its matching target.
 - One post-allocation machine rule may run at a time and cannot compose with
   function-relative layout.
 - Psi selections are orthogonal overlays and do not alter physical-route

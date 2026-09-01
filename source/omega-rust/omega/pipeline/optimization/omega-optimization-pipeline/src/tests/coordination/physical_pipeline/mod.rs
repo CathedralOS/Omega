@@ -6,6 +6,7 @@
 
 mod aarch64_cbnz;
 mod aarch64_movn;
+mod aarch64_movn_after_active_resident;
 mod allocation_recovery;
 mod composition_rejections;
 mod phase_routing;

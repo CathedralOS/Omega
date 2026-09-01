@@ -1,6 +1,7 @@
 use super::super::{
     validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
     validate_optimized_aarch64_cbnz_fusion_custody,
+    validate_optimized_aarch64_movn_materialization_after_active_resident_rematerialization_custody,
     validate_optimized_aarch64_movn_materialization_after_selected_lowering_custody,
     validate_optimized_aarch64_movn_materialization_custody,
     validate_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization_custody,
@@ -94,6 +95,12 @@ pub fn validate_optimized_post_allocation_machine_optimization_after_active_resi
     staged: &StagedOptimizedPostAllocationMachineOptimization,
 ) -> Result<(), OptimizedPostAllocationMachineOptimizationError> {
     match staged {
+        StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn(staged) => {
+            validate_optimized_aarch64_movn_materialization_after_active_resident_rematerialization_custody(
+                source, machine, staged,
+            )
+            .map(drop)
+        }
         StagedOptimizedPostAllocationMachineOptimization::X86MovR32Imm32(staged) => {
             validate_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization_custody(
                 source, machine, staged,

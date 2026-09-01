@@ -6,6 +6,7 @@ use super::super::{
     stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
     stage_optimized_aarch64_movn_materialization,
+    stage_optimized_aarch64_movn_materialization_after_active_resident_rematerialization,
     stage_optimized_aarch64_movn_materialization_after_selected_lowering,
     stage_optimized_x86_mov_r32_imm32_materialization,
     stage_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization,
@@ -100,6 +101,12 @@ pub(crate) fn stage_optimized_post_allocation_machine_optimization_after_active_
     OptimizedPostAllocationMachineOptimizationError,
 > {
     match entry.payload().kind() {
+        PostAllocationMachineRuleKind::Aarch64Movn => {
+            stage_optimized_aarch64_movn_materialization_after_active_resident_rematerialization(
+                source, machine,
+            )
+            .map(StagedOptimizedPostAllocationMachineOptimization::Aarch64Movn)
+        }
         PostAllocationMachineRuleKind::X86MovR32Imm32 => {
             stage_optimized_x86_mov_r32_imm32_materialization_after_active_resident_rematerialization(
                 source, machine,
