@@ -1291,9 +1291,11 @@ cohort instead derives each local direct named or supported fixed-token
 call-root type/const application (including normalized unit statements),
 preserves the authored generic provider, clones one private specialization per
 distinct application, and replays its exact plan, specialization, and checked-
-body contract in package review. Nested calls, symbolic cross-artifact,
-unsupported fixed-token shapes, external generic, Terminal-companion, and
-native physical coverage remain fail-closed.
+body contract in package review. The Terminal product now carries the complete
+source-free demand/realization pair and publishes reconstructible coverage for
+the exact closed set. Nested calls, symbolic cross-artifact applications,
+unsupported fixed-token shapes, and external generic authority remain fail-
+closed.
 
 D32 keeps semantic evidence separate from native physical realization. The
 immutable canonical Terminal artifact feeds a validated optimization
@@ -1306,21 +1308,25 @@ the survivor set and rejects missing, duplicate, stale, substituted, padded,
 or role-swapped children. Package review does not claim assigned homes,
 relocation, or emitted bytes merely because its semantic D29 row is complete.
 
-The first concrete D32 lane now realizes Linux ELF `exit_group(i32)` on x86-64
-and AArch64. The compiler first establishes the positive scope: its complete
-checked D29 boundary-operator demand roster is empty and the native handoff is
-unoptimized. The standalone Terminal companion retains a non-caller-authored
-scope receipt bound to the exact Terminal artifact. The native-artifact owner
-binds the scope, derives an identity projection
-directly from canonical Terminal semantics, then retains one child binding the
-exact D41 settlement, strong selected-plan digest, target/catalog role, scalar
-ABI, machine/object/final-image spans, and direct no-relocation byte custody.
-Standalone replay rederives the complete relation. A nonempty D29 roster,
-explicit optimization, port effect, normalized foreign call, admitted native
-provider, or other unsupported executable evidence role produces no D32
-evidence; it does not receive a partial or optimistic receipt or invalidate an
-otherwise valid artifact. D29 parents, admitted-provider parents, and
-non-identity optimization projections remain open.
+The implemented D32 identity-projection lanes realize Linux ELF
+`exit_group(i32)` on x86-64 and AArch64 and supported D29 operator
+applications. The compiler positively establishes an unoptimized handoff and
+retains exact D29 coverage, including exact-empty custody. The native-artifact
+owner derives separate role-tagged D29 and D41 occurrence sets directly from
+canonical Terminal semantics. D41 children bind the exact settlement, strong
+selected-plan digest, target/catalog role, scalar ABI, all three spans, and
+direct no-relocation byte custody. D29 children bind reconstructible coverage,
+the exact occurrence, spans, byte digests, and either direct-instruction or
+resolved-internal-call relocation custody. Nearest-FMA applications exercise
+the direct-byte path end to end; checked-body call replay additionally binds
+the Terminal callee and semantic relocation owner, target, zero addend, kind,
+and changed-byte interval. Ordinary Linux lowering currently rejects the
+reviewed checked-operator-plus-exit shape before that checked-body path can be
+exercised end to end. Explicit optimization, port effects, normalized foreign
+calls, admitted native providers, and other unsupported executable roles
+produce no partial D32 evidence. Checked-body backend enablement,
+admitted-provider parents, and non-identity optimization projections remain
+open.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
