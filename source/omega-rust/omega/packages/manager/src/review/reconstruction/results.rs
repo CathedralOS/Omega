@@ -1,4 +1,4 @@
-//! In-memory transitive composition of locally reconstructed open claims.
+//! In-memory transitive composition of locally reconstructed open obligations.
 
 use super::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionError,
@@ -8,7 +8,8 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
 use crate::review::CompilerIssuedPackageReviewSet;
 use omega_package_evidence::ledger::{
-    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageObligationResultSet,
+    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageExternalExecutableSupplyObligation,
+    OrdinaryPackageObligationResultSet,
 };
 use std::collections::BTreeMap;
 
@@ -36,8 +37,14 @@ struct OpenAcceptedClaimReference {
     claim_index: usize,
 }
 
-/// Exact source/question association plus every open accepted claim reachable
-/// by the selected root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpenExternalExecutableSupplyReference {
+    package_index: usize,
+    supply_index: usize,
+}
+
+/// Exact source/question association plus every supported open obligation
+/// reachable by the selected root.
 ///
 /// This is deliberately in-memory. It has no codec, lock promotion, admission
 /// disposition, or `PackageInstance` constructor.
@@ -46,6 +53,7 @@ pub struct LocallyComposedPackageObligationResults {
     question: CanonicalPackageReconstructionQuestion,
     entries: Vec<LocallyComposedPackageObligationEntry>,
     root_open_accepted_claims: Vec<OpenAcceptedClaimReference>,
+    root_open_external_executable_supplies: Vec<OpenExternalExecutableSupplyReference>,
 }
 
 impl LocallyComposedPackageObligationResults {
@@ -75,7 +83,8 @@ impl LocallyComposedPackageObligationResults {
                     "package obligation composition entry allocation failed",
                 )
             })?;
-        let mut open_count = 0usize;
+        let mut open_claim_count = 0usize;
+        let mut open_external_supply_count = 0usize;
         for question_entry in question.entries() {
             let review = reviews_by_package
                 .remove(question_entry.package())
@@ -94,11 +103,18 @@ impl LocallyComposedPackageObligationResults {
                     "package obligation results do not match their reconstructed question",
                 ));
             }
-            open_count = open_count
+            open_claim_count = open_claim_count
                 .checked_add(results.open_accepted_claims().len())
                 .ok_or_else(|| {
                     CanonicalPackageReconstructionQuestionError::new(
                         "package obligation open-claim count overflowed",
+                    )
+                })?;
+            open_external_supply_count = open_external_supply_count
+                .checked_add(results.open_external_executable_supplies().len())
+                .ok_or_else(|| {
+                    CanonicalPackageReconstructionQuestionError::new(
+                        "package obligation open external executable-supply count overflowed",
                     )
                 })?;
             entries.push(LocallyComposedPackageObligationEntry {
@@ -114,7 +130,7 @@ impl LocallyComposedPackageObligationResults {
 
         let mut root_open_accepted_claims = Vec::new();
         root_open_accepted_claims
-            .try_reserve_exact(open_count)
+            .try_reserve_exact(open_claim_count)
             .map_err(|_| {
                 CanonicalPackageReconstructionQuestionError::new(
                     "package obligation open-claim reference allocation failed",
@@ -129,10 +145,30 @@ impl LocallyComposedPackageObligationResults {
             }
         }
 
+        let mut root_open_external_executable_supplies = Vec::new();
+        root_open_external_executable_supplies
+            .try_reserve_exact(open_external_supply_count)
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package obligation open external executable-supply reference allocation failed",
+                )
+            })?;
+        for (package_index, entry) in entries.iter().enumerate() {
+            for supply_index in 0..entry.results.open_external_executable_supplies().len() {
+                root_open_external_executable_supplies.push(
+                    OpenExternalExecutableSupplyReference {
+                        package_index,
+                        supply_index,
+                    },
+                );
+            }
+        }
+
         Ok(Self {
             question,
             entries,
             root_open_accepted_claims,
+            root_open_external_executable_supplies,
         })
     }
 
@@ -157,5 +193,26 @@ impl LocallyComposedPackageObligationResults {
                 &entry.results.open_accepted_claims()[reference.claim_index],
             )
         })
+    }
+
+    /// Iterate every open external executable supply propagated to the
+    /// selected root while retaining its original package owner.
+    pub fn root_open_external_executable_supplies(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            &PackageKey,
+            &OrdinaryPackageExternalExecutableSupplyObligation,
+        ),
+    > {
+        self.root_open_external_executable_supplies
+            .iter()
+            .map(|reference| {
+                let entry = &self.entries[reference.package_index];
+                (
+                    &entry.package,
+                    &entry.results.open_external_executable_supplies()[reference.supply_index],
+                )
+            })
     }
 }

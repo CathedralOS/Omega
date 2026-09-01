@@ -81,7 +81,8 @@ impl CompilerIssuedPackageReview {
     }
 
     /// Locally reconstructed result for the supported ordinary obligation
-    /// lanes. Accepted claims remain explicitly open; this is not admission.
+    /// lanes. Accepted claims and external executable supplies remain
+    /// explicitly open; this is not admission.
     pub const fn obligation_results(&self) -> &OrdinaryPackageObligationResultSet {
         &self.obligation_results
     }

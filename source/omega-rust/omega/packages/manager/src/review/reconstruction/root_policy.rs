@@ -55,8 +55,8 @@ pub enum FreshPackageRootPolicyError {
     InvalidRootPolicy(ReviewOnlyRootPolicyResolutionError),
     RootPolicyReplayMismatch,
     RejectedBlockingConflict,
-    AcceptedClaimConflictShapeMismatch,
-    AcceptedClaimConflictSetMismatch,
+    OpenObligationConflictShapeMismatch(PackageReviewCanonicalRowKind),
+    OpenObligationConflictSetMismatch(PackageReviewCanonicalRowKind),
     AllocationFailed,
 }
 
@@ -71,30 +71,30 @@ impl fmt::Display for FreshPackageRootPolicyError {
                 formatter,
                 "fresh package root-policy conflict comparison failed: {error}"
             ),
-            Self::MissingRootPolicy => formatter.write_str(
-                "fresh package candidate has blocking rows but no complete root policy",
-            ),
+            Self::MissingRootPolicy => formatter
+                .write_str("fresh package candidate has blocking rows but no complete root policy"),
             Self::UnexpectedRootPolicy => formatter.write_str(
                 "fresh package candidate has no blocking rows but was given root policy",
             ),
             Self::InvalidRootPolicy(error) => {
                 write!(formatter, "fresh package root policy is invalid: {error}")
             }
-            Self::RootPolicyReplayMismatch => formatter.write_str(
-                "fresh package root policy differs from its canonical replay",
+            Self::RootPolicyReplayMismatch => {
+                formatter.write_str("fresh package root policy differs from its canonical replay")
+            }
+            Self::RejectedBlockingConflict => formatter
+                .write_str("fresh package root policy rejects at least one exact blocking row"),
+            Self::OpenObligationConflictShapeMismatch(kind) => write!(
+                formatter,
+                "fresh {kind:?} conflict is not an added blocking row against the empty admission baseline",
             ),
-            Self::RejectedBlockingConflict => formatter.write_str(
-                "fresh package root policy rejects at least one exact blocking row",
+            Self::OpenObligationConflictSetMismatch(kind) => write!(
+                formatter,
+                "fresh {kind:?} conflicts are not bijective with reconstructed open obligations",
             ),
-            Self::AcceptedClaimConflictShapeMismatch => formatter.write_str(
-                "fresh accepted-claim conflict is not an added blocking row against the empty admission baseline",
-            ),
-            Self::AcceptedClaimConflictSetMismatch => formatter.write_str(
-                "fresh accepted-claim conflicts are not bijective with reconstructed open claims",
-            ),
-            Self::AllocationFailed => formatter.write_str(
-                "fresh package root-policy association allocation failed",
-            ),
+            Self::AllocationFailed => {
+                formatter.write_str("fresh package root-policy association allocation failed")
+            }
         }
     }
 }
@@ -109,8 +109,8 @@ impl std::error::Error for FreshPackageRootPolicyError {
             | Self::UnexpectedRootPolicy
             | Self::RootPolicyReplayMismatch
             | Self::RejectedBlockingConflict
-            | Self::AcceptedClaimConflictShapeMismatch
-            | Self::AcceptedClaimConflictSetMismatch
+            | Self::OpenObligationConflictShapeMismatch(_)
+            | Self::OpenObligationConflictSetMismatch(_)
             | Self::AllocationFailed => None,
         }
     }
@@ -137,7 +137,7 @@ pub fn bind_fresh_package_root_policy(
     let conflicts = compare_review_only_initial_capabilities(reviews, closure, conflict_limits)
         .map_err(FreshPackageRootPolicyError::ConflictComparison)?;
 
-    validate_open_claim_conflicts(&obligations, &conflicts)?;
+    validate_open_obligation_conflicts(&obligations, &conflicts)?;
 
     let has_blocking_conflicts = conflicts
         .packages()
@@ -169,65 +169,107 @@ pub fn bind_fresh_package_root_policy(
     })
 }
 
-type AcceptedClaimCoordinate<'a> = (&'a crate::declarations::PackageKey, &'a [u8], &'a [u8]);
+type OpenObligationCoordinate<'a> = (&'a crate::declarations::PackageKey, &'a [u8], &'a [u8]);
 
-fn validate_open_claim_conflicts(
+fn validate_open_obligation_conflicts(
     obligations: &LocallyComposedPackageObligationResults,
     conflicts: &ReviewOnlyCapabilityConflictSet,
 ) -> Result<(), FreshPackageRootPolicyError> {
-    let open_claim_count = obligations.root_open_accepted_claims().len();
-    let accepted_conflict_count = conflicts
+    validate_open_obligation_kind(
+        obligations,
+        conflicts,
+        PackageReviewCanonicalRowKind::AcceptedClaim,
+        PackageReviewCanonicalRowRisk::Blocking,
+    )?;
+    validate_open_obligation_kind(
+        obligations,
+        conflicts,
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply,
+        PackageReviewCanonicalRowRisk::OpaqueBlocking,
+    )
+}
+
+fn validate_open_obligation_kind<'a>(
+    obligations: &'a LocallyComposedPackageObligationResults,
+    conflicts: &'a ReviewOnlyCapabilityConflictSet,
+    kind: PackageReviewCanonicalRowKind,
+    expected_risk: PackageReviewCanonicalRowRisk,
+) -> Result<(), FreshPackageRootPolicyError> {
+    let open_count = match kind {
+        PackageReviewCanonicalRowKind::AcceptedClaim => {
+            obligations.root_open_accepted_claims().len()
+        }
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply => {
+            obligations.root_open_external_executable_supplies().len()
+        }
+        _ => 0,
+    };
+    let conflict_count = conflicts
         .packages()
         .iter()
         .flat_map(|package| package.conflicts())
-        .filter(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+        .filter(|conflict| conflict.kind() == kind)
         .count();
 
-    let mut open_claims = Vec::new();
-    open_claims
-        .try_reserve_exact(open_claim_count)
+    let mut open_obligations = Vec::new();
+    open_obligations
+        .try_reserve_exact(open_count)
         .map_err(|_| FreshPackageRootPolicyError::AllocationFailed)?;
-    for (package, claim) in obligations.root_open_accepted_claims() {
-        open_claims.push((
-            package,
-            claim.row().key_bytes(),
-            claim.row().canonical_bytes(),
-        ));
+    match kind {
+        PackageReviewCanonicalRowKind::AcceptedClaim => {
+            for (package, claim) in obligations.root_open_accepted_claims() {
+                open_obligations.push((
+                    package,
+                    claim.row().key_bytes(),
+                    claim.row().canonical_bytes(),
+                ));
+            }
+        }
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply => {
+            for (package, supply) in obligations.root_open_external_executable_supplies() {
+                open_obligations.push((
+                    package,
+                    supply.row().key_bytes(),
+                    supply.row().canonical_bytes(),
+                ));
+            }
+        }
+        _ => return Ok(()),
     }
 
-    let mut accepted_conflicts = Vec::new();
-    accepted_conflicts
-        .try_reserve_exact(accepted_conflict_count)
+    let mut matching_conflicts = Vec::new();
+    matching_conflicts
+        .try_reserve_exact(conflict_count)
         .map_err(|_| FreshPackageRootPolicyError::AllocationFailed)?;
     for package in conflicts.packages() {
         for conflict in package
             .conflicts()
             .iter()
-            .filter(|conflict| conflict.kind() == PackageReviewCanonicalRowKind::AcceptedClaim)
+            .filter(|conflict| conflict.kind() == kind)
         {
             if !package.baseline().is_empty_admission()
                 || conflict.change() != ReviewOnlyCapabilityConflictChange::Added
-                || conflict.risk() != PackageReviewCanonicalRowRisk::Blocking
+                || conflict.risk() != expected_risk
                 || conflict.baseline_row().is_some()
             {
-                return Err(FreshPackageRootPolicyError::AcceptedClaimConflictShapeMismatch);
+                return Err(FreshPackageRootPolicyError::OpenObligationConflictShapeMismatch(kind));
             }
             let candidate_row = conflict
                 .candidate_row()
-                .ok_or(FreshPackageRootPolicyError::AcceptedClaimConflictShapeMismatch)?;
-            accepted_conflicts.push((package.key(), conflict.row_key(), candidate_row));
+                .ok_or(FreshPackageRootPolicyError::OpenObligationConflictShapeMismatch(kind))?;
+            matching_conflicts.push((package.key(), conflict.row_key(), candidate_row));
         }
     }
 
-    sort_claim_coordinates(&mut open_claims);
-    sort_claim_coordinates(&mut accepted_conflicts);
-    if open_claims != accepted_conflicts {
-        return Err(FreshPackageRootPolicyError::AcceptedClaimConflictSetMismatch);
+    sort_open_obligation_coordinates(&mut open_obligations);
+    sort_open_obligation_coordinates(&mut matching_conflicts);
+    if open_obligations != matching_conflicts {
+        return Err(FreshPackageRootPolicyError::OpenObligationConflictSetMismatch(kind));
     }
     Ok(())
 }
 
-fn sort_claim_coordinates(coordinates: &mut [AcceptedClaimCoordinate<'_>]) {
+fn sort_open_obligation_coordinates(coordinates: &mut [OpenObligationCoordinate<'_>]) {
     coordinates.sort_unstable_by(|left, right| {
         left.0
             .cmp(right.0)

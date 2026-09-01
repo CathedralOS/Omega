@@ -1,5 +1,8 @@
 use omega_package_evidence::ledger::OrdinaryPackageObligationStatus;
-use omega_package_evidence::record::PackageReviewCallableSupply;
+use omega_package_evidence::record::{
+    PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
+    PackageReviewExternalBinding,
+};
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
     resolve_external_local_package_closure_with_storage,
@@ -418,6 +421,155 @@ ensures result == 1;
         ),
         Err(FreshPackageRootPolicyError::InvalidRootPolicy(_))
     ));
+
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
+fn dependency_external_executable_supply_requires_exact_fresh_root_policy() {
+    let temporary = temporary_root("open-external-supply-composition");
+    let dependency = temporary.join("dependency");
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&dependency).expect("create external-supply dependency");
+    std::fs::create_dir_all(&root).expect("create external-supply consumer");
+    std::fs::write(
+        dependency.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("foreign-surface");
+}
+"#,
+    )
+    .expect("write external-supply dependency build");
+    std::fs::write(
+        dependency.join("main.omg"),
+        r#"pub boundary trait ForeignSurface {
+    machine invoke() reaches ForeignSurface;
+}
+pub machine invoke_leaf()
+    satisfies ForeignSurface::invoke
+    via Binding::DllImport("omega-host", "invoke_v1");
+"#,
+    )
+    .expect("write external executable supply");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("foreign-consumer");
+    builder.depend(Source::Path {
+        location: "../dependency"
+    });
+}
+"#,
+    )
+    .expect("write external-supply consumer build");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write external-supply consumer source");
+
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews =
+        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
+            .expect("compile external-supply closure");
+    let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+        &closure,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+    )
+    .expect("compose locally reconstructed external-supply obligation");
+
+    let root_entry = composed
+        .entries()
+        .iter()
+        .find(|entry| entry.package() == closure.graph().root())
+        .expect("selected root result");
+    assert!(
+        root_entry
+            .results()
+            .open_external_executable_supplies()
+            .is_empty()
+    );
+    let propagated = composed
+        .root_open_external_executable_supplies()
+        .collect::<Vec<_>>();
+    let [(owner, supply)] = propagated.as_slice() else {
+        panic!("one dependency external executable supply must propagate to the root")
+    };
+    assert_eq!(owner.name().as_str(), "foreign-surface");
+    assert_eq!(
+        supply.status(),
+        OrdinaryPackageObligationStatus::OpenRootAdmission
+    );
+    assert_eq!(
+        supply.row().kind(),
+        PackageReviewCanonicalRowKind::ExternalExecutableSupply
+    );
+    assert_eq!(
+        supply.row().risk(),
+        PackageReviewCanonicalRowRisk::OpaqueBlocking
+    );
+    assert!(matches!(
+        supply.supply().binding(),
+        PackageReviewExternalBinding::Import { library, symbol }
+            if library == "omega-host" && symbol == "invoke_v1"
+    ));
+
+    let conflicts = compare_review_only_initial_capabilities(
+        &reviews,
+        &closure,
+        ReviewOnlyCapabilityConflictLimits::default(),
+    )
+    .expect("derive exact fresh external-supply conflicts");
+    assert!(matches!(
+        bind_fresh_package_root_policy(
+            &closure,
+            &reviews,
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            None,
+        ),
+        Err(FreshPackageRootPolicyError::MissingRootPolicy)
+    ));
+
+    let accepted_decisions = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| {
+            package
+                .conflicts()
+                .iter()
+                .filter(|conflict| conflict.is_blocking())
+                .map(|conflict| {
+                    package
+                        .root_policy_decision(
+                            conflict,
+                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+                        )
+                        .expect("bind exact fresh external-supply blocker")
+                })
+        })
+        .collect::<Vec<_>>();
+    let accepted_policy =
+        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
+            .expect("resolve complete external-supply policy");
+    let accepted = bind_fresh_package_root_policy(
+        &closure,
+        &reviews,
+        CanonicalPackageReconstructionQuestionLimits::default(),
+        ReviewOnlyCapabilityConflictLimits::default(),
+        Some(&accepted_policy),
+    )
+    .expect("exact fresh policy admits the external supply in memory");
+    assert_eq!(accepted.root_policy(), Some(&accepted_policy));
+    assert_eq!(
+        accepted
+            .obligations()
+            .root_open_external_executable_supplies()
+            .len(),
+        1
+    );
 
     remove_temporary_tree(&temporary);
 }

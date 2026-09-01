@@ -2147,13 +2147,15 @@ the domain-separated aggregate fingerprint grant no authority and expose no
 route to an accepted lock or `PackageInstance`; artifacts, certificates,
 build observations, and admissions remain separate.
 
-The first in-memory ordinary result lane handles only bodyless accepted claims.
-Local reconstruction rejoins each typed callable, including its exact signature
-and contracts, to the matching canonical accepted-claim row and assigns the
-closed status `OpenRootAdmission`. Composition over the exact source/question
-closure propagates every such dependency claim to the selected root while
-retaining its original package owner. No producer decision, certificate,
-accepted-lock state, or `PackageInstance` route is representable in this type.
+The current in-memory ordinary result lanes handle bodyless accepted claims and
+opaque external executable supplies. Local reconstruction rejoins each typed
+callable or external-supply fact to its matching canonical row and assigns only
+`OpenRootAdmission`. Composition over the exact source/question closure
+propagates every such dependency obligation to the selected root while
+retaining its original package owner. Fresh root-policy binding independently
+requires exact conflict bijections for both row kinds. No producer decision,
+certificate, accepted-lock state, or `PackageInstance` route is representable
+in these types.
 
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
