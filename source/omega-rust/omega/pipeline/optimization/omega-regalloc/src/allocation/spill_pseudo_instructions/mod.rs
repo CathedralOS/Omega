@@ -6,12 +6,14 @@
 //! authority.
 
 mod compute;
+mod homed;
 mod identity;
 mod model;
 mod replay;
 mod validate;
 
 pub use identity::spill_pseudo_instruction_plan_identity;
+pub use homed::*;
 pub use model::*;
 pub use validate::validate_spill_pseudo_instructions;
 
