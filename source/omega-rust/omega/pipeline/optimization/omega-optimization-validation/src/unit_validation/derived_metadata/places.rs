@@ -66,6 +66,10 @@ pub(crate) fn validate_operation_places(
     };
     match operation {
         O::EstablishByteSequenceLiteral { .. } | O::EstablishTrivialAffineLocal { .. } => {}
+        O::WriteOnlyPrimitiveStore { destination, .. }
+        | O::StructuralScalarFieldStore { destination, .. } => {
+            require(destination.place, known)?;
+        }
         O::CallUnit {
             structural_arguments,
             ..
@@ -89,6 +93,7 @@ pub(crate) fn validate_operation_places(
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
             require(*source, known)?;
         }
+        O::IntegerStructuralField { source, .. } => require(source.place, known)?,
         O::Return {
             cleanup_actions, ..
         }

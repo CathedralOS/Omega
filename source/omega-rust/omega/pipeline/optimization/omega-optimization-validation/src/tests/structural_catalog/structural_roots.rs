@@ -173,6 +173,161 @@ fn boolean_structural_field_replays_terminal_root_and_cleanup_contract() {
     invalid(differing_observation);
 }
 
+fn assert_invalid_direct_realization_observation(mut candidate: PsiOptimizationUnit) {
+    refresh_identity(&mut candidate);
+    assert!(matches!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::InvalidBooleanStructuralField { .. })
+    ));
+}
+
+#[test]
+fn unrestricted_shared_boolean_structural_field_direct_realization_validates() {
+    validate_psi_optimization_unit(&direct_realization_boolean_structural_field_unit())
+        .expect("an unqualified unrestricted shared direct realization validates");
+}
+
+#[test]
+fn unrestricted_shared_integer_structural_field_direct_realization_validates() {
+    validate_psi_optimization_unit(&direct_realization_integer_structural_field_unit())
+        .expect("an unqualified unrestricted shared integer field read validates");
+}
+
+#[test]
+fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
+    let mut access = direct_realization_integer_structural_field_unit();
+    access.functions[0].structural_parameters[0].access =
+        psi_terminal::StructuralAccess::MutableBorrow;
+    refresh_identity(&mut access);
+    assert!(matches!(
+        validate_psi_optimization_unit(&access),
+        Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+    ));
+
+    let mut result_type = direct_realization_integer_structural_field_unit();
+    let O::IntegerStructuralField { result, .. } =
+        &mut result_type.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    result.scalar_type = ScalarType::Boolean;
+    refresh_node_derivatives(&mut result_type, 0, 0, 0);
+    refresh_identity(&mut result_type);
+    assert!(validate_psi_optimization_unit(&result_type).is_err());
+
+    let mut field = direct_realization_integer_structural_field_unit();
+    let O::IntegerStructuralField {
+        field: selected_field,
+        ..
+    } = &mut field.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    *selected_field = id(4_799, psi_core::StructuralFieldId::new);
+    refresh_node_derivatives(&mut field, 0, 0, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&field),
+        Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+    ));
+}
+
+#[test]
+fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
+    validate_psi_optimization_unit(&structural_scalar_field_store_unit())
+        .expect("an exact mutable projected scalar store validates");
+
+    let mut access = structural_scalar_field_store_unit();
+    access.functions[0].structural_parameters[0].access =
+        psi_terminal::StructuralAccess::SharedBorrow;
+    let O::StructuralScalarFieldStore { destination, .. } =
+        &mut access.functions[0].blocks[0].nodes[1].operation
+    else {
+        unreachable!()
+    };
+    destination.access = psi_terminal::StructuralAccess::SharedBorrow;
+    refresh_node_derivatives(&mut access, 0, 0, 1);
+    refresh_identity(&mut access);
+    assert!(matches!(
+        validate_psi_optimization_unit(&access),
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldStore { .. })
+    ));
+
+    let mut path = structural_scalar_field_store_unit();
+    let O::StructuralScalarFieldStore { path: selected, .. } =
+        &mut path.functions[0].blocks[0].nodes[1].operation
+    else {
+        unreachable!()
+    };
+    selected.clear();
+    refresh_node_derivatives(&mut path, 0, 0, 1);
+    assert!(matches!(
+        validate_psi_optimization_unit(&path),
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldStore { .. })
+    ));
+
+    let mut field = structural_scalar_field_store_unit();
+    let O::StructuralScalarFieldStore {
+        field: selected, ..
+    } = &mut field.functions[0].blocks[0].nodes[1].operation
+    else {
+        unreachable!()
+    };
+    *selected = id(4_799, psi_core::StructuralFieldId::new);
+    refresh_node_derivatives(&mut field, 0, 0, 1);
+    assert!(matches!(
+        validate_psi_optimization_unit(&field),
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldStore { .. })
+    ));
+}
+
+#[test]
+fn direct_realization_boolean_structural_field_rejects_access_corruption() {
+    let mut readable_but_exclusive = direct_realization_boolean_structural_field_unit();
+    readable_but_exclusive.functions[0].structural_parameters[0].access =
+        psi_terminal::StructuralAccess::MutableBorrow;
+    assert_invalid_direct_realization_observation(readable_but_exclusive);
+
+    let mut write_only = direct_realization_boolean_structural_field_unit();
+    write_only.functions[0].structural_parameters[0].access =
+        psi_terminal::StructuralAccess::WriteOnlyBorrow;
+    assert_invalid_direct_realization_observation(write_only);
+}
+
+#[test]
+fn direct_realization_boolean_structural_field_rejects_multiplicity_corruption() {
+    let mut affine = direct_realization_boolean_structural_field_unit();
+    affine.functions[0].structural_parameters[0].multiplicity =
+        psi_terminal::StructuralMultiplicity::Affine;
+    assert_invalid_direct_realization_observation(affine);
+}
+
+#[test]
+fn direct_realization_boolean_structural_field_rejects_type_corruption() {
+    let mut non_boolean = direct_realization_boolean_structural_field_unit();
+    let psi_terminal::StructuralTypeShape::Record { fields } =
+        &mut non_boolean.structural_types[0].shape
+    else {
+        panic!("direct realization carrier is a record")
+    };
+    fields[0].field_type = psi_terminal::StructuralFieldType::Scalar(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 8).expect("u8"),
+    ));
+    assert_invalid_direct_realization_observation(non_boolean);
+}
+
+#[test]
+fn direct_realization_boolean_structural_field_rejects_field_corruption() {
+    let mut wrong_field = direct_realization_boolean_structural_field_unit();
+    let O::BooleanStructuralField { field, .. } =
+        &mut wrong_field.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("direct realization begins with a Boolean field observation")
+    };
+    *field = id(4_799, psi_core::StructuralFieldId::new);
+    refresh_node_derivatives(&mut wrong_field, 0, 0, 0);
+    assert_invalid_direct_realization_observation(wrong_field);
+}
+
 #[test]
 fn structural_returns_reject_non_source_roots_and_signature_drift() {
     let mut result_root = structural_result_call_unit();

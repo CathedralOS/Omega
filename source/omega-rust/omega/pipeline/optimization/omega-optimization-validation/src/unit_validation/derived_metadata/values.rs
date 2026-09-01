@@ -25,7 +25,9 @@ pub(crate) fn expected_definitions(
         O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
-        O::CallStructuralScalar { result, .. } => Some((result.value, result.scalar_type)),
+        O::CallStructuralScalar { result, .. } | O::IntegerStructuralField { result, .. } => {
+            Some((result.value, result.scalar_type))
+        }
         O::BoundaryCall {
             result: Some(result),
             ..
@@ -174,7 +176,9 @@ pub(crate) fn expected_uses(
     use omega_abstract_operations::AbstractOperation as O;
     let values = match operation {
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
-        O::WriteOnlyPrimitiveStore { value, .. } => vec![value.value],
+        O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
+            vec![value.value]
+        }
         O::BooleanNot { operand, .. }
         | O::IntegerBitwiseNot { operand, .. }
         | O::IntegerWiden { operand, .. }
