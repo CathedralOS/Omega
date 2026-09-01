@@ -1,7 +1,12 @@
 use omega_compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
-    compile_to_checked, realize_retained_terminal_artifact_with_source_evaluated_imports,
+    compile_to_checked, compile_to_checked_with_packages,
+    realize_retained_terminal_artifact_with_source_evaluated_imports,
 };
+use omega_package_compilation::{
+    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
+use psi_core::PackageKeyIdentity;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -55,6 +60,42 @@ fn pass_canary_main(name: &str) -> PathBuf {
         .join("../../../../../tests/omega/pass")
         .join(name)
         .join("main.omg")
+}
+
+fn package_identity(marker: u8) -> PackageKeyIdentity {
+    PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero fixture package identity")
+}
+
+fn package_inputs_with_standard_library(
+    main: &std::path::Path,
+    canonical_name: &str,
+) -> PackageCompilationInputs {
+    let root = main.parent().expect("canary project root");
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("repository root")
+        .to_path_buf();
+    let root_identity = package_identity(1);
+    let standard_library_identity = package_identity(2);
+    PackageCompilationInputs::new(
+        root_identity,
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(root_identity, canonical_name, root.to_path_buf()),
+            PackageSourceBinding::new(
+                standard_library_identity,
+                "omega-language-std",
+                repository.join("source/library/std"),
+            ),
+        ],
+        vec![PackageDependencyBinding::new(
+            root_identity,
+            "omega_language_std",
+            standard_library_identity,
+        )],
+    )
+    .expect("ordinary std dependency graph")
 }
 
 fn diagnostic_text(project: &TempProject) -> String {
@@ -217,12 +258,16 @@ fn exact_x86_build_must_opt_in_before_fma_admission_exists() {
 fn exact_x86_fma_demand_fails_closed_without_feature_admission() {
     let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
     for target in ["linux_x86_64", "windows_x86_64"] {
-        let diagnostics = compile_to_checked(&main, Some(target))
-            .expect_err("an exact-profile x86 FMA demand requires explicit deployment admission")
-            .into_iter()
-            .map(|diagnostic| diagnostic.message)
-            .collect::<Vec<_>>()
-            .join("\n");
+        let diagnostics = compile_to_checked_with_packages(
+            &main,
+            Some(target),
+            package_inputs_with_standard_library(&main, "named-provider-fused-multiply-add-exit"),
+        )
+        .expect_err("an exact-profile x86 FMA demand requires explicit deployment admission")
+        .into_iter()
+        .map(|diagnostic| diagnostic.message)
+        .collect::<Vec<_>>()
+        .join("\n");
         assert!(
             diagnostics.contains("requires explicit AVX+FMA3 admission"),
             "unexpected {target} diagnostics: {diagnostics}"
@@ -250,8 +295,12 @@ fn admitted_x86_fma_demand_retains_exact_plan_associations() {
         ),
     ] {
         let main = pass_canary_main("float/x86_fma_plan_association");
-        let checked = compile_to_checked(&main, Some(target))
-            .unwrap_or_else(|diagnostics| panic!("{target} FMA admission failed: {diagnostics:?}"));
+        let checked = compile_to_checked_with_packages(
+            &main,
+            Some(target),
+            package_inputs_with_standard_library(&main, "x86-fma-plan-association"),
+        )
+        .unwrap_or_else(|diagnostics| panic!("{target} FMA admission failed: {diagnostics:?}"));
         let provider = checked
             .x86_scalar_fma_provider()
             .expect("explicit feature selection must retain one provider");
