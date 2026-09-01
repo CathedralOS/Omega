@@ -8893,10 +8893,14 @@ Owners:
   geometry drift reject. Reference, array, variant, and deeper field descent
   remain fenced engineering extensions. Direct-parameter declaration and
   target closure are now live through the normalized boundary signature and
-  placement application; joining that direct row to a source registrar
-  occurrence, selected callback, assigned operand, and emitted call remains a
-  later engineering slice. This carrier still owns no selected/assigned
-  operation, object symbol, relocation kind, bytes, runtime address,
+  placement application. The ordinary unoptimized normalized-import path now
+  also joins exactly one direct row to its source registrar occurrence and
+  selected callback by stable Terminal `OperationId`, carries the native-only
+  target operand at its authored ordinal beside scalar semantic arguments, and
+  retains its exact register or stack destination through physical assignment.
+  Emitting that assigned callback argument and synthesizing its selected thunk
+  remain later engineering slices. This carrier still owns no object symbol,
+  relocation kind, bytes, runtime address,
   registration authority, or lease. The exact assigned-operand
   prerequisite is now complete for the custom/unknown outbound registrar
   branch. Selection retains the exact source host-call handle, call/operation
@@ -8995,13 +8999,17 @@ Owners:
   Terminal Psi. Native production remains deliberately fenced rather than
   discarding this custody.
 
-  Remaining direct-form engineering is to feed that target-owned application
-  into native realization keyed by stable Terminal `OperationId`, then carry it
-  through exact abstract/target/assigned operand and call emission plus
-  downstream artifact replay. The canonical pipeline currently has no native-
-  only callback-argument carrier, and the removed custom/unknown host-operation
-  prototype must not be treated as live implementation. The direct-form
-  negative matrix is complete. Source and retained-product canaries reject an
+  The first direct-form continuation is complete through physical assignment.
+  Compiler re-entry consumes exactly one target-owned application keyed by
+  stable Terminal `OperationId`; abstract and target lowering retain the
+  native-only callback argument and selected thunk identity, and assignment
+  binds it to the plan-selected complete register or stack destination without
+  inventing a source `ValueId` or Omega runtime type. The remaining direct-form
+  engineering is thunk/private-symbol synthesis, callback-address loading,
+  registrar-call emission and relocation, and downstream artifact replay.
+  The removed custom/unknown host-operation prototype must not be treated as
+  authority for this ordinary normalized-import path. The direct-form negative
+  matrix is complete. Source and retained-product canaries reject an
   authored `addr` substitute, omitted or inferred `from`, duplicate declaration
   names, duplicate/wrong binders or requirements, undeclared/policy-created
   parameter insertion, ordinal-derived v1 parameter identity, and a fully
@@ -11958,8 +11966,22 @@ checked-result arithmetic decision listed below.
   across the complete cohort. Paths deeper than eleven records, recursive or
   array-mediated paths, direct-sum coexistence, and target-dependent placement
   remain rejected; every shallower API retains its exact boundary.
+  The complete plural depth-twelve fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-eleven report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-eleven carriers, preserves repeated nominal
+  occurrences, rebuilds every nested zero-padded image in authored order,
+  replays every layout and occurrence identity hash-free, and performs one
+  final atomic copy. Projection and replay share one memoized bounded walk and
+  global leaf ceiling across the complete cohort. Paths deeper than twelve
+  records, recursive or array-mediated paths, direct-sum coexistence, and
+  target-dependent placement remain rejected; every shallower API retains its
+  exact boundary.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  eleven records, plural paths deeper than eleven records, mixed common-field/case
+  twelve records, plural paths deeper than twelve records, mixed common-field/case
   shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
