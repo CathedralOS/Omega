@@ -5,3 +5,4 @@ mod bitwise_and_immediate;
 mod bitwise_or;
 mod bitwise_or_immediate;
 mod bitwise_xor;
+mod bitwise_xor_immediate;

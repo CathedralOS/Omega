@@ -2,6 +2,7 @@
 
 mod integer_bitwise_and;
 mod integer_bitwise_or;
+mod integer_bitwise_xor;
 mod integer_less_or_equal;
 mod integer_less_than;
 mod wrapping_integer_add;
@@ -10,6 +11,7 @@ mod wrapping_integer_subtract;
 
 pub use integer_bitwise_and::StraightLineIntegerBitwiseAndImmediateTranslationReceipt;
 pub use integer_bitwise_or::StraightLineIntegerBitwiseOrImmediateTranslationReceipt;
+pub use integer_bitwise_xor::StraightLineIntegerBitwiseXorImmediateTranslationReceipt;
 pub use integer_less_or_equal::StraightLineIntegerLessOrEqualImmediateTranslationReceipt;
 pub use integer_less_than::StraightLineIntegerLessThanImmediateTranslationReceipt;
 pub use wrapping_integer_add::StraightLineWrappingIntegerAddImmediateTranslationReceipt;

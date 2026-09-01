@@ -15,6 +15,7 @@ pub(crate) mod straight_line_ieee_float_literal_unit_return;
 pub(crate) mod straight_line_integer_bitwise_and_immediate;
 pub(crate) mod straight_line_integer_bitwise_not_immediate;
 pub(crate) mod straight_line_integer_bitwise_or_immediate;
+pub(crate) mod straight_line_integer_bitwise_xor_immediate;
 pub(crate) mod straight_line_integer_equal_immediate;
 pub(crate) mod straight_line_integer_less_than_immediate;
 pub(crate) mod straight_line_integer_less_or_equal_immediate;
