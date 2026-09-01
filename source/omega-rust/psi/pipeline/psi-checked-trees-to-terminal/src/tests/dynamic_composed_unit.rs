@@ -29,6 +29,32 @@ const DIRECT_DYNAMIC_SOURCE: &str = r#"
     }
 "#;
 
+const DIRECT_DYNAMIC_INTEGER_STORE_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] {
+        value: i32;
+    }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main [copy] {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        self.item.value = 17;
+        let erased: &dyn Measure = &self.item as &dyn Item::Primary;
+        let result: i32 = erased.measure();
+    }
+"#;
+
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
 }
@@ -219,5 +245,89 @@ fn rejects_source_path_and_machine_contract_tampering() {
     assert_eq!(
         unsupported_message(&caller_contract),
         "direct dynamic machine requires an unsupported contract lane"
+    );
+}
+
+#[test]
+fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization() {
+    let checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
+    let plan = direct_plan(&checked);
+    let store = plan
+        .caller_structural_scalar_field_store
+        .as_ref()
+        .expect("checked caller field store");
+    assert_eq!(store.field_identity, "value");
+
+    let lowered = lower_machine(&checked, "Main::run").expect("integer store route lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("integer store route verifies");
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("caller machine");
+    assert_eq!(
+        caller.structural_parameters[0].access,
+        psi_terminal::StructuralAccess::MutableBorrow
+    );
+    assert!(matches!(
+        caller.blocks[0].operations.as_slice(),
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::StructuralScalarFieldStore { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::CallStructuralScalar { .. },
+                ..
+            }
+        ]
+    ));
+    let realization = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id != lowered.semantic_module.entry)
+        .expect("selected realization");
+    assert!(matches!(
+        realization.blocks[0].operations.as_slice(),
+        [psi_terminal::Operation {
+            kind: OperationKind::IntegerStructuralField { .. },
+            ..
+        }]
+    ));
+
+    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("integer store route has canonical source-free encoding");
+}
+
+#[test]
+fn rejects_tampered_checked_dynamic_store_custody() {
+    let mut checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
+    direct_plan_mut(&mut checked)
+        .caller_structural_scalar_field_store
+        .as_mut()
+        .expect("checked caller field store")
+        .field_identity = "missing".into();
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic store field is absent or ambiguous"
+    );
+
+    let mut checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
+    direct_plan_mut(&mut checked)
+        .caller_structural_scalar_field_store
+        .as_mut()
+        .expect("checked caller field store")
+        .carrier_path
+        .clear();
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic caller store drifted from checked custody"
     );
 }
