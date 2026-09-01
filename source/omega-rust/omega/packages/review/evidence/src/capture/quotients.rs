@@ -10,12 +10,16 @@ use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientCorrespondenceOperationKind,
+    QuotientTheoremCorrespondence, QuotientTheoremRole as CanonicalQuotientTheoremRole,
 };
-use psi_typed_trees::TypedTrees;
-use psi_typed_trees::expression::{ExpressionNode, QuotientOperationKind};
+use psi_typed_trees::expression::{
+    ExpressionNode, QuotientOperationKind, QuotientOperationRequest,
+    QuotientTheoremRole as TypedQuotientTheoremRole,
+};
 use psi_typed_trees::statement::StatementNode;
+use psi_typed_trees::TypedTrees;
 
-/// Project the complete proof-only total-direct `define` batch into package
+/// Project the complete bounded proof-only direct quotient batch into package
 /// review without admitting any executable quotient operation.
 ///
 /// Ordinary checked package projection remains unchanged and fail closed. This
@@ -46,7 +50,7 @@ fn project_replayed_batch(
     }
     if supplied.is_empty() {
         return Err(vec![Diagnostic::error(
-            "non-executable quotient package review requires at least one total-direct `define` correspondence",
+            "non-executable quotient package review requires at least one supported direct correspondence",
         )]);
     }
 
@@ -56,11 +60,6 @@ fn project_replayed_batch(
         let machine = exact_operation(program, certificate)?;
         if program.symbols.symbol_package_identity(machine.symbol) != Some(package) {
             continue;
-        }
-        if certificate.operation_kind != QuotientCorrespondenceOperationKind::Define {
-            return Err(vec![Diagnostic::error(
-                "package review represents only the proof-only total-direct `Quotient::define` correspondence; lift remains unsupported",
-            )]);
         }
         if !machine.is_public {
             return Err(vec![Diagnostic::error(
@@ -97,12 +96,14 @@ fn project_replayed_batch(
                 "non-executable quotient package-review result does not name an exact call",
             )]);
         };
-        if !matches!(
-            call.quotient_operation.as_ref(),
-            Some(request) if request.kind == QuotientOperationKind::Define
-        ) {
+        let Some(request) = call.quotient_operation.as_ref() else {
             return Err(vec![Diagnostic::error(
-                "non-executable quotient package-review source call is not an exact `Quotient::define` request",
+                "non-executable quotient package-review source call is not an exact quotient request",
+            )]);
+        };
+        if !supported_source_request(certificate, request) {
+            return Err(vec![Diagnostic::error(
+                "non-executable quotient package-review source call does not match the exact supported operation kind and theorem-role roster",
             )]);
         }
         let location = canonical_typed_package_source_span_location(
@@ -128,7 +129,7 @@ fn project_replayed_batch(
 
     if selected.is_empty() {
         return Err(vec![Diagnostic::error(
-            "non-executable quotient package review contains no total-direct `define` correspondence owned by the requested package",
+            "non-executable quotient package review contains no supported direct correspondence owned by the requested package",
         )]);
     }
 
@@ -138,6 +139,60 @@ fn project_replayed_batch(
         correspondences: selected,
         row_sources: sources,
     })
+}
+
+fn supported_source_request(
+    certificate: &CanonicalQuotientCorrespondence,
+    request: &QuotientOperationRequest,
+) -> bool {
+    match (certificate.operation_kind, request.kind) {
+        (QuotientCorrespondenceOperationKind::Define, QuotientOperationKind::Define) => {
+            matches!(
+                certificate.theorem_evidence.as_slice(),
+                [
+                    psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                        role: CanonicalQuotientTheoremRole::Congruence,
+                        correspondence: QuotientTheoremCorrespondence::Congruence(_),
+                        ..
+                    }
+                ]
+            ) && request
+                .theorem_evidence
+                .iter()
+                .map(|evidence| evidence.role)
+                .eq([TypedQuotientTheoremRole::Congruence])
+        }
+        (
+            QuotientCorrespondenceOperationKind::LiftWithForwardPreconditionTransport,
+            QuotientOperationKind::Lift,
+        ) => {
+            matches!(
+                certificate.theorem_evidence.as_slice(),
+                [
+                    psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                        role: CanonicalQuotientTheoremRole::Congruence,
+                        correspondence: QuotientTheoremCorrespondence::Congruence(_),
+                        ..
+                    },
+                    psi_language_semantics::quotient_correspondence::QuotientTheoremEvidence {
+                        role: CanonicalQuotientTheoremRole::ForwardPreconditionTransport,
+                        correspondence: QuotientTheoremCorrespondence::ForwardPreconditionTransport(
+                            _
+                        ),
+                        ..
+                    }
+                ]
+            ) && request
+                .theorem_evidence
+                .iter()
+                .map(|evidence| evidence.role)
+                .eq([
+                    TypedQuotientTheoremRole::Congruence,
+                    TypedQuotientTheoremRole::ForwardPreconditionTransport,
+                ])
+        }
+        _ => false,
+    }
 }
 
 fn exact_operation<'program>(

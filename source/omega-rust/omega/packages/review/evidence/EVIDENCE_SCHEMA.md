@@ -10,19 +10,23 @@ and external executable supplies open for root admission. The outer ledger
 encoding remains version 2; no new persistence authority is introduced.
 
 Schema v120 / row v78 / recovery v16 adds the separate proof-only blocking row
-for the bounded total, direct quotient `define` correspondence. Its producer
-reruns the complete transactional source extractor, requires exact batch
-equality, and selects a nonempty subset by the requested package's exact public
-operation.
+for bounded direct quotient correspondences. Its producer reruns the complete
+transactional source extractor, requires exact batch equality, and selects a
+nonempty subset by the requested package's exact public operation. The first
+projection admitted total, direct `define`; the same closed row now also
+projects position-preserving direct transport-backed `lift` without a schema
+bump because operation kind 3 and the complete two-role theorem payload were
+already encoded exhaustively.
 The row encodes the complete source-free correspondence: callable and closed
 application identities, positional relations, theorem role/application and
 contract-fact coordinates, eligibility, and direct result coordinate.
 Explanatory source custody is the authored public operation declaration; the
 compiler-synthesized typed quotient-call node is not claimed as authored.
-Mixed-package extraction filters to each requested package. Lift, adapted,
-private, unselected, wrong-package, and batch-drift forms remain rejected, as
-do all ordinary checked and executable quotient requests. This is not the full
-package-review migration and grants no package or executable authority.
+Mixed-package extraction filters to each requested package. Two-argument lift,
+adapted, literal, permuted, repeated, generic, private, unselected,
+wrong-package, and batch-drift forms remain rejected, as do all ordinary
+checked and executable quotient requests. This is not the full package-review
+migration and grants no package or executable authority.
 
 Schema v119 / row v77 implements D55 exact-requirement lifetime applications.
 Checked and external realization edges retain raw machine-lifetime ordinals for

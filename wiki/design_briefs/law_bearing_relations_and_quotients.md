@@ -1019,19 +1019,22 @@ operation, normal validation continues to reject every quotient operation, and
 a batch with one unsupported request yields no partial rows. This is a
 source-erasure, module-retention, and replay prerequisite, not executable
 stage-4 admission. A separate proof-only package-review projection now retains
-the exact total, direct `define` correspondence. It transactionally rederives
-the complete all-program extractor batch, requires exact batch equality, and
-then selects a nonempty subset by the requested package's exact public
-operation identity. The source-free canonical row retains the full theorem and
-contract-fact coordinates, positional relations, eligibility, and direct
-result coordinate; its explanatory source role names the public operation
-declaration, not the compiler-synthesized typed call node. Package-review
-schema 120 / row schema 78 / recovery schema 16 add the blocking row kind and
-bounded opaque row recovery. Mixed-package extraction is permitted only by
-filtering each review to its own rows; lift, adapted, private, unselected,
-wrong-package, and batch drift remain rejected. Ordinary checked package
-review still blanket-rejects quotient contract calls, so executable checked
-operation/result lowering and the full package-review migration remain open.
+the exact total, direct `define` and exact position-preserving direct transport-
+backed `lift` correspondences. It transactionally rederives the complete all-
+program extractor batch, requires exact batch equality, and then selects a
+nonempty subset by the requested package's exact public operation identity.
+The source-free canonical row retains the full theorem and contract-fact
+coordinates, positional relations, eligibility, and direct result coordinate;
+its explanatory source role names the public operation declaration, not the
+compiler-synthesized typed call node. Package-review schema 120 / row schema 78
+/ recovery schema 16 already encode the closed transport operation kind and
+complete two-role payload, so no schema bump is required. Mixed-package
+extraction is permitted only by filtering each review to its own rows; two-
+argument lift, adapted, literal, permuted, repeated, generic, private,
+unselected, wrong-package, and batch drift remain rejected. Ordinary checked
+package review still blanket-rejects quotient contract calls, so executable
+checked operation/result lowering and the full package-review migration remain
+open.
 
 The collection migration is now live through sealed typed requests, checked
 relation planning, and the proof-only total-direct `define` plus bounded direct
@@ -1039,10 +1042,10 @@ transport-`lift` Terminal seam.
 Three-argument `lift` retains `Congruence` followed by
 `ForwardPreconditionTransport`. Its role-specific checked verifier now produces
 the complete non-executable `Q -> P` transport certificate, and selected and
-automatic transport are never mixed. Terminal representation replay is now
-closed for its position-preserving form only. Package review blanket-rejects
-quotient contract calls and has no quotient-operation record to migrate, and
-execution admission remains fail closed.
+automatic transport are never mixed. Terminal representation replay and the
+separate proof-only package-review projection are now closed for its position-
+preserving form only. Ordinary package review still blanket-rejects quotient
+contract calls, and execution admission remains fail closed.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized
