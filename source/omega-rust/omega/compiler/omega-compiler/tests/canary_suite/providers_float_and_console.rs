@@ -82,6 +82,13 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
         realization.role(),
         omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
     );
+    let [coverage] = proposal.boundary_application_coverage().references() else {
+        panic!("{label} should publish one reconstructible D29 coverage reference")
+    };
+    assert_eq!(
+        coverage.terminal_operation(),
+        source_free_demand.terminal_operation(),
+    );
     assert!(
         module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
@@ -677,6 +684,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             selected_provider_plans: parts.selected_provider_plans.clone(),
             provider_executions: parts.provider_executions.clone(),
             terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+            boundary_application_coverage: parts.boundary_application_coverage.clone(),
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence.clone(),
         }
@@ -735,6 +743,14 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             artifact.physical_evidence_scope(),
             native::NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
         );
+        assert!(
+            artifact
+                .boundary_application_coverage()
+                .expect("checked native artifact retains exact D29 custody")
+                .references()
+                .is_empty(),
+            "empty checked D29 custody is distinct from unavailable custody",
+        );
         assert_eq!(evidence.projection().boundary_occurrences().len(), 1);
         let [child] = evidence.children() else {
             panic!("{target} exit_group must have exactly one physical child")
@@ -765,6 +781,13 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         replayed
             .validate_for_terminal_authority_policy(accepted_policy.identity())
             .expect("unchanged receiving policy must replay");
+
+        let mut missing_d29_custody = replay_parts(&parts);
+        missing_d29_custody.boundary_application_coverage = None;
+        assert!(
+            native::NativeArtifact::from_replayed_parts(missing_d29_custody).is_err(),
+            "empty-D29 physical scope cannot survive removal of exact D29 custody",
+        );
 
         let mut substituted_policy = replay_parts(&parts);
         substituted_policy.terminal_authority_policy_identity =
@@ -965,6 +988,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             external_binding_rows: proposal.external_binding_rows(),
             settlements: &[],
             compiler_builtins: &compiler_builtins,
+            boundary_application_coverage: Some(proposal.boundary_application_coverage()),
             ieee_float_fma: &[],
             native_callbacks: &[],
         },

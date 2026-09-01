@@ -9,13 +9,18 @@
 
 use std::collections::BTreeSet;
 
+use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
 use omega_effects::TerminalAuthorityPolicyIdentity;
 pub use omega_image_emission::BoundaryExecutionRecord;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
 
+mod boundary_applications;
 mod physical;
 
+use boundary_applications::{
+    boundary_application_coverage_identity, validate_boundary_application_coverage,
+};
 use physical::derive_physical_evidence;
 pub use physical::{
     BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeByteSpan,
@@ -25,7 +30,7 @@ pub use physical::{
     PhysicalRelocationDisposition,
 };
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v3\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v4\0";
 
 /// Collision-resistant identity of one complete, validated native artifact.
 ///
@@ -232,6 +237,7 @@ pub struct NativeArtifact {
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence: Option<NativePhysicalEvidence>,
     identity: NativeArtifactIdentity,
@@ -248,6 +254,7 @@ pub struct NativeArtifactParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
     pub physical_evidence: Option<NativePhysicalEvidence>,
 }
@@ -266,6 +273,7 @@ pub struct NativeArtifactEmissionParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
@@ -392,6 +400,7 @@ impl NativeArtifact {
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
             terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+            boundary_application_coverage: parts.boundary_application_coverage,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence,
         })
@@ -411,6 +420,7 @@ impl NativeArtifact {
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
             terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+            boundary_application_coverage: parts.boundary_application_coverage,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence,
             identity: NativeArtifactIdentity([0; 32]),
@@ -435,6 +445,12 @@ impl NativeArtifact {
             .map_err(|_| "native artifact image failed object-to-image replay")?;
         let module = psi_terminal_codec::decode_module(self.psi_artifact.semantic_bytes())
             .map_err(|_| "native artifact canonical semantics failed to decode")?;
+        validate_boundary_application_coverage(
+            &module,
+            self.psi_artifact.manifest().semantic(),
+            self.boundary_application_coverage.as_ref(),
+            self.physical_evidence_scope,
+        )?;
         validate_ieee_float_fma_occurrences(&module, &self.object, &self.selected_provider_plans)?;
         if module.entry != self.object.entry() {
             return Err("native artifact entry disagrees with canonical semantics");
@@ -602,6 +618,9 @@ impl NativeArtifact {
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            boundary_application_coverage_identity: boundary_application_coverage_identity(
+                self.boundary_application_coverage.as_ref(),
+            ),
             physical_evidence_scope: self.physical_evidence_scope,
             physical_evidence_identity: self
                 .physical_evidence
@@ -663,6 +682,15 @@ impl NativeArtifact {
         self.terminal_authority_policy_identity
     }
 
+    /// Exact D29 demand and realization custody. `None` means this artifact
+    /// was realized without a checked source-to-Terminal join; an exact empty
+    /// demand set is retained as `Some` with zero references.
+    pub const fn boundary_application_coverage(
+        &self,
+    ) -> Option<&TerminalBoundaryApplicationCoverage> {
+        self.boundary_application_coverage.as_ref()
+    }
+
     /// Replay this artifact under a receiving authority's exact accepted
     /// target policy. Base validation cannot decide which policy a receiver
     /// accepts; this join makes policy substitution explicit.
@@ -700,6 +728,7 @@ impl NativeArtifact {
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            boundary_application_coverage: self.boundary_application_coverage,
             physical_evidence_scope: self.physical_evidence_scope,
             physical_evidence: self.physical_evidence,
         }
@@ -850,6 +879,7 @@ struct NativeArtifactIdentityFields<'a> {
     selected_provider_plans: &'a [NativeSelectedProviderPlan],
     provider_executions: &'a [NativeProviderExecution],
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    boundary_application_coverage_identity: Option<[u8; 32]>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence_identity: Option<[u8; 32]>,
 }
@@ -936,6 +966,7 @@ fn derive_native_artifact_identity(
             .to_le_bytes(),
     );
     digest.update(fields.terminal_authority_policy_identity.commitment());
+    hash_optional_digest(&mut digest, fields.boundary_application_coverage_identity);
     digest.update([match fields.physical_evidence_scope {
         NativePhysicalEvidenceScope::Unavailable => 0,
         NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications => 1,
@@ -1087,6 +1118,7 @@ mod tests {
         requirement: &'a str,
         execution_report_fingerprint: u64,
         terminal_policy_marker: u8,
+        boundary_application_marker: Option<u8>,
         physical_evidence_scope: NativePhysicalEvidenceScope,
         physical_evidence_marker: u8,
         with_validation_evidence: bool,
@@ -1108,6 +1140,7 @@ mod tests {
                 requirement: "core::Console::write",
                 execution_report_fingerprint: 41,
                 terminal_policy_marker: 67,
+                boundary_application_marker: Some(73),
                 physical_evidence_scope:
                     NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
                 physical_evidence_marker: 61,
@@ -1157,6 +1190,9 @@ mod tests {
                 1,
                 [fixture.terminal_policy_marker; 32],
             ),
+            boundary_application_coverage_identity: fixture
+                .boundary_application_marker
+                .map(|marker| [marker; 32]),
             physical_evidence_scope: fixture.physical_evidence_scope,
             physical_evidence_identity: Some([fixture.physical_evidence_marker; 32]),
         })
@@ -1283,6 +1319,10 @@ mod tests {
             }),
             fixture_identity(IdentityFixture {
                 terminal_policy_marker: 71,
+                ..IdentityFixture::default()
+            }),
+            fixture_identity(IdentityFixture {
+                boundary_application_marker: None,
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {
