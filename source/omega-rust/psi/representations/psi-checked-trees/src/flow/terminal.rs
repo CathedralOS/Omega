@@ -598,6 +598,10 @@ pub struct CheckedUnitEffectPlans {
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub boundary_machines: Vec<CheckedBoundaryMachinePlan>,
     pub machines: Vec<CheckedUnitEffectMachinePlan>,
+    /// Dynamic dispatch custody is grouped separately so direct and rebound
+    /// descriptor/table lanes can evolve without repeatedly widening this
+    /// general Unit-plan record.
+    pub dynamic_dispatch: crate::CheckedDynamicDispatchPlans,
     /// Multi-state Unit machines whose exact control and effect rows were
     /// admitted as one atomic executable plan.
     pub composed_machines: Vec<CheckedComposedUnitControlMachinePlan>,
