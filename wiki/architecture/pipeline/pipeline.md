@@ -181,6 +181,12 @@ so later final-realization admission fails closed instead of mistaking partial
 coverage for a complete child set. D29, admitted-provider, and non-identity
 optimized projections remain explicit follow-on lanes.
 
+The checked companion also retains the exact roster-index-to-Terminal-operation
+join for currently lowerable selected checked-body calls and nearest-FMA
+intrinsics. This private handoff prevents later code from guessing an occurrence
+by count or operation shape; it is not yet canonical source-free D29 coverage
+or a role-specific realization companion.
+
 Cross-field product admission precedes that frontend. The request owner
 consumes `CompileRequest` into a private validated request and rejects a
 nonempty optimization rollback unless the selected product is

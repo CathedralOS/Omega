@@ -98,6 +98,7 @@ use psi_terminal_verifier::{
 
 mod attached_unit;
 mod boolean_control;
+mod boundary_operator_occurrences;
 mod boundary_scalar_return;
 mod conformance_applications;
 mod content_conservation;
@@ -142,6 +143,7 @@ use boolean_control::{
     emit_inlined_boolean_value_blocks, emit_reserved_boolean_tuple_stage_blocks,
     lower_boolean_control_decision, lower_boolean_value_decision, scalar_source_block,
 };
+use boundary_operator_occurrences::checked_boundary_operator_occurrences;
 use conformance_applications::lower_closed_conformance_applications;
 use content_conservation::{RESULT_STRUCTURAL_PLACE_ID, merge_content_place_declaration};
 pub use content_conservation::{
@@ -261,6 +263,7 @@ pub struct LoweredSelectedIeeeFloatFmaOccurrence {
 pub struct CheckedBoundaryOperatorApplicationScope {
     terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
     applications: Vec<psi_checked_trees::CheckedBoundaryOperatorApplicationDemand>,
+    occurrences: Vec<CheckedBoundaryOperatorApplicationOccurrence>,
 }
 
 impl CheckedBoundaryOperatorApplicationScope {
@@ -280,6 +283,33 @@ impl CheckedBoundaryOperatorApplicationScope {
 
     pub fn is_empty(&self) -> bool {
         self.applications.is_empty()
+    }
+
+    pub fn occurrences(&self) -> &[CheckedBoundaryOperatorApplicationOccurrence] {
+        &self.occurrences
+    }
+}
+
+/// Compiler-private join from one retained checked D29 demand to the exact
+/// Terminal operation produced for it. The application index addresses the
+/// immutable roster in [`CheckedBoundaryOperatorApplicationScope`].
+///
+/// This is source-to-Terminal custody, not canonical D29 coverage: public
+/// source-free application identity and the role-specific realization
+/// companion remain later compiler-owned projections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedBoundaryOperatorApplicationOccurrence {
+    application_index: usize,
+    terminal_operation: OperationId,
+}
+
+impl CheckedBoundaryOperatorApplicationOccurrence {
+    pub const fn application_index(self) -> usize {
+        self.application_index
+    }
+
+    pub const fn terminal_operation(self) -> OperationId {
+        self.terminal_operation
     }
 }
 
@@ -1424,7 +1454,8 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
         lowered.debug_map.as_ref(),
     )
     .map_err(TerminalArtifactProductionError::Artifact)?;
-    let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact);
+    let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
+        .map_err(TerminalArtifactProductionError::Lowering)?;
     Ok(ProducedTerminalArtifact {
         artifact,
         boundary_operator_scope,
@@ -1435,11 +1466,13 @@ pub fn produce_terminal_artifact_with_checked_boundary_operator_scope(
 fn checked_boundary_operator_scope(
     checked: &CheckedTrees,
     artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
-) -> CheckedBoundaryOperatorApplicationScope {
-    CheckedBoundaryOperatorApplicationScope {
+    lowered: &LoweredTerminalPsi,
+) -> Result<CheckedBoundaryOperatorApplicationScope, LoweringError> {
+    Ok(CheckedBoundaryOperatorApplicationScope {
         terminal_artifact_identity: artifact.manifest().identity(),
         applications: checked.facts.operators.boundary_applications.clone(),
-    }
+        occurrences: checked_boundary_operator_occurrences(checked, lowered)?,
+    })
 }
 
 /// Produce the canonical source-free artifact without losing the caller's
@@ -1478,8 +1511,18 @@ pub fn produce_terminal_artifact_with_callback_custody<C>(
             });
         }
     };
+    let boundary_operator_scope =
+        match checked_boundary_operator_scope(checked, &artifact, &lowered) {
+            Ok(scope) => scope,
+            Err(error) => {
+                return Err(CallbackCustodyTerminalArtifactProductionError {
+                    error: TerminalArtifactProductionError::Lowering(error),
+                    callback_custody,
+                });
+            }
+        };
     Ok(ProducedTerminalArtifactWithCallbackCustody {
-        boundary_operator_scope: checked_boundary_operator_scope(checked, &artifact),
+        boundary_operator_scope,
         artifact,
         callback_custody,
         source_call_occurrences: lowered.source_call_occurrences,
@@ -1536,8 +1579,10 @@ pub fn produce_program_entry_terminal_artifact(
             ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,
         ));
     }
+    let boundary_operator_scope = checked_boundary_operator_scope(checked, &artifact, &lowered)
+        .map_err(TerminalArtifactProductionError::Lowering)?;
     Ok(ProducedProgramEntryTerminalArtifact {
-        boundary_operator_scope: checked_boundary_operator_scope(checked, &artifact),
+        boundary_operator_scope,
         artifact,
         receipt: CheckedProgramEntryTerminalReceipt {
             source_signature_identity,

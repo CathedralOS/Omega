@@ -77,9 +77,11 @@ stop the item on one precise owner question before adding machinery.
 
   The checked Terminal companion retains the complete immutable D29 demand
   roster and derives the current empty-roster D32 eligibility from those rows;
-  a count-only proxy is not custody. Source-free Terminal-operation joins,
-  role-specific semantic companions, D29 physical parents, and non-identity
-  optimization projections remain open.
+  a count-only proxy is not custody. Currently lowerable selected checked-body
+  and nearest-FMA applications also retain a one-to-one compiler-private join
+  from their exact roster row to the emitted Terminal operation. Canonical
+  source-free application projection, role-specific semantic companions, D29
+  physical parents, and non-identity optimization projections remain open.
 
 - [ ] **FINAL-REALIZATION-EVIDENCE.** Require exact Terminal evidence only for
   claims about emitted native/external code, ABI/lowering-dependent guarantees,
