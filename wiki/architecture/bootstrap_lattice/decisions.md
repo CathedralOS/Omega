@@ -464,15 +464,19 @@ orchestration retains that carrier beside the coherent base frontend, package
 authority/source-consumption verdict, and frozen transitional syntax, then
 consumes the carrier and verifies its returned exact symbol. A bounded
 generated-source cohort now continues from that retained base through symbol
-resolution and typing: a nonempty extension of plain monomorphic `data` roots
+resolution and typing: a nonempty extension of plain runtime-monomorphic
+`data` roots
 preserves every retained typed handle/table, authored-selection, symbol/source
 row, and post-typing sidecar as exact prefixes, appends only extension-owned
 symbol/source/data/member/payload/type/selection suffixes, and keeps the exact
-selected build symbol without source/callable-identity rebind. Unsupported
-generic, constrained, lifetime-bearing, const-expression, dynamic, or
-non-data shapes return the owned base to the unchanged full frontend
-rebuild/rebind fallback. General seeded typing and deletion of that fallback
-remain open. The source-side prerequisite
+selected build symbol without source/callable-identity rebind. This includes
+erased-lifetime-only data graphs whose reference lifetimes name the owning
+data binders and whose lifetime applications select an exact zero-runtime-
+parameter data declaration at its complete arity without runtime arguments.
+Runtime-generic, constrained, invalid-lifetime, const-expression, dynamic,
+fact-bearing, quotient, zero-gated, or non-data shapes return the owned base
+to the unchanged full frontend rebuild/rebind fallback. General seeded typing
+and deletion of that fallback remain open. The source-side prerequisite
 is now explicit: own generated outputs are parsed once into a retained
 extension-only syntax carrier bound to the exact base source frontier, unit
 roots, bytes, and custody. The carrier feeds the unchanged transitional

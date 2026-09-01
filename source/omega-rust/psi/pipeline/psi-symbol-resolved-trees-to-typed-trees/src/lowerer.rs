@@ -204,8 +204,7 @@ fn plain_data_extension_shape_is_supported(
             .iter()
             .skip(data_frontier)
             .all(|definition| {
-                definition.lifetime_parameters.is_empty()
-                    && definition.type_parameters.is_empty()
+                definition.type_parameters.is_empty()
                     && definition.generic_instance.is_none()
                     && definition.quotient.is_none()
                     && definition.where_facts.is_empty()
@@ -226,6 +225,7 @@ fn plain_data_extension_shape_is_supported(
                                 plain_type_is_supported(
                                     source,
                                     definition.symbol,
+                                    &definition.lifetime_parameters,
                                     &field.type_reference,
                                 )
                             })
@@ -236,6 +236,7 @@ fn plain_data_extension_shape_is_supported(
 fn plain_type_is_supported(
     source: &SymbolResolvedTrees,
     owner: psi_symbols::SymbolHandle,
+    owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
     type_reference: &psi_symbol_resolved_trees::types::TypeReference,
 ) -> bool {
     use psi_symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
@@ -254,16 +255,21 @@ fn plain_type_is_supported(
         TypeReference::SelfType { symbol } => *symbol == owner,
         TypeReference::Unit => true,
         TypeReference::Reference(reference) => {
-            reference.lifetime.is_none()
-                && plain_type_is_supported(
-                    source,
-                    owner,
-                    source.child_type_reference(reference.referee),
-                )
+            reference.lifetime.as_ref().is_none_or(|lifetime| {
+                owner_lifetimes
+                    .iter()
+                    .any(|parameter| parameter.as_str() == lifetime.as_str())
+            }) && plain_type_is_supported(
+                source,
+                owner,
+                owner_lifetimes,
+                source.child_type_reference(reference.referee),
+            )
         }
         TypeReference::Slice(slice) => plain_type_is_supported(
             source,
             owner,
+            owner_lifetimes,
             source.child_type_reference(slice.element_type),
         ),
         TypeReference::FixedArray(array) => {
@@ -271,11 +277,31 @@ fn plain_type_is_supported(
                 && plain_type_is_supported(
                     source,
                     owner,
+                    owner_lifetimes,
                     source.child_type_reference(array.element_type),
                 )
         }
+        TypeReference::Generic(generic) => {
+            source.child_type_references(generic.arguments).is_empty()
+                && generic.base_symbol.is_valid()
+                && source
+                    .data_definitions
+                    .iter()
+                    .find(|definition| definition.symbol == generic.base_symbol)
+                    .is_some_and(|definition| {
+                        definition.type_parameters.is_empty()
+                            && definition.generic_instance.is_none()
+                            && !definition.lifetime_parameters.is_empty()
+                            && definition.lifetime_parameters.len()
+                                == generic.lifetime_arguments.len()
+                            && generic.lifetime_arguments.iter().all(|argument| {
+                                owner_lifetimes
+                                    .iter()
+                                    .any(|parameter| parameter.as_str() == argument.as_str())
+                            })
+                    })
+        }
         TypeReference::Constrained(_)
-        | TypeReference::Generic(_)
         | TypeReference::ConstExpression(_)
         | TypeReference::DynamicTrait { .. } => false,
     }

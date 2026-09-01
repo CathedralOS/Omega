@@ -3564,6 +3564,125 @@ fn seeded_plain_data_continuation_appends_named_data_and_preserves_typed_sidecar
 }
 
 #[test]
+fn seeded_plain_data_continuation_appends_exact_erased_lifetime_data_graph() {
+    let (mut base, extension) = seeded_plain_data_inputs(
+        "pub data Main { value: u32; }",
+        r#"
+            pub data View<'buf> { body: &'buf Main; }
+            pub data Envelope<'msg> { view: View<'msg>; tail: [u8; 2]; }
+        "#,
+    );
+    base.typed_mut()
+        .evidence_forwardings
+        .push(psi_typed_trees::typed_trees::EvidenceForwarding {
+            machine_symbol: psi_symbols::SymbolHandle::invalid(),
+            state_symbol: psi_symbols::SymbolHandle::invalid(),
+            statement_index: 13,
+            source_statement_index: 17,
+            target: psi_typed_trees::name::Identifier::generated_static("lifetime-target"),
+            source: psi_typed_trees::name::Identifier::generated_static("lifetime-source"),
+            source_conformance: None,
+        });
+    let before = base.typed().clone();
+    let resolved_ledger = extension.trees().authored_declaration_selections().clone();
+
+    let typed = lower_seeded_plain_data_extension(extension, base)
+        .expect("erased lifetime-only generated data should append");
+
+    assert_eq!(
+        &typed.data_definitions()[..before.data_definitions().len()],
+        before.data_definitions()
+    );
+    assert_eq!(typed.evidence_forwardings, before.evidence_forwardings);
+    assert!(
+        typed
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(resolved_ledger.as_slice())
+    );
+
+    let main = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Main")
+        .expect("retained Main data");
+    let view = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "View")
+        .expect("generated View data");
+    let envelope = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Envelope")
+        .expect("generated Envelope data");
+    assert_eq!(
+        view.lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["buf"]
+    );
+    assert_eq!(
+        envelope
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["msg"]
+    );
+
+    let [psi_typed_trees::data::DataMember::Field(body)] = typed.data_members(view) else {
+        panic!("View has one body field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Reference {
+        referee, lifetime, ..
+    } = typed
+        .type_reference_table
+        .type_reference(body.type_reference)
+    else {
+        panic!("View.body remains a reference")
+    };
+    assert_eq!(lifetime.as_ref().map(|name| name.as_str()), Some("buf"));
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        typed.type_reference_table.type_reference(*referee)
+    else {
+        panic!("View.body referee remains nominal")
+    };
+    assert_eq!(*symbol, main.symbol);
+
+    let [psi_typed_trees::data::DataMember::Field(view_field), _] = typed.data_members(envelope)
+    else {
+        panic!("Envelope has view and tail fields")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = typed
+        .type_reference_table
+        .type_reference(view_field.type_reference)
+    else {
+        panic!("Envelope.view remains an erased lifetime application")
+    };
+    assert_eq!(*base_symbol, view.symbol);
+    assert_eq!(
+        lifetime_arguments
+            .iter()
+            .map(|argument| argument.as_str())
+            .collect::<Vec<_>>(),
+        ["msg"]
+    );
+    assert!(
+        typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty()
+    );
+}
+
+#[test]
 fn seeded_plain_data_continuation_returns_exact_base_for_non_data_suffix() {
     let (base, extension) =
         seeded_plain_data_inputs("data Authored { value: u32; }", "machine generated() {}");
@@ -3580,16 +3699,28 @@ fn seeded_plain_data_continuation_returns_exact_base_for_non_data_suffix() {
 }
 
 #[test]
-fn seeded_plain_data_continuation_fences_generic_and_unresolved_named_fields() {
+fn seeded_plain_data_continuation_fences_runtime_generic_and_invalid_lifetime_fields() {
     for extension_source in [
         "data Generated { value: Generic<u32>; }",
         "data Generated { value: Missing; }",
+        "data Generated<'scope> { value: &'missing Plain; }",
+        "data Generated { value: Borrowed; }",
+        "data Generated<'scope> { value: Borrowed<'scope, 'scope>; }",
+        "data Generated<'scope> { value: Plain<'scope>; }",
+        "data Generated<'scope> { value: Generic<'scope>; }",
+        "data Generated<T> { value: T; }",
     ] {
-        let (base, extension) =
-            seeded_plain_data_inputs("data Generic<T> { value: T; }", extension_source);
+        let (base, extension) = seeded_plain_data_inputs(
+            r#"
+                data Plain {}
+                data Borrowed<'scope> { value: &'scope Plain; }
+                data Generic<T> { value: T; }
+            "#,
+            extension_source,
+        );
         let expected = base.typed().clone();
         let (returned, error) = lower_seeded_plain_data_extension(extension, base)
-            .expect_err("generic or unresolved named fields require the rebuild path");
+            .expect_err("runtime-generic or invalid lifetime fields require the rebuild path");
         assert_eq!(
             error,
             SeededPlainDataContinuationError::UnsupportedExtensionShape
