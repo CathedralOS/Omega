@@ -211,20 +211,22 @@ fn validate_instance(
     let mut substitutions = Vec::with_capacity(parameters.len());
     let mut argument_names = Vec::with_capacity(arguments.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let TypeReference::Named {
-            name: argument_name,
-            ..
-        } = argument
-        else {
+        let Some(argument_name) = instance_argument_name(parameter, argument) else {
             return false;
         };
         if !parameter_is_supported(source, template.symbol, parameter)
-            || !instance_argument_is_supported(source, validated_instances, parameter, argument)
+            || !instance_argument_is_supported(
+                source,
+                validated_instances,
+                &instance.lifetime_parameters,
+                parameter,
+                argument,
+            )
         {
             return false;
         }
         substitutions.push((parameter.symbol, argument));
-        argument_names.push(argument_name.as_str());
+        argument_names.push(argument_name);
     }
     if instance.name.as_str()
         != format!("{}<{}>", template.name.as_str(), argument_names.join(", "))
@@ -248,6 +250,27 @@ fn validate_instance(
                 )
             },
         )
+}
+
+fn instance_argument_name<'argument>(
+    parameter: &psi_symbol_resolved_trees::data::TypeParameter,
+    argument: &'argument TypeReference,
+) -> Option<&'argument str> {
+    match (&parameter.kind, argument) {
+        (
+            psi_symbol_resolved_trees::data::TypeParameterKind::Type,
+            TypeReference::Named { name, .. },
+        )
+        | (
+            psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. },
+            TypeReference::Named { name, .. },
+        ) => Some(name.as_str()),
+        (
+            psi_symbol_resolved_trees::data::TypeParameterKind::Type,
+            TypeReference::Generic(application),
+        ) if !application.lifetime_arguments.is_empty() => Some(application.base_name.as_str()),
+        _ => None,
+    }
 }
 
 fn template_argument_is_supported(
@@ -307,22 +330,61 @@ fn template_argument_is_supported(
 fn instance_argument_is_supported(
     source: &SymbolResolvedTrees,
     validated_instances: &[SymbolHandle],
+    owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
     parameter: &psi_symbol_resolved_trees::data::TypeParameter,
     argument: &TypeReference,
 ) -> bool {
     match parameter.kind {
-        psi_symbol_resolved_trees::data::TypeParameterKind::Type => {
-            let TypeReference::Named { symbol, name } = argument else {
-                return false;
-            };
-            supported_named_argument(source, validated_instances, *symbol, name.as_str())
-        }
+        psi_symbol_resolved_trees::data::TypeParameterKind::Type => match argument {
+            TypeReference::Named { symbol, name } => {
+                supported_named_argument(source, validated_instances, *symbol, name.as_str())
+            }
+            TypeReference::Generic(application) => lifetime_instance_type_argument_is_supported(
+                source,
+                validated_instances,
+                owner_lifetimes,
+                application,
+            ),
+            _ => false,
+        },
         psi_symbol_resolved_trees::data::TypeParameterKind::Const { .. } => {
             const_arguments::closed_argument_is_supported(source, parameter, argument)
         }
         psi_symbol_resolved_trees::data::TypeParameterKind::Machine { .. }
         | psi_symbol_resolved_trees::data::TypeParameterKind::Proposition { .. } => false,
     }
+}
+
+fn lifetime_instance_type_argument_is_supported(
+    source: &SymbolResolvedTrees,
+    validated_instances: &[SymbolHandle],
+    owner_lifetimes: &[psi_symbol_resolved_trees::name::DiagnosticName],
+    application: &psi_symbol_resolved_trees::types::GenericTypeReference,
+) -> bool {
+    !owner_lifetimes.is_empty()
+        && validated_instances.contains(&application.base_symbol)
+        && application.base_symbol.is_valid()
+        && application.base_name.as_str() == source.symbols.name(application.base_symbol)
+        && source
+            .child_type_references(application.arguments)
+            .is_empty()
+        && application.lifetime_arguments.len() == owner_lifetimes.len()
+        && application
+            .lifetime_arguments
+            .iter()
+            .zip(owner_lifetimes)
+            .all(|(argument, owner)| argument.as_str() == owner.as_str())
+        && source
+            .data_definitions
+            .iter()
+            .find(|definition| definition.symbol == application.base_symbol)
+            .is_some_and(|definition| {
+                exact_top_level_data_symbol(source, definition)
+                    && definition.generic_instance.is_some()
+                    && definition.type_parameters.is_empty()
+                    && !definition.lifetime_parameters.is_empty()
+                    && definition.lifetime_parameters.len() == application.lifetime_arguments.len()
+            })
 }
 
 fn supported_named_argument(

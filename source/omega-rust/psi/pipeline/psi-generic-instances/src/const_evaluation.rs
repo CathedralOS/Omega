@@ -1674,6 +1674,14 @@ pub(super) fn consider_generic_spelling(
             _ => continue,
         }
     }
+    let Some(argument_handles) = canonicalize_monomorphizable_argument_handles(
+        syntax,
+        base_info,
+        &lifetime_arguments,
+        &argument_handles,
+    ) else {
+        return Ok(());
+    };
     let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
         return Ok(());
     };

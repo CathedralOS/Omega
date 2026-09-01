@@ -4676,6 +4676,98 @@ fn seeded_nested_lifetime_instance_gate_rejects_internal_edge_mutations() {
 }
 
 #[test]
+fn seeded_lifetime_type_argument_gate_rejects_origin_routing_mutations() {
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Borrowed<'left, 'right, T> { left: &'left T; right: &'right T; } data Holder<'first, 'second, T> { value: T; } data Generated<'one, 'two> { value: Holder<'one, 'two, Borrowed<'one, 'two, u32>>; }",
+    );
+    let frontier = base.typed().data_definitions().len();
+    let resolved = extension.trees().clone();
+    assert!(plain_data_extension_shape_is_supported(&resolved, frontier));
+
+    let holder_instance_index = (frontier..resolved.data_definitions.len())
+        .find(|index| {
+            matches!(
+                resolved.data_definitions[*index].generic_instance.as_ref(),
+                Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin))
+                    if origin.base_name.as_str() == "Holder"
+            )
+        })
+        .expect("closed Holder instance");
+    let holder_instance_symbol = resolved.data_definitions[holder_instance_index].symbol;
+    let holder_instance_name = resolved.data_definitions[holder_instance_index]
+        .name
+        .clone();
+    let origin_arguments = match resolved.data_definitions[holder_instance_index]
+        .generic_instance
+        .as_ref()
+    {
+        Some(psi_symbol_resolved_trees::types::TypeReference::Generic(origin)) => origin.arguments,
+        _ => unreachable!(),
+    };
+
+    let mut reordered_lifetimes = resolved.clone();
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(argument) =
+        &mut reordered_lifetimes
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    argument.lifetime_arguments.swap(0, 1);
+    assert!(
+        !plain_data_extension_shape_is_supported(&reordered_lifetimes, frontier),
+        "a lifetime-bearing Type argument must forward the owner's exact binder order"
+    );
+
+    let mut missing_lifetime = resolved.clone();
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(argument) = &mut missing_lifetime
+        .tables
+        .declarations
+        .child_type_references
+        .span_mut_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    argument.lifetime_arguments.pop();
+    assert!(
+        !plain_data_extension_shape_is_supported(&missing_lifetime, frontier),
+        "a lifetime-bearing Type argument must retain complete erased arity"
+    );
+
+    let mut redirected_argument = resolved;
+    let psi_symbol_resolved_trees::types::TypeReference::Generic(argument) =
+        &mut redirected_argument
+            .tables
+            .declarations
+            .child_type_references
+            .span_mut_or_empty(origin_arguments)[0]
+    else {
+        unreachable!()
+    };
+    argument.base_symbol = holder_instance_symbol;
+    argument.base_name = holder_instance_name;
+    assert!(
+        !plain_data_extension_shape_is_supported(&redirected_argument, frontier),
+        "the Type argument cannot redirect to another local lifetime instance"
+    );
+
+    let (base, extension) = seeded_normalized_plain_data_inputs(
+        "data Authored { value: u16; }",
+        "data Borrowed<'left, 'right, T> { left: &'left T; right: &'right T; } data Holder<'first, 'second, T> { value: T; } data Generated<'one, 'two> { value: Holder<'one, 'two, Borrowed<'two, 'one, u32>>; }",
+    );
+    assert!(
+        !plain_data_extension_shape_is_supported(
+            extension.trees(),
+            base.typed().data_definitions().len(),
+        ),
+        "a permuted nested lifetime route remains on the rebuild path until it has distinct identity"
+    );
+}
+
+#[test]
 fn seeded_integer_const_instance_gate_rejects_carrier_origin_and_shape_mutations() {
     let (base, extension) = seeded_normalized_plain_data_inputs(
         "data Authored { value: u16; }",
@@ -5115,6 +5207,18 @@ fn seeded_plain_data_continuation_accepts_local_instance_collections() {
         (
             "nested_lifetime_sum_payload",
             "data Borrowed<'scope, T> { value: &'scope T; } data MaybeBorrow<'scope, T> { case None; case Some(value: Borrowed<'scope, T>); } data Generated<'scope> { value: MaybeBorrow<'scope, u32>; }",
+        ),
+        (
+            "lifetime_instance_as_type_argument",
+            "data Borrowed<'borrow, T> { value: &'borrow T; } data BorrowBox<'boxed, T> { value: T; } data Generated<'call> { value: BorrowBox<'call, Borrowed<'call, u32>>; }",
+        ),
+        (
+            "nested_lifetime_instances_as_type_arguments",
+            "data Borrowed<'borrow, T> { value: &'borrow T; } data BorrowBox<'boxed, T> { value: T; } data Outer<'outer, T> { value: T; } data Generated<'call> { value: Outer<'call, BorrowBox<'call, Borrowed<'call, u32>>>; }",
+        ),
+        (
+            "ordered_multi_lifetime_instance_as_type_argument",
+            "data Borrowed<'left, 'right, T> { left: &'left T; right: &'right T; } data Holder<'first, 'second, T> { value: T; } data Generated<'one, 'two> { value: Holder<'one, 'two, Borrowed<'one, 'two, u32>>; }",
         ),
         (
             "integer_const_instance_graph",
