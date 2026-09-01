@@ -5,8 +5,8 @@ use omega_selected_instructions::{
 };
 
 use crate::rules::peephole_matching::{
-    InstructionPattern, OperandPattern, TerminalPairPattern, TerminalPairPatternId, UnitSetPattern,
-    ViewPattern,
+    ControlPattern, FixedViewPattern, InstructionPattern, OperandPattern, OperandReadPattern,
+    OperandWritePattern, TerminalPairPattern, TerminalPairPatternId, UnitSetPattern, ViewPattern,
 };
 
 const EMPTY: UnitSetPattern = UnitSetPattern::EMPTY;
@@ -17,14 +17,16 @@ const NZCV_AND_PC: UnitSetPattern = UnitSetPattern::named(&["nzcv", "pc"]);
 const COMPARE_OPERANDS: [OperandPattern; 1] = [OperandPattern {
     operand: 0,
     access: RegisterOperandAccess::Use,
-    read_equals_storage: true,
-    writes_empty: true,
-    no_write_semantics: true,
+    read: OperandReadPattern::StorageUnits,
+    write: OperandWritePattern::Empty,
     view: ViewPattern::IndexedAllocatable {
         prefix: 'x',
         maximum_index: 30,
         bits: 64,
     },
+    fixed_view: FixedViewPattern::None,
+    tied_to: None,
+    early_clobber: false,
 }];
 
 pub(crate) const AARCH64_CBNZ_TERMINAL_PAIR_V1: TerminalPairPattern = TerminalPairPattern::new(
@@ -42,7 +44,7 @@ pub(crate) const AARCH64_CBNZ_TERMINAL_PAIR_V1: TerminalPairPattern = TerminalPa
         memory: MachineEncodedMemoryEffect::NoneV1,
         stack: MachineEncodedStackEffect::UnchangedV1,
         trap: MachineEncodedTrapBehavior::NeverV1,
-        control: MachineEncodedControlEffect::FallThroughV1,
+        control: ControlPattern::Exact(MachineEncodedControlEffect::FallThroughV1),
         operands: &COMPARE_OPERANDS,
     },
     InstructionPattern {
@@ -58,11 +60,13 @@ pub(crate) const AARCH64_CBNZ_TERMINAL_PAIR_V1: TerminalPairPattern = TerminalPa
         memory: MachineEncodedMemoryEffect::NoneV1,
         stack: MachineEncodedStackEffect::UnchangedV1,
         trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-        control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
+        control: ControlPattern::Exact(MachineEncodedControlEffect::ConditionalRelativeBranchV1),
         operands: &[],
     },
     NZCV,
     NZCV,
+    &[],
+    &[],
 );
 
 #[cfg(test)]
@@ -88,7 +92,10 @@ mod tests {
         assert_eq!(compare.memory, MachineEncodedMemoryEffect::NoneV1);
         assert_eq!(compare.stack, MachineEncodedStackEffect::UnchangedV1);
         assert_eq!(compare.trap, MachineEncodedTrapBehavior::NeverV1);
-        assert_eq!(compare.control, MachineEncodedControlEffect::FallThroughV1);
+        assert_eq!(
+            compare.control,
+            ControlPattern::Exact(MachineEncodedControlEffect::FallThroughV1)
+        );
         assert_eq!(compare.operands, COMPARE_OPERANDS);
 
         let branch = pattern.second();
@@ -114,7 +121,7 @@ mod tests {
         );
         assert_eq!(
             branch.control,
-            MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            ControlPattern::Exact(MachineEncodedControlEffect::ConditionalRelativeBranchV1)
         );
         assert!(branch.operands.is_empty());
         assert_eq!(pattern.live_through(), NZCV);

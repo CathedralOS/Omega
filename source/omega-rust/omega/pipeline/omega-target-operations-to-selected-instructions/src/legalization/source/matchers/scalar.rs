@@ -3,7 +3,9 @@ use crate::legalization::catalog::{
     ScalarLegalizationMatcherKind,
 };
 
-use super::super::leaves::is_active_resident_exact_add_chain;
+use super::super::leaves::{
+    is_active_resident_exact_add_bridge_chain, is_active_resident_exact_add_chain,
+};
 use super::super::shared::*;
 
 pub(crate) fn match_scalar_form(
@@ -83,6 +85,16 @@ fn matcher_accepts(
                     ..
                 }
             ) if is_active_resident_exact_add_chain(expression)
+        ),
+        ScalarLegalizationMatcherKind::ActiveResidentExactAddBridgeChain => matches!(
+            (when_true, when_false),
+            (
+                TargetIntegerControl::Return { expression, .. },
+                TargetIntegerControl::Return {
+                    expression: TargetIntegerExpression::Immediate { .. },
+                    ..
+                }
+            ) if is_active_resident_exact_add_bridge_chain(expression)
         ),
     }
 }

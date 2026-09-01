@@ -1,11 +1,15 @@
 //! Optimizer module role: executable entrance. Replays one legalized leaf, then seals its return and edge-fuel contract.
 
+mod bridge_chain;
 mod exact_arithmetic;
 mod fuel;
 mod immediate;
 mod recipe;
 
-pub(super) use exact_arithmetic::replay_active_resident_chain_shape;
+use bridge_chain::replay_active_resident_bridge_chain;
+pub(super) use exact_arithmetic::{
+    replay_active_resident_bridge_chain_shape, replay_active_resident_chain_shape,
+};
 use exact_arithmetic::{replay_exact_add_node, replay_exact_binary, replay_widened_exact_binary};
 pub(super) use fuel::replay_edge_fuel;
 use fuel::replay_operation_fuel;

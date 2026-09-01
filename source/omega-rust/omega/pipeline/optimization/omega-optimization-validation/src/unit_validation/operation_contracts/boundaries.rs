@@ -11,13 +11,8 @@ pub(crate) fn boundary_requirements_match(
             domains.contains_key(&requirement.domain)
                 && arguments
                     .get(requirement.argument_index as usize)
-                    .and_then(|argument| {
-                        caller
-                            .structural_parameters
-                            .iter()
-                            .find(|parameter| parameter.place == argument.place)
-                    })
-                    .is_some_and(|source| source.qualifications.contains(&requirement.domain))
+                    .and_then(|argument| structural_source_contract(caller, argument.place, true))
+                    .is_some_and(|source| source.carries_qualification(requirement.domain))
         })
 }
 

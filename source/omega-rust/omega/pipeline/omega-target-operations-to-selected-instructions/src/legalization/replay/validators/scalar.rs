@@ -1,6 +1,8 @@
 use crate::legalization::catalog::ScalarLegalizationValidatorKind;
 
-use super::super::leaf::replay_active_resident_chain_shape;
+use super::super::leaf::{
+    replay_active_resident_bridge_chain_shape, replay_active_resident_chain_shape,
+};
 use super::super::shared::*;
 
 pub(crate) fn scalar_validator_accepts(
@@ -66,6 +68,16 @@ pub(crate) fn scalar_validator_accepts(
                     ..
                 }
             ) if replay_active_resident_chain_shape(expression)
+        ),
+        ScalarLegalizationValidatorKind::ActiveResidentExactAddBridgeChain => matches!(
+            (when_true, when_false),
+            (
+                TargetIntegerControl::Return { expression, .. },
+                TargetIntegerControl::Return {
+                    expression: TargetIntegerExpression::Immediate { .. },
+                    ..
+                }
+            ) if replay_active_resident_bridge_chain_shape(expression)
         ),
     }
 }

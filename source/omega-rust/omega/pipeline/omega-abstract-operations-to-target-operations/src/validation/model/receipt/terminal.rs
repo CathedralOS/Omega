@@ -1,6 +1,6 @@
 //! Terminal Unit-return and scalar-Crash receipts.
 
-use psi_core::{ClaimId, EdgeId, MachineId, ScalarType};
+use psi_core::{ClaimId, EdgeId, MachineId, OperationId, ScalarType, ServiceId};
 use psi_terminal::{CrashCause, CrashPredicateTerm};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,6 +19,60 @@ impl StraightLineUnitReturnTranslationReceipt {
 
     pub const fn machine(&self) -> MachineId {
         self.machine
+    }
+
+    pub const fn return_edge(&self) -> EdgeId {
+        self.return_edge
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StraightLinePortWriteUnitReturnTranslationReceipt {
+    machine: MachineId,
+    port_operation: OperationId,
+    service: ServiceId,
+    port: u16,
+    value: u8,
+    return_edge: EdgeId,
+}
+
+impl StraightLinePortWriteUnitReturnTranslationReceipt {
+    pub(in crate::validation) const fn new(
+        machine: MachineId,
+        port_operation: OperationId,
+        service: ServiceId,
+        port: u16,
+        value: u8,
+        return_edge: EdgeId,
+    ) -> Self {
+        Self {
+            machine,
+            port_operation,
+            service,
+            port,
+            value,
+            return_edge,
+        }
+    }
+
+    pub const fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    pub const fn port_operation(&self) -> OperationId {
+        self.port_operation
+    }
+
+    pub const fn service(&self) -> ServiceId {
+        self.service
+    }
+
+    pub const fn port(&self) -> u16 {
+        self.port
+    }
+
+    pub const fn value(&self) -> u8 {
+        self.value
     }
 
     pub const fn return_edge(&self) -> EdgeId {

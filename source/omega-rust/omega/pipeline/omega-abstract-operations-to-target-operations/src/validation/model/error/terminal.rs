@@ -20,6 +20,26 @@ pub enum StraightLineUnitReturnTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLinePortWriteUnitReturnTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceCleanupActions,
+    TargetFixedIntegerScalarAbi,
+    TargetProvenance,
+    TargetOperation,
+    TargetCallPlan,
+    TargetParameters,
+    TargetOperationRoster,
+    TargetPortWrite,
+    TargetReturn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineScalarCrashTranslationError {
     SourceParameters,
     SourceStructuralParameters,

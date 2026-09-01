@@ -46,6 +46,7 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => 4,
             LegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => 5,
             LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => 6,
+            LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1 => 7,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         bytes.extend_from_slice(&(function.condition_parameter_index as u64).to_le_bytes());

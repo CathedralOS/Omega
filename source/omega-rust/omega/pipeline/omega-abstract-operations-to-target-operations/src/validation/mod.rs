@@ -9,6 +9,7 @@ mod model;
 pub(crate) mod straight_line_boolean_immediate;
 pub(crate) mod straight_line_integer_immediate;
 pub(crate) mod straight_line_parameter;
+pub(crate) mod straight_line_port_write_unit_return;
 pub(crate) mod straight_line_scalar_crash;
 pub(crate) mod straight_line_unit_return;
 

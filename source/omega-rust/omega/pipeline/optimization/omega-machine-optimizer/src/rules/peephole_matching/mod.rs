@@ -9,11 +9,13 @@ mod instruction;
 mod liveness;
 mod model;
 mod registers;
+mod relations;
 
 pub(crate) use model::{
-    InstructionPattern, MatchedPhysicalRead, OperandPattern, TerminalPairMatch,
-    TerminalPairMatchError, TerminalPairPattern, TerminalPairPatternId, UnitSetPattern,
-    ViewPattern,
+    ControlPattern, FixedViewPattern, InstructionPattern, MatchedPhysicalRead, OperandCoordinate,
+    OperandPattern, OperandReadPattern, OperandRelation, OperandWritePattern, PairInstruction,
+    TerminalPairMatch, TerminalPairMatchError, TerminalPairPattern, TerminalPairPatternId,
+    UnitSetPattern, ViewPattern,
 };
 
 use omega_regalloc::{BlockLiveness, InstructionLiveness};
@@ -44,7 +46,7 @@ pub(crate) fn match_terminal_pair(
         &named,
         true,
     )?;
-    instruction::match_instruction(
+    let second_reads = instruction::match_instruction(
         pattern.second(),
         second,
         machine_second,
@@ -53,7 +55,20 @@ pub(crate) fn match_terminal_pair(
         &named,
         false,
     )?;
-    let dead_sets_live_out =
-        liveness::match_boundary(pattern, live_first, live_second, live_block, &named)?;
-    Ok(TerminalPairMatch::new(first_reads, dead_sets_live_out))
+    let failed_relations = relations::failed_relations(pattern, &first_reads, &second_reads);
+    let dead_sets_live_out = liveness::match_boundary(
+        pattern,
+        live_first,
+        live_second,
+        live_block,
+        &named,
+        &first_reads,
+        &second_reads,
+    )?;
+    Ok(TerminalPairMatch::new(
+        first_reads,
+        second_reads,
+        failed_relations,
+        dead_sets_live_out,
+    ))
 }

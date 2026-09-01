@@ -465,12 +465,15 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Thirty-six abstract-to-target families are covered,
+  machine-rule family. Thirty-seven abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
-  structural-type roster custody. Coverage also includes proof-bearing exact
-  parameterized fixed-integer addition, subtraction,
+  structural-type roster custody. The adjacent PortWrite-plus-Unit-return
+  family independently retains the exact singleton service ceiling, operation,
+  service, port, byte, target provenance, empty native call plan, return edge,
+  and cleanup roster across all five native targets. Coverage also includes
+  proof-bearing exact parameterized fixed-integer addition, subtraction,
   multiplication, division, and remainder, proof-bearing wrapping and
   saturating division/remainder, plus saturating parameterized integer
   addition, subtraction, and multiplication, independently typed wrapping
@@ -519,8 +522,13 @@ decision. Only true language-semantic questions belong in
   proves that the boundary call mints no proof question; binds the exact
   boundary, empty argument path, carried roster, and declaration requirement;
   and rejects reauthenticated missing/widened rosters, boundary substitution,
-  path substitution, erased requirements, and detached projection metadata.
-  Partial-path and operation-result qualification carriers plus explicit
+  path substitution, erased requirements, and detached projection metadata. A
+  second whole-root slice now admits a dominating structural operation result
+  as a boundary argument, independently rejoins its exact qualification
+  roster, and rejects a same-carrier foreign domain. Current-ownership replay
+  separately proves that whole-root shared or mutable borrows do not consume a
+  linear carrier while owned arguments still do, and rejects stale or
+  partially moved borrows. Partial-path qualification carriers plus explicit
   join-intersection/CSE behavior remain engineering work, not open language
   semantics.
 - [x] Evolve fixed-view-copy persistence through v6. V5 introduced the
@@ -689,11 +697,17 @@ decision. Only true language-semantic questions belong in
   deterministic x86-64/AArch64, cross-target corruption, exact-budget, and
   empty-pressure coverage. It still creates no real `VirtualRegisterId` or
   instruction and grants no downstream authority. Recursive recovery still
-  needs a bounded epoch/worklist artifact. Its next honest prerequisite is an
-  x86-64/AArch64 selected-program plus allocator-availability fixture that
-  reaches reload or secondary pressure through every public validator; an
-  internal test that constructs `Validated*` receipts directly is not accepted
-  as evidence for that branch. Lower spill-pseudo representation,
+  needs a bounded epoch/worklist artifact. The first half of its honest fixture
+  prerequisite is now public and independently replayed: mandatory
+  legalization admits the versioned exact graph
+  `r + (b + (r + (a + b)))`, retaining `b` across the first use of `r`, on
+  x86-64 and AArch64. It appends a distinct recipe/carrier identity without
+  changing the existing V10 recipe tags, and intentionally stops before
+  selection. Remaining work is a selected-program plus allocator-availability
+  fixture that carries this shape through every public validator and actually
+  reaches reload or secondary pressure; an internal test that constructs
+  `Validated*` receipts directly is not accepted as evidence for that branch.
+  Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
   memory insertion is owner-blocked only on the spill-access fault semantics
@@ -732,10 +746,20 @@ decision. Only true language-semantic questions belong in
     covering selected kinds, alternatives, operands, named physical units,
     register views, encoded effects, liveness continuity, and dead flags. Keep
     the existing independent validator as a separate replay implementation.
+  - [x] Prove the next descriptor vocabulary with a core-only AArch64
+    same-view `CopyI64; ReturnI64` elision. The shared matcher now admits exact
+    per-operand read/write contracts and named cross-instruction relations for
+    equal virtual registers and equal physical view/storage, while the rule's
+    independent replay, canonical codec, attempt history, and disposition
+    roster remain rule-local. It has no machine catalog row, build selection,
+    encoding, layout, realization, or publication authority yet.
   - [ ] Generalize beyond the body-tail/terminator pair only when a second
-    exact copy, extension, address, or compare rule proves the next vocabulary.
+    exact rule proves a non-terminal-pair topology; the copy-elision rule
+    deliberately retains the existing bounded topology.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
-  compare/test selection, and scheduling where independently verifiable.
+  compare/test selection, and scheduling where independently verifiable. The
+  core-only same-view return-copy case is evidence for the first family, not
+  completion of general copy removal or compiler enablement.
 - [x] Add target cost models as non-authoritative identities. The V1 entrance
   binds exact native-target identity to retained exact-or-bounded size
   knowledge while keeping latency explicitly unavailable. Machine-rule

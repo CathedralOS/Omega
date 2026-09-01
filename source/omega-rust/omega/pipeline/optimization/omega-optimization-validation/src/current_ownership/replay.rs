@@ -140,6 +140,7 @@ pub(super) fn validate_current_ownership_cfg(
                 .zip(&parameter_multiplicities)
                 .filter_map(|(argument, multiplicity)| {
                     (argument.path.is_empty()
+                        && argument.access == StructuralAccess::Owned
                         && *multiplicity != StructuralMultiplicity::Unrestricted)
                         .then_some(argument.place)
                 })
@@ -187,6 +188,52 @@ pub(super) fn validate_current_ownership_cfg(
                         node: node_index,
                         claim,
                     });
+                }
+            }
+            for (argument, _) in structural_arguments
+                .iter()
+                .zip(&parameter_multiplicities)
+                .filter(|(_, multiplicity)| **multiplicity != StructuralMultiplicity::Unrestricted)
+            {
+                if !frontier.owned_places.contains_key(&argument.place) {
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive {
+                        machine: function.machine,
+                        block: block_id,
+                        node: node_index,
+                        place: argument.place,
+                    });
+                }
+                if argument.path.is_empty()
+                    && frontier.partial_custody_paths.contains_key(&argument.place)
+                {
+                    return Err(
+                        OptimizationUnitValidationError::CurrentWholePlacePartiallyMoved {
+                            machine: function.machine,
+                            block: block_id,
+                            node: node_index,
+                            place: argument.place,
+                        },
+                    );
+                }
+                if !argument.path.is_empty()
+                    && frontier
+                        .partial_custody_paths
+                        .get(&argument.place)
+                        .is_some_and(|moved| {
+                            moved.iter().any(|existing| {
+                                existing.starts_with(&argument.path)
+                                    || argument.path.starts_with(existing)
+                            })
+                        })
+                {
+                    return Err(
+                        OptimizationUnitValidationError::CurrentProjectedMoveOverlap {
+                            machine: function.machine,
+                            block: block_id,
+                            node: node_index,
+                            place: argument.place,
+                        },
+                    );
                 }
             }
             for place in consumed_places {

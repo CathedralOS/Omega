@@ -44,6 +44,69 @@ pub(in crate::legalization::replay) fn replay_active_resident_chain_shape(
     )
 }
 
+pub(in crate::legalization::replay) fn replay_active_resident_bridge_chain_shape(
+    expression: &TargetIntegerExpression,
+) -> bool {
+    let TargetIntegerExpression::ExactAdd {
+        left: result_left,
+        right: result_right,
+        ..
+    } = expression
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::Immediate {
+        source_value: resident,
+        ..
+    } = result_left.as_ref()
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::ExactAdd {
+        left: bridge_left,
+        right: bridge_right,
+        ..
+    } = result_right.as_ref()
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::Immediate {
+        source_value: bridged,
+        ..
+    } = bridge_left.as_ref()
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::ExactAdd {
+        left: middle_left,
+        right: middle_right,
+        ..
+    } = bridge_right.as_ref()
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::Immediate {
+        source_value: middle_resident,
+        ..
+    } = middle_left.as_ref()
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::ExactAdd {
+        left: inner_left,
+        right: inner_right,
+        ..
+    } = middle_right.as_ref()
+    else {
+        return false;
+    };
+    let TargetIntegerExpression::Immediate { .. } = inner_left.as_ref() else {
+        return false;
+    };
+    matches!(inner_right.as_ref(), TargetIntegerExpression::Immediate { source_value, .. }
+        if resident == middle_resident && bridged == source_value)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_exact_add_node(
     function: usize,

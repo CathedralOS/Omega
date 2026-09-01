@@ -862,6 +862,7 @@ dependencies = [
 name = "omega-machine-optimizer"
 version = "0.1.0"
 dependencies = [
+ "omega-isa-aarch64",
  "omega-isa-x86_64",
  "omega-optimization-core",
  "omega-optimization-unit",

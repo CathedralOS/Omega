@@ -15,6 +15,12 @@ pub(crate) struct StructuralSourceContract<'a> {
     qualifications: &'a [StructuralDomainId],
 }
 
+impl StructuralSourceContract<'_> {
+    pub(crate) fn carries_qualification(&self, domain: StructuralDomainId) -> bool {
+        self.qualifications.contains(&domain)
+    }
+}
+
 pub(crate) fn structural_arguments_match(
     caller: &PsiOptimizationFunction,
     arguments: &[psi_terminal::StructuralArgument],
@@ -119,6 +125,7 @@ pub(crate) fn structural_source_contract(
             access: parameter.access,
             qualifications: &parameter.qualifications,
         })
+        .or_else(|| structural_operation_result_contract(caller, place))
         .or_else(|| {
             allow_byte_literal.then_some(())?;
             caller
@@ -141,6 +148,30 @@ pub(crate) fn structural_source_contract(
                         qualifications: &[],
                     })
                 })
+        })
+}
+
+fn structural_operation_result_contract(
+    caller: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<StructuralSourceContract<'_>> {
+    caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| {
+            let result = match &node.operation {
+                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
+                    result
+                }
+                _ => return None,
+            };
+            (result.place == place).then_some(StructuralSourceContract {
+                structural_type: result.structural_type,
+                multiplicity: result.multiplicity,
+                access: psi_terminal::StructuralAccess::Owned,
+                qualifications: &result.qualifications,
+            })
         })
 }
 

@@ -51,19 +51,28 @@ not contain either implementation.
 Post-allocation peepholes have one narrower shared rung at
 `rules/peephole_matching/mod.rs`. Its small entrance takes an immutable
 terminal-pair descriptor, resolves named architectural register-unit sets,
-matches the two exact symbolic/machine footprints, and checks their liveness
-boundary. Instruction, register, and liveness mechanics live in separately
-named leaves below it. The first descriptor belongs to the exact AArch64 CBNZ
-leaf; the central machine catalog remains the sole enable/order authority.
+matches the two exact symbolic/machine footprints, checks named same-register
+or same-physical-storage relations between their operands, and checks their
+liveness boundary. Instruction, register, relation, and liveness mechanics
+live in separately named leaves below it. The first cataloged descriptor
+belongs to the exact AArch64 CBNZ leaf; the central machine catalog remains the
+sole compiler enable/order authority.
 This first vocabulary intentionally describes only a body-tail instruction
 followed by its terminator. It does not speculate an arbitrary pattern AST,
 rewrite language, cost policy, or ML interface.
 
-The matcher only proposes. CBNZ acceptance continues to reconstruct the same
-preconditions in its independent validator without calling the matcher, so a
-producer-interpreter defect cannot attest to itself. The plan codec, identity,
-attempt ordering, budget charges, and public error vocabulary remain those of
-the exact rule.
+The second descriptor proves cross-operand vocabulary without widening that
+topology. A core-only AArch64 owner recognizes an exact same-physical-view
+`CopyI64` whose destination virtual register is consumed by `ReturnI64`, then
+records only a symbolic elision disposition. It intentionally has no machine
+catalog row, build selection, encoding, layout, realization, or publication
+route until an honest compiler producer can reach it.
+
+The matcher only proposes. CBNZ and same-view-copy acceptance each reconstruct
+their preconditions in an independent rule-local validator without calling the
+matcher, so a producer-interpreter defect cannot attest to itself. Each rule
+owns its plan codec, identity, attempt ordering, budget charges, and public
+error vocabulary.
 
 Two exact rules may share a non-executable semantic family when they consume
 the same custody mechanics without sharing one execution point. Adjacent and

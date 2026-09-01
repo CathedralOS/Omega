@@ -27,7 +27,8 @@ pub(super) fn replay_leaf_value<'a>(
     Ok(match (recipe, expression, &proposed.value) {
         (
             LegalizationRecipe::ReturnU64ImmediateConditionalV1
-            | LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1,
+            | LegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
+            | LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
             TargetIntegerExpression::Immediate {
                 source_value: expression_source,
                 value: target_value,
@@ -164,6 +165,23 @@ pub(super) fn replay_leaf_value<'a>(
                     result.operation,
                 ],
             )
+        }
+        (
+            LegalizationRecipe::ReturnU64ActiveResidentExactAddBridgeChainConditionalV1,
+            expression,
+            LegalizedLeafValue::ActiveResidentExactAddBridgeChain(chain),
+        ) if replay_active_resident_bridge_chain_shape(expression) => {
+            replay_active_resident_bridge_chain(
+                function,
+                arm_edge,
+                expression,
+                source_value,
+                nodes,
+                optimized,
+                accepted_facts,
+                chain,
+                u64_type,
+            )?
         }
         (
             LegalizationRecipe::ReturnU64EntryParameterConditionalV1,

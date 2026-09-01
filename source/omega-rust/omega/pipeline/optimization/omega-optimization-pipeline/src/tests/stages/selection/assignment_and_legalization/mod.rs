@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Assignment custody and legalization tests by exact admitted form.
 
+mod active_resident_bridge_chain;
 mod assignment;
 mod immediate_conditional;
 mod widened_exact_add;

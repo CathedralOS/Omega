@@ -9,8 +9,9 @@ use omega_selected_instructions::{
 use crate::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
 
 use super::{
-    InstructionPattern, MatchedPhysicalRead, TerminalPairMatchError, ViewPattern,
-    model::ResolvedNamedUnitSet, registers,
+    ControlPattern, FixedViewPattern, InstructionPattern, MatchedPhysicalRead, OperandReadPattern,
+    OperandWritePattern, TerminalPairMatchError, ViewPattern, model::ResolvedNamedUnitSet,
+    registers,
 };
 
 pub(super) fn match_instruction(
@@ -43,7 +44,7 @@ pub(super) fn match_instruction(
         || encoded.memory != pattern.memory
         || encoded.stack != pattern.stack
         || encoded.trap != pattern.trap
-        || encoded.control != pattern.control
+        || !control_matches(pattern.control, encoded.control, physical)
         || machine.implicit_unit_uses != uses
         || machine.implicit_unit_defs != defs
         || machine.implicit_unit_clobbers != clobbers
@@ -60,6 +61,25 @@ pub(super) fn match_instruction(
         return Err(footprint_error(first, selected.id));
     }
     Ok(reads)
+}
+
+fn control_matches(
+    pattern: ControlPattern,
+    actual: omega_selected_instructions::MachineEncodedControlEffect,
+    physical: &ValidatedPhysicalRegisterModel,
+) -> bool {
+    match pattern {
+        ControlPattern::Exact(expected) => actual == expected,
+        ControlPattern::ReturnIndirectNamed(name) => physical
+            .model()
+            .view_named(name)
+            .is_some_and(|view| {
+                actual
+                    == omega_selected_instructions::MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                        target: view.id,
+                    }
+            }),
+    }
 }
 
 fn match_operand(
@@ -83,35 +103,63 @@ fn match_operand(
         || operand.virtual_register != selected_operand.virtual_register
         || operand.class != selected_operand.class
         || operand.access != pattern.access
-        || (pattern.read_equals_storage && operand.read_units != operand.storage_units)
-        || (pattern.writes_empty && !operand.write_units.is_empty())
-        || (pattern.no_write_semantics && operand.write_semantics.is_some())
+        || selected_operand.tied_to != pattern.tied_to
+        || selected_operand.early_clobber != pattern.early_clobber
     {
         return Err(footprint_error(first, selected.id));
     }
-    match_view(pattern.view, operand, physical).map_err(|()| physical_error(first, selected.id))?;
+    let view = match_view(pattern.view, operand, physical)
+        .map_err(|()| physical_error(first, selected.id))?;
+    let read_matches = match pattern.read {
+        OperandReadPattern::Empty => operand.read_units.is_empty(),
+        OperandReadPattern::StorageUnits => operand.read_units == operand.storage_units,
+    };
+    let write_matches = match pattern.write {
+        OperandWritePattern::Empty => {
+            operand.write_units.is_empty() && operand.write_semantics.is_none()
+        }
+        OperandWritePattern::ViewWrite => {
+            operand.write_units == view.write_units
+                && operand.write_semantics == Some(view.write_semantics)
+        }
+    };
+    if !read_matches || !write_matches {
+        return Err(footprint_error(first, selected.id));
+    }
+    let fixed_view_matches = match pattern.fixed_view {
+        FixedViewPattern::None => selected_operand.fixed_view.is_none(),
+        FixedViewPattern::Named(name) => physical
+            .model()
+            .view_named(name)
+            .is_some_and(|fixed| selected_operand.fixed_view == Some(fixed.id)),
+    };
+    if !fixed_view_matches {
+        return Err(footprint_error(first, selected.id));
+    }
     Ok(MatchedPhysicalRead {
         source_instruction: selected.id,
         operand: operand.operand,
         virtual_register: operand.virtual_register,
         class: operand.class,
         view: operand.view,
+        storage_units: operand.storage_units.clone(),
         units: operand.read_units.clone(),
+        write_units: operand.write_units.clone(),
     })
 }
 
-fn match_view(
+fn match_view<'a>(
     pattern: ViewPattern,
     operand: &PhysicalOperandFootprint,
-    physical: &ValidatedPhysicalRegisterModel,
-) -> Result<(), ()> {
+    physical: &'a ValidatedPhysicalRegisterModel,
+) -> Result<&'a omega_register_model::RegisterView, ()> {
     let view = physical
         .model()
         .views
         .iter()
         .find(|view| view.id == operand.view)
         .ok_or(())?;
-    match pattern {
+    let matches = match pattern {
         ViewPattern::IndexedAllocatable {
             prefix,
             maximum_index,
@@ -128,11 +176,20 @@ fn match_view(
                 || view.class != operand.class
                 || view.units != operand.storage_units
             {
-                return Err(());
+                false
+            } else {
+                true
             }
         }
-    }
-    Ok(())
+        ViewPattern::Named { name, bits } => {
+            view.name == name
+                && view.bits == bits
+                && view.allocatable
+                && view.class == operand.class
+                && view.units == operand.storage_units
+        }
+    };
+    matches.then_some(view).ok_or(())
 }
 
 fn whole_instruction_units_match(machine: &PostAllocationMachineInstruction) -> bool {

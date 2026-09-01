@@ -4,7 +4,7 @@ use omega_abstract_operations_to_target_operations::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,
 };
 use omega_target_operations::{
-    ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression,
+    ScalarParameterLocation, TargetBooleanExpression, TargetIntegerExpression, TargetUnitOperation,
 };
 
 mod arithmetic;
@@ -16,5 +16,6 @@ mod locations;
 mod shift;
 mod terminal;
 mod unary;
+mod unit;
 
 use locations::*;
