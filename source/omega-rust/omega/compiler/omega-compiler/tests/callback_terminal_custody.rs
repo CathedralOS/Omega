@@ -782,11 +782,23 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         ),
     ])
     .expect("callback registrar receiving policy");
+    let permission_policy =
+        omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+            vec![
+                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                    provider_plan.schema.identity_digest(),
+                    provider_requirement.clone(),
+                    omega_effects::TerminalAuthorityDisposition::from_classes([]),
+                ),
+            ],
+        )
+        .expect("callback registrar exact service permission");
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         policy,
+        permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &execution,
             &same_stack,

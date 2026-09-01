@@ -4,6 +4,7 @@
 use std::collections::BTreeSet;
 
 use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::realization::providers::AdmittedTerminalMechanism;
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_native_artifact::NativeProviderExecution;
@@ -27,10 +28,11 @@ pub(crate) fn settle_provider_executions<'request>(
     (
         Vec<AdmittedBoundarySettlement<'request>>,
         Vec<NativeProviderExecution>,
+        Vec<AdmittedTerminalMechanism>,
     ),
     Vec<Diagnostic>,
 > {
-    validate_source_evaluated_import_coverage(
+    let mechanisms = validate_source_evaluated_import_coverage(
         input.plan(),
         request.selected_provider_plans,
         &request.terminal_authority_policy,
@@ -68,5 +70,5 @@ pub(crate) fn settle_provider_executions<'request>(
                 right.provider_execution_report_identity(),
             ))
     });
-    Ok((admitted, provider_executions))
+    Ok((admitted, provider_executions, mechanisms))
 }

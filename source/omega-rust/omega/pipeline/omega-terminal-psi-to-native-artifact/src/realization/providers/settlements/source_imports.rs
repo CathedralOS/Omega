@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::realization::model::{NativeBoundaryRealization, NativeProviderSettlement};
+use crate::realization::providers::AdmittedTerminalMechanism;
 use psi_diagnostics::Diagnostic;
 
 pub(super) fn validate_source_evaluated_import_coverage(
@@ -15,7 +16,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
     native_callbacks: &[
         omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument
     ],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<AdmittedTerminalMechanism>, Vec<Diagnostic>> {
     let boundary_identities = plan
         .boundary_machines
         .iter()
@@ -81,6 +82,7 @@ pub(super) fn validate_source_evaluated_import_coverage(
     }
 
     let mut required_imports = BTreeSet::new();
+    let mut admitted_mechanisms = Vec::new();
     for requirement in demanded {
         let selected_rows = selected_plans
             .plans()
@@ -202,6 +204,21 @@ pub(super) fn validate_source_evaluated_import_coverage(
                         unclassified.mechanism(),
                     ))]
                 })?;
+                let matching_boundaries = boundary_identities
+                    .iter()
+                    .filter(|(_, identity)| **identity == requirement)
+                    .map(|(boundary, _)| *boundary)
+                    .collect::<Vec<_>>();
+                let [boundary] = matching_boundaries.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "demanded normalized import `{requirement}` resolves to {} Terminal boundaries",
+                        matching_boundaries.len()
+                    ))]);
+                };
+                admitted_mechanisms.push(AdmittedTerminalMechanism {
+                    boundary: *boundary,
+                    mechanism,
+                });
                 required_imports.insert(requirement);
             }
             matches => {
@@ -245,5 +262,6 @@ pub(super) fn validate_source_evaluated_import_coverage(
             "demanded source-evaluated import `{missing}` has no admitted native settlement"
         ))]);
     }
-    Ok(())
+    admitted_mechanisms.sort_by_key(|row| row.boundary);
+    Ok(admitted_mechanisms)
 }

@@ -31,6 +31,7 @@ pub(super) fn native_report(
         checked,
         admission,
         &request.terminal_admission_profile,
+        request.terminal_authority_permission_policy,
         rollback.effective(),
     )?;
     CompileReport::from_retained_native_artifact(

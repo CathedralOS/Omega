@@ -157,12 +157,14 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
             .unwrap(),
     );
     let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
     let policy_identity = policy.identity();
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         policy,
+        permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
             &admission.same_stack,
@@ -293,6 +295,32 @@ fn terminal_authority_policy(
     .expect("receiving policy has one exact normalized import row")
 }
 
+fn terminal_authority_permission_policy(
+    retained: &omega_compilation_report::RetainedTerminalArtifact,
+) -> omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let rows = proposal
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| {
+            plan.rows.iter().filter_map(move |row| {
+                matches!(row.binding, ProviderBinding::Import { .. }).then(|| {
+                    omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                        plan.schema.identity_digest(),
+                        row.requirement_identity.clone(),
+                        omega_effects::TerminalAuthorityDisposition::from_classes([]),
+                    )
+                })
+            })
+        })
+        .collect();
+    omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(rows)
+        .expect("exact source-evaluated import permissions")
+}
+
 struct AdmittedImport {
     execution: TestProviderExecution,
     same_stack: AdmittedSameStackContribution,
@@ -334,11 +362,13 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let fixture = Fixture::new();
     let missing = fixture.compile_terminal();
     let missing_policy = terminal_authority_policy(&missing);
+    let missing_permission_policy = terminal_authority_permission_policy(&missing);
     let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         missing,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         missing_policy,
+        missing_permission_policy,
         &[],
     )
     .expect_err("a demanded source-evaluated import requires external custody");
@@ -355,12 +385,14 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
             .unwrap(),
     );
     let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
     let policy_identity = policy.identity();
     let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         policy,
+        permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
             &admission.same_stack,

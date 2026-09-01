@@ -9,7 +9,9 @@ mod model;
 mod output;
 mod program_entry;
 pub(crate) mod providers;
+mod terminal_authority_permission_policy;
 mod terminal_authority_policy;
+mod terminal_authority_review;
 
 pub use callback_custody::{
     CallbackCustodyNativeRealizationError, RealizedNativeArtifactWithCallbackCustody,
@@ -20,6 +22,12 @@ pub use model::{
     NativeProviderSettlement, NativeRealizationRequest, SettledNativeArtifact,
 };
 pub use program_entry::realize_program_entry_native_artifact;
+pub use terminal_authority_permission_policy::{
+    MissingTerminalAuthorityPermission, TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
+    TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
+    terminal_authority_permission_policy_with_rows,
+};
 pub use terminal_authority_policy::{
     COMPILER_INTRINSIC_TERMINAL_AUTHORITY_POLICY_VERSION, CompilerIntrinsicTerminalAuthorityPolicy,
     TERMINAL_AUTHORITY_POLICY_VERSION, TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError,
@@ -78,13 +86,22 @@ fn realize_native_artifact_with_optional_checked_scope(
     )?;
     let semantic_bytes = artifact.semantic_bytes();
     let proof_bytes = artifact.proof_bytes();
+    let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let input = lower_realization_input(semantic_bytes, proof_bytes, &request)?;
     let AdmittedNativeProviders {
         settlements,
         executions,
         terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review,
         installation,
-    } = admit_native_providers(&input, semantic_bytes, proof_bytes, &request)?;
+    } = admit_native_providers(
+        &input,
+        semantic_bytes,
+        proof_bytes,
+        terminal_artifact_identity,
+        &request,
+    )?;
     let physical_evidence_scope = input.physical_evidence_scope(checked_scope);
     let machine_code = emit_realization_machine_code(input, installation, &settlements, &request)?;
     assemble_native_artifact(
@@ -92,6 +109,8 @@ fn realize_native_artifact_with_optional_checked_scope(
         &machine_code,
         executions,
         terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review,
         boundary_application_coverage,
         physical_evidence_scope,
         &request,

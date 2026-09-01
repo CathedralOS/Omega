@@ -191,6 +191,8 @@ fn stage_terminal_component(
             profile,
             terminal_authority_policy:
                 omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
+            terminal_authority_permission_policy:
+                omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
             program_entry: omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry

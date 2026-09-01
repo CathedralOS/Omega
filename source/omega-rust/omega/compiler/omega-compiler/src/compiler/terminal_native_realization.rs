@@ -56,6 +56,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
         profile,
         optimization_selections,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         imports,
     )
 }
@@ -68,6 +69,8 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
     profile: &psi_proof_admission::AdmissionProfile,
     optimization_selections: &omega_optimization_core::OptimizationSelections,
     terminal_authority_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
+    terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<omega_compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
     retained
@@ -172,6 +175,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
             subsystem: proposal.subsystem(),
             profile,
             terminal_authority_policy,
+            terminal_authority_permission_policy,
             program_entry,
             optimization_selections,
             selected_provider_plans: proposal.selected_provider_plans(),

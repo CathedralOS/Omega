@@ -10,7 +10,10 @@
 use std::collections::BTreeSet;
 
 use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
-use omega_effects::TerminalAuthorityPolicyIdentity;
+use omega_effects::{
+    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityPolicyIdentity,
+};
 pub use omega_image_emission::BoundaryExecutionRecord;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
@@ -30,7 +33,7 @@ pub use physical::{
     OptimizedOperatorOccurrence, PhysicalChildParent, PhysicalRelocationDisposition,
 };
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v4\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v5\0";
 
 /// Collision-resistant identity of one complete, validated native artifact.
 ///
@@ -237,6 +240,8 @@ pub struct NativeArtifact {
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence: Option<NativePhysicalEvidence>,
@@ -254,6 +259,8 @@ pub struct NativeArtifactParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    pub terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
     pub physical_evidence: Option<NativePhysicalEvidence>,
@@ -273,6 +280,8 @@ pub struct NativeArtifactEmissionParts {
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    pub terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    pub terminal_authority_closure_review: TerminalAuthorityClosureReviewReceipt,
     pub boundary_application_coverage: Option<TerminalBoundaryApplicationCoverage>,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
@@ -401,6 +410,9 @@ impl NativeArtifact {
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
             terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: parts
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review: parts.terminal_authority_closure_review,
             boundary_application_coverage: parts.boundary_application_coverage,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence,
@@ -421,6 +433,9 @@ impl NativeArtifact {
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
             terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: parts
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review: parts.terminal_authority_closure_review,
             boundary_application_coverage: parts.boundary_application_coverage,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence,
@@ -441,6 +456,28 @@ impl NativeArtifact {
         }
         if self.object.target() != self.target || self.image.target() != self.target {
             return Err("native artifact target disagrees with its object or image");
+        }
+        self.terminal_authority_closure_review
+            .validate()
+            .map_err(|_| "native artifact terminal-authority closure receipt is invalid")?;
+        if self
+            .terminal_authority_closure_review
+            .terminal_artifact_identity()
+            != *self.psi_artifact.manifest().identity().as_bytes()
+            || self.terminal_authority_closure_review.target() != self.target
+            || self
+                .terminal_authority_closure_review
+                .selected_provider_closure()
+                .as_bytes()
+                != self.selected_provider_closure_digest.as_bytes()
+            || self.terminal_authority_closure_review.physical_policy()
+                != self.terminal_authority_policy_identity
+            || self.terminal_authority_closure_review.permission_policy()
+                != self.terminal_authority_permission_policy_identity
+        {
+            return Err(
+                "native artifact terminal-authority closure receipt drifted from its exact realization inputs",
+            );
         }
         omega_image_emission::validate_executable_image(&self.object, &self.image)
             .map_err(|_| "native artifact image failed object-to-image replay")?;
@@ -620,6 +657,11 @@ impl NativeArtifact {
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: self
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review_identity: self
+                .terminal_authority_closure_review
+                .identity(),
             boundary_application_coverage_identity: boundary_application_coverage_identity(
                 self.boundary_application_coverage.as_ref(),
             ),
@@ -684,6 +726,18 @@ impl NativeArtifact {
         self.terminal_authority_policy_identity
     }
 
+    pub const fn terminal_authority_permission_policy_identity(
+        &self,
+    ) -> TerminalAuthorityPermissionPolicyIdentity {
+        self.terminal_authority_permission_policy_identity
+    }
+
+    pub const fn terminal_authority_closure_review(
+        &self,
+    ) -> &TerminalAuthorityClosureReviewReceipt {
+        &self.terminal_authority_closure_review
+    }
+
     /// Exact D29 demand and realization custody. `None` means this artifact
     /// was realized without a checked source-to-Terminal join; an exact empty
     /// demand set is retained as `Some` with zero references.
@@ -703,6 +757,26 @@ impl NativeArtifact {
         self.validate()?;
         if self.terminal_authority_policy_identity != accepted {
             return Err("native artifact terminal-authority policy is not accepted");
+        }
+        Ok(())
+    }
+
+    /// Replay the complete D45 receiving-policy join. Both policies and the
+    /// result of the receiver's actual closure review are independently
+    /// accepted inputs; structural validation of freely constructible receipt
+    /// data cannot confer receiving authority by itself.
+    pub fn validate_for_terminal_authority_policies(
+        &self,
+        accepted_physical: TerminalAuthorityPolicyIdentity,
+        accepted_permission: TerminalAuthorityPermissionPolicyIdentity,
+        accepted_closure_review: [u8; 32],
+    ) -> Result<(), &'static str> {
+        self.validate_for_terminal_authority_policy(accepted_physical)?;
+        if self.terminal_authority_permission_policy_identity != accepted_permission {
+            return Err("native artifact terminal-authority permission policy is not accepted");
+        }
+        if self.terminal_authority_closure_review.identity() != accepted_closure_review {
+            return Err("native artifact terminal-authority closure review is not accepted");
         }
         Ok(())
     }
@@ -730,6 +804,9 @@ impl NativeArtifact {
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
             terminal_authority_policy_identity: self.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: self
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review: self.terminal_authority_closure_review,
             boundary_application_coverage: self.boundary_application_coverage,
             physical_evidence_scope: self.physical_evidence_scope,
             physical_evidence: self.physical_evidence,
@@ -881,6 +958,8 @@ struct NativeArtifactIdentityFields<'a> {
     selected_provider_plans: &'a [NativeSelectedProviderPlan],
     provider_executions: &'a [NativeProviderExecution],
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
+    terminal_authority_permission_policy_identity: TerminalAuthorityPermissionPolicyIdentity,
+    terminal_authority_closure_review_identity: [u8; 32],
     boundary_application_coverage_identity: Option<[u8; 32]>,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence_identity: Option<[u8; 32]>,
@@ -968,6 +1047,18 @@ fn derive_native_artifact_identity(
             .to_le_bytes(),
     );
     digest.update(fields.terminal_authority_policy_identity.commitment());
+    digest.update(
+        fields
+            .terminal_authority_permission_policy_identity
+            .version()
+            .to_le_bytes(),
+    );
+    digest.update(
+        fields
+            .terminal_authority_permission_policy_identity
+            .commitment(),
+    );
+    digest.update(fields.terminal_authority_closure_review_identity);
     hash_optional_digest(&mut digest, fields.boundary_application_coverage_identity);
     digest.update([match fields.physical_evidence_scope {
         NativePhysicalEvidenceScope::Unavailable => 0,
@@ -1192,6 +1283,14 @@ mod tests {
                 1,
                 [fixture.terminal_policy_marker; 32],
             ),
+            terminal_authority_permission_policy_identity:
+                TerminalAuthorityPermissionPolicyIdentity::from_parts(
+                    1,
+                    [fixture.terminal_policy_marker.wrapping_add(1); 32],
+                ),
+            terminal_authority_closure_review_identity: [fixture
+                .terminal_policy_marker
+                .wrapping_add(2); 32],
             boundary_application_coverage_identity: fixture
                 .boundary_application_marker
                 .map(|marker| [marker; 32]),
