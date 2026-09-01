@@ -5,13 +5,14 @@ use psi_core::ScalarType;
 
 use super::super::super::super::model::{
     ExactIntegerAddParametersSource, ExactIntegerDivideParametersSource,
-    ExactIntegerMultiplyParametersSource, ExactIntegerSubtractParametersSource,
-    IntegerArithmeticParametersSource,
+    ExactIntegerMultiplyParametersSource, ExactIntegerRemainderParametersSource,
+    ExactIntegerSubtractParametersSource, IntegerArithmeticParametersSource,
 };
 use crate::validation::model::{
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
+    StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineSaturatingIntegerAddParametersTranslationError,
     StraightLineSaturatingIntegerMultiplyParametersTranslationError,
@@ -86,6 +87,24 @@ pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_divide(
     let envelope =
         super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
     super::exact_divide::reconstruct(function, &envelope)
+}
+
+pub(in crate::validation::straight_line_parameter) fn reconstruct_exact_remainder(
+    function: &AbstractFunction,
+) -> Result<
+    ExactIntegerRemainderParametersSource,
+    StraightLineExactIntegerRemainderParametersTranslationError,
+> {
+    let Some(AbstractOperation::ExactIntegerRemainder { scalar_type, .. }) =
+        function.operations.first()
+    else {
+        return Err(
+            StraightLineExactIntegerRemainderParametersTranslationError::SourceOperationRoster,
+        );
+    };
+    let envelope =
+        super::super::super::envelope::reconstruct(function, ScalarType::Integer(*scalar_type))?;
+    super::exact_remainder::reconstruct(function, &envelope)
 }
 
 pub(in crate::validation::straight_line_parameter) fn reconstruct_saturating_add(

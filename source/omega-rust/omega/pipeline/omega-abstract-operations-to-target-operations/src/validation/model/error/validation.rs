@@ -2,7 +2,8 @@
 
 use psi_core::MachineId;
 
-use super::{AbstractToTargetTranslationFamily, AbstractToTargetTranslationFamilyError};
+use super::super::AbstractToTargetTranslationFamily;
+use super::AbstractToTargetTranslationFamilyError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractToTargetTranslationValidationError {

@@ -39,6 +39,13 @@ pub(in crate::validation::catalog) const EXACT_INTEGER_DIVIDE: TranslationFamily
         exact_integer_divide,
     );
 
+pub(in crate::validation::catalog) const EXACT_INTEGER_REMAINDER: TranslationFamilyDescriptor =
+    TranslationFamilyDescriptor::new(
+        AbstractToTargetTranslationFamily::StraightLineExactIntegerRemainderParameters,
+        straight_line_parameter::integer::arithmetic::exact_remainder::is_candidate,
+        exact_integer_remainder,
+    );
+
 pub(in crate::validation::catalog) const WRAPPING_INTEGER_ADD: TranslationFamilyDescriptor =
     TranslationFamilyDescriptor::new(
         AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddParameters,
@@ -163,6 +170,20 @@ pub(in crate::validation::catalog::dispatch) fn exact_integer_divide(
     )
     .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerDivideParameters)
     .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerDivideParameters)
+}
+
+pub(in crate::validation::catalog::dispatch) fn exact_integer_remainder(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_parameter::integer::arithmetic::exact_remainder::validate(
+        source,
+        expected_target,
+        target,
+    )
+    .map(AbstractToTargetFunctionTranslationReceipt::StraightLineExactIntegerRemainderParameters)
+    .map_err(AbstractToTargetTranslationFamilyError::StraightLineExactIntegerRemainderParameters)
 }
 
 pub(in crate::validation::catalog::dispatch) fn wrapping_integer_subtract(

@@ -1,10 +1,12 @@
 //! Optimizer module role: executable entrance. Translation error taxonomy and exact family-to-error join.
 
+mod family;
 mod immediate;
 mod parameter;
 mod terminal;
 mod validation;
 
+pub use family::AbstractToTargetTranslationFamilyError;
 pub use immediate::{
     StraightLineBooleanImmediateTranslationError, StraightLineIntegerImmediateTranslationError,
 };
@@ -15,6 +17,7 @@ pub use parameter::{
     StraightLineExactIntegerAddParametersTranslationError,
     StraightLineExactIntegerDivideParametersTranslationError,
     StraightLineExactIntegerMultiplyParametersTranslationError,
+    StraightLineExactIntegerRemainderParametersTranslationError,
     StraightLineExactIntegerSubtractParametersTranslationError,
     StraightLineIntegerBitwiseAndParametersTranslationError,
     StraightLineIntegerBitwiseNotParameterTranslationError,
@@ -35,59 +38,3 @@ pub use parameter::{
 };
 pub use terminal::StraightLineScalarCrashTranslationError;
 pub use validation::AbstractToTargetTranslationValidationError;
-
-use super::AbstractToTargetTranslationFamily;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AbstractToTargetTranslationFamilyError {
-    StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
-    StraightLineBooleanImmediate(StraightLineBooleanImmediateTranslationError),
-    StraightLineScalarCrash(StraightLineScalarCrashTranslationError),
-    StraightLineIntegerParameter(StraightLineIntegerParameterTranslationError),
-    StraightLineBooleanParameter(StraightLineBooleanParameterTranslationError),
-    StraightLineBooleanNotParameter(StraightLineBooleanNotParameterTranslationError),
-    StraightLineIntegerBitwiseNotParameter(StraightLineIntegerBitwiseNotParameterTranslationError),
-    StraightLineBooleanEqualParameters(StraightLineBooleanEqualParametersTranslationError),
-    StraightLineIntegerEqualParameters(StraightLineIntegerEqualParametersTranslationError),
-    StraightLineIntegerLessThanParameters(StraightLineIntegerLessThanParametersTranslationError),
-    StraightLineIntegerLessOrEqualParameters(
-        StraightLineIntegerLessOrEqualParametersTranslationError,
-    ),
-    StraightLineIntegerWidenParameter(StraightLineIntegerWidenParameterTranslationError),
-    StraightLineIntegerExactCastParameter(StraightLineIntegerExactCastParameterTranslationError),
-    StraightLineIntegerBitwiseAndParameters(
-        StraightLineIntegerBitwiseAndParametersTranslationError,
-    ),
-    StraightLineIntegerBitwiseOrParameters(StraightLineIntegerBitwiseOrParametersTranslationError),
-    StraightLineIntegerBitwiseXorParameters(
-        StraightLineIntegerBitwiseXorParametersTranslationError,
-    ),
-    StraightLineExactIntegerAddParameters(StraightLineExactIntegerAddParametersTranslationError),
-    StraightLineExactIntegerSubtractParameters(
-        StraightLineExactIntegerSubtractParametersTranslationError,
-    ),
-    StraightLineExactIntegerMultiplyParameters(
-        StraightLineExactIntegerMultiplyParametersTranslationError,
-    ),
-    StraightLineExactIntegerDivideParameters(
-        StraightLineExactIntegerDivideParametersTranslationError,
-    ),
-    StraightLineSaturatingIntegerAddParameters(
-        StraightLineSaturatingIntegerAddParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerAddParameters(
-        StraightLineWrappingIntegerAddParametersTranslationError,
-    ),
-    StraightLineSaturatingIntegerSubtractParameters(
-        StraightLineSaturatingIntegerSubtractParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerSubtractParameters(
-        StraightLineWrappingIntegerSubtractParametersTranslationError,
-    ),
-    StraightLineWrappingIntegerMultiplyParameters(
-        StraightLineWrappingIntegerMultiplyParametersTranslationError,
-    ),
-    StraightLineSaturatingIntegerMultiplyParameters(
-        StraightLineSaturatingIntegerMultiplyParametersTranslationError,
-    ),
-}
