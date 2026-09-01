@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group.
 mod error;
+mod family;
 mod receipt;
 
 pub(in crate::validation) use error::StraightLineParameterReconstructionError;
@@ -29,9 +30,11 @@ pub use error::{
     StraightLineSaturatingIntegerSubtractParametersTranslationError,
     StraightLineScalarCrashTranslationError,
     StraightLineWrappingIntegerAddParametersTranslationError,
+    StraightLineWrappingIntegerDivideParametersTranslationError,
     StraightLineWrappingIntegerMultiplyParametersTranslationError,
     StraightLineWrappingIntegerSubtractParametersTranslationError,
 };
+pub use family::AbstractToTargetTranslationFamily;
 pub use receipt::{
     AbstractToTargetFunctionRosterReceipt, AbstractToTargetFunctionTranslationDisposition,
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationValidationReceipt,
@@ -60,38 +63,7 @@ pub use receipt::{
     StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineScalarCrashTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
+    StraightLineWrappingIntegerDivideParametersTranslationReceipt,
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };
-
-/// Stable identity of one independently replayed abstract-to-target family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AbstractToTargetTranslationFamily {
-    StraightLineIntegerImmediate,
-    StraightLineBooleanImmediate,
-    StraightLineScalarCrash,
-    StraightLineIntegerParameter,
-    StraightLineBooleanParameter,
-    StraightLineBooleanNotParameter,
-    StraightLineIntegerBitwiseNotParameter,
-    StraightLineBooleanEqualParameters,
-    StraightLineIntegerEqualParameters,
-    StraightLineIntegerLessThanParameters,
-    StraightLineIntegerLessOrEqualParameters,
-    StraightLineIntegerWidenParameter,
-    StraightLineIntegerExactCastParameter,
-    StraightLineIntegerBitwiseAndParameters,
-    StraightLineIntegerBitwiseOrParameters,
-    StraightLineIntegerBitwiseXorParameters,
-    StraightLineExactIntegerAddParameters,
-    StraightLineExactIntegerSubtractParameters,
-    StraightLineExactIntegerMultiplyParameters,
-    StraightLineExactIntegerDivideParameters,
-    StraightLineExactIntegerRemainderParameters,
-    StraightLineSaturatingIntegerAddParameters,
-    StraightLineWrappingIntegerAddParameters,
-    StraightLineSaturatingIntegerSubtractParameters,
-    StraightLineWrappingIntegerSubtractParameters,
-    StraightLineWrappingIntegerMultiplyParameters,
-    StraightLineSaturatingIntegerMultiplyParameters,
-}

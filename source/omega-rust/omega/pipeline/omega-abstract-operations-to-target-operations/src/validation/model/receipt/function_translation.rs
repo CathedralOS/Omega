@@ -26,6 +26,7 @@ use super::parameter::{
     StraightLineSaturatingIntegerMultiplyParametersTranslationReceipt,
     StraightLineSaturatingIntegerSubtractParametersTranslationReceipt,
     StraightLineWrappingIntegerAddParametersTranslationReceipt,
+    StraightLineWrappingIntegerDivideParametersTranslationReceipt,
     StraightLineWrappingIntegerMultiplyParametersTranslationReceipt,
     StraightLineWrappingIntegerSubtractParametersTranslationReceipt,
 };
@@ -71,6 +72,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineExactIntegerRemainderParameters(
         StraightLineExactIntegerRemainderParametersTranslationReceipt,
+    ),
+    StraightLineWrappingIntegerDivideParameters(
+        StraightLineWrappingIntegerDivideParametersTranslationReceipt,
     ),
     StraightLineSaturatingIntegerAddParameters(
         StraightLineSaturatingIntegerAddParametersTranslationReceipt,
