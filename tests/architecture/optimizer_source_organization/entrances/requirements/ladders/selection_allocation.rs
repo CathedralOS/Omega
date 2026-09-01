@@ -255,6 +255,28 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "non-authoritative spill-frame requirements",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/validation.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements/custody.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "non-authoritative spill-frame requirement coverage",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/frame_requirements/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/frame_requirements/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/frame_requirements/positive.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/frame_requirements/corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/frame_requirements/budget.rs",
+        ],
+    },
+    SemanticLadder {
         family: "fixed/precolored point intervals",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/mod.rs",
