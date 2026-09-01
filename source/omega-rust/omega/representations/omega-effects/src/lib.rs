@@ -66,4 +66,5 @@ pub use selected_provider_plans::{
 pub use terminal_authority::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     TerminalAuthorityClass, TerminalAuthorityDisposition, TerminalAuthorityPolicyIdentity,
+    compiler_intrinsic_execution_identity_bytes,
 };

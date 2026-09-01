@@ -12,3 +12,4 @@ path = "src/lib.rs"
 omega-effects = { path = "../omega-effects" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+sha2 = "0.10.9"

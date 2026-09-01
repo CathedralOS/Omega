@@ -10,8 +10,10 @@
 
 use psi_core::OperationId;
 
+mod coverage;
 mod realization;
 
+pub use coverage::{BoundaryApplicationCoverageIdentity, OperatorApplicationCoverageRef};
 pub use realization::{
     BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
     BoundaryApplicationRealizationRole, TerminalBoundaryApplicationRealizations,

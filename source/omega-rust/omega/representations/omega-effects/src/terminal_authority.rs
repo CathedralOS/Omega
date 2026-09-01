@@ -23,6 +23,88 @@ pub enum CompilerIntrinsicExecutionIdentity {
     },
 }
 
+/// Canonical representation-rank encoding of one closed compiler-intrinsic
+/// semantic atom. This is shared input to stronger domain-separated product
+/// commitments; it is not an admission or target-catalog decision by itself.
+pub fn compiler_intrinsic_execution_identity_bytes(
+    identity: CompilerIntrinsicExecutionIdentity,
+) -> [u8; 8] {
+    let mut bytes = [0_u8; 8];
+    match identity {
+        CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => bytes[0] = 0,
+        CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
+            bytes[0] = 1;
+            bytes[1..5].copy_from_slice(&(function.ordinal() as u32).to_be_bytes());
+        }
+        CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
+            bytes[0] = 2;
+            bytes[1] = primitive_float_operation_tag(operation);
+            bytes[2] = float_format_tag(format);
+        }
+        CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
+            bytes[0] = 3;
+            bytes[1] = float_format_tag(format);
+        }
+        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        } => {
+            bytes[0] = 4;
+            bytes[1] = numeric_type_tag(source);
+            bytes[2] = numeric_type_tag(target);
+            bytes[3] = arithmetic_domain_tag(domain);
+        }
+    }
+    bytes
+}
+
+const fn primitive_float_operation_tag(operation: CompilerPrimitiveFloatBinaryOperation) -> u8 {
+    match operation {
+        CompilerPrimitiveFloatBinaryOperation::Add => 0,
+        CompilerPrimitiveFloatBinaryOperation::Subtract => 1,
+        CompilerPrimitiveFloatBinaryOperation::Multiply => 2,
+        CompilerPrimitiveFloatBinaryOperation::Divide => 3,
+        CompilerPrimitiveFloatBinaryOperation::Equal => 4,
+        CompilerPrimitiveFloatBinaryOperation::NotEqual => 5,
+        CompilerPrimitiveFloatBinaryOperation::Less => 6,
+        CompilerPrimitiveFloatBinaryOperation::LessOrEqual => 7,
+        CompilerPrimitiveFloatBinaryOperation::Greater => 8,
+        CompilerPrimitiveFloatBinaryOperation::GreaterOrEqual => 9,
+    }
+}
+
+const fn numeric_type_tag(numeric_type: CompilerNumericType) -> u8 {
+    match numeric_type {
+        CompilerNumericType::I8 => 0,
+        CompilerNumericType::I16 => 1,
+        CompilerNumericType::I32 => 2,
+        CompilerNumericType::I64 => 3,
+        CompilerNumericType::U8 => 4,
+        CompilerNumericType::U16 => 5,
+        CompilerNumericType::U32 => 6,
+        CompilerNumericType::U64 => 7,
+        CompilerNumericType::F32 => 8,
+        CompilerNumericType::F64 => 9,
+    }
+}
+
+const fn float_format_tag(format: psi_numerics::literals::FloatFormat) -> u8 {
+    match format {
+        psi_numerics::literals::FloatFormat::F32 => 0,
+        psi_numerics::literals::FloatFormat::F64 => 1,
+    }
+}
+
+const fn arithmetic_domain_tag(domain: psi_numerics::arithmetic::ArithmeticDomain) -> u8 {
+    match domain {
+        psi_numerics::arithmetic::ArithmeticDomain::Exact => 0,
+        psi_numerics::arithmetic::ArithmeticDomain::Wrapping => 1,
+        psi_numerics::arithmetic::ArithmeticDomain::Saturating => 2,
+        psi_numerics::arithmetic::ArithmeticDomain::Trapping => 3,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerNumericType {
     I8,
@@ -270,5 +352,56 @@ mod tests {
                 TerminalAuthorityClass::PortIo,
             ]
         );
+    }
+
+    #[test]
+    fn compiler_intrinsic_atoms_have_unique_canonical_encodings() {
+        let mut identities = vec![CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32];
+        identities.extend(
+            psi_symbols::BuiltinFunction::ALL
+                .into_iter()
+                .map(CompilerIntrinsicExecutionIdentity::BuiltinFunction),
+        );
+        for operation in CompilerPrimitiveFloatBinaryOperation::ALL {
+            for format in [
+                psi_numerics::literals::FloatFormat::F32,
+                psi_numerics::literals::FloatFormat::F64,
+            ] {
+                identities.push(CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                    operation,
+                    format,
+                });
+            }
+        }
+        for format in [
+            psi_numerics::literals::FloatFormat::F32,
+            psi_numerics::literals::FloatFormat::F64,
+        ] {
+            identities.push(CompilerIntrinsicExecutionIdentity::NamedFloatNegation(
+                format,
+            ));
+        }
+        for source in CompilerNumericType::ALL {
+            for target in CompilerNumericType::ALL {
+                for domain in [
+                    psi_numerics::arithmetic::ArithmeticDomain::Exact,
+                    psi_numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    psi_numerics::arithmetic::ArithmeticDomain::Saturating,
+                    psi_numerics::arithmetic::ArithmeticDomain::Trapping,
+                ] {
+                    identities.push(CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                        source,
+                        target,
+                        domain,
+                    });
+                }
+            }
+        }
+        let encoded = identities
+            .iter()
+            .copied()
+            .map(compiler_intrinsic_execution_identity_bytes)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(encoded.len(), identities.len());
     }
 }
