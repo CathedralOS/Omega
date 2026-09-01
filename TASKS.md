@@ -10843,7 +10843,7 @@ Remaining N6/N8 work:
   result similarly rejoins to source-free `(MachineId, result ValueId, format)`
   identity by reading the mapped owner's exact Terminal result declaration;
   mapped Unit, structural, or wrong-format results fail closed. Terminal format
-  59 / vocabulary 62 encode both carriers. Independent validation requires a
+  61 / vocabulary 64 encode both carriers. Independent validation requires a
   unique owner and exact direct-parameter membership for the parameter form, or
   exact equality with that owner's scalar result declaration for the result
   form, plus the matching IEEE format. Parameters and results are not
@@ -10852,11 +10852,18 @@ Remaining N6/N8 work:
   substitution reject. This adds no runtime operation, value production, fuel,
   interpreter behavior, or native lowering. Still open are carriers for nested
   state, call, and operation results, arbitrary Terminal values, structural
-  float leaves, plus production proof-ledger discharge. Full source-to-Terminal
-  coverage of the direct result form also remains behind the existing exit
-  prover's result-substitution/FloatMeaning-reflexivity gap; producer
-  classification and backend artifact joining are covered independently rather
-  than weakening that proof fence.
+  float leaves, plus production proof-ledger discharge. The ordinary exit
+  checker now discharges the direct owning-result reflexivity form without a
+  label shortcut: the current `ensures` expression must rejoin its exact
+  checked `FloatMeaningEqual` row, both operands must be the same canonical
+  proof value, and that value must be the exiting machine's retained direct
+  result. Distinct result/parameter terms still require evidence, and raw IEEE
+  `result == result` remains non-reflexive because of NaN. Source-to-checked
+  classification and backend artifact joining are therefore covered on their
+  respective sides. Their combined source-to-Terminal path remains open in the
+  runtime producer: current f32/f64 result producers do not yet compose a
+  result-bearing machine with this proof-only contract. Fix that producer
+  composition rather than weakening or bypassing either proof fence.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

@@ -555,6 +555,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
             id: CheckedProofPropositionId(id),
             left: CheckedProofValueId(left.min(right)),
             right: CheckedProofValueId(left.max(right)),
+            source_expression: fact.expression,
         });
     }
     proof.float_meaning_projections = projections;
@@ -784,14 +785,16 @@ mod tests {
         assert_eq!(occurrences[0].id.0, 0);
         assert_eq!(occurrences[1].id.0, 1);
         assert_eq!(checked.facts.proof.float_meaning_equalities.len(), 2);
-        assert_eq!(
-            checked.facts.proof.float_meaning_equalities[0],
-            CheckedFloatMeaningEqualityProposition {
-                id: CheckedProofPropositionId(0),
-                left: CheckedProofValueId(0),
-                right: CheckedProofValueId(0),
-            }
-        );
+        let narrow_equality = checked.facts.proof.float_meaning_equalities[0];
+        assert_eq!(narrow_equality.id, CheckedProofPropositionId(0));
+        assert_eq!(narrow_equality.left, CheckedProofValueId(0));
+        assert_eq!(narrow_equality.right, CheckedProofValueId(0));
+        assert!(matches!(
+            checked
+                .expression_table
+                .expression(narrow_equality.source_expression),
+            ExpressionNode::Binary(expression) if expression.operator == BinaryOperator::Equal
+        ));
     }
 
     #[test]
@@ -827,23 +830,21 @@ mod tests {
 
     #[test]
     fn top_level_scalar_result_retains_direct_checked_provenance() {
-        let result_program = lower_projection_fixture(
+        let checked = crate::lower_typed_trees(lower_projection_fixture(
             r#"
                 machine result_source(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(result);
                 { value }
             "#,
-        );
-        let result_proof = bind_projection_facts_without_exit_proof(&result_program);
+        ))
+        .expect("direct result reflexivity should pass ordinary exit checking");
+        let result_proof = &checked.facts.proof;
         let CheckedFloatProjectionSource::DirectMachineResult(result) =
             result_proof.float_meaning_projections[0].source
         else {
             panic!("top-level scalar result should retain direct provenance")
         };
-        assert_eq!(
-            result_program.symbols.name(result.owner_machine),
-            "result_source"
-        );
+        assert_eq!(checked.symbols.name(result.owner_machine), "result_source");
         assert_eq!(
             result.fallback,
             CheckedFloatProjectionInput {
@@ -855,7 +856,7 @@ mod tests {
 
     #[test]
     fn direct_result_identity_includes_exact_owner_and_primitive_format() {
-        let program = lower_projection_fixture(
+        let checked = crate::lower_typed_trees(lower_projection_fixture(
             r#"
                 machine narrow(value: f32) -> f32
                 ensures Float::meaning32(result) == Float::meaning32(result);
@@ -865,8 +866,9 @@ mod tests {
                 ensures Float::meaning64(result) == Float::meaning64(result);
                 { value }
             "#,
-        );
-        let proof = bind_projection_facts_without_exit_proof(&program);
+        ))
+        .expect("direct result reflexivity should pass for both primitive formats");
+        let proof = &checked.facts.proof;
         let [narrow, wide] = proof.float_meaning_projections.as_slice() else {
             panic!("one result projection per owning machine")
         };
@@ -876,11 +878,45 @@ mod tests {
         let CheckedFloatProjectionSource::DirectMachineResult(wide) = wide.source else {
             panic!("wide result provenance")
         };
-        assert_eq!(program.symbols.name(narrow.owner_machine), "narrow");
-        assert_eq!(program.symbols.name(wide.owner_machine), "wide");
+        assert_eq!(checked.symbols.name(narrow.owner_machine), "narrow");
+        assert_eq!(checked.symbols.name(wide.owner_machine), "wide");
         assert_ne!(narrow.owner_machine, wide.owner_machine);
         assert_eq!(narrow.fallback.primitive, PrimitiveType::F32);
         assert_eq!(wide.fallback.primitive, PrimitiveType::F64);
+    }
+
+    #[test]
+    fn direct_result_reflexivity_does_not_prove_a_distinct_parameter_projection() {
+        let diagnostics = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                machine distinct(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(value);
+                { value }
+            "#,
+        ))
+        .expect_err("distinct checked projection terms require explicit evidence");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from distinct")
+        }));
+    }
+
+    #[test]
+    fn raw_float_result_equality_does_not_borrow_float_meaning_reflexivity() {
+        let diagnostics = crate::lower_typed_trees(lower_projection_fixture(
+            r#"
+                machine raw(value: f32) -> f32
+                ensures result == result;
+                { value }
+            "#,
+        ))
+        .expect_err("IEEE equality is not FloatMeaning structural equality");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from raw")
+        }));
     }
 
     #[test]
@@ -900,6 +936,13 @@ mod tests {
         };
         assert_eq!(program.symbols.name(parameter.owner_machine), "shadow");
         assert_eq!(program.symbols.name(parameter.parameter), "result");
+        let diagnostics = crate::lower_typed_trees(program)
+            .expect_err("a real result parameter must not receive pseudo-result reflexivity");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("cannot prove ensures contract for exit from shadow")
+        }));
     }
 
     #[test]

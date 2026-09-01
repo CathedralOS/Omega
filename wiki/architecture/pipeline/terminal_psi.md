@@ -3505,11 +3505,17 @@ foreign-owner substitutions reject. An owner omitted from the selected artifact
 retains its transitional fallback. Nested state, call, and operation results,
 arbitrary Terminal values, structural leaves, and every other nonliteral source
 remain transitional.
+The source-side exit checker admits the owning direct-result reflexivity form
+only after the exact authored `ensures` expression rejoins the checked
+`FloatMeaningEqual` row, both operands share one canonical proof value, and
+that value retains the same owner. This checked-only source coordinate is
+erased here; it is not serialized or accepted as Terminal correspondence.
+Distinct projected terms and raw IEEE equality receive no such route.
 Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
 operator or result declaration cannot reach this Terminal side table. Format
-59 / vocabulary 62 carries the closed artifact descriptor and direct-parameter/
+61 / vocabulary 64 carries the closed artifact descriptor and direct-parameter/
 direct-result source carriers: rooted-checker
 tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
 the exact sealed owners, hermetic operation, private contract-free ordinary
