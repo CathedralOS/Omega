@@ -186,6 +186,16 @@ certificate, component roster, edges, carrier type, and unit roots. It is
 deliberately absent from the generic bare-unit analysis manager because that
 entrance cannot supply ranking authority.
 
+The adjacent countdown-invariant-constant entrance is the second
+authority-sensitive consumer. It accepts only the two input-free integer
+constants named by the authenticated guard-zero and decrement-one certificate
+rows. Direct construction locates them by certificate operation identity;
+independent replay separately joins component and counted-loop maps and locates
+the current nodes by canonical provenance before reconstructing their exact
+definition, value/type, provenance, fuel, and effect custody. The result names
+the existing preheader only as a prospective destination. It does not move a
+node, invalidate a component, or bypass the ranked-cycle frozen-block fence.
+
 Allocation recovery is one phase carrier rather than one carrier per exact
 rule. A tagged source leaf retains either fixed-view-copy or active-resident
 rematerialization proof custody; common encoding, layout, whole-function exit,
@@ -298,13 +308,18 @@ order. The current fixture's original is used at the pressure point, so it is
 correctly excluded and the reload remains selected; the boundary therefore
 proves eligibility mechanics without minting original-victim action authority.
 
-The adjacent `generalized_spill_recovery_actions` entrance converts that exact
-reload-victim evidence into epoch-two logical store, reload, and rewrite
-obligations. Direct schedule traversal and independently keyed replay must
-agree before receipt sealing. Its action namespace remains compiler-private;
-the result grants no selected register, instruction, physical slot, address,
-memory effect, frame, trap, encoding, emission, or publication authority.
-Original-value victims remain an explicit later boundary. The adjacent
+The adjacent `generalized_spill_recovery_actions` entrance converts exact
+reload- or original-victim evidence into epoch-two logical store, reload, and
+rewrite obligations. The legacy V1 reload entry keeps its original inputs and
+identity bytes. A separate V2 original entry additionally binds selected-plan
+and live-range roots, reconstructs the original definition and complete
+flexible post-pressure use suffix, and retains a closed `Original(VReg)` versus
+`Reload(action)` victim type. Direct traversal and independently keyed replay
+must agree before receipt sealing. Its action namespace remains
+compiler-private; the result grants no selected register, instruction,
+physical slot, address, memory effect, frame, trap, encoding, emission, or
+publication authority. Recursive insertion explicitly rejects the V2 original
+victim until that separate schedule boundary is implemented. The adjacent
 `recursive_spill_insertion` entrance now integrates the reload-victim case into
 one complete target-neutral schedule. Its producer and independently keyed
 replay recolor all closed logical lifetimes, order every store/reload/rewrite,

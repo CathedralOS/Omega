@@ -68,10 +68,15 @@ reconstruct native ABI placement and every roster location. Boundary/provider,
 unrelated, and all other projected-roster shapes still reject. Legalization has
 one bounded identity-custody route for that exact atomic caller/callee closure:
 it retains the target functions and optimizer node evidence and independently
-replays the complete source, target, ABI, and roster contract. It cannot select
-instructions or alter a qualification; selection and later stages remain
-unsupported. No stage may infer a field qualification from root shape or
-carrier equality.
+replays the complete source, target, ABI, and roster contract. Selection admits
+only that same atomic closure and binds its eight direct integer fragment
+placements, exact call/return constraint rows, fixed views/classes/access,
+implicit uses/defs/clobbers, and target-dependent copy or same-view transfer.
+Nonempty projected custody uses selected identity V13 while empty plans remain
+V12 byte-for-byte. Liveness and pre-allocation machine-effect analysis reject
+this carrier explicitly, so allocation, machine realization, encoding, and
+publication remain unsupported. No stage may infer a field qualification from
+root shape or carrier equality.
 
 At control-flow joins, an output may retain only qualifications carried by
 every incoming occurrence through valid establishment lineage. CSE and GVN

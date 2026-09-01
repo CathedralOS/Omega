@@ -33,7 +33,8 @@ an active-resident exact-add chain paired with one false-arm immediate. One
 ordered catalog is the complete source-shape inventory. It selects exactly zero
 or one family; omission rejects as unsupported and overlap fails closed.
 
-Every family constructs its virtual-register roster and blocks as one body.
+Every scalar family constructs its virtual-register roster and blocks as one
+body.
 The common entry compares the condition and branches to the two exact source
 successors. Leaves then materialize, forward, or compute their unsigned 64-bit
 result and return it with exact operation, obligation, value, edge, definition,
@@ -41,6 +42,17 @@ and fuel provenance. Fixed ABI views are constraints, not assigned homes.
 x86-64 obtains RFLAGS/RIP effects and AArch64 obtains NZCV/PC effects from their
 independently validated ISA-owned catalog rows. Other shapes reject rather than
 falling back or entering transitional assignment.
+
+One separate atomic plan family admits the exact two-function owned-linear
+projected structural call/return closure already authenticated by target
+legalization. It creates no scalar virtual register or selected machine
+instruction. Instead it retains eight direct 8-byte integer fragment
+placements, the exact ordinary-call and return register-constraint rows,
+fixed views/classes/access, complete implicit uses/defs/clobbers, and the three
+required transfers. X86-64 transfers with the complete `copy_i64` row when ABI
+views differ; AArch64 records an explicit same-view/no-copy transfer. Liveness
+and pre-allocation machine-effect analysis reject every nonempty instance, so
+no later physical authority follows from this selection boundary.
 
 ## Semantic Custody
 
@@ -72,6 +84,10 @@ falling back or entering transitional assignment.
 - `selection/construction/structural_unit/mod.rs` joins independently
   reconstructed ABI layout, optional structural call, and Unit return; layout
   and call mechanics descend into named leaves.
+- `selection/construction/projected_structural_call_return/mod.rs` coordinates
+  the bounded atomic closure through named projection, constraint, and transfer
+  leaves; its independent validator descends through separate source and target
+  replay.
 - `pipeline/optimization/omega-optimization-pipeline/src/stages/selection/selection.rs` owns the opaque
   cross-stage carrier, injects exact ISA/ABI constraints, and binds the physical
   model, constraint catalog, active reservation profile, and selected keys into

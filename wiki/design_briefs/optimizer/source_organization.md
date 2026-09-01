@@ -143,6 +143,16 @@ component and ranking custody. The replay side descends through
 reachability, and header dominance without calling CFG, dominator, SCC, or loop
 producers. This bridge grants analysis facts only; execution and rewrite
 authority remain closed.
+Exact loop-invariant constant discovery descends one rung through the 44-line
+`countdown_invariant_constants/mod.rs` coordination entrance. `model.rs` owns
+the zero/one roles and authenticated snapshot, `compute.rs` consumes counted-
+loop custody to locate certificate-owned input-free integer constants, and
+`replay.rs` independently reconstructs their component, prospective preheader,
+definition, provenance, fuel, and effect bindings without calling the producer.
+`validate.rs` is the sole admission seam. The mirrored cyclic-Psi leaf pins the
+exact pair, empty acyclic behavior, corruption axes, and the continuing frozen-
+body mutation refusal; this remains analysis authority rather than LICM or
+rewrite authority.
 The nested
 consumer `prefixed_control/mod.rs` is itself a small coordinating entrance over
 its two rungs. It reuses the ancestor catalogs and internal-call leaf emitters
@@ -292,20 +302,26 @@ coordinator. Its distinct legalized source/replay leaves retain
 `r + ((r + (a + b)) + (b + r))`; named selected construction and block-replay
 leaves carry the same fork/join into the existing choice entrance. The mirrored
 `register_allocation/guarded_original_spill_recovery_choice.rs` leaf pins the
-exact original/reload contenders, choice, budgets, corruption fences, and the
-following typed action refusal. Older recipe tags and the choice taxonomy stay
-unchanged.
+exact original/reload contenders, choice, budgets, and corruption fences. The
+separate original-action leaf owns the following V2 handoff; older recipe tags
+and the choice taxonomy stay unchanged.
 
 Epoch-two logical action planning continues at
 `omega-regalloc/src/allocation/generalized_spill_recovery_actions/mod.rs`.
-Its 26-line executable entrance joins direct schedule traversal to an
+Its 43-line executable entrance exposes the preserved V1 reload-victim entry
+and a separate V2 guarded-original entry while joining direct traversal to
 independently keyed replay without hiding either lifecycle. `model.rs` owns the
-closed logical store/reload/rewrite vocabulary, `identity.rs` owns custody,
-and `validate.rs` compares replay before sealing a receipt. The mirrored
-pipeline leaf is `register_allocation/generalized_spill_recovery_actions.rs`;
+closed victim and logical store/reload/rewrite vocabulary, `identity.rs` owns
+versioned custody, and `validate.rs` compares replay before sealing a receipt.
+The `compute/` and `replay/` subtrees make reload and original reconstruction
+separate named leaves; V2 additionally binds selected-plan and live-range
+roots, while V1 retains its original signature and exact identity bytes. The
+mirrored pipeline leaf is
+`register_allocation/generalized_spill_recovery_actions.rs`;
 architecture guards register the complete ladder and forbid validation from
-calling producer mechanics. This stage remains target-neutral logical
-custody, not physical spill insertion or publication authority.
+calling producer mechanics. Original-victim obligations remain fenced from
+recursive insertion by a typed refusal. This stage remains target-neutral
+logical custody, not physical spill insertion or publication authority.
 
 Recursive logical insertion continues at
 `omega-regalloc/src/allocation/recursive_spill_insertion/mod.rs`. Its 26-line
@@ -481,6 +497,13 @@ Constant integer-less-than immediate translation mirrors that taxonomy under
 exact ordered source grammar and independent Boolean-immediate replay; its own
 fixture/corruption group, catalog adapter/canary, and optimized-custody leaf
 keep constant ordering separate from equality and parameter comparison.
+Constant integer-less-than-or-equal immediate translation is the independent
+inclusive sibling under `straight_line_integer_less_or_equal_immediate/`. Its
+27-line entrance joins the exact same-type four-operation grammar to replay of
+one Boolean immediate, with fixed signed/unsigned and address-width comparison
+semantics. Its dedicated fixture/corruption group, catalog adapter/canary, and
+optimized-custody leaf keep inclusive ordering explicitly selectable rather
+than hiding it behind the strict family.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line
