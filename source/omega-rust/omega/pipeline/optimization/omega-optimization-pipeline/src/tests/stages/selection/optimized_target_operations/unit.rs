@@ -113,6 +113,81 @@ fn optimized_target_lowering_retains_exact_ieee_literal_custody() {
 }
 
 #[test]
+fn optimized_target_lowering_retains_finite_ieee_literal_sequence_custody() {
+    let expected = [
+        (
+            OperationId::new(3_520).unwrap(),
+            ValueId::new(3_521).unwrap(),
+            psi_core::IeeeFloatValue::Binary32(0x8000_0000),
+        ),
+        (
+            OperationId::new(3_522).unwrap(),
+            ValueId::new(3_523).unwrap(),
+            psi_core::IeeeFloatValue::Binary32(0x7fc1_2345),
+        ),
+        (
+            OperationId::new(3_524).unwrap(),
+            ValueId::new(3_525).unwrap(),
+            psi_core::IeeeFloatValue::Binary64(0x7ff8_1234_5678_9abc),
+        ),
+    ];
+    for target_profile in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let (semantic, proof) = ieee_float_literal_sequence_unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = lower_optimized_to_target_operations(optimized, target_profile).unwrap();
+        let receipt = target.translation_validation();
+        let AbstractToTargetFunctionTranslationDisposition::Validated(
+            AbstractToTargetFunctionTranslationReceipt::StraightLineIeeeFloatLiteralSequenceUnitReturn(
+                row,
+            ),
+        ) = receipt.function_roster()[0].translation()
+        else {
+            panic!("optimized IEEE sequence must retain its exact validated family")
+        };
+        assert_eq!(row.literals().len(), expected.len());
+        for (member, (operation, result, value)) in row.literals().iter().zip(expected) {
+            assert_eq!(member.operation(), operation);
+            assert_eq!(member.result(), result);
+            assert_eq!(member.value(), value);
+        }
+        let TargetOperation::UnitBody(body) = &target.target_operations().functions[0].operation
+        else {
+            panic!("optimized IEEE sequence must remain in the Unit-body carrier")
+        };
+        assert_eq!(body.operations.len(), expected.len() + 1);
+        for (target_literal, (operation, result, value)) in body.operations.iter().zip(expected) {
+            assert!(matches!(
+                target_literal,
+                TargetUnitOperation::IeeeFloatConstant {
+                    psi_operation,
+                    result: target_result,
+                    value: target_value,
+                } if *psi_operation == operation
+                    && *target_result == result
+                    && *target_value == value
+            ));
+        }
+        assert!(matches!(
+            body.operations.last(),
+            Some(TargetUnitOperation::Return { cleanup_actions, .. })
+                if cleanup_actions.is_empty()
+        ));
+    }
+}
+
+#[test]
 fn optimized_target_lowering_retains_trivial_affine_local_cleanup_custody() {
     for target_profile in [
         NativeTarget::linux_x64(),

@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-two abstract-to-target families are covered,
+  machine-rule family. Forty-three abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -499,6 +499,15 @@ decision. Only true language-semantic questions belong in
   independent optimization-unit validator now also reconstructs IEEE literal
   and fused-multiply-add result definitions instead of rejecting producer-
   correct scalar metadata.
+  The adjacent parameterless IEEE-literal-sequence family admits an ordered
+  sequence of at least two `IeeeFloatConstant` operations followed by
+  `ReturnUnit`. Independent replay preserves every operation/result identity,
+  each raw Binary32/Binary64 bit pattern, exact order and provenance, the
+  return edge, empty cleanup/native call plan, and canonical structural roster
+  across all five native targets. Signed zero and NaN payloads survive without
+  host-float conversion, and its optimized-target custody canary retains the
+  typed sequence receipt. Its multi-operation grammar remains disjoint from
+  both the singleton IEEE-literal and return-only families.
   Coverage also includes proof-bearing exact
   parameterized fixed-integer addition,
   subtraction, multiplication, division, and remainder, proof-bearing wrapping and
@@ -605,7 +614,11 @@ decision. Only true language-semantic questions belong in
   the same for all 36 representable record/subrecord fields, every applicable
   closed wire and envelope axis, all six unavailable-data positions, and all
   four custody roots. Each record mutation is reauthenticated so independent
-  replay, rather than a stale outer digest, rejects it.
+  replay, rather than a stale outer digest, rejects it. The adjacent
+  relocation-free object-container V1 slice now reauthenticates all 21
+  representable manifest/subrecord fields, rejects every applicable closed
+  wire and envelope axis plus all four unavailable-data positions, and mutates
+  all five receipt custody roots independently.
 
 ## P3 — Psi optimizer
 
@@ -818,8 +831,17 @@ decision. Only true language-semantic questions belong in
   and all representable budget axes fail closed; exact usage is
   `{3, 4, 18, 1, 3}`. The 65-line entrance descends through distinct
   `compute/` and `replay/` semantic ladders and grants no selected VReg,
-  instruction, memory, frame, trap, or publication authority. Remaining work
-  turns the retained epoch-one pressure into the next bounded recovery item.
+  instruction, memory, frame, trap, or publication authority. An eleventh
+  independently replayed V1 artifact now turns that retained epoch-one
+  pressure into exactly one compiler-private epoch-two work item. It preserves
+  the source pressure action and lineage, machine, block, `[14,15)` lifetime,
+  class, complete two-view domain, and both canonical blockers on x86-64 and
+  AArch64 under exact usage `{2, 2, 13, 1, 1}`. Its 25-line entrance joins a
+  direct producer to separately keyed replay; root, item, domain, blocker,
+  ordering, usage, representable budget, and cross-target corruption fail
+  closed. The item is not a spill action or selected VReg and chooses no victim
+  or home. Remaining work consumes its blocker roster in a bounded epoch-two
+  victim-choice artifact.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

@@ -241,6 +241,17 @@ registers the entrance, full semantic ladder, and independent-replay firewall.
 This is compiler-private allocation evidence, not a selectable optimization
 rule or real instruction/memory/frame authority.
 
+Epoch-two recovery work begins at
+`omega-regalloc/src/allocation/generalized_spill_recovery_worklist/mod.rs`.
+Its 25-line executable entrance projects validated generalized pressure through
+`compute.rs` and independently keyed `replay.rs`; `model.rs`, `identity.rs`,
+and `validate.rs` own the closed work-item vocabulary and admission receipt.
+The mirrored pipeline leaf is
+`register_allocation/generalized_spill_recovery_worklist.rs`. The architecture
+guard registers the entrance and complete ladder and forbids replay from
+calling producer mechanics. This remains compiler-private scheduling custody,
+not a selectable rule or physical spill realization.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport

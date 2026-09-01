@@ -3092,6 +3092,48 @@ fn generalized_reload_home_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn generalized_recovery_worklist_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_spill_recovery_worklist",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read generalized recovery-worklist entrance");
+    assert!(
+        entrance.contains("compute::compute(source, policy, budget)")
+            && entrance.contains("validate_generalized_spill_recovery_worklist(source, plan)"),
+        "the generalized recovery-worklist entrance must visibly join production to independent replay",
+    );
+
+    let producer = std::fs::read_to_string(stage.join("compute.rs"))
+        .expect("read generalized recovery-worklist producer");
+    let mut replay = std::fs::read_to_string(stage.join("replay.rs"))
+        .expect("read generalized recovery-worklist replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read generalized recovery-worklist validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::usage"] {
+        assert!(
+            !replay.contains(forbidden),
+            "generalized recovery-worklist replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "fn reconstruct_pressure", "fn first_action"] {
+        assert!(
+            replay.contains(required),
+            "generalized recovery-worklist replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["BTreeMap", "reconstruct_pressure", "first_action"] {
+        assert!(
+            !producer.contains(forbidden),
+            "generalized recovery-worklist producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
@@ -3124,6 +3166,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_integer_literal_unit_return::validate",
         "straight_line_ieee_float_literal_unit_return::is_candidate",
         "straight_line_ieee_float_literal_unit_return::validate",
+        "straight_line_ieee_float_literal_sequence_unit_return::is_candidate",
+        "straight_line_ieee_float_literal_sequence_unit_return::validate",
         "straight_line_parameter::integer::direct::is_candidate",
         "straight_line_parameter::integer::direct::validate",
         "straight_line_parameter::boolean::direct::is_candidate",

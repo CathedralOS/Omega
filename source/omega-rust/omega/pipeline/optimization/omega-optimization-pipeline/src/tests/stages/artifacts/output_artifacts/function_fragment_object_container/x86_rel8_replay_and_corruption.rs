@@ -118,7 +118,7 @@ fn relocation_free_rel8_object_container_reconstructs_replays_and_rejects_corrup
         Err(RelocationFreeObjectContainerError::ManifestMismatch)
     );
     *staged.manifest_mut().record_mut() = original_manifest;
-    staged.corrupt_custody_for_test();
+    staged.corrupt_custody_manifest_for_test();
     assert_eq!(
         validate_optimized_relocation_free_object_container(&staged),
         Err(RelocationFreeObjectContainerError::ReceiptMismatch)

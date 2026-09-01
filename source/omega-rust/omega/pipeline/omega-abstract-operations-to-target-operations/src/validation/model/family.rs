@@ -10,6 +10,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineByteSequenceLiteralUnitReturn,
     StraightLineIntegerLiteralUnitReturn,
     StraightLineIeeeFloatLiteralUnitReturn,
+    StraightLineIeeeFloatLiteralSequenceUnitReturn,
     StraightLineTrivialAffineLocalUnitReturn,
     StraightLineScalarCrash,
     StraightLineIntegerParameter,

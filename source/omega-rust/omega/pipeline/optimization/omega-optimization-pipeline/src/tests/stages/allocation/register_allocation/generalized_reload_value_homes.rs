@@ -9,14 +9,14 @@ use super::{
     spill_recovery_worklist::pressure_sources,
 };
 
-struct Sources {
+pub(super) struct Sources {
     reloads: ReloadSources,
     recovery: omega_regalloc::ValidatedSpillRecoveryActions,
     generalized: omega_regalloc::ValidatedGeneralizedSpillInsertion,
 }
 
 impl Sources {
-    fn new(target: NativeTarget) -> Self {
+    pub(super) fn new(target: NativeTarget) -> Self {
         let reloads = pressure_sources(target);
         let recovery = plan_recovery(&reloads, selected_lowering_budget()).unwrap();
         let generalized = omega_regalloc::schedule_generalized_spill_insertion(
@@ -33,7 +33,7 @@ impl Sources {
         }
     }
 
-    fn assign(
+    pub(super) fn assign(
         &self,
         budget: OptimizationWorkBudget,
     ) -> Result<
