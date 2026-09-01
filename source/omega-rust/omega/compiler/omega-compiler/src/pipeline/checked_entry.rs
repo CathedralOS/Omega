@@ -238,9 +238,9 @@ impl CheckedCompilation {
         .map_err(Diagnostic::error)
     }
 
-    /// Compiler-validated exact source owners used only while projecting
-    /// package-review structural type identity. Source IDs are private join
-    /// coordinates and never enter canonical review bytes.
+    /// Compiler-validated exact source owners used while projecting
+    /// source-free structural and nominal identity. Source IDs are private
+    /// join coordinates and never enter canonical product or review bytes.
     #[doc(hidden)]
     pub fn exact_toolchain_sources(&self) -> &[(psi_source::SourceId, [u8; 32])] {
         &self.exact_toolchain_sources
@@ -1319,11 +1319,7 @@ fn compile_to_checked_inner_with_replay(
             )
         })
         .transpose()?;
-    let exact_toolchain_sources = package_inputs
-        .is_some()
-        .then(|| omega_package_compilation::toolchain_source_identities(&program))
-        .transpose()?
-        .unwrap_or_default();
+    let exact_toolchain_sources = omega_package_compilation::toolchain_source_identities(&program)?;
     if package_subject.is_some() {
         omega_package_compilation::verify_current_files(&program, &generated_source_custody)?;
     }

@@ -514,9 +514,9 @@ pub fn verify_current_files(
     }
 }
 
-/// Exact source-backed toolchain owners retained for package-review nominal
-/// type identity. `SourceId` is only the compiler-internal join coordinate;
-/// the canonical type string contains the collision-resistant digest alone.
+/// Exact source-backed toolchain owners retained for compiler source-free
+/// nominal and type identity. `SourceId` is only the compiler-internal join
+/// coordinate; canonical identity contains the collision-resistant digest.
 #[doc(hidden)]
 pub fn toolchain_source_identities(
     program: &CheckedTrees,

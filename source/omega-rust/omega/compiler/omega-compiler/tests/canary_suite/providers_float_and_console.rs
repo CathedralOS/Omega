@@ -70,6 +70,18 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
         &omega_boundary_applications::BoundaryApplication::Empty,
         "{label} nongeneric operator should retain the canonical empty application",
     );
+    let [realization] = proposal.boundary_application_realizations().rows() else {
+        panic!("{label} should retain one exact D29 realization companion")
+    };
+    assert_eq!(
+        realization.terminal_operation(),
+        source_free_demand.terminal_operation(),
+    );
+    assert_ne!(realization.selected_plan_digest(), &[0; 32]);
+    assert_eq!(
+        realization.role(),
+        omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+    );
     assert!(
         module.machines.iter().any(|machine| {
             machine.blocks.iter().any(|block| {
@@ -913,6 +925,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.callback_occurrences().to_vec(),
             proposal.ieee_float_fma_occurrences().to_vec(),
             proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
             proposal.checked_boundary_operator_scope().clone(),
         )
         .is_err(),

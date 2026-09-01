@@ -365,6 +365,7 @@ dependencies = [
 name = "omega-boundary-applications"
 version = "0.1.0"
 dependencies = [
+ "omega-effects",
  "psi-core",
  "psi-terminal",
 ]

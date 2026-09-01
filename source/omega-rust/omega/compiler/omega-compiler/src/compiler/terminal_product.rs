@@ -217,6 +217,11 @@ fn project_terminal_native_realization_proposal(
         artifact,
         &checked_boundary_operator_scope,
     )?;
+    let boundary_application_realizations = project_terminal_boundary_application_realizations(
+        checked,
+        &checked_boundary_operator_scope,
+        &boundary_application_demands,
+    )?;
     omega_compilation_report::TerminalNativeRealizationProposal::new(
         artifact,
         target_profile,
@@ -229,9 +234,255 @@ fn project_terminal_native_realization_proposal(
         callback_occurrences,
         ieee_float_fma_occurrences,
         boundary_application_demands,
+        boundary_application_realizations,
         checked_boundary_operator_scope,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn project_terminal_boundary_application_realizations(
+    checked: &crate::pipeline::CheckedCompilation,
+    checked_scope: &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+    demands: &omega_boundary_applications::TerminalBoundaryApplicationDemands,
+) -> Result<omega_boundary_applications::TerminalBoundaryApplicationRealizations, Vec<Diagnostic>> {
+    let nongeneric =
+        omega_selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
+            checked,
+            checked.selected_provider_plans(),
+        )?;
+    let specialized =
+        omega_selected_dispatch::derive_checked_specialized_operator_application_realizations(
+            checked,
+            checked.selected_provider_plans(),
+        )?;
+    let mut rows = Vec::with_capacity(demands.rows().len());
+    for (demand, occurrence) in demands.rows().iter().zip(checked_scope.occurrences()) {
+        let application = &checked_scope.applications()[occurrence.application_index()];
+        let matching_nongeneric = nongeneric
+            .iter()
+            .filter(|row| {
+                row.application_site == application.site
+                    && row.requirement_operator == application.requirement_symbol
+            })
+            .collect::<Vec<_>>();
+        let matching_specialized = specialized
+            .iter()
+            .filter(|row| {
+                row.application_site == application.site
+                    && row.requirement_operator == application.requirement_symbol
+            })
+            .collect::<Vec<_>>();
+        let (selected_plan_digest, realization) = match (
+            matching_nongeneric.as_slice(),
+            matching_specialized.as_slice(),
+        ) {
+            ([row], []) => (
+                *row.provider_plan_commitment.as_bytes(),
+                omega_boundary_applications::BoundaryApplicationRealization::NongenericCheckedBody {
+                    realization_machine: canonical_boundary_nominal_identity(
+                        checked,
+                        row.realization_machine,
+                        "nongeneric realization machine",
+                    )?,
+                    realization_state: canonical_boundary_nominal_identity(
+                        checked,
+                        row.realization_state,
+                        "nongeneric realization state",
+                    )?,
+                    realization_contract_commitment: row
+                        .realization_contract_commitment
+                        .as_bytes(),
+                },
+            ),
+            ([], [row]) => (
+                *row.provider_plan_commitment.as_bytes(),
+                omega_boundary_applications::BoundaryApplicationRealization::SpecializedCheckedBody {
+                    realization_template: canonical_boundary_nominal_identity(
+                        checked,
+                        row.realization_template,
+                        "specialized realization template",
+                    )?,
+                    realization_machine: canonical_boundary_nominal_identity(
+                        checked,
+                        row.realization_machine,
+                        "specialized realization machine",
+                    )?,
+                    realization_state: canonical_boundary_nominal_identity(
+                        checked,
+                        row.realization_state,
+                        "specialized realization state",
+                    )?,
+                    specialization_commitment: row.specialization_commitment.as_bytes(),
+                    realization_contract_commitment: row
+                        .realization_contract_commitment
+                        .as_bytes(),
+                },
+            ),
+            ([], []) => project_compiler_intrinsic_application_realization(checked, application)?,
+            _ => {
+                return Err(vec![Diagnostic::error(
+                    "Terminal boundary application rejoins multiple checked-body realizations",
+                )]);
+            }
+        };
+        rows.push(
+            omega_boundary_applications::BoundaryApplicationRealizationCompanion::new(
+                demand.terminal_operation(),
+                selected_plan_digest,
+                realization,
+            )
+            .map_err(|message| vec![Diagnostic::error(message)])?,
+        );
+    }
+    omega_boundary_applications::TerminalBoundaryApplicationRealizations::new(demands, rows)
+        .map_err(|message| vec![Diagnostic::error(message)])
+}
+
+fn project_compiler_intrinsic_application_realization(
+    checked: &crate::pipeline::CheckedCompilation,
+    application: &psi_checked_trees::CheckedBoundaryOperatorApplicationDemand,
+) -> Result<
+    (
+        [u8; 32],
+        omega_boundary_applications::BoundaryApplicationRealization,
+    ),
+    Vec<Diagnostic>,
+> {
+    let psi_checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+        expression,
+        origin,
+    } = application.site
+    else {
+        return Err(vec![Diagnostic::error(
+            "Terminal boundary application without an expression has no supported realization role",
+        )]);
+    };
+    let uses = checked
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .filter_map(|(_, operator_use)| {
+            (operator_use.expression == expression
+                && operator_use.origin == origin
+                && operator_use.selected_operator_symbol == application.requirement_symbol)
+                .then_some((
+                    operator_use.provider_plan_report_fingerprint,
+                    operator_use.provider_plan_commitment,
+                ))
+        })
+        .chain(
+            checked
+                .facts
+                .operators
+                .uses
+                .iter()
+                .filter_map(|(_, operator_use)| {
+                    (operator_use.expression == expression
+                        && operator_use.origin == origin
+                        && operator_use.selected_operator_symbol == application.requirement_symbol
+                        && operator_use.status
+                            == psi_checked_trees::CheckedOperatorResolutionStatus::Resolved)
+                        .then_some((
+                            operator_use.provider_plan_report_fingerprint,
+                            operator_use.provider_plan_commitment,
+                        ))
+                }),
+        )
+        .collect::<Vec<_>>();
+    let [(plan_report, plan_commitment)] = uses.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "Terminal intrinsic application retains {} exact selected uses; expected one",
+            uses.len(),
+        ))]);
+    };
+    let plans = checked.selected_provider_plans().plans();
+    let provenance = checked.selected_provider_provenance();
+    if plans.len() != provenance.len() {
+        return Err(vec![Diagnostic::error(
+            "Terminal intrinsic application has misaligned selected-plan provenance",
+        )]);
+    }
+    let matching_plans = plans
+        .iter()
+        .zip(provenance)
+        .filter(|(plan, retained)| {
+            retained.plan == **plan
+                && plan.report_fingerprint() == *plan_report
+                && plan.identity_digest().as_bytes() == plan_commitment.as_bytes()
+        })
+        .collect::<Vec<_>>();
+    let [(plan, retained)] = matching_plans.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "Terminal intrinsic application rejoins {} selected plans; expected one",
+            matching_plans.len(),
+        ))]);
+    };
+    if retained.provider.row_requirements.len() != plan.rows.len()
+        || retained.provider.row_realizations.len() != plan.rows.len()
+        || retained.row_compiler_intrinsic_executions.len() != plan.rows.len()
+    {
+        return Err(vec![Diagnostic::error(
+            "Terminal intrinsic application has incomplete row provenance",
+        )]);
+    }
+    let matching_rows = plan
+        .rows
+        .iter()
+        .zip(&retained.provider.row_requirements)
+        .zip(&retained.provider.row_realizations)
+        .zip(&retained.row_compiler_intrinsic_executions)
+        .filter(|(((_, requirement), _), _)| **requirement == application.requirement_symbol)
+        .collect::<Vec<_>>();
+    let [(((row, requirement), realization), retained_execution)] = matching_rows.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "Terminal intrinsic application rejoins {} selected plan rows; expected one",
+            matching_rows.len(),
+        ))]);
+    };
+    if !matches!(
+        row.binding,
+        omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+    ) {
+        return Err(vec![Diagnostic::error(
+            "Terminal boundary application has no checked-body or compiler-intrinsic realization",
+        )]);
+    }
+    let derived =
+        omega_selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding(
+            checked,
+            plan,
+            retained.provider.schema,
+            row,
+            **requirement,
+            **realization,
+            checked
+                .selected_target_profile()
+                .map(omega_target::TargetProfile::target_name),
+            checked.resolved_semantic_binding(
+                omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+            ),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let execution = match (derived, **retained_execution) {
+        (
+            Some(omega_selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                derived,
+            )),
+            Some(retained),
+        ) if derived == retained => derived,
+        _ => {
+            return Err(vec![Diagnostic::error(
+                "Terminal intrinsic application does not retain one independently rederived closed execution",
+            )]);
+        }
+    };
+    Ok((
+        *plan_commitment.as_bytes(),
+        omega_boundary_applications::BoundaryApplicationRealization::ExactCompilerIntrinsic {
+            execution,
+        },
+    ))
 }
 
 fn project_terminal_boundary_application_demands(
