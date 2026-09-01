@@ -1,6 +1,6 @@
 // Unsigned -> signed narrowing must trap on the target's excluded upper half.
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

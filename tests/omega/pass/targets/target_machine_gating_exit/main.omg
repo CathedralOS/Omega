@@ -16,7 +16,7 @@
 // results). Loud-edge siblings:
 // fail/targets/target_machine_missing_rejected and
 // fail/targets/target_machine_duplicate_rejected.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Helper { seed: i32; }
 

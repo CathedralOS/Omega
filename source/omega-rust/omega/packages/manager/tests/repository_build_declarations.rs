@@ -321,6 +321,70 @@ fn assert_canaries_declare_ordinary_standard_library_edges(cases: &Path, expecte
     }
 }
 
+fn assert_mixed_canary_category_standard_library_edges(
+    cases: &Path,
+    expected_roots: usize,
+    expected_standard_library_consumers: usize,
+) {
+    let mut roots = Vec::new();
+    collect_build_roots(cases, &mut roots);
+    assert_eq!(
+        roots.len(),
+        expected_roots,
+        "unexpected packaged canary population in {}",
+        cases.display()
+    );
+
+    let expected_dependency = DependencySourceRequest::Path {
+        explicit_alias: None,
+        location: "../../../../../source/library/std".to_owned(),
+    };
+    let mut standard_library_consumers = 0;
+    for root in roots {
+        let mut uses_dependency_alias = false;
+        for source in fs::read_dir(&root)
+            .unwrap_or_else(|error| panic!("read canary {}: {error}", root.display()))
+            .map(|entry| entry.expect("read canary source entry").path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "omg"))
+            .filter(|path| path.file_name().is_some_and(|name| name != "build.omg"))
+        {
+            let contents = fs::read_to_string(&source)
+                .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
+            assert!(
+                !contents.contains("omega::language::std"),
+                "packaged canary {} retains a bundled std import",
+                source.display()
+            );
+            uses_dependency_alias |= contents.contains("omega_language_std");
+        }
+
+        let projection = extract_build_dependency_projection(&root).unwrap_or_else(|error| {
+            panic!(
+                "canary role/dependency projection failed for {}: {error}",
+                root.display()
+            )
+        });
+        let standard_library_edges = projection
+            .dependencies()
+            .iter()
+            .filter(|dependency| *dependency == &expected_dependency)
+            .count();
+        assert_eq!(
+            standard_library_edges,
+            usize::from(uses_dependency_alias),
+            "std import/dependency mismatch in {}",
+            root.display()
+        );
+        standard_library_consumers += usize::from(uses_dependency_alias);
+    }
+    assert_eq!(
+        standard_library_consumers,
+        expected_standard_library_consumers,
+        "unexpected std-consuming canary population in {}",
+        cases.display()
+    );
+}
+
 #[test]
 fn time_canaries_declare_ordinary_standard_library_edges() {
     assert_canaries_declare_ordinary_standard_library_edges(
@@ -386,6 +450,24 @@ fn ownership_and_reference_runtime_canaries_declare_ordinary_standard_library_ed
         &repository_root().join("tests/omega/pass/references"),
         3,
     );
+}
+
+#[test]
+fn small_mixed_runtime_categories_declare_only_their_required_standard_library_edges() {
+    for (category, expected_roots, expected_standard_library_consumers) in [
+        ("ranges", 2, 2),
+        ("targets", 23, 2),
+        ("versioning", 3, 3),
+        ("termination", 4, 4),
+        ("range", 6, 6),
+        ("core", 10, 7),
+    ] {
+        assert_mixed_canary_category_standard_library_edges(
+            &repository_root().join("tests/omega/pass").join(category),
+            expected_roots,
+            expected_standard_library_consumers,
+        );
+    }
 }
 
 #[test]

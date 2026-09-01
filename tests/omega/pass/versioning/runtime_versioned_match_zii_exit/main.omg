@@ -1,7 +1,7 @@
 // A lineage envelope is an ordinary sum over separately declared era shapes.
 // Ordinary case matching selects V1 even though Current is written first.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CounterV1 {
     counter: i32;

@@ -6,7 +6,7 @@
 // pass/calls/recursive_result_bind_first_arg. Each countdown re-enters its own entry
 // (transition-arg self-recursion, measure-proved) and must deliver its
 // terminal 5 through the role's slot. Exit 70; distinct exits per role.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }

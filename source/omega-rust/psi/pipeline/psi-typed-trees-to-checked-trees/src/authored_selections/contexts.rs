@@ -38,12 +38,37 @@ pub(super) fn checked_member_target_from_exact_owner(
     expression: ExpressionHandle,
     member: &TableMemberExpression,
 ) -> Option<OwnerMemberTarget> {
+    let source_span = authored_member_source_span(program, expression)?;
     let mut target = None;
     for environment in exact_owner_environments(program, facts, expression)? {
-        let candidate = member_target_in_environment(program, member, &environment)?;
+        let candidate = member_target_in_environment(program, member, &environment, source_span)?;
         retain_consistent(&mut target, candidate)?;
     }
     target
+}
+
+fn authored_member_source_span(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<psi_source::SourceSpan> {
+    let mut retained = None;
+    for occurrence in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let selection = program.authored_declaration_selections().get(occurrence)?;
+        if selection.kind()
+            != psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+        {
+            continue;
+        }
+        let source_span = selection.source_span();
+        if retained.is_some_and(|existing| existing != source_span) {
+            return None;
+        }
+        retained = Some(source_span);
+    }
+    retained
 }
 
 /// Recover one expression type from the exact checked owner environments that
@@ -508,10 +533,36 @@ fn exact_owner_environments(
         }
     }
     collect_proposition_environments(program, expression, &mut environments);
+    collect_measure_environments(program, expression, &mut environments);
     collect_parameter_constraint_environments(program, expression, &mut environments)?;
     collect_ranking_environments(program, expression, &mut environments);
     collect_executable_environments(program, expression, &mut environments)?;
     (!environments.is_empty()).then_some(environments)
+}
+
+fn collect_measure_environments(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    environments: &mut Vec<TypeEnvironment>,
+) {
+    for measure in program.measures() {
+        if !program
+            .expression_table
+            .expression_handles(measure.body)
+            .iter()
+            .any(|root| super::expression_contains(program, *root, expression, &mut Vec::new()))
+        {
+            continue;
+        }
+        let Some(parameter) = measure.parameter.as_ref() else {
+            continue;
+        };
+        environments.push(environment_from_parameters(
+            std::slice::from_ref(parameter),
+            measure.return_type,
+            None,
+        ));
+    }
 }
 
 fn collect_proposition_environments(
@@ -789,15 +840,58 @@ fn member_target_in_environment(
     program: &TypedTrees,
     member: &TableMemberExpression,
     environment: &TypeEnvironment,
+    source_span: psi_source::SourceSpan,
 ) -> Option<OwnerMemberTarget> {
     let receiver_type =
         infer_expression_type(program, member.receiver, environment, &mut Vec::new())?;
     resolve_member_symbol(program, receiver_type, member)
+        .or_else(|| {
+            resolve_member_symbol_from_authored_source(program, receiver_type, member, source_span)
+        })
         .map(OwnerMemberTarget::Declaration)
         .or_else(|| {
             (member.member.as_str() == "len" && inferred_type_is_collection(program, receiver_type))
                 .then_some(OwnerMemberTarget::CollectionLength)
         })
+}
+
+fn resolve_member_symbol_from_authored_source(
+    program: &TypedTrees,
+    receiver_type: InferredType,
+    member: &TableMemberExpression,
+    source_span: psi_source::SourceSpan,
+) -> Option<SymbolHandle> {
+    let InferredType::TypeReference(type_reference) = receiver_type else {
+        return None;
+    };
+    let type_name = unresolved_nominal_type_name(program, type_reference)?;
+    let nominal = program
+        .symbols
+        .find_top_level_by_name_and_kinds_from_source(
+            type_name,
+            &[psi_symbols::SymbolKind::Data],
+            source_span,
+        )?;
+    resolve_member_symbol(program, InferredType::Nominal(nominal), member)
+}
+
+fn unresolved_nominal_type_name(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&str> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => unresolved_nominal_type_name(program, *referee),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } if !base_symbol.is_valid() => Some(base_name.as_str()),
+        TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => Some(name.as_str()),
+        _ => None,
+    }
 }
 
 fn infer_expression_type(

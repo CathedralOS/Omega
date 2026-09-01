@@ -9,7 +9,7 @@
 // value == 0 -> exit 70. Since the sweep's let-bound gate became the AST
 // test (bind-first-arg fix), an UNUSED let-bound result is served too --
 // slot written, nothing reads it -- rather than fencing.)
-use omega::language::std::console;
+use omega_language_std::console;
 data Card {
     power: u64;
 }

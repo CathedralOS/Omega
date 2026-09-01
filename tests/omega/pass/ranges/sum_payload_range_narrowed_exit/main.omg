@@ -12,7 +12,7 @@
 // case-proving guard and stays correctly unproven (see the fail-canary siblings
 // sum_payload_direct_access_unproven / sum_payload_non_case_guard_unproven).
 // Both arms carry [0..=50] payloads so both fit `x: [0..=50]`. Exits 20.
-use omega::language::std::console;
+use omega_language_std::console;
 data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=50]); }
 data Main { console: Console; p: P; }
 machine Main::main(&mut self) {

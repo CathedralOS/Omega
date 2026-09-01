@@ -1,7 +1,7 @@
 // Three historical/current shapes use an ordinary three-era sum. Explicit
 // construction and ordinary case dispatch replace hidden era numbers.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CounterV1 { counter: i32; }
 data CounterV2 { counter: i64; flags: i32; }
