@@ -465,7 +465,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Forty-one abstract-to-target families are covered,
+  machine-rule family. Forty-two abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -490,6 +490,15 @@ decision. Only true language-semantic questions belong in
   and canonical structural roster across all five targets. If Psi dead-scalar
   elimination removes the literal, the transformed plan instead enters the
   distinct return-only family.
+  The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
+  the literal's exact operation/result identities and raw Binary32 or Binary64
+  bits, including signed zero and NaN payloads, plus the return edge,
+  provenance, empty cleanup/native call plan, and canonical structural roster
+  across all five native targets. Its optimized-target custody canary retains
+  the same typed family rather than reclassifying it through host floats; the
+  independent optimization-unit validator now also reconstructs IEEE literal
+  and fused-multiply-add result definitions instead of rejecting producer-
+  correct scalar metadata.
   Coverage also includes proof-bearing exact
   parameterized fixed-integer addition,
   subtraction, multiplication, division, and remainder, proof-bearing wrapping and
@@ -591,7 +600,12 @@ decision. Only true language-semantic questions belong in
   and manifest families remain open. The function-fragment-emission V9 slice
   now separately mutates all 30 representable record/subrecord fields, every
   codec envelope and closed tag, all six unavailable-data positions, and all
-  three custody roots; independent reconstruction rejects every mutation.
+  three custody roots; independent reconstruction rejects every mutation. The
+  following relocation-free function-fragment text-section V9 slice now does
+  the same for all 36 representable record/subrecord fields, every applicable
+  closed wire and envelope axis, all six unavailable-data positions, and all
+  four custody roots. Each record mutation is reauthenticated so independent
+  replay, rather than a stale outer digest, rejects it.
 
 ## P3 — Psi optimizer
 
@@ -793,7 +807,19 @@ decision. Only true language-semantic questions belong in
   and usage `{1, 2, 10, 2, 3}`. The epoch-one store names the triggering epoch-
   zero reload it precedes. It still creates no real register, instruction,
   memory effect, frame, trap, unwind, encoding, emission, or publication
-  authority. Remaining work reanalyzes both synthetic reload lifetimes/homes.
+  authority. A tenth independently replayed V1 artifact now reanalyzes both
+  generalized reload actions without collapsing the first result into the
+  second failure. Its producer uses a sorted allocation schedule; replay owns
+  a separate point-indexed timeline. On both x86-64 and AArch64, epoch zero
+  receives the lowest compatible home for `[12,17)`, while epoch one retains
+  an exact `Pressure` outcome at point 14 for `[14,15)`, its two-view candidate
+  domain, and the complete two-home blocker roster containing the epoch-zero
+  reload and original `v5`. Roots, outcomes, domains, rosters, ordering, usage,
+  and all representable budget axes fail closed; exact usage is
+  `{3, 4, 18, 1, 3}`. The 65-line entrance descends through distinct
+  `compute/` and `replay/` semantic ladders and grants no selected VReg,
+  instruction, memory, frame, trap, or publication authority. Remaining work
+  turns the retained epoch-one pressure into the next bounded recovery item.
   Lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real

@@ -134,7 +134,7 @@ fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         validate_optimized_relocation_free_text_section(&placed).unwrap(),
         placed.custody()
     );
-    placed.corrupt_custody_for_test();
+    placed.corrupt_custody_manifest_for_test();
     assert_eq!(
         validate_optimized_relocation_free_text_section(&placed),
         Err(RelocationFreeTextSectionPlacementError::ReceiptMismatch)

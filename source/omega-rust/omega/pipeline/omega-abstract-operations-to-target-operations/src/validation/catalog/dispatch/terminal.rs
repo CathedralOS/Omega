@@ -4,10 +4,10 @@ use omega_target_operations::TargetFunction;
 
 use super::super::super::{
     AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError,
-    straight_line_byte_sequence_literal_unit_return, straight_line_integer_literal_unit_return,
-    straight_line_port_write_unit_return, straight_line_scalar_crash,
-    straight_line_trivial_affine_local_unit_return, straight_line_unit_call_return,
-    straight_line_unit_return,
+    straight_line_byte_sequence_literal_unit_return, straight_line_ieee_float_literal_unit_return,
+    straight_line_integer_literal_unit_return, straight_line_port_write_unit_return,
+    straight_line_scalar_crash, straight_line_trivial_affine_local_unit_return,
+    straight_line_unit_call_return, straight_line_unit_return,
 };
 use super::super::model::TranslationFamilyDescriptor;
 use crate::AbstractToTargetTranslationFamily;
@@ -46,6 +46,13 @@ pub(in crate::validation::catalog) const INTEGER_LITERAL_UNIT_RETURN: Translatio
         straight_line_integer_literal_unit_return::is_candidate,
         straight_line_integer_literal_unit_return,
     );
+
+pub(in crate::validation::catalog) const IEEE_FLOAT_LITERAL_UNIT_RETURN:
+    TranslationFamilyDescriptor = TranslationFamilyDescriptor::new(
+    AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn,
+    straight_line_ieee_float_literal_unit_return::is_candidate,
+    straight_line_ieee_float_literal_unit_return,
+);
 
 pub(in crate::validation::catalog) const TRIVIAL_AFFINE_LOCAL_UNIT_RETURN:
     TranslationFamilyDescriptor = TranslationFamilyDescriptor::new(
@@ -119,6 +126,16 @@ pub(super) fn straight_line_integer_literal_unit_return(
     straight_line_integer_literal_unit_return::validate(source, expected_target, target)
         .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIntegerLiteralUnitReturn)
         .map_err(AbstractToTargetTranslationFamilyError::StraightLineIntegerLiteralUnitReturn)
+}
+
+pub(super) fn straight_line_ieee_float_literal_unit_return(
+    source: &AbstractFunction,
+    expected_target: NativeTarget,
+    target: &TargetFunction,
+) -> Result<AbstractToTargetFunctionTranslationReceipt, AbstractToTargetTranslationFamilyError> {
+    straight_line_ieee_float_literal_unit_return::validate(source, expected_target, target)
+        .map(AbstractToTargetFunctionTranslationReceipt::StraightLineIeeeFloatLiteralUnitReturn)
+        .map_err(AbstractToTargetTranslationFamilyError::StraightLineIeeeFloatLiteralUnitReturn)
 }
 
 pub(super) fn straight_line_trivial_affine_local_unit_return(

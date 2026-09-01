@@ -3038,6 +3038,60 @@ fn register_home_validation_cannot_reenter_its_producer() {
 }
 
 #[test]
+fn generalized_reload_home_validation_cannot_reenter_its_producer() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/generalized_reload_value_homes",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read generalized reload-home entrance");
+    assert!(
+        entrance.contains("compute::compute(")
+            && entrance.contains("validate_generalized_reload_value_homes("),
+        "the generalized reload-home entrance must visibly join production to independent replay",
+    );
+
+    let producer = recursive_rust_source(&stage.join("compute"));
+    let mut replay = recursive_rust_source(&stage.join("replay"));
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("replay.rs"))
+            .expect("read generalized reload-home replay entrance"),
+    );
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read generalized reload-home validator"),
+    );
+    for forbidden in [
+        "crate::allocation::generalized_reload_value_homes::compute",
+        "super::compute",
+        "compute::compute",
+        "schedule::assign",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "generalized reload-home replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in [
+        "struct ReplaySpec",
+        "struct PointEvents",
+        "fn reconstruct(",
+        "fn every_reload_view_blocked(",
+    ] {
+        assert!(
+            replay.contains(required),
+            "generalized reload-home replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    for forbidden in ["ReplaySpec", "PointEvents", "every_reload_view_blocked"] {
+        assert!(
+            !producer.contains(forbidden),
+            "generalized reload-home producer must not consume replay mechanics; found {forbidden}",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
@@ -3068,6 +3122,8 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
         "straight_line_integer_immediate::validate",
         "straight_line_integer_literal_unit_return::is_candidate",
         "straight_line_integer_literal_unit_return::validate",
+        "straight_line_ieee_float_literal_unit_return::is_candidate",
+        "straight_line_ieee_float_literal_unit_return::validate",
         "straight_line_parameter::integer::direct::is_candidate",
         "straight_line_parameter::integer::direct::validate",
         "straight_line_parameter::boolean::direct::is_candidate",

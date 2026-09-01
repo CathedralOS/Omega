@@ -228,6 +228,19 @@ The mirrored public fixture is
 registers both the entrance and semantic ladder explicitly; no selectable rule
 or real memory/frame authority is introduced.
 
+Generalized reload-home reanalysis continues at
+`omega-regalloc/src/allocation/generalized_reload_value_homes/mod.rs`. Its
+65-line executable entrance joins all allocation and generalized-insertion
+roots, then validates the producer plan by independent replay. `compute.rs` and
+`replay.rs` are small group maps: each descends through named `roots`, `sources`,
+home/interference, schedule/timeline, and `work` leaves, with no shared producer
+mechanics. `model.rs`, `identity.rs`, and `validate.rs` own the closed outcome
+carrier and receipt boundary. The mirrored pipeline leaf is
+`register_allocation/generalized_reload_value_homes.rs`; the architecture guard
+registers the entrance, full semantic ladder, and independent-replay firewall.
+This is compiler-private allocation evidence, not a selectable optimization
+rule or real instruction/memory/frame authority.
+
 The external-policy execution prerequisite has its own dormant compiler
 entrance at `omega-compiler/src/compiler/optimization/external_policy/mod.rs`.
 That file alone coordinates the opaque sandbox capability, exact transport

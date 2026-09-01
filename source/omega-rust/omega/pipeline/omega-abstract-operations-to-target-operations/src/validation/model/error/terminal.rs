@@ -106,6 +106,26 @@ pub enum StraightLineIntegerLiteralUnitReturnTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineIeeeFloatLiteralUnitReturnTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceCleanupActions,
+    TargetFixedIntegerScalarAbi,
+    TargetProvenance,
+    TargetOperation,
+    TargetCallPlan,
+    TargetParameters,
+    TargetOperationRoster,
+    TargetConstant,
+    TargetReturn,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineTrivialAffineLocalUnitReturnTranslationError {
     SourceParameters,
     SourceStructuralParameters,

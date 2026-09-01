@@ -30,6 +30,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerLiteralUnitReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerLiteralUnitReturn
             }
+            Self::StraightLineIeeeFloatLiteralUnitReturn(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIeeeFloatLiteralUnitReturn
+            }
             Self::StraightLineTrivialAffineLocalUnitReturn(_) => {
                 AbstractToTargetTranslationFamily::StraightLineTrivialAffineLocalUnitReturn
             }
