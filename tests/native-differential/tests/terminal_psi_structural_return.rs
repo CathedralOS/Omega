@@ -673,6 +673,8 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         let ScalarControlFlowEvidence::BooleanSharedConvergence {
             decisions,
             joins,
+            return_edges,
+            fallthrough_return_edge,
             structural_conditions,
             merge_offset,
         } = &emitted
@@ -685,6 +687,8 @@ fn nominal_boolean_convergence_has_one_physical_cleanup_tail_on_all_targets() {
         };
         assert!(decisions.len() >= 2);
         assert_eq!(joins.len(), decisions.len());
+        assert!(!return_edges.is_empty());
+        assert!(return_edges.contains(fallthrough_return_edge));
         assert!(joins.iter().all(|join| join.join_offset < *merge_offset));
         assert!(!structural_conditions.is_empty());
         assert!(structural_conditions.iter().all(|condition| {
@@ -4538,6 +4542,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         let ScalarControlFlowEvidence::BooleanSharedConvergence {
             decisions,
             joins,
+            return_edges,
+            fallthrough_return_edge,
             structural_conditions,
             merge_offset,
         } = &emitted
@@ -4550,6 +4556,8 @@ fn nominal_integer_comparison_convergence_has_one_physical_cleanup_tail_on_all_t
         };
         assert!(decisions.len() >= 2);
         assert_eq!(joins.len(), decisions.len());
+        assert!(!return_edges.is_empty());
+        assert!(return_edges.contains(fallthrough_return_edge));
         assert!(structural_conditions.is_empty());
         assert_eq!(
             *merge_offset,
