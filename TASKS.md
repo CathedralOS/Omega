@@ -6828,7 +6828,7 @@ Owners:
   resource, activation, parent-entry formation, weakening, captured-place,
   projection-remainder, and `ExclusiveSuspension` containment row before
   accepting the leaf's exact `StateExitDirectRootHandoff` and root-lifetime
-  target. Terminal format 46 / vocabulary 49 retain the complete lineage in one
+  target. Terminal format 47 / vocabulary 50 retain the complete lineage in one
   canonical row. Codec and verifier reject empty, reordered, duplicated,
   access-amplified, malformed, redirected, branched, shared, or non-state-exit
   lineages. The row grants root custody only; its vocabulary cannot express
@@ -10671,12 +10671,19 @@ Remaining N6/N8 work:
   payloads remain distinct sources while reconstructing the same payload-erased
   `FloatMeaning::NaN`; and authored occurrences retain separate span
   provenance. Terminal validation rejects duplicate tuples, cross-format
-  substitution, and unknown source tags. Resolved symbols and other nonliteral
-  typed expressions still use an explicitly transitional lowering-local
-  coordinate. Still open are artifact-aware carriers for contract parameters/
-  results, Terminal values, and structural float leaves, artifact-carried
-  source contract-owner/catalog retention, and production proof-ledger
-  discharge.
+  substitution, and unknown source tags. The closed artifact contract/catalog
+  descriptor is now live too. It retains rooted-checker tuples
+  `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
+  exact toolchain operator and result owners, private contract-free ordinary
+  signature, source carrier, hermetic operation identity, and catalog version.
+  Checked deduplication and Terminal format 47 / vocabulary 50 retain that
+  descriptor; independent replay rejects declaration, version, commitment, or
+  operation drift. `FloatMeaningEqual` now independently requires both
+  operands to share that exact format and contract carrier. Resolved symbols
+  and other nonliteral typed expressions still use an explicitly transitional
+  lowering-local coordinate. Still open are artifact-aware source carriers for
+  contract parameters/results, Terminal values, and structural float leaves, plus
+  production proof-ledger discharge.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

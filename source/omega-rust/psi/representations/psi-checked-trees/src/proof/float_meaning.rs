@@ -20,6 +20,9 @@ pub struct CheckedFloatProjectionInputId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedFloatMeaningProjectionOccurrenceId(pub u32);
 
+pub type CheckedFloatProjectionContractIdentity =
+    psi_numerics::float_projection::FloatProjectionContractIdentity;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedProofOnlyValueType {
     FloatMeaning,
@@ -69,6 +72,7 @@ pub struct CheckedFloatMeaningProjection {
     pub result: CheckedProofValueDeclaration,
     pub source: CheckedFloatProjectionSource,
     pub operation: FloatProjectionOperation,
+    pub contract: CheckedFloatProjectionContractIdentity,
 }
 
 /// Diagnostic provenance for one authored projection call. Multiple
@@ -104,6 +108,9 @@ impl CheckedFloatMeaningProjection {
         if self.source.primitive() != expected {
             return Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch);
         }
+        if self.contract != self.operation.contract_identity() {
+            return Err(CheckedFloatMeaningProjectionError::ContractIdentityMismatch);
+        }
         Ok(())
     }
 }
@@ -112,6 +119,7 @@ impl CheckedFloatMeaningProjection {
 pub enum CheckedFloatMeaningProjectionError {
     ResultTypeMismatch,
     SourceFormatMismatch,
+    ContractIdentityMismatch,
 }
 
 #[cfg(test)]
@@ -129,6 +137,7 @@ mod tests {
                 primitive: PrimitiveType::F32,
             }),
             operation: FloatProjectionOperation::Meaning32,
+            contract: FloatProjectionOperation::Meaning32.contract_identity(),
         }
     }
 
@@ -153,6 +162,22 @@ mod tests {
         assert_eq!(
             plan.validate(),
             Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch)
+        );
+    }
+
+    #[test]
+    fn checked_projection_rejects_catalog_or_contract_substitution() {
+        let mut plan = projection();
+        plan.contract.catalog_version += 1;
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::ContractIdentityMismatch)
+        );
+        plan = projection();
+        plan.contract.commitment[0] ^= 1;
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::ContractIdentityMismatch)
         );
     }
 }

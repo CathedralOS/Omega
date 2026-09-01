@@ -398,6 +398,11 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             FloatMeaningProjectionOperation::Meaning32 => 1,
             FloatMeaningProjectionOperation::Meaning64 => 2,
         });
+        writer.u16(projection.contract.format);
+        writer.u8(projection.contract.operation);
+        writer.u8(projection.contract.declaration);
+        writer.u16(projection.contract.catalog_version);
+        writer.bytes(&projection.contract.commitment);
     }
     writer.len(
         "float-meaning equalities",
@@ -693,6 +698,13 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                         tag,
                     ));
                 }
+            },
+            contract: psi_terminal::FloatProjectionContractIdentity {
+                format: reader.u16()?,
+                operation: reader.u8()?,
+                declaration: reader.u8()?,
+                catalog_version: reader.u16()?,
+                commitment: reader.array()?,
             },
         })
     })?;

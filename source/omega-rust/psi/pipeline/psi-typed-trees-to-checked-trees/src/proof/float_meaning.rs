@@ -51,7 +51,7 @@ fn projection_source_key(
 fn replay_invocation(
     program: &TypedTrees,
     fact: ValidatedFloatMeaningProjectionInvocation,
-) -> Result<(), Diagnostic> {
+) -> Result<psi_numerics::float_projection::FloatProjectionContractIdentity, Diagnostic> {
     let ExpressionNode::Call(call) = program.expression_table.expression(fact.invocation) else {
         return Err(Diagnostic::error(
             "validated float-meaning projection invocation is no longer a call",
@@ -104,8 +104,8 @@ fn replay_invocation(
                     "validated float-meaning projection operator identity is not canonical",
                 )
             })?;
-    let Some(replayed_primitive) =
-        psi_validation::exact_toolchain_float_projection_primitive(program, operator, operation)
+    let Some((replayed_primitive, contract)) =
+        psi_validation::exact_toolchain_float_projection_contract(program, operator, operation)
     else {
         return Err(Diagnostic::error(
             "validated float-meaning projection lost its sealed toolchain declaration before checked binding",
@@ -114,6 +114,11 @@ fn replay_invocation(
     if operation != fact.operation {
         return Err(Diagnostic::error(
             "validated float-meaning projection operation drifted before checked binding",
+        ));
+    }
+    if contract != fact.contract {
+        return Err(Diagnostic::error(
+            "validated float-meaning projection contract/catalog identity drifted before checked binding",
         ));
     }
     let [parameter] = program.operator_parameters(operator) else {
@@ -144,7 +149,7 @@ fn replay_invocation(
             "validated float-meaning projection source/result shape drifted before checked binding",
         ));
     }
-    Ok(())
+    Ok(contract)
 }
 
 pub(crate) fn bind_float_meaning_projection_facts(
@@ -155,12 +160,15 @@ pub(crate) fn bind_float_meaning_projection_facts(
 ) -> Result<(), Vec<Diagnostic>> {
     let mut projections = Vec::with_capacity(facts.len());
     let mut transitional_source_keys = Vec::<CheckedFloatProjectionSourceKey>::new();
-    let mut projection_keys =
-        Vec::<(CheckedFloatProjectionSource, FloatProjectionOperation)>::new();
+    let mut projection_keys = Vec::<(
+        CheckedFloatProjectionSource,
+        FloatProjectionOperation,
+        psi_numerics::float_projection::FloatProjectionContractIdentity,
+    )>::new();
     let mut invocation_values = Vec::with_capacity(facts.len());
     let mut occurrences = Vec::with_capacity(facts.len());
     for (index, fact) in facts.iter().copied().enumerate() {
-        replay_invocation(program, fact).map_err(|diagnostic| vec![diagnostic])?;
+        let contract = replay_invocation(program, fact).map_err(|diagnostic| vec![diagnostic])?;
         let source_key = projection_source_key(program, fact);
         let source = match source_key {
             CheckedFloatProjectionSourceKey::Binary32Literal(bits) => {
@@ -192,7 +200,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
                 })
             }
         };
-        let projection_key = (source, fact.operation);
+        let projection_key = (source, fact.operation, contract);
         let value_index = match projection_keys
             .iter()
             .position(|key| *key == projection_key)
@@ -212,6 +220,7 @@ pub(crate) fn bind_float_meaning_projection_facts(
                     },
                     source,
                     operation: fact.operation,
+                    contract,
                 };
                 projection.validate().map_err(|_| {
                     vec![Diagnostic::error(
@@ -258,6 +267,30 @@ pub(crate) fn bind_float_meaning_projection_facts(
         {
             return Err(vec![Diagnostic::error(
                 "validated float-meaning equality identity drifted before checked binding",
+            )]);
+        }
+        let left_projection = facts
+            .iter()
+            .find(|projection| projection.invocation == fact.left)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "validated float-meaning equality lost its left projection contract",
+                )]
+            })?;
+        let right_projection = facts
+            .iter()
+            .find(|projection| projection.invocation == fact.right)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "validated float-meaning equality lost its right projection contract",
+                )]
+            })?;
+        if left_projection.source_primitive != right_projection.source_primitive
+            || left_projection.operation != right_projection.operation
+            || left_projection.contract != right_projection.contract
+        {
+            return Err(vec![Diagnostic::error(
+                "validated FloatMeaningEqual operands do not share one exact format and projection contract",
             )]);
         }
         let left = invocation_values
@@ -556,6 +589,81 @@ mod tests {
     }
 
     #[test]
+    fn checked_binding_rejects_catalog_contract_tamper() {
+        let program = typed_projection_program();
+        let mut validation =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect("validate");
+        validation.float_meaning_projection_invocations[0]
+            .contract
+            .catalog_version += 1;
+        let mut proof = ProofFacts::default();
+        let diagnostics = bind_float_meaning_projection_facts(
+            &program,
+            &mut proof,
+            &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
+        )
+        .expect_err("catalog contract substitution must reject");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("contract/catalog identity drifted")
+        );
+        assert!(proof.float_meaning_projections.is_empty());
+    }
+
+    #[test]
+    fn checked_binding_rejects_forged_cross_format_equality_fact() {
+        let mut program = typed_projection_program();
+        let mut validation =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect("validate");
+        let cross_format_right = validation.float_meaning_equality_propositions[1].right;
+        let equality = &mut validation.float_meaning_equality_propositions[0];
+        equality.right = cross_format_right;
+        let ExpressionNode::Binary(expression) =
+            program.expression_table.expression_mut(equality.expression)
+        else {
+            unreachable!("validated equality is binary")
+        };
+        expression.right = cross_format_right;
+        let mut proof = ProofFacts::default();
+        let diagnostics = bind_float_meaning_projection_facts(
+            &program,
+            &mut proof,
+            &validation.float_meaning_projection_invocations,
+            &validation.float_meaning_equality_propositions,
+        )
+        .expect_err("cross-format forged equality fact must reject");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("do not share one exact format")
+        );
+        assert!(proof.float_meaning_equalities.is_empty());
+    }
+
+    #[test]
+    fn source_validation_rejects_cross_format_float_meaning_equal() {
+        let program = lower_projection_fixture(
+            r#"
+                machine prove()
+                requires Float::meaning32(0.0f32) == Float::meaning64(0.0f64);
+                { }
+            "#,
+        );
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect_err("FloatMeaningEqual is carrier-specific");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("same exact format and projection contract")
+        );
+    }
+
+    #[test]
     fn proof_projection_call_rejects_a_local_operator_lookalike() {
         let diagnostics =
             psi_validation::validate_program_after_generic_contract_entailment_with_facts(
@@ -627,6 +735,51 @@ mod tests {
             diagnostics[0].message.contains("from `f32`"),
             "unexpected diagnostic: {:?}",
             diagnostics[0],
+        );
+    }
+
+    #[test]
+    fn canonical_projection_declaration_rejects_public_visibility_drift() {
+        let program = lower_projection_fixture_with_metadata(
+            projection_source(),
+            SourceOrigin::Toolchain,
+            r#"
+                pub operator Float::meaning32(value: f32) -> FloatMeaning;
+                operator Float::meaning64(value: f64) -> FloatMeaning;
+            "#,
+            "float_operations.omg",
+            SourceOrigin::Toolchain,
+        );
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect_err("the sealed projection declaration is private");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("ordinary tokenless operator")
+        );
+    }
+
+    #[test]
+    fn canonical_projection_declaration_rejects_contract_drift() {
+        let program = lower_projection_fixture_with_metadata(
+            projection_source(),
+            SourceOrigin::Toolchain,
+            r#"
+                operator Float::meaning32(value: f32) -> FloatMeaning
+                requires true == true;
+                operator Float::meaning64(value: f64) -> FloatMeaning;
+            "#,
+            "float_operations.omg",
+            SourceOrigin::Toolchain,
+        );
+        let diagnostics =
+            psi_validation::validate_program_after_generic_contract_entailment_with_facts(&program)
+                .expect_err("the sealed projection declaration is contract-free");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("ordinary tokenless operator")
         );
     }
 

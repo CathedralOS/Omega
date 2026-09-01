@@ -1712,6 +1712,9 @@ version = "0.1.0"
 [[package]]
 name = "psi-numerics"
 version = "0.1.0"
+dependencies = [
+ "sha2",
+]
 
 [[package]]
 name = "psi-proof"
@@ -1839,6 +1842,7 @@ version = "0.1.0"
 dependencies = [
  "psi-core",
  "psi-language-semantics",
+ "psi-numerics",
  "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-semantics",

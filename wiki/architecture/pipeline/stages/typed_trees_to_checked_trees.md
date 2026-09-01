@@ -928,7 +928,11 @@ Current ownership is:
   binding replays that origin/path/identity join plus the exact toolchain
   `FloatMeaning` result from `float_meaning.omg` before emitting any row.
   Structurally identical local operator or result declarations reject rather
-  than borrowing the closed catalog semantics.
+  than borrowing the closed catalog semantics. The recognized declarations
+  must also remain private and contract-free. Checked projection rows retain
+  the rooted tuple `(32, 1, 1, 1)` or `(64, 2, 2, 1)` plus its canonical
+  commitment; deduplication and equality replay include that exact descriptor,
+  and cross-format equality rejects before emission.
   Other source forms remain explicitly transitional pending their artifact-
   relative carriers.
 - `psi-checked-trees/src/proof/` owns proof-facing checked facts:

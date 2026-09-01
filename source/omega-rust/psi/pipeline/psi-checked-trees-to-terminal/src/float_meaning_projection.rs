@@ -8,8 +8,9 @@ use psi_checked_trees::{
 use psi_core::IeeeFloatFormat;
 use psi_terminal::{
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    FloatMeaningSource, FloatProjectionContractIdentity, FloatProjectionInput,
+    FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId,
 };
 
 pub fn lower_float_meaning_equality(
@@ -65,6 +66,13 @@ pub fn lower_float_meaning_projection(
         },
         source,
         operation,
+        contract: FloatProjectionContractIdentity {
+            format: checked.contract.format,
+            operation: checked.contract.operation,
+            declaration: checked.contract.declaration,
+            catalog_version: checked.contract.catalog_version,
+            commitment: checked.contract.commitment,
+        },
     })
 }
 
@@ -95,6 +103,7 @@ mod tests {
                 primitive: PrimitiveType::F64,
             }),
             operation: FloatProjectionOperation::Meaning64,
+            contract: FloatProjectionOperation::Meaning64.contract_identity(),
         }
     }
     #[test]
@@ -112,6 +121,12 @@ mod tests {
             lowered.operation,
             FloatMeaningProjectionOperation::Meaning64
         );
+        let expected = FloatProjectionOperation::Meaning64.contract_identity();
+        assert_eq!(lowered.contract.format, expected.format);
+        assert_eq!(lowered.contract.operation, expected.operation);
+        assert_eq!(lowered.contract.declaration, expected.declaration);
+        assert_eq!(lowered.contract.catalog_version, expected.catalog_version);
+        assert_eq!(lowered.contract.commitment, expected.commitment);
     }
 
     #[test]

@@ -8,13 +8,19 @@ use psi_language_semantics::{
         ContentFieldSegment,
     },
 };
+use psi_source::{SourceMap, SourceOrigin};
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_symbols::SymbolHandle;
-use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_syntax_trees_to_symbol_resolved_trees::{
+    lower_syntax_trees, lower_syntax_trees_with_sources,
+};
 use psi_terminal::BindingRelevance;
-use psi_tokens_to_syntax_trees::parse_syntax_trees;
+use psi_tokens_to_syntax_trees::{
+    parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
+};
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
+use std::{path::PathBuf, sync::Arc};
 
 mod attached_unit_cases;
 mod composed_unit_claims;
@@ -34,6 +40,56 @@ fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("check")
+}
+
+fn checked_float_projection_source(source: &str) -> psi_checked_trees::CheckedTrees {
+    const FLOAT_MEANING: &str = "data FloatMeaning { }";
+    const FLOAT_PROJECTIONS: &str = r#"
+        operator Float::meaning32(value: f32) -> FloatMeaning;
+        operator Float::meaning64(value: f64) -> FloatMeaning;
+    "#;
+
+    let mut sources = SourceMap::default();
+    let meaning_source = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_meaning.omg"),
+            FLOAT_MEANING.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let projection_source = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/float_operations.omg"),
+            FLOAT_PROJECTIONS.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let user_source = sources
+        .add(
+            PathBuf::from("tests/float_projection/main.omg"),
+            source.to_owned(),
+        )
+        .source_id;
+    let meaning_tokens = Lexer::new(FLOAT_MEANING)
+        .tokenize()
+        .expect("tokenize meaning");
+    let mut syntax =
+        parse_syntax_trees_with_id(meaning_source, &meaning_tokens).expect("parse meaning");
+    let projection_tokens = Lexer::new(FLOAT_PROJECTIONS)
+        .tokenize()
+        .expect("tokenize projections");
+    parse_syntax_trees_into_with_id(&mut syntax, projection_source, &projection_tokens)
+        .expect("parse projections");
+    let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
+    parse_syntax_trees_into_with_id(&mut syntax, user_source, &user_tokens).expect("parse fixture");
+    let resolved = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolve source-aware fixture");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     lower_typed_trees(typed).expect("check")
 }
@@ -1407,10 +1463,6 @@ fn top_level_bounded_reach_lowers_normalized_machine_identity() {
 #[test]
 fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
     let source = r#"
-        data FloatMeaning { }
-        operator Float::meaning32(value: f32) -> FloatMeaning;
-        operator Float::meaning64(value: f64) -> FloatMeaning;
-
         machine prove_projection(value32: f32, value64: f64)
         requires
             Float::meaning32(value32) == Float::meaning32(value32);
@@ -1424,11 +1476,7 @@ fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
             true == true;
         { value }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = checked_float_projection_source(source);
     let lowered = lower_machine(&checked, "terminal_root").expect("lower");
     let projections = &lowered.semantic_module.float_meaning_projections;
     assert_eq!(projections.len(), 2);
@@ -1467,10 +1515,6 @@ fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
 #[test]
 fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() {
     let source = r#"
-        data FloatMeaning { }
-        operator Float::meaning32(value: f32) -> FloatMeaning;
-        operator Float::meaning64(value: f64) -> FloatMeaning;
-
         machine prove_projection()
         requires
             Float::meaning32(0.0f32) == Float::meaning32(0.00f32);
@@ -1485,11 +1529,7 @@ fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() 
             true == true;
         { value }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed).expect("check");
+    let checked = checked_float_projection_source(source);
     let lowered = lower_machine(&checked, "terminal_root").expect("lower");
     assert_eq!(
         lowered
@@ -1814,7 +1854,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &46_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &47_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -1895,7 +1935,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &46_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &47_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

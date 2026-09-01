@@ -660,8 +660,8 @@ loan and ending at state exit. Each root-to-leaf edge is exactly
 The producer reverses the leaf's exact retired-parent path, rejects branching,
 and rejoins every resource, activation, parent-entry formation, weakening,
 captured-place, projection-remainder, and `ExclusiveSuspension` row before
-accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 46 /
-vocabulary 49 round-trip the complete lineage. Verification rejects empty,
+accepting `StateExitDirectRootHandoff` to the exact root lifetime. Format 47 /
+vocabulary 50 round-trip the complete lineage. Verification rejects empty,
 reordered, duplicated, access-amplified, malformed, redirected, branched,
 shared, or non-state-exit rows. Publication remains direct-root custody only:
 there is no cleanup, transfer, linear-discharge, or runtime-operation
@@ -3291,9 +3291,15 @@ transitional coordinate and confer no artifact-aware correspondence yet.
 Upstream source admission and checked replay now require the exact sealed
 toolchain projection declaration from `float_operations.omg` and exact
 toolchain `FloatMeaning` result from `float_meaning.omg`; a local same-shaped
-operator or result declaration cannot reach this Terminal side table. The
-table still needs an artifact-carried exact declaration/catalog owner before it
-becomes production proof-ledger evidence.
+operator or result declaration cannot reach this Terminal side table. Format
+47 / vocabulary 50 carries the closed artifact descriptor: rooted-checker
+tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to
+the exact sealed owners, hermetic operation, private contract-free ordinary
+signature, source carrier, nominal result, and catalog version. The verifier
+reconstructs that descriptor independently, and `FloatMeaningEqual` requires
+both operands to share its exact format/operation/contract carrier. This is not
+yet a production proof-ledger claim: nonliteral source coordinates remain
+transitional until artifact-relative carriers land.
 
 The relation is structural equality of the already payload-erased
 `FloatMeaning` sum, not IEEE comparison: NaN is reflexive and signed zero is

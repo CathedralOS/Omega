@@ -37,6 +37,7 @@ fn validate_equalities(
                 right: proposition.right.0,
             });
         }
+        let mut reconstructed = Vec::with_capacity(2);
         for operand in [proposition.left, proposition.right] {
             let projection = usize::try_from(operand.0)
                 .ok()
@@ -46,12 +47,27 @@ fn validate_equalities(
                     proposition: expected,
                     operand: operand.0,
                 })?;
-            crate::verification::reconstruct_float_meaning_projection(projection).map_err(
-                |error| ModuleError::InvalidFloatMeaningProjection {
-                    index: operand.0,
-                    error,
-                },
-            )?;
+            reconstructed.push(
+                crate::verification::reconstruct_float_meaning_projection(projection).map_err(
+                    |error| ModuleError::InvalidFloatMeaningProjection {
+                        index: operand.0,
+                        error,
+                    },
+                )?,
+            );
+        }
+        let [left, right] = reconstructed.as_slice() else {
+            unreachable!("float meaning equality has exactly two operands")
+        };
+        if left.source_format != right.source_format
+            || left.operation != right.operation
+            || left.contract != right.contract
+        {
+            return Err(ModuleError::InvalidFloatMeaningProjection {
+                index: proposition.right.0,
+                error:
+                    crate::verification::FloatMeaningProjectionVerificationError::EqualityCarrierMismatch,
+            });
         }
     }
     Ok(())
@@ -132,6 +148,19 @@ mod tests {
         ProofPropositionId, ProofValueDeclaration, ProofValueId,
     };
 
+    fn contract(
+        operation: psi_numerics::float_projection::FloatProjectionOperation,
+    ) -> psi_terminal::FloatProjectionContractIdentity {
+        let contract = operation.contract_identity();
+        psi_terminal::FloatProjectionContractIdentity {
+            format: contract.format,
+            operation: contract.operation,
+            declaration: contract.declaration,
+            catalog_version: contract.catalog_version,
+            commitment: contract.commitment,
+        }
+    }
+
     use super::*;
 
     fn projection(index: u32) -> FloatMeaningProjection {
@@ -145,6 +174,7 @@ mod tests {
                 format: IeeeFloatFormat::Binary32,
             }),
             operation: FloatMeaningProjectionOperation::Meaning32,
+            contract: contract(psi_numerics::float_projection::FloatProjectionOperation::Meaning32),
         }
     }
 
@@ -156,6 +186,7 @@ mod tests {
             },
             source: FloatMeaningSource::ExactBinary32Literal(bits),
             operation: FloatMeaningProjectionOperation::Meaning32,
+            contract: contract(psi_numerics::float_projection::FloatProjectionOperation::Meaning32),
         }
     }
 
@@ -246,6 +277,31 @@ mod tests {
             right: ProofValueId(1),
         }];
         assert_eq!(validate_equalities(&projections, &equalities), Ok(()));
+    }
+
+    #[test]
+    fn equality_rows_reject_cross_format_projection_carriers() {
+        let left = projection(0);
+        let mut right = projection(1);
+        right.source = FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+            id: FloatProjectionInputId(1),
+            format: IeeeFloatFormat::Binary64,
+        });
+        right.operation = FloatMeaningProjectionOperation::Meaning64;
+        right.contract =
+            contract(psi_numerics::float_projection::FloatProjectionOperation::Meaning64);
+        let equalities = vec![FloatMeaningEqualityProposition {
+            id: ProofPropositionId(0),
+            left: ProofValueId(0),
+            right: ProofValueId(1),
+        }];
+        assert!(matches!(
+            validate_equalities(&[left, right], &equalities),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::EqualityCarrierMismatch,
+                ..
+            })
+        ));
     }
 
     #[test]

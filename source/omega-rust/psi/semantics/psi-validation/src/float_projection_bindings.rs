@@ -5,7 +5,7 @@
 //! semantics, and a drifted canonical declaration fails before facts are built.
 
 use psi_diagnostics::Diagnostic;
-use psi_numerics::float_projection::FloatProjectionOperation;
+use psi_numerics::float_projection::{FloatProjectionContractIdentity, FloatProjectionOperation};
 use psi_numerics::float_semantics::FloatFormat;
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::operator::OperatorDefinition;
@@ -99,6 +99,17 @@ pub fn exact_toolchain_float_projection_primitive(
     operator: &OperatorDefinition,
     projection: FloatProjectionOperation,
 ) -> Option<PrimitiveType> {
+    exact_toolchain_float_projection_contract(program, operator, projection)
+        .map(|(primitive, _)| primitive)
+}
+
+/// Recognize the same sealed declaration while retaining the exact rooted-
+/// checker contract/catalog tuple which must survive into the artifact.
+pub fn exact_toolchain_float_projection_contract(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    projection: FloatProjectionOperation,
+) -> Option<(PrimitiveType, FloatProjectionContractIdentity)> {
     if !has_exact_toolchain_float_projection_owner(program, operator.symbol, projection) {
         return None;
     }
@@ -111,16 +122,18 @@ pub fn exact_toolchain_float_projection_primitive(
     let [parameter] = program.operator_parameters(operator) else {
         return None;
     };
-    (!operator.is_boundary
+    (!operator.is_public
+        && !operator.is_boundary
         && operator.spelling.is_none()
         && operator.lifetime_parameters.is_empty()
         && program.operator_type_parameters(operator).is_empty()
         && !parameter.is_const
         && !parameter.is_mutable
         && !parameter.is_self
+        && program.operator_contracts(operator).is_empty()
         && program.primitive_type_reference(parameter.type_reference) == Some(expected_primitive)
         && has_exact_toolchain_float_meaning_result(program, operator))
-    .then_some(expected_primitive)
+    .then_some((expected_primitive, projection.contract_identity()))
 }
 
 pub(crate) fn validate_float_projection_operator_bindings(
@@ -152,7 +165,7 @@ pub(crate) fn validate_float_projection_operator_bindings(
                 == Some(expected_primitive);
         if !signature_matches {
             diagnostics.push(Diagnostic::error(format!(
-                "canonical float projection `{}::{}` from `{}` must be one ordinary tokenless operator from `{}` to the sealed toolchain `FloatMeaning` from `{}`, with no lifetime/type parameters or receiver qualification",
+                "canonical float projection `{}::{}` from `{}` must be one private, contract-free ordinary tokenless operator from `{}` to the sealed toolchain `FloatMeaning` from `{}`, with no lifetime/type parameters or receiver qualification",
                 projection.source_namespace(),
                 projection.source_name(),
                 psi_numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,

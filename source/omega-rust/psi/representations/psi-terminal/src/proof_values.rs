@@ -15,6 +15,19 @@ pub struct ProofPropositionId(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FloatProjectionInputId(pub u32);
 
+/// Closed artifact descriptor corresponding to the rooted-checker D40 tuple.
+/// `declaration` covers the exact toolchain operation ownership, parameter
+/// shape, and FloatMeaning result identity; the commitment also binds the two
+/// sealed source owners used by frontend recognition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FloatProjectionContractIdentity {
+    pub format: u16,
+    pub operation: u8,
+    pub declaration: u8,
+    pub catalog_version: u16,
+    pub commitment: [u8; 32],
+}
+
 /// Closed Terminal identity for the format-specific public projection. This
 /// tag carries no source spelling; the verifier maps it independently to the
 /// shared numeric catalog.
@@ -77,6 +90,7 @@ pub struct FloatMeaningProjection {
     pub result: ProofValueDeclaration,
     pub source: FloatMeaningSource,
     pub operation: FloatMeaningProjectionOperation,
+    pub contract: FloatProjectionContractIdentity,
 }
 
 /// One source-independent proof-only equality over retained projection

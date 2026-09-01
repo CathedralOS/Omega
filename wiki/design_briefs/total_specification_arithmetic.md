@@ -201,6 +201,13 @@ verifier-reconstructed landed float source, exact binary format, projection
 operation, and recognized declaration/catalog contract. Equal keys share one
 canonical proof-value identity; distinct keys require an explicit theorem.
 Source offsets remain diagnostics, and no proof term becomes runtime data.
+The closed artifact contract retains rooted-checker tuples `(32, 1, 1, 1)` and
+`(64, 2, 2, 1)` plus a commitment to the exact sealed owners, hermetic operator
+identity, private contract-free ordinary signature, source carrier, nominal
+result identity, and immutable catalog version. Same-format equality is
+required independently during source validation, checked projection, and
+Terminal replay. Nonliteral source carriers remain transitional rather than
+production proof-ledger evidence.
 
 ## Crash routes
 

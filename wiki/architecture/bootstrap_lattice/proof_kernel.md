@@ -84,9 +84,14 @@ literal bits keep positive and negative zero distinct. Ordinary equality and
 generic predicates/relations cannot consume the term. Capture-avoiding
 substitution preserves the closed key unchanged, and the authoritative Beta
 checker plus the independent diagnostic comparator reject every mutated tuple
-in the retained diamond. Artifact-aware reconstruction of those source
-coordinates and the complete Terminal proof-value integration remain owner
-work outside this generic kernel slice.
+in the retained diamond. Terminal now retains the corresponding closed
+artifact descriptor: rooted tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` and a
+commitment to the sealed declaration/result owners, hermetic operation,
+private contract-free ordinary signature, source carrier, and catalog version.
+Independent replay requires exact descriptor identity and same-carrier
+`FloatMeaningEqual`. Artifact-aware reconstruction of the remaining
+nonliteral source coordinates remains owner work outside this generic kernel
+slice.
 
 ## Implementations
 
