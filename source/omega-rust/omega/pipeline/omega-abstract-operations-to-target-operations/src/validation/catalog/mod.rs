@@ -10,7 +10,6 @@ mod selection;
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
-
 use super::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetTranslationValidationError,
 };
@@ -20,6 +19,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::immediate::INTEGER,
     dispatch::immediate::INTEGER_WIDEN,
     dispatch::immediate::INTEGER_BITWISE_AND,
+    dispatch::immediate::INTEGER_BITWISE_OR,
     dispatch::immediate::WRAPPING_INTEGER_ADD,
     dispatch::immediate::WRAPPING_INTEGER_SUBTRACT,
     dispatch::immediate::WRAPPING_INTEGER_MULTIPLY,
