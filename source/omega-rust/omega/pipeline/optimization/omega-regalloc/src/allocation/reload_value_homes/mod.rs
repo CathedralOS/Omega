@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. Logical reload-value reanalysis and home assignment.
+//! Optimizer module role: executable entrance. Logical reload-value reanalysis and home assignment.
 //!
 //! This boundary proves one bounded block-local reload can occupy a physical
 //! view after abstract spill scheduling. It creates no instruction, memory

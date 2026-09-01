@@ -678,13 +678,19 @@ decision. Only true language-semantic questions belong in
   and AArch64. It creates no real virtual register, selected or machine
   instruction, memory effect, frame address, trap claim, encoding, emission,
   or publication authority. Reload or subsequent pressure fails with typed
-  evidence; recursive recovery needs a bounded epoch/worklist artifact and a
-  separate synthetic-value namespace. Lower spill-pseudo representation,
+  evidence. A fifth independently replayed V1 artifact now binds each admitted
+  logical reload and home to a compiler-private `{epoch, ordinal}` synthetic
+  namespace in canonical function/logical-value order. Epoch zero retains the
+  insertion and reload-home roots, lifetime, class, and assigned view, with
+  deterministic x86-64/AArch64, cross-target corruption, exact-budget, and
+  empty-pressure coverage. It still creates no real `VirtualRegisterId` or
+  instruction and grants no downstream authority. Recursive recovery still
+  needs a bounded epoch/worklist artifact; lower spill-pseudo representation,
   abstract spill memory effects and ISA lowering, final frame offsets,
   unwind/probing, and downstream realization remain engineering work. Real
   memory insertion is owner-blocked only on the spill-access fault semantics
-  recorded in `OWNER_QUESTIONS.md`; the abstract schedule and reload-home
-  analysis are not blocked.
+  recorded in `OWNER_QUESTIONS.md`; the abstract schedule, reload-home
+  analysis, and synthetic namespace are not blocked.
 - [ ] Add coalescing, live-range splitting, fixed/precolored intervals, and
   rematerialization cost decisions.
 - [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,
@@ -756,10 +762,17 @@ consumes and retains their identities through publication.
   failures on behalf of both Unix process groups and Windows Jobs. Resolver
   execution and Git acquisition consume it without retaining duplicate
   lifecycle or capture engines. These are resource and cleanup controls, not a
-  filesystem, executable, credential, or network sandbox. The optimizer still
-  needs a versioned external-policy execution adapter, request/response caps,
-  independently matched candidate custody, a required sandbox-capability
-  contract, and explicit fail-closed versus recorded-baseline fallback.
+  filesystem, executable, credential, or network sandbox. A dormant
+  compiler-private adapter now exchanges canonical V2 decision logs through
+  exact request, response, stderr, aggregate-output, deadline, cleanup, and
+  process limits. It independently requires the context, point order, input,
+  rule, and complete candidate surfaces to remain identical, permits only a
+  schema-legal action change, and makes `FailClosed` versus
+  `UseRecordedBaseline` explicit. Ordinary builds exclude it; even the
+  experimental feature cannot construct its opaque verified-sandbox
+  invocation because there is intentionally no production constructor. A real
+  platform sandbox backend, capability construction, and build-level
+  activation remain engineering work.
 - [ ] Add offline corpus capture, training, evaluation, and regression tools.
 
 ML may rank already-declared equal transformations. It cannot invent an
@@ -879,8 +892,16 @@ unchecked rewrite or opt into lossy floating-point semantics.
   x86-64 and AArch64, exact-envelope success, deterministic refusal at every
   representable first-over budget, and the nonzero budget-domain floor for
   unit-valued axes. Its immutable transformed carrier is not accepted as a
-  second input, so no false idempotence claim is made. The remaining
-  operational axes and other rule families are not yet complete.
+  second input, so no false idempotence claim is made. The exact incoming-u12
+  add lowering rule now has its own x86-64/AArch64 matrix: true default-disabled
+  projection, exact-subtract cross-rule refusal without fallback, applied and
+  repeated deterministic execution, exact aggregate work
+  `{19, 8, 123, 6, 9}`, exact-envelope success, first-over failure on all five
+  axes, action-corruption refusal, and an honest validated terminal no-change
+  attempt. Its transformed selected carrier is not a fresh staging input, so
+  that within-run fixed point is not relabelled as second-invocation
+  idempotence. The remaining operational axes and other rule families are not
+  yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [x] Add randomized valid-Psi and selected-machine differential corpora. The

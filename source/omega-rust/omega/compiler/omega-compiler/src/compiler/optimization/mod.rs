@@ -4,6 +4,8 @@
 //! and passes the one effective exact selection into native realization.
 
 mod admission;
+#[cfg(any(test, feature = "experimental-external-optimization-policy"))]
+pub(crate) mod external_policy;
 mod native_realization;
 pub mod rollback;
 

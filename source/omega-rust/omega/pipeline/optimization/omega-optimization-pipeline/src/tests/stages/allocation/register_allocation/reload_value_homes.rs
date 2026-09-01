@@ -153,18 +153,18 @@ fn budget_is_exact_and_empty_pressure_has_no_reload_assignment() {
     assert_eq!(assigned.receipt().coexisting_home_count(), 0);
 }
 
-struct ReloadSources {
+pub(super) struct ReloadSources {
     legality: StagedOptimizedAllocationLegality,
     logical: omega_regalloc::ValidatedLogicalSpillOperations,
     insertion: omega_regalloc::ValidatedAbstractSpillInsertion,
 }
 
 impl ReloadSources {
-    fn new(target: NativeTarget) -> Self {
+    pub(super) fn new(target: NativeTarget) -> Self {
         Self::from_legality(staged_active_resident_two_view_legality(target))
     }
 
-    fn from_legality(legality: StagedOptimizedAllocationLegality) -> Self {
+    pub(super) fn from_legality(legality: StagedOptimizedAllocationLegality) -> Self {
         let ranges = legality.live_range_stage();
         let selected = ranges.liveness_stage().selected_stage();
         let environment = selected.register_environment();
@@ -209,7 +209,7 @@ impl ReloadSources {
         }
     }
 
-    fn assign(
+    pub(super) fn assign(
         &self,
         budget: OptimizationWorkBudget,
     ) -> Result<omega_regalloc::ValidatedReloadValueHomes, omega_regalloc::ReloadValueHomeError>
@@ -231,6 +231,10 @@ impl ReloadSources {
             omega_regalloc::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
             budget,
         )
+    }
+
+    pub(super) const fn insertion(&self) -> &omega_regalloc::ValidatedAbstractSpillInsertion {
+        &self.insertion
     }
 
     fn validate(

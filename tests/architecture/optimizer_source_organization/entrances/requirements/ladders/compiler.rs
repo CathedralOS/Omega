@@ -29,4 +29,16 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/rollback/tests.rs",
         ],
     },
+    SemanticLadder {
+        family: "dormant external optimization policy execution",
+        paths: &[
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/mod.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/capability.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/limits.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/model.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/response.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/settlement.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/external_policy/tests.rs",
+        ],
+    },
 ];

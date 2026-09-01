@@ -166,6 +166,18 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "let expected = replay::replay(source)?;",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_insertion/mod.rs",
+        coordination_marker: "pub fn schedule_abstract_spill_insertion",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/reload_value_homes/mod.rs",
+        coordination_marker: "pub fn assign_reload_value_homes",
+    },
+    RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/synthetic_reload_values/mod.rs",
+        coordination_marker: "pub fn bind_synthetic_reload_values",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocation_legality/mod.rs",
         coordination_marker: "pub fn analyze_allocation_legality",
     },

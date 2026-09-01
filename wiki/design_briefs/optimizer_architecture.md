@@ -196,6 +196,13 @@ timeline independently from the producer's sorted linear schedule. Neither
 boundary grants a real virtual-register identity, memory effect, frame
 address, trap policy, encoding, emission, or publication authority.
 
+The adjacent synthetic reload-value entrance gives each validated reload/home
+pair a distinct compiler-private `{epoch, ordinal}` identity. V1 admits only
+epoch zero and canonical function/logical-value order; producer traversal and
+keyed replay remain separate. This closes the namespace prerequisite without
+claiming a real selected `VirtualRegisterId`, instruction, recursive spill
+worklist, or any later physical authority.
+
 Fixed-view-copy insertion has two visible executable boundaries:
 `fixed_view_copy/mod.rs` owns the selected-policy producer-to-validator join,
 while `fixed_view_copy/validate/mod.rs` independently admits root and

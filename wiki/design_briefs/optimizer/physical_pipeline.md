@@ -335,6 +335,15 @@ separate work reconstruction. Reload pressure and later secondary pressure are
 typed failures. Recursive spill recovery, synthetic-register realization,
 memory effects, ISA lowering, and frame integration remain later boundaries.
 
+Synthetic reload-value binding closes only the next namespace seam. Its V1
+artifact assigns each validated logical reload/home pair an epoch-zero ordinal
+in canonical function and logical-value order, retaining the insertion and
+home identities plus lifetime, class, and chosen view. Production uses direct
+function traversal; replay independently indexes logical reloads and sorts the
+closed binding set. The synthetic identity is deliberately not a selected
+`VirtualRegisterId`. Bounded recursive epochs/worklists, spill pseudos, real
+instructions, memory effects, and all frame/publication work remain absent.
+
 Register units model aliasing between views. Flags/predicates, vector lanes,
 special registers, ABI reservations, call clobbers, and stack/frame constraints
 are explicit target facts. Modulo scratch-register assignment is not an
