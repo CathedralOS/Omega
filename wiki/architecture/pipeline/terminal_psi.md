@@ -622,10 +622,15 @@ Optimizer reconstruction and independent validation retain the dynamic result,
 both declared source places, descriptor-version relation, selected-realization
 call graph, service closure, and non-rewritable call observation;
 physical assignment allocates the canonical runtime `{ instance, table }`
-carrier and durable result home. Machine emission currently rejects the row as
-`DynamicScalarTableMaterializationPending` until table address/function
-materialization, indirect-call encoding, and relocations exist. This boundary
-is not permission to devirtualize the call.
+carrier and durable result home. Machine-emission preflight independently
+replays those non-overlapping descriptor/result frame regions. The downstream
+plans do not yet retain the complete canonically ordered
+`ClosedConformanceApplication` table catalog; the selected indirect row cannot
+stand in for that complete map or authorize a fixture-shaped one-slot table.
+Machine emission therefore continues to reject the row as
+`DynamicScalarTableMaterializationPending` until complete table custody, static
+private table address/function materialization, indirect-call encoding, and
+relocations exist. This boundary is not permission to devirtualize the call.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts
