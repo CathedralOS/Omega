@@ -50,16 +50,18 @@ not contain either implementation.
 
 Post-allocation peepholes have one narrower shared rung at
 `rules/peephole_matching/mod.rs`. Its small entrance takes an immutable
-terminal-pair descriptor, resolves named architectural register-unit sets,
+instruction-pair descriptor plus one closed topology, resolves named
+architectural register-unit sets,
 matches the two exact symbolic/machine footprints, checks named same-register
 or same-physical-storage relations between their operands, and checks their
 liveness boundary. Instruction, register, relation, and liveness mechanics
 live in separately named leaves below it. The first cataloged descriptor
 belongs to the exact AArch64 CBNZ leaf; the central machine catalog remains the
 sole compiler enable/order authority.
-This first vocabulary intentionally describes only a body-tail instruction
-followed by its terminator. It does not speculate an arbitrary pattern AST,
-rewrite language, cost policy, or ML interface.
+The closed vocabulary distinguishes only a body-tail instruction followed by
+its terminator from two adjacent ordinary-body instructions. It does not
+speculate an arbitrary pattern AST, rewrite language, cost policy, or ML
+interface.
 
 The second descriptor proves cross-operand vocabulary without widening that
 topology. An AArch64 owner recognizes an exact same-physical-view
@@ -68,9 +70,18 @@ records only a symbolic elision disposition. Its exact build selection and
 machine-catalog row now admit that independently replayed result to the generic
 physical carrier. Encoding, zero-byte layout, exit, realization, object, and
 callable custody preserve the disposition without duplicating the rule-name
-schedule. No current lowering emits the exact terminal pair, so compiler tests
+schedule. No current lowering emits the exact body-tail pair, so compiler tests
 exercise deterministic no-candidate routing and publication; the applied
 positive remains rule-local, and fixed-view composition refuses explicitly.
+
+The third descriptor proves the second topology with an exact AArch64
+`CopyI64; CompareI64Zero` ordinary-body pair. It reuses the bounded symbolic
+footprint and relation vocabulary, but owns a separate tiny proposal/validation
+tree and requires the copy destination to feed the comparison while source and
+destination share one physical view/storage. Rule-local independent replay
+retains footprint, liveness, and provenance evidence. Its exact selection and
+sole catalog row flow through the shared copy-elision artifact codec and the
+generic downstream carrier; no arbitrary-length matching authority follows.
 
 The matcher only proposes. CBNZ and same-view-copy acceptance each reconstruct
 their preconditions in an independent rule-local validator without calling the
@@ -189,6 +200,14 @@ deterministic training, evaluation, and regression groups. Its validated
 corpus and receipt grant no optimizer replay, compiler activation, process
 execution, or publication authority. Training and evaluation must consume this
 boundary rather than inventing a second feature schema.
+
+The sibling offline command exposes only
+`capture <output-corpus> <decision-log>...`. It reads every input before corpus
+admission, publishes only the canonical validated encoding, creates rather than
+overwrites the output path, and removes an output it created if writing fails.
+This is user-requested artifact custody, not optimizer-result publication: the
+command has no compiler, build, policy replay, model execution, or process
+authority.
 
 The first reference consumer is `CostThresholdV1`. It deterministically fits
 one signed threshold against recorded-action agreement, then independently
