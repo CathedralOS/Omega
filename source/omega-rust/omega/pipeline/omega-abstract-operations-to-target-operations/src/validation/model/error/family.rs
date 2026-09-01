@@ -8,6 +8,7 @@ use super::immediate::{
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
     StraightLineIntegerBitwiseAndImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
+    StraightLineIntegerBitwiseOrImmediateTranslationError,
     StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerLessThanImmediateTranslationError,
     StraightLineIntegerLessOrEqualImmediateTranslationError,
@@ -60,6 +61,7 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
     StraightLineIntegerBitwiseAndImmediate(StraightLineIntegerBitwiseAndImmediateTranslationError),
+    StraightLineIntegerBitwiseOrImmediate(StraightLineIntegerBitwiseOrImmediateTranslationError),
     StraightLineWrappingIntegerAddImmediate(
         StraightLineWrappingIntegerAddImmediateTranslationError,
     ),
