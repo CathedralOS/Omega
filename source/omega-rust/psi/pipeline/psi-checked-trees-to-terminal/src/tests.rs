@@ -2145,6 +2145,74 @@ fn emitted_direct_float_parameter_rejoins_terminal_owner_and_dense_scalar_parame
 }
 
 #[test]
+fn emitted_direct_float_result_rejoins_terminal_owner_and_scalar_result() {
+    let source = r#"
+        data Token {}
+        machine Token::drop(&mut self) {}
+
+        data Root {}
+        machine Root::echo(token: Token, value: f32) -> f32 { value }
+    "#;
+    let mut checked = checked_source(source);
+    let owner_machine = checked
+        .machines()
+        .iter()
+        .find(|machine| checked.symbols.name(machine.symbol) == "Root::echo")
+        .expect("source owner")
+        .symbol;
+    checked.facts.proof.float_meaning_projections.push(
+        psi_checked_trees::CheckedFloatMeaningProjection {
+            result: psi_checked_trees::CheckedProofValueDeclaration {
+                id: psi_checked_trees::CheckedProofValueId(0),
+                value_type: psi_checked_trees::CheckedProofOnlyValueType::FloatMeaning,
+            },
+            source: psi_checked_trees::CheckedFloatProjectionSource::DirectMachineResult(
+                psi_checked_trees::CheckedDirectMachineFloatResult {
+                    owner_machine,
+                    fallback: psi_checked_trees::CheckedFloatProjectionInput {
+                        id: psi_checked_trees::CheckedFloatProjectionInputId(0),
+                        primitive: psi_checked_trees::types::PrimitiveType::F32,
+                    },
+                },
+            ),
+            operation: psi_numerics::float_projection::FloatProjectionOperation::Meaning32,
+            contract: psi_numerics::float_projection::FloatProjectionOperation::Meaning32
+                .contract_identity(),
+        },
+    );
+    let lowered = lower_machine(&checked, "Root::echo").expect("lower direct float result owner");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let TerminalMachineResult::Scalar(result) = machine.result else {
+        panic!("entry should retain its scalar result")
+    };
+    assert_eq!(
+        result.scalar_type,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)
+    );
+    assert_eq!(
+        lowered.semantic_module.float_meaning_projections[0].source,
+        psi_terminal::FloatMeaningSource::DirectMachineResult(
+            psi_terminal::DirectMachineFloatResult {
+                owner: machine.id,
+                result: result.id,
+                format: IeeeFloatFormat::Binary32,
+            }
+        )
+    );
+    psi_terminal_verifier::validate_module(&lowered.semantic_module).expect("verify direct result");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module)
+    );
+}
+
+#[test]
 fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() {
     let source = r#"
         machine prove_projection()
@@ -2486,7 +2554,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &58_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &59_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -2567,7 +2635,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &58_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &59_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

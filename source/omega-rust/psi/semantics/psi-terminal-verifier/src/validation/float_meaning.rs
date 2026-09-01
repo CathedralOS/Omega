@@ -134,13 +134,18 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
 
 fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
     for (index, projection) in module.float_meaning_projections.iter().enumerate() {
-        let psi_terminal::FloatMeaningSource::DirectMachineParameter(parameter) = projection.source
-        else {
-            continue;
-        };
         let index = u32::try_from(index).unwrap_or(u32::MAX);
-        crate::verification::verify_direct_float_parameter(module, parameter)
-            .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+        match projection.source {
+            psi_terminal::FloatMeaningSource::DirectMachineParameter(parameter) => {
+                crate::verification::verify_direct_float_parameter(module, parameter)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+            }
+            psi_terminal::FloatMeaningSource::DirectMachineResult(result) => {
+                crate::verification::verify_direct_float_result(module, result)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+            }
+            _ => {}
+        }
     }
     Ok(())
 }
@@ -149,6 +154,7 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
     match source {
         psi_terminal::FloatMeaningSource::TransitionalInput(input) => Some(input.id.0),
         psi_terminal::FloatMeaningSource::DirectMachineParameter(_)
+        | psi_terminal::FloatMeaningSource::DirectMachineResult(_)
         | psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
         | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
     }
@@ -158,10 +164,11 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
 mod tests {
     use psi_core::{BlockId, ContractId, IeeeFloatFormat, MachineId, ScalarType, ValueId};
     use psi_terminal::{
-        DirectMachineFloatParameter, FloatMeaningEqualityProposition, FloatMeaningProjection,
-        FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
-        FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
-        ProofValueId, TerminalMachine, TerminalMachineResult, ValueDeclaration, VocabularyMarker,
+        DirectMachineFloatParameter, DirectMachineFloatResult, FloatMeaningEqualityProposition,
+        FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+        FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
+        ProofValueDeclaration, ProofValueId, TerminalMachine, TerminalMachineResult,
+        ValueDeclaration, VocabularyMarker,
     };
 
     fn contract(
@@ -288,6 +295,23 @@ mod tests {
                 ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
             )],
         }
+    }
+
+    fn direct_result_module() -> TerminalModule {
+        let mut module = direct_module();
+        let owner = module.entry;
+        let result = semantic_id(2, ValueId::new);
+        module.machines[0].result = TerminalMachineResult::Scalar(ValueDeclaration {
+            id: result,
+            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        });
+        module.float_meaning_projections[0].source =
+            FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
+                owner,
+                result,
+                format: IeeeFloatFormat::Binary32,
+            });
+        module
     }
 
     #[test]
@@ -445,6 +469,67 @@ mod tests {
         assert!(matches!(
             validate_rows(&[module.float_meaning_projections[0], duplicate]),
             Err(ModuleError::DuplicateFloatMeaningProjection { .. })
+        ));
+    }
+
+    #[test]
+    fn direct_result_rejoins_only_its_exact_owner_scalar_result_and_format() {
+        let module = direct_result_module();
+        assert_eq!(validate_direct_sources(&module), Ok(()));
+
+        let mut unknown_owner = module.clone();
+        let FloatMeaningSource::DirectMachineResult(result) =
+            &mut unknown_owner.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        result.owner = semantic_id(2, MachineId::new);
+        assert!(matches!(
+            validate_direct_sources(&unknown_owner),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectResultOwner(_),
+                ..
+            })
+        ));
+
+        let mut redirected_to_parameter = module.clone();
+        let FloatMeaningSource::DirectMachineResult(result) =
+            &mut redirected_to_parameter.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        result.result = redirected_to_parameter.machines[0].parameters[0].id;
+        assert!(matches!(
+            validate_direct_sources(&redirected_to_parameter),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectResult { .. },
+                ..
+            })
+        ));
+
+        let mut wrong_format = module.clone();
+        let FloatMeaningSource::DirectMachineResult(result) =
+            &mut wrong_format.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        result.format = IeeeFloatFormat::Binary64;
+        assert!(matches!(
+            validate_direct_sources(&wrong_format),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::DirectResultFormatMismatch,
+                ..
+            })
+        ));
+
+        let mut unit_result = module;
+        unit_result.machines[0].result = TerminalMachineResult::Unit;
+        assert!(matches!(
+            validate_direct_sources(&unit_result),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectResult { .. },
+                ..
+            })
         ));
     }
 

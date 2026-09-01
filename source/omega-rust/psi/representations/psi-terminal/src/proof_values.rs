@@ -73,6 +73,17 @@ pub struct DirectMachineFloatParameter {
     pub format: IeeeFloatFormat,
 }
 
+/// Exact artifact-relative identity of one top-level machine's scalar IEEE
+/// result. `result` is a reserved contract pseudo-name and has no frontend
+/// symbol identity, so Terminal binds it directly to the owner's declared
+/// scalar result value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DirectMachineFloatResult {
+    pub owner: MachineId,
+    pub result: ValueId,
+    pub format: IeeeFloatFormat,
+}
+
 /// Verifier-reconstructible source of one float-meaning projection.
 ///
 /// Exact literals own their raw landed bits and therefore need no producer ID.
@@ -83,6 +94,7 @@ pub struct DirectMachineFloatParameter {
 pub enum FloatMeaningSource {
     TransitionalInput(FloatProjectionInput),
     DirectMachineParameter(DirectMachineFloatParameter),
+    DirectMachineResult(DirectMachineFloatResult),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
@@ -92,6 +104,7 @@ impl FloatMeaningSource {
         match self {
             Self::TransitionalInput(input) => input.format,
             Self::DirectMachineParameter(parameter) => parameter.format,
+            Self::DirectMachineResult(result) => result.format,
             Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
             Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,
         }

@@ -55,6 +55,16 @@ pub struct CheckedDirectMachineFloatParameter {
     pub fallback: CheckedFloatProjectionInput,
 }
 
+/// Exact checked provenance for the scalar result named by an owning
+/// top-level machine `ensures` clause. Omega's reserved `result` spelling has
+/// no source symbol of its own, so the owning machine plus exact primitive
+/// format is the complete checked identity before Terminal binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedDirectMachineFloatResult {
+    pub owner_machine: psi_symbols::SymbolHandle,
+    pub fallback: CheckedFloatProjectionInput,
+}
+
 /// The semantic source retained for one checked float projection.
 ///
 /// Exact literals carry their landed raw bits directly. The transitional
@@ -64,6 +74,7 @@ pub struct CheckedDirectMachineFloatParameter {
 pub enum CheckedFloatProjectionSource {
     TransitionalInput(CheckedFloatProjectionInput),
     DirectMachineParameter(CheckedDirectMachineFloatParameter),
+    DirectMachineResult(CheckedDirectMachineFloatResult),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
@@ -73,6 +84,7 @@ impl CheckedFloatProjectionSource {
         match self {
             Self::TransitionalInput(input) => input.primitive,
             Self::DirectMachineParameter(parameter) => parameter.fallback.primitive,
+            Self::DirectMachineResult(result) => result.fallback.primitive,
             Self::ExactBinary32Literal(_) => PrimitiveType::F32,
             Self::ExactBinary64Literal(_) => PrimitiveType::F64,
         }
@@ -121,10 +133,18 @@ impl CheckedFloatMeaningProjection {
         if self.source.primitive() != expected {
             return Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch);
         }
-        if let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = self.source
-            && (!parameter.owner_machine.is_valid() || !parameter.parameter.is_valid())
-        {
-            return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+        match self.source {
+            CheckedFloatProjectionSource::DirectMachineParameter(parameter)
+                if !parameter.owner_machine.is_valid() || !parameter.parameter.is_valid() =>
+            {
+                return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+            }
+            CheckedFloatProjectionSource::DirectMachineResult(result)
+                if !result.owner_machine.is_valid() =>
+            {
+                return Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance);
+            }
+            _ => {}
         }
         if self.contract != self.operation.contract_identity() {
             return Err(CheckedFloatMeaningProjectionError::ContractIdentityMismatch);
@@ -232,6 +252,35 @@ mod tests {
         if let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = &mut plan.source {
             parameter.parameter = psi_symbols::SymbolHandle::from_arena_index(5);
             parameter.fallback.primitive = PrimitiveType::I32;
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::SourceFormatMismatch)
+        );
+    }
+
+    #[test]
+    fn checked_direct_result_requires_nonempty_owner_and_exact_format() {
+        let mut plan = projection();
+        plan.source =
+            CheckedFloatProjectionSource::DirectMachineResult(CheckedDirectMachineFloatResult {
+                owner_machine: psi_symbols::SymbolHandle::from_arena_index(3),
+                fallback: CheckedFloatProjectionInput {
+                    id: CheckedFloatProjectionInputId(7),
+                    primitive: PrimitiveType::F32,
+                },
+            });
+        assert_eq!(plan.validate(), Ok(()));
+        if let CheckedFloatProjectionSource::DirectMachineResult(result) = &mut plan.source {
+            result.owner_machine = psi_symbols::SymbolHandle::invalid();
+        }
+        assert_eq!(
+            plan.validate(),
+            Err(CheckedFloatMeaningProjectionError::InvalidSourceProvenance)
+        );
+        if let CheckedFloatProjectionSource::DirectMachineResult(result) = &mut plan.source {
+            result.owner_machine = psi_symbols::SymbolHandle::from_arena_index(3);
+            result.fallback.primitive = PrimitiveType::F64;
         }
         assert_eq!(
             plan.validate(),

@@ -1,11 +1,12 @@
 //! Erase validated source float-projection invocations into checked proof rows.
 
 use psi_checked_trees::{
-    CheckedDirectMachineFloatParameter, CheckedFloatMeaningEqualityProposition,
-    CheckedFloatMeaningProjection, CheckedFloatMeaningProjectionOccurrence,
-    CheckedFloatMeaningProjectionOccurrenceId, CheckedFloatProjectionInput,
-    CheckedFloatProjectionInputId, CheckedFloatProjectionSource, CheckedProofOnlyValueType,
-    CheckedProofPropositionId, CheckedProofValueDeclaration, CheckedProofValueId, ProofFacts,
+    CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
+    CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
+    CheckedFloatMeaningProjectionOccurrence, CheckedFloatMeaningProjectionOccurrenceId,
+    CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
+    CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
+    CheckedProofValueId, ContractProofFactKind, ProofFacts,
 };
 use psi_diagnostics::Diagnostic;
 use psi_numerics::float_projection::FloatProjectionOperation;
@@ -23,6 +24,9 @@ enum CheckedFloatProjectionSourceKey {
         owner_machine: psi_symbols::SymbolHandle,
         parameter: psi_symbols::SymbolHandle,
     },
+    DirectMachineResult {
+        owner_machine: psi_symbols::SymbolHandle,
+    },
     ResolvedSymbol(psi_symbols::SymbolHandle),
     Binary32Literal(u32),
     Binary64Literal(u64),
@@ -37,16 +41,29 @@ fn projection_source_key(
     fact: ValidatedFloatMeaningProjectionInvocation,
 ) -> CheckedFloatProjectionSourceKey {
     match program.expression_table.expression(fact.source) {
-        ExpressionNode::Name(path) if path.symbol.is_valid() => {
-            direct_machine_parameter_source(program, proof, fact)
-                .map(|(owner_machine, parameter)| {
-                    CheckedFloatProjectionSourceKey::DirectMachineParameter {
-                        owner_machine,
-                        parameter,
-                    }
+        ExpressionNode::Name(path) => path
+            .symbol
+            .is_valid()
+            .then(|| direct_machine_parameter_source(program, proof, fact))
+            .flatten()
+            .map(|(owner_machine, parameter)| {
+                CheckedFloatProjectionSourceKey::DirectMachineParameter {
+                    owner_machine,
+                    parameter,
+                }
+            })
+            .or_else(|| {
+                direct_machine_result_source(program, proof, fact).map(|owner_machine| {
+                    CheckedFloatProjectionSourceKey::DirectMachineResult { owner_machine }
                 })
-                .unwrap_or(CheckedFloatProjectionSourceKey::ResolvedSymbol(path.symbol))
-        }
+            })
+            .unwrap_or_else(|| {
+                if path.symbol.is_valid() {
+                    CheckedFloatProjectionSourceKey::ResolvedSymbol(path.symbol)
+                } else {
+                    CheckedFloatProjectionSourceKey::TypedExpression(fact.source)
+                }
+            }),
         ExpressionNode::Float(literal) => match fact.source_primitive {
             PrimitiveType::F32 => {
                 CheckedFloatProjectionSourceKey::Binary32Literal(literal.f32_bits())
@@ -58,6 +75,54 @@ fn projection_source_key(
         },
         _ => CheckedFloatProjectionSourceKey::TypedExpression(fact.source),
     }
+}
+
+fn direct_machine_result_source(
+    program: &TypedTrees,
+    proof: &ProofFacts,
+    fact: ValidatedFloatMeaningProjectionInvocation,
+) -> Option<psi_symbols::SymbolHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(fact.source) else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if name.as_str() != "result" {
+        return None;
+    }
+    let mut owners = proof.contract_facts.iter().filter_map(|(_, contract)| {
+        let psi_checked_trees::ContractProofFactOwner::Machine { machine_symbol } = contract.owner
+        else {
+            return None;
+        };
+        (contract.kind == ContractProofFactKind::Ensures
+            && proof_fact_contains_expression(program, contract.fact, fact.invocation))
+        .then_some(machine_symbol)
+    });
+    let owner_machine = owners.next()?;
+    if owners.next().is_some() {
+        return None;
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == owner_machine)?;
+    let entry = program.machine_states(machine).first()?;
+    if program
+        .state_parameters(entry)
+        .iter()
+        .any(|parameter| !parameter.is_self && program.symbols.name(parameter.symbol) == "result")
+    {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(entry.return_type)?;
+    if primitive != fact.source_primitive
+        || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+    {
+        return None;
+    }
+    Some(owner_machine)
 }
 
 fn direct_machine_parameter_source(
@@ -351,6 +416,14 @@ pub(crate) fn bind_float_meaning_projection_facts(
                             fallback,
                         },
                     ),
+                    CheckedFloatProjectionSourceKey::DirectMachineResult { owner_machine } => {
+                        CheckedFloatProjectionSource::DirectMachineResult(
+                            CheckedDirectMachineFloatResult {
+                                owner_machine,
+                                fallback,
+                            },
+                        )
+                    }
                     CheckedFloatProjectionSourceKey::ResolvedSymbol(_)
                     | CheckedFloatProjectionSourceKey::TypedExpression(_) => {
                         CheckedFloatProjectionSource::TransitionalInput(fallback)
@@ -753,7 +826,7 @@ mod tests {
     }
 
     #[test]
-    fn result_member_cast_and_state_owned_sources_remain_transitional() {
+    fn top_level_scalar_result_retains_direct_checked_provenance() {
         let result_program = lower_projection_fixture(
             r#"
                 machine result_source(value: f32) -> f32
@@ -762,14 +835,75 @@ mod tests {
             "#,
         );
         let result_proof = bind_projection_facts_without_exit_proof(&result_program);
+        let CheckedFloatProjectionSource::DirectMachineResult(result) =
+            result_proof.float_meaning_projections[0].source
+        else {
+            panic!("top-level scalar result should retain direct provenance")
+        };
         assert_eq!(
-            result_proof.float_meaning_projections[0].source,
-            transitional_source(CheckedFloatProjectionInput {
+            result_program.symbols.name(result.owner_machine),
+            "result_source"
+        );
+        assert_eq!(
+            result.fallback,
+            CheckedFloatProjectionInput {
                 id: CheckedFloatProjectionInputId(0),
                 primitive: PrimitiveType::F32,
-            })
+            }
         );
+    }
 
+    #[test]
+    fn direct_result_identity_includes_exact_owner_and_primitive_format() {
+        let program = lower_projection_fixture(
+            r#"
+                machine narrow(value: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { value }
+
+                machine wide(value: f64) -> f64
+                ensures Float::meaning64(result) == Float::meaning64(result);
+                { value }
+            "#,
+        );
+        let proof = bind_projection_facts_without_exit_proof(&program);
+        let [narrow, wide] = proof.float_meaning_projections.as_slice() else {
+            panic!("one result projection per owning machine")
+        };
+        let CheckedFloatProjectionSource::DirectMachineResult(narrow) = narrow.source else {
+            panic!("narrow result provenance")
+        };
+        let CheckedFloatProjectionSource::DirectMachineResult(wide) = wide.source else {
+            panic!("wide result provenance")
+        };
+        assert_eq!(program.symbols.name(narrow.owner_machine), "narrow");
+        assert_eq!(program.symbols.name(wide.owner_machine), "wide");
+        assert_ne!(narrow.owner_machine, wide.owner_machine);
+        assert_eq!(narrow.fallback.primitive, PrimitiveType::F32);
+        assert_eq!(wide.fallback.primitive, PrimitiveType::F64);
+    }
+
+    #[test]
+    fn real_result_named_parameter_shadows_the_contract_pseudo_result() {
+        let program = lower_projection_fixture(
+            r#"
+                machine shadow(result: f32) -> f32
+                ensures Float::meaning32(result) == Float::meaning32(result);
+                { result }
+            "#,
+        );
+        let proof = bind_projection_facts_without_exit_proof(&program);
+        let CheckedFloatProjectionSource::DirectMachineParameter(parameter) =
+            proof.float_meaning_projections[0].source
+        else {
+            panic!("real parameter must shadow the reserved pseudo-result")
+        };
+        assert_eq!(program.symbols.name(parameter.owner_machine), "shadow");
+        assert_eq!(program.symbols.name(parameter.parameter), "result");
+    }
+
+    #[test]
+    fn member_cast_and_state_owned_sources_remain_transitional() {
         let member_checked = crate::lower_typed_trees(lower_projection_fixture(
             r#"
                 data Sample { value: f32; }

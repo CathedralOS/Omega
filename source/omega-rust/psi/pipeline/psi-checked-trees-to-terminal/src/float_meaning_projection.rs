@@ -7,10 +7,11 @@ use psi_checked_trees::{
 };
 use psi_core::{IeeeFloatFormat, MachineId, ScalarType};
 use psi_terminal::{
-    DirectMachineFloatParameter, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionContractIdentity,
-    FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
-    ProofValueDeclaration, ProofValueId, TerminalMachine,
+    DirectMachineFloatParameter, DirectMachineFloatResult, FloatMeaningEqualityProposition,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+    FloatProjectionContractIdentity, FloatProjectionInput, FloatProjectionInputId,
+    ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId, TerminalMachine,
+    TerminalMachineResult,
 };
 
 use crate::{LoweringError, terminal_scalar_type};
@@ -27,7 +28,7 @@ pub fn lower_float_meaning_equality(
 
 pub fn lower_float_meaning_projection(
     checked: CheckedFloatMeaningProjection,
-    direct_parameter: Option<DirectMachineFloatParameter>,
+    direct_source: Option<FloatMeaningSource>,
 ) -> Result<FloatMeaningProjection, FloatMeaningProjectionLoweringError> {
     checked
         .validate()
@@ -50,8 +51,10 @@ pub fn lower_float_meaning_projection(
                 PrimitiveType::F64 => IeeeFloatFormat::Binary64,
                 _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
             };
-            match direct_parameter {
-                Some(parameter) if parameter.format == format => {
+            match direct_source {
+                Some(FloatMeaningSource::DirectMachineParameter(parameter))
+                    if parameter.format == format =>
+                {
                     FloatMeaningSource::DirectMachineParameter(parameter)
                 }
                 Some(_) => {
@@ -59,6 +62,25 @@ pub fn lower_float_meaning_projection(
                 }
                 None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
                     id: FloatProjectionInputId(parameter.fallback.id.0),
+                    format,
+                }),
+            }
+        }
+        CheckedFloatProjectionSource::DirectMachineResult(result) => {
+            let format = match result.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+            };
+            match direct_source {
+                Some(FloatMeaningSource::DirectMachineResult(result))
+                    if result.format == format =>
+                {
+                    FloatMeaningSource::DirectMachineResult(result)
+                }
+                Some(_) => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+                None => FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                    id: FloatProjectionInputId(result.fallback.id.0),
                     format,
                 }),
             }
@@ -100,20 +122,22 @@ pub fn lower_float_meaning_projection(
 
 /// Rejoin checked source symbols to exact Terminal semantic identities while
 /// both representations are available. An owner outside the emitted artifact,
-/// or a route whose scalar parameter table does not exactly preserve the
-/// source scalar shape, retains the checked transitional fallback.
-pub(crate) fn resolve_direct_float_parameter_binding(
+/// or a route whose scalar signature does not exactly preserve the source
+/// shape, retains the checked transitional fallback.
+pub(crate) fn resolve_direct_float_source_binding(
     checked: &CheckedTrees,
     machine_bindings: &[(psi_symbols::SymbolHandle, MachineId)],
     terminal_machines: &[TerminalMachine],
     projection: CheckedFloatMeaningProjection,
-) -> Result<Option<DirectMachineFloatParameter>, LoweringError> {
-    let CheckedFloatProjectionSource::DirectMachineParameter(parameter) = projection.source else {
-        return Ok(None);
+) -> Result<Option<FloatMeaningSource>, LoweringError> {
+    let owner_machine = match projection.source {
+        CheckedFloatProjectionSource::DirectMachineParameter(parameter) => parameter.owner_machine,
+        CheckedFloatProjectionSource::DirectMachineResult(result) => result.owner_machine,
+        _ => return Ok(None),
     };
     let Some((_, terminal_owner)) = machine_bindings
         .iter()
-        .find(|(source_owner, _)| *source_owner == parameter.owner_machine)
+        .find(|(source_owner, _)| *source_owner == owner_machine)
     else {
         return Ok(None);
     };
@@ -133,13 +157,66 @@ pub(crate) fn resolve_direct_float_parameter_binding(
         .typed
         .machines()
         .iter()
-        .find(|machine| machine.symbol == parameter.owner_machine)
+        .find(|machine| machine.symbol == owner_machine)
         .ok_or_else(invalid_source)?;
     let source_entry = checked
         .typed
         .machine_states(source_machine)
         .first()
         .ok_or_else(invalid_source)?;
+    match projection.source {
+        CheckedFloatProjectionSource::DirectMachineParameter(parameter) => {
+            resolve_direct_float_parameter(
+                checked,
+                source_entry,
+                terminal_machine,
+                *terminal_owner,
+                parameter,
+            )
+        }
+        CheckedFloatProjectionSource::DirectMachineResult(result) => {
+            let format = match result.fallback.primitive {
+                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
+                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
+                _ => return Err(invalid_source()),
+            };
+            if checked
+                .typed
+                .primitive_type_reference(source_entry.return_type)
+                != Some(result.fallback.primitive)
+            {
+                return Err(invalid_source());
+            }
+            let TerminalMachineResult::Scalar(terminal_result) = terminal_machine.result else {
+                return Err(invalid_source());
+            };
+            if terminal_result.scalar_type != ScalarType::IeeeFloat(format) {
+                return Err(invalid_source());
+            }
+            Ok(Some(FloatMeaningSource::DirectMachineResult(
+                DirectMachineFloatResult {
+                    owner: *terminal_owner,
+                    result: terminal_result.id,
+                    format,
+                },
+            )))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn resolve_direct_float_parameter(
+    checked: &CheckedTrees,
+    source_entry: &psi_checked_trees::state::State,
+    terminal_machine: &TerminalMachine,
+    terminal_owner: MachineId,
+    parameter: psi_checked_trees::CheckedDirectMachineFloatParameter,
+) -> Result<Option<FloatMeaningSource>, LoweringError> {
+    let invalid_source = || {
+        LoweringError::InvalidFloatMeaningProjection(
+            FloatMeaningProjectionLoweringError::InvalidSourceCarrier,
+        )
+    };
     let source_parameters = checked
         .typed
         .state_parameters(source_entry)
@@ -181,11 +258,13 @@ pub(crate) fn resolve_direct_float_parameter_binding(
     if terminal_parameter.scalar_type != ScalarType::IeeeFloat(format) {
         return Err(invalid_source());
     }
-    Ok(Some(DirectMachineFloatParameter {
-        owner: *terminal_owner,
-        parameter: terminal_parameter.id,
-        format,
-    }))
+    Ok(Some(FloatMeaningSource::DirectMachineParameter(
+        DirectMachineFloatParameter {
+            owner: terminal_owner,
+            parameter: terminal_parameter.id,
+            format,
+        },
+    )))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,8 +276,9 @@ pub enum FloatMeaningProjectionLoweringError {
 #[cfg(test)]
 mod tests {
     use psi_checked_trees::{
-        CheckedDirectMachineFloatParameter, CheckedFloatProjectionInput,
-        CheckedFloatProjectionInputId, CheckedProofValueDeclaration, CheckedProofValueId,
+        CheckedDirectMachineFloatParameter, CheckedDirectMachineFloatResult,
+        CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedProofValueDeclaration,
+        CheckedProofValueId,
     };
     use psi_numerics::float_projection::FloatProjectionOperation;
 
@@ -259,7 +339,11 @@ mod tests {
             parameter: psi_core::ValueId::new(6).unwrap(),
             format: IeeeFloatFormat::Binary64,
         };
-        let lowered = lower_float_meaning_projection(checked, Some(direct)).unwrap();
+        let lowered = lower_float_meaning_projection(
+            checked,
+            Some(FloatMeaningSource::DirectMachineParameter(direct)),
+        )
+        .unwrap();
         assert_eq!(
             lowered.source,
             FloatMeaningSource::DirectMachineParameter(direct)
@@ -282,6 +366,43 @@ mod tests {
         let lowered = lower_float_meaning_projection(checked, None).unwrap();
         assert_eq!(
             lowered.source,
+            FloatMeaningSource::TransitionalInput(FloatProjectionInput {
+                id: FloatProjectionInputId(9),
+                format: IeeeFloatFormat::Binary64,
+            })
+        );
+    }
+
+    #[test]
+    fn direct_machine_result_lowers_to_exact_terminal_binding_or_fallback() {
+        let mut checked = checked_projection();
+        checked.source =
+            CheckedFloatProjectionSource::DirectMachineResult(CheckedDirectMachineFloatResult {
+                owner_machine: psi_symbols::SymbolHandle::from_arena_index(3),
+                fallback: CheckedFloatProjectionInput {
+                    id: CheckedFloatProjectionInputId(9),
+                    primitive: PrimitiveType::F64,
+                },
+            });
+        let direct = DirectMachineFloatResult {
+            owner: psi_core::MachineId::new(4).unwrap(),
+            result: psi_core::ValueId::new(8).unwrap(),
+            format: IeeeFloatFormat::Binary64,
+        };
+        let lowered = lower_float_meaning_projection(
+            checked,
+            Some(FloatMeaningSource::DirectMachineResult(direct)),
+        )
+        .unwrap();
+        assert_eq!(
+            lowered.source,
+            FloatMeaningSource::DirectMachineResult(direct)
+        );
+
+        assert_eq!(
+            lower_float_meaning_projection(checked, None)
+                .unwrap()
+                .source,
             FloatMeaningSource::TransitionalInput(FloatProjectionInput {
                 id: FloatProjectionInputId(9),
                 format: IeeeFloatFormat::Binary64,

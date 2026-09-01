@@ -162,7 +162,7 @@ use crash_routes::{
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
-use float_meaning_projection::resolve_direct_float_parameter_binding;
+use float_meaning_projection::resolve_direct_float_source_binding;
 pub use float_meaning_projection::{
     FloatMeaningProjectionLoweringError, lower_float_meaning_equality,
     lower_float_meaning_projection,
@@ -1249,7 +1249,7 @@ pub fn lower_machine(
         | SelectedMachineRoute::StructuralUnitControl
         | SelectedMachineRoute::AttachedUnit => vec![selection.machine],
     };
-    let direct_float_parameter_machines = if route == SelectedMachineRoute::ScalarGraph {
+    let direct_float_source_machines = if route == SelectedMachineRoute::ScalarGraph {
         if source_machines.len() != lowered.semantic_module.machines.len() {
             return unsupported(
                 "scalar call closure source and Terminal machine tables must correspond exactly",
@@ -1314,13 +1314,13 @@ pub fn lower_machine(
         .iter()
         .copied()
         .map(|projection| {
-            let direct_parameter = resolve_direct_float_parameter_binding(
+            let direct_source = resolve_direct_float_source_binding(
                 checked,
-                &direct_float_parameter_machines,
+                &direct_float_source_machines,
                 &lowered.semantic_module.machines,
                 projection,
             )?;
-            lower_float_meaning_projection(projection, direct_parameter)
+            lower_float_meaning_projection(projection, direct_source)
                 .map_err(LoweringError::InvalidFloatMeaningProjection)
         })
         .collect::<Result<Vec<_>, _>>()?;

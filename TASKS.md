@@ -3683,7 +3683,7 @@ Remaining:
   structural-subterm relation; every exact internal statement, expression, or
   transition call site owns its own caller/callee rank parameters and resolved
   nonempty member path. Multiple calls between the same machine pair do not
-  collapse. Terminal format 58 / vocabulary 61 retains a closed finite-
+  collapse. Terminal format 59 / vocabulary 62 retains a closed finite-
   inductive proof-type graph and exact source-free component rows. The verifier
   resolves every strict path in that graph, reconstructs semantic component and
   ranking-relation identities plus one shared well-foundedness and one exact
@@ -10819,7 +10819,7 @@ Remaining N6/N8 work:
   `(32, 1, 1, 1)` / `(64, 2, 2, 1)` plus a domain-separated commitment to the
   exact toolchain operator and result owners, private contract-free ordinary
   signature, source carrier, hermetic operation identity, and catalog version.
-  Checked deduplication and Terminal format 58 / vocabulary 61 retain that
+  Checked deduplication and Terminal format 59 / vocabulary 62 retain that
   descriptor; independent replay rejects declaration, version, commitment, or
   operation drift. `FloatMeaningEqual` now independently requires both
   operands to share that exact format and contract carrier. The first
@@ -10831,23 +10831,39 @@ Remaining N6/N8 work:
   state-contract parameters, locals, members, casts, const parameters,
   non-floats, and foreign owners from direct provenance, and deduplicates only
   the exact owner/parameter/format tuple. Exact literals remain unchanged, and
-  every other nonliteral source remains transitional. The first
-  artifact-aware nonliteral carrier is now live too. While checked and Terminal
+  every other nonliteral source remains transitional. Checked binding now also
+  recognizes bare reserved `result` only in an owning top-level machine
+  `ensures`: the entry result must be primitive `f32`/`f64` in the exact
+  projection format, and a real parameter named `result` shadows the pseudo
+  binder. The checked identity is the owner machine plus primitive format; no
+  result symbol is invented. Requires clauses, nested state contracts,
+  structural and non-float results, members, casts, locals, and foreign owners
+  remain transitional. The first artifact-aware nonliteral carriers are now
+  live too. While checked and Terminal
   representations coexist, checked-to-Terminal rejoins an emitted owner and
   direct parameter to exact source-handle-free `(MachineId, ValueId, format)`
   identity. It first requires the complete emitted scalar parameter shape to
   match the owner's checked entry parameters, so mixed structural/scalar source
   positions cannot be confused with dense Terminal scalar positions. Owners
   outside the emitted artifact, and routes without an exact scalar binding,
-  retain the unchanged transitional fallback. Terminal format 58 / vocabulary
-  61 encode that carrier, and independent validation requires the owner to
-  resolve uniquely, the value to occur specifically in that owner's direct
-  parameter table, and its IEEE format to match. Unknown or foreign owners,
-  results, locals, block/operation values, nonparameters, duplicate tuples, and
-  format substitution reject. This adds no runtime operation, value production,
-  fuel, interpreter behavior, or native lowering. Still open are
-  artifact-aware carriers for contract results, Terminal values, and structural
-  float leaves, plus production proof-ledger discharge.
+  retain the unchanged transitional fallback. An emitted top-level scalar
+  result similarly rejoins to source-free `(MachineId, result ValueId, format)`
+  identity by reading the mapped owner's exact Terminal result declaration;
+  mapped Unit, structural, or wrong-format results fail closed. Terminal format
+  59 / vocabulary 62 encode both carriers. Independent validation requires a
+  unique owner and exact direct-parameter membership for the parameter form, or
+  exact equality with that owner's scalar result declaration for the result
+  form, plus the matching IEEE format. Parameters and results are not
+  interchangeable even when their raw value IDs coincide. Unknown or foreign
+  owners, locals, block/operation values, duplicate tuples, and format
+  substitution reject. This adds no runtime operation, value production, fuel,
+  interpreter behavior, or native lowering. Still open are carriers for nested
+  state, call, and operation results, arbitrary Terminal values, structural
+  float leaves, plus production proof-ledger discharge. Full source-to-Terminal
+  coverage of the direct result form also remains behind the existing exit
+  prover's result-substitution/FloatMeaning-reflexivity gap; producer
+  classification and backend artifact joining are covered independently rather
+  than weakening that proof fence.
 - Then migrate suffix law discovery to propositions plus explicit conformances,
   and expand the checked `Nat`/`Int`/`Rat`/Cauchy/approximation corpus. `Real`
   remains proof-only and core-level.

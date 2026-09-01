@@ -220,11 +220,20 @@ parameter table. The independent verifier repeats owner uniqueness, direct
 parameter membership, and exact IEEE-format checks. An owner outside the
 emitted artifact, or a route without an exact scalar binding, retains the
 transitional fallback rather than guessing a coordinate. This carrier is
-proof-only metadata and does not widen execution, fuel, interpreter behavior,
-or native float support. Results, nested state-contract parameters, locals,
-members, casts, const parameters, non-floats, foreign-owner sources, and other
-nonliteral forms remain transitional rather than production proof-ledger
-evidence.
+proof-only metadata. Bare reserved `result` in an owning top-level machine
+`ensures` now has a distinct checked carrier too, provided the entry result is
+primitive `f32`/`f64` in the exact projection format and no real entry parameter
+named `result` shadows it. Checked-to-Terminal maps an emitted owner to exact
+`(MachineId, result ValueId, format)` identity by reading that machine's scalar
+result declaration; mapped Unit, structural, or wrong-format shapes reject.
+The independent verifier requires exact equality with the unique owner's scalar
+result and does not accept a parameter, local, block value, operation result, or
+another machine's same-numbered value. Owners outside the emitted artifact keep
+the transitional fallback. Neither carrier widens execution, fuel, interpreter
+behavior, or native float support. Nested state, call, and operation results,
+arbitrary Terminal values, structural leaves, locals, members, casts, const
+parameters, non-floats, foreign-owner sources, and other nonliteral forms remain
+transitional rather than production proof-ledger evidence.
 
 ## Crash routes
 
