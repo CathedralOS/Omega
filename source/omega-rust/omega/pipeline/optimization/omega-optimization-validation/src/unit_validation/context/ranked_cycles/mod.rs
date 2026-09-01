@@ -29,9 +29,9 @@ pub(super) fn validate_exact_ranked_cycles(
     unit: &PsiOptimizationUnit,
 ) -> Result<RankedCycleAdmission, OptimizationUnitValidationError> {
     let snapshot = replay::rederive_exact_components(input.context().module(), unit)?;
-    freeze::validate_frozen_component_blocks(input, unit, &snapshot.components)?;
     let rankings =
         countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
+    freeze::validate_frozen_component_blocks(input, unit, &snapshot.components)?;
     let mut policy = function_structure::ControlCyclePolicy::default();
     for component in &snapshot.components {
         policy.admit(component.id.machine);

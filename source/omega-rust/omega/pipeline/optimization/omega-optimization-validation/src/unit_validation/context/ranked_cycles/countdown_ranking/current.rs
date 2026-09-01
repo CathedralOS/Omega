@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod invariant_constants;
+
 pub(super) fn derive(
     unit: &PsiOptimizationUnit,
     snapshot: &OptimizerCycleComponentSnapshot,
@@ -74,19 +76,14 @@ fn derive_from_header(
             integer.carrier() == IntegerCarrier::Fixed && integer.sign() == IntegerSign::Unsigned
         })
         .ok_or(())?;
-    let zero_node = scalar_node(header, zero).ok_or(())?;
-    let O::IntegerConstant {
-        psi_operation: zero_operation,
-        result: zero_result,
-        scalar_type: zero_type,
-        value: IntegerValue::Unsigned(0),
-    } = zero_node.operation
-    else {
-        return Err(());
-    };
-    if zero_result != zero || zero_type != ScalarType::Integer(rank_type) {
-        return Err(());
-    }
+    let zero = invariant_constants::resolve(
+        function,
+        component,
+        header_id,
+        zero,
+        rank_type,
+        IntegerValue::Unsigned(0),
+    )?;
     let backedge = component
         .id
         .internal_edges
@@ -137,19 +134,21 @@ fn derive_from_header(
     {
         return Err(());
     }
-    let one_node = scalar_node(decrement, one).ok_or(())?;
-    let O::IntegerConstant {
-        psi_operation: one_operation,
-        result: one_result,
-        scalar_type: one_type,
-        value: IntegerValue::Unsigned(1),
-    } = one_node.operation
-    else {
-        return Err(());
-    };
-    if one_result != one || one_type != ScalarType::Integer(rank_type) {
-        return Err(());
-    }
+    let one = invariant_constants::resolve(
+        function,
+        component,
+        backedge.source,
+        one,
+        rank_type,
+        IntegerValue::Unsigned(1),
+    )?;
+    invariant_constants::validate_canonical_preheader_suffix(
+        function,
+        component,
+        header_id,
+        [header_id, backedge.source],
+        [zero.location, one.location],
+    )?;
     Ok(OptimizerUnsignedCountdownRankingCertificate {
         component: component.id.clone(),
         header: header_id,
@@ -162,8 +161,8 @@ fn derive_from_header(
             edge: when_true.psi_edge,
             condition: *condition,
             parameter: rank_parameter,
-            zero,
-            zero_operation,
+            zero: zero.result,
+            zero_operation: zero.operation,
             comparison_operation,
         },
         descent: OptimizerUnsignedMinusOneDescent {
@@ -172,8 +171,8 @@ fn derive_from_header(
             argument,
             source_parameter,
             target_parameter: binding.parameter,
-            one,
-            one_operation,
+            one: one.result,
+            one_operation: one.operation,
             subtract_operation,
             subtract_obligation,
         },

@@ -4992,3 +4992,61 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
         );
     }
 }
+
+#[test]
+fn countdown_ranking_constant_resolution_is_internal_and_independent() {
+    let root = workspace_root();
+    let ranking_root = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/unit_validation/context/ranked_cycles",
+    );
+    let resolver = std::fs::read_to_string(
+        ranking_root.join("countdown_ranking/current/invariant_constants.rs"),
+    )
+    .expect("read current countdown invariant-constant resolver");
+    for forbidden in [
+        "countdown_invariant_constant_placement",
+        "countdown_invariant_constants",
+        "compute::",
+        "compute_loop_forest",
+        "strongly_connected_components",
+        "fixed_point_dominators",
+        "control_flow(",
+        "use_definitions(",
+        "effect_summaries(",
+        "PsiRewrite",
+    ] {
+        assert!(
+            !resolver.contains(forbidden),
+            "countdown ranking constant resolver must not call producer `{forbidden}`",
+        );
+    }
+    for required in [
+        "component.entries.as_slice()",
+        "PsiProvenance::Operation(psi_operation)",
+        "O::IntegerConstant",
+        "ValueDefinitionSite::Node",
+        "node.uses.is_empty()",
+        "node.successors.is_empty()",
+        "node.ownership.is_empty()",
+        "validate_canonical_preheader_suffix",
+        "O::Jump",
+    ] {
+        assert!(
+            resolver.contains(required),
+            "countdown ranking constant resolver must retain independent check `{required}`",
+        );
+    }
+
+    let coordinator = std::fs::read_to_string(ranking_root.join("mod.rs"))
+        .expect("read ranked-cycle validation coordinator");
+    let ranking = coordinator
+        .find("countdown_ranking::rederive_exact_certificates")
+        .expect("ranking reconstruction remains coordinated");
+    let freeze = coordinator
+        .find("freeze::validate_frozen_component_blocks")
+        .expect("ranked-component freeze remains coordinated");
+    assert!(
+        ranking < freeze,
+        "current ranking must be reconstructed before the unchanged frozen-block authority fence",
+    );
+}
