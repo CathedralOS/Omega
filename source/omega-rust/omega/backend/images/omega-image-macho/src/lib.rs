@@ -16,8 +16,7 @@ mod rebases;
 use code_signature::macho_ad_hoc_code_signature;
 use entry::macho_entry_text_offset;
 use imports::{
-    install_import_thunks, macho_bind_info, macho_dylib_list, patch_import_thunks,
-    validate_import_thunk_footprints,
+    install_import_thunks, macho_bind_info, patch_import_thunks, validate_import_thunk_footprints,
 };
 use load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
@@ -34,11 +33,12 @@ use rebases::macho_rebase_info;
 pub fn emit_macho_aarch64_executable(
     mut image: FinalImage,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
-    let import_thunks = install_import_thunks(&mut image)?;
-    // The ordered set of dylibs to load (libSystem first, then libobjc/etc.); each
-    // import binds against its library's ordinal (index + 1).
-    let dylibs = macho_dylib_list(&import_thunks);
-    let bind_info = macho_bind_info(&import_thunks, &dylibs);
+    let imports = install_import_thunks(&mut image)?;
+    let import_thunks = imports.thunks;
+    // The exact ordered set of dylibs and every image-local ordinal were
+    // preflighted before import-thunk installation mutated the final image.
+    let dylibs = imports.dylibs;
+    let bind_info = macho_bind_info(&import_thunks);
     let rebase_info = macho_rebase_info(&image)?;
     let plan = plan_macho_image(
         &image,
