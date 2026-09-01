@@ -1,6 +1,6 @@
 // A completed mutable statement call precedes the following transition. Its
 // scalar writes must therefore be visible while transition args materialize.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Loader {
     console: Console;

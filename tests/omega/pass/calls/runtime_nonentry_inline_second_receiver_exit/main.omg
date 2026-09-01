@@ -6,7 +6,7 @@
 // AND the call-target-first leaf-write resolution (the outer result copy
 // previously read Main's same-named `total` local, unwritten). The wrong
 // receiver instance delivers 100. second.count = 7 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

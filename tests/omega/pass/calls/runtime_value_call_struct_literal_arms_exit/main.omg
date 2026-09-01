@@ -9,7 +9,7 @@
 // Covers: a plain struct literal arm (`-> Vec2 { .. }`, incl. negative fields) and an
 // enum CASE literal arm (`-> Token::Num { value: 9 }`). Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Dir {
     case N;

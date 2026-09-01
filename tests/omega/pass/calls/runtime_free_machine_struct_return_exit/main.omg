@@ -10,7 +10,7 @@
 // Exits 70 only when all four returned fields are correct
 // (34+35+34+35 == 138); any dropped write reads 0 and falls to 71.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair {
     a: i32 in Wrapping;

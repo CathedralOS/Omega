@@ -14,7 +14,7 @@
 // with distinct names, dropped the add outright. Exit 70 proves r's slot
 // is allocated by the AST-gated sweep, written by the return edge, and
 // read by name into the inline arg.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 data Cnt { n: u64; }
 measure Cnt::Order(n: u64) -> u64 { n }

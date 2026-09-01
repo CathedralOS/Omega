@@ -15,7 +15,7 @@
 //
 // Expected: exit 70 (a1 = 9, a2 = 40, self.v = a1 + 61 = 70).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -13,7 +13,7 @@
 // not the outer). A value-call arg to a STATEMENT call works (the dungeon does this).
 // The sound pattern is to bind the inner call to a local first. Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point {
     x: i32 in Trapping;

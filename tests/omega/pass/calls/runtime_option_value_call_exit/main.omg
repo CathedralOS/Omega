@@ -6,7 +6,7 @@
 // and matches it -- all inside a loop over the inputs. `classify(x)` returns Some(x) when x
 // is positive, else None; over [5, -3, 7] that is Some(5), None, Some(7), so the Some values
 // sum to 12 and one None is counted. Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Opt {
     case Some(value: i32 in Wrapping);

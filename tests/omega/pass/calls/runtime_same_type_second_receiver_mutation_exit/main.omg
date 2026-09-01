@@ -7,7 +7,7 @@
 // b x1 leaves b.value == 1. Statement-position method calls dispatch, so
 // this covers the common std-authoring shape; the INLINE value-call route
 // stays fenced (pending/time/value_machine_receiver_field_postentry).
-use omega::language::std::console;
+use omega_language_std::console;
 data Counter { value: i32 in Wrapping; }
 machine Counter::increment(&mut self) {
     self.value = self.value + 1;

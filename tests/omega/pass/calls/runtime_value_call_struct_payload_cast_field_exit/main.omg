@@ -14,7 +14,7 @@
 // 74 = the cast-valued mode field lost (the regression this canary pins).
 
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Big [copy] {
     len: i64;

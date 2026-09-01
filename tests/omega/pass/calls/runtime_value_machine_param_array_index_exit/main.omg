@@ -3,7 +3,7 @@
 // .id`) -- the dungeon lookup / task #15 shape. The member-of-slot branch in
 // the frame-base-indexed resolver walks `container -> items` to the array
 // field's prefix offset. items[1].id=42, k=1 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Item {
     id: i32;
 }

@@ -10,7 +10,7 @@
 // as args work; only a direct value-call arg drops (its sound workaround is to bind the call
 // result to a local/field first). Pinning the working shapes guards them against regressing
 // into that same failure mode.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

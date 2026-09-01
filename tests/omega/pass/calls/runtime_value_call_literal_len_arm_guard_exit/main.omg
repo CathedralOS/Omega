@@ -6,7 +6,7 @@
 // small -> 1); before the folds this was an UnresolvedInlineArmGuard error.
 // The callee is NOT re-entrant (no `terminates` walk) so the inline route
 // is sound -- the re-entrant sibling is fenced (inline_recursive_walk_rejected).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::classify(&mut self, path: &[u8]) -> i32 {
     transition path.len > 3 {

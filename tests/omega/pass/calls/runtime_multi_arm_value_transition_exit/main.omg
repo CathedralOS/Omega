@@ -10,7 +10,7 @@
 // are runtime read-modify-write, not constant-folded), so a mis-selected arm exits
 // 71 instead of 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

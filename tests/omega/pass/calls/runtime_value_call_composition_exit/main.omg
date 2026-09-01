@@ -9,7 +9,7 @@
 // is a CLEAN ERROR today ("local `r` needs stack/local storage lowering": the inner callee's
 // frame locals can't be lowered inside the outer call's argument context), not a silent
 // miscompile. The sequential form below is the idiom and is fully sound.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

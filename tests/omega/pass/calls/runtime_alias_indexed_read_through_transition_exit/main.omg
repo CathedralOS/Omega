@@ -8,7 +8,7 @@
 // Mirrors the dungeon find_room shape: a by-value struct param, `as_slice`, and an
 // indexed element copied through a `&mut out` alias inside a guarded sub-state.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Item {
     key: i32;

@@ -6,7 +6,7 @@
 // writer, which plans nothing for an aggregate, so the callee param stayed
 // ZII {0,0} silently. Found 2026-07-18 wiring the indexed element write;
 // fixed the same day.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Exit {
     destination: u32 in Wrapping;

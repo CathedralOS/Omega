@@ -8,7 +8,7 @@
 // samples_with_documented_exit); the scope-strict gate keeps the branch
 // key first when it strictly resolves. 10 + 2*20 + 3*30 = 140 checked
 // via per-index deliveries.
-use omega::language::std::console;
+use omega_language_std::console;
 data Store { x: i32 in Wrapping; y: i32 in Wrapping; z: i32 in Wrapping; }
 machine Store::pick(&mut self, idx: i32) -> i32 in Wrapping {
     transition idx == 0 {

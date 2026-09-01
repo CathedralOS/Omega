@@ -5,7 +5,7 @@
 //    the established bind-then-return route.
 // Each call increments `hits`; exit 70 proves both returned values and exactly
 // two executions in the interpreter and native runtime.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

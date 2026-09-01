@@ -8,7 +8,7 @@
 // prelude expansion, so `let ok = self.roll(&mut tally)` incremented twice per
 // call (43/44 below). The splice is the executor for non-guard roles; non-guard
 // preludes carry no callee operations.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tally {
     calls: u64;

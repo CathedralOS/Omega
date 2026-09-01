@@ -17,7 +17,7 @@
 // come from runtime machine state so nothing folds statically. Exits 70 only
 // when both callees saw the real field values.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Job {
     id: i32 in Wrapping;

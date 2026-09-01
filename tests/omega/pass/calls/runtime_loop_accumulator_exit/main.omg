@@ -4,7 +4,7 @@
 // computed 10). The overlap detector now collects every place read inside
 // binary/cast argument operands, so the transition stages through scratch.
 // sum(5,0) -> 15 -> exit 1.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
 }

@@ -8,7 +8,7 @@
 // (fail/calls/machine_self_call_recursion_rejected); non-tail spellings
 // refuse with the position named
 // (fail/calls/nontail_value_self_call_rejected).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::countdown(&mut self, remaining: u64) -> u64
 terminates by remaining;

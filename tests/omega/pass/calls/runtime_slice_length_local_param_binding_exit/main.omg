@@ -6,7 +6,7 @@
 // an i32 count matched the 4-byte word). The descriptor holds the full 8-byte
 // len, so it is now read at the target's width. `s` views a fixed `[i32; 6]`, so
 // `n == 6` must take the true arm -> exit 6.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

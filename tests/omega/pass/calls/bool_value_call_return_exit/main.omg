@@ -7,7 +7,7 @@
 // longer reproduces in any face -- the surviving is_finite blocker is the
 // INLINED callee's float-local guard resolution, tracked in TASKS F3, not
 // bool delivery.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Probe { flag: u8; }
 machine Probe::is_set(&self) -> bool {

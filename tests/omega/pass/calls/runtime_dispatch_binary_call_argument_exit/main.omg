@@ -3,7 +3,7 @@
 // guarded re-entry proves the ranged `index` parameter. Selection must copy
 // the local slot; re-expanding its initializer as an unlowered CallArgument is
 // neither necessary nor sound.
-use omega::language::std::console;
+use omega_language_std::console;
 data CellId { case Empty; case R00; case R01; case R02; case R03; }
 data Room { cell: CellId; tag: i32; }
 data Level { rooms: [Room; 4]; room_count: u64; }

@@ -16,7 +16,7 @@
 // [0..=100] gives n in [1..=100], so n - 1 fits).
 // Non-decreasing and missing-base-case twins refuse:
 // fail/calls/terminal_tail_nondecreasing_rejected.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
 terminates by n;

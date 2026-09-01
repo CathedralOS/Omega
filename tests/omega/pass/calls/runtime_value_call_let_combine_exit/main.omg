@@ -4,7 +4,7 @@
 // see fail canary calls/shared_value_call_slot_rejected). Two DISTINCT results (dbl(3)=6,
 // dbl(4)=8) must both survive: 6*100+8 == 608. If the slot were shared, both would read 8
 // (808 != 608) and the guard would take the false arm.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; sum: i32 in Wrapping; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping { let r: i32 in Wrapping = x * 2; transition { _ -> r } }
 machine Main::main(&mut self) {

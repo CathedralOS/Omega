@@ -10,7 +10,7 @@
 // seed ZII (0): min(0, 60) = 0, +70 -> 70 -> exit 70.  `in Wrapping` only so it
 // compiles without the (separate) S4 min/max narrowing.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

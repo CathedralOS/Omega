@@ -7,7 +7,7 @@
 // field value as an address segfaulted, probed 2026-07-04). `&mut` slots and
 // boundary-machine `&Struct` params hold REAL pointers and keep the pointee
 // path. inner = {7, 35}; got = a + b = 42 -> exit 42.
-use omega::language::std::console;
+use omega_language_std::console;
 data Inner {
     a: i32 in Wrapping;
     b: i32 in Wrapping;

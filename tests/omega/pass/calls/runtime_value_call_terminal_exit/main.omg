@@ -11,8 +11,8 @@ use omega::language::core::float_operations;
 // single-state (72 on miss), multi-state acyclic (73), multi-state cyclic
 // through std math (74). Guarded arms still fence -- the hoist is gated to
 // ALWAYS arms so an effectful callee cannot run for a not-taken arm.
-use omega::language::std::math;
-use omega::language::std::console;
+use omega_language_std::math;
+use omega_language_std::console;
 data Main { console: Console; }
 machine dbl(x: i32 [0..=1000]) -> i32 {
     transition { _ -> (x + x) }

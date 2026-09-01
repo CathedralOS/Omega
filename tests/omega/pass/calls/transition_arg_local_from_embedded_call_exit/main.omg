@@ -12,7 +12,7 @@
 // inline fold whenever the initializer contains a result-producing call, so the
 // local stays a place and its slot is copied into the parameter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Calc {}
 

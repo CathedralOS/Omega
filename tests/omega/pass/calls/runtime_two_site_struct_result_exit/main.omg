@@ -1,6 +1,6 @@
 // PROBE 7 (std-free): two value calls to the same pure 16-byte-struct
 // callee. 70 = both delivered; 2 = second zeroed; 1 = first zeroed.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair [copy] { a: u64; b: u64; }
 

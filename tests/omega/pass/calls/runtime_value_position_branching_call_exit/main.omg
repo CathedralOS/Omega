@@ -3,7 +3,7 @@
 // arm's value at runtime and binds it to the local. Both the condition arm and
 // the default are exercised at runtime (not constant-folded).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

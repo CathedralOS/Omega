@@ -5,7 +5,7 @@
 // recursively (fold_straight_line_prior_local_names) or read ZII.
 // proc(5): a=6, b=a+a=12, c=b+a=18, d=c+b=30.
 // Expected exit: 30
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::proc(&self, n: i32 [0..=1000]) -> i32 {
     transition n > 0 {

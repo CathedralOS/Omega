@@ -8,7 +8,7 @@
 // a=8,b=7, min=7 (true arm) and max=8 (true arm) reach `good` (exit 70); a wrong
 // min/max, or a vacuously-true guard, would take a `_` arm to `bad` (exit 71).
 // Native must match the interpreter (differential).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 8;

@@ -3,7 +3,7 @@
 // Always terminal hoists the call -- the callee runs ONLY when the arm is
 // taken. Both arms observed: pick(60) takes the true arm (dbl -> 120);
 // pick(10) takes the else arm (raw 10, dbl NOT run). RUNS exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine dbl(x: i32 [0..=1000]) -> i32 {
     transition { _ -> (x + x) }

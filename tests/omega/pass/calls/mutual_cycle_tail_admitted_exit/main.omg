@@ -6,7 +6,7 @@
 // interpreter oracle inside its 10M-step budget; the native TCO witness is
 // the 40M-alternation probe (recorded in the ledger) -- the lowering has NO
 // call instruction at all, only SetDispatchState jumps.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let r: u64 = self.ping(100000);

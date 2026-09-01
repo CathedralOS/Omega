@@ -11,7 +11,7 @@
 // Dungeon generation shape: a build helper writing `out.field = <branching call>` /
 // `max(out.field, <call>+1)` through a &mut level alias.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Level {
     room_count: u64;

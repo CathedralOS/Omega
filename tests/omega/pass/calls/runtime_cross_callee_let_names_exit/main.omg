@@ -9,9 +9,9 @@
 // QPF: >= 1000) with different offsets, so the results discriminate: b must
 // be exactly a + 1 -- a cross-wired or clobbered slot breaks the equality.
 // Expected exit: 70.
-use omega::language::std::time_host;
+use omega_language_std::time_host;
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Wrapper { host: TimeHost; }
 

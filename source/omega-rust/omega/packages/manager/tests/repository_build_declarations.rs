@@ -553,6 +553,20 @@ fn arithmetic_canaries_declare_only_their_consumed_standard_library_edges() {
 }
 
 #[test]
+fn call_canaries_declare_only_their_consumed_standard_library_edges() {
+    assert_mixed_canary_category_standard_library_edges(
+        &repository_root().join("tests/omega/pass/calls"),
+        171,
+        166,
+        &[
+            "runtime_guarded_effectful_transition_argument_exit",
+            "runtime_inline_subslice_length_exit",
+            "runtime_looping_cast_return_exit",
+        ],
+    );
+}
+
+#[test]
 fn capability_and_control_flow_canaries_declare_only_consumed_standard_library_edges() {
     for (category, expected_roots, expected_consumers) in
         [("capabilities", 8, 1), ("control_flow", 53, 48)]

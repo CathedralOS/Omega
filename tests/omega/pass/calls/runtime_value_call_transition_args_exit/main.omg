@@ -4,7 +4,7 @@
 // (a=10, b=12 -- capture pairing by call ordinal), and two DIFFERENT
 // callees (a=10, b=18 -- delivery pairing by argument rank).
 // exit 70 = all six params right; 71..76 name the wrong param.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; k: i32; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;

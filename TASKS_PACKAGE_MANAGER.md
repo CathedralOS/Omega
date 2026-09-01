@@ -311,6 +311,9 @@ explicitly.
     type visibility under package-scoped compilation; three arithmetic float
     helper roots retain compatibility because checked provider selection and
     post-normalization named-call resolution disagree on operator identity;
+    three call roots retain compatibility for transition-argument operator
+    finalization, inline subslice-member finalization, and borrow-liveness
+    across an owned receiver call;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

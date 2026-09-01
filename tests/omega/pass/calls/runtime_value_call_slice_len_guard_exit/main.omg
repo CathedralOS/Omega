@@ -9,7 +9,7 @@
 // returns 99 (exit 70). Before the fix the resolver returned no operand and the
 // leaf silently DROPPED the whole arm (no compare, no value write), so n stayed 0
 // and the program exited 71.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data M {}
 

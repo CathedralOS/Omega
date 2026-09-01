@@ -9,7 +9,7 @@
 // guard sees the correct variant and the substate write-back reaches the
 // caller.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Event {
     case Idle;

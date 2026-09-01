@@ -7,7 +7,7 @@
 // single-level deref could not resolve `u.get()` ("unknown value-call
 // target" decline). Re-borrows now collapse to the same target on both
 // Mutable evaluation arms. u.get() = 9 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

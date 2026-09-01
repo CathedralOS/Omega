@@ -7,7 +7,7 @@
 // it faulted. This is the dungeon generation shape: a build sub-state calling a
 // ref-returning helper.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data CellId { case R00; case R01; case R02; case R03; }
 

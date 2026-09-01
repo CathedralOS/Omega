@@ -6,7 +6,7 @@
 // bools, resolvable places incl. whole arrays; NESTED literals recurse;
 // bare nullary cases tag-only). Unservable fields stay loud via the
 // call-result blocker. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Verdict {
     case Nope;
     case Yes(score: i32 in Wrapping);

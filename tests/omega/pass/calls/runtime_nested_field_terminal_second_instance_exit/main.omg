@@ -6,7 +6,7 @@
 // first-Mid @8; the dummy dispatch-index 0 in the fallback was the
 // silent-wrong hole) and returns `(self.total)` from the tail segment.
 // mid2{t1:3,t2:4}: 3 iterations of +4 = 12 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Tally { count: i32 in Wrapping; }
 machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
 terminates by n -> Nat::Descending;

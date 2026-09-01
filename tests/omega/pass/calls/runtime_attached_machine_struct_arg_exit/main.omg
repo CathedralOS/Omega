@@ -9,7 +9,7 @@
 // write reads a stale 0 -> exit 71). Exits 70 only when the callee saw the
 // real field values.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Pair {
     a: i32 in Wrapping;

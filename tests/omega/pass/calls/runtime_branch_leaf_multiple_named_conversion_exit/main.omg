@@ -4,7 +4,7 @@
 // the full binary initializer unresolved and the returned local at ZII.
 
 use omega::language::core::numeric_conversion;
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Probe {
     bytes: [u8; 2];

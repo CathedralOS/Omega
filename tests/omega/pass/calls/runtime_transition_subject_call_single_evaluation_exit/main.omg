@@ -11,7 +11,7 @@
 // - callee body spliced into the caller AND emitted via the branch prelude
 //   (double execution per evaluation),
 // - one eager evaluation PER ARM (double execution for a two-arm subject).
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Tally {
     calls: u64;
