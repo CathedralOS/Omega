@@ -2183,6 +2183,121 @@ fn runtime_monomorphization_preserves_erased_lifetime_application() {
 }
 
 #[test]
+fn lifetime_bearing_local_instances_become_positional_type_arguments() {
+    let source = r#"
+        data Borrowed<'borrow, T> {
+            value: &'borrow T;
+        }
+
+        data BorrowBox<'boxed, T> {
+            value: T;
+        }
+
+        data Outer<'outer, T> {
+            value: T;
+        }
+
+        data Generated<'call> {
+            value: Outer<'call, BorrowBox<'call, Borrowed<'call, u32>>>;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+    desugar_generic_data_instances(&mut syntax)
+        .expect("normalize the positional lifetime-bearing Type argument graph");
+
+    let find = |name: &str| {
+        syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Data(definition) if definition.name.as_str() == name => Some(definition),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let borrowed = find("Borrowed<u32>");
+    let boxed = find("BorrowBox<Borrowed<u32>>");
+    let outer = find("Outer<BorrowBox<Borrowed<u32>>>");
+    assert_eq!(
+        boxed
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["boxed"]
+    );
+    assert_eq!(
+        outer
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| parameter.as_str())
+            .collect::<Vec<_>>(),
+        ["outer"]
+    );
+
+    let assert_field_application = |owner: &psi_syntax_trees::item::DataDefinition,
+                                    expected_base: &str,
+                                    expected_lifetime: &str| {
+        let [DataMember::Field(value)] = syntax.items.data_members(owner.members) else {
+            panic!("{} retains one field", owner.name.as_str())
+        };
+        let TypeReferenceNode::Generic {
+            base_name,
+            lifetime_arguments,
+            arguments,
+        } = syntax.type_references.type_reference(value.type_reference)
+        else {
+            panic!(
+                "{} field retains an erased application",
+                owner.name.as_str()
+            )
+        };
+        assert_eq!(base_name.as_str(), expected_base);
+        assert_eq!(
+            lifetime_arguments
+                .iter()
+                .map(|argument| argument.as_str())
+                .collect::<Vec<_>>(),
+            [expected_lifetime]
+        );
+        assert!(arguments.is_empty());
+    };
+    assert_field_application(boxed, borrowed.name.as_str(), "boxed");
+    assert_field_application(outer, boxed.name.as_str(), "outer");
+
+    let generated = find("Generated");
+    assert_field_application(generated, outer.name.as_str(), "call");
+
+    let TypeReferenceNode::Generic {
+        arguments: boxed_origin_arguments,
+        ..
+    } = syntax
+        .type_references
+        .type_reference(boxed.generic_instance.expect("BorrowBox origin"))
+    else {
+        panic!("BorrowBox retains its generic origin")
+    };
+    let [boxed_argument] = syntax
+        .type_references
+        .type_reference_handles(*boxed_origin_arguments)
+    else {
+        panic!("BorrowBox origin retains one Type argument")
+    };
+    let TypeReferenceNode::Generic {
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = syntax.type_references.type_reference(*boxed_argument)
+    else {
+        panic!("BorrowBox origin retains its lifetime-bearing Type argument")
+    };
+    assert_eq!(base_name.as_str(), borrowed.name.as_str());
+    assert_eq!(lifetime_arguments[0].as_str(), "boxed");
+    assert!(arguments.is_empty());
+}
+
+#[test]
 fn concrete_conformance_arguments_follow_generic_result_rewrites() {
     let source = r#"
         data Unit {}
