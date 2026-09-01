@@ -125,6 +125,7 @@ fn assert_selected_operator_native_physical_call(
     canary: &Path,
     label: &str,
     expected_role: omega_boundary_applications::BoundaryApplicationRealizationRole,
+    expected_nested_scalar_calls: usize,
 ) {
     for target in ["linux_x86_64", "linux_arm64"] {
         let native_report = compile_rooted_backend_canary_without_output_for_target(canary, target)
@@ -221,6 +222,16 @@ fn assert_selected_operator_native_physical_call(
                 + physical.projection().boundary_occurrences().len(),
             "{label} {target} physical children must cover the complete identity projection"
         );
+        let nested_scalar_calls = native
+            .object()
+            .functions()
+            .iter()
+            .map(|function| function.scalar_call_stacks.len())
+            .sum::<usize>();
+        assert_eq!(
+            nested_scalar_calls, expected_nested_scalar_calls,
+            "{label} {target} should retain exactly {expected_nested_scalar_calls} scalar calls inside emitted scalar bodies",
+        );
     }
 }
 
@@ -299,6 +310,7 @@ fn checked_boundary_operator_physical_custody_canary_compiles() {
         &canary,
         "checked boundary-operator physical-custody canary",
         omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+        0,
     );
 
     let dynamic_exit = pass_canary("providers/checked_boundary_operator_dispatch_exit");
@@ -332,6 +344,7 @@ fn checked_fixed_operator_physical_custody_canary_compiles() {
         &canary,
         "checked fixed-token operator physical-custody canary",
         omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+        0,
     );
 
     let dynamic_exit = pass_canary("providers/checked_fixed_operator_dispatch_exit");
@@ -352,7 +365,55 @@ fn specialized_boundary_operator_physical_custody_canary_compiles() {
         &canary,
         "specialized boundary-operator physical-custody canary",
         omega_boundary_applications::BoundaryApplicationRealizationRole::SpecializedCheckedBody,
+        0,
     );
+}
+
+#[test]
+fn nested_checked_boundary_operator_physical_custody_canary_compiles() {
+    let canary = pass_canary("providers/nested_checked_boundary_operator_physical_custody");
+    assert_selected_operator_native_physical_call(
+        &canary,
+        "nested checked boundary-operator physical-custody canary",
+        omega_boundary_applications::BoundaryApplicationRealizationRole::NongenericCheckedBody,
+        1,
+    );
+
+    let mut missing_helper_contract =
+        compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+            .expect("nested checked-body false twin should reach checked custody");
+    let entry = missing_helper_contract
+        .selected_program_entry_machine()
+        .expect("nested checked-body false twin retains its entry")
+        .to_owned();
+    let helper = missing_helper_contract
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "retain")
+        .expect("nested checked-body helper")
+        .symbol;
+    missing_helper_contract
+        .facts
+        .contract_plans
+        .machines
+        .iter_mut()
+        .find(|contract| contract.machine == helper)
+        .expect("nested checked-body helper contract")
+        .closed_scalar_values = Default::default();
+    let rejected = psi_checked_trees_to_terminal::produce_terminal_artifact_with_callback_custody(
+        &missing_helper_contract,
+        &entry,
+        (),
+    )
+    .expect_err("a nested scalar helper cannot lose its independently replayable contract");
+    assert!(matches!(
+        rejected.error(),
+        psi_checked_trees_to_terminal::TerminalArtifactProductionError::Lowering(
+            psi_checked_trees_to_terminal::LoweringError::Unsupported(
+                "machine must have exactly one requires and one ensures clause"
+            )
+        )
+    ));
 }
 
 #[test]
