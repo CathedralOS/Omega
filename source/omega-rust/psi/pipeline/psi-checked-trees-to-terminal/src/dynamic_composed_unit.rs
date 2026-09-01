@@ -36,13 +36,18 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
     let (structural_types, type_ids) =
         lower_direct_structural_types(checked, plan, &caller.attachment_type_identity)?;
     let caller_attachment = lookup_type_id(&type_ids, &caller.attachment_type_identity)?;
+    let caller_access = if plan.caller_structural_scalar_field_store.is_some() {
+        StructuralAccess::MutableBorrow
+    } else {
+        StructuralAccess::SharedBorrow
+    };
     let caller_self = StructuralParameterDeclaration {
         place: place_id(1),
         position: 0,
         is_self: true,
         structural_type: caller_attachment,
         multiplicity: StructuralMultiplicity::Unrestricted,
-        access: StructuralAccess::SharedBorrow,
+        access: caller_access,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
@@ -51,7 +56,12 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
 
     let caller_machine = machine_id(1);
     let realization_machine = machine_id(2);
-    let call_operation = operation_id(1);
+    let has_caller_store = plan.caller_structural_scalar_field_store.is_some();
+    let call_operation = operation_id(if has_caller_store { 3 } else { 1 });
+    let call_result_value = value_id(if has_caller_store { 2 } else { 1 });
+    let realization_operation = operation_id(if has_caller_store { 4 } else { 2 });
+    let realization_result_value = value_id(if has_caller_store { 4 } else { 3 });
+    let realization_machine_result_value = value_id(if has_caller_store { 3 } else { 2 });
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
     let callable_result = terminal_callable_result(plan.result.primitive_type)?;
     let callable_identity =
@@ -104,6 +114,8 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
         call_result_type,
         &realization_parameter,
         &structural_types,
+        realization_operation,
+        realization_result_value,
     )?;
     let realization_value = realization_operations
         .last()
@@ -134,6 +146,22 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
         plan.checked_call_service_reach,
     )?;
     let root_service_reach = lower_root_service_reach(checked, plan.caller_machine, &[])?;
+    let mut caller_operations =
+        lower_caller_store_operations(plan, &caller_self, &structural_types, &type_ids)?;
+    caller_operations.push(Operation {
+        id: call_operation,
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: call_result_value,
+            scalar_type: call_result_type,
+        }),
+        kind: OperationKind::CallStructuralScalar {
+            callee: realization_machine,
+            structural_arguments: vec![source],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    });
 
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -189,20 +217,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
                     blocks: vec![Block {
                         id: caller_block,
                         parameters: Vec::new(),
-                        operations: vec![Operation {
-                            id: call_operation,
-                            result: OperationResult::Scalar(ValueDeclaration {
-                                id: value_id(1),
-                                scalar_type: call_result_type,
-                            }),
-                            kind: OperationKind::CallStructuralScalar {
-                                callee: realization_machine,
-                                structural_arguments: vec![source],
-                                claim_transfers: Vec::new(),
-                                requirement_obligations: Vec::new(),
-                                crash_continuations: Vec::new(),
-                            },
-                        }],
+                        operations: caller_operations,
                         terminator: Terminator::ReturnUnit {
                             edge: edge_id(1),
                             trivial_affine_discards: Vec::new(),
@@ -217,7 +232,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
                     structural_parameters: vec![realization_parameter.clone()],
                     ranked_scc: None,
                     result: TerminalMachineResult::Scalar(ValueDeclaration {
-                        id: value_id(2),
+                        id: realization_machine_result_value,
                         scalar_type: call_result_type,
                     }),
                     structural_places: vec![StructuralPlaceDeclaration {
@@ -273,6 +288,9 @@ fn validate_exact_direct_plan(
     checked: &CheckedTrees,
     plan: &CheckedDirectDynamicScalarCallPlan,
 ) -> Result<DirectCallerShape, LoweringError> {
+    let store = plan.caller_structural_scalar_field_store.as_ref();
+    let selection_statement_index = usize::from(store.is_some());
+    let call_statement_index = u32::from(store.is_some()) + 1;
     let exact_selections = checked
         .facts
         .dynamic_conformances
@@ -288,8 +306,8 @@ fn validate_exact_direct_plan(
         || plan.selection.target_trait != plan.target_trait
         || plan.selection.conformance != Some(plan.selected_conformance)
         || plan.selection.source_symbol != plan.source_field
-        || plan.selection.statement_index != 0
-        || plan.coordinate.statement_index != 1
+        || plan.selection.statement_index != selection_statement_index
+        || plan.coordinate.statement_index != call_statement_index
         || plan.coordinate.call_ordinal != 0
         || plan.result.statement_index != plan.coordinate.statement_index
         || plan.result.binding_ordinal != 0
@@ -362,7 +380,7 @@ fn validate_exact_direct_plan(
             .statements
             .span_or_empty(state.statements)
             .len()
-            != 2
+            != usize::try_from(call_statement_index + 1).expect("bounded statement count")
     {
         return unsupported("direct dynamic call drifted from checked flow custody");
     }
@@ -381,7 +399,12 @@ fn validate_exact_direct_plan(
     if plan.source_parameter_position != 0
         || plan.caller_multiplicity != Multiplicity::Unrestricted
         || plan.source_multiplicity != Multiplicity::Unrestricted
-        || plan.caller_parameter_access != CheckedStructuralAccess::SharedBorrow
+        || plan.caller_parameter_access
+            != if store.is_some() {
+                CheckedStructuralAccess::MutableBorrow
+            } else {
+                CheckedStructuralAccess::SharedBorrow
+            }
         || plan.source_access != CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("direct dynamic source must be an exact shared field subloan");
@@ -389,6 +412,14 @@ fn validate_exact_direct_plan(
     let [CheckedUnitStructuralPathSegment::Field(_)] = plan.source_path.as_slice() else {
         return unsupported("direct dynamic source must be one exact attachment field");
     };
+    if let Some(store) = store
+        && (store.statement_index != 0
+            || store.destination_parameter_position != plan.source_parameter_position
+            || store.carrier_path != plan.source_path
+            || !checked_store_literal_matches(&store.value, store.primitive_type))
+    {
+        return unsupported("direct dynamic caller store drifted from checked custody");
+    }
     validate_empty_service_summary(checked, plan.checked_call_service_reach)?;
     let caller_service_reach = exact_machine_service_summary(checked, plan.caller_machine)?;
     if caller_service_reach != plan.caller_service_reach {
@@ -400,6 +431,19 @@ fn validate_exact_direct_plan(
     })
 }
 
+fn checked_store_literal_matches(
+    value: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    match (value, primitive_type) {
+        (CheckedScalarExpression::IntegerLiteral { .. }, PrimitiveType::I32) => true,
+        (CheckedScalarExpression::Boolean(boolean), PrimitiveType::Bool) => {
+            matches!(boolean.as_ref(), CheckedBooleanExpression::Constant(_))
+        }
+        _ => false,
+    }
+}
+
 fn validate_and_lower_source(
     caller_self: &StructuralParameterDeclaration,
     plan: &CheckedDirectDynamicScalarCallPlan,
@@ -407,10 +451,15 @@ fn validate_and_lower_source(
     type_ids: &[(String, psi_core::StructuralTypeId)],
 ) -> Result<StructuralArgument, LoweringError> {
     if plan.source_parameter_position != caller_self.position
-        || plan.caller_parameter_access != CheckedStructuralAccess::SharedBorrow
+        || plan.caller_parameter_access
+            != match caller_self.access {
+                StructuralAccess::SharedBorrow => CheckedStructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow => CheckedStructuralAccess::MutableBorrow,
+                _ => return unsupported("direct dynamic caller self access is unsupported"),
+            }
         || !caller_self.is_self
         || caller_self.multiplicity != StructuralMultiplicity::Unrestricted
-        || caller_self.access != StructuralAccess::SharedBorrow
+        || plan.source_access != CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("direct dynamic caller self does not license a shared field subloan");
     }
@@ -706,8 +755,89 @@ fn terminal_callable_result(
 ) -> Result<ClosedConformanceCallableResult, LoweringError> {
     match primitive {
         PrimitiveType::Bool => Ok(ClosedConformanceCallableResult::Bool),
-        _ => unsupported("direct dynamic Terminal custody currently admits only Bool"),
+        PrimitiveType::I32 => Ok(ClosedConformanceCallableResult::I32),
+        _ => unsupported("direct dynamic Terminal custody currently admits only Bool and i32"),
     }
+}
+
+fn lower_caller_store_operations(
+    plan: &CheckedDirectDynamicScalarCallPlan,
+    caller_self: &StructuralParameterDeclaration,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    type_ids: &[(String, psi_core::StructuralTypeId)],
+) -> Result<Vec<Operation>, LoweringError> {
+    let Some(store) = &plan.caller_structural_scalar_field_store else {
+        return Ok(Vec::new());
+    };
+    if caller_self.access != StructuralAccess::MutableBorrow
+        || store.destination_parameter_position != caller_self.position
+        || store.carrier_path != plan.source_path
+    {
+        return unsupported("direct dynamic caller store lost mutable carrier custody");
+    }
+    let source_type = lookup_type_id(type_ids, &plan.source_type_identity)?;
+    let declaration = structural_types
+        .iter()
+        .find(|declaration| declaration.id == source_type)
+        .ok_or(LoweringError::Unsupported(
+            "direct dynamic store carrier type is absent",
+        ))?;
+    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return unsupported("direct dynamic store carrier must be a record");
+    };
+    let scalar_type = terminal_scalar_type(store.primitive_type)?;
+    let matching = fields
+        .iter()
+        .filter(|field| {
+            field.identity == store.field_identity
+                && !field.relevance.is_erased()
+                && field.field_type == psi_terminal::StructuralFieldType::Scalar(scalar_type)
+        })
+        .collect::<Vec<_>>();
+    let [field] = matching.as_slice() else {
+        return unsupported("direct dynamic store field is absent or ambiguous");
+    };
+    let constant = match &store.value {
+        CheckedScalarExpression::IntegerLiteral { literal }
+            if store.primitive_type == PrimitiveType::I32 =>
+        {
+            if integer_landing_scalar_type(literal)? != scalar_type {
+                return unsupported("direct dynamic store integer landing drifted");
+            }
+            OperationKind::IntegerConstant {
+                value: integer_value(literal, scalar_type)?,
+            }
+        }
+        CheckedScalarExpression::Boolean(boolean)
+            if store.primitive_type == PrimitiveType::Bool =>
+        {
+            let CheckedBooleanExpression::Constant(value) = boolean.as_ref() else {
+                return unsupported("direct dynamic store Boolean value is not constant");
+            };
+            OperationKind::BooleanConstant { value: *value }
+        }
+        _ => return unsupported("direct dynamic store value is unsupported"),
+    };
+    Ok(vec![
+        Operation {
+            id: operation_id(1),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value_id(1),
+                scalar_type,
+            }),
+            kind: constant,
+        },
+        Operation {
+            id: operation_id(2),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: caller_self.place,
+                path: lower_structural_path(&store.carrier_path),
+                field: field.id,
+                value: value_id(1),
+            },
+        },
+    ])
 }
 
 fn lower_realization_operations(
@@ -715,6 +845,8 @@ fn lower_realization_operations(
     expected: psi_core::ScalarType,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    operation: psi_core::OperationId,
+    value: psi_core::ValueId,
 ) -> Result<Vec<Operation>, LoweringError> {
     if let CheckedScalarExpression::Boolean(boolean) = expression
         && let CheckedBooleanExpression::StructuralParameterField {
@@ -749,9 +881,9 @@ fn lower_realization_operations(
             return unsupported("direct dynamic realization Boolean field is absent or ambiguous");
         };
         return Ok(vec![Operation {
-            id: operation_id(2),
+            id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
-                id: value_id(3),
+                id: value,
                 scalar_type: psi_core::ScalarType::Boolean,
             }),
             kind: OperationKind::BooleanStructuralField {
@@ -761,7 +893,53 @@ fn lower_realization_operations(
         }]);
     }
 
-    unsupported("direct dynamic realization must return one exact Boolean self field")
+    if let CheckedScalarExpression::StructuralParameterField {
+        parameter_position,
+        path,
+        primitive_type: PrimitiveType::I32,
+    } = expression
+    {
+        let [CheckedStructuralPredicatePathSegment::Field(field_identity)] = path.as_slice() else {
+            return unsupported("direct dynamic realization integer field path is unsupported");
+        };
+        if *parameter_position != 0 || expected != terminal_scalar_type(PrimitiveType::I32)? {
+            return unsupported(
+                "direct dynamic realization integer field result does not match self",
+            );
+        }
+        let declaration = structural_types
+            .iter()
+            .find(|declaration| declaration.id == parameter.structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "direct dynamic realization self type is absent",
+            ))?;
+        let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return unsupported("direct dynamic realization self must be a record");
+        };
+        let matching = fields
+            .iter()
+            .filter(|field| {
+                field.identity == *field_identity
+                    && field.field_type == psi_terminal::StructuralFieldType::Scalar(expected)
+            })
+            .collect::<Vec<_>>();
+        let [field] = matching.as_slice() else {
+            return unsupported("direct dynamic realization integer field is absent or ambiguous");
+        };
+        return Ok(vec![Operation {
+            id: operation,
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: value,
+                scalar_type: expected,
+            }),
+            kind: OperationKind::IntegerStructuralField {
+                source: parameter.place,
+                field: field.id,
+            },
+        }]);
+    }
+
+    unsupported("direct dynamic realization must return one exact Boolean or i32 self field")
 }
 
 fn empty_terminal_contract(identity: u64) -> MachineContract {
