@@ -28,6 +28,10 @@ analysis, and gives falloff and post-`never` constructs exact delimiter anchors.
 D38 fixes `.as_slice` as a once-evaluated, allocation-free full view of a
 place-valued fixed array; views and non-place array temporaries are not accepted
 receivers.
+D56 closes the fixed `Console`/`Main` entry taxonomy inside type formation:
+absence of an authored `Main::main` name is the sole `MissingEntry`, every
+present malformed or incomplete entry system is `InvalidEntry`, and no entry
+candidate is compared with body/control coordinates.
 
 ## Canonical edges
 
@@ -65,9 +69,9 @@ compilers and must not both be called “the Delta compiler.”
   first-following-statement terminal flow, and symbolic Alpha encoding.
   D50 fixes bare-state-transfer spelling, D51 retires static qualified
   machines plus special `self` resolution, D52 fixes resultless-argument
-  anchoring, and D53 fixes local block exits. Their implementation remains
-  alongside final body/control checking, owner-blocked entry and transition-
-  pattern/coverage diagnostics, the remaining D37 control/terminal
+  anchoring, D53 fixes local block exits, and D56 fixes entry diagnostics. Their
+  implementation remains alongside final body/control checking, owner-blocked
+  transition-pattern/coverage diagnostics, the remaining D37 control/terminal
   premise DAG, D38 executable controls, storage realization/lowering,
   `main`, and publication are incomplete, so it exposes no compiler artifact
   yet. The

@@ -336,9 +336,15 @@ children of an admitted parameter or local view are checked normally.
 Type formation constructs these placement, shape, recursion, and unknown-type
 candidates against the complete declaration census, then reports the smallest
 packed source coordinate independent of traversal order or wire-code number.
-Their source anchors are structurally disjoint. Producing two different
-type-formation reasons at one exact anchor is a compiler contradiction and
-therefore `InternalFailure`, never an arbitrary reason-table tie-break.
+Its final whole-program subjudgment validates the entry shape described below;
+body/control checking begins only after the complete type-formation phase
+succeeds. Candidate identity is exactly `(packed offset, rejection reason)`.
+Repeated derivation of one pair merges. Producing two different type-formation
+reasons at one exact anchor is a compiler contradiction and therefore
+`InternalFailure`, never an arbitrary reason-table tie-break. A compiler may
+derive a private equality discriminator from the closed reason table, but no
+separately authored kind may disagree with the reason and reason-code order
+never supplies priority.
 
 ## 5. Entry and boundary
 
@@ -366,6 +372,22 @@ only admitted occurrence is the exact `Main.console` field above. Any other
 placement, missing field, duplicate field, or competing entry shape rejects as
 `InvalidEntry` through the entry-shape judgment. `InvalidBoundary` remains
 owned solely by declaration collection for authored bodies on boundary owners.
+
+The entry-shape judgment closes inside type formation. It first asks whether an
+authored owner/name candidate for `Main::main` exists, before validating that
+candidate's signature. If none exists, `MissingEntry` at source extent is the
+sole entry verdict; absent `Main`, `Console`, and `Main.console` components do
+not add candidates. Once such a candidate exists, every malformed, duplicate,
+or competing entry and supporting component is `InvalidEntry`, never
+`MissingEntry`.
+
+An authored defect anchors at the first byte of its offending entry, boundary,
+member, data, field, or type construct. A required but absent supporting
+component anchors `InvalidEntry` at source extent. Multiple absent components
+therefore merge as the same reason/coordinate. The four `Console` members are
+an unordered exact identity/signature set, and parameter binder spellings are
+nonsemantic. Reordering members or renaming their binders does not change the
+entry shape. No synthetic omission coordinate exists.
 
 It has no value parameters and no return value. Normal falloff exits with code
 zero. Every nonzero normal status is expressed by
@@ -586,13 +608,14 @@ DuplicatePattern        NonexhaustiveSum
 
 Checking phases are lexical, parse, declaration collection, type formation,
 then body/control checking. The earliest packed offset within the earliest
-failing phase is reported. Coordinates are exact:
+failing phase is reported. Type-formation and body/control candidates have
+separate carriers and are never compared by coordinate. Coordinates are exact:
 
 - an invalid source byte, token, escape, name, type, place, pattern, or control
   target reports its first byte;
 - an unterminated literal reports its opening quote;
-- an unexpected end, missing entry, or whole-program omission reports the
-  source extent;
+- an unexpected end, missing entry, absent required entry component, or other
+  whole-program omission reports the source extent;
 - a duplicate reports the later declaration;
 - an invalid boundary body reports the first byte of its authored qualified
   machine declaration; and

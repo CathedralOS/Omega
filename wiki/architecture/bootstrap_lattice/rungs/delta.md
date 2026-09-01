@@ -105,13 +105,15 @@ retain positive semantic identity, and each sum transition retains complete,
 missing, or unresolved coverage without inventing the pending negative
 pattern or coverage order.
 Remaining body/control checking, lowering, `main`, tape
-publication, and refinement are open implementation work. Q3 blocks the
-incomplete entry-diagnostic judgment. D36's receiver parser, the now-superseded
+publication, and refinement are open implementation work. D56 has closed the
+entry-diagnostic judgment inside type formation; its implementation and first
+entry-bearing fixtures remain open. D36's receiver parser, the now-superseded
 case/machine collision census and direct static applications, and settled
 grouped/unqualified plus named-receiver application slices are implemented;
 the D50 bare-state branch, D51 receiver normalization, D52 resultless-argument
-branch, and D53 local block-exit carrier remain implementation work, while
-transition-pattern and coverage diagnostic totality remain owner-blocked. D37's
+branch, D53 local block-exit carrier, and D56 entry subjudgment remain
+implementation work, while Q3 transition-pattern and coverage diagnostic
+totality remain owner-blocked. D37's
 field/index/slice projection failures, scalar categories,
 argument-`never` branch, let/assignment/assert and explicit-return relations,
 and first-following-statement terminal flow are implemented; D53 supersedes that
