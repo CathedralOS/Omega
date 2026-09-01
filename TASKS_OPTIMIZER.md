@@ -609,8 +609,14 @@ unchecked rewrite or opt into lossy floating-point semantics.
   positions, signed and unsigned endpoint semantics, cross-kind refusal, and
   proof/exact witness forms. Independent validation also binds all 25 integer
   constant-evaluation operation shapes to their exact rule identities and
-  rejects a candidate relabelled with another same-safety contract. The
-  remaining axes and other rule families are not yet complete.
+  rejects a candidate relabelled with another same-safety contract. All five
+  Boolean-result literal rules now pin their complete roster contracts, truth
+  or signed/unsigned comparison boundaries, every cross-kind refusal, all 20
+  cross-contract relabellings, unknown-rule refusal, per-rule result
+  corruption, and unary/binary witness and fact corruption. Their independent
+  validator now separates literal, range/constant, and range/range evidence
+  and binds literal operation shapes to exact rule identities. The remaining
+  operational axes and other rule families are not yet complete.
 - [x] Cross-rule phase-composition matrix, including fail-closed unsupported
   combinations.
 - [ ] Add randomized valid-Psi and selected-machine differential corpora.

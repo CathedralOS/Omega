@@ -254,6 +254,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn evaluate_integer_operation",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-validation/src/candidates/sparse_conditional_constant_propagation/boolean_evaluation/mod.rs",
+        coordination_marker: "pub(super) fn evaluate",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/analyses/semantic/value_ranges/mod.rs",
         coordination_marker: "pub(in crate::analyses) fn value_ranges",
     },

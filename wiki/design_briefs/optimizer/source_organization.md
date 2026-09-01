@@ -206,7 +206,13 @@ candidate assembly are distinct shared leaves. Tests mirror Boolean versus
 integer result families and separately pin the Boolean rules' positions in the
 sole 39-row pass roster. The guard rejects restoration of the mixed producer,
 the flat test leaf, or inherited parent-glob dependencies anywhere below
-constant evaluation.
+constant evaluation. Independent Boolean-result validation now descends from
+a small evidence router through exact literal-Boolean and integer-comparison
+leaves. The comparison entrance separates constant, range/constant, and
+range/range reconstruction, while literal constant evaluation first replays
+the exact operation-to-rule identity. A same-safety contract therefore cannot
+be relabelled across the five literal rules; the architecture guard pins the
+entire validation descent and retires the former mixed comparison leaf.
 
 Integer-result SCCP constant evaluation now gives exact cast, widen, and
 bitwise-not their own executable entrances. The proof-certified cast keeps its
@@ -235,7 +241,12 @@ independent-validation side, the integer-evaluation entrance descends first
 through an exhaustive operation-to-rule identity replay, then through unary or
 binary operation reconstruction. Consequently a semantically valid candidate
 cannot be relabelled as another same-safety integer rule, and the architecture
-guard makes that validation ladder directly navigable.
+guard makes that validation ladder directly navigable. Boolean-result fixtures
+likewise live in their own SCCP fixture leaf. Their matrix covers both truth
+boundaries, signed and unsigned comparison endpoints, every wrong rule/shape
+pair, all cross-contract relabellings, unknown identities, wrong result values,
+and representative unary/binary witness and fact corruption. Positions 25–29
+pin the complete contracts rather than identity alone.
 
 ## Semantic folder templates
 

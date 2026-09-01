@@ -7,6 +7,7 @@
 use super::*;
 
 mod boolean_candidate;
+mod boolean_evaluation;
 mod integer_candidate;
 mod integer_evaluation;
 mod observation;
