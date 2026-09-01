@@ -62,4 +62,22 @@ pub struct CheckedDirectDynamicScalarCallPlan {
     pub realization_contract_report_fingerprint: u64,
     pub realization_contract_commitment: MachineContractCommitment,
     pub checked_call_service_reach: ServiceReachSummary,
+    /// Exact caller-side store immediately preceding the selected dynamic
+    /// binding, when the bounded three-statement structural-field shape was
+    /// admitted. Ordinary direct calls retain `None`.
+    pub caller_structural_scalar_field_store: Option<CheckedStructuralScalarFieldStorePlan>,
+}
+
+/// Checked custody for one literal store into a primitive field below the
+/// structural carrier later selected for a direct named-dynamic call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralScalarFieldStorePlan {
+    pub statement_index: u32,
+    pub destination_parameter_position: u32,
+    /// Exact structural path from the destination parameter to the carrier;
+    /// the final primitive field is retained separately below.
+    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub field_identity: String,
+    pub primitive_type: psi_typed_trees::types::PrimitiveType,
+    pub value: CheckedScalarExpression,
 }

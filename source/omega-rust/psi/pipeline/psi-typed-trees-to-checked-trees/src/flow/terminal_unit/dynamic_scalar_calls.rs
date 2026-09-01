@@ -230,6 +230,21 @@ fn build_checked_direct_dynamic_scalar_call(
     let [source_definition] = source_definitions.as_slice() else {
         return None;
     };
+    let caller_structural_scalar_field_store = checked_caller_structural_scalar_field_store_plan(
+        program,
+        facts,
+        machine,
+        state,
+        statements,
+        coordinate,
+        result_local.symbol,
+        &selection,
+        source_parameter_position,
+        caller_parameter_access,
+        source_field,
+        &source_path,
+        source_definition,
+    );
 
     let target_traits = program
         .traits()
@@ -408,6 +423,146 @@ fn build_checked_direct_dynamic_scalar_call(
         realization_contract_report_fingerprint: contract.report_fingerprint,
         realization_contract_commitment: contract.commitment,
         checked_call_service_reach,
+        caller_structural_scalar_field_store,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn checked_caller_structural_scalar_field_store_plan(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    statements: &[StatementNode],
+    call_coordinate: CheckedUnitCallCoordinate,
+    result_binding: SymbolHandle,
+    selection: &psi_checked_trees::DynamicConformanceBindingFact,
+    destination_parameter_position: u32,
+    caller_parameter_access: CheckedStructuralAccess,
+    selected_carrier_field: SymbolHandle,
+    selected_carrier_path: &[CheckedUnitStructuralPathSegment],
+    source_definition: &psi_typed_trees::data::DataDefinition,
+) -> Option<psi_checked_trees::CheckedStructuralScalarFieldStorePlan> {
+    let [
+        StatementNode::Assignment(assignment),
+        StatementNode::LocalData(selection_local),
+        StatementNode::LocalData(result_local),
+    ] = statements
+    else {
+        return None;
+    };
+    if selection.statement_index != 1
+        || call_coordinate.statement_index != 2
+        || call_coordinate.call_ordinal != 0
+        || selection_local.symbol != selection.binding
+        || result_local.symbol != result_binding
+        || caller_parameter_access != CheckedStructuralAccess::MutableBorrow
+    {
+        return None;
+    }
+
+    let destination_parameter = program
+        .state_parameters(state)
+        .get(usize::try_from(destination_parameter_position).ok()?)?;
+    let TypeReferenceNode::Reference { access, .. } = program
+        .type_reference_table
+        .type_reference(destination_parameter.type_reference)
+    else {
+        return None;
+    };
+    if !destination_parameter.is_self
+        || destination_parameter.is_const
+        || !destination_parameter.is_mutable
+        || *access != psi_language_semantics::ReferenceAccess::Mutable
+    {
+        return None;
+    }
+
+    let destination = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        0,
+        assignment.target,
+    )?;
+    let [
+        psi_facts::PlaceSegment::Field {
+            symbol: carrier_field,
+        },
+        psi_facts::PlaceSegment::Field {
+            symbol: primitive_field,
+        },
+    ] = destination.segments.as_slice()
+    else {
+        return None;
+    };
+    if destination.root != psi_facts::PlaceRoot::Symbol(destination_parameter.symbol)
+        || *carrier_field != selected_carrier_field
+        || *carrier_field != selection.source_symbol
+        || !primitive_field.is_valid()
+    {
+        return None;
+    }
+
+    let direct_fields = program
+        .data_members(source_definition)
+        .iter()
+        .filter_map(|member| {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            (field.symbol == *primitive_field).then_some(field)
+        })
+        .collect::<Vec<_>>();
+    let [direct_field] = direct_fields.as_slice() else {
+        return None;
+    };
+    let primitive_type = program.primitive_type_reference(direct_field.type_reference)?;
+    if direct_field.relevance.is_erased() {
+        return None;
+    }
+
+    let expected_mutation_path = crate::labels::canonical_place_label_from_parts(
+        program,
+        destination.root,
+        &destination.segments,
+    );
+    let mutation_paths = facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame
+        .complete_paths()?;
+    if !matches!(mutation_paths, [path] if path == &expected_mutation_path) {
+        return None;
+    }
+
+    let value = facts.values.scalar_expressions.expression_at(
+        state.symbol,
+        0,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+        || matches!(
+            value,
+            CheckedScalarExpression::Boolean(expression)
+                if matches!(
+                    expression.as_ref(),
+                    psi_checked_trees::CheckedBooleanExpression::Constant(_)
+                )
+        );
+    if !direct_literal || crate::values::scalar_expression_type(value) != Some(primitive_type) {
+        return None;
+    }
+
+    Some(psi_checked_trees::CheckedStructuralScalarFieldStorePlan {
+        statement_index: 0,
+        destination_parameter_position,
+        carrier_path: selected_carrier_path.to_vec(),
+        field_identity: terminal_field_identity(program, direct_field.symbol)?,
+        primitive_type,
+        value: value.clone(),
     })
 }
 
