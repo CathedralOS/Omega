@@ -11,7 +11,7 @@ use omega::language::core::float_operations;
 // Nested f64/f32 products pin policy propagation in operand position.
 // exits: 71 = overflow not clamped; 72 = re-clamp wrong; 73 = div-by-zero
 // wrongly clamped; 74 = negative clamp wrong; 75/76 = nested f64/f32 wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: f64 in Saturating;

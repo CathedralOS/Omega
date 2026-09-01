@@ -10,7 +10,7 @@
 // upper clamp.
 // exits: 71 = mul big-product wrong (0 = the old signed-compare clamp);
 // 72 = add overflow wrong; 73 = sub underflow wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: u32 in Saturating = (4000000000 as u32 in Saturating);

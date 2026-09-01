@@ -13,7 +13,7 @@
 //   wrap (0u32 - 1) -> i8      = -1    (low byte 0xFF -> i8 -1)
 // exit 70 = all three fold correctly; 71 = a fold dropped width/sign.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

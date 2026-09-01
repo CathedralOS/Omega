@@ -2,7 +2,7 @@
 // non-literal value (a same-range field) is accepted -- not just integer
 // literals. `src.v` has type `i32 [0..=100]`, so `Box { v: src.v }` proves the
 // [0..=100] field invariant without a literal. copy_box(Box{v:70}) -> 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Box { v: i32 [0..=100]; }
 data Main { console: Console; }
 machine Main::copy_box(&mut self, src: Box) {

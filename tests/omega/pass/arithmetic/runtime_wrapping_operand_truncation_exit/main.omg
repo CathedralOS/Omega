@@ -13,7 +13,7 @@
 // Wrapping`) blocks the folder's literal window entirely, so the same
 // source now exercises the RUNTIME operand path -- which had this hole.
 // exit 71 = >> wrong; 72 = / wrong; 73 = % wrong; 74 = wrapped-as-RIGHT wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; out: u32; outd: u32; outm: u32; }
 machine Main::main(&mut self) {
     let a: u32 in Wrapping = (0 as u32 in Wrapping) - 2;

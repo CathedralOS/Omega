@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 // ordering -- unordered-false for free -- and the parity branch pattern for
 // ==/!=; byte-verified in a cross-compiled linux_x86_64 ELF from the arm64 host,
 // every leg's sequence found at its expected count.)
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: f64; b: f64;

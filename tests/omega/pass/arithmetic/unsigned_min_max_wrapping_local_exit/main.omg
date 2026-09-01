@@ -16,7 +16,7 @@
 //
 // A plain u64 FIELD operand (not folded) always worked
 // (arithmetic/runtime_unsigned_min_max_exit). exit 78 = signed Max again.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let z: u64 in Wrapping = 0;

@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // exactly representable so `==` checks are valid. The wrong branch exits 71; the
 // differential oracle also checks native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Vec2 {
     x: f64;

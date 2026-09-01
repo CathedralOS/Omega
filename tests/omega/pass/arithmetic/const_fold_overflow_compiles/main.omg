@@ -4,7 +4,7 @@
 // wrapping arithmetic so it computes a value instead of crashing (overflow into an
 // EXACT domain is caught earlier by decision-17). Exits a fixed 0, robust to the
 // wrapped values.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
 machine Main::main(&mut self) {
     self.a = 9000000000000000000 + 9000000000000000000; // add overflow

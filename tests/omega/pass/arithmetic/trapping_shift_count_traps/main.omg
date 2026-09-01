@@ -9,7 +9,7 @@
 // value-blind `<<` face is the pin.
 // exits: 71 = in-range << wrong; 72 = in-range >> wrong; 7 = SAILED PAST
 // the count trap (the failure the suite asserts against).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; n: u32 in Trapping; }
 machine Main::main(&mut self) {
     let a: i32 in Trapping = (3 as i32 in Trapping);

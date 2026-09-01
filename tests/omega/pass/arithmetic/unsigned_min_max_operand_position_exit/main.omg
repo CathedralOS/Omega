@@ -15,7 +15,7 @@
 // u64/Wrapping and the stamped u64::MAX reaches selection's signedness
 // probe, whose landing-aware arm picks the unsigned comparison. Both
 // engines now exit 77.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let z: u64 in Wrapping = 0;

@@ -10,7 +10,7 @@
 // A backend that emitted `sar` for the unsigned case would compute 0xFFFFFFFF
 // (4294967295) and take the `bad` arm. exit 70 = both correct; 71 = a misfire.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

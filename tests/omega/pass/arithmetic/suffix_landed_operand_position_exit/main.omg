@@ -7,7 +7,7 @@
 // the destination folds (a suffix lands the TYPE; domain stays contextual).
 // exit 78 = the suffix was stripped (yesterday's behavior) and a signed max
 // picked 5. Disagreement twin: fail/arithmetic/suffix_type_disagrees_rejected.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let z: u64 in Wrapping = 0;

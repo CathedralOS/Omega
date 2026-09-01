@@ -8,7 +8,7 @@
 // exit 70 -- the suite test treats ANY clean exit as the failure.
 // (History: parked 2026-07-09c as the deliberately-unfenced missed-trap gap;
 // promoted when the operand-position lowering landed in both ISAs.)
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; au: u8 in Trapping; bu: u8 in Trapping; }
 machine Main::main(&mut self) {
     self.au = 200;

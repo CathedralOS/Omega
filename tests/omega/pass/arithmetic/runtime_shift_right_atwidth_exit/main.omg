@@ -14,7 +14,7 @@
 // 74 = i64 negative write; 75 = u64 write; 76 = u32 operand; 77 = i32
 // negative operand.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: u32 in Wrapping = (3000000000 as u32 in Wrapping);

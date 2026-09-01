@@ -3,7 +3,7 @@
 // the target's unsigned type, not the signed `idiv`/`sar` which would treat
 // 3_000_000_000 as negative and produce garbage.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

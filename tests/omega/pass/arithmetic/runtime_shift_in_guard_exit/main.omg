@@ -7,7 +7,7 @@
 // sound workaround was to bind the shift to a field first. The differential
 // oracle also checks native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

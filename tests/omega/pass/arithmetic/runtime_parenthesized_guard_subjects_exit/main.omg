@@ -5,7 +5,7 @@
 // top level is a disjunction of conjunctions (DNF). Values are built at runtime so
 // the guards run in codegen. Differential-checked native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

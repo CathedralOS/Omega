@@ -12,7 +12,7 @@
 // canary's subject is narrow SIGNEDNESS, not overflow domains, and every value
 // stays in range.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

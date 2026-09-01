@@ -9,7 +9,7 @@
 //
 // inc(40) = 42; main exits 42.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 
 machine Main::inc(&mut self, x: i32) -> i32

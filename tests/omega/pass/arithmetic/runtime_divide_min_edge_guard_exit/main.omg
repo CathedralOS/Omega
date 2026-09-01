@@ -7,7 +7,7 @@
 // interpreter resolves the same corner at the operation node.
 // Directions: i8 sat MIN/-1 -> 127, i8 sat MIN%-1 -> 0, i8 wrap MIN/-1 ->
 // -128. Exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: i8 in Saturating;

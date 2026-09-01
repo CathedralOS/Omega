@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // that require target signedness and actual narrow bounds. Saturating maps
 // unsigned negatives to zero, clamps u8/i8 at their own bounds, and preserves
 // the full u64 high half instead of applying a signed-i64 conversion ceiling.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     f: f64;

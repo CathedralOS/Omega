@@ -3,7 +3,7 @@ use omega::language::core::float_operations;
 // PASS canary (F5), abort-style: Trapping 0.0/0.0 must trap as an invalid
 // float operation rather than silently carrying NaN.
 // exits: 7 = SAILED PAST the trap.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; z: f32 in Trapping; r: f32 in Trapping; }
 machine Main::main(&mut self) {
     self.r = self.z / self.z;

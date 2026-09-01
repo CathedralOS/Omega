@@ -9,7 +9,7 @@
 // Cases: u32 across i32::MAX (< and >), i32 negatives, u8 across i8::MAX,
 // u16 across i16::MAX, and a 64-bit signed negative.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

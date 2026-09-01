@@ -12,7 +12,7 @@
 // the folder computed i64 `-2 >> 1` = -1 / `-2 / 3` = 0 / `-2 % 3` = -2 and
 // native diverged from the interpreter on every face.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

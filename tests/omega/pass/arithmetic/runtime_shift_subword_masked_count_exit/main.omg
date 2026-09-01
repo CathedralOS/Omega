@@ -9,7 +9,7 @@
 // no-mask sign-fills to -1).
 // exits: 71 = u8 << not masked; 72 = u8 >> not masked; 73 = i16 >> not
 // masked.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: u8 in Wrapping = (3 as u8 in Wrapping);

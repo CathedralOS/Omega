@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // non-NaN operands; the interp traps in eval. An in-range Trapping product
 // computes exactly first.
 // exits: 71 = in-range product wrong; 7 = SAILED PAST the overflow trap.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: f64 in Trapping; r: f64 in Trapping; }
 machine Main::main(&mut self) {
     self.a = 3.0;

@@ -6,7 +6,7 @@
 // `wrapped << self.k` outright. Legs: << and >> with a runtime Exact count.
 // Wrapping counts are masked by the language operand width on every target.
 // exits: 71 = << wrong; 72 = >> wrong; 73/74 = masked 32/64 leg wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; k: u32; }
 machine Main::main(&mut self) {
     self.k = 3;

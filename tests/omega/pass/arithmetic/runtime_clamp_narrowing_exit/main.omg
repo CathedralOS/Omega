@@ -4,7 +4,7 @@
 // the composition of the S4 min/max interval tracking with the narrowing check
 // AND that the backend actually stores the clamped value (300 -> 100) in the
 // narrower slot. Native must match the interpreter.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; x: i32; s: i8; }
 machine Main::main(&mut self) {
     self.x = 300;

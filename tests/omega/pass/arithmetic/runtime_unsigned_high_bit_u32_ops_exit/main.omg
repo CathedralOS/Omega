@@ -6,7 +6,7 @@
 // SIGNED `3e9 > 2e9` would be false (3e9 as i32 is negative), so exit 70 requires
 // the unsigned compare. Differential-checked native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

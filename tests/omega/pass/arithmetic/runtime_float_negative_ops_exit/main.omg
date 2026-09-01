@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // guards it directly. Covers `<`, `<=`, `>` against negatives, a float->int cast of a
 // negative (truncation toward zero: -2.7 -> -2), and negative float multiply
 // (-2.0 * 3.0 == -6.0). Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

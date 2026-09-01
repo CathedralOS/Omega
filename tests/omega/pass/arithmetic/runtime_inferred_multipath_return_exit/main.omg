@@ -2,7 +2,7 @@
 // declares no return range and returns via TWO transition arms (3 / 7). Its
 // return interval is inferred as the UNION [3,7], so the caller's `pick(b) + 63`
 // proves Exact (=> [66,70]) without an annotation. run(false): pick=7, +63 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::pick(&self, b: bool) -> i32 {
     transition b {

@@ -6,7 +6,7 @@
 // constant, or every later `self.v` read keeps folding the entry value (10) and
 // the chain silently computes the wrong result (e.g. `10 - 3 == 7`).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // from x = 1.0, six iterations on S = 2.0 converge to sqrt(2) ~= 1.41421356. Exercises f64
 // DIVISION (S/x and t/2.0) inside a loop and a two-sided float comparison against literals.
 // Checks 1.414 < x < 1.415 -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

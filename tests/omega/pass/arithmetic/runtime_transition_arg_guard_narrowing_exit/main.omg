@@ -6,7 +6,7 @@
 //
 // count_down(3): 3->2->1->0, then done() exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 
 machine Main::count_down(&mut self, n: u32) {

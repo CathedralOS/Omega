@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // TYPE-GATED (2026-07-02): float self-compares now lower to the real
 // ucomis* runtime compare, whose NaN parity handling the sibling canary
 // runtime_float_nan_comparison_exit pins for distinct operands.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     f: f64;

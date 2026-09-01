@@ -6,7 +6,7 @@
 // their integration. Values are built at runtime; the canary discriminates. The
 // differential oracle also checks native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

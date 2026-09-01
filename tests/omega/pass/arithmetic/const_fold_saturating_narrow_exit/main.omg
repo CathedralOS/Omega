@@ -9,7 +9,7 @@
 // consumed through the locals' own slots in the SAME state (the u32 landed-ops
 // canary's discipline).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

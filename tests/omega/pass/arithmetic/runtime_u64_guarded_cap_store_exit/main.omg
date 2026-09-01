@@ -2,7 +2,7 @@
 // twin: the guarded-COPY shape discharges the [0..=i64::MAX] store for a
 // plain u64 source -- the incoming edge's stable guard bounds the exact
 // range where the type fact alone (now the true [0, u64::MAX]) cannot.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; raw: u64; capped: u64 [0..=9223372036854775807]; }
 machine Main::main(&mut self) {
     self.raw = 42;

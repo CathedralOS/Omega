@@ -5,7 +5,7 @@
 // bonus of the nested-place resolution that closed the silent-wrap hole (the
 // same walk that ENFORCES unbounded nested arithmetic also SEES nested
 // ranges). dx = 7, so the scaled arg is 70; the guard discriminates. Exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Msg { case Move(dx: i32 [0..=15]); case Stay; }
 data Main { console: Console; m: Msg; }
 machine Main::main(&mut self) {

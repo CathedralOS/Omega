@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 //
 // All correct -> exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Point {
     x: f64;

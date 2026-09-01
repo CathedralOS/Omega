@@ -7,7 +7,7 @@
 // (0xC0000095); the interpreter always wrapped correctly. exit 72 = the divide
 // did not wrap to INT_MIN; 73 = the modulo was not 0.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; x: i32 in Wrapping; y: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.x = 0 - 2147483647;

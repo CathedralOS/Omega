@@ -2,7 +2,7 @@
 // reuse; each argument appears once, so no double-eval concern).
 // clamp(300,0,255)=255, clamp(-5,0,255)=0, clamp(128,0,255)=128;
 // exits 70 only when all three hold.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: i32;

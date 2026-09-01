@@ -308,7 +308,9 @@ explicitly.
     so because targetless package dependency projection omits the exact-target
     `Build.x86_deployment_features` field; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema
-    type visibility under package-scoped compilation;
+    type visibility under package-scoped compilation; three arithmetic float
+    helper roots retain compatibility because checked provider selection and
+    post-normalization named-call resolution disagree on operator identity;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

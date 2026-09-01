@@ -13,7 +13,7 @@
 // DOWNWARD through a signed compare); the multiply prologue movsx takes
 // the same per-side skip. Byte-pinned via the linux_x86_64 ELF pin.
 // exits: 70 = MIN; 71 = MAX (the old corruption); 99 = other.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: i32 in Saturating = (0 as i32 in Saturating) - 2147483648;

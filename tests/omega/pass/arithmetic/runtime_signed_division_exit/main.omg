@@ -3,7 +3,7 @@
 // `-17 / 5 == -3` and `-17 % 5 == -2` rather than the garbage an unsigned `div`
 // would produce on a sign-extended value.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

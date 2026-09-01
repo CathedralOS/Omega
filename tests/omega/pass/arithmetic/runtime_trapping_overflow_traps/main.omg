@@ -7,7 +7,7 @@
 // regression ever made Trapping silently wrap, this canary would exit 70 and
 // fail. Compiles cleanly (Trapping is the DECLARED escape from the decision-17
 // proof obligation); the partiality is the declared behavior.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; x: i32 in Trapping; }
 machine Main::main(&mut self) {
     self.x = 2147483647;
