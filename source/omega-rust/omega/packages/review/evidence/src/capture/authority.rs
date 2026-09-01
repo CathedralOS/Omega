@@ -162,11 +162,11 @@ pub(crate) fn callable_exposes_service(
 
 /// Compiler-owned risk classification for exact service declarations.
 ///
-/// Ordinary Console enters only through its compiler-resolved accepted
-/// semantic binding. Remaining legacy catalog entries require both declaration
-/// path and immutable toolchain source coordinate. A package-authored
-/// lookalike therefore cannot acquire or suppress a risk class by choosing a
-/// declaration name.
+/// Ordinary Console and FilesystemHost declarations enter only through exact
+/// compiler-resolved accepted semantic bindings. Remaining core catalog
+/// entries require both declaration path and immutable toolchain source
+/// coordinate. A package-authored lookalike therefore cannot acquire or
+/// suppress a risk class by choosing a declaration name.
 pub(crate) fn dangerous_authority_class(
     compilation: &CheckedCompilation,
     definition: &psi_language_semantics::ServiceReachDefinition,
@@ -178,6 +178,14 @@ pub(crate) fn dangerous_authority_class(
         .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
     {
         return Some(PackageReviewDangerousAuthorityClass::Process);
+    }
+    if compilation
+        .resolved_semantic_binding(
+            omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
+        )
+        .is_some_and(|binding| binding.declaration_symbol() == definition.symbol)
+    {
+        return Some(PackageReviewDangerousAuthorityClass::Filesystem);
     }
 
     let source_file = compilation
@@ -200,9 +208,6 @@ pub(crate) fn dangerous_authority_class(
             .display_path(definition.symbol, "::")
             .as_str(),
     ) {
-        (path, "FilesystemHost") if path == std::path::Path::new("filesystem_host.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::Filesystem)
-        }
         (path, "MachineControl") if path == std::path::Path::new("assembly.omg") => {
             Some(PackageReviewDangerousAuthorityClass::MachineControl)
         }
@@ -217,11 +222,6 @@ pub(crate) fn dangerous_authority_class(
         }
         (path, "ExtentRootProvider") if path == std::path::Path::new("extent.omg") => {
             Some(PackageReviewDangerousAuthorityClass::RootMemory)
-        }
-        // Temporary compatibility for the bundled Console source. Remove with
-        // the legacy Toolchain intrinsic lane and std mount.
-        (path, "Console") if path == std::path::Path::new("console.omg") => {
-            Some(PackageReviewDangerousAuthorityClass::Process)
         }
         _ => None,
     }

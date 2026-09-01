@@ -385,13 +385,10 @@ explicitly.
 
   Remaining work:
 
-  - remove the package-aware bundled std mount and legacy Toolchain Console
-    lane atomically; standalone compilation may retain its compatibility route;
   - migrate package-aware product, parser, sample, and fixture consumers to
     explicit std dependency edges;
-  - replace UEFI physical-entry recognition, FilesystemHost dangerous-authority
-    classification and checked-interpreter dispatch, whole-library
-    source-frontier admission, and standalone std/alloc source classification
+  - replace UEFI physical-entry recognition, checked-interpreter
+    FilesystemHost dispatch, and standalone std/alloc source classification
     with consumer-approved exact nominal/schema bindings where recognition is
     actually required;
   - feed accepted Filesystem and UEFI bindings through lock replay into normal

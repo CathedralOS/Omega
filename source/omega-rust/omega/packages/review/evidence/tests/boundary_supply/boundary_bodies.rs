@@ -9,7 +9,7 @@ fn empty_boundary_body_is_checked_callable_and_remains_directly_invocable() {
     let package = TempPackage::new();
     package.write(
         "main.omg",
-        r#"use omega::language::std::filesystem_host;
+        r#"pub boundary trait FilesystemHost { }
 
 boundary machine adapter() reaches FilesystemHost { }
 
@@ -28,12 +28,27 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
 
-    let checked = compile_to_checked_with_packages(
+    let candidate = compile_to_checked_with_packages(
         &package.0.join("main.omg"),
         Some(target),
         package_inputs(&package.0),
     )
     .expect("an explicit empty boundary body remains executable");
+    let accepted = candidate
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            package_identity(),
+            "FilesystemHost",
+        )
+        .expect("derive exact filesystem authority candidate");
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0)
+            .with_accepted_semantic_bindings(vec![accepted])
+            .expect("accepted binding names the exact fixture package"),
+    )
+    .expect("exact filesystem authority should settle");
     let review =
         project_checked_package_review(&checked).expect("empty boundary body review should close");
     let adapter = review

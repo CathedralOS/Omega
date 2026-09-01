@@ -317,7 +317,7 @@ pub fn discover_imports_with_packages(
                         ))]);
                     };
 
-                    if is_bundled_omega_path(members) {
+                    if is_bundled_core_path(members) {
                         imports.push(resolve_reconciled_import(
                             bundled_omega_root(),
                             &members[2..],
@@ -325,25 +325,12 @@ pub fn discover_imports_with_packages(
                         )?);
                         continue;
                     }
-
-                    // Transitional compatibility for package-aware callers
-                    // that still mount bundled std as toolchain source. Its
-                    // authored self-imports use the same package-local paths
-                    // as the ordinary-package route, but no package identity
-                    // is attached to this legacy mount. Keep resolution
-                    // confined to exact bundled std custody.
-                    let bundled_standard_library = bundled_omega_root().join("std");
-                    if requester.is_none()
-                        && canonical_source
-                            .as_deref()
-                            .is_some_and(|source| source.starts_with(&bundled_standard_library))
-                    {
-                        imports.push(resolve_reconciled_import(
-                            bundled_standard_library,
-                            members,
-                            "toolchain standard-library",
-                        )?);
-                        continue;
+                    if is_bundled_omega_path(members) {
+                        return Err(vec![Diagnostic::error(format!(
+                            "package-aware import `{}` in {} cannot use a bundled library; declare an ordinary package dependency and import it through its requester-local alias",
+                            identifier_path_text(members),
+                            parsed_source.path.display(),
+                        ))]);
                     }
 
                     let Some(requester) = requester else {
@@ -403,12 +390,18 @@ pub fn discover_imports_with_packages(
 
                     if let Some(host) = &target.host {
                         let provider = syntax_trees.items.identifier_path_members(host.provider);
-                        if is_bundled_omega_path(provider) {
+                        if is_bundled_core_path(provider) {
                             imports.push(resolve_reconciled_import(
                                 bundled_omega_root(),
                                 &provider[2..],
                                 "toolchain",
                             )?);
+                        } else if is_bundled_omega_path(provider) {
+                            return Err(vec![Diagnostic::error(format!(
+                                "package-aware target host `{}` in {} cannot use a bundled library; declare an ordinary package dependency and name its requester-local alias",
+                                identifier_path_text(provider),
+                                parsed_source.path.display(),
+                            ))]);
                         }
                     }
 
@@ -419,12 +412,18 @@ pub fn discover_imports_with_packages(
                         let policy = syntax_trees
                             .items
                             .identifier_path_members(boundary_policy.path);
-                        if is_bundled_omega_path(policy) {
+                        if is_bundled_core_path(policy) {
                             imports.push(resolve_reconciled_import(
                                 bundled_omega_root(),
                                 &policy[2..],
                                 "toolchain",
                             )?);
+                        } else if is_bundled_omega_path(policy) {
+                            return Err(vec![Diagnostic::error(format!(
+                                "package-aware boundary policy `{}` in {} cannot use a bundled library; declare an ordinary package dependency and name its requester-local alias",
+                                identifier_path_text(policy),
+                                parsed_source.path.display(),
+                            ))]);
                         }
                     }
                 }
@@ -559,6 +558,20 @@ fn is_bundled_omega_path(path: &[Identifier]) -> bool {
             .is_some_and(|segment| segment.as_str() == "language")
 }
 
+fn is_bundled_core_path(path: &[Identifier]) -> bool {
+    is_bundled_omega_path(path)
+        && path
+            .get(2)
+            .is_some_and(|segment| segment.as_str() == "core")
+}
+
+fn identifier_path_text(path: &[Identifier]) -> String {
+    path.iter()
+        .map(Identifier::as_str)
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
 pub(crate) fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../../source/library")
@@ -566,6 +579,10 @@ pub(crate) fn bundled_omega_root() -> PathBuf {
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library")
         })
+}
+
+pub(crate) fn bundled_core_root() -> PathBuf {
+    bundled_omega_root().join("core")
 }
 
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {

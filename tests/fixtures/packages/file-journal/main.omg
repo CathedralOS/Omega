@@ -1,5 +1,5 @@
-// Public reach of the exact toolchain-owned filesystem boundary.
-use omega::language::std::filesystem_host;
+// Public reach of one exact ordinary-package filesystem boundary.
+use host_services::filesystem_host;
 
 pub data Journal {
     files: FilesystemHost;

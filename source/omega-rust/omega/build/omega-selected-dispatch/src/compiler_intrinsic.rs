@@ -366,7 +366,7 @@ pub(crate) fn accepted_binding_matches_selected_row_identity(
         && plan.origin_package_identity == Some(binding.package())
         && typed.symbols.display_path(trait_symbol, "::") == binding.declaration_path()
         && plan.schema.identity_digest() == binding.normalized_schema_digest()
-        && plan.identity_digest() == binding.selected_provider_plan_digest()
+        && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
 }
 
 fn exact_i32_to_unit_signature(

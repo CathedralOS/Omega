@@ -6,16 +6,33 @@ fn git_update_escalating_to_process_authority_blocks_and_requests_source_audit()
     let baseline_cache = temp_root("git-process-authority-baseline-cache");
     let candidate_cache = temp_root("git-process-authority-candidate-cache");
     let compiler_workspace = temp_root("git-process-authority-compiler-workspace");
-    let process_fixture = fixture_root().join("process-exit");
     std::fs::create_dir_all(&repository).expect("create process-authority repository");
-    std::fs::copy(
-        process_fixture.join("build.omg"),
+    std::fs::write(
         repository.join("build.omg"),
+        r#"target windows_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.package("process-exit");
+    builder.select_provider<Console, ConsoleNativeProvider>();
+}
+"#,
     )
-    .expect("copy stable package declaration");
+    .expect("write stable package declaration");
+    std::fs::write(
+        repository.join("console.omg"),
+        r#"pub boundary trait Console {
+    machine exit_process(return_code: i32) reaches Console;
+}
+
+pub data ConsoleNativeProvider { }
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via Binding::CompilerIntrinsic;
+"#,
+    )
+    .expect("write ordinary Console package surface");
     std::fs::write(
         repository.join("main.omg"),
-        r#"use omega::language::std::console;
+        r#"use console;
 
 pub machine terminate(console: Console, return_code: i32)
 {
@@ -36,11 +53,19 @@ pub machine terminate(console: Console, return_code: i32)
     );
     let baseline_revision = test_git_head(&repository);
 
-    std::fs::copy(
-        process_fixture.join("main.omg"),
+    std::fs::write(
         repository.join("main.omg"),
+        r#"use console;
+
+pub machine terminate(console: Console, return_code: i32)
+reaches Console
+invokes console;
+{
+    console.exit_process(return_code);
+}
+"#,
     )
-    .expect("copy canonical process-authority candidate");
+    .expect("write process-authority candidate");
     run_test_git(&repository, ["add", "main.omg"]);
     run_test_git(
         &repository,
@@ -112,12 +137,18 @@ pub machine terminate(console: Console, return_code: i32)
         assert!(closure.source_requests().dependencies().next().is_none());
     }
 
-    let baseline_reviews =
-        compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &compiler_workspace)
-            .expect("compile baseline package evidence");
-    let candidate_reviews =
-        compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &compiler_workspace)
-            .expect("compile candidate package evidence");
+    let baseline_reviews = compile_resolved_package_candidate_reviews(
+        &baseline_sources,
+        "windows_x86_64",
+        &compiler_workspace,
+    )
+    .expect("compile baseline package evidence");
+    let candidate_reviews = compile_resolved_package_candidate_reviews(
+        &candidate_sources,
+        "windows_x86_64",
+        &compiler_workspace,
+    )
+    .expect("compile candidate package evidence");
     let baseline = baseline_reviews
         .review(baseline_sources.graph().root())
         .expect("baseline root review");
@@ -135,7 +166,7 @@ pub machine terminate(console: Console, return_code: i32)
     assert_eq!(authority.service().path(), "Console");
     assert!(matches!(
         authority.service().owner(),
-        PackageReviewNominalOwner::ToolchainSource(_)
+        PackageReviewNominalOwner::Package(_)
     ));
 
     let conflicts = compare_review_only_capabilities(
@@ -220,6 +251,7 @@ pub machine terminate(console: Console, return_code: i32)
             PackageTriageReason::CapabilityOrApiChanged,
             PackageTriageReason::SourceChanged,
             PackageTriageReason::BuildObservationChanged,
+            PackageTriageReason::ExternalExecutableSupplyRequiresResolution,
             PackageTriageReason::RetainedDangerousAuthority(
                 PackageReviewDangerousAuthorityClass::Process,
             ),

@@ -8,6 +8,10 @@ pub enum AcceptedSemanticBindingRole {
     /// Target-independent recognition of the exact process-exit Console
     /// declaration. Physical lowering support remains a separate target fact.
     ConsoleExitProcessI32,
+    /// Exact package-owned raw filesystem service whose use is classified as
+    /// filesystem authority. This role binds the complete service schema but
+    /// does not invent a provider for a requirement-only boundary.
+    FilesystemHostService,
 }
 
 /// Consumer-policy acceptance of one exact package-owned semantic surface.
@@ -22,7 +26,7 @@ pub struct AcceptedSemanticBinding {
     package: PackageKeyIdentity,
     declaration_path: String,
     normalized_schema_digest: ServiceSchemaDigest,
-    selected_provider_plan_digest: ProviderPlanDigest,
+    selected_provider_plan_digest: Option<ProviderPlanDigest>,
 }
 
 impl AcceptedSemanticBinding {
@@ -33,6 +37,9 @@ impl AcceptedSemanticBinding {
         normalized_schema_digest: ServiceSchemaDigest,
         selected_provider_plan_digest: ProviderPlanDigest,
     ) -> Result<Self, &'static str> {
+        if role != AcceptedSemanticBindingRole::ConsoleExitProcessI32 {
+            return Err("accepted semantic role does not bind a selected provider plan");
+        }
         let declaration_path = declaration_path.into();
         if declaration_path.is_empty() || declaration_path.chars().any(char::is_control) {
             return Err("accepted semantic binding has an invalid declaration path");
@@ -42,7 +49,33 @@ impl AcceptedSemanticBinding {
             package,
             declaration_path,
             normalized_schema_digest,
-            selected_provider_plan_digest,
+            selected_provider_plan_digest: Some(selected_provider_plan_digest),
+        })
+    }
+
+    /// Bind one exact package-owned service declaration without claiming that
+    /// a provider plan exists. Candidate discovery may use readable names to
+    /// propose this row, but compilation consumes only the exact package,
+    /// declaration path, and normalized schema identity retained here.
+    pub fn new_service(
+        role: AcceptedSemanticBindingRole,
+        package: PackageKeyIdentity,
+        declaration_path: impl Into<String>,
+        normalized_schema_digest: ServiceSchemaDigest,
+    ) -> Result<Self, &'static str> {
+        if role != AcceptedSemanticBindingRole::FilesystemHostService {
+            return Err("accepted semantic role requires a selected provider plan");
+        }
+        let declaration_path = declaration_path.into();
+        if declaration_path.is_empty() || declaration_path.chars().any(char::is_control) {
+            return Err("accepted semantic binding has an invalid declaration path");
+        }
+        Ok(Self {
+            role,
+            package,
+            declaration_path,
+            normalized_schema_digest,
+            selected_provider_plan_digest: None,
         })
     }
 
@@ -62,7 +95,7 @@ impl AcceptedSemanticBinding {
         self.normalized_schema_digest
     }
 
-    pub const fn selected_provider_plan_digest(&self) -> ProviderPlanDigest {
+    pub const fn selected_provider_plan_digest(&self) -> Option<ProviderPlanDigest> {
         self.selected_provider_plan_digest
     }
 }

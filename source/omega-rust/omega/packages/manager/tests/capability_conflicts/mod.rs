@@ -16,9 +16,10 @@ use omega_package_manager::review::{
     ReviewOnlyRootPolicyNameError, ReviewOnlyRootPolicyRecordError,
     ReviewOnlyRootPolicyRecordLimits, ReviewOnlyRootPolicyResolutionError,
     compare_review_only_capabilities, compare_review_only_capabilities_from_baseline,
-    compare_review_only_initial_capabilities, compile_resolved_package_reviews,
-    recover_review_only_root_policy_resolution, resolve_review_only_root_policy_decisions,
-    triage_initial_install, triage_review_update, triage_review_update_from_baseline,
+    compare_review_only_initial_capabilities, compile_resolved_package_candidate_reviews,
+    compile_resolved_package_reviews, recover_review_only_root_policy_resolution,
+    resolve_review_only_root_policy_decisions, triage_initial_install, triage_review_update,
+    triage_review_update_from_baseline,
 };
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use sha2::{Digest, Sha256};

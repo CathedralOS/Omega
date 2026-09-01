@@ -239,7 +239,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 candidate_count,
             } => write!(
                 formatter,
-                "candidate review found {candidate_count} package-owned providers for semantic role {role:?} in consumer `{}`; expected at most one",
+                "candidate review found {candidate_count} package-owned declarations for semantic role {role:?} in consumer `{}`; expected at most one",
                 consumer.name().as_str()
             ),
             Self::InvalidCandidateSemanticBinding { consumer, role } => write!(

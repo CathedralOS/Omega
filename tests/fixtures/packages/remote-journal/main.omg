@@ -1,5 +1,5 @@
-// Retained canonical-filesystem plus package-local network reach fixture.
-use omega::language::std::filesystem_host;
+// Retained accepted-filesystem plus package-local network reach fixture.
+use host_services::filesystem_host;
 
 pub boundary trait NetworkHost {
     machine send(endpoint: &[u8], bytes: &[u8]);

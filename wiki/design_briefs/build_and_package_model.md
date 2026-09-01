@@ -3948,7 +3948,7 @@ does not grant a provider or capability, and cannot be reconstructed from an
 alias or source location. Candidate designations guide confined review only;
 accepted bindings come from consumer policy.
 
-The first implemented binding role is the target-independent
+The first provider-bearing binding role is the target-independent
 `Console::exit_process(i32) -> Unit` compiler-intrinsic consumer. Its input row
 binds the exact `PackageKeyIdentity`, canonical nominal declaration path,
 collision-resistant normalized `ServiceSchema` digest, and collision-resistant
@@ -3963,12 +3963,23 @@ separate: only Linux x86-64 and AArch64 currently close the exact
 `LinuxExitGroupI32` execution identity. Constructing or consuming this policy
 row proves no human or model audit occurred.
 
-This role is deliberately narrow. Its present schema normalization is exact for
-the compiler-primitive `i32`/`Unit` signature and self reach used by Console; it
-is not yet a generic accepted-boundary mechanism for arbitrary package-owned
-nominal carrier types. The legacy toolchain-owned Console lane remains only
-until the real std source/import migration can attach this accepted ordinary-
-package binding and remove the old mount atomically.
+The requirement-only `FilesystemHostService` role binds the exact package,
+canonical boundary declaration path, and normalized complete service schema;
+it carries no provider-plan digest and cannot synthesize a provider. Confined
+candidate review currently nominates package-owned reached declarations named
+`FilesystemHost` for this role, but that readable name grants nothing. The
+bound compiler replay must consume exactly one declaration matching all
+accepted coordinates before review classifies that exact resolved symbol as
+Filesystem authority. Foreign, stale, ambiguous, and unused bindings reject.
+The deliberately non-std `host-services` fixture exercises both Console and
+Filesystem roles so package, repository, alias, and bundled-library identity
+cannot accidentally become the authority test.
+
+These roles are deliberately narrow. Their present schema normalization is
+exact for their checked signatures and reaches; it is not yet a generic
+accepted-boundary mechanism for arbitrary package-owned nominal carrier types.
+The legacy toolchain-owned Console lane remains a standalone-compatibility path
+only.
 
 The vertical implementation canary resolves the repository's real std
 directory as an ordinary local package, derives its default
@@ -3976,13 +3987,15 @@ directory as an ordinary local package, derives its default
 snapshots, and produces a complete ordinary package-review entry containing
 the public Console and wire surfaces. Std's authored self-imports are ordinary
 package-local imports. Omitting the dependency edge rejects a consumer import
-rather than consulting bundled std. Standalone and legacy toolchain-mounted std
-compilation retain a compatibility route confined to the exact bundled std
-root while remaining consumers migrate. The package-aware bundled mount,
-legacy Toolchain Console lane, remaining target/provider bindings,
-dangerous-authority designations, and macOS GUI injection remain explicit seams
-to remove. Only `omega::language::core` keeps its magic toolchain mount after
-those consumers migrate atomically.
+rather than consulting bundled std. Package-aware compilation rejects every
+non-core `omega::language::*` path with ordinary-dependency guidance, admits
+only the exact bundled core directory into its toolchain source frontier, and
+classifies ordinary std sources as package-owned. Standalone compilation keeps
+a compatibility route over the bundled library root while remaining consumers
+migrate. Remaining target/provider bindings, checked-interpreter dispatch,
+standalone source classification, and macOS GUI injection remain explicit
+seams to remove. Only `omega::language::core` has a magic mount in package-aware
+compilation.
 
 Making std ordinary also makes core's package boundary concrete. Source-facing
 float namespaces, formats, meanings, semantic operators, and boundary

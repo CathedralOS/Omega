@@ -1,7 +1,8 @@
 pub(crate) use omega_build_evaluation::BuildObservationClass;
 pub(crate) use omega_compiler::{CheckedCompilation, compile_to_checked_with_packages};
 pub(crate) use omega_package_compilation::{
-    BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+    AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputs,
+    PackageDependencyBinding, PackageSourceBinding,
 };
 pub(crate) use omega_package_evidence::encoding::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,

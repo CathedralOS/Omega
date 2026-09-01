@@ -55,6 +55,8 @@ pub(super) struct SelectedExecutionSettlementInput<'a> {
         &'a [omega_representation_planning::OpaqueRepresentationSelection],
     pub(super) accepted_console_binding:
         Option<&'a omega_package_compilation::AcceptedSemanticBinding>,
+    pub(super) accepted_filesystem_binding:
+        Option<&'a omega_package_compilation::AcceptedSemanticBinding>,
 }
 
 /// Final typed settlements that must finish inside the phase transition that
@@ -295,6 +297,13 @@ pub(super) fn settle_selected_execution(
                 .map(omega_target::TargetProfile::target_name),
             settlement.accepted_console_binding,
         )?;
+    let resolved_filesystem_binding = settlement
+        .accepted_filesystem_binding
+        .map(|binding| {
+            omega_selected_dispatch::resolve_accepted_service_binding(&checked.program, binding)
+        })
+        .transpose()
+        .map_err(|diagnostic| vec![diagnostic])?;
     omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked.program,
         &checked.selected_provider_plan_facts,
@@ -314,7 +323,10 @@ pub(super) fn settle_selected_execution(
         accepted_template_classifications: checked.accepted_template_classifications,
         contract_entailment_stand_downs: checked.contract_entailment_stand_downs,
         selected_provider_provenance: settlement.selected_provider_provenance,
-        resolved_semantic_bindings: resolved_console_binding.into_iter().collect(),
+        resolved_semantic_bindings: resolved_console_binding
+            .into_iter()
+            .chain(resolved_filesystem_binding)
+            .collect(),
         component_progress,
         task_activations,
     })

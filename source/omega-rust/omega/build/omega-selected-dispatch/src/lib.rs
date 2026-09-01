@@ -23,7 +23,8 @@ pub use float_intrinsic::{
     settle_selected_float_intrinsic_dispatch,
 };
 pub use intrinsic_review::{
-    ResolvedAcceptedSemanticBinding, retain_selected_compiler_intrinsic_review_identities,
+    ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,
+    retain_selected_compiler_intrinsic_review_identities,
 };
 pub use operator_adapter::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,

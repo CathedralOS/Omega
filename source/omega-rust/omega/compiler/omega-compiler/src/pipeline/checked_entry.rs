@@ -181,6 +181,60 @@ impl CheckedCompilation {
             .map(omega_selected_dispatch::ResolvedAcceptedSemanticBinding::accepted)
     }
 
+    /// Construct a non-authoritative review candidate for one exact package-
+    /// owned requirement-only boundary. Readable role nomination happens
+    /// outside the compiler; this contributes only checked owner, nominal, and
+    /// normalized-schema coordinates for a required bound replay.
+    #[doc(hidden)]
+    pub fn candidate_service_binding(
+        &self,
+        role: omega_package_compilation::AcceptedSemanticBindingRole,
+        package: psi_core::PackageKeyIdentity,
+        declaration_path: &str,
+    ) -> Result<omega_package_compilation::AcceptedSemanticBinding, Diagnostic> {
+        let matches = self
+            .program
+            .typed
+            .traits()
+            .iter()
+            .filter(|definition| {
+                definition.is_boundary
+                    && self
+                        .program
+                        .typed
+                        .symbols
+                        .symbol_package_identity(definition.symbol)
+                        == Some(package)
+                    && self
+                        .program
+                        .typed
+                        .symbols
+                        .display_path(definition.symbol, "::")
+                        == declaration_path
+            })
+            .filter_map(|definition| {
+                omega_effects::provider_plan::ServiceSchema::from_typed(
+                    &self.program.typed,
+                    definition,
+                )
+            })
+            .collect::<Vec<_>>();
+        let [schema] = matches.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "semantic-binding candidate {:?} resolved to {} exact package-owned boundary schemas instead of one",
+                role,
+                matches.len(),
+            )));
+        };
+        omega_package_compilation::AcceptedSemanticBinding::new_service(
+            role,
+            package,
+            declaration_path,
+            schema.identity_digest(),
+        )
+        .map_err(Diagnostic::error)
+    }
+
     /// Compiler-validated exact source owners used only while projecting
     /// package-review structural type identity. Source IDs are private join
     /// coordinates and never enter canonical review bytes.
@@ -1212,6 +1266,11 @@ fn compile_to_checked_inner_with_replay(
             accepted_console_binding: package_inputs.and_then(|inputs| {
                 inputs.accepted_semantic_binding(
                     omega_package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+                )
+            }),
+            accepted_filesystem_binding: package_inputs.and_then(|inputs| {
+                inputs.accepted_semantic_binding(
+                    omega_package_compilation::AcceptedSemanticBindingRole::FilesystemHostService,
                 )
             }),
         },

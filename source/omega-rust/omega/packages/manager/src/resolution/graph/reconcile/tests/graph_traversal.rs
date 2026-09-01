@@ -162,7 +162,7 @@ fn resolves_the_authored_local_graph_fixture() {
     )
     .expect("resolve authored fixture closure");
 
-    assert_eq!(closure.graph().packages().len(), 3);
+    assert_eq!(closure.graph().packages().len(), 4);
     let aliases = closure
         .graph()
         .package(&root_key)

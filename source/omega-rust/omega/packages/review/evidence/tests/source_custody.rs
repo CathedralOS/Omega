@@ -327,7 +327,7 @@ fn assert_semantic_dependency_rederivation_rejects(
 }
 
 #[test]
-fn dangerous_authority_classification_requires_exact_toolchain_provenance() {
+fn dangerous_authority_classification_requires_exact_accepted_binding() {
     let Some(target) = host_target_name() else {
         return;
     };
@@ -335,7 +335,9 @@ fn dangerous_authority_classification_requires_exact_toolchain_provenance() {
     let canonical = TempPackage::new();
     canonical.write(
         "main.omg",
-        r#"use omega::language::std::filesystem_host;
+        r#"pub boundary trait FilesystemHost {
+    machine write(descriptor: i32, bytes: &[u8]) -> i64;
+}
 
 pub data Journal { files: FilesystemHost; written: i64; }
 
@@ -356,12 +358,33 @@ target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#,
     );
-    let canonical_checked = compile_to_checked_with_packages(
+    let candidate_checked = compile_to_checked_with_packages(
         &canonical.0.join("main.omg"),
         Some(target),
         package_inputs(&canonical.0),
     )
-    .expect("canonical filesystem fixture should check");
+    .expect("filesystem candidate should check without accepted authority");
+    let candidate_review = project_checked_package_review(&candidate_checked)
+        .expect("unaccepted filesystem candidate review should close");
+    assert!(
+        candidate_review.dangerous_authorities().is_empty(),
+        "a readable package-owned name alone cannot mint filesystem authority",
+    );
+    let accepted = candidate_checked
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            package_identity(),
+            "FilesystemHost",
+        )
+        .expect("derive exact accepted filesystem binding");
+    let canonical_checked = compile_to_checked_with_packages(
+        &canonical.0.join("main.omg"),
+        Some(target),
+        package_inputs(&canonical.0)
+            .with_accepted_semantic_bindings(vec![accepted])
+            .expect("binding names the exact fixture package"),
+    )
+    .expect("accepted filesystem fixture should check");
     let canonical_review = project_checked_package_review(&canonical_checked)
         .expect("canonical filesystem review should close");
     let [authority] = canonical_review.dangerous_authorities() else {
@@ -371,10 +394,10 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         authority.class(),
         PackageReviewDangerousAuthorityClass::Filesystem
     );
-    let PackageReviewNominalOwner::ToolchainSource(source) = authority.service().owner() else {
-        panic!("canonical filesystem authority must retain exact toolchain source")
-    };
-    assert_ne!(source.digest(), [0; 32]);
+    assert_eq!(
+        authority.service().owner(),
+        PackageReviewNominalOwner::Package(package_identity()),
+    );
     assert_eq!(authority.service().path(), "FilesystemHost");
     assert!(canonical_review.dangerous_authority_slack().is_empty());
     let rows = canonical_review
@@ -392,7 +415,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
             && matches!(
                 location.owner(),
-                PackageReviewSourceLocationOwner::Toolchain(_)
+                PackageReviewSourceLocationOwner::Package(_)
             )
     }));
     assert!(locations.iter().any(|location| {
@@ -408,159 +431,6 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .relative_path()
             .contains(canonical.0.to_string_lossy().as_ref())
     }));
-
-    let lookalike = TempPackage::new();
-    lookalike.write(
-        "main.omg",
-        r#"pub boundary trait FilesystemHost {
-    machine write(descriptor: i32, bytes: &[u8]) -> i64;
-}
-
-pub data Journal { files: FilesystemHost; written: i64; }
-
-pub machine Journal::append(&mut self, descriptor: i32, bytes: &[u8])
-reaches FilesystemHost
-invokes FilesystemHost;
-{
-    self.written = self.files.write(descriptor, bytes);
-}
-"#,
-    );
-    lookalike.write(
-        "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
-"#,
-    );
-    let lookalike_checked = compile_to_checked_with_packages(
-        &lookalike.0.join("main.omg"),
-        Some(target),
-        package_inputs(&lookalike.0),
-    )
-    .expect("package-owned filesystem lookalike should check as ordinary source");
-    let lookalike_review = project_checked_package_review(&lookalike_checked)
-        .expect("package-owned filesystem lookalike review should close");
-    assert!(
-        lookalike_review.dangerous_authorities().is_empty(),
-        "package-controlled naming must not mint a compiler-owned risk class"
-    );
-}
-
-#[test]
-fn process_authority_review_retains_closed_exit_and_discloses_unresolved_siblings() {
-    // Package review closes the demanded process identity without pretending
-    // that unrelated selected Console siblings have closed execution atoms.
-    // Terminal realization remains responsible for rejecting an unresolved
-    // sibling when a canonical artifact actually demands it.
-    let target = "linux_x86_64";
-
-    let canonical = TempPackage::new();
-    canonical.write(
-        "main.omg",
-        r#"use omega::language::std::console;
-
-pub machine terminate(console: Console, return_code: i32)
-reaches Console
-invokes console;
-{
-    console.exit_process(return_code);
-}
-"#,
-    );
-    canonical.write(
-        "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
-"#,
-    );
-    let canonical_checked = compile_to_checked_with_packages(
-        &canonical.0.join("main.omg"),
-        Some(target),
-        package_inputs(&canonical.0),
-    )
-    .expect("canonical console fixture should check");
-    let canonical_review = project_checked_package_review(&canonical_checked)
-        .expect("unsupported selected siblings remain non-authorizing review evidence");
-    let [legacy_process_authority] = canonical_review.dangerous_authorities() else {
-        panic!("legacy bundled Console must retain one process-authority row")
-    };
-    assert_eq!(
-        legacy_process_authority.class(),
-        PackageReviewDangerousAuthorityClass::Process,
-    );
-    assert!(matches!(
-        legacy_process_authority.service().owner(),
-        PackageReviewNominalOwner::ToolchainSource(_),
-    ));
-    let console = canonical_review
-        .selected_providers()
-        .iter()
-        .find(|provider| provider.service_schema() == "Console")
-        .expect("canonical Console provider review");
-    assert_eq!(console.rows().len(), console.row_declarations().len());
-    let execution_for = |method: &str| {
-        let index = console
-            .rows()
-            .iter()
-            .position(|row| row.method == method)
-            .unwrap_or_else(|| panic!("selected Console plan retains `{method}`"));
-        console.row_declarations()[index].compiler_intrinsic_execution()
-    };
-    assert_eq!(
-        execution_for("exit_process"),
-        Some(PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32),
-        "the exact Linux exit execution remains closed",
-    );
-    for method in ["read_line", "read_byte", "write_byte"] {
-        assert_eq!(
-            execution_for(method),
-            None,
-            "unsupported selected Console sibling `{method}` must remain visible but non-authorizing",
-        );
-    }
-
-    let lookalike = TempPackage::new();
-    lookalike.write(
-        "main.omg",
-        r#"pub boundary trait Console {
-    machine exit_process(return_code: i32);
-}
-
-pub machine terminate(console: Console, return_code: i32)
-reaches Console
-invokes console;
-{
-    console.exit_process(return_code);
-}
-"#,
-    );
-    lookalike.write(
-        "build.omg",
-        r#"target windows_x86_64 { }
-target linux_x86_64 { }
-target linux_arm64 { }
-target macos_arm64 { }
-machine build(builder: &mut Build) { builder.package("review-fixture"); }
-"#,
-    );
-    let lookalike_checked = compile_to_checked_with_packages(
-        &lookalike.0.join("main.omg"),
-        Some(target),
-        package_inputs(&lookalike.0),
-    )
-    .expect("package-owned console lookalike should check as ordinary source");
-    let lookalike_review = project_checked_package_review(&lookalike_checked)
-        .expect("package-owned console lookalike review should close");
-    assert!(
-        lookalike_review.dangerous_authorities().is_empty(),
-        "package-controlled Console naming must not mint process authority"
-    );
 }
 
 #[test]

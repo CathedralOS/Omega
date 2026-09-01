@@ -23,6 +23,7 @@ pub struct CompilerIssuedPackageReview {
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
+    pub(super) semantic_binding_candidates: Vec<AcceptedSemanticBinding>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
     pub(super) projection: CheckedPackageReviewProjection,
     pub(super) canonical_review_bytes: Vec<u8>,
