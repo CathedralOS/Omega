@@ -255,6 +255,17 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         ],
     },
     SemanticLadder {
+        family: "fixed/precolored point intervals",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/model.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/identity.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/replay.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/validate.rs",
+        ],
+    },
+    SemanticLadder {
         family: "post-allocation manifest mutation custody tests",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/post_allocation_manifest_mutation_matrix/mod.rs",
@@ -368,6 +379,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_view_copy_operational/fixture.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_view_copy_operational/execution.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_view_copy_operational/budget.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_intervals/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_intervals/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_intervals/positive.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_intervals/corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/fixed_precolored_intervals/budget.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_insertion.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_reload_value_homes.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/generalized_spill_recovery_worklist.rs",

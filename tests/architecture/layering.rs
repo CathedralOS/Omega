@@ -3613,6 +3613,63 @@ fn abstract_spill_access_constraints_are_independent_and_non_executable() {
 }
 
 #[test]
+fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read fixed/precolored interval entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_fixed_precolored_intervals("),
+        "the fixed/precolored interval entrance must visibly join production to independent replay",
+    );
+    let producer = std::fs::read_to_string(stage.join("compute.rs"))
+        .expect("read fixed/precolored interval producer");
+    let mut replay = std::fs::read_to_string(stage.join("replay.rs"))
+        .expect("read fixed/precolored interval replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read fixed/precolored interval validator"),
+    );
+    for forbidden in [
+        "super::compute",
+        "compute::compute",
+        "compute::resolve_point",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "fixed/precolored interval replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "fn point_index", "fn replay_function"] {
+        assert!(
+            replay.contains(required),
+            "fixed/precolored interval replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    let all_source = recursive_rust_source(&stage);
+    for forbidden in [
+        "assign_register_homes",
+        "materialize_fixed_view_copies",
+        "MachineEncoded",
+        "StackPointer",
+        "FrameOffset",
+        "TrapBehavior",
+    ] {
+        assert!(
+            !all_source.contains(forbidden),
+            "fixed/precolored intervals must not acquire transition or executable authority `{forbidden}`",
+        );
+    }
+    assert!(
+        !producer.contains("BTreeMap"),
+        "the direct producer must remain structurally distinct from keyed replay",
+    );
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
