@@ -302,42 +302,38 @@ fn retains_exact_store_and_integer_field_read_custody() {
 }
 
 #[test]
-fn rejects_store_path_field_value_and_integer_read_corruption() {
+fn rejects_store_path_field_value_and_integer_read_artifact_corruption() {
     let mut path = structural_scalar_field_module();
-    let OperationKind::StructuralScalarFieldStore { path, .. } =
-        &mut path.machines[0].blocks[0].operations[1].kind
+    let OperationKind::StructuralScalarFieldStore {
+        path: store_path, ..
+    } = &mut path.machines[0].blocks[0].operations[1].kind
     else {
         unreachable!()
     };
-    path.clear();
-    assert!(matches!(
-        lower(&path),
-        Err(ArtifactLoweringError::Verification(_))
-    ));
+    store_path.clear();
+    assert!(encode_module(&path).is_err());
 
     let mut field = structural_scalar_field_module();
-    let OperationKind::StructuralScalarFieldStore { field, .. } =
-        &mut field.machines[0].blocks[0].operations[1].kind
+    let OperationKind::StructuralScalarFieldStore {
+        field: selected_field,
+        ..
+    } = &mut field.machines[0].blocks[0].operations[1].kind
     else {
         unreachable!()
     };
-    *field = id::<StructuralFieldId>(2);
-    assert!(matches!(
-        lower(&field),
-        Err(ArtifactLoweringError::Verification(_))
-    ));
+    *selected_field = id::<StructuralFieldId>(2);
+    assert!(encode_module(&field).is_err());
 
     let mut value = structural_scalar_field_module();
-    let OperationKind::StructuralScalarFieldStore { value, .. } =
-        &mut value.machines[0].blocks[0].operations[1].kind
+    let OperationKind::StructuralScalarFieldStore {
+        value: stored_value,
+        ..
+    } = &mut value.machines[0].blocks[0].operations[1].kind
     else {
         unreachable!()
     };
-    *value = id::<ValueId>(99);
-    assert!(matches!(
-        lower(&value),
-        Err(ArtifactLoweringError::Verification(_))
-    ));
+    *stored_value = id::<ValueId>(99);
+    assert!(encode_module(&value).is_err());
 
     let mut read = structural_scalar_field_module();
     read.machines[1].blocks[0].operations[0]
@@ -345,8 +341,5 @@ fn rejects_store_path_field_value_and_integer_read_corruption() {
         .scalar_mut()
         .expect("integer read result")
         .scalar_type = ScalarType::Boolean;
-    assert!(matches!(
-        lower(&read),
-        Err(ArtifactLoweringError::Verification(_))
-    ));
+    assert!(encode_module(&read).is_err());
 }
