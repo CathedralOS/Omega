@@ -33,6 +33,12 @@ pub(super) fn realize(
             ))]
         },
     )?;
+    let boundary_application_coverage =
+        crate::compiler::terminal_product::project_terminal_boundary_application_coverage(
+            checked,
+            &artifact,
+            &checked_boundary_operator_scope,
+        )?;
     let demanded_intrinsics =
         crate::compiler::intrinsic_settlements::demanded_boundary_identities(&terminal_module)?;
     let intrinsic_proposals =
@@ -74,7 +80,7 @@ pub(super) fn realize(
             external_binding_rows: checked.external_binding_rows(),
             settlements: &[],
             compiler_builtins: &compiler_builtins,
-            boundary_application_coverage: None,
+            boundary_application_coverage: Some(&boundary_application_coverage),
             ieee_float_fma: &[],
             native_callbacks: &[],
         },

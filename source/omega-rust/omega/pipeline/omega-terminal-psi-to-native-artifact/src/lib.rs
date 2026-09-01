@@ -21,8 +21,8 @@ pub use omega_native_artifact::{
     BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeArtifact,
     NativeArtifactParts, NativeByteSpan, NativePhysicalChild, NativePhysicalChildParts,
     NativePhysicalEvidence, NativePhysicalEvidenceParts, NativePhysicalEvidenceScope,
-    NativeProviderExecution, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
-    PhysicalChildParent,
+    NativePhysicalOccurrence, NativeProviderExecution, NativeSelectedProviderPlan,
+    NativeSelectedProviderPlanDigest, PhysicalChildParent, PhysicalRelocationDisposition,
 };
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,

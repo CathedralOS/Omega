@@ -23,6 +23,10 @@ canonical_identity!(
     b"omega.optimized-boundary-occurrence-identity.v1\0"
 );
 canonical_identity!(
+    OptimizedOperatorOccurrenceIdentity,
+    b"omega.optimized-operator-occurrence-identity.v1\0"
+);
+canonical_identity!(
     NativeOptimizationProjectionIdentity,
-    b"omega.native-optimization-projection-identity.v1\0"
+    b"omega.native-optimization-projection-identity.v2\0"
 );
