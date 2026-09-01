@@ -1,6 +1,10 @@
+//! Direct publication and composition canaries with named custody corruption.
+
 use omega_isa_x86_64::encode_x86_64_mov_r32_imm32_i64_materialization;
 
 use crate::tests::*;
+
+mod custody_corruption;
 
 #[test]
 fn x86_mov_r32_imm32_reaches_realization_with_replayable_zero_extension_custody() {
