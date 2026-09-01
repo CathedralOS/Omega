@@ -1,0 +1,42 @@
+// The first scalar static named-witness call is deliberately exact: a free
+// specialized caller selects a concrete conformance whose direct requirement
+// and realization are receiverless, take no ordinary arguments, and return
+// i32. The runtime value remains the ordinary scalar call result while the
+// selected proof is a fresh opaque requirement-level term.
+
+trait Evidence {
+}
+
+proposition ready() evidence Evidence;
+
+trait Producer {
+    machine Self::produce() -> i32
+    requires public_in: ready()
+    ensures public_out: ready();
+}
+
+data Token {
+}
+
+TokenProducer: Token satisfies Producer {
+    machine produce() -> i32
+    requires local_in: ready()
+    ensures public_out: ready()
+    {
+        public_out = local_in;
+        17i32
+    }
+}
+
+machine invoke<Element, Order: Element satisfies Producer>() -> i32
+requires incoming: ready()
+{
+    let (value; public_out: result) = Order::produce(; incoming);
+    value
+}
+
+machine caller() -> i32
+requires incoming: ready()
+{
+    invoke<Token, TokenProducer>(; incoming)
+}

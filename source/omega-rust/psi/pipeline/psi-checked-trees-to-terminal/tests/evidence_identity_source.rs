@@ -1,4 +1,4 @@
-use psi_core::{IntegerValue, OperationId};
+use psi_core::{IntegerValue, OperationId, ValueId};
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -260,6 +260,75 @@ const STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE: &str = r#"
 
     machine Root::caller(&self, value: &Token) {
         self.invoke<Token, TokenProducer>(value);
+    }
+"#;
+
+const STATIC_REQUIREMENT_I32_PROOF_OUTPUT_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+
+    trait Producer {
+        machine Self::produce() -> i32
+        requires public_in: ready()
+        ensures public_out: ready();
+    }
+
+    data Token {}
+    TokenProducer: Token satisfies Producer {
+        machine produce() -> i32
+        requires local_in: ready()
+        requires 17i32 == 17i32
+        ensures public_out: ready()
+        ensures 17i32 == 17i32
+        {
+            public_out = local_in;
+            17i32
+        }
+    }
+
+    machine invoke<Element, Order: Element satisfies Producer>() -> i32
+    requires incoming: ready()
+    requires 17i32 == 17i32
+    ensures 17i32 == 17i32
+    {
+        let (value; public_out: result) = Order::produce(; incoming);
+        value
+    }
+
+    machine caller() -> i32
+    requires incoming: ready()
+    requires 17i32 == 17i32
+    ensures 17i32 == 17i32
+    {
+        invoke<Token, TokenProducer>(; incoming)
+    }
+"#;
+
+const STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE: &str = r#"
+    machine produce() -> i32
+    requires 17i32 == 17i32
+    ensures 17i32 == 17i32
+    {
+        17i32
+    }
+
+    machine caller() -> i32
+    requires 17i32 == 17i32
+    ensures 17i32 == 17i32
+    {
+        let value: i32 = produce();
+        value
+    }
+"#;
+
+const ORDINARY_ATTACHED_SCALAR_SOURCE: &str = r#"
+    data Root {}
+
+    machine Root::f(value: i64) -> bool
+    requires true == true
+    ensures true == true
+    {
+        true
     }
 "#;
 
@@ -1221,15 +1290,21 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
     let [second_call] = second_lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one second proof-output call expected")
     };
-    assert!(first_call
-        .target_machine_identity
-        .starts_with("specialized-machine|"));
-    assert!(first_call
-        .target_machine_identity
-        .ends_with(&format!("application={first_commitment}")));
-    assert!(second_call
-        .target_machine_identity
-        .ends_with(&format!("application={second_commitment}")));
+    assert!(
+        first_call
+            .target_machine_identity
+            .starts_with("specialized-machine|")
+    );
+    assert!(
+        first_call
+            .target_machine_identity
+            .ends_with(&format!("application={first_commitment}"))
+    );
+    assert!(
+        second_call
+            .target_machine_identity
+            .ends_with(&format!("application={second_commitment}"))
+    );
     assert_eq!(
         first_call.target_machine_identity, first_replay_call.target_machine_identity,
         "the same exact specialization has one deterministic producer identity",
@@ -1819,6 +1894,294 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
 }
 
 #[test]
+fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_overhead() {
+    let checked = check(STATIC_REQUIREMENT_I32_PROOF_OUTPUT_SOURCE);
+    let checked_invocation = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .find_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|_| invocation)
+        })
+        .expect("one checked i32 static requirement proof-output call");
+    let machine_name = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| {
+            (selection.machine == checked_invocation.caller_machine_symbol)
+                .then_some(selection.name.clone())
+        })
+        .expect("the free specialized i32 caller is terminal-selected");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, &machine_name)
+        .expect("the exact i32 static requirement call crosses Terminal Psi");
+    let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
+        panic!("one terminal i32 static requirement proof-output call")
+    };
+    let dispatch = invocation
+        .static_requirement_dispatch
+        .as_ref()
+        .expect("private i32 realization dispatch");
+    let i32_type = psi_core::ScalarType::Integer(
+        psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).expect("i32"),
+    );
+    assert_eq!(
+        invocation.runtime_result,
+        Some(psi_terminal::ProofOutputRuntimeResult::Scalar(i32_type))
+    );
+    let runtime_call = invocation
+        .runtime_call
+        .expect("static i32 proof output links its ordinary call");
+    assert_eq!(runtime_call.callee, dispatch.realization);
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == invocation.caller)
+        .expect("i32 proof-output caller");
+    assert_eq!(caller.attachment, None, "the scalar caller stays free");
+    let realization = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == dispatch.realization)
+        .expect("i32 static realization");
+    assert_eq!(
+        realization.attachment, None,
+        "no runtime receiver is emitted"
+    );
+    assert!(realization.parameters.is_empty());
+    assert!(realization.structural_parameters.is_empty());
+    assert!(matches!(
+        realization.result,
+        psi_terminal::TerminalMachineResult::Scalar(result)
+            if result.scalar_type == i32_type
+    ));
+    let operation = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == runtime_call.operation)
+        .expect("linked i32 call operation");
+    assert!(matches!(
+        (&operation.result, &operation.kind),
+        (
+            psi_terminal::OperationResult::Scalar(result),
+            OperationKind::Call {
+                callee,
+                arguments,
+                ..
+            }
+        ) if result.scalar_type == i32_type
+            && *callee == dispatch.realization
+            && arguments.is_empty()
+    ));
+
+    let semantic_bytes =
+        encode_module(&lowered.semantic_module).expect("static i32 module encodes");
+    let proof_bytes = encode_proof_bundle(&lowered.proof_bundle).expect("static i32 proof encodes");
+    let decoded = decode_module(&semantic_bytes).expect("static i32 module decodes");
+    assert_eq!(decoded, lowered.semantic_module);
+    let decoded_proof = decode_proof_bundle(&proof_bytes).expect("static i32 proof decodes");
+    assert_eq!(decoded_proof, lowered.proof_bundle);
+    let verified = psi_terminal_verifier::verify_module(
+        &decoded,
+        &decoded_proof,
+        &AdmissionProfile::default(),
+    )
+    .expect("the exact static i32 operation and dispatch verify together");
+
+    let baseline_checked = check(STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE);
+    let baseline_name = baseline_checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find_map(|selection| (selection.name == "caller").then(|| selection.name.clone()))
+        .expect("the scalar runtime baseline is terminal-selected");
+    let baseline = psi_checked_trees_to_terminal::lower_machine(&baseline_checked, &baseline_name)
+        .expect("the scalar runtime baseline lowers");
+    let baseline_verified = psi_terminal_verifier::verify_module(
+        &baseline.semantic_module,
+        &baseline.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the scalar runtime baseline verifies");
+    let baseline_entry = baseline
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == baseline.semantic_module.entry)
+        .expect("scalar baseline entry");
+    assert_eq!(caller.parameters, baseline_entry.parameters);
+    assert_eq!(caller.result, baseline_entry.result);
+    assert_eq!(
+        caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .map(|operation| std::mem::discriminant(&operation.kind))
+            .collect::<Vec<_>>(),
+        baseline_entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .map(|operation| std::mem::discriminant(&operation.kind))
+            .collect::<Vec<_>>(),
+        "erased static proof rows add no runtime operations"
+    );
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry)
+            .expect("static i32 call has fixed fuel")
+            .ceiling_units(),
+        derive_fixed_entry_fuel(&baseline_verified, baseline.semantic_module.entry)
+            .expect("baseline i32 call has fixed fuel")
+            .ceiling_units(),
+        "erased static proof rows add no runtime fuel"
+    );
+
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic_bytes,
+        &proof_bytes,
+        &AdmissionProfile::default(),
+        &[],
+        &[],
+    )
+    .expect("static i32 artifact starts");
+    assert_eq!(
+        execution
+            .resume(&mut TerminalFuelMeter::unbounded())
+            .expect("execute static i32 requirement call"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                scalar_type: psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                    .expect("i32"),
+                value: IntegerValue::Signed(17),
+            }
+        ))
+    );
+
+    let invalid = |module: &psi_terminal::TerminalModule| {
+        matches!(
+            psi_terminal_verifier::validate_module_representation(module),
+            Err(psi_terminal_verifier::ModuleError::InvalidProofOutputCall { .. })
+        )
+    };
+    let mut wrong_type = lowered.semantic_module.clone();
+    wrong_type.proof_output_calls[0].runtime_result = Some(
+        psi_terminal::ProofOutputRuntimeResult::Scalar(psi_core::ScalarType::Boolean),
+    );
+    assert!(invalid(&wrong_type));
+    let mut unit_result = lowered.semantic_module.clone();
+    unit_result.proof_output_calls[0].runtime_result =
+        Some(psi_terminal::ProofOutputRuntimeResult::Unit);
+    assert!(invalid(&unit_result));
+    let mut unknown_operation = lowered.semantic_module.clone();
+    unknown_operation.proof_output_calls[0]
+        .runtime_call
+        .as_mut()
+        .expect("runtime call")
+        .operation = OperationId::new(u64::MAX).expect("nonzero operation ID");
+    assert!(invalid(&unknown_operation));
+    let mut wrong_callee = lowered.semantic_module.clone();
+    wrong_callee.proof_output_calls[0]
+        .runtime_call
+        .as_mut()
+        .expect("runtime call")
+        .callee = invocation.caller;
+    assert!(invalid(&wrong_callee));
+    let mut wrong_realization = lowered.semantic_module.clone();
+    wrong_realization.proof_output_calls[0]
+        .static_requirement_dispatch
+        .as_mut()
+        .expect("static dispatch")
+        .realization = invocation.caller;
+    assert!(invalid(&wrong_realization));
+    let mut wrong_operation = lowered.semantic_module.clone();
+    wrong_operation
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|candidate| candidate.id == runtime_call.operation)
+        .expect("linked operation")
+        .kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Signed(17),
+    };
+    assert!(invalid(&wrong_operation));
+
+    let mut forged_argument = lowered.semantic_module.clone();
+    let argument = psi_terminal::ValueDeclaration {
+        id: ValueId::new(u64::MAX).expect("nonzero forged argument ID"),
+        scalar_type: i32_type,
+    };
+    forged_argument
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == invocation.caller)
+        .expect("forged caller")
+        .parameters
+        .push(argument);
+    forged_argument
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == dispatch.realization)
+        .expect("forged realization")
+        .parameters
+        .push(psi_terminal::ValueDeclaration {
+            id: ValueId::new(u64::MAX - 1).expect("nonzero forged parameter ID"),
+            scalar_type: i32_type,
+        });
+    let OperationKind::Call { arguments, .. } = &mut forged_argument
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == invocation.caller)
+        .expect("forged caller")
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|candidate| candidate.id == runtime_call.operation)
+        .expect("forged linked operation")
+        .kind
+    else {
+        panic!("linked operation remains a scalar call")
+    };
+    arguments.push(argument.id);
+    assert!(
+        invalid(&forged_argument),
+        "a coherent argument-bearing scalar dispatch remains outside the bounded rung"
+    );
+}
+
+#[test]
+fn ordinary_attached_scalar_machine_remains_outside_the_scalar_entry_lane() {
+    let checked = check(ORDINARY_ATTACHED_SCALAR_SOURCE);
+    let selection = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|selection| selection.name == "Root::f")
+        .expect("ordinary attached scalar machine selection");
+    assert_eq!(
+        selection.signature,
+        psi_checked_trees::CheckedTerminalSignatureEligibility::Attached
+    );
+    assert!(matches!(
+        psi_checked_trees_to_terminal::lower_machine(&checked, &selection.name),
+        Err(psi_checked_trees_to_terminal::LoweringError::Unsupported(_))
+    ));
+}
+
+#[test]
 fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness() {
     let checked = check(PLURAL_STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
     let checked_invocation = checked
@@ -1883,10 +2246,12 @@ fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness
         .map(|output| output.output.expect("fresh static output term"))
         .collect::<Vec<_>>();
     assert!(output_terms.windows(2).all(|pair| pair[0] != pair[1]));
-    assert!(invocation
-        .evidence_arguments
-        .iter()
-        .all(|argument| { !output_terms.contains(&argument.source) }));
+    assert!(
+        invocation
+            .evidence_arguments
+            .iter()
+            .all(|argument| { !output_terms.contains(&argument.source) })
+    );
 
     let semantic_bytes =
         encode_module(&lowered.semantic_module).expect("encode plural static semantics");

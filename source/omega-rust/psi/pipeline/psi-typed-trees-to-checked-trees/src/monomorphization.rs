@@ -95,7 +95,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     program: &mut TypedTrees,
     nominal_uses: &mut Vec<psi_validation::ValidatedNominalMachineUse>,
 ) -> Result<(), Vec<Diagnostic>> {
-    materialize_static_const_argument_types(program);
+    materialize_static_argument_types(program);
     let mut candidates = Vec::new();
     let mut callee_states = Vec::new();
     let mut all_type_parameter_symbols = Vec::new();
@@ -493,8 +493,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_nominal_uses(
     }
 }
 
-fn materialize_static_const_argument_types(program: &mut TypedTrees) {
-    fn collect(arguments: &[StaticMachineArgument], literals: &mut Vec<String>) {
+fn materialize_static_argument_types(program: &mut TypedTrees) {
+    fn collect(
+        program: &TypedTrees,
+        arguments: &[StaticMachineArgument],
+        literals: &mut Vec<String>,
+        types: &mut Vec<(SymbolHandle, psi_typed_trees::name::Identifier)>,
+    ) {
         for argument in arguments {
             if let Some(literal) = &argument.const_literal {
                 let literal = literal.text().to_owned();
@@ -502,23 +507,32 @@ fn materialize_static_const_argument_types(program: &mut TypedTrees) {
                     literals.push(literal);
                 }
             }
+            if argument.application.is_none()
+                && argument.symbol.is_valid()
+                && matches!(program.symbols.get(argument.symbol).kind, SymbolKind::Data)
+                && let Some(name) = argument.path.last()
+                && !types.iter().any(|(symbol, _)| *symbol == argument.symbol)
+            {
+                types.push((argument.symbol, name.clone()));
+            }
             if let Some(application) = &argument.application {
-                collect(&application.arguments, literals);
+                collect(program, &application.arguments, literals, types);
             }
         }
     }
 
     let mut literals = Vec::new();
+    let mut types = Vec::new();
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
-            collect(&call.machine_arguments, &mut literals);
+            collect(program, &call.machine_arguments, &mut literals, &mut types);
         }
     }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Call(call) = statement {
-                    collect(&call.machine_arguments, &mut literals);
+                    collect(program, &call.machine_arguments, &mut literals, &mut types);
                 }
             }
         }
@@ -547,6 +561,17 @@ fn materialize_static_const_argument_types(program: &mut TypedTrees) {
                     symbol: SymbolHandle::invalid(),
                     name: psi_typed_trees::name::Identifier::generated(literal),
                 });
+        }
+    }
+    for (symbol, name) in types {
+        if program
+            .type_reference_table
+            .find_named_type_reference(symbol)
+            .is_none()
+        {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named { symbol, name });
         }
     }
 }
@@ -3620,6 +3645,9 @@ fn rewrite_cloned_calls(
                 call.receiver_symbol = receiver_symbol;
                 call.receiver = receiver;
                 call.arguments = span_without_first(call.arguments);
+            } else if evidence_dispatch.is_some() {
+                call.receiver_symbol = SymbolHandle::invalid();
+                call.receiver = HandleSpan::empty();
             }
             if let Some(rewrite) = evidence_dispatch {
                 call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
@@ -3674,6 +3702,8 @@ fn rewrite_cloned_calls(
         {
             call.receiver = receiver;
             call.arguments = span_without_first(call.arguments);
+        } else if evidence_dispatch.is_some() {
+            call.receiver = ExpressionHandle::invalid();
         }
         if let Some(rewrite) = evidence_dispatch {
             call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
@@ -4051,6 +4081,9 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
                 call.receiver_symbol = receiver_symbol;
                 call.receiver = receiver;
                 call.arguments = span_without_first(call.arguments);
+            } else if evidence_dispatch.is_some() {
+                call.receiver_symbol = SymbolHandle::invalid();
+                call.receiver = HandleSpan::empty();
             }
             if let Some(rewrite) = evidence_dispatch {
                 call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
@@ -4102,6 +4135,8 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) -> Resu
         {
             call.receiver = receiver;
             call.arguments = span_without_first(call.arguments);
+        } else if evidence_dispatch.is_some() {
+            call.receiver = ExpressionHandle::invalid();
         }
         if let Some(rewrite) = evidence_dispatch {
             call.static_requirement_dispatch = Some(rewrite.dispatch.clone());

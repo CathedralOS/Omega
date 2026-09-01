@@ -7,7 +7,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
     if selected.is_empty() {
         return Ok(());
     }
-    materialize_static_const_argument_types(program);
+    materialize_static_argument_types(program);
     let source = program.clone();
     let mut diagnostics = Vec::new();
 

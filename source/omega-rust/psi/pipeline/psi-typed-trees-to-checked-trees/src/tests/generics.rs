@@ -3728,6 +3728,220 @@ fn static_named_witness_requirement_call_keeps_public_lanes_and_private_dispatch
 }
 
 #[test]
+fn static_named_witness_requirement_call_accepts_exact_i32_result() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce() -> i32
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+
+        data Token {}
+
+        TokenProducer: Token satisfies Producer {
+            machine produce() -> i32
+            requires local_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = local_in;
+                17
+            }
+        }
+
+        machine invoke<Element, Order: Element satisfies Producer>() -> i32
+        requires incoming: ready()
+        {
+            let (value; public_out: result) = Order::produce(; incoming);
+            value
+        }
+
+        machine caller() -> i32
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(; incoming)
+        }
+    "#;
+
+    let typed = typed_source(source).expect("typed exact i32 static requirement call");
+    let checked = lower_typed_trees(typed)
+        .expect("one exact i32 static requirement witness call should check");
+    let token = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Token")
+        .expect("selected Token data");
+    let materialized_token = checked
+        .type_reference_table
+        .find_named_type_reference(token.symbol)
+        .expect("the exact selected static Type argument is materialized by symbol");
+    assert!(matches!(
+        checked
+            .type_reference_table
+            .type_reference(materialized_token),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+            if *symbol == token.symbol
+    ));
+    assert!(
+        checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                specialization.type_arguments == ["Token"]
+                    && specialization
+                        .conformance_applications
+                        .iter()
+                        .any(|application| application.subject_identity.as_deref() == Some("Token"))
+            })
+    );
+    let invocations = checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .filter_map(|(_, invocation)| {
+            invocation
+                .static_requirement_dispatch
+                .as_ref()
+                .map(|dispatch| (invocation, dispatch))
+        })
+        .collect::<Vec<_>>();
+    let [(invocation, dispatch)] = invocations.as_slice() else {
+        panic!("one exact i32 static requirement proof-output call")
+    };
+    let target_state = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .find(|state| state.symbol == dispatch.realization_state)
+        .expect("private i32 realization state");
+    assert_eq!(
+        checked
+            .typed
+            .primitive_type_reference(target_state.return_type),
+        Some(psi_typed_trees::types::PrimitiveType::I32)
+    );
+    assert!(invocation.runtime_call.is_some());
+    let [output] = invocation.outputs.as_slice() else {
+        panic!("one public output remains visible")
+    };
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(output.callee_output)
+            .owner,
+        psi_checked_trees::ContractProofFactOwner::StateSignature {
+            owner_symbol: dispatch.declaring_trait,
+            state_symbol: dispatch.requirement,
+        }
+    );
+    assert!(output.output.is_some());
+}
+
+#[test]
+fn static_named_witness_i32_result_rejects_receiver_and_ordinary_argument() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce(&self, seed: i32) -> i32
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce(&self, seed: i32) -> i32
+            requires local_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = local_in;
+                seed
+            }
+        }
+
+        machine Root::invoke<Element, Order: Element satisfies Producer>(
+            &self,
+            value: &Element,
+            seed: i32
+        ) -> i32
+        requires incoming: ready()
+        {
+            let (result; public_out: proof) = Order::produce(value, seed; incoming);
+            result
+        }
+
+        machine Root::caller(&self, value: &Token, seed: i32) -> i32
+        requires incoming: ready()
+        {
+            self.invoke<Token, TokenProducer>(value, seed; incoming)
+        }
+    "#;
+
+    let typed = typed_source(source).expect("typed attached i32 static requirement call");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the first scalar rung must reject receivers and ordinary arguments");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "scalar extension must be exact i32 with a free caller, receiverless requirement and realization, and zero ordinary arguments",
+        )
+    }));
+}
+
+#[test]
+fn static_named_witness_scalar_result_rejects_non_i32_primitive() {
+    let source = r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+
+        trait Producer {
+            machine Self::produce() -> bool
+            requires public_in: ready()
+            ensures public_out: ready();
+        }
+
+        data Token {}
+        TokenProducer: Token satisfies Producer {
+            machine produce() -> bool
+            requires local_in: ready()
+            ensures public_out: ready()
+            {
+                public_out = local_in;
+                true
+            }
+        }
+
+        machine invoke<Element, Order: Element satisfies Producer>() -> bool
+        requires incoming: ready()
+        {
+            let (value; public_out: proof) = Order::produce(; incoming);
+            value
+        }
+
+        machine caller() -> bool
+        requires incoming: ready()
+        {
+            invoke<Token, TokenProducer>(; incoming)
+        }
+    "#;
+
+    let typed = typed_source(source).expect("typed bool static requirement call");
+    let diagnostics = lower_typed_trees(typed)
+        .expect_err("the first scalar rung must reject every primitive except exact i32");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains(
+            "scalar extension must be exact i32 with a free caller, receiverless requirement and realization, and zero ordinary arguments",
+        )
+    }));
+}
+
+#[test]
 fn static_named_witness_requirement_call_accepts_one_exact_trait_default() {
     let source = r#"
         trait Evidence {}

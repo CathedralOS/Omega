@@ -77,6 +77,9 @@ pub(super) fn infer_hoist_temp_type(
             let declared_return = declared_state
                     .and_then(|candidate| candidate.storage.return_type.clone())
                     .or_else(|| {
+                        static_conformance_requirement_return(lowerer, state, call)
+                    })
+                    .or_else(|| {
                         // MP3/MP4: a call through a static machine parameter
                         // has the authored `where machine F(..) -> R` return
                         // type even before a concrete selection is known.
@@ -379,6 +382,53 @@ pub(super) fn infer_hoist_temp_type(
             constraints,
         },
     )))
+}
+
+fn static_conformance_requirement_return(
+    lowerer: &Lowerer,
+    state: &resolved::state::State,
+    call: &resolved::expression::TableCallExpression,
+) -> Option<TypeReference> {
+    let ExpressionNode::Name(receiver) = lowerer
+        .source_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(call.receiver)
+    else {
+        return None;
+    };
+    let owner = lowerer.source_trees.roots.machines.iter().find(|machine| {
+        lowerer
+            .source_trees
+            .machine_state_handles(machine.states)
+            .iter()
+            .any(|handle| lowerer.source_trees.machine_state(*handle).symbol == state.symbol)
+    })?;
+    let mut bounds = owner
+        .conformance_bounds
+        .iter()
+        .filter(|bound| bound.binder == Some(receiver.symbol));
+    let bound = bounds.next()?;
+    if bounds.next().is_some() {
+        return None;
+    }
+    let trait_definition = lowerer
+        .source_trees
+        .roots
+        .traits
+        .iter()
+        .find(|definition| definition.symbol == bound.carrier)?;
+    let mut requirements = lowerer
+        .source_trees
+        .trait_machine_signatures(trait_definition.machines)
+        .iter()
+        .filter(|requirement| requirement.name.as_str() == call.target.as_str());
+    let requirement = requirements.next()?;
+    if requirements.next().is_some() {
+        return None;
+    }
+    requirement.storage.return_type.clone()
 }
 
 fn substitute_machine_parameters_in_type(

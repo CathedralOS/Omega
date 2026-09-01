@@ -10189,7 +10189,21 @@ Remaining N6/N8 work:
   dropping term custody. The first static-call rung is also live. An attached
   or free generic caller may select one exact concrete named conformance through
   an explicit proof-static binder and call its direct concrete, non-generic,
-  one-state Unit requirement. The public requirement may own any finite ordered
+  one-state Unit requirement. The first primitive-scalar extension is also
+  live for exact `i32`: the specialized caller is free, while the direct
+  requirement and realization are receiverless and accept zero ordinary
+  arguments. Erased named inputs remain supported. The returned `i32` uses the
+  ordinary scalar `Call` and result; exact codec/verifier replay rejects scalar
+  type, operation, callee, or realization drift, and differential execution
+  pins identical ABI, storage, operation shape, and fixed fuel to the matching
+  runtime-only call. Independent Terminal replay rejoins the closed row to its
+  retained source realization identity and the artifact-local realization ID
+  to the exact ordinary call. Canonical artifact identity and retained
+  compilation custody currently bind those two names; portable untrusted
+  standalone replay still needs an explicit source-callable-identity-to-machine
+  map so a coordinated identity/`MachineId` retarget rejects independently.
+  That inherited standalone-replay defense is an engineering follow-up, not a
+  language-design blocker. The public requirement may own any finite ordered
   set of subjectless named `requires` lanes, including none, and must own at
   least one subjectless unconditional named `ensures` lane; every public row in
   this rung is named. The plural source canary retains three inputs and three
@@ -10215,7 +10229,8 @@ Remaining N6/N8 work:
   selector renames are breaking, while private call-site dispatch remains
   implementation content. Generic trait/requirement/satisfier or proposition
   telescopes, inherited requirement rows, direct named-conformance calls,
-  scalar results, subject-bearing lanes, unnamed public contract rows, and
+  non-`i32` or receiver/ordinary-argument-bearing scalar results, attached
+  scalar callers, subject-bearing lanes, unnamed public contract rows, and
   dynamic dispatch remain fail closed.
   Next extend broader static calls and runtime trait dispatch. A satisfying
   machine must assign every inherited output on each applicable ordinary exit

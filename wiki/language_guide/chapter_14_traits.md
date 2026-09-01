@@ -1140,8 +1140,12 @@ field, dictionary entry, calling-plan argument, allocation, cleanup, or fuel.
 
 The current compiler implements the first static form through an attached or
 free caller's explicit proof-static conformance binder. The selected trait,
-requirement, conformance, and one-state Unit realization must be concrete and
-non-generic. The public requirement may own any finite ordered set of
+requirement, conformance, and one-state realization must be concrete and
+non-generic. Unit retains its attached/free carrier. The first scalar extension
+admits only exact `i32`: the specialized caller is free, and the requirement
+and realization are receiverless with zero ordinary arguments. Erased named
+inputs remain available. The value uses the ordinary scalar call result and
+adds no proof-specific ABI, storage, operation, or fuel. The public requirement may own any finite ordered set of
 subjectless named inputs, including none, and must own at least one subjectless
 unconditional named output; every public row in this form is named. A call may
 select any output subset, while omitted selectors remain fact-only. Each
@@ -1151,7 +1155,8 @@ realization may come from the selected conformance's trait default; each
 conformance keeps a distinct closed-application commitment and generated
 realization identity, and an inline override takes precedence. Direct calls
 through a conformance name, inherited requirement rows, generic,
-subject-bearing, or unnamed public lanes, scalar results, and dynamic
+subject-bearing, or unnamed public lanes, other scalar shapes,
+receiver- or ordinary-argument-bearing scalar calls, attached scalar callers, and dynamic
 named-witness calls remain unavailable until their complete carriers land.
 
 Value-wide facts belong to the carrier's default domain: field constraints and
