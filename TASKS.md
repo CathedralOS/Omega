@@ -8882,7 +8882,7 @@ Owners:
   origin; final-image replay decodes the relocated address and requires it to
   equal that private function's final text address. A source-derived Windows
   x64 import canary now crosses the complete retained native-artifact path and
-  canonical installation format 50. The installation row preserves the exact
+  canonical installation format 51. The installation row preserves the exact
   compiler-private identity, source-Psi identity, artifact-local machine, fixed
   integer ABI, and final text interval; encode/decode and image replay reject
   shedding or substitution. Runtime registration, installed-address/lifetime

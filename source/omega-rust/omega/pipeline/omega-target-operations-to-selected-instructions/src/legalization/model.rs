@@ -112,6 +112,10 @@ pub enum LegalizationError {
     RankedCountdownNotYetSelectable {
         machine: psi_core::MachineId,
     },
+    AttachedUnitStructuralScalarNotYetSelectable {
+        machine: psi_core::MachineId,
+        operation: psi_core::OperationId,
+    },
     SourceCustodyMismatch,
     UnsupportedSourceShape {
         function: usize,

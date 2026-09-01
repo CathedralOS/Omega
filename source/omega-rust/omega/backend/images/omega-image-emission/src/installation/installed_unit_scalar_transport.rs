@@ -2,9 +2,11 @@
 //! Unit scalar-call transport. Native byte replay remains object-owned.
 
 use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use omega_machine_code::SemanticCodeSite;
 use omega_target::NativeTarget;
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
+use psi_terminal::StructuralAccess;
 
 use super::{InstallationError, InstallationRecord, InstalledFunction};
 
@@ -209,6 +211,112 @@ pub(super) fn validate_installed_unit_scalar_calls(
             ));
         }
         previous_key = Some(key);
+    }
+    Ok(())
+}
+
+pub(super) fn validate_installed_unit_structural_scalar_field_stores(
+    record: &InstallationRecord,
+    functions: &std::collections::BTreeMap<MachineId, &InstalledFunction>,
+) -> Result<(), InstallationError> {
+    for function in functions.values().copied() {
+        let invalid = || InstallationError::InvalidUnitStructuralScalarFieldStore(function.machine);
+        let mut previous = None;
+        for store in &function.unit_structural_scalar_field_stores {
+            let key = (store.operation_ordinal, store.code_offset);
+            let parameter_index =
+                usize::try_from(store.destination.position).map_err(|_| invalid())?;
+            let parameter = function
+                .unit_parameters
+                .get(parameter_index)
+                .ok_or_else(invalid)?;
+            let home = function
+                .unit_parameter_homes
+                .get(parameter_index)
+                .ok_or_else(invalid)?;
+            let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                defining_operation,
+                source_value,
+                scalar_type,
+                value,
+            } = store.source
+            else {
+                return Err(invalid());
+            };
+            let source_count = function
+                .unit_integer_constants
+                .iter()
+                .filter(|constant| {
+                    constant.defining_operation == defining_operation
+                        && constant.source_value == source_value
+                        && constant.scalar_type == scalar_type
+                        && constant.value == value
+                        && constant.operation_ordinal < store.operation_ordinal
+                })
+                .count();
+            let width = scalar_type.bits().checked_div(8).ok_or_else(invalid)?;
+            let bits = crate::unit_structural_scalar_field_store::integer_bits(scalar_type, value)
+                .ok_or_else(invalid)?;
+            let expected_bytes = crate::unit_structural_scalar_field_store::expected_store_bytes(
+                record.target,
+                home,
+                store.field_byte_offset,
+                width,
+                bits,
+            )
+            .ok_or_else(invalid)?;
+            let end = store
+                .code_offset
+                .checked_add(store.byte_count)
+                .ok_or_else(invalid)?;
+            let exact_attribution_count = record
+                .semantic_code_attribution
+                .iter()
+                .filter(|attribution| {
+                    attribution.machine == function.machine
+                        && attribution.attribution.site
+                            == SemanticCodeSite::Operation(store.psi_operation)
+                        && attribution.attribution.operation_ordinal == store.operation_ordinal
+                        && attribution.attribution.code_offset == store.code_offset
+                        && attribution.attribution.byte_count == store.byte_count
+                })
+                .count();
+            if previous.is_some_and(|previous| previous >= key)
+                || !store.destination.is_self
+                || function.attachment != Some(store.destination.structural_type)
+                || !matches!(
+                    store.destination.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+                || store.path.is_empty()
+                || parameter.place != store.destination.place
+                || parameter.structural_type != store.destination.structural_type
+                || parameter.multiplicity != store.destination.multiplicity
+                || home.place != parameter.place
+                || home.structural_type != parameter.structural_type
+                || home.multiplicity != parameter.multiplicity
+                || home.shape != parameter.shape
+                || store.destination_placement != home.source
+                || store.parameter_home_byte_offset != home.byte_offset
+                || store.parameter_home_indirect != home.indirect
+                || source_count != 1
+                || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
+                || scalar_type.is_address()
+                || !scalar_type.admits(value)
+                || store
+                    .field_byte_offset
+                    .checked_add(u32::from(width))
+                    .is_none_or(|field_end| field_end > u32::from(parameter.shape.byte_size))
+                || store.byte_count == 0
+                || store.byte_count != store.bytes.len()
+                || store.bytes != expected_bytes
+                || end > function.byte_count
+                || exact_attribution_count != 1
+            {
+                return Err(invalid());
+            }
+            previous = Some(key);
+        }
     }
     Ok(())
 }

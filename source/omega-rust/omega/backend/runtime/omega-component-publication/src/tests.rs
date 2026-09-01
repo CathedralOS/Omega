@@ -314,6 +314,7 @@ fn terminal_image(
             internal_unit_scalar_calls: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
             semantic_code_attribution: vec![
                 SemanticCodeAttribution {

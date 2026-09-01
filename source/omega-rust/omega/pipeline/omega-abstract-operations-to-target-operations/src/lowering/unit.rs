@@ -12,6 +12,7 @@ mod preflight;
 mod return_unit;
 mod scalar_call;
 mod scalar_definitions;
+mod structural_scalar;
 
 use boundary_call::lower_boundary_call;
 use preflight::validate_unit_function_shape;
@@ -21,6 +22,7 @@ use scalar_definitions::{
     lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
     validate_unit_scalar_definitions,
 };
+use structural_scalar::{lower_field_store, lower_structural_scalar_call};
 
 pub(super) fn lower_unit_function(
     function: &AbstractFunction,
@@ -108,6 +110,17 @@ pub(super) fn lower_unit_function(
                     operation: *psi_operation,
                 });
             }
+            AbstractOperation::StructuralScalarFieldStore { .. } => lower_field_store(
+                operation,
+                function,
+                structural_types,
+                &parameters_by_place,
+                &scalar_values,
+                &mut shape_cache,
+                &mut active,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::EstablishPayloadlessCase { .. } => {
                 return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
             }
@@ -437,6 +450,18 @@ pub(super) fn lower_unit_function(
                     &mut provenance,
                 )?;
             }
+            AbstractOperation::CallStructuralScalar { .. } => lower_structural_scalar_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::PortWrite {
                 psi_operation,
                 service,
@@ -534,8 +559,6 @@ pub(super) fn lower_unit_function(
                 &mut provenance,
             )?,
             AbstractOperation::Crash { .. }
-            | AbstractOperation::StructuralScalarFieldStore { .. }
-            | AbstractOperation::CallStructuralScalar { .. }
             | AbstractOperation::CallStructural { .. }
             | AbstractOperation::IntegerConstant { .. }
             | AbstractOperation::BooleanConstant { .. }

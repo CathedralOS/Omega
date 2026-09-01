@@ -27,6 +27,10 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   sources, reduces each argument to an exact register or outgoing-stack
   destination, and assigns one ordered, non-reused eight-byte result home after
   the structural parameter-home prefix.
+- `assignment/function/unit/structural_scalar.rs` independently reconstructs
+  the bounded projected integer-field store and structural scalar call,
+  including carrier layout, source definition, field offset, projected copy,
+  and exact call ABI.
 - `assignment/function/unit/operation.rs` owns the bounded x86 nearest-FMA XMM
   homes and replays each raw-bit constant source before producing an assigned
   FMA operation. The selected plan and admitted provider remain semantic

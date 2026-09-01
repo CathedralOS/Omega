@@ -13,7 +13,8 @@ use omega_machine_code::{
     ForeignCallScalarArgumentRecord, InternalCallRelocation, InternalUnitCallArgumentRecord,
     InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallRecord,
     PortEffectRecord, SemanticCodeAttribution, SemanticCodeSite, StackAdjustmentPair,
-    UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence, X86FloatingControlRecord,
+    UnitCallStackEvidence, UnitScalarHomeRecord, UnitStackEvidence,
+    UnitStructuralScalarFieldStoreRecord, X86FloatingControlRecord,
     X86ForeignCallFloatingControlRecord, X86ScalarFmaFormat, X86ScalarFmaOccurrenceRecord,
     X86ScalarFmaOperandRecord, derive_completion_provider_custody,
 };
@@ -22,8 +23,10 @@ use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 
 mod scalar_call;
+mod structural_scalar;
 
 use scalar_call::emit_unit_scalar_call;
+use structural_scalar::{emit_structural_scalar_call, emit_structural_scalar_field_store};
 
 use super::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -42,6 +45,7 @@ pub(super) struct UnitEmission {
     pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
     pub(super) integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub(super) structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
     pub(super) x86_scalar_fma: Vec<omega_machine_code::X86ScalarFmaFragment>,
     pub(super) x86_scalar_fma_occurrences: Vec<X86ScalarFmaOccurrenceRecord>,
     pub(super) x86_floating_control: Option<X86FloatingControlRecord>,
@@ -660,6 +664,7 @@ fn foreign_scalar_source_record(
 
 pub(super) fn emit_unit_body(
     body: &AssignedUnitBody,
+    attachment: Option<psi_core::StructuralTypeId>,
     target: NativeTarget,
     functions: &[AssignedFunction],
     native_callbacks: &[AssignedNativeCallbackArgument],
@@ -670,6 +675,7 @@ pub(super) fn emit_unit_body(
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
+    let mut unit_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
     let mut x86_floating_control = None;
@@ -874,7 +880,7 @@ pub(super) fn emit_unit_body(
             } => {
                 operation_site = Some(*psi_operation);
                 if established_integer_constants
-                    .insert(*result, (*scalar_type, *value))
+                    .insert(*result, (*psi_operation, *scalar_type, *value))
                     .is_some()
                 {
                     return Err(EmissionError::InvalidNormalizedForeignCallCustody);
@@ -886,6 +892,21 @@ pub(super) fn emit_unit_body(
                     value: *value,
                     operation_ordinal,
                 });
+            }
+            AssignedUnitOperation::StructuralScalarFieldStore { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+                unit_structural_scalar_field_stores.push(emit_structural_scalar_field_store(
+                    operation,
+                    body,
+                    attachment,
+                    target,
+                    &x86_homes,
+                    &aarch64_homes,
+                    &established_integer_constants,
+                    &mut bytes,
+                    operation_ordinal,
+                    code_offset,
+                )?);
             }
             AssignedUnitOperation::IeeeFloatConstant {
                 psi_operation,
@@ -1092,6 +1113,20 @@ pub(super) fn emit_unit_body(
                     &body.operations[..operation_ordinal],
                     operation_ordinal,
                     &mut internal_calls,
+                )?);
+            }
+            AssignedUnitOperation::StructuralScalarCall { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+                internal_unit_calls.push(emit_structural_scalar_call(
+                    operation,
+                    target,
+                    functions,
+                    &x86_homes,
+                    &aarch64_homes,
+                    &mut bytes,
+                    &mut internal_calls,
+                    operation_ordinal,
+                    code_offset,
                 )?);
             }
             AssignedUnitOperation::PortWrite {
@@ -1915,6 +1950,7 @@ pub(super) fn emit_unit_body(
         internal_unit_scalar_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
+        structural_scalar_field_stores: unit_structural_scalar_field_stores,
         x86_scalar_fma,
         x86_scalar_fma_occurrences,
         x86_floating_control,

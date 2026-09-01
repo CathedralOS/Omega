@@ -3,7 +3,9 @@
 //! Target-selected operations derived from source-independent terminal Omega
 //! requirements.
 
-pub use omega_abstract_operations::{CompletionClaimSource, RankedU32CountdownCustody};
+pub use omega_abstract_operations::{
+    AbstractResult, CompletionClaimSource, RankedU32CountdownCustody,
+};
 use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use psi_core::{
@@ -550,6 +552,19 @@ pub enum TargetUnitOperation {
         scalar_type: IntegerType,
         value: IntegerValue,
     },
+    /// One verifier-approved fixed-width integer write into an exact field of
+    /// a staged attached-Unit structural parameter. Semantic location and
+    /// physical offset remain together so assignment and emission can replay
+    /// the join independently.
+    StructuralScalarFieldStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        destination_placement: ValuePlacement,
+        field_byte_offset: u32,
+        source: TargetUnitScalarArgumentSource,
+    },
     IeeeFloatConstant {
         psi_operation: OperationId,
         result: ValueId,
@@ -590,6 +605,20 @@ pub enum TargetUnitOperation {
         call_plan: CallPlan,
         result_home: TargetUnitScalarHomeRequirement,
         arguments: Vec<TargetUnitScalarCallArgument>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// One projected structural call whose fixed-width scalar result is
+    /// intentionally discarded by this bounded attached-Unit lane. The
+    /// complete result and call plan remain explicit even though no durable
+    /// result home is allocated.
+    StructuralScalarCall {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        call_plan: CallPlan,
+        arguments: Vec<TargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

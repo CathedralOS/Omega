@@ -1310,7 +1310,7 @@ live-registration capacity, callback code/component leases, or a source-level
 `Registration`.
 
 The current direct-parameter path stops at canonical installation custody.
-Installation format 50 retains the exact compiler-private thunk identity,
+Installation format 51 retains the exact compiler-private thunk identity,
 source-Psi identity, artifact-local machine, fixed-integer ABI, and final text
 interval and rejoins that row to the executable image after encode/decode. A
 first deployment prerequisite now accepts a caller-supplied, already-admitted
@@ -1751,7 +1751,7 @@ register-or-stack address load; object construction emits architecture-specific
 relocations to that private symbol, and final-image replay decodes the patched
 address and requires the private function's final text address. The callback-
 closed registrar plan is also rejoined to its exact source-evaluated locator
-and explicit receiving-policy row. Canonical installation format 50 preserves
+and explicit receiving-policy row. Canonical installation format 51 preserves
 the exact private identity, source-Psi identity, artifact-local machine, fixed-
 integer ABI, and final text interval and rejoins the decoded row to the same
 image. The removed custom/unknown host-operation prototype is not reusable

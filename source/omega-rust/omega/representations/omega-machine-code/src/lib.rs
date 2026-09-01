@@ -113,6 +113,9 @@ pub struct MachineCodeFunction {
     /// Unit scalar calls. These rows let object replay distinguish an authored
     /// constant from a scalar-call result without trusting the call child.
     pub unit_integer_constants: Vec<UnitIntegerConstantRecord>,
+    /// Exact semantic and physical custody for fixed-width immediate writes
+    /// into staged attached-Unit structural parameter homes.
+    pub unit_structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
     /// Exact zero-code affine-local establishment and Unit-return cleanup
     /// custody for the bounded one-state Unit slice.
     pub unit_affine_cleanup: Option<UnitAffineCleanupRecord>,
@@ -627,6 +630,23 @@ pub struct UnitIntegerConstantRecord {
     pub scalar_type: IntegerType,
     pub value: IntegerValue,
     pub operation_ordinal: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitStructuralScalarFieldStoreRecord {
+    pub psi_operation: OperationId,
+    pub destination: psi_terminal::StructuralParameterDeclaration,
+    pub path: Vec<StructuralPathSegment>,
+    pub field: psi_core::StructuralFieldId,
+    pub destination_placement: ValuePlacement,
+    pub field_byte_offset: u32,
+    pub source: InternalUnitScalarArgumentSourceRecord,
+    pub parameter_home_byte_offset: u32,
+    pub parameter_home_indirect: bool,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub bytes: Vec<u8>,
 }
 
 /// Exact semantic and physical source of one attached-Unit scalar argument.

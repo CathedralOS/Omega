@@ -25,6 +25,9 @@ use super::{
         decode_unit_integer_constants, decode_unit_scalar_homes, encode_unit_integer_constants,
         encode_unit_scalar_homes,
     },
+    unit_structural_scalar_field_store_codec::{
+        decode_unit_structural_scalar_field_stores, encode_unit_structural_scalar_field_stores,
+    },
 };
 
 pub(super) fn encode_functions(
@@ -62,6 +65,10 @@ pub(super) fn encode_functions(
         encode_parameter_homes(bytes, &function.unit_parameter_homes)?;
         encode_unit_scalar_homes(bytes, &function.unit_scalar_homes)?;
         encode_unit_integer_constants(bytes, &function.unit_integer_constants)?;
+        encode_unit_structural_scalar_field_stores(
+            bytes,
+            &function.unit_structural_scalar_field_stores,
+        )?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
@@ -136,6 +143,8 @@ pub(super) fn decode_functions(
         let unit_parameter_homes = decode_unit_parameter_homes(reader)?;
         let unit_scalar_homes = decode_unit_scalar_homes(reader)?;
         let unit_integer_constants = decode_unit_integer_constants(reader)?;
+        let unit_structural_scalar_field_stores =
+            decode_unit_structural_scalar_field_stores(reader)?;
         functions.push(InstalledFunction {
             machine,
             attachment,
@@ -153,6 +162,7 @@ pub(super) fn decode_functions(
             unit_parameter_homes,
             unit_scalar_homes,
             unit_integer_constants,
+            unit_structural_scalar_field_stores,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {

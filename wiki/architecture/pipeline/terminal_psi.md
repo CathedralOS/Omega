@@ -494,7 +494,7 @@ runtime registration, lifetime, or publication authority.
 
 The current path instead passes the callback address directly in the declared
 native parameter. Object and final-image validation bind the relocation to one
-compiler-private function. Canonical installation format 50 then retains that
+compiler-private function. Canonical installation format 51 then retains that
 function's exact private identity, source-Psi identity, artifact-local machine,
 fixed-integer ABI, and final text interval and rejoins the decoded record to the
 same executable image. This remains non-authoritative installation evidence;
@@ -588,12 +588,19 @@ Canonical encoding, semantic observation, fixed fuel, and reference execution
 preserve the store across the projected call without asserting a native
 layout. Terminal-to-abstract lowering retains the complete rows, and optimizer
 validation reconstructs their definitions, uses, places, and provenance. The
-native scalar lane realizes an exact direct integer-field read on x86-64 and
-AArch64 while preserving the operation, value, source place, field, placement,
-offset, and integer type through physical assignment; it rejects type or
-placement drift before emission. Native projected-store and structural-call
-realization remain separate custody work; `WriteOnlyPrimitiveStore` remains the
-distinct whole-root operation.
+native scalar lane realizes the exact direct integer-field read and the bounded
+projected immediate store/call sequence on x86-64 and AArch64. Target lowering
+retains the complete store and call rows; physical assignment independently
+reconstructs the field layout, preceding integer source, argument ABI, and
+projected copy; machine emission records the exact parameter home, code
+interval, and bytes. Object construction replays the architecture encoding,
+and installation format 51 transports every store field and rejects semantic,
+source, home, interval, or byte substitution. The ordinary production compiler
+uses this lane when no optimization is selected. General mutable-borrow
+writeback remains blocked on the language's native structural-parameter
+identity contract; the landed direct fixture observes its store in the
+following call before returning. `WriteOnlyPrimitiveStore` remains the distinct
+whole-root operation.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

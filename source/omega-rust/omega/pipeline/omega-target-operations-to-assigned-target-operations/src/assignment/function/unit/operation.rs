@@ -1,8 +1,10 @@
-use super::{foreign_call, scalar_call};
+use super::{foreign_call, scalar_call, structural_scalar};
 use crate::assignment::shared::*;
 
 pub(super) fn assign(
     machine: MachineId,
+    attachment: Option<psi_core::StructuralTypeId>,
+    body: &omega_target_operations::TargetUnitBody,
     operation: &TargetUnitOperation,
     preceding_operations: &[TargetUnitOperation],
     target: NativeTarget,
@@ -33,6 +35,27 @@ pub(super) fn assign(
             scalar_type: *scalar_type,
             value: *value,
         },
+        TargetUnitOperation::StructuralScalarFieldStore {
+            psi_operation,
+            destination,
+            path,
+            field,
+            destination_placement,
+            field_byte_offset,
+            source,
+        } => structural_scalar::assign_field_store(
+            machine,
+            attachment,
+            body,
+            *psi_operation,
+            destination,
+            path,
+            *field,
+            destination_placement,
+            *field_byte_offset,
+            *source,
+            preceding_operations,
+        )?,
         TargetUnitOperation::IeeeFloatConstant {
             psi_operation,
             result,
@@ -163,6 +186,28 @@ pub(super) fn assign(
             target,
             assigned_scalar_homes,
             next_scalar_home,
+        )?,
+        TargetUnitOperation::StructuralScalarCall {
+            psi_operation,
+            result,
+            callee,
+            call_plan,
+            arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => structural_scalar::assign_call(
+            machine,
+            body,
+            target,
+            *psi_operation,
+            *result,
+            *callee,
+            call_plan,
+            arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
         )?,
         TargetUnitOperation::InstalledProviderCall {
             psi_operation,

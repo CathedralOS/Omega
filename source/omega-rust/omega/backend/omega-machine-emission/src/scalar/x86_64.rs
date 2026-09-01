@@ -766,16 +766,7 @@ fn emit_x86_64_structural_field(
         .ok_or(EmissionError::UnsupportedAggregatePlacement)?;
     if let [ValueLocation::Indirect { pointer, .. }] = placement.locations.as_slice() {
         let base = match *pointer {
-            IndirectPointerLocation::Register(register) => {
-                let base = x86_unit_register(register)?;
-                if base == 0 {
-                    return Err(EmissionError::ExpressionScratchRegisterConflict {
-                        value: source_value,
-                        register,
-                    });
-                }
-                base
-            }
+            IndirectPointerLocation::Register(register) => x86_unit_register(register)?,
             IndirectPointerLocation::Stack {
                 stack_byte_offset, ..
             } => {
