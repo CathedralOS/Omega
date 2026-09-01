@@ -31,4 +31,5 @@ sha2 = "0.10.9"
 
 [dev-dependencies]
 omega-build-evaluation = { path = "../../build/omega-build-evaluation", features = ["test-support"] }
+omega-effects = { path = "../../representations/omega-effects" }
 omega-package-source = { path = "../sources/acquisition", features = ["test-fixtures"] }

@@ -32,6 +32,7 @@ pub(crate) fn validate_canonical_row_source_limits(
         .chain(&sources.external_executable_supply)
         .chain(&sources.dangerous_authorities)
         .chain(&sources.dangerous_authority_slack)
+        .chain(&sources.terminal_authority_permissions)
         .chain(&sources.boundary_application_realizations)
         .chain(std::iter::once(&sources.selected_provider_set));
     let mut count = 0usize;

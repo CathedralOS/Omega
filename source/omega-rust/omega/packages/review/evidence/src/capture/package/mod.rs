@@ -16,6 +16,7 @@ use self::providers::project_selected_providers;
 use self::surface::project_package_surface;
 use self::validation::validate_review_compilation;
 use super::authority::{project_dangerous_authorities, project_dangerous_authority_slack};
+use super::terminal_authority_permissions::project_terminal_authority_permissions;
 use crate::record::CheckedPackageReviewProjection;
 use omega_compiler::CheckedCompilation;
 use psi_diagnostics::Diagnostic;
@@ -37,6 +38,7 @@ pub fn project_checked_package_review(
     let dangerous_authorities = project_dangerous_authorities(compilation, &callables.callables)?;
     let dangerous_authority_slack =
         project_dangerous_authority_slack(compilation, &callables.callables)?;
+    let terminal_authority_permissions = project_terminal_authority_permissions(compilation)?;
     let providers = project_selected_providers(compilation, target, package)?;
 
     PendingPackageReview {
@@ -46,6 +48,7 @@ pub fn project_checked_package_review(
         callables,
         dangerous_authorities,
         dangerous_authority_slack,
+        terminal_authority_permissions,
         providers,
     }
     .finalize(compilation)

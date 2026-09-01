@@ -95,6 +95,89 @@ fn accepted_semantic_bindings_are_unique_and_closed_over_the_package_graph() {
 }
 
 #[test]
+fn accepted_semantic_binding_canonicalizes_explicit_terminal_permissions() {
+    let schema = omega_effects::provider_plan::ServiceSchemaDigest::from_digest([7; 32]);
+    let permission = |requirement: &str, class| {
+        omega_effects::ServiceTerminalAuthorityPermission::new(
+            schema,
+            requirement,
+            omega_effects::TerminalAuthorityDisposition::from_classes([class]),
+        )
+    };
+    let binding = accepted_console_binding(identity(1), 7)
+        .with_terminal_authority_permissions(vec![
+            permission(
+                "Console::write_line#exact",
+                omega_effects::TerminalAuthorityClass::ProcessOutput,
+            ),
+            permission(
+                "Console::exit_process#exact",
+                omega_effects::TerminalAuthorityClass::ProcessTermination,
+            ),
+        ])
+        .expect("explicit rows share the accepted service schema");
+
+    assert_eq!(binding.terminal_authority_permissions().len(), 2);
+    assert_eq!(
+        binding.terminal_authority_permissions()[0].requirement_identity(),
+        "Console::exit_process#exact"
+    );
+    assert_eq!(
+        binding.terminal_authority_permissions()[1].requirement_identity(),
+        "Console::write_line#exact"
+    );
+}
+
+#[test]
+fn accepted_semantic_binding_rejects_permission_schema_and_key_substitution() {
+    let schema = omega_effects::provider_plan::ServiceSchemaDigest::from_digest([7; 32]);
+    let other_schema = omega_effects::provider_plan::ServiceSchemaDigest::from_digest([8; 32]);
+    let disposition = omega_effects::TerminalAuthorityDisposition::from_classes([
+        omega_effects::TerminalAuthorityClass::ProcessTermination,
+    ]);
+
+    assert_eq!(
+        accepted_console_binding(identity(1), 7)
+            .with_terminal_authority_permissions(vec![
+                omega_effects::ServiceTerminalAuthorityPermission::new(
+                    other_schema,
+                    "Console::exit_process#exact",
+                    disposition.clone(),
+                ),
+            ])
+            .expect_err("permission cannot substitute another service schema"),
+        "terminal-authority permission names a different service schema"
+    );
+
+    for requirement in ["", "Console::exit\nprocess"] {
+        assert_eq!(
+            accepted_console_binding(identity(1), 7)
+                .with_terminal_authority_permissions(vec![
+                    omega_effects::ServiceTerminalAuthorityPermission::new(
+                        schema,
+                        requirement,
+                        disposition.clone(),
+                    ),
+                ])
+                .expect_err("invalid exact requirement identity must reject"),
+            "terminal-authority permission has an invalid requirement identity"
+        );
+    }
+
+    let duplicate = omega_effects::ServiceTerminalAuthorityPermission::new(
+        schema,
+        "Console::exit_process#exact",
+        disposition,
+    );
+    assert_eq!(
+        accepted_console_binding(identity(1), 7)
+            .with_terminal_authority_permissions(vec![duplicate.clone(), duplicate])
+            .expect_err("permission key cannot be duplicated"),
+        "terminal-authority permissions repeat an exact requirement"
+    );
+}
+
+#[test]
 fn compiler_inputs_retain_application_root_role_and_reject_workspace_role() {
     let tree = TempTree::new();
     let root = tree.package("application");

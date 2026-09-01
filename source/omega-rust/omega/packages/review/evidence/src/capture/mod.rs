@@ -15,6 +15,7 @@ mod quotients;
 mod representation;
 mod semantics;
 mod source;
+mod terminal_authority_permissions;
 
 pub use package::project_checked_package_review;
 pub use quotients::project_non_executable_quotient_package_review;

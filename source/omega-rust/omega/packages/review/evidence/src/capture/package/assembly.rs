@@ -7,9 +7,14 @@ use super::super::source::locations::validate_canonical_row_source_limits;
 use super::callables::ProjectedPackageCallables;
 use super::providers::ProjectedProviders;
 use super::surface::ProjectedPackageSurface;
-use crate::capture::source::{ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow};
+use crate::capture::source::{
+    ProjectedDangerousAuthorityRow, ProjectedDangerousAuthoritySlackRow, ProjectedReviewRow,
+};
 use crate::record::package::PackageReviewCanonicalRowSources;
-use crate::record::{CheckedPackageReviewProjection, PackageReviewSourceLocationRole};
+use crate::record::{
+    CheckedPackageReviewProjection, PackageReviewSourceLocationRole,
+    PackageReviewSyntheticSourceKind, PackageReviewTerminalAuthorityPermission,
+};
 use omega_compiler::CheckedCompilation;
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
@@ -22,6 +27,8 @@ pub(super) struct PendingPackageReview {
     pub(super) callables: ProjectedPackageCallables,
     pub(super) dangerous_authorities: Vec<ProjectedDangerousAuthorityRow>,
     pub(super) dangerous_authority_slack: Vec<ProjectedDangerousAuthoritySlackRow>,
+    pub(super) terminal_authority_permissions:
+        Vec<ProjectedReviewRow<PackageReviewTerminalAuthorityPermission>>,
     pub(super) providers: ProjectedProviders,
 }
 
@@ -93,6 +100,17 @@ impl PendingPackageReview {
             finalize_dangerous_authority_rows(compilation, self.dangerous_authorities)?;
         let (dangerous_authority_slack, dangerous_authority_slack_sources) =
             finalize_dangerous_authority_slack_rows(compilation, self.dangerous_authority_slack)?;
+        let (terminal_authority_permissions, mut terminal_authority_permission_sources) =
+            finalize_projected_rows(
+                compilation,
+                self.terminal_authority_permissions,
+                PackageReviewSourceLocationRole::AuthorityDeclaration,
+            )?;
+        for source in &mut terminal_authority_permission_sources {
+            source
+                .compiler_derivations
+                .push(PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission);
+        }
         let row_sources = PackageReviewCanonicalRowSources {
             public_traits: public_trait_sources,
             public_conformances: public_conformance_sources,
@@ -108,6 +126,7 @@ impl PendingPackageReview {
             external_executable_supply: external_executable_supply_sources,
             dangerous_authorities: dangerous_authority_sources,
             dangerous_authority_slack: dangerous_authority_slack_sources,
+            terminal_authority_permissions: terminal_authority_permission_sources,
             boundary_application_realizations: self.providers.application_realizations.sources,
             selected_provider_set: selected_provider_row_source(
                 compilation,
@@ -133,6 +152,7 @@ impl PendingPackageReview {
             external_executable_supply,
             dangerous_authorities,
             dangerous_authority_slack,
+            terminal_authority_permissions,
             selected_providers: self.providers.selected,
             selected_provider_families: self.providers.families,
             boundary_application_realizations: self.providers.application_realizations.rows,

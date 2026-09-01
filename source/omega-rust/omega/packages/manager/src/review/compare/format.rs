@@ -12,7 +12,7 @@ use omega_package_evidence::record::{
 use omega_package_source::ImmutableSourceResolution;
 use sha2::{Digest, Sha256};
 
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V19\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V20\n";
 
 pub(super) trait ConflictRenderOutput {
     fn push_str(&mut self, value: &str);
@@ -241,6 +241,7 @@ pub(super) const fn synthetic_source_kind_tag(kind: PackageReviewSyntheticSource
         PackageReviewSyntheticSourceKind::EmptySelectedProviderSet => 1,
         PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection => 2,
         PackageReviewSyntheticSourceKind::FreeExternalProviderType => 3,
+        PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission => 4,
     }
 }
 
@@ -252,6 +253,9 @@ const fn synthetic_source_kind_token(kind: PackageReviewSyntheticSourceKind) -> 
             "unique_covering_provider_selection"
         }
         PackageReviewSyntheticSourceKind::FreeExternalProviderType => "free_external_provider_type",
+        PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission => {
+            "consumer_terminal_authority_permission"
+        }
     }
 }
 
@@ -332,6 +336,9 @@ pub(super) const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'sta
         PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => {
             "contract_entailment_open_obligation"
         }
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => {
+            "terminal_authority_permission"
+        }
     }
 }
 
@@ -356,6 +363,7 @@ pub(super) const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => 17,
         PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => 18,
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => 19,
     }
 }
 

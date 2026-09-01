@@ -58,8 +58,9 @@ selected local compiler reconstructs the complete row set and requires exact
 equality.
 
 The supported result lanes do not pretend to prove a bodyless accepted claim,
-grant dangerous authority, validate externally supplied executable code, or
-discharge a compiler-retained contract-entailment stand-down.
+grant dangerous authority, validate externally supplied executable code,
+exercise or admit a terminal-authority permission, or discharge a compiler-
+retained contract-entailment stand-down.
 `ledger/results.rs` rejoins each typed compiler fact to its canonical row and
 assigns either `OpenRootAdmission` or `OpenLaterDischarge`. The manager may
 propagate those open obligations to a consuming root, but root policy cannot
@@ -73,7 +74,7 @@ total-direct `define` and position-preserving transport-backed `lift`
 correspondences. The manager owns comparison and policy; neither entrance
 admits a package or executable operation.
 
-The canonical review schema is version 123, row schema version 81, and
-canonical-row recovery envelope version 19. Exact vocabulary and revision
+The canonical review schema is version 124, row schema version 82, and
+canonical-row recovery envelope version 20. Exact vocabulary and revision
 notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

@@ -1,7 +1,7 @@
 use super::declarations::{
     encode_conformance_shape, encode_dangerous_authority, encode_dangerous_authority_slack,
     encode_data_shape, encode_domain_shape, encode_representation_tcb, encode_semantic_dependency,
-    encode_trait_shape,
+    encode_terminal_authority_permission, encode_trait_shape,
 };
 use super::encoder::Encoder;
 use super::values::callables::{encode_callable, encode_external_executable_supply};
@@ -54,6 +54,10 @@ pub(crate) fn encode_with_limits(
     encoder.sequence(
         &review.dangerous_authority_slack,
         encode_dangerous_authority_slack,
+    )?;
+    encoder.sequence(
+        &review.terminal_authority_permissions,
+        encode_terminal_authority_permission,
     )?;
     encoder.sequence(&review.selected_providers, encode_provider)?;
     encoder.sequence(&review.selected_provider_families, encode_provider_family)?;

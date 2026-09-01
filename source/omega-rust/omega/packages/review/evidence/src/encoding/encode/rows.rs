@@ -2,6 +2,7 @@ use super::declarations::{
     encode_conformance_shape, encode_dangerous_authority, encode_dangerous_authority_slack,
     encode_data_shape, encode_domain_shape, encode_representation_tcb,
     encode_representation_tcb_key, encode_semantic_dependency, encode_semantic_dependency_key,
+    encode_terminal_authority_permission, encode_terminal_authority_permission_key,
     encode_trait_shape,
 };
 use super::encoder::Encoder;
@@ -60,6 +61,7 @@ pub(crate) fn encode_rows_with_limits(
         )
         .saturating_add(review.dangerous_authorities.len())
         .saturating_add(review.dangerous_authority_slack.len())
+        .saturating_add(review.terminal_authority_permissions.len())
         .saturating_add(review.boundary_application_realizations.len())
         .saturating_add(2);
     if required_rows > limits.maximum_rows {
@@ -342,6 +344,22 @@ pub(crate) fn encode_rows_with_limits(
             )?,
         )?;
     }
+    for (index, permission) in review.terminal_authority_permissions.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::TerminalAuthorityPermission,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.terminal_authority_permissions, index)?,
+                |encoder| encode_terminal_authority_permission_key(encoder, permission),
+                |encoder| encode_terminal_authority_permission(encoder, permission),
+            )?,
+        )?;
+    }
     for (index, realization) in review.boundary_application_realizations.iter().enumerate() {
         push_row(
             &mut rows,
@@ -510,5 +528,6 @@ pub(crate) const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) 
         PackageReviewCanonicalRowKind::BoundaryApplicationRealization => 16,
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => 17,
         PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => 18,
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission => 19,
     }
 }

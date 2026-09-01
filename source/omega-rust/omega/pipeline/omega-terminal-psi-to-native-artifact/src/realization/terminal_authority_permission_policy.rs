@@ -1,5 +1,6 @@
 //! Receiving permission policy for D45's service/terminal containment join.
 
+pub use omega_effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
 use omega_effects::{
     TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
     provider_plan::ServiceSchemaDigest,
@@ -8,41 +9,6 @@ use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
 pub const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
-
-/// One explicit permission row keyed by a complete normalized service schema
-/// and one exact requirement identity within that schema.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalAuthorityPermissionPolicyRow {
-    service_schema: ServiceSchemaDigest,
-    requirement_identity: String,
-    permitted: TerminalAuthorityDisposition,
-}
-
-impl TerminalAuthorityPermissionPolicyRow {
-    pub fn new(
-        service_schema: ServiceSchemaDigest,
-        requirement_identity: impl Into<String>,
-        permitted: TerminalAuthorityDisposition,
-    ) -> Self {
-        Self {
-            service_schema,
-            requirement_identity: requirement_identity.into(),
-            permitted,
-        }
-    }
-
-    pub const fn service_schema(&self) -> ServiceSchemaDigest {
-        self.service_schema
-    }
-
-    pub fn requirement_identity(&self) -> &str {
-        &self.requirement_identity
-    }
-
-    pub const fn permitted(&self) -> &TerminalAuthorityDisposition {
-        &self.permitted
-    }
-}
 
 /// Exact receiving policy accepted for one native realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,10 +34,10 @@ impl TerminalAuthorityPermissionPolicy {
         self.rows
             .iter()
             .find(|row| {
-                row.service_schema == service_schema
-                    && row.requirement_identity == requirement_identity
+                row.service_schema() == service_schema
+                    && row.requirement_identity() == requirement_identity
             })
-            .map(|row| row.permitted.clone())
+            .map(|row| row.permitted().clone())
             .ok_or_else(|| MissingTerminalAuthorityPermission {
                 service_schema,
                 requirement_identity: requirement_identity.to_owned(),
@@ -98,6 +64,7 @@ impl MissingTerminalAuthorityPermission {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAuthorityPermissionPolicyBuildError {
     EmptyRequirement,
+    InvalidRequirement,
     DuplicatePermission {
         service_schema: ServiceSchemaDigest,
         requirement_identity: String,
@@ -107,23 +74,32 @@ pub enum TerminalAuthorityPermissionPolicyBuildError {
 pub fn terminal_authority_permission_policy_with_rows(
     mut rows: Vec<TerminalAuthorityPermissionPolicyRow>,
 ) -> Result<TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError> {
-    if rows.iter().any(|row| row.requirement_identity.is_empty()) {
+    if rows.iter().any(|row| row.requirement_identity().is_empty()) {
         return Err(TerminalAuthorityPermissionPolicyBuildError::EmptyRequirement);
     }
+    if rows
+        .iter()
+        .any(|row| row.requirement_identity().chars().any(char::is_control))
+    {
+        return Err(TerminalAuthorityPermissionPolicyBuildError::InvalidRequirement);
+    }
     rows.sort_by(|left, right| {
-        left.service_schema
+        left.service_schema()
             .as_bytes()
-            .cmp(right.service_schema.as_bytes())
-            .then_with(|| left.requirement_identity.cmp(&right.requirement_identity))
+            .cmp(right.service_schema().as_bytes())
+            .then_with(|| {
+                left.requirement_identity()
+                    .cmp(right.requirement_identity())
+            })
     });
     if let Some(rows) = rows.windows(2).find(|rows| {
-        rows[0].service_schema == rows[1].service_schema
-            && rows[0].requirement_identity == rows[1].requirement_identity
+        rows[0].service_schema() == rows[1].service_schema()
+            && rows[0].requirement_identity() == rows[1].requirement_identity()
     }) {
         return Err(
             TerminalAuthorityPermissionPolicyBuildError::DuplicatePermission {
-                service_schema: rows[0].service_schema,
-                requirement_identity: rows[0].requirement_identity.clone(),
+                service_schema: rows[0].service_schema(),
+                requirement_identity: rows[0].requirement_identity().to_owned(),
             },
         );
     }
@@ -149,11 +125,11 @@ fn permission_policy_identity(
     digest.update(TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION.to_be_bytes());
     digest.update((rows.len() as u64).to_be_bytes());
     for row in rows {
-        digest.update(row.service_schema.as_bytes());
-        digest.update((row.requirement_identity.len() as u64).to_be_bytes());
-        digest.update(row.requirement_identity.as_bytes());
-        digest.update((row.permitted.classes().len() as u64).to_be_bytes());
-        for class in row.permitted.classes() {
+        digest.update(row.service_schema().as_bytes());
+        digest.update((row.requirement_identity().len() as u64).to_be_bytes());
+        digest.update(row.requirement_identity().as_bytes());
+        digest.update((row.permitted().classes().len() as u64).to_be_bytes());
+        for class in row.permitted().classes() {
             digest.update([class.canonical_tag()]);
         }
     }
@@ -227,6 +203,16 @@ mod tests {
                 ),
             ]),
             Err(TerminalAuthorityPermissionPolicyBuildError::EmptyRequirement)
+        );
+        assert_eq!(
+            terminal_authority_permission_policy_with_rows(vec![
+                TerminalAuthorityPermissionPolicyRow::new(
+                    schema,
+                    "Only::call\n",
+                    TerminalAuthorityDisposition::from_classes([]),
+                ),
+            ]),
+            Err(TerminalAuthorityPermissionPolicyBuildError::InvalidRequirement)
         );
     }
 

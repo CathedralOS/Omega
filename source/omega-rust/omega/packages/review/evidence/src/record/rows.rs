@@ -16,6 +16,7 @@ use super::{
         PackageReviewConformanceShape, PackageReviewExternalExecutableSupply,
         PackageReviewTraitShape,
     },
+    terminal_authority::PackageReviewTerminalAuthorityPermission,
 };
 use psi_core::PackageKeyIdentity;
 
@@ -59,6 +60,9 @@ pub enum PackageReviewCanonicalRowKind {
     /// One exact checked contract obligation that remains open for a later
     /// discharge route. This row is blocking and is not a certificate.
     ContractEntailmentOpenObligation,
+    /// One exact consumer-supplied terminal-authority permission. This is a
+    /// blocking policy grant, not evidence that a terminal leaf exercised it.
+    TerminalAuthorityPermission,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -126,6 +130,10 @@ pub enum PackageReviewSyntheticSourceKind {
     EmptySelectedProviderSet,
     UniqueCoveringProviderSelection,
     FreeExternalProviderType,
+    /// The semantic row came from explicit consumer policy; authored
+    /// locations identify checked service coordinates, not authorship of the
+    /// permission grant.
+    ConsumerTerminalAuthorityPermission,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -319,6 +327,10 @@ impl CheckedPackageReviewProjection {
 
     pub fn dangerous_authority_slack(&self) -> &[PackageReviewDangerousAuthoritySlack] {
         &self.dangerous_authority_slack
+    }
+
+    pub fn terminal_authority_permissions(&self) -> &[PackageReviewTerminalAuthorityPermission] {
+        &self.terminal_authority_permissions
     }
 
     pub fn selected_providers(&self) -> &[CheckedPackageProviderReview] {

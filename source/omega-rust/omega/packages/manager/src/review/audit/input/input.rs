@@ -112,6 +112,7 @@ fn deterministic_decision_recommends_audit(decision: &PackageTriageDecision) -> 
                     | PackageTriageReason::BuildObservationChanged
                     | PackageTriageReason::RepresentationTcbIntroducedOrChanged
                     | PackageTriageReason::ExternalExecutableSupplyRequiresResolution
+                    | PackageTriageReason::TerminalAuthorityPermissionRequiresResolution
                     | PackageTriageReason::RetainedDangerousAuthority(_)
                     | PackageTriageReason::DangerousAuthoritySlack(_)
             )

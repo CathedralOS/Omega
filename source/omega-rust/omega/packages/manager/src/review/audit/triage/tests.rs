@@ -82,6 +82,10 @@ fn reason_tokens_are_fixed_and_source_text_free() {
         "external_executable_supply_requires_resolution"
     );
     assert_eq!(
+        reason_token(PackageTriageReason::TerminalAuthorityPermissionRequiresResolution),
+        "terminal_authority_permission_requires_resolution"
+    );
+    assert_eq!(
         reason_token(PackageTriageReason::RepresentationTcbIntroducedOrChanged),
         "representation_tcb_introduced_or_changed"
     );

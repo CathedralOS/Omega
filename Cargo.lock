@@ -1169,6 +1169,7 @@ dependencies = [
  "omega-build-declarations",
  "omega-build-evaluation",
  "omega-compiler",
+ "omega-effects",
  "omega-package-compilation",
  "omega-package-evidence",
  "omega-package-source",

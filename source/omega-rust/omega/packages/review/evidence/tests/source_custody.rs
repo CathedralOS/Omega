@@ -434,7 +434,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
-fn accepted_dependency_console_binding_classifies_the_exact_process_authority() {
+fn accepted_dependency_console_permission_retains_exact_policy_and_source_custody() {
     let root = TempPackage::new();
     let console = TempPackage::new();
     let root_package = package_identity();
@@ -515,14 +515,45 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         plan.identity_digest(),
     )
     .expect("exact accepted Console binding");
+    let checked_without_permission = compile_to_checked_with_packages(
+        &root.0.join("main.omg"),
+        Some("linux_x86_64"),
+        base_inputs()
+            .with_accepted_semantic_bindings(vec![accepted.clone()])
+            .expect("binding package is in the exact closure"),
+    )
+    .expect("accepted Console dependency should settle exactly");
+    let review_without_permission = project_checked_package_review(&checked_without_permission)
+        .expect("resolved package Console authority should rederive during review");
+    assert_eq!(review_without_permission.dangerous_authorities().len(), 1);
+    assert!(
+        review_without_permission
+            .terminal_authority_permissions()
+            .is_empty()
+    );
+
+    let [exit_method] = plan.schema.methods.as_slice() else {
+        panic!("test Console schema has one exact requirement")
+    };
+    let accepted = accepted
+        .with_terminal_authority_permissions(vec![
+            omega_effects::ServiceTerminalAuthorityPermission::new(
+                plan.schema.identity_digest(),
+                exit_method.requirement_identity.clone(),
+                omega_effects::TerminalAuthorityDisposition::from_classes([
+                    omega_effects::TerminalAuthorityClass::ProcessTermination,
+                ]),
+            ),
+        ])
+        .expect("permission schema matches accepted Console schema");
     let checked = compile_to_checked_with_packages(
         &root.0.join("main.omg"),
         Some("linux_x86_64"),
         base_inputs()
             .with_accepted_semantic_bindings(vec![accepted])
-            .expect("binding package is in the exact closure"),
+            .expect("permission binding package is in the exact closure"),
     )
-    .expect("accepted Console dependency should settle exactly");
+    .expect("permission-bearing accepted Console dependency should settle exactly");
     let review = project_checked_package_review(&checked)
         .expect("resolved package Console authority should rederive during review");
     let [authority] = review.dangerous_authorities() else {
@@ -537,4 +568,75 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         PackageReviewNominalOwner::Package(console_package),
     );
     assert_eq!(authority.service().path(), "Console");
+
+    let [permission] = review.terminal_authority_permissions() else {
+        panic!("one exact Console exit permission row")
+    };
+    assert_eq!(
+        permission.service().owner(),
+        PackageReviewNominalOwner::Package(console_package),
+    );
+    assert_eq!(permission.service().path(), "Console");
+    assert_eq!(permission.service_schema(), plan.schema.identity_digest());
+    assert_eq!(
+        permission.requirement_identity(),
+        exit_method.requirement_identity,
+    );
+    assert_eq!(
+        permission.permitted().classes(),
+        &[omega_effects::TerminalAuthorityClass::ProcessTermination],
+    );
+
+    let permission_row = review
+        .canonical_rows()
+        .expect("canonical Console permission row")
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission)
+        .expect("terminal-authority permission is independently framed");
+    assert_eq!(
+        permission_row.risk(),
+        PackageReviewCanonicalRowRisk::Blocking
+    );
+    assert_eq!(
+        permission_row.source().compiler_derivations(),
+        &[PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission],
+    );
+    let locations = permission_row
+        .source()
+        .authored_locations()
+        .expect("permission retains authored service and requirement custody");
+    assert!(locations.iter().any(|location| {
+        location.owner() == PackageReviewSourceLocationOwner::Package(console_package)
+            && location.relative_path() == "console.omg"
+            && location.role() == PackageReviewSourceLocationRole::AuthorityDeclaration
+    }));
+    assert!(locations.iter().any(|location| {
+        location.owner() == PackageReviewSourceLocationOwner::Package(console_package)
+            && location.relative_path() == "console.omg"
+            && location.role() == PackageReviewSourceLocationRole::ProviderRequirementDeclaration
+    }));
+    let recovered = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(&permission_row)
+            .expect("encode exact permission row with source custody"),
+    )
+    .expect("recover exact permission row with source custody");
+    assert_eq!(
+        recovered.kind(),
+        PackageReviewCanonicalRowKind::TerminalAuthorityPermission,
+    );
+    assert_eq!(
+        recovered.source().compiler_derivations(),
+        &[PackageReviewSyntheticSourceKind::ConsumerTerminalAuthorityPermission],
+    );
+
+    let results = reconstruct_ordinary_package_obligation_results(&checked)
+        .expect("permission-bearing obligation result reconstruction");
+    let [open_permission] = results.open_terminal_authority_permissions() else {
+        panic!("one open root-admission permission obligation")
+    };
+    assert_eq!(
+        open_permission.status(),
+        OrdinaryPackageObligationStatus::OpenRootAdmission,
+    );
+    assert_eq!(open_permission.permission(), permission);
 }

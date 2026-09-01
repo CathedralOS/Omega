@@ -12,6 +12,7 @@ use super::super::{
         PackageReviewConformanceShape, PackageReviewExternalExecutableSupply,
         PackageReviewTraitShape,
     },
+    terminal_authority::PackageReviewTerminalAuthorityPermission,
 };
 use super::{
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
@@ -39,6 +40,7 @@ pub struct CheckedPackageReviewProjection {
     pub(crate) external_executable_supply: Vec<PackageReviewExternalExecutableSupply>,
     pub(crate) dangerous_authorities: Vec<PackageReviewDangerousAuthority>,
     pub(crate) dangerous_authority_slack: Vec<PackageReviewDangerousAuthoritySlack>,
+    pub(crate) terminal_authority_permissions: Vec<PackageReviewTerminalAuthorityPermission>,
     pub(crate) selected_providers: Vec<CheckedPackageProviderReview>,
     pub(crate) selected_provider_families: Vec<CheckedPackageProviderFamilyReview>,
     pub(crate) boundary_application_realizations:
@@ -65,6 +67,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.external_executable_supply == other.external_executable_supply
             && self.dangerous_authorities == other.dangerous_authorities
             && self.dangerous_authority_slack == other.dangerous_authority_slack
+            && self.terminal_authority_permissions == other.terminal_authority_permissions
             && self.selected_providers == other.selected_providers
             && self.selected_provider_families == other.selected_provider_families
             && self.boundary_application_realizations == other.boundary_application_realizations
