@@ -2067,16 +2067,15 @@ owned by the registration. Per-instance state remains an ordinary Omega value;
 the foreign protocol carries an explicit context token or a checked
 generational handle into package-owned state.
 
-The deployment foundation already retains the corresponding finite runtime
-capacity transactionally. One exact provider-bound, non-clonable occurrence
-moves into a reclaimable callback only when the matching registrar receipt
-reports success. A rejected registration returns it unchanged; failed
-unregister and incomplete root quiescence keep it inside the live callback; and
-successful unregister plus quiescence returns it beside the reclaimed external-
-root slot. This capacity bounds live registrations, not emitted thunk count,
-and is distinct from a consumable lifetime budget. The source-level
-`Registration` carrier and ordinary registrar invocation remain later
-engineering.
+The current compiler carries a direct callback through private native-function
+emission, relocation, final-image replay, and canonical installation format 50.
+That installation row preserves identity, source Psi, ABI, and final text
+interval but grants no runtime registration authority. The earlier callback-
+specific deployment pending/live carrier was removed; generic installed-code
+and external-root primitives do not replace its missing provider success,
+capacity, lease, unregister, quiescence, and source `Registration` joins. Those
+remain engineering work. Runtime capacity still bounds live registrations,
+not emitted thunk count, and is distinct from a consumable lifetime budget.
 
 Platform packages normally expose a safer handler API above a re-entrant native
 callback. Bodyless package surfaces declare direct synchronous entry through

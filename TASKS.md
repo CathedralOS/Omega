@@ -8808,44 +8808,15 @@ Owners:
   stale handles, and operand-shape substitution. Generic host operations
   remain outside this opt-in path. The carrier owns no object symbol,
   relocation, bytes, runtime address, registration authority, or lease. The
-  first object-relative request rung is complete for the production one-slot
-  `Field` form whose exact assigned operand is `RuntimeStorageAddress`.
-  Backend planning binds the target-closed slot geometry to one canonical BSS
-  storage-region symbol and the exact private callback text symbol, preserving
-  region/base/slot/destination offsets, pointer extent, alignment, and both
-  complete symbol snapshots. Independent replay rejects missing, duplicate,
-  reordered, substituted, out-of-bounds, misaligned, `DataAddress`, direct-
-  parameter, bounded-two-hop, or object-symbol-drifted rows. The exact
-  address-store operation
-  rung is now complete for that production shape. Backend orchestration inserts
-  one `WriteFunctionAddressToRuntimeStorage` immediately before the exact
-  registrar operation, preserves the registrar source coordinate and function
-  span, rederives target/assigned handles after both insertion and the
-  program-storage wrapper rebuild, and extends the validated root
-  `CompilerBodyPlaceAddressWrite` footprint. Both ISAs encode the function and
-  storage bases symbolically; relocation planning emits the exact x86-64
-  `Absolute64` pair or AArch64 `Page21`/`PageOffset12` pairs, and final replay
-  independently rejoins the private function identity, canonical BSS symbol,
-  sites, kinds, addends, origin, cardinality, and unchanged instruction bits.
-  `DataAddress`, direct parameters, bounded two-hop paths, registration,
-  invocation, callback lifetime/lease, and publication authority remain
-  fenced. The installation-entry manifest rung is now complete. Each ordered
-  non-Clone row retains the full private object-store request, complete checked
-  placement identity and requirement, domain-separated callback `EntryStubId`,
-  exact Text function interval, canonical BSS snapshot, encoded address store,
-  and architecture-specific relocation records; retained native artifacts
-  independently replay that manifest. Deployment projects the sealed entries
-  into artifact entry rows, binds one complete manifest entry to the exact
-  unrelocated/materialized installed bytes, architecture, entry offset, and
-  installed-code occurrence, and requires that attribution to match the root's
-  entry and requirement before installation. Pending, live, failure, cleanup,
-  and successful-quiescence carriers preserve the complete attribution rather
-  than a compact report key. Missing, duplicate, reordered, symbol/geometry,
-  instruction-kind, relocation, byte, entry, requirement, architecture, or
-  installed-occurrence drift rejects with retry custody. This still grants no
-  resolved address, registrar invocation, source-level `Registration`, live-
-  registration capacity, lease, or publication authority; `DataAddress`,
-  direct parameters, and bounded two-hop physical paths remain fenced.
+  old object-relative request, `RuntimeStorageAddress`, BSS address-store, and
+  callback-specific installation-manifest rungs belonged to the removed
+  custom/unknown host-operation prototype. Their implementation no longer
+  exists and is not a prerequisite or authority source for the canonical
+  direct-parameter path. The live path emits the callback address directly into
+  the plan-selected native parameter and binds its relocation to one private
+  function through object, final-image, and format-50 installation replay.
+  Publishing that private function as an installed `EntryStubId` and joining it
+  to runtime registration/lifetime custody remain open engineering work.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two
@@ -8890,8 +8861,8 @@ Owners:
   independently validated placement and exact registrar plan. Missing,
   duplicate, unreachable, wrong-target, non-boundary-operation, native-
   application, and artifact drift reject; source handles do not enter canonical
-  Terminal Psi. Native production remains deliberately fenced rather than
-  discarding this custody.
+  Terminal Psi. Native production may proceed only by consuming and replaying
+  this custody; it cannot reconstruct the authored join after handoff.
 
   The first direct-form continuation is complete through physical assignment.
   Compiler re-entry consumes exactly one target-owned application keyed by
@@ -8910,9 +8881,12 @@ Owners:
   page relocations to the retained private symbol with semantic-operation
   origin; final-image replay decodes the relocated address and requires it to
   equal that private function's final text address. A source-derived Windows
-  x64 import canary now crosses the complete retained native-artifact path.
-  Runtime registration, installed-address/lifetime custody, and executable
-  publication remain open.
+  x64 import canary now crosses the complete retained native-artifact path and
+  canonical installation format 50. The installation row preserves the exact
+  compiler-private identity, source-Psi identity, artifact-local machine, fixed
+  integer ABI, and final text interval; encode/decode and image replay reject
+  shedding or substitution. Runtime registration, installed-address/lifetime
+  custody, entry publication, and executable publication remain open.
   The removed custom/unknown host-operation prototype must not be treated as
   authority for this ordinary normalized-import path. The direct-form negative
   matrix is complete. Source and retained-product canaries reject an
@@ -8941,27 +8915,16 @@ Owners:
   unchanged, and an unsuccessful unregister retains it. Capacity bounds live
   runtime registrations, not statically emitted thunk count. `build.omg`
   selects and admits the realization/resources; ordinary Omega control flow
-  performs registration. The deployment-owned custody rung is now live below
-  that source protocol. It transactionally installs an independently admitted
-  callback root into the exact deployment ledger before the ordinary registrar
-  call, retains the installed root and ledger in a non-Clone pending carrier,
-  and admits only the later exact successful provider receipt. The live carrier
-  then owns reclaimable registration plus ledger custody until exact provider
-  unregister and root quiescence return the original slot authority. Every
-  installation, receipt, unsuccessful-unregister, and nonquiescent rejection
-  returns complete retry custody; a false registrar result can explicitly
-  remove the still-unregistered pending root. The emitted callback store/demand
-  catalog is now joined through one sealed installation manifest entry to the
-  exact installed bytes, entry offset, root entry, and requirement, and that
-  complete attribution survives every pending/live/terminal result. Invoking
-  the registrar and creating the source-level linear `Registration` remain
-  engineering rungs. The deployment admission now also consumes one exact
-  non-clonable provider-bound live-registration capacity occurrence only with
-  the matching successful registrar receipt. Registration rejection returns
-  the occurrence unchanged, the live callback retains it across every
-  unsuccessful unregister or nonquiescent removal, and successful unregister
-  plus root quiescence returns that exact occurrence beside the reclaimed root
-  slot. This capacity is neither a lifetime budget nor a static thunk count.
+  performs registration. No callback-specific deployment pending/live carrier
+  currently exists: the earlier custom object-store/manifest prototype and its
+  callback registration modules were removed. Generic installed-code and
+  external-root primitives survive, including opaque callback replacement,
+  but they do not establish registrar success, live-registration capacity,
+  callback lease custody, or a source `Registration`. The next implementation
+  must join the format-50 private-function installation row to one published
+  entry and an admitted root, then preserve exact retry custody across provider
+  success/failure, unregister, and quiescence. This is engineering work under
+  the settled protocol, not evidence that the deleted carrier is still live.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public

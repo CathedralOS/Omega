@@ -35,6 +35,7 @@ mod installed_unit_scalar_transport;
 mod internal_unit_call_codec;
 mod internal_unit_scalar_call_codec;
 mod port_effect_codec;
+mod private_function_codec;
 mod provider_execution_codec;
 mod provider_plan_codec;
 mod scalar_call_plan_codec;
@@ -64,6 +65,7 @@ use internal_unit_scalar_call_codec::{
     decode_internal_unit_scalar_calls, encode_internal_unit_scalar_calls,
 };
 use port_effect_codec::{decode_port_effects, encode_port_effects};
+use private_function_codec::{decode_private_functions, encode_private_functions};
 use provider_plan_codec::{decode_provider_plans, encode_provider_plans};
 use semantic_code_attribution_codec::{
     decode_semantic_code_attributions, encode_semantic_code_attributions,
@@ -76,7 +78,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 49;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 50;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -206,6 +208,7 @@ pub struct InstallationRecord {
     selected_provider_plans: Vec<SelectedProviderPlanReportIdentity>,
     component_progress: Option<InstalledComponentProgress>,
     functions: Vec<InstalledFunction>,
+    private_functions: Vec<InstalledCompilerPrivateFunction>,
     structural_returns: Vec<InstalledStructuralReturn>,
     internal_unit_calls: Vec<InstalledInternalUnitCall>,
     internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
@@ -247,6 +250,13 @@ impl InstallationRecord {
 
     pub fn functions(&self) -> &[InstalledFunction] {
         &self.functions
+    }
+
+    /// Compiler-private functions remain a namespace disjoint from semantic
+    /// program functions even when their artifact-local `MachineId`s happen
+    /// to have the same numeric value.
+    pub fn private_functions(&self) -> &[InstalledCompilerPrivateFunction] {
+        &self.private_functions
     }
 
     pub fn structural_returns(&self) -> &[InstalledStructuralReturn] {
@@ -314,6 +324,22 @@ pub struct InstalledFunction {
     pub scalar_control_affine_cleanups: Vec<omega_machine_code::UnitAffineCleanupRecord>,
     pub scalar_structural_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub scalar_structural_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
+}
+
+/// Canonical installation custody for one compiler-private callback thunk.
+///
+/// The executable image remains authoritative for native bytes and symbol
+/// replay. This row prevents installation serialization from shedding or
+/// substituting the exact private identity, source program, ABI, or final text
+/// interval already validated by object and image construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledCompilerPrivateFunction {
+    pub identity: omega_function_identity::MachineFunctionIdentity,
+    pub source_psi: TerminalPsiIdentity,
+    pub machine: MachineId,
+    pub fixed_integer_scalar_abi: omega_target_operations::FixedIntegerScalarFunctionAbi,
+    pub text_offset: usize,
+    pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -429,9 +455,6 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
-    if !image.private_functions().is_empty() {
-        return Err(InstallationError::UnsettledCompilerPrivateFunctions);
-    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -545,6 +568,11 @@ where
                 attachment: function.attachment,
             })
             .collect(),
+        private_functions: image
+            .private_functions()
+            .iter()
+            .map(installed_compiler_private_function)
+            .collect::<Result<Vec<_>, _>>()?,
         structural_returns: image
             .functions()
             .iter()
@@ -761,6 +789,8 @@ pub fn encode_installation_record(
         .map_err(|_| InstallationError::TooManyBoundarySettlements)?;
     let function_count = u32::try_from(record.functions.len())
         .map_err(|_| InstallationError::TooManyInstalledFunctions)?;
+    let private_function_count = u32::try_from(record.private_functions.len())
+        .map_err(|_| InstallationError::TooManyCompilerPrivateFunctions)?;
     let structural_return_count = u32::try_from(record.structural_returns.len())
         .map_err(|_| InstallationError::TooManyStructuralReturns)?;
     let internal_unit_call_count = u32::try_from(record.internal_unit_calls.len())
@@ -790,6 +820,11 @@ pub fn encode_installation_record(
     )?;
     encode_provider_plans(&mut bytes, provider_count, &record.selected_provider_plans);
     encode_functions(&mut bytes, function_count, &record.functions)?;
+    encode_private_functions(
+        &mut bytes,
+        private_function_count,
+        &record.private_functions,
+    )?;
     encode_structural_returns(
         &mut bytes,
         structural_return_count,
@@ -828,6 +863,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     } = decode_installation_header(&mut reader)?;
     let selected_provider_plans = decode_provider_plans(&mut reader)?;
     let functions = decode_functions(&mut reader)?;
+    let private_functions = decode_private_functions(&mut reader)?;
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let internal_unit_scalar_calls = decode_internal_unit_scalar_calls(&mut reader)?;
@@ -846,6 +882,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         selected_provider_plans,
         component_progress,
         functions,
+        private_functions,
         structural_returns,
         internal_unit_calls,
         internal_unit_scalar_calls,
@@ -866,10 +903,12 @@ pub fn validate_installation_record(
     record: &InstallationRecord,
     image: &ExecutableImage,
 ) -> Result<(), InstallationError> {
-    if !image.private_functions().is_empty() {
-        return Err(InstallationError::UnsettledCompilerPrivateFunctions);
-    }
     validate_record_shape(record)?;
+    let expected_private_functions = image
+        .private_functions()
+        .iter()
+        .map(installed_compiler_private_function)
+        .collect::<Result<Vec<_>, _>>()?;
     if record.psi != image.psi()
         || record.target != image.target()
         || record.subsystem != image.subsystem()
@@ -878,6 +917,7 @@ pub fn validate_installation_record(
         || record.semantic_code_attribution != image.semantic_code_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
+        || record.private_functions != expected_private_functions
         || record.structural_returns
             != image
                 .functions()
@@ -960,6 +1000,23 @@ pub fn validate_installation_record(
         return Err(InstallationError::ImageBindingMismatch);
     }
     Ok(())
+}
+
+fn installed_compiler_private_function(
+    emitted: &crate::ObjectCompilerPrivateFunction,
+) -> Result<InstalledCompilerPrivateFunction, InstallationError> {
+    Ok(InstalledCompilerPrivateFunction {
+        identity: emitted.identity,
+        source_psi: emitted.source_psi,
+        machine: emitted.function.machine,
+        fixed_integer_scalar_abi: emitted
+            .function
+            .fixed_integer_scalar_abi
+            .clone()
+            .ok_or(InstallationError::MissingCompilerPrivateFunctionAbi)?,
+        text_offset: emitted.function.text_offset,
+        byte_count: emitted.function.byte_count,
+    })
 }
 
 fn installed_scalar_control_cleanups_match_object(
@@ -1586,6 +1643,25 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .checked_add(function.byte_count)
             .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
         previous_function = Some(function.machine);
+    }
+    if record.private_functions.len() > 1 {
+        return Err(InstallationError::TooManyCompilerPrivateFunctions);
+    }
+    for private in &record.private_functions {
+        if private.identity.callback_thunk_placement_index().is_none()
+            || !private.identity.is_valid()
+            || private.byte_count == 0
+            || private.text_offset != expected_text_offset
+            || !installed_unit_scalar_transport::installed_fixed_integer_scalar_abi_is_canonical(
+                &private.fixed_integer_scalar_abi,
+                record.target,
+            )
+        {
+            return Err(InstallationError::InvalidCompilerPrivateFunction);
+        }
+        expected_text_offset = expected_text_offset
+            .checked_add(private.byte_count)
+            .ok_or(InstallationError::CompilerPrivateFunctionOffsetNotRepresentable)?;
     }
     let function_by_machine = record
         .functions
@@ -2772,7 +2848,7 @@ pub enum InstallationError {
     NonCanonicalProviderPlanOrder,
     TooManyProviderPlans,
     TooManyInstalledFunctions,
-    UnsettledCompilerPrivateFunctions,
+    TooManyCompilerPrivateFunctions,
     TooManyStackCallFacts,
     InvalidForeignStackContribution,
     TooManyStructuralReturns,
@@ -2805,12 +2881,16 @@ pub enum InstallationError {
     TooManyCompletionClaimSources,
     SettlementOffsetNotRepresentable,
     FunctionOffsetNotRepresentable,
+    CompilerPrivateFunctionOffsetNotRepresentable,
     StructuralReturnOffsetNotRepresentable,
     InternalUnitCallOffsetNotRepresentable,
     InstalledScalarOffsetNotRepresentable,
     SemanticCodeAttributionOffsetNotRepresentable,
     PortEffectOffsetNotRepresentable,
     ZeroFunctionIdentity,
+    InvalidCompilerPrivateFunctionIdentity,
+    InvalidCompilerPrivateFunctionRoleTag(u8),
+    MissingCompilerPrivateFunctionAbi,
     ZeroStructuralReturnIdentity(&'static str),
     ZeroInternalUnitCallIdentity,
     ZeroInstalledScalarIdentity,
@@ -2851,6 +2931,7 @@ pub enum InstallationError {
     ZeroProviderExecutionEvidence,
     NoInstalledFunctions,
     NonCanonicalInstalledFunctions,
+    InvalidCompilerPrivateFunction,
     StructuralReturnMachineMissing(MachineId),
     InvalidStructuralReturn(MachineId),
     InvalidInternalUnitCall(MachineId),

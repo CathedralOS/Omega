@@ -891,7 +891,7 @@ It is historical context, not current implementation or reusable authority.
 The canonical replacement starts at the checked identity spine below and its
 current frontier is stated in the direct-source section later in this brief.
 
-The next prerequisite retains the registrar occurrence through the ordinary
+The prototype retained the registrar occurrence through the ordinary
 host-call and abstract-boundary spine without granting any of those later
 authorities. One outbound `HostCallPlan` row records its exact authored
 statement or expression site, resolved registration-operation symbol,
@@ -934,7 +934,7 @@ and slot IDs remain joined to the exact data symbols, layout rows, field paths,
 and private-slot demands described below; compact equality never bypasses that
 replay.
 
-The following target-closed placement recipe now binds that exact argument to
+The prototype's target-closed placement recipe bound that exact argument to
 the outbound registrar `CallPlan` parameter's `ValuePlacement`. A direct
 `Field` retains exactly one authoritative native-layout demand row, including
 layout, slot, requirement, data symbol, offset, pointer extent, and alignment.
@@ -956,9 +956,9 @@ grants no selected or assigned operation, object
 symbol, relocation, bytes, runtime address, registration authority, or callback
 lifetime.
 
-The selected/assigned registrar-operand prerequisite is now complete for the
+The selected/assigned registrar-operand prerequisite was completed only for the
 closed custom/unknown outbound host-operation branch. Instruction selection
-retains the exact source-call arena identity, call and operation ordinals, and
+retained the exact source-call arena identity, call and operation ordinals, and
 an ordered `NativeParameterId` to abstract-operand map with semantic-formal
 identity only where one exists; result-storage pseudo-arguments are excluded.
 Target lowering resolves that source handle to
@@ -973,7 +973,7 @@ Generic host operations remain outside this opt-in carrier. The row still owns
 no object symbol, relocation, bytes, runtime address, registration authority,
 or callback lifetime.
 
-The first object-relative request now closes only the production one-slot
+The prototype's object-relative request closed only the one-slot
 `Field` plus exact `RuntimeStorageAddress` shape. One
 `CallbackPrivateObjectStoreRequest` preserves the complete assigned binding,
 runtime-storage region and base, target-closed slot/destination geometry, the
@@ -982,8 +982,8 @@ snapshot. Construction and replay rejoin every preceding catalog and reject
 missing/duplicate symbols, wrong section or kind, bounds/alignment drift,
 `DataAddress`, and the not-yet-implemented direct-parameter form. These symbols
 are
-identity evidence rather than resolved-address authority. The following closed
-compiler rung now inserts one exact `WriteFunctionAddressToRuntimeStorage`
+identity evidence rather than resolved-address authority. Its closed compiler
+rung inserted one exact `WriteFunctionAddressToRuntimeStorage`
 operation immediately before its registrar host call, preserving the registrar
 source coordinate and containing function. The operation survives
 abstract-to-target-to-assigned lowering, is encoded on both ISAs with symbolic
@@ -997,17 +997,12 @@ resolved runtime address, registration, invocation, callback lifetime/lease,
 or publication authority. `DataAddress`, direct parameters, and the bounded
 two-hop path remain fenced.
 
-One ordered non-Clone installation manifest now carries that closed evidence
-through retained native output. Each entry retains the full private object-store
-request and placement identity, a domain-separated callback entry identity, the
-exact Text interval and BSS symbol snapshot, encoded store, and target
-relocations. Deployment binds the complete entry to the exact installed-code
-occurrence, unrelocated/materialized bytes, architecture, and entry offset;
-root installation additionally requires the same entry and requirement. The
-attribution remains intact through pending registration, live registration,
-failure, cleanup, and quiescence. Compact entry IDs never substitute for the
-sealed manifest row, and no resolved address, invocation, capacity, lease, or
-publication authority is introduced.
+The prototype carried that closed evidence through one ordered non-Clone
+installation manifest. Its deployment layer bound each field/BSS entry to an
+installed-code occurrence and retained attribution through pending/live
+callback states. Both the manifest and those callback-specific deployment
+states were removed; this historical sequence supplies no authority or
+implementation to the current direct-parameter path.
 
 ### Current callback identity and custody spine
 
@@ -1306,29 +1301,23 @@ a different authority. Many live registrations may share one compatible
 statically emitted thunk, so capacity bounds runtime registration state rather
 than code size.
 
-The current deployment foundation closes the post-installation custody seam
-without pretending to execute that ordinary registrar call. It installs an
-independently admitted callback root into the deployment's exact root ledger
-and returns a non-Clone pending carrier owning both values. After the provider
-reports the registrar result, only an exact successful receipt may establish a
-reclaimable callback registration. The live carrier retains registration and
-ledger custody through provider unregister plus exact root quiescence, which
-alone returns the original slot authority. Rejection returns all retry inputs;
-a false registrar result leaves no registration and supports explicit pending-
-root cleanup. Exact emitted-thunk/store attribution is now joined through the
-retained installation manifest to the installed bytes, entry, root, and
-requirement, and remains in every custody result. Registrar invocation, the
-source-level linear `Registration`, and its package surface remain separate
-engineering joins. The deployment admission now binds one exact non-clonable
-provider-owned live-registration capacity occurrence to the provider receipt.
-Only a matching successful receipt moves it into the reclaimable callback;
-every rejected admission, unsuccessful unregister, or nonquiescent removal
-retains and returns the same occurrence, and successful unregister plus root
-quiescence returns it beside the reclaimed root slot. Registration and
-unregistration receipts retain private process-local provenance for that
-occurrence, so another provider-issued occurrence with the same compact report
-ID cannot substitute at either join. This adds no registrar invocation and does
-not treat capacity as a thunk count or lifetime budget.
+There is currently no callback-specific deployment pending/live carrier. The
+earlier custom object-store/installation-manifest implementation and its
+callback registration modules were removed. Generic installed-code and
+external-root infrastructure remains, including opaque callback replacement,
+but those primitives do not by themselves establish registrar success, finite
+live-registration capacity, callback code/component leases, or a source-level
+`Registration`.
+
+The current direct-parameter path stops at canonical installation custody.
+Installation format 50 retains the exact compiler-private thunk identity,
+source-Psi identity, artifact-local machine, fixed-integer ABI, and final text
+interval and rejoins that row to the executable image after encode/decode. The
+next deployment rung must publish that private function as an installed entry,
+join it to an admitted external root and exact provider result, and preserve
+complete retry custody through failure, unregister, and quiescence. Capacity
+still means simultaneous live registrations, not emitted thunk count or a
+consumable lifetime budget.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained
@@ -1758,11 +1747,14 @@ register-or-stack address load; object construction emits architecture-specific
 relocations to that private symbol, and final-image replay decodes the patched
 address and requires the private function's final text address. The callback-
 closed registrar plan is also rejoined to its exact source-evaluated locator
-and explicit receiving-policy row. The removed custom/unknown host-operation
-prototype is not reusable evidence of completion. Runtime registration,
-installed lifetime custody, and publication remain engineering work under the
-settled v3 application model, not open language-design questions. The authored-
-hidden-parameter and stale-v1/v2 negative matrix is complete at source
+and explicit receiving-policy row. Canonical installation format 50 preserves
+the exact private identity, source-Psi identity, artifact-local machine, fixed-
+integer ABI, and final text interval and rejoins the decoded row to the same
+image. The removed custom/unknown host-operation prototype is not reusable
+evidence of completion. Runtime registration, installed lifetime custody,
+entry publication, and executable publication remain engineering work under
+the settled v3 application model, not open language-design questions. The
+authored-hidden-parameter and stale-v1/v2 negative matrix is complete at source
 admission and independent replay.
 
 Compiler-body memory operations likewise retain their exact plan-selected place

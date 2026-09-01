@@ -31,6 +31,7 @@ omega-task-plans = { path = "../../../representations/omega-task-plans" }
 omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
+psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-fixed-fuel = { path = "../../../../psi/semantics/psi-terminal-fixed-fuel" }

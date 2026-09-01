@@ -705,6 +705,7 @@ dependencies = [
  "psi-core",
  "psi-diagnostics",
  "psi-proof-admission",
+ "psi-symbols",
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fixed-fuel",

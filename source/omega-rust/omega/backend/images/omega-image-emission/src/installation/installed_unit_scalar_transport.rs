@@ -23,48 +23,7 @@ pub(super) fn installed_function_scalar_transport_is_canonical(
     let abi_is_canonical = function
         .fixed_integer_scalar_abi
         .as_ref()
-        .is_none_or(|abi| {
-            let Some(parameter_shapes) = abi
-                .parameters
-                .iter()
-                .map(|parameter| fixed_integer_shape(parameter.scalar_type))
-                .collect::<Option<Vec<_>>>()
-            else {
-                return false;
-            };
-            let Some(result_shape) = fixed_integer_shape(abi.result.scalar_type) else {
-                return false;
-            };
-            let Ok(expected_plan) = evaluate_call_plan(
-                CallingPolicy::native_for_target(target),
-                &CallSignature {
-                    parameters: parameter_shapes.clone(),
-                    result: Some(result_shape),
-                },
-            ) else {
-                return false;
-            };
-            expected_plan == abi.call_plan
-                && abi.parameters.len() == abi.call_plan.parameters.len()
-                && abi
-                    .parameters
-                    .iter()
-                    .zip(&parameter_shapes)
-                    .zip(&abi.call_plan.parameters)
-                    .all(|((parameter, shape), placement)| {
-                        parameter.placement == *placement && placement.shape == *shape
-                    })
-                && abi.call_plan.result.as_ref() == Some(&abi.result.placement)
-                && abi.result.placement.shape == result_shape
-                && abi
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.value)
-                    .chain(std::iter::once(abi.result.value))
-                    .collect::<std::collections::BTreeSet<_>>()
-                    .len()
-                    == abi.parameters.len() + 1
-        });
+        .is_none_or(|abi| installed_fixed_integer_scalar_abi_is_canonical(abi, target));
     let homes_are_canonical = function
         .unit_scalar_homes
         .iter()
@@ -100,6 +59,52 @@ pub(super) fn installed_function_scalar_transport_is_canonical(
                         })
             });
     abi_is_canonical && homes_are_canonical && constants_are_canonical
+}
+
+pub(super) fn installed_fixed_integer_scalar_abi_is_canonical(
+    abi: &omega_target_operations::FixedIntegerScalarFunctionAbi,
+    target: NativeTarget,
+) -> bool {
+    let Some(parameter_shapes) = abi
+        .parameters
+        .iter()
+        .map(|parameter| fixed_integer_shape(parameter.scalar_type))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    let Some(result_shape) = fixed_integer_shape(abi.result.scalar_type) else {
+        return false;
+    };
+    let Ok(expected_plan) = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: parameter_shapes.clone(),
+            result: Some(result_shape),
+        },
+    ) else {
+        return false;
+    };
+    expected_plan == abi.call_plan
+        && abi.parameters.len() == abi.call_plan.parameters.len()
+        && abi
+            .parameters
+            .iter()
+            .zip(&parameter_shapes)
+            .zip(&abi.call_plan.parameters)
+            .all(|((parameter, shape), placement)| {
+                parameter.placement == *placement && placement.shape == *shape
+            })
+        && abi.call_plan.result.as_ref() == Some(&abi.result.placement)
+        && abi.result.placement.shape == result_shape
+        && abi
+            .parameters
+            .iter()
+            .map(|parameter| parameter.value)
+            .chain(std::iter::once(abi.result.value))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == abi.parameters.len() + 1
 }
 
 pub(super) fn validate_installed_unit_scalar_calls(
