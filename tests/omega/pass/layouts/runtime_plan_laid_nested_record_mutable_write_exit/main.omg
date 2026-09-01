@@ -1,7 +1,7 @@
 // A fixed record remains one aggregate schema field. Its whole extent follows
 // the policy's `At` placement, while compiler-derived record offsets govern
 // projections inside that extent.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data SpreadRecord { entries: [FieldEntry; 64]; }

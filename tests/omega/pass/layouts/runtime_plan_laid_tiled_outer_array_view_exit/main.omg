@@ -2,7 +2,7 @@
 // field a physical stride of four bytes while each u16 element remains two
 // semantic bytes wide. Both literal and runtime indexing must preserve that
 // distinction through mutable byte views.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data TiledArray { entries: [FieldEntry; 64]; }

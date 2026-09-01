@@ -2,7 +2,7 @@
 // outer array is placed through one `At` per element. The twelve-byte physical
 // stride is distinct from Pair's eight-byte semantic width; Pair's own padding
 // and field offsets remain compiler-derived inside each destination extent.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data TiledRecordArray { entries: [FieldEntry; 64]; }

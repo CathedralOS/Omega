@@ -1,7 +1,7 @@
 // Nested fixed primitive arrays remain one aggregate layout field. A mutable
 // byte-region view must apply both array strides below the field's validated
 // whole-extent `At` placement.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data SpreadArray { entries: [FieldEntry; 64]; }

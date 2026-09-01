@@ -2,7 +2,7 @@
 // array at byte 8 and a trailing scalar at byte 24, deliberately disagreeing
 // with native packing. Interpreter and native record views must tile the three
 // u16 elements from the array field's validated extent.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data SpreadArray {

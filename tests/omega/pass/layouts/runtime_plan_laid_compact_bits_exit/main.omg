@@ -2,7 +2,7 @@
 // `code` field is itself split across two fragments. Ordinary field writes
 // must use masked RMW so later writes preserve siblings; reads must reconstruct
 // the logical scalar from every fragment. Exit 70 pins both behaviors.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

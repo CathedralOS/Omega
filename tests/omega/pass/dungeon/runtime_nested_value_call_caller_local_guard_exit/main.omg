@@ -9,7 +9,7 @@
 // never carved, rendering empty descriptions). Exit 70 = the comparison value
 // is computed and the true arm dispatches (interpreter semantics); exit 71 =
 // the result-slot write was lost and the false arm ran.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data RandomState {

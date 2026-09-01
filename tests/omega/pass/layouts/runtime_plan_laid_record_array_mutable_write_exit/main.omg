@@ -1,7 +1,7 @@
 // A fixed array of fixed records remains one aggregate `Repeated` schema
 // field. Its whole extent follows the policy's `At` placement, while each
 // element uses compiler-derived record padding and field offsets.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::layout;
 
 data SpreadRecordArray { entries: [FieldEntry; 64]; }

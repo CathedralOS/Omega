@@ -8,7 +8,7 @@
 // native packing, its reads would land in the spread's padding gaps and see
 // zeros, exiting 71. Exits 70 only when every field read through the passed-by-
 // value copies matches what main wrote.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

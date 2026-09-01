@@ -1,7 +1,7 @@
 // The semantic range exactly matches the signed 8-bit stored range, so every
 // admitted value has an encoding. Mutation may therefore narrow without a
 // per-value proof; the following projection must sign-extend it back to i64.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
