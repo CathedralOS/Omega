@@ -1693,7 +1693,7 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
     let task_planning_source = std::fs::read_to_string(&task_planning)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", task_planning.display()));
     assert!(
-        task_planning_source.contains("omega.task-specialization.sha256.v1")
+        task_planning_source.contains("omega.task-specialization.sha256.v2")
             && task_planning_source.contains("normalized_trait_requirement_overload_identity")
             && task_planning_source.contains("strong.machine(program, target_machine)")
             && task_planning_source.contains("strong.state(program, target_machine, target_entry)")
@@ -2232,8 +2232,8 @@ fn retained_native_product_enters_only_terminal_realization() {
         "the StateGraph compatibility compiler must stay deleted"
     );
     for required in [
-        "produce_terminal_artifact(",
-        "realize_native_artifact(",
+        "produce_terminal_artifact_with_checked_boundary_operator_scope(",
+        "realize_native_artifact_with_checked_boundary_operator_scope(",
         "from_retained_native_artifact(",
     ] {
         assert!(

@@ -7734,6 +7734,7 @@ mod provider_plan {
         let row = |method: &str, number: i64| ProviderPlanRow {
             method: method.to_owned(),
             requirement_identity: String::new(),
+            requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Syscall { number },
         };
         let plan = |rows: Vec<ProviderPlanRow>| ProviderPlan {
