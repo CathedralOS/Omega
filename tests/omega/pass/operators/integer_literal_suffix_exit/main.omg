@@ -2,7 +2,7 @@
 // the literal's primitive type; the value must round-trip through storage and
 // compare equal to the same suffixed literal.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

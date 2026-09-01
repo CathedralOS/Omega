@@ -5,7 +5,7 @@
 // compose). This tests address arithmetic only. Allocation authority is now
 // represented separately by the opaque linear `Extent` carrier.
 // exits: 71 = bump result wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; base: addr; }
 machine Main::bump(&mut self, a: addr, by: u64) -> addr { a + by }
 machine Main::main(&mut self) {

@@ -291,7 +291,7 @@ fn assert_canaries_declare_ordinary_standard_library_edges(cases: &Path, expecte
                 explicit_alias: None,
                 location: "../../../../../source/library/std".to_owned(),
             }],
-            "unexpected time-canary dependency declaration in {}",
+            "unexpected canary dependency declaration in {}",
             root.display()
         );
 
@@ -341,6 +341,16 @@ fn foundational_runtime_canaries_declare_ordinary_standard_library_edges() {
         ("constants", 2),
         ("errors", 1),
     ] {
+        assert_canaries_declare_ordinary_standard_library_edges(
+            &repository_root().join("tests/omega/pass").join(category),
+            expected_count,
+        );
+    }
+}
+
+#[test]
+fn operator_and_type_runtime_canaries_declare_ordinary_standard_library_edges() {
+    for (category, expected_count) in [("operators", 9), ("types", 8)] {
         assert_canaries_declare_ordinary_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
             expected_count,

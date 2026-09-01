@@ -1,7 +1,7 @@
 // i8 fields: SIGNED store, arithmetic, and compare against a negative literal.
 // Exercises that i8 is wired as a 1-byte SIGNED primitive (is_signed_integer):
 // -10 + 4 == -6 -> exit 70. A wrong (unsigned) treatment would mis-compare.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

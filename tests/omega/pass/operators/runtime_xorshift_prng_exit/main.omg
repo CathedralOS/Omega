@@ -3,7 +3,7 @@
 // signed-vs-logical `>>` divergence between backends would change the draw).
 // Seed 2463534242 -> one xorshift step -> low byte 99. Self-checks and exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

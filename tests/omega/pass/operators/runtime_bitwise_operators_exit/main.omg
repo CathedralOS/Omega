@@ -4,7 +4,7 @@
 // Precedence sits between comparison and the shifts (Rust-style), and infix `&`
 // is disambiguated from a prefix reference by position.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

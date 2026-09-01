@@ -3,7 +3,7 @@
 // invalidation fix: every later read of `self.v` must observe the prior write,
 // not the stale entry-value constant fold.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

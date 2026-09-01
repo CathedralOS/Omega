@@ -5,7 +5,7 @@
 // addr * anything, shifts) rejects at compile -- see
 // fail/types/addr_plus_addr_rejected.
 // exits: 71 = addr - count wrong; 72 = addr - addr wrong; 73 = ordering wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::main(&mut self) {
     let a: addr = 4096;

@@ -388,7 +388,8 @@ explicitly.
   - migrate remaining package-aware fixtures to explicit std dependency edges;
     the compiler product, parser package, all 140 std-consuming sample
     packages, all 14 packaged time canaries, all 24 packaged filesystem
-    canaries, and eight packaged backend/borrow/constants/error canaries already
+    canaries, eight packaged backend/borrow/constants/error canaries, and all
+    17 packaged operator/type canaries already
     declare ordinary `omega-language-std` edges and import through its derived
     alias; the
     package-aware sample sweep introduces no failures beyond the seven

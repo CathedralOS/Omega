@@ -4,7 +4,7 @@
 // store two distinct addresses in struct fields, read one back through `.raw`,
 // and cast to i32 for the exit code. Naive pointer-width (rides the 8-byte path);
 // native must match the interpreter.
-use omega::language::std::console;
+use omega_language_std::console;
 data EfiHandle { raw: addr; }
 data ConsolePtr { raw: addr; }
 data Main { console: Console; h: EfiHandle; c: ConsolePtr; r: i32; }
