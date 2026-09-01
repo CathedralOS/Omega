@@ -317,6 +317,17 @@ contained claim. Constructing a case activates only its payload; moving one
 payload field leaves same-case siblings live while impossible case alternatives
 remain inactive.
 
+Checked transition planning has one deliberately smaller path-sensitive rung.
+An attached two-state Unit machine may make one unconditional ordinary jump
+whose sole non-self affine parameter is a claim-free, unqualified record of
+exactly two structural fields. Moving either whole direct field to the sole
+exact-same-type successor parameter retains the other field as one maximal
+no-code residual. The checked row is separate from the whole-root edge rows,
+so existing Terminal consumers fail closed instead of silently dropping the
+path. Executable Terminal control, codec/runtime/native replay, nested or wider
+records, extra roots, and arbitrary control flow remain unimplemented for this
+transition form.
+
 An aggregate with structural field cleanup may be partially moved. Its cleanup
 plan visits only the remaining live fields. The implemented terminal slice
 accepts a finite nonempty set of pairwise prefix-disjoint, nonempty all-field

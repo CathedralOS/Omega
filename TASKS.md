@@ -9565,6 +9565,21 @@ reach or trust, and private proof improvements do not change public identity.
   conservation/backend-ledger reporting. This is not yet a general conditional
   CFG, complete cleanup plan, or conservation witness.
 
+  A first checked-only projected transition rung now retains one exact
+  attached, two-state, Unit-returning ordinary jump. Its sole non-self affine
+  source parameter is an unqualified two-field record with no claims,
+  contracts, carry policy, or nominal cleanup; one whole direct structural
+  field moves to the sole exact-same-type successor parameter and the sibling
+  is retained as the one maximal no-code residual. Left/right symmetry,
+  authoritative state-exit evidence, normalized field/type identity, and
+  whole-edge overlap are checked explicitly. Free machines, scalar results,
+  wider or nested records, extra roots/arguments/control, claims, contracts,
+  carry policy, and nominal cleanup remain fenced. This row grants no
+  executable authority: existing whole-root consumers reject its coordinate,
+  and Terminal control still rejects path-segment successor transfers. A
+  source-free Terminal path carrier, independent replay, codec/runtime/native
+  realization, and the complete `EdgeCleanupPlan` remain CML4 engineering.
+
   The mixed scalar/affine record rung is closed for claim-free records whose
   fields are bounded Terminal scalars, exact binary32/binary64 float leaves,
   exact-capacity bounded-owned byte-sequence leaves, or affine structural

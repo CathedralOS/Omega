@@ -2,15 +2,17 @@ use std::collections::BTreeSet;
 
 use psi_checked_trees::{
     CheckFacts, CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
-    CheckedStructuralControlStateCleanupPlan,
+    CheckedStructuralControlProjectedEdgeCleanupPlan,
+    CheckedStructuralControlProjectedTransferPlan, CheckedStructuralControlStateCleanupPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralPathSegment,
 };
 use psi_language_semantics::{
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, PermissionProvenance,
+    MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
+    PermissionEventKind, PermissionEventSource, PermissionProvenance,
 };
 use psi_typed_trees::{
     TypedTrees,
-    statement::{StatementNode, TransitionExit, TransitionTargetNode},
+    statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
 use super::FlowOwnershipEventSource;
@@ -27,14 +29,166 @@ pub(crate) fn build_checked_structural_control_cleanup_plans(
     facts: &CheckFacts,
 ) -> CheckedStructuralControlCleanupPlans {
     let mut states = Vec::new();
+    let mut projected_edges = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
+            if let Some(edge) = build_projected_edge_plan(program, facts, machine, state) {
+                projected_edges.push(edge);
+            }
             if let Some(plan) = build_state_plan(program, facts, machine, state) {
                 states.push(plan);
             }
         }
     }
-    CheckedStructuralControlCleanupPlans { states }
+    CheckedStructuralControlCleanupPlans {
+        states,
+        projected_edges,
+    }
+}
+
+fn build_projected_edge_plan(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+) -> Option<CheckedStructuralControlProjectedEdgeCleanupPlan> {
+    let states = program.machine_states(machine);
+    if machine.supply_mode != MachineSupplyMode::CheckedBody
+        || machine.attached_data.is_none()
+        || states.len() != 2
+        || !program.machine_contracts(machine).is_empty()
+        || !program.state_contracts(state).is_empty()
+        || !super::terminal_unit::cleanup_type_is_unit(program, state.return_type)
+    {
+        return None;
+    }
+    let [source_parameter] = program.state_parameters(state) else {
+        return None;
+    };
+    if source_parameter.is_self {
+        return None;
+    }
+    let [StatementNode::Transition(transition)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    if transition.exit != TransitionExit::Ordinary
+        || transition.guard != TransitionGuardNode::Always
+        || transition.continuation.is_valid()
+    {
+        return None;
+    }
+    let TransitionTargetNode::Named {
+        path, arguments, ..
+    } = program.statement_table.transition_target(transition.target)
+    else {
+        return None;
+    };
+    let target = states.iter().find(|target| target.symbol == path.symbol)?;
+    if target.symbol == state.symbol
+        || !program.state_contracts(target).is_empty()
+        || !super::terminal_unit::cleanup_type_is_unit(program, target.return_type)
+    {
+        return None;
+    }
+    let [target_parameter] = program.state_parameters(target) else {
+        return None;
+    };
+    if target_parameter.is_self {
+        return None;
+    }
+    let [argument] = program.statement_table.expression_handles(*arguments) else {
+        return None;
+    };
+    let argument_place =
+        super::canonical_place_from_expression_in_state(program, state.symbol, 0, *argument)?;
+    let psi_facts::PlaceRoot::Symbol(argument_root) = argument_place.root else {
+        return None;
+    };
+    let [
+        psi_facts::PlaceSegment::Field {
+            symbol: moved_field,
+        },
+    ] = argument_place.segments.as_slice()
+    else {
+        return None;
+    };
+    if argument_root != source_parameter.symbol {
+        return None;
+    }
+
+    let discard_parameters =
+        checked_whole_affine_discard_parameters(program, facts, machine.symbol, state)?;
+    if discard_parameters != [(source_parameter.symbol, 0)]
+        || facts.flow.ownership.permissions.iter().any(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.claim_identity != PermissionClaimIdentity::Unknown
+        })
+    {
+        return None;
+    }
+    let mut segments = facts.flow.ownership.segments.clone();
+    let moves =
+        super::discover_state_move_events(program, &facts.borrow, machine, state, &mut segments);
+    let edge_moves = moves
+        .iter()
+        .filter(|event| {
+            matches!(
+                event.source,
+                FlowOwnershipEventSource::Statement { statement_index: 0 }
+            ) || matches!(
+                event.source,
+                FlowOwnershipEventSource::Call {
+                    statement_index: 0,
+                    target_symbol,
+                    ..
+                } if target_symbol == path.symbol
+            )
+        })
+        .collect::<Vec<_>>();
+    let [edge_move] = edge_moves.as_slice() else {
+        return None;
+    };
+    if edge_move.root != psi_facts::PlaceRoot::Symbol(source_parameter.symbol)
+        || segments.span_or_empty(edge_move.segments) != argument_place.segments
+    {
+        return None;
+    }
+
+    let (
+        moved_field_identity,
+        moved_type_identity,
+        residual_field_identity,
+        residual_type_identity,
+    ) = super::terminal_unit::exact_two_field_record_projection(
+        program,
+        source_parameter.type_reference,
+        *moved_field,
+        target_parameter.type_reference,
+    )?;
+    Some(CheckedStructuralControlProjectedEdgeCleanupPlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        statement_ordinal: 0,
+        target_state: target.symbol,
+        transfer: CheckedStructuralControlProjectedTransferPlan {
+            source_parameter_position: 0,
+            path: vec![CheckedUnitStructuralPathSegment::Field(
+                moved_field_identity,
+            )],
+            type_identity: moved_type_identity,
+            target_parameter_position: 0,
+        },
+        residual_affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
+            source_parameter_index: 0,
+            path: vec![CheckedUnitStructuralPathSegment::Field(
+                residual_field_identity,
+            )],
+            type_identity: residual_type_identity,
+        }],
+    })
 }
 
 fn build_state_plan(
