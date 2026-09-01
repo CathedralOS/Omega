@@ -117,8 +117,12 @@ proof/fact evidence. A library-only offline boundary now admits canonical V2
 logs into an independently validated, identity-bound corpus and partitions
 whole source identities into deterministic training, evaluation, and
 regression groups. It has no compiler/process/build dependency. Training,
-evaluation reports, regression manifests, and sandboxed compiler-side policy
-execution remain experimental work and are not part of ordinary builds.
+and independently replayed evaluation/regression reports now have one tiny
+deterministic cost-threshold reference implementation with strict identities
+and codecs. It measures recorded-action agreement only. CLI capture, checked
+regression manifests, meaningful measured objectives, external models, and
+sandboxed compiler-side policy execution remain experimental work and are not
+part of ordinary builds.
 
 The neutral `omega-bounded-process` tooling boundary is only a prerequisite for
 external execution. It centralizes structured command preparation, concrete

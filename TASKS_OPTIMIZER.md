@@ -1271,9 +1271,19 @@ consumes and retains their identities through publication.
   exact log/source/decision/split counts. The 41-line corpus entrance joins
   separate capture and independent validation leaves; its production closure
   is forbidden from depending on the compiler, build evaluation, optimizer
-  pipeline, Psi optimizer, or bounded-process tooling. CLI capture, reference
-  training, evaluation reports, checked regression manifests, measured
-  objective labels, and any compiler/model execution remain open.
+  pipeline, Psi optimizer, or bounded-process tooling. A deterministic
+  `CostThresholdV1` reference trainer now searches the closed behavior
+  boundaries `{i64::MIN, observed cost + 1}`, minimizes recorded-action
+  mismatches, and breaks ties toward the lowest threshold. Inference can only
+  choose the canonical minimum `(predicted cost, candidate identity)` below
+  that threshold or emit `Skip(NotProfitable)`. Independently replayed
+  evaluation/regression reports bind corpus, algorithm, split, model, every
+  prediction, exact-action agreement, choose/skip confusion, chosen-candidate
+  mismatches, and a checked-i128 selected-cost sum; strict model/report codecs
+  reject every custody substitution. This is plumbing and recorded-label
+  agreement, not an optimization-quality claim. CLI capture, checked
+  regression manifests, measured objective labels, external trainers/models,
+  and any compiler/model execution remain open.
 
 ML may rank already-declared equal transformations. It cannot invent an
 unchecked rewrite or opt into lossy floating-point semantics.

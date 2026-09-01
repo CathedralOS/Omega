@@ -189,3 +189,13 @@ deterministic training, evaluation, and regression groups. Its validated
 corpus and receipt grant no optimizer replay, compiler activation, process
 execution, or publication authority. Training and evaluation must consume this
 boundary rather than inventing a second feature schema.
+
+The first reference consumer is `CostThresholdV1`. It deterministically fits
+one signed threshold against recorded-action agreement, then independently
+replays evaluation and regression reports. A prediction may only choose the
+canonical minimum legal candidate below the threshold or the supported
+model-free skip. Separate algorithm, split, model, and report identities bind
+strict codecs, confusion counts, exact chosen-candidate agreement, and a
+checked-i128 selected predicted-cost sum. These metrics describe agreement
+with recorded labels; they do not claim runtime, size, compile-time, or semantic
+quality.
