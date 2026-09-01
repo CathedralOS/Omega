@@ -434,6 +434,16 @@ mirrored pipeline test owns both victim lineages, targets, corruption, and all
 five budget axes; architecture guards register the complete ladder and prohibit
 executable memory, frame, fault, alias, encoding, or publication claims.
 
+Non-authoritative spill-frame requirements enter through the adjacent
+pipeline-owned `allocation/frame_requirements/mod.rs` coordinator. It visibly
+joins authenticated abstract access constraints to the validated register
+environment, delegates direct derivation and independent replay to distinct
+`compute.rs` and `replay.rs` leaves, and seals only after `validation.rs` agrees;
+`model.rs`, `identity.rs`, and `custody.rs` own the closed carrier and receipt.
+The registered semantic ladder therefore exposes the whole descent from one
+small meaningful entrance without granting frame layout, executable memory,
+fault, unwind, probing, encoding, emission, or publication authority.
+
 Function-relative V9 mutation coverage enters through the five-line
 `function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
 into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,

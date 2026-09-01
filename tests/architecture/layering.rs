@@ -3613,6 +3613,62 @@ fn abstract_spill_access_constraints_are_independent_and_non_executable() {
 }
 
 #[test]
+fn spill_frame_requirements_are_independent_and_non_authoritative() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/frame_requirements",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read spill-frame requirement entrance");
+    assert!(
+        entrance.contains("let plan = compute::derive(")
+            && entrance.contains("validate_non_authoritative_spill_frame_requirements("),
+        "the spill-frame requirement entrance must visibly join production to independent replay",
+    );
+    let producer = std::fs::read_to_string(stage.join("compute.rs"))
+        .expect("read spill-frame requirement producer");
+    let mut replay = std::fs::read_to_string(stage.join("replay.rs"))
+        .expect("read spill-frame requirement replay");
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validation.rs"))
+            .expect("read spill-frame requirement validator"),
+    );
+    for forbidden in ["super::compute", "compute::derive", "derive_function"] {
+        assert!(
+            !replay.contains(forbidden),
+            "spill-frame requirement replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    assert!(
+        replay.contains("fn reconstruct(") && replay.contains("fn reconstruct_function("),
+        "spill-frame requirement replay must visibly own independent reconstruction",
+    );
+    assert!(
+        !producer.contains("fn reconstruct("),
+        "spill-frame requirement production must not consume replay mechanics",
+    );
+    let all_source = recursive_rust_source(&stage);
+    for forbidden in [
+        "omega_machine_optimizer",
+        "MachineEncoded",
+        "PostAllocationMachineInstruction",
+        "StackPointer",
+        "FramePointer",
+        "FrameOffset",
+        "RedZoneUse",
+        "StackProbe",
+        "UnwindPlan",
+        "TrapBehavior",
+        "ProgramMemory",
+    ] {
+        assert!(
+            !all_source.contains(forbidden),
+            "spill-frame requirements must not acquire authoritative `{forbidden}` custody",
+        );
+    }
+}
+
+#[test]
 fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes() {
     let root = workspace_root();
     let stage = root.join(

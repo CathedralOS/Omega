@@ -1345,6 +1345,21 @@ decision. Only true language-semantic questions belong in
   address/base, frame coordinate, fault/trap behavior, opcode, encoding,
   emission, or publication authority, so neither spill-fault semantics nor
   program-memory non-aliasing is inferred.
+  A twentieth independently replayed, pipeline-owned V1 boundary now
+  authenticates those constraints against the validated target register
+  environment and reports only per-function abstract spill-area byte extent,
+  maximum required alignment, exact closed ABI preservation convention, ABI
+  stack alignment, and red-zone capacity. Direct construction and separately
+  keyed replay bind both source identities, target, policy, budget, usage,
+  plan identity, and receipt. Linux, Windows/UEFI, and macOS rows across the
+  supported x86-64/AArch64 matrix, deterministic output, corruption, and every
+  first-under budget axis fail closed. Separate direct/replay leaf coverage pins
+  zero-access geometry to extent zero and neutral alignment one; the current
+  upstream validated access-constraint route only constructs spill-bearing
+  schedules. Red-zone capacity is a target fact, not a decision to use it; the
+  artifact chooses no frame base or size, final offset, red-zone/shadow-space
+  placement, instruction, prologue/epilogue, probe, unwind, fault behavior,
+  executable access, or publication.
   ISA lowering, executable spill accesses, final frame offsets, unwind/probing,
   and downstream realization remain engineering work. Real memory
   insertion is owner-blocked only on the spill-access fault semantics recorded
@@ -1364,8 +1379,12 @@ decision. Only true language-semantic questions belong in
   only: it chooses no home, copy, split, spill, instruction, memory operation,
   frame coordinate, or publication. Coalescing, live-range splitting,
   precolor-aware home decisions, and rematerialization costs remain open.
-- [ ] Implement frame layout, alignment, red-zone/shadow-space, unwind,
-  probing, stable-address loans, and dynamic-allocation constraints.
+- [>] Implement frame layout, alignment, red-zone/shadow-space, unwind,
+  probing, stable-address loans, and dynamic-allocation constraints. The first
+  non-authoritative requirements artifact now retains abstract spill geometry
+  and exact ABI alignment/preservation/capacity facts. Actual frame layout,
+  placement choices, executable accesses, probing, unwind, stable-address
+  loans, and dynamic-allocation integration remain open.
 - [ ] Extend call-clobber validation through general scalar calls and
   live-across-call allocation after calls enter the selected CFG.
 

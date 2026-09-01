@@ -2,6 +2,7 @@
 
 pub(crate) mod allocation_legality;
 pub(crate) mod fixed_view_copies;
+pub(crate) mod frame_requirements;
 pub(crate) mod live_ranges;
 pub(crate) mod liveness;
 pub(crate) mod register_environment;
@@ -10,6 +11,7 @@ pub(crate) mod selected_reanalysis;
 
 pub use allocation_legality::*;
 pub use fixed_view_copies::*;
+pub use frame_requirements::*;
 pub use live_ranges::*;
 pub use liveness::*;
 pub use omega_regalloc::ORDERED_ALLOCATION_RECOVERY_RULES;

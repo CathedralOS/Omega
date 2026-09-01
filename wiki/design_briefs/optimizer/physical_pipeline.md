@@ -736,6 +736,21 @@ No row establishes cross-block order, program-memory non-aliasing, an executable
 address, frame layout, spill-fault behavior, opcode, encoding, emission, or
 publication authority.
 
+Non-authoritative spill-frame requirements form the next pipeline-owned V1
+boundary. Its small entrance authenticates those access constraints against the
+validated target register environment, then reports only each function's
+abstract spill-area byte extent and maximum alignment plus the exact selected
+ABI preservation convention, stack alignment, and red-zone capacity. A direct
+traversal and independently keyed replay bind both source identities, target,
+closed policy, budget, usage, plan identity, and receipt across the supported
+x86-64 and AArch64 target matrix. Red-zone capacity is an ABI fact, never a
+decision to use it. Independent leaf coverage defines a zero-access row as
+extent zero with neutral alignment one; the currently validated upstream route
+constructs only spill-bearing access constraints. The carrier cannot choose a
+stack/frame base, final offset or size, red-zone or shadow-space placement,
+prologue/epilogue, instruction, probing, unwind, fault behavior, executable
+access, or publication.
+
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is
 `r + ((r + (a + b)) + (b + r))`: its middle original remains unused at the
