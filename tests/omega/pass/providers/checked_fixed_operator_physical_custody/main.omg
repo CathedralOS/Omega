@@ -1,0 +1,23 @@
+// A selected fixed-token boundary operator retains one exact physical child
+// beside the independent nonreturning Console settlement. The result is not
+// passed into that first immediate-only settlement lane.
+use omega_language_std::console;
+
+data CheckedMath {}
+
+boundary operator - CheckedMath::select_left(left: i32, right: i32) -> i32;
+
+data CheckedMathProvider {}
+
+machine CheckedMathProvider::select_left_impl(left: i32, right: i32) -> i32
+satisfies CheckedMath::select_left
+{
+    transition { _ -> left }
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let result: i32 = (70 as i32) - 0;
+    self.console.exit_process(70);
+}
