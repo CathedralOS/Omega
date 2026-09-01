@@ -17,7 +17,6 @@ mod request;
 mod terminal_native_realization;
 mod terminal_product;
 
-pub(crate) use native_checked::NativeCompilationWithCheckedReceipt;
 pub use omega_trust_model::{TrustAdmission, TrustAdmissionSettlement};
 pub use optimization::{OptimizationRollback, OptimizationRollbackInputError};
 pub use options::{ArtifactEmissionPolicy, CompileOptions};

@@ -279,6 +279,74 @@ fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
 }
 
 #[test]
+fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
+    let repo_root = repo_root();
+    let driver_path =
+        repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs");
+    let request_path =
+        repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/request.rs");
+    let driver = fs::read_to_string(&driver_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    let request = fs::read_to_string(&request_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
+    let compact_driver = without_ascii_whitespace(&driver);
+
+    assert_eq!(
+        compact_driver
+            .matches("request.validate_for_execution()?")
+            .count(),
+        1,
+        "the compiler driver must admit every requested product through one request-owner entrance"
+    );
+    assert_eq!(
+        compact_driver
+            .matches("compile_checked_with_observations(&request)?")
+            .count(),
+        1,
+        "every requested product must share one checked-Psi frontend execution"
+    );
+    let mut ordered_driver = compact_driver.as_str();
+    for stage in [
+        "letrequest=request.validate_for_execution()?;",
+        "compile_checked_with_observations(&request)?;",
+        "matchrequest.requested_product(){",
+    ] {
+        let offset = ordered_driver.find(stage).unwrap_or_else(|| {
+            panic!("the compiler driver must contain ordered common stage `{stage}`")
+        });
+        ordered_driver = &ordered_driver[offset + stage.len()..];
+    }
+    for product in ["Check", "TerminalArtifact", "NativeArtifact"] {
+        assert!(
+            compact_driver.contains(&format!("RequestedCompileProduct::{product}=>")),
+            "the common product stop must exhaustively name `{product}`"
+        );
+    }
+    assert!(
+        !driver.contains("compile_native_with_checked_receipt"),
+        "native production must remain an arm of the common product stop, not an alternate entrance"
+    );
+    let native_arm = compact_driver
+        .split_once("RequestedCompileProduct::NativeArtifact=>")
+        .map(|(_, native_arm)| native_arm)
+        .expect("the common product stop must contain its native arm");
+    let native_report = native_arm
+        .find("optimization::native_report(request,&checked)?")
+        .expect("the native product arm must invoke its report owner");
+    let checked_receipt = native_arm
+        .find("NativeCompilationWithCheckedReceipt::new(checked,report)")
+        .expect("the native product arm must retain checked/report custody validation");
+    assert!(
+        native_report < checked_receipt,
+        "native report assembly must precede checked/report custody validation"
+    );
+    assert!(
+        !request.contains("validate_for_native_execution"),
+        "the request owner must expose one production admission operation"
+    );
+}
+
+#[test]
 fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     let repo_root = repo_root();
     let transition_path = repo_root
