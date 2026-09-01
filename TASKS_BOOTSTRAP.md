@@ -2,7 +2,7 @@
 
 Last pruned: 2026-08-31.
 
-This queue exists to construct exactly one sequence:
+This queue currently carries one implemented baseline:
 
 ```text
 audited Alpha VM seed
@@ -14,10 +14,15 @@ audited Alpha VM seed
   → Omega-written full Omega C        → omega_compiler_bytecode.tape
 ```
 
-Every compiler artifact is platform-independent Alpha tape. The host-specific
-Alpha VM seed is the sole native bootstrap component. `D` and `C` are different
-source closures implementing the same complete Omega language; the first may
-optimize poorly, while the second is the production self-host.
+Every compiler artifact in this baseline is platform-independent Alpha tape.
+The host-specific Alpha VM seed is its sole native bootstrap component. `D` and
+`C` are different source closures implementing the same complete Omega language;
+the first may optimize poorly, while the second is the production self-host.
+
+The baseline is not a fixed topology. Whole-rung candidates, including a
+directly audited functional evaluator seed that removes Beta and Gamma, are
+defined in `wiki/design_briefs/bootstrap_chain_alternatives.md`. Prototype work
+may compare several bounded paths, but at most one becomes authoritative.
 
 There is no DDC stage, `omega-bootstrap` language, Epsilon-to-Delta bridge,
 native Gamma/Delta/Epsilon compiler, checkpoint generation, or executable proof
@@ -95,6 +100,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 ## 0. Make the repository tell the truth
 
+- [ ] **BOOTSTRAP-CHAIN-ALTERNATIVES.** Execute the common experiment in
+  `wiki/design_briefs/bootstrap_chain_alternatives.md` before investing further
+  in a rung merely because the baseline contains it. Freeze representative
+  checker, compiler, and first-Omega-compiler workloads; prototype the directly
+  audited functional-evaluator seed first; compare it with the existing ladder
+  and an assembler-retaining control; then test direct functional-to-Omega only
+  if the first comparison leaves Epsilon's value unresolved. Publish root bytes,
+  semantic rules, compiler/checker size, mutable state and bounds, proof burden,
+  reconstruction cost, and adversarial reviewer results under one format.
+  Select at most one authoritative topology and delete the losing permanent
+  rungs, edges, profiles, sidecars, and gates rather than retaining a menu of
+  trusted chains.
+  - [ ] Define the smallest functional evaluator candidate without copying
+    Delta's current surface by default. Every primitive must name either the
+    checker or compiler workload that requires it.
+  - [ ] Produce and decode one exact Alpha evaluator tape as a candidate audited
+    root subject. Construction tooling may use an existing assembler, but the
+    experiment separately measures direct tape audit and assembler-derived
+    pedigree.
+  - [ ] Implement the same bounded checker workload and representative compiler
+    workload in the functional source, then compare reviewer defect-finding
+    against the existing Gamma checker/compiler path.
+  - [ ] Record explicit keep/delete verdicts for Beta, Gamma, Delta, Epsilon,
+    the current checker placement, and interpreter-versus-compiler execution.
+    Existing source and tests establish migration cost only.
 - [ ] **BOOTSTRAP-WHOLE-CHAIN-MINIMIZATION.** Execute the backward audit in
   `wiki/design_briefs/bootstrap_minimization.md` before treating the current
   rung surfaces as permanent. Inventory Alpha instructions and execution

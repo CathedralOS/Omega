@@ -2,9 +2,12 @@
 
 [Chain overview](bootstrap_chain.md) | [Active work](../../../TASKS_BOOTSTRAP.md)
 
-This is the audit ledger for the one permitted compiler chain. A row names an
-exact source subject, its compiler artifact, and the checked source-to-Alpha-tape
-edge. Diagnostics may expose bugs, but they are never extra compiler stages.
+This is the audit ledger for the currently implemented baseline chain. A row
+names an exact source subject, its compiler artifact, and the checked
+source-to-Alpha-tape edge. Diagnostics may expose bugs, but they are never extra
+compiler stages. Experimental alternatives are specified in
+[Bootstrap chain alternatives](../../design_briefs/bootstrap_chain_alternatives.md);
+only the selected winner becomes an authoritative manifest.
 
 ```text
 audited Alpha VM seed

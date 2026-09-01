@@ -50,7 +50,8 @@ certificates, and admissions all participate in replay compatibility.
 
 ## D6 — Each rung is implemented by its immediate predecessor
 
-The permanent chain is:
+This decision originally selected the following chain. D61 now treats it as the
+implemented comparison baseline rather than a permanent topology:
 
 ```text
 audited Alpha seed
@@ -2697,7 +2698,7 @@ former Gamma = Delta
 former Delta = Epsilon
 ```
 
-Accordingly, the canonical chain is Alpha VM → Beta assembler → Beta-written
+Accordingly, the baseline chain is Alpha VM → Beta assembler → Beta-written
 Gamma compiler → Gamma-written Delta compiler → Delta-written Epsilon compiler
 → Epsilon-written Omega `D` → Omega-written `C`. Existing decision numbers keep
 their ruled content at the renamed semantic rung; wire identities shift with
@@ -2719,3 +2720,29 @@ binary, and every artifact above it remains platform-independent tape.
 5. compile the Epsilon-written Omega source closure `D` into `omega₀`;
 6. compile the Omega-written source closure `C` with `omega₀` into `omega`; and
 7. optimize or natively realize tapes without changing the semantic chain.
+
+## D61 — Bootstrap topology is a measured choice, not a fixed spine
+
+D6 and D60 describe the currently implemented baseline. They no longer settle
+that every named rung must survive. A candidate may directly admit and audit an
+exact Alpha seed program, interpret an early source language, connect two
+nonadjacent baseline rungs, move the checker, or delete Beta, Gamma, Delta, or
+Epsilon when the complete audit becomes smaller.
+
+The candidate families, common workloads, and measurements are defined in
+[Bootstrap chain alternatives](../../design_briefs/bootstrap_chain_alternatives.md).
+The comparison counts the native root, admitted tapes, semantics, compilers,
+interpreters, checkers, proof edges, resource contracts, sidecars, and permanent
+validation together. Current implementation, corpus use, prior investment, and
+hypothetical reuse establish no presumption of retention.
+
+Several bounded prototypes may coexist while measuring alternatives. They do
+not become parallel authorities. The selected design promotes at most one
+canonical chain; losing permanent semantics, artifacts, gates, and sidecars are
+deleted or retained only as explicitly nonauthoritative, deletion-bounded test
+or construction tools.
+
+A directly audited tape is a legitimate root subject. Lower-language pedigree
+may help reconstruct it but is not required merely to manufacture authority.
+The tape instead owes an instruction-level audit against Alpha semantics and
+the exact small evaluator/compiler claim made for it.

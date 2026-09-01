@@ -129,13 +129,15 @@ portable format.
 
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
-The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape execution; Beta is its textual assembly. The Epsilon-written compiler closure `D` produces the first full Omega compiler `omega₀`, which compiles the Omega-written closure `C` into production `omega`. Its active queue lives in
+The current bootstrap baseline has the language-capability progression Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape execution; Beta is its textual assembly. The Epsilon-written compiler closure `D` is intended to produce the first full Omega compiler `omega₀`, which compiles the Omega-written closure `C` into production `omega`. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_chain/repository_structure.md).
-The fixed rung order does not freeze the present feature surfaces; the
-whole-chain audit and debloat method is defined in
-[`bootstrap_minimization.md`](wiki/design_briefs/bootstrap_minimization.md).
+The rung order is now an experimental baseline rather than a fixed constraint.
+The whole-chain audit is defined in
+[`bootstrap_minimization.md`](wiki/design_briefs/bootstrap_minimization.md), and
+the candidate shorter chains and common audit experiment are defined in
+[`bootstrap_chain_alternatives.md`](wiki/design_briefs/bootstrap_chain_alternatives.md).
 The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_chain/compiler_source_profile.md).
