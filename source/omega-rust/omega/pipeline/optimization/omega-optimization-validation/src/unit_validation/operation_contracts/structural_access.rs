@@ -4,6 +4,7 @@ use super::*;
 pub(crate) enum StructuralProjectionPolicy {
     Unit,
     EmptyOnly,
+    Projected,
     Boundary,
 }
 
@@ -62,6 +63,7 @@ pub(crate) fn structural_arguments_match(
                     || is_nonempty_field_path(&argument.path)
             }
             StructuralProjectionPolicy::EmptyOnly => argument.path.is_empty(),
+            StructuralProjectionPolicy::Projected => true,
             StructuralProjectionPolicy::Boundary => true,
         };
         let Some(actual_type) =

@@ -1,6 +1,9 @@
 //! Structural-call path type, multiplicity, and qualification corruption rejection.
 
-use crate::tests::{id, refresh_identity, refresh_node_derivatives, structural_call_unit};
+use crate::tests::{
+    id, projected_shared_structural_scalar_call_unit, refresh_identity, refresh_node_derivatives,
+    structural_call_unit,
+};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use omega_abstract_operations::AbstractOperation;
 
@@ -81,6 +84,44 @@ fn rejects_structural_call_path_type_multiplicity_and_qualification_corruption()
     refresh_identity(&mut qualified);
     assert!(matches!(
         validate_psi_optimization_unit(&qualified),
+        Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+    ));
+}
+
+#[test]
+fn admits_an_unrestricted_shared_field_projection_for_a_structural_scalar_call() {
+    let baseline = projected_shared_structural_scalar_call_unit();
+    validate_psi_optimization_unit(&baseline)
+        .expect("an exact unrestricted shared field subloan should validate");
+
+    let mut wrong_field = baseline.clone();
+    let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut wrong_field.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("fixture begins with a structural scalar call")
+    };
+    structural_arguments[0].path =
+        vec![psi_terminal::StructuralPathSegment::Field("missing".into())];
+    refresh_node_derivatives(&mut wrong_field, 0, 0, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&wrong_field),
+        Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+    ));
+
+    let mut wrong_access = baseline;
+    let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut wrong_access.functions[0].blocks[0].nodes[0].operation
+    else {
+        panic!("fixture begins with a structural scalar call")
+    };
+    structural_arguments[0].access = psi_terminal::StructuralAccess::MutableBorrow;
+    refresh_node_derivatives(&mut wrong_access, 0, 0, 0);
+    assert!(matches!(
+        validate_psi_optimization_unit(&wrong_access),
         Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
     ));
 }

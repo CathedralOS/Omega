@@ -486,3 +486,135 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
     };
     reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap()).unwrap()
 }
+
+pub(crate) fn projected_shared_structural_scalar_call_unit() -> PsiOptimizationUnit {
+    let caller = id(351, MachineId::new);
+    let callee = id(352, MachineId::new);
+    let caller_block = id(353, BlockId::new);
+    let callee_block = id(354, BlockId::new);
+    let caller_place = id(355, PlaceId::new);
+    let callee_place = id(356, PlaceId::new);
+    let outer = id(357, StructuralTypeId::new);
+    let carrier = id(358, StructuralTypeId::new);
+    let field = id(359, psi_core::StructuralFieldId::new);
+    let caller_result = id(360, ValueId::new);
+    let callee_result = id(361, ValueId::new);
+    let parameter = |place, structural_type| psi_terminal::StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+        access: psi_terminal::StructuralAccess::SharedBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let plan = AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([16; 32]),
+        },
+        entry: caller,
+        structural_types: vec![
+            psi_terminal::StructuralTypeDeclaration {
+                id: outer,
+                identity: "validation::projected-scalar-call-owner".into(),
+                shape: psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![psi_terminal::StructuralFieldDeclaration {
+                        id: field,
+                        identity: "carrier".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: psi_terminal::StructuralFieldType::Structural(carrier),
+                    }],
+                },
+            },
+            psi_terminal::StructuralTypeDeclaration {
+                id: carrier,
+                identity: "validation::projected-scalar-call-carrier".into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: caller_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place, outer)],
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: caller_result,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block: caller_block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    AbstractOperation::CallStructuralScalar {
+                        psi_operation: id(362, OperationId::new),
+                        result: AbstractResult {
+                            value: caller_result,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        callee,
+                        structural_arguments: vec![psi_terminal::StructuralArgument {
+                            place: caller_place,
+                            path: vec![psi_terminal::StructuralPathSegment::Field(
+                                "carrier".into(),
+                            )],
+                            access: psi_terminal::StructuralAccess::SharedBorrow,
+                        }],
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                    AbstractOperation::Return {
+                        psi_edge: id(363, EdgeId::new),
+                        result: caller_result,
+                        value: caller_result,
+                        scalar_type: ScalarType::Boolean,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+            AbstractFunction {
+                machine: callee,
+                attachment: None,
+                entry: callee_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place, carrier)],
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: callee_result,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![AbstractBlockEntry {
+                    block: callee_block,
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                }],
+                operations: vec![
+                    AbstractOperation::BooleanConstant {
+                        psi_operation: id(364, OperationId::new),
+                        result: callee_result,
+                        value: true,
+                    },
+                    AbstractOperation::Return {
+                        psi_edge: id(365, EdgeId::new),
+                        result: callee_result,
+                        value: callee_result,
+                        scalar_type: ScalarType::Boolean,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+        ],
+    };
+    reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap()).unwrap()
+}

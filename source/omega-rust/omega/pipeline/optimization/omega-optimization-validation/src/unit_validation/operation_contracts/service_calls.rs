@@ -76,7 +76,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
-                StructuralProjectionPolicy::EmptyOnly,
+                StructuralProjectionPolicy::Projected,
                 false,
             ) && validate_internal_claim_transfers(
                 caller,
