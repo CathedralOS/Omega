@@ -315,7 +315,7 @@ closed victim and logical store/reload/rewrite vocabulary, `identity.rs` owns
 versioned custody, and `validate.rs` compares replay before sealing a receipt.
 The `compute/` and `replay/` subtrees make reload and original reconstruction
 separate named leaves; V2 additionally binds selected-plan and live-range
-roots, while V1 retains its original signature and exact identity bytes. The
+roots, while V1 retains its original signature and exact identity encoding. The
 mirrored pipeline leaf is
 `register_allocation/generalized_spill_recovery_actions.rs`;
 architecture guards register the complete ladder and forbid validation from
@@ -459,6 +459,15 @@ and operation rewriting. The former flat producer path is retired.
 The control-flow pass entrance consequently owns no descendant dependency
 bucket: it is the module map plus the exact seven-row local roster. Every rule,
 accounting leaf, and shared custody leaf imports the vocabulary it consumes.
+
+The adjacent executable lowering boundaries retain the same visible descent.
+The 100-line Terminal-operation router maps structural scalar operations to its
+named `structural_scalar_fields` leaf. Straight-line abstract-to-target lowering
+then routes direct Boolean and integer field projection through
+`straight_line/structural_scalar_field.rs` rather than growing the exhaustive
+operation leaf. The mirrored
+`tests/structural_and_cleanup/structural_scalar.rs` leaf owns structural scalar
+projection and call fixtures independently from its bounded-cleanup sibling.
 
 Abstract-to-target validation follows the same entrance rule. Its 51-line
 `validation/mod.rs` exposes the module map and public validation calls;

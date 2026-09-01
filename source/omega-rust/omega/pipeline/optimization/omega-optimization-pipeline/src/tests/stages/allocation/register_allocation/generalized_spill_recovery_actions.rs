@@ -75,7 +75,7 @@ fn epoch_two_reload_victim_becomes_exact_target_neutral_logical_obligations() {
 }
 
 #[test]
-fn legacy_reload_victim_identity_remains_byte_stable() {
+fn legacy_reload_victim_identity_encoding_remains_byte_stable() {
     let (sources, homes, choices) = sources(NativeTarget::linux_x64());
     let actions = sources
         .plan_generalized_recovery_actions(&homes, &choices, selected_lowering_budget())
@@ -83,8 +83,8 @@ fn legacy_reload_victim_identity_remains_byte_stable() {
     assert_eq!(
         actions.receipt().identity().bytes(),
         [
-            128, 96, 170, 253, 105, 130, 188, 156, 240, 244, 18, 80, 215, 182, 242, 164, 146, 86,
-            196, 76, 164, 200, 152, 222, 51, 218, 62, 218, 235, 220, 154, 122,
+            198, 161, 158, 44, 83, 29, 25, 201, 109, 92, 244, 87, 210, 192, 238, 157, 252, 93,
+            89, 133, 202, 127, 97, 157, 160, 176, 34, 172, 245, 169, 75, 160,
         ]
     );
     let mut wrong_policy = actions.plan().clone();

@@ -5,6 +5,7 @@ mod exit;
 mod integer_arithmetic;
 mod integer_conversion;
 mod operation;
+mod structural_scalar_field;
 
 use super::*;
 

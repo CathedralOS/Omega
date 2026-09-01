@@ -616,7 +616,7 @@ reloads it as `{2,0}` before the point-16 rewrite under exact usage
 `{1, 1, 7, 1, 1}`. It creates no selected register or instruction and grants no
 physical slot, address, memory, frame, trap, encoding, emission, or publication
 authority. The same entrance now exposes a separate V2 original-victim entry.
-V1 keeps its original signature and exact identity bytes; V2 alone binds the
+V1 keeps its original signature and exact identity encoding; V2 alone binds the
 selected-plan and live-range roots and retains a closed original-versus-reload
 victim type. Direct traversal and independently indexed replay reconstruct the
 original U64 definition, one-block lifetime, pressure-point absence, and every

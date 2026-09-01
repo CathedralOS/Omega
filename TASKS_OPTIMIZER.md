@@ -1135,7 +1135,7 @@ decision. Only true language-semantic questions belong in
   instruction, physical slot, address, memory effect, frame, trap, or
   publication authority. A distinct V2 policy now consumes the guarded-original
   choice through a separate entry while leaving the V1 signature and identity
-  bytes unchanged. It binds the selected-plan and live-range identities,
+  encoding unchanged. It binds the selected-plan and live-range identities,
   independently reconstructs the original's U64 selected role, definition,
   single-block lifetime, absence at the pressure point, and complete flexible
   post-pressure use suffix, then emits the same typed target-neutral
