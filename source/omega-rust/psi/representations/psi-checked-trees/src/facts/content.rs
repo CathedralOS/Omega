@@ -3,8 +3,9 @@
 
 use psi_arena::HandleSpan;
 use psi_language_semantics::content::{ContentConservationPlan, ContentProjectionPlan};
-use psi_language_semantics::{PermissionClaimIdentity, SemanticDomainId};
+use psi_language_semantics::{PermissionClaimIdentity, ReferenceAccess, SemanticDomainId};
 use psi_symbols::SymbolHandle;
+use psi_typed_trees::name::Identifier;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContentProjectionFacts {
@@ -20,6 +21,27 @@ pub struct ContentProjectionFacts {
     /// transfer-stable input claims, and any exact result-identity rewrite rows
     /// used by the substitution; they never add a new `separate(...)` node.
     pub partition_compositions: Vec<ContentPartitionCompositionFact>,
+    /// Exact lifetime-bound shared custody admitted for a retained foreign
+    /// result. This checked-only row never grants ownership: it binds one
+    /// whole direct parameter loan to one whole result and retains both exact
+    /// content projections so later consumers need not reselect by spelling
+    /// or trust compact report fingerprints.
+    pub retained_borrow_custodies: Vec<RetainedBorrowCustodyFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetainedBorrowCustodyFact {
+    pub callable: SymbolHandle,
+    pub source: psi_language_semantics::content::ContentStructuralPlace,
+    pub result: psi_language_semantics::content::ContentStructuralPlace,
+    pub access: ReferenceAccess,
+    pub lifetime: Identifier,
+    pub callable_lifetime_parameter_ordinal: u32,
+    pub result_data: SymbolHandle,
+    pub result_lifetime_argument_ordinal: u32,
+    pub retained_semantic_domain: SemanticDomainId,
+    pub source_projection: ContentProjectionPlan,
+    pub result_projection: ContentProjectionPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

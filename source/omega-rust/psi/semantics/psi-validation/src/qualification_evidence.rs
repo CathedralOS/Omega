@@ -70,6 +70,11 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                         (return_carrier, domain_carrier),
                         (Some(return_carrier), Some(domain_carrier))
                             if type_references_match(program, return_carrier, domain_carrier)
+                                || lifetime_erased_nominal_carriers_match(
+                                    program,
+                                    return_carrier,
+                                    domain_carrier,
+                                )
                     ) {
                         diagnostics.push(Diagnostic::error(format!(
                             "boundary requirement `{}::{}` cannot admit `result in {}`: result carrier `{}` does not match domain target `{}`",
@@ -84,6 +89,45 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
             }
         }
     }
+}
+
+/// Domain declarations name their nominal carrier without a lifetime
+/// telescope. A result may instantiate that same carrier's erased lifetime
+/// parameters, but this must not widen ordinary generic matching: runtime type
+/// arguments still require exact normalized identity.
+fn lifetime_erased_nominal_carriers_match(
+    program: &TypedTrees,
+    application: psi_typed_trees::types::TypeReferenceHandle,
+    nominal: psi_typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let psi_typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        lifetime_arguments,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(application)
+    else {
+        return false;
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(nominal)
+    else {
+        return false;
+    };
+    *base_symbol == *symbol
+        && symbol.is_valid()
+        && program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty()
+        && program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *base_symbol)
+            .is_some_and(|definition| {
+                !definition.lifetime_parameters.is_empty()
+                    && definition.lifetime_parameters.len() == lifetime_arguments.len()
+            })
 }
 
 fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {

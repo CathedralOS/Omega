@@ -9148,6 +9148,17 @@ Owners:
   contract. Provider backing may not change a pinned public result type;
   concurrent foreign writes use External placement, while exclusive mutation
   returns the requirement's declared preserved/invalidated content outcome.
+  The first checked-only public-borrow rung is live: one content-bearing linear
+  protocol result with exactly one erased lifetime slot may retain exactly one
+  compatible whole direct shared parameter when the callable, parameter, and
+  result all name the same explicit lifetime. The retained fact binds the exact
+  callable, entry parameter place, current result place, lifetime ordinal,
+  result nominal, semantic domain, and both complete content projection plans.
+  Unparameterized or elided results, different lifetimes, multiple compatible
+  borrows, mutable/write-only access, `self`, nested carriers, structural
+  subplaces/partitions, runtime generic arguments, and authored-equality
+  laundering remain rejected. Terminal/native-slot lowering, private
+  snapshots, completion/reclamation, and provider backing remain later rungs.
 - Implement the narrow Windows `user32` canary without exposing a raw code
   address. Derive `Atomic::interruption_fence` same-context evidence from the
   installed external-root route and reject it elsewhere.
