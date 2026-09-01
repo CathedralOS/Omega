@@ -368,6 +368,7 @@ dependencies = [
  "omega-effects",
  "psi-core",
  "psi-terminal",
+ "sha2",
 ]
 
 [[package]]
