@@ -85,6 +85,7 @@ pub(super) fn emit(
         },
         target,
         functions,
+        &[],
     )?;
     let [call] = emitted.internal_unit_calls.as_mut_slice() else {
         return Err(EmissionError::UnsupportedStructuralReturnPlacement(

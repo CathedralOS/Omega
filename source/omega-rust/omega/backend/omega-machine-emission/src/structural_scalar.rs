@@ -52,5 +52,6 @@ pub(super) fn emit(
         },
         target,
         functions,
+        &[],
     )
 }

@@ -47,13 +47,7 @@ pub(crate) fn emit_realization_machine_code(
                 request.callback_thunks,
                 &assigned.native_callback_arguments,
             )?;
-            if !assigned.native_callback_arguments.is_empty() {
-                return Err(realization_error(
-                    "native callback emission",
-                    "direct callback thunk bytes are retained, but address and registrar-call emission are not yet implemented",
-                ));
-            }
-            let plan = omega_machine_emission::emit_machine_code(&assigned.plan)
+            let plan = omega_machine_emission::emit_machine_code_with_native_callbacks(&assigned)
                 .map_err(|error| realization_error("machine-code emission", error))?;
             Ok(MachineCodePlanWithPrivateFunctions {
                 plan,

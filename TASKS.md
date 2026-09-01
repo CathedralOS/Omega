@@ -6921,7 +6921,8 @@ Owners:
   A separate first direct-parameter continuation now consumes that retained
   sidecar through target lowering and physical assignment. For exactly one
   direct `NativePlace::Parameter` callback on the ordinary unoptimized
-  normalized-import path for supported ELF/Mach-O targets, it rejoins the
+  normalized-import path for the current x86-64/AArch64 native targets, it
+  rejoins the
   target-owned
   occurrence to the exact registrar `BoundaryCall` by Terminal `OperationId`,
   retains the selected callback-thunk `MachineFunctionIdentity`, and carries
@@ -6935,16 +6936,22 @@ Owners:
   The callback contributes no source `ValueId`, Omega runtime type, inferred
   position, or trailing hidden argument. Missing, duplicate, wrong-operation,
   field, multiple-callback, native-order, or thunk-identity drift remains
-  fenced; invalid destination geometry rejects during assignment. This is an
-  address-free assignment receipt only. Separately, the retained checked
+  fenced; invalid destination geometry rejects during assignment. Separately,
+  the retained checked
   callback body now lowers to one isolated canonical Terminal artifact, is
   independently recompiled through target assignment into one disjoint
   compiler-private machine-code function, and enters object/final-image
-  custody under the exact placement-derived symbol and function identity.
+  custody under the exact placement-derived symbol and function identity. The
+  registrar machine-code body now materializes that private function address
+  at the exact interleaved native parameter position: x86-64 uses a symbolic
+  RIP-relative `lea`, while AArch64 uses a symbolic `adrp`/`add` pair. The
+  exact register-or-outgoing-stack destination and relocation fields remain
+  beside the call, and ordinary scalar argument indices skip the callback's
+  authored native ordinal rather than rebuilding a scalar-only signature.
   Artifact-local callback `MachineId` values never join the semantic program
-  namespace. Callback-address selection, registrar-call emission and
-  relocation, end-to-end native-artifact replay, and executable registrar
-  settlement remain open. It grants no registration,
+  namespace. Object relocation to the retained private symbol, end-to-end
+  native-artifact replay, and executable registrar settlement remain open. It
+  grants no registration,
   invocation, address, lifetime or lease, installation, or publication
   authority.
   The application-v3 commitment is retained from the compiler-owned placement
@@ -8894,9 +8901,11 @@ Owners:
   body, appends its bytes under the exact placement-derived private symbol,
   binds the callback `MachineFunctionIdentity` to that symbol, and final-image
   replay requires one exact compiler-function region for the resulting span.
-  The remaining direct-form engineering is callback-address loading,
-  registrar-call emission and relocation, and end-to-end native-artifact
-  replay/publication.
+  The registrar machine-code body now loads the callback address at the exact
+  native ordinal and retains the architecture-specific relocation fields and
+  destination. The remaining direct-form engineering is object relocation of
+  those fields to the retained private symbol, end-to-end native-artifact
+  replay, and executable publication.
   The removed custom/unknown host-operation prototype must not be treated as
   authority for this ordinary normalized-import path. The direct-form negative
   matrix is complete. Source and retained-product canaries reject an

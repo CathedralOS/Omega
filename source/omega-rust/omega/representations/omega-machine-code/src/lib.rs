@@ -169,6 +169,9 @@ pub struct ForeignCallRelocation {
     /// bounded native carrier admits the target's complete register-resident
     /// fixed-integer argument bank.
     pub scalar_arguments: Vec<ForeignCallScalarArgumentRecord>,
+    /// Exact compiler-private function-address materialization occupying one
+    /// native-only callback parameter of this registrar call.
+    pub callback_address: Option<CallbackAddressMaterialization>,
     /// Optional fixed-integer result normalized from its evaluated ABI
     /// placement and stored in a durable attached-Unit scalar home.
     pub scalar_result: Option<ForeignCallScalarResultRecord>,
@@ -180,6 +183,38 @@ pub struct ForeignCallRelocation {
     /// opaque same-stack contribution for the foreign leaf.
     pub unit_stack: UnitCallStackEvidence,
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+}
+
+/// Physical destination retained without inventing a semantic callback value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallbackAddressDestination {
+    Register(omega_target_operations::MachineRegister),
+    OutgoingStack { byte_offset: u32 },
+}
+
+/// Architecture-native symbolic address encoding. Offsets are relative to the
+/// containing machine-code function and identify only mutable relocation
+/// fields; every surrounding instruction bit remains final-byte checked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallbackAddressEncoding {
+    X86_64Relative32 {
+        relocation_offset: usize,
+    },
+    Aarch64PageAddress {
+        page_relocation_offset: usize,
+        page_offset_relocation_offset: usize,
+    },
+}
+
+/// Source-free custody for one callback function address loaded immediately
+/// before the exact normalized registrar call that consumes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackAddressMaterialization {
+    pub target: omega_target_operations::TargetNativeCallbackArgument,
+    pub destination: CallbackAddressDestination,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub encoding: CallbackAddressEncoding,
 }
 
 /// Per-call proof that one returning AArch64 foreign boundary preserved the
