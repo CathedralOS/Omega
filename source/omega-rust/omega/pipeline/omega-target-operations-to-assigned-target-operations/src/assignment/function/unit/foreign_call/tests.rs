@@ -323,11 +323,11 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
             Ok(arguments.iter().map(assigned_argument).collect())
         );
 
-        let first_stack_count = register_count + 1;
-        let first_stack_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        let stack_argument_count = register_count + 2;
+        let stack_argument_plan = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature {
-                parameters: vec![ValueShape::integer(4, 4); first_stack_count],
+                parameters: vec![ValueShape::integer(4, 4); stack_argument_count],
                 result: None,
             },
         )
@@ -335,34 +335,50 @@ fn assignment_rejects_literal_identity_type_value_order_and_placement_drift() {
         .plan()
         .clone();
         assert!(matches!(
-            first_stack_plan
+            stack_argument_plan
+                .call
+                .parameters
+                .get(register_count)
+                .unwrap()
+                .locations
+                .as_slice(),
+            [ValueLocation::Stack {
+                stack_byte_offset: 0,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            stack_argument_plan
                 .call
                 .parameters
                 .last()
                 .unwrap()
                 .locations
                 .as_slice(),
-            [ValueLocation::Stack { .. }]
+            [ValueLocation::Stack {
+                stack_byte_offset: 8,
+                ..
+            }]
         ));
-        let first_stack_arguments = (0..first_stack_count)
+        let stack_arguments = (0..stack_argument_count)
             .map(
                 |index| omega_target_operations::NormalizedForeignScalarArgument {
                     parameter_index: u32::try_from(index).unwrap(),
                     source: argument.source,
-                    placement: first_stack_plan.call.parameters[index].clone(),
+                    placement: stack_argument_plan.call.parameters[index].clone(),
                 },
             )
             .collect::<Vec<_>>();
-        assert!(
+        assert_eq!(
             assign_normalized_foreign_scalar_arguments_for_plan(
-                &first_stack_plan,
+                &stack_argument_plan,
                 target,
-                &first_stack_arguments,
+                &stack_arguments,
                 &preceding,
                 &BTreeMap::new(),
-            )
-            .is_err(),
-            "the first stack-resident literal remains fenced on {target:?}",
+            ),
+            Ok(stack_arguments.iter().map(assigned_argument).collect()),
+            "assignment retains the complete canonical register-and-stack plan on {target:?}",
         );
     }
 

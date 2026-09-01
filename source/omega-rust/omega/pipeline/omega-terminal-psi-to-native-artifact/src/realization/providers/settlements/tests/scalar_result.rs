@@ -578,7 +578,7 @@ fn expected_result_bytes(
 
 fn expected_argument_bytes(architecture: omega_target::Architecture) -> &'static [u8] {
     match architecture {
-        omega_target::Architecture::X86_64 => &[0x48, 0x8b, 0x7c, 0x24, 0x00],
+        omega_target::Architecture::X86_64 => &[0x48, 0x8b, 0x7c, 0x24, 0x08],
         omega_target::Architecture::Aarch64 => &[0xe0, 0x03, 0x40, 0xf9],
     }
 }

@@ -65,18 +65,27 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
     for (parameter_index, argument) in scalar_arguments.iter().enumerate() {
         let source_value = argument.source_value();
         let scalar_type = argument.scalar_type();
-        let [
-            ValueLocation::Register {
-                register,
-                value_byte_offset: 0,
-                byte_size,
-            },
-        ] = argument.placement.locations.as_slice()
-        else {
-            return Err(AssignmentError::ExpressionParameterLocationConflict {
-                value: source_value,
-                parameter_index,
-            });
+        let placed_byte_size = match argument.placement.locations.as_slice() {
+            [
+                ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ]
+            | [
+                ValueLocation::Stack {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => *byte_size,
+            _ => {
+                return Err(AssignmentError::ExpressionParameterLocationConflict {
+                    value: source_value,
+                    parameter_index,
+                });
+            }
         };
         let expected_bytes = scalar_type.bits().div_ceil(8);
         if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
@@ -85,7 +94,7 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
             || argument.placement != boundary_entry_plan.call.parameters[parameter_index]
             || argument.placement.shape
                 != ValueShape::integer(expected_bytes, expected_bytes.next_power_of_two().min(8))
-            || expected_bytes != *byte_size
+            || expected_bytes != placed_byte_size
         {
             return Err(AssignmentError::ExpressionParameterLocationConflict {
                 value: source_value,
@@ -101,11 +110,14 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
             value: source_value,
             parameter_index,
         })?;
-        crate::assignment::placement::require_register_architecture(
-            source_value,
-            *register,
-            target.architecture,
-        )?;
+        if let [ValueLocation::Register { register, .. }] = argument.placement.locations.as_slice()
+        {
+            crate::assignment::placement::require_register_architecture(
+                source_value,
+                *register,
+                target.architecture,
+            )?;
+        }
         assigned.push(AssignedNormalizedForeignScalarArgument {
             parameter_index: argument.parameter_index,
             source,

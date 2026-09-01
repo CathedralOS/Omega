@@ -1820,22 +1820,38 @@ fn validate_foreign_scalar_arguments(
     {
         return Err(invalid());
     }
+    let expected_outbound =
+        expected_foreign_scalar_outbound_bytes(&expected_plan, target.architecture)
+            .ok_or_else(invalid)?;
+    match (expected_outbound, call.unit_stack.outbound) {
+        (0, None) => {}
+        (expected, Some(outbound)) if outbound.byte_size == expected => {}
+        _ => return Err(invalid()),
+    }
     let call_start = match target.architecture {
         Architecture::X86_64 => call.offset.saturating_sub(1),
         Architecture::Aarch64 => call.offset,
     };
-    let argument_end_boundary = call
-        .unit_stack
-        .outbound
-        .map_or(call_start, |outbound| outbound.allocation_offset);
     let CallSiteOwner::Operation(operation) = call.owner else {
         return Err(invalid());
     };
     let call_end = call.offset.checked_add(4).ok_or_else(invalid)?;
-    let operation_start = call
-        .scalar_arguments
-        .first()
-        .map_or(argument_end_boundary, |argument| argument.code_offset);
+    let operation_start = call.unit_stack.outbound.map_or_else(
+        || {
+            call.scalar_arguments
+                .first()
+                .map_or(call_start, |argument| argument.code_offset)
+        },
+        |outbound| outbound.allocation_offset,
+    );
+    let mut argument_cursor = if let Some(outbound) = call.unit_stack.outbound {
+        outbound
+            .allocation_offset
+            .checked_add(outbound.allocation_byte_count)
+            .ok_or_else(invalid)?
+    } else {
+        operation_start
+    };
     let post_call = if let Some(outbound) = call.unit_stack.outbound {
         if outbound.release_offset != call_end {
             return Err(invalid());
@@ -1904,43 +1920,81 @@ fn validate_foreign_scalar_arguments(
         .zip(&expected_plan.parameters)
         .enumerate()
     {
-        let [
-            omega_calling_conventions::ValueLocation::Register {
-                register: _,
-                value_byte_offset: 0,
-                byte_size: placed_bytes,
-            },
-        ] = argument.placement.locations.as_slice()
-        else {
-            return Err(invalid());
+        let placed_bytes = match argument.placement.locations.as_slice() {
+            [
+                omega_calling_conventions::ValueLocation::Register {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ]
+            | [
+                omega_calling_conventions::ValueLocation::Stack {
+                    value_byte_offset: 0,
+                    byte_size,
+                    ..
+                },
+            ] => *byte_size,
+            _ => return Err(invalid()),
         };
         if argument.parameter_index != parameter_index as u32
             || argument.placement != *expected_placement
             || argument.placement.shape != *shape
-            || *placed_bytes != shape.byte_size
+            || placed_bytes != shape.byte_size
+            || argument.code_offset != argument_cursor
         {
             return Err(invalid());
         }
         validate_foreign_scalar_source(function, attribution, argument)?;
         let expected_bytes =
-            expected_foreign_scalar_argument_bytes(target, argument).ok_or_else(invalid)?;
+            expected_foreign_scalar_argument_bytes(target, argument, expected_outbound)
+                .ok_or_else(invalid)?;
         let argument_end = argument
             .code_offset
             .checked_add(argument.byte_count)
             .ok_or_else(invalid)?;
-        let next_interval = call
-            .scalar_arguments
-            .get(parameter_index + 1)
-            .map_or(argument_end_boundary, |next| next.code_offset);
         if argument.byte_count != expected_bytes.len()
             || function.bytes.get(argument.code_offset..argument_end)
                 != Some(expected_bytes.as_slice())
-            || argument_end != next_interval
         {
             return Err(invalid());
         }
+        argument_cursor = argument_end;
+    }
+    if argument_cursor != call_start {
+        return Err(invalid());
     }
     Ok(())
+}
+
+fn expected_foreign_scalar_outbound_bytes(
+    call_plan: &omega_calling_conventions::CallPlan,
+    architecture: Architecture,
+) -> Option<u32> {
+    let mut extent = u32::from(call_plan.shadow_bytes);
+    for placement in &call_plan.parameters {
+        for location in &placement.locations {
+            if let omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset,
+                byte_size,
+                ..
+            } = location
+            {
+                let slot_bytes = u32::from(*byte_size).max(8);
+                extent = extent.max(stack_byte_offset.checked_add(slot_bytes)?);
+            }
+        }
+    }
+    match architecture {
+        Architecture::X86_64 => {
+            let padding = (8 + 16 - (extent % 16)) % 16;
+            extent.checked_add(padding)
+        }
+        Architecture::Aarch64 => {
+            let padding = (16 - (extent % 16)) % 16;
+            extent.checked_add(padding)
+        }
+    }
 }
 
 fn validate_foreign_scalar_source(
@@ -1990,15 +2044,26 @@ fn validate_foreign_scalar_source(
 fn expected_foreign_scalar_argument_bytes(
     target: NativeTarget,
     argument: &omega_machine_code::ForeignCallScalarArgumentRecord,
+    outbound_bytes: u32,
 ) -> Option<Vec<u8>> {
-    let [omega_calling_conventions::ValueLocation::Register { register, .. }] =
-        argument.placement.locations.as_slice()
-    else {
-        return None;
+    let (register, stack) = match argument.placement.locations.as_slice() {
+        [omega_calling_conventions::ValueLocation::Register { register, .. }] => (
+            Some(match target.architecture {
+                Architecture::X86_64 => instruction_loads::x86_terminal_register(*register)?,
+                Architecture::Aarch64 => instruction_loads::aarch64_terminal_register(*register)?,
+            }),
+            None,
+        ),
+        [
+            omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset, ..
+            },
+        ] => (None, Some(*stack_byte_offset)),
+        _ => return None,
     };
     let register = match target.architecture {
-        Architecture::X86_64 => instruction_loads::x86_terminal_register(*register)?,
-        Architecture::Aarch64 => instruction_loads::aarch64_terminal_register(*register)?,
+        Architecture::X86_64 => register.unwrap_or(11),
+        Architecture::Aarch64 => register.unwrap_or(9),
     };
     let mut bytes = Vec::new();
     match argument.source {
@@ -2055,18 +2120,30 @@ fn expected_foreign_scalar_argument_bytes(
                     instruction_loads::expected_x86_stack_load(
                         &mut bytes,
                         register,
-                        home.byte_offset,
+                        outbound_bytes.checked_add(home.byte_offset)?,
                         8,
                     )?;
                 }
                 Architecture::Aarch64 => {
                     let instruction = instruction_loads::expected_aarch64_stack_load(
                         register,
-                        home.byte_offset,
+                        outbound_bytes.checked_add(home.byte_offset)?,
                         8,
                     )?;
                     bytes.extend_from_slice(&instruction.to_le_bytes());
                 }
+            }
+        }
+    }
+    if let Some(offset) = stack {
+        match target.architecture {
+            Architecture::X86_64 => {
+                unit_scalar_call_custody::expected_x86_stack_store(&mut bytes, register, offset);
+            }
+            Architecture::Aarch64 => {
+                let instruction =
+                    unit_scalar_call_custody::expected_aarch64_stack_store(register, offset)?;
+                bytes.extend_from_slice(&instruction.to_le_bytes());
             }
         }
     }

@@ -56,19 +56,26 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 };
                 let source = known.into_target_source(*source_value);
-                let [
-                    ValueLocation::Register {
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    },
-                ] = placement.locations.as_slice()
-                else {
-                    return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                let placed_byte_size = match placement.locations.as_slice() {
+                    [
+                        ValueLocation::Register {
+                            value_byte_offset: 0,
+                            byte_size,
+                            ..
+                        },
+                    ]
+                    | [
+                        ValueLocation::Stack {
+                            value_byte_offset: 0,
+                            byte_size,
+                            ..
+                        },
+                    ] => *byte_size,
+                    _ => return Err(LoweringError::BoundaryRealizationMismatch(boundary)),
                 };
                 if known.scalar_type() != *integer_type
                     || placement.shape != *shape
-                    || shape.byte_size != *byte_size
+                    || shape.byte_size != placed_byte_size
                     || match source {
                         TargetUnitScalarArgumentSource::IntegerImmediate {
                             scalar_type,

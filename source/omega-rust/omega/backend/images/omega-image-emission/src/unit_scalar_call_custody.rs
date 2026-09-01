@@ -565,7 +565,7 @@ fn expected_x86_immediate(bytes: &mut Vec<u8>, register: u8, bits: u64) {
     bytes.extend_from_slice(&bits.to_le_bytes());
 }
 
-fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32) {
+pub(super) fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset: u32) {
     bytes.push(0x48 | (((register >> 3) & 1) << 2));
     bytes.push(0x89);
     if offset <= i8::MAX as u32 {
@@ -615,7 +615,7 @@ fn expected_aarch64_immediate(words: &mut Vec<u32>, register: u8, bits: u64) {
     }
 }
 
-fn expected_aarch64_stack_store(register: u8, offset: u32) -> Option<u32> {
+pub(super) fn expected_aarch64_stack_store(register: u8, offset: u32) -> Option<u32> {
     (offset.is_multiple_of(8) && offset / 8 <= 0xfff)
         .then_some(0xf900_0000 | ((offset / 8) << 10) | (31 << 5) | u32::from(register))
 }
