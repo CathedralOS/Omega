@@ -37,6 +37,7 @@ const COUNTDOWN_SOURCE: &str = r#"
 mod countdown_invariant_constant_placement;
 mod countdown_invariant_constants;
 mod counted_loop_analysis;
+mod ranking_relocated_invariant_constants;
 
 fn countdown_input() -> (psi_terminal::TerminalModule, VerifiedPsiOptimizationInput) {
     let tokens = Lexer::new(COUNTDOWN_SOURCE)
