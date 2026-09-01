@@ -25,6 +25,7 @@ use crate::{
 mod boolean_equal_immediate;
 mod boolean_not_immediate;
 mod enabled_families;
+mod integer_bitwise_and_immediate;
 mod integer_bitwise_not_immediate;
 mod integer_equal_immediate;
 mod integer_less_than_immediate;

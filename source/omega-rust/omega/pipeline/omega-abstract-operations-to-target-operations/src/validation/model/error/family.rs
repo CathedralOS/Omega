@@ -6,6 +6,7 @@ mod shift;
 use super::immediate::{
     StraightLineBooleanEqualImmediateTranslationError,
     StraightLineBooleanImmediateTranslationError, StraightLineBooleanNotImmediateTranslationError,
+    StraightLineIntegerBitwiseAndImmediateTranslationError,
     StraightLineIntegerBitwiseNotImmediateTranslationError,
     StraightLineIntegerEqualImmediateTranslationError,
     StraightLineIntegerLessThanImmediateTranslationError,
@@ -55,6 +56,7 @@ use shift::{
 pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerImmediate(StraightLineIntegerImmediateTranslationError),
     StraightLineIntegerWidenImmediate(StraightLineIntegerWidenImmediateTranslationError),
+    StraightLineIntegerBitwiseAndImmediate(StraightLineIntegerBitwiseAndImmediateTranslationError),
     StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
     StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),
     StraightLineIntegerLessThanImmediate(StraightLineIntegerLessThanImmediateTranslationError),

@@ -15,6 +15,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
         vec![
             AbstractToTargetTranslationFamily::StraightLineIntegerImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate,
+            AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerExactCastImmediateOperand,
             AbstractToTargetTranslationFamily::StraightLineIntegerEqualImmediate,

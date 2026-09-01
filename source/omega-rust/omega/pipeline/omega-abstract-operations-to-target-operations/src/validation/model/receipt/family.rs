@@ -15,6 +15,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerWidenImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerWidenImmediate
             }
+            Self::StraightLineIntegerBitwiseAndImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndImmediate
+            }
             Self::StraightLineIntegerBitwiseNotImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate
             }
