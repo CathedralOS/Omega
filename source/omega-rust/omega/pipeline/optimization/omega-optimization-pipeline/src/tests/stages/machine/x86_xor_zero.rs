@@ -1,6 +1,10 @@
+//! Direct publication canary plus the exact rule's named custody-corruption rung.
+
 use omega_isa_x86_64::encode_x86_64_xor_zero_i64_materialization;
 
 use crate::tests::*;
+
+mod custody_corruption;
 
 #[test]
 fn x86_xor_zero_reaches_direct_whole_function_exit_with_exact_custody() {

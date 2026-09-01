@@ -31,10 +31,7 @@ pub fn validate_x86_xor_zero_materialization<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     plan: X86XorZeroMaterializationPlan,
 ) -> Result<ValidatedX86XorZeroMaterialization, X86XorZeroMaterializationError> {
-    if plan.policy != X86XorZeroMaterializationPolicy::X86SelectXorZeroI64MaterializationV1 {
-        return Err(X86XorZeroMaterializationError::ArtifactMismatch);
-    }
-    let expected = replay_from_parts(
+    validate_from_parts(
         selected.selected_plan(),
         selected.selected_identity(),
         liveness.plan(),
@@ -42,13 +39,40 @@ pub fn validate_x86_xor_zero_materialization<S: ValidatedSelectedAnalysis>(
         source.plan(),
         source.receipt().identity(),
         physical,
-        plan.budget,
+        &plan,
     )?;
-    if plan != expected {
-        return Err(X86XorZeroMaterializationError::ArtifactMismatch);
-    }
     let receipt = x86_xor_zero_materialization_receipt(&plan)?;
     Ok(ValidatedX86XorZeroMaterialization::new(plan, receipt))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_from_parts(
+    selected: &SelectedInstructionPlan,
+    selected_identity: omega_selected_instructions::SelectedInstructionPlanIdentity,
+    liveness: &LivenessPlan,
+    liveness_identity: omega_regalloc::LivenessIdentity,
+    source: &PostAllocationMachinePlan,
+    source_identity: crate::PostAllocationMachineIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    plan: &X86XorZeroMaterializationPlan,
+) -> Result<(), X86XorZeroMaterializationError> {
+    if plan.policy != X86XorZeroMaterializationPolicy::X86SelectXorZeroI64MaterializationV1 {
+        return Err(X86XorZeroMaterializationError::ArtifactMismatch);
+    }
+    let expected = replay_from_parts(
+        selected,
+        selected_identity,
+        liveness,
+        liveness_identity,
+        source,
+        source_identity,
+        physical,
+        plan.budget,
+    )?;
+    if *plan != expected {
+        return Err(X86XorZeroMaterializationError::ArtifactMismatch);
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

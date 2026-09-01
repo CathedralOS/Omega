@@ -1,4 +1,4 @@
-//! Authenticated one-field corruption coverage for generic machine custody.
+//! Authenticated one-field corruption coverage for XOR-zero machine custody.
 
 use crate::tests::*;
 
@@ -13,11 +13,7 @@ fn every_post_allocation_custody_field_rejects_after_outer_reauthentication() {
 /// admission or policy authority.
 fn staged_realization() -> StagedPostAllocationMachineFunctionRelativeRealization {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let machine_fixture = conditional_immediate_machine(
-        18_401,
-        integer_type,
-        [u128::from(i32::MAX as u32), u128::from(u64::MAX)],
-    );
+    let machine_fixture = conditional_immediate_machine(18_001, integer_type, [0, 1]);
     let module = conditional_immediate_module(machine_fixture.id, vec![machine_fixture]);
     let semantic = psi_terminal_codec::encode_module(&module).unwrap();
     let proof = psi_terminal_codec::encode_proof_bundle(&ProofBundle {
@@ -25,10 +21,8 @@ fn staged_realization() -> StagedPostAllocationMachineFunctionRelativeRealizatio
         evidence: Vec::new(),
     })
     .unwrap();
-    let selections = OptimizationSelections::new([
-        Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1,
-    ])
-    .unwrap();
+    let selections =
+        OptimizationSelections::new([Optimization::X86SelectXorZeroI64MaterializationV1]).unwrap();
     let optimized = optimize_artifact_sections(
         &semantic,
         &proof,
