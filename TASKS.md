@@ -9189,9 +9189,13 @@ compiler concept is introduced.
   authority-class-free builtin and numeric coordinate has an explicit empty
   disposition. Empty remains distinct from absent or unsupported: policy lookup
   rejects any exact mechanism missing from the versioned committed inventory.
-  This rung does not yet traverse provider closures, join service/schema
-  permissions, admit native execution, or carry the accepted policy identity
-  in realization evidence.
+  Production native realization now receives that policy explicitly, classifies
+  every demanded compiler builtin before target settlement, and retains the
+  accepted policy version and strong commitment in `NativeArtifact` and its
+  strong identity. Exact-policy replay rejects substitution. This is
+  classification custody only: it does not traverse provider closures, join
+  service/schema permissions, or mint provider-execution/native-admission
+  evidence.
 
   The structural Mach-O prerequisite is now live. `MachODylibSymbol` seals one
   raw `LC_LOAD_DYLIB` install-name identity together with one exact dyld symbol
@@ -9206,18 +9210,19 @@ compiler concept is introduced.
   and bind rows use the locator's raw bytes rather than the object-local
   diagnostic spelling; dylibs deduplicate by exact install-name bytes in first-
   reference order, and unsupported ordinal counts reject transactionally. The
-  first ordinary-source carrier rung is now live: `via` retains
-  one exact typed producer-call expression through syntax, resolution, and
-  typing without fabricating an import identity, while the legacy closed
-  string binding remains explicitly segregated. Validation currently admits
-  only one resolved receiverless, body-bearing, non-generic, zero-parameter
-  producer call. Next install the compiler-owned `Binding` vocabulary,
-  hermetically evaluate that exact producer, and normalize its result to
-  PE-by-name, PE-by-ordinal, versioned-ELF, or Mach-O before supplying
-  target-policy rows for admitted imports. Only then replace the blessed
-  filename table with the exact service/schema permission table and binding-
-  derived containment. String-backed imports never enter accepted
-  classification directly.
+  ordinary-source carrier is also live: `via` retains one exact typed producer
+  call, the compiler-owned `Binding` vocabulary hermetically evaluates it, and
+  normalization produces structural PE-by-name, PE-by-ordinal, versioned-ELF,
+  or Mach-O locators. The target-constrained Terminal proposal rejoins every
+  selected evaluated import to exactly one physical external row. Legacy
+  string-backed imports remain segregated and never enter accepted
+  classification directly. The next D45 work is to add receiving target-policy
+  rows for these normalized foreign mechanisms, traverse the complete selected-
+  provider closure, and replace the blessed filename classifier with exact
+  service/schema permissions plus binding-derived containment. Native
+  settlement of source-evaluated imports still separately requires externally
+  admitted provider execution and task-stack custody; classification must not
+  manufacture either.
 
   Classify runtime-polymorphic arguments by the conservative union of all
   reachable authority. Narrow only when a retained checked constant, range,

@@ -170,6 +170,8 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution
                         ),
                     selected_provider_plans: Vec::new(),
                     provider_executions: Vec::new(),
+                    terminal_authority_policy_identity:
+                        crate::current_compiler_intrinsic_terminal_authority_policy().identity(),
                     physical_evidence_scope:
                         omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
                 },

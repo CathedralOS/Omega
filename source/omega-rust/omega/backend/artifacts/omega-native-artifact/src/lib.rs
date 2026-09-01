@@ -9,6 +9,7 @@
 
 use std::collections::BTreeSet;
 
+use omega_effects::TerminalAuthorityPolicyIdentity;
 pub use omega_image_emission::BoundaryExecutionRecord;
 use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
@@ -24,7 +25,7 @@ pub use physical::{
     PhysicalRelocationDisposition,
 };
 
-const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v2\0";
+const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v3\0";
 
 /// Collision-resistant identity of one complete, validated native artifact.
 ///
@@ -230,6 +231,7 @@ pub struct NativeArtifact {
     selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
+    terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence: Option<NativePhysicalEvidence>,
     identity: NativeArtifactIdentity,
@@ -245,6 +247,7 @@ pub struct NativeArtifactParts {
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
+    pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
     pub physical_evidence: Option<NativePhysicalEvidence>,
 }
@@ -262,6 +265,7 @@ pub struct NativeArtifactEmissionParts {
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
+    pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
@@ -358,6 +362,7 @@ impl NativeArtifact {
             selected_provider_closure_digest: parts.selected_provider_closure_digest,
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
+            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence,
         })
@@ -376,6 +381,7 @@ impl NativeArtifact {
             selected_provider_closure_digest: parts.selected_provider_closure_digest,
             selected_provider_plans: parts.selected_provider_plans,
             provider_executions: parts.provider_executions,
+            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence,
             identity: NativeArtifactIdentity([0; 32]),
@@ -516,6 +522,7 @@ impl NativeArtifact {
             selected_provider_closure_digest: *self.selected_provider_closure_digest.as_bytes(),
             selected_provider_plans: &self.selected_provider_plans,
             provider_executions: &self.provider_executions,
+            terminal_authority_policy_identity: self.terminal_authority_policy_identity,
             physical_evidence_scope: self.physical_evidence_scope,
             physical_evidence_identity: self
                 .physical_evidence
@@ -570,6 +577,27 @@ impl NativeArtifact {
         &self.provider_executions
     }
 
+    /// Exact receiving target-policy identity accepted while realizing this
+    /// artifact. This records classification policy only; it is not service
+    /// containment or provider-execution admission evidence.
+    pub const fn terminal_authority_policy_identity(&self) -> TerminalAuthorityPolicyIdentity {
+        self.terminal_authority_policy_identity
+    }
+
+    /// Replay this artifact under a receiving authority's exact accepted
+    /// target policy. Base validation cannot decide which policy a receiver
+    /// accepts; this join makes policy substitution explicit.
+    pub fn validate_for_terminal_authority_policy(
+        &self,
+        accepted: TerminalAuthorityPolicyIdentity,
+    ) -> Result<(), &'static str> {
+        self.validate()?;
+        if self.terminal_authority_policy_identity != accepted {
+            return Err("native artifact terminal-authority policy is not accepted");
+        }
+        Ok(())
+    }
+
     pub const fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
         self.physical_evidence_scope
     }
@@ -592,6 +620,7 @@ impl NativeArtifact {
             selected_provider_closure_digest: self.selected_provider_closure_digest,
             selected_provider_plans: self.selected_provider_plans,
             provider_executions: self.provider_executions,
+            terminal_authority_policy_identity: self.terminal_authority_policy_identity,
             physical_evidence_scope: self.physical_evidence_scope,
             physical_evidence: self.physical_evidence,
         }
@@ -619,6 +648,7 @@ struct NativeArtifactIdentityFields<'a> {
     selected_provider_closure_digest: [u8; 32],
     selected_provider_plans: &'a [NativeSelectedProviderPlan],
     provider_executions: &'a [NativeProviderExecution],
+    terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     physical_evidence_scope: NativePhysicalEvidenceScope,
     physical_evidence_identity: Option<[u8; 32]>,
 }
@@ -697,6 +727,13 @@ fn derive_native_artifact_identity(
             digest.update(report_coordinate.to_le_bytes());
         }
     }
+    digest.update(
+        fields
+            .terminal_authority_policy_identity
+            .version()
+            .to_le_bytes(),
+    );
+    digest.update(fields.terminal_authority_policy_identity.commitment());
     digest.update([match fields.physical_evidence_scope {
         NativePhysicalEvidenceScope::Unavailable => 0,
         NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications => 1,
@@ -753,6 +790,7 @@ mod tests {
         provider_plan_marker: u8,
         requirement: &'a str,
         execution_report_fingerprint: u64,
+        terminal_policy_marker: u8,
         physical_evidence_scope: NativePhysicalEvidenceScope,
         physical_evidence_marker: u8,
         with_validation_evidence: bool,
@@ -772,6 +810,7 @@ mod tests {
                 provider_plan_marker: 59,
                 requirement: "core::Console::write",
                 execution_report_fingerprint: 41,
+                terminal_policy_marker: 67,
                 physical_evidence_scope:
                     NativePhysicalEvidenceScope::UnoptimizedNoBoundaryOperatorApplications,
                 physical_evidence_marker: 61,
@@ -816,6 +855,10 @@ mod tests {
             selected_provider_closure_digest: [fixture.provider_closure_marker; 32],
             selected_provider_plans: &plans,
             provider_executions: &executions,
+            terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity::from_parts(
+                1,
+                [fixture.terminal_policy_marker; 32],
+            ),
             physical_evidence_scope: fixture.physical_evidence_scope,
             physical_evidence_identity: Some([fixture.physical_evidence_marker; 32]),
         })
@@ -909,6 +952,10 @@ mod tests {
             }),
             fixture_identity(IdentityFixture {
                 execution_report_fingerprint: 43,
+                ..IdentityFixture::default()
+            }),
+            fixture_identity(IdentityFixture {
+                terminal_policy_marker: 71,
                 ..IdentityFixture::default()
             }),
             fixture_identity(IdentityFixture {

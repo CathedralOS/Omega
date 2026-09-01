@@ -2,7 +2,7 @@ use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest
 use omega_abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
-use omega_effects::provider_plan::ProviderBinding;
+use omega_effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use omega_target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, LinuxExitGroupI32Realization,
 };
@@ -56,6 +56,17 @@ pub(super) fn settle_compiler_builtins<'request>(
                 "compiler-builtin proposal for `{requirement}` does not rejoin one Terminal boundary"
             ))]);
         };
+        let mechanism = compiler_intrinsic_execution_identity(proposal.execution);
+        request
+            .terminal_authority_policy
+            .classify(mechanism)
+            .map_err(|unclassified| {
+                vec![Diagnostic::error(format!(
+                    "receiving terminal-authority policy version {} does not classify compiler intrinsic {:?} required by `{requirement}`",
+                    request.terminal_authority_policy.identity().version(),
+                    unclassified.mechanism(),
+                ))]
+            })?;
         let realization = match proposal.execution {
             CompilerBuiltinExecution::LinuxExitGroupI32
                 if request.target.object_format == omega_target::ObjectFormat::Elf =>
@@ -76,4 +87,14 @@ pub(super) fn settle_compiler_builtins<'request>(
         });
     }
     Ok(admitted)
+}
+
+const fn compiler_intrinsic_execution_identity(
+    execution: CompilerBuiltinExecution,
+) -> CompilerIntrinsicExecutionIdentity {
+    match execution {
+        CompilerBuiltinExecution::LinuxExitGroupI32 => {
+            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
+        }
+    }
 }

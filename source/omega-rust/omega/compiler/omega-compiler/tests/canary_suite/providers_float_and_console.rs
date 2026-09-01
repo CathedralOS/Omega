@@ -629,6 +629,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             selected_provider_closure_digest: parts.selected_provider_closure_digest,
             selected_provider_plans: parts.selected_provider_plans.clone(),
             provider_executions: parts.provider_executions.clone(),
+            terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
             physical_evidence_scope: parts.physical_evidence_scope,
             physical_evidence: parts.physical_evidence.clone(),
         }
@@ -666,6 +667,20 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
             0,
             "compiler builtins must not mint provider execution evidence for {target}",
         );
+        let accepted_policy =
+            omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy();
+        assert_eq!(
+            artifact.terminal_authority_policy_identity(),
+            accepted_policy.identity(),
+            "native artifact must retain the exact receiving policy for {target}",
+        );
+        assert_eq!(
+            accepted_policy
+                .classify(omega_effects::CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32)
+                .expect("closed compiler-intrinsic policy classifies Linux exit-group")
+                .classes(),
+            &[omega_effects::TerminalAuthorityClass::ProcessTermination],
+        );
         let evidence = artifact
             .physical_evidence()
             .unwrap_or_else(|| panic!("{target} exit_group must retain complete D32 evidence"));
@@ -696,9 +711,29 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
         let artifact = compilation
             .into_retained_native_artifact()
             .expect("NativeArtifact report should transfer exact custody");
+        let artifact_identity = artifact.identity();
         let parts = artifact.into_parts();
-        let _replayed = native::NativeArtifact::from_replayed_parts(replay_parts(&parts))
+        let replayed = native::NativeArtifact::from_replayed_parts(replay_parts(&parts))
             .expect("unchanged physical evidence must replay");
+        replayed
+            .validate_for_terminal_authority_policy(accepted_policy.identity())
+            .expect("unchanged receiving policy must replay");
+
+        let mut substituted_policy = replay_parts(&parts);
+        substituted_policy.terminal_authority_policy_identity =
+            omega_effects::TerminalAuthorityPolicyIdentity::from_parts(
+                accepted_policy.identity().version() + 1,
+                accepted_policy.identity().commitment(),
+            );
+        let substituted_policy = native::NativeArtifact::from_replayed_parts(substituted_policy)
+            .expect("a different policy identity describes a different valid artifact");
+        assert_ne!(substituted_policy.identity(), artifact_identity);
+        assert!(
+            substituted_policy
+                .validate_for_terminal_authority_policy(accepted_policy.identity())
+                .is_err(),
+            "the receiving authority must reject policy substitution",
+        );
 
         let mut missing = replay_parts(&parts);
         missing.physical_evidence = None;
@@ -872,6 +907,8 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             target: proposal.native_target(),
             subsystem: proposal.subsystem(),
             profile: &profile,
+            terminal_authority_policy:
+                omega_terminal_psi_to_native_artifact::current_compiler_intrinsic_terminal_authority_policy(),
             program_entry,
             optimization_selections: &optimizations,
             selected_provider_plans: proposal.selected_provider_plans(),

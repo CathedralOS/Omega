@@ -506,6 +506,13 @@ exact post-normalization terminal-mechanism identity
 exercised terminal authority <= permitted terminal authority
 ```
 
+The current first implementation rung applies this model to the closed
+compiler-intrinsic family. Native realization classifies every demanded
+compiler builtin under an explicitly supplied receiving policy and retains the
+accepted policy version and commitment in the native artifact's strong
+identity. Replaying against a different accepted policy fails. This is not yet
+the service/schema containment join and grants no provider-execution admission.
+
 Review reports an excess as an explicit containment failure, and accepted
 realization rejects it. For example, a filesystem provider whose selected
 Linux binding reaches a process-execution syscall does not become safe because

@@ -495,6 +495,7 @@ impl ProgressClosedComponentDeployment {
             selected_provider_closure_digest,
             selected_provider_plans: native_selected_provider_plans,
             provider_executions,
+            terminal_authority_policy_identity,
             physical_evidence_scope,
             physical_evidence,
         } = native_artifact.into_parts();
@@ -517,6 +518,7 @@ impl ProgressClosedComponentDeployment {
                                         selected_provider_closure_digest,
                                         selected_provider_plans: native_selected_provider_plans,
                                         provider_executions,
+                                        terminal_authority_policy_identity,
                                         physical_evidence_scope,
                                         physical_evidence,
                                     },
@@ -556,6 +558,7 @@ impl ProgressClosedComponentDeployment {
                                         selected_provider_closure_digest,
                                         selected_provider_plans: native_selected_provider_plans,
                                         provider_executions,
+                                        terminal_authority_policy_identity,
                                         physical_evidence_scope,
                                         physical_evidence,
                                     },

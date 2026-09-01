@@ -12,6 +12,7 @@ pub(crate) fn assemble_native_artifact(
     psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     machine_code: &MachineCodePlan,
     provider_executions: Vec<NativeProviderExecution>,
+    terminal_authority_policy_identity: omega_effects::TerminalAuthorityPolicyIdentity,
     physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
@@ -49,6 +50,7 @@ pub(crate) fn assemble_native_artifact(
         ),
         selected_provider_plans,
         provider_executions,
+        terminal_authority_policy_identity,
         physical_evidence_scope,
     })
     .map_err(|error| realization_error("native artifact replay", error))
