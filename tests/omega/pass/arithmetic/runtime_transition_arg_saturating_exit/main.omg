@@ -2,7 +2,7 @@
 // Saturating-domain accumulator argument carries NO exact-arith obligation (it
 // clamps), so `acc + (s[0] as i32 in Saturating)` compiles with no guard / no
 // range proof. arr = [30,25,15] sums to 70 (no clamping occurs at these values).
-use omega::language::std::console;
+use omega_language_std::console;
 data Summer {}
 data Main { console: Console; arr: [i32; 3]; summer: Summer; }
 machine Summer::sum(&mut self, s: &[i32], acc: i32 in Saturating) -> i32 in Saturating

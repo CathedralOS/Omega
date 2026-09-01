@@ -7,7 +7,7 @@
 //
 // This canary deliberately keeps the all-ones XOR spelling so it independently
 // exercises binary XOR; unary `~` is ordinary supported Omega syntax.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

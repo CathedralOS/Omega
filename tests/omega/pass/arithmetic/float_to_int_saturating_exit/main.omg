@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // cvttsd2si and selects the corresponding clamp result.
 // Legs: 1e20 -> i32::MAX (71); -1e20 -> i32::MIN (72); runtime 0.0/0.0
 // (NaN) -> 0 (73); -3.7 -> -3 (74).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; f: f64; z: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 100000000000000000000.0;

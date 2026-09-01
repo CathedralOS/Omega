@@ -3,7 +3,7 @@
 // but silently behave UNBOUNDED (a store of 100 passed). Now they enforce like
 // literal bounds: this valid store of 40 compiles and runs -> exit 40. (The
 // out-of-range store and the non-constant bound are the fail-canary twins.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

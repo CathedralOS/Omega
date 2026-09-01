@@ -2,7 +2,7 @@
 // refinement syntaxes (replacing the removed `range<a, b>`): `x` is bounded to
 // [0, 15] (exclusive `0..16`) and `y` to [0, 100] (inclusive `0..=100`), so the
 // prover keeps `x + y` (worst case [0, 115]) EXACT with no overflow domain.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; x: i32 [0..16]; y: i32 [0..=100]; }
 machine Main::main(&mut self) {
     self.x = 5;

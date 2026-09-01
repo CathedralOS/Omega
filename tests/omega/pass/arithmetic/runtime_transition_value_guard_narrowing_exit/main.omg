@@ -9,7 +9,7 @@
 //
 // dec(43) = 42; main exits 42.
 
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main { console: Console; }
 

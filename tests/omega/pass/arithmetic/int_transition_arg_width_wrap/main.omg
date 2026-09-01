@@ -5,7 +5,7 @@
 // interpreter bind_frame arg-coercion (apply_arithmetic_domain on Int args).
 // exit 71 = the interpreter carried the un-wrapped 300 into the u8 param.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) {
     self.a = 200;

@@ -7,7 +7,7 @@
 // Directions: u8 add wrap (200+100 = 300 -> 44), i8 sub wrap (-100-50 =
 // -150 -> 106), u8 mul wrap (100*3 = 300 -> 44), u8 shl wrap (17<<4 = 272
 // -> 16). Exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     au: u8 in Wrapping;

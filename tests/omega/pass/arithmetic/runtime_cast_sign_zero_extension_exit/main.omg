@@ -5,7 +5,7 @@
 //   i32 200 -> wrapping i8 -> i32 = -56 (0xC8 sign-extends)
 // A wrong extension (zero where sign is needed, or vice versa) would silently corrupt the value.
 // Each is chained; exits 70 iff all hold.
-use omega::language::std::console;
+use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 
 data Main {

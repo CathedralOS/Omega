@@ -5,7 +5,7 @@
 // result is checked against the reference value computed independently (Python): 844955649. So this
 // is not merely native==interp -- it proves Omega's u32 wrapping XOR+multiply computes the CORRECT
 // hash. Differential (native must also match the interpreter). Match -> exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     bytes: [u32 in Wrapping; 3];

@@ -3,7 +3,7 @@
 // result at <= 3. The caller's `classify(x) + 67` proves Exact only because that
 // bound is INFERRED from the callee body (without inference the result is opaque
 // and `+ 67` on a full i32 would be rejected). run(100): min(100,3)=3, +67 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::classify(&self, x: i32) -> i32 { min(x, 3) }
 machine Main::run(&mut self, x: i32) {

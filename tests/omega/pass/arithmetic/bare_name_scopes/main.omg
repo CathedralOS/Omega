@@ -12,7 +12,7 @@
 //
 // classify(70): n=70 > 0 -> report -> exit_process(n) = 70. Differential (interp==native).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Light { case Off; case On; }
 

@@ -4,7 +4,7 @@
 // downgrades the guard when a SIBLING argument contains a call, which could
 // mutate the guarded place between guard and argument evaluation.)
 // count starts 0, bumps to 1 through the param. Exit 70. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; count: i32 [0..=100]; }
 machine Main::main(&mut self) {
     transition self.count < 100 {

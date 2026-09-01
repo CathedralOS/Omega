@@ -2,7 +2,7 @@
 // operands: `c & 15` with `c: [0..=259]` lands in [0, 15] (an AND never sets
 // a bit absent from either operand), proving into `y: [0..=15]` with no
 // guard. c=259 -> 259 & 15 = 3 -> exit 3.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

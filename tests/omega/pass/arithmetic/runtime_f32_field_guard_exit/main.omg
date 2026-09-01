@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // post-pass (state-guards operands/mod.rs): a constant float expectation
 // against a 4-byte float place re-encodes to the f32 pattern and sizes
 // the literal side to 4. Found probing the recast read-side fix.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; f: f32; out: i32; }
 machine Main::main(&mut self) {
     self.f = 3.141592;

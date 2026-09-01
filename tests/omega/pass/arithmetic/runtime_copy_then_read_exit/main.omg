@@ -5,7 +5,7 @@
 // A later copy into `v` must forget that constant, or `self.v + 1` keeps folding
 // the stale literal instead of the copied value.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

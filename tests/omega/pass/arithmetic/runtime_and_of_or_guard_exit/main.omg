@@ -5,7 +5,7 @@
 // so the guards run in codegen; the canary DISCRIMINATES (true and false arms via
 // different operands). Differential-checked native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

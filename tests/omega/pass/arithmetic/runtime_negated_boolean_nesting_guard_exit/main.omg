@@ -5,7 +5,7 @@
 // runtime_and_of_or_guard_exit (positive nesting) with the negated forms. Values are
 // built at runtime; the canary DISCRIMINATES both arms. Differential native==interp.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

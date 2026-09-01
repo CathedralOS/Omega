@@ -7,7 +7,7 @@
 // Also exercises the earlier fires en route: the u64 struct-literal FIELD
 // (Fire: construction) and the u64 EQUALITY guard (Fire F).
 // exits: 71 = field compare wrong; 72 = arg delivery wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Box64 { v: u64; }
 data Main { console: Console; b: Box64; }
 machine Main::main(&mut self) {

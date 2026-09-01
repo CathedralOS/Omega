@@ -7,7 +7,7 @@
 // array domain via fixed_array_element_type). exit 72 = the wrap element read the
 // wrong value; 73 = the saturating element did not clamp.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     wrap: [u8; 2];

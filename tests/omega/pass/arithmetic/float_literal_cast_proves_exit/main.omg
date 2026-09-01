@@ -4,7 +4,7 @@
 // its landed format). 10.5 as i32 truncates toward zero to 10; -3.7 as i32
 // to -3.
 // exits: 71 = positive truncation wrong; 72 = negative truncation wrong.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 10.5 as i32;

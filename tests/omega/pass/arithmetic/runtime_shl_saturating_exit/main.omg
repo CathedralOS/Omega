@@ -7,7 +7,7 @@
 // from tests/omega/pending after sitting parked as a three-way divergence.
 // exits: 71 = neither clamped nor wrapped; 72 = wrapped (the old native
 // plain-shl behavior).
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: u8 in Saturating; b: u8 [0..=7]; r: u8 in Saturating; }
 machine Main::main(&mut self) {
     self.a = 17;

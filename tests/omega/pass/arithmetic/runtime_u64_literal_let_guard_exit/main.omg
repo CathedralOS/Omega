@@ -5,7 +5,7 @@
 // runs through a value machine's guarded arms and back: both engines
 // deliver the full bit pattern (18446744073709551615) and the floor 7.
 // This unblocks the saturating_* Instant/SystemTime twins (TASKS_TIME).
-use omega::language::std::console;
+use omega_language_std::console;
 data Calc { }
 machine Calc::pick(&mut self, saturate: bool) -> u64 in Wrapping {
     transition saturate {

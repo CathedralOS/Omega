@@ -3,7 +3,7 @@
 // u8 add-overflow -> 255, u8 sub-underflow -> 0, u8 mul-overflow -> 255, i8 signed positive
 // overflow -> 127, i8 signed negative underflow -> -128 (verified as +128 == 0 to keep the
 // observable positive). All self-checked via chained guards. Differential: native == interp.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: u8 in Saturating;

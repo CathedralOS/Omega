@@ -4,7 +4,7 @@
 // value must compare as large (`3_000_000_000 > 5` is true). The compare runs at
 // the operand width with the matching signed/unsigned setcc.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

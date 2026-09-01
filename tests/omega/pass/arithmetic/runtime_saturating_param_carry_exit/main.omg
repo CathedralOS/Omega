@@ -9,7 +9,7 @@
 // Exact landing seam truncate 177 -> -79, exiting 71 while native correctly
 // saturated; fixed by resolving the expression's declared scalar type at
 // binary nodes.)
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i8 in Saturating)
 terminates by (j, i) -> Nat::BoundedDistance;

@@ -18,7 +18,7 @@
 // sign-fill); 73 = frame-local indexed u64 <<; 74 = pointee u64 <<;
 // 75 = exact-count u64 <<; 76 = exact-count i32 >>.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Holder { slot: u64; }
 data Main { console: Console; arr: [u64; 4]; sarr: [i32; 4]; h: Holder; k: u64; ks: i32; }
 machine Main::write_slot(&mut self, target: &mut Holder) {

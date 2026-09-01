@@ -9,7 +9,7 @@
 // verification landmines on the TASKS item apply: positive expected values
 // only). Fifth direction: the WRITE-side fused-operand builder shares the
 // witness funnel. Exit 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: u32;

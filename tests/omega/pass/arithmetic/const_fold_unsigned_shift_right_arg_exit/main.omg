@@ -14,7 +14,7 @@
 //
 // exit 71 = either face regressed (an arithmetic `sar` produced 0xFFFFFFFF).
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

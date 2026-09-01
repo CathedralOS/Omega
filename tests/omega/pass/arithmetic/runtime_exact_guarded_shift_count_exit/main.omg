@@ -2,7 +2,7 @@
 // guard proves a runtime Exact count is in 0..32, while the value's declared
 // [0..=1] range proves every admitted `value * 2^count` remains in u32. Count
 // validity and value overflow are independent obligations; both hold.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; count: u32; value: u32 [0..=1]; result: u32; }
 machine Main::main(&mut self) {
     self.count = 5;

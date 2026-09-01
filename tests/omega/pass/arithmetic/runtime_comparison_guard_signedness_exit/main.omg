@@ -4,7 +4,7 @@
 // negative (`-5 > 3` is false). The guard compares at the operand width and uses
 // signed (jl/jg) or unsigned (jb/ja) conditional branches accordingly.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

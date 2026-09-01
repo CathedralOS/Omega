@@ -5,7 +5,7 @@
 // A fold regressed to the bare-i64 window computes 200 != -56 and 65537 != 1.
 // Values are consumed through the locals' own slots in the SAME state.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

@@ -10,7 +10,7 @@
 // exits: 71 = i32 write leg gave the RETIRED modular zero; 99 = neither;
 // 72/73 = operand leg count 40/70 not masked.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; n: i32 in Wrapping; }
 machine Main::main(&mut self) {
     self.n = 40;

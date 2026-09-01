@@ -2,7 +2,7 @@
 // numeric algorithm, self-checking. Repeatedly `(a, b) = (b, a % b)` until b is 0; the
 // remaining a is the gcd. gcd(1071, 462) = 21 (1071,462 -> 462,147 -> 147,21 -> 21,0).
 // A two-variable loop with a runtime modulo; no arrays. Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

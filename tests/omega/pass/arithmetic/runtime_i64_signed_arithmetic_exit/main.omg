@@ -4,7 +4,7 @@
 // modulo whose sign follows the dividend (-6000000000007 % 1000 = -7), and a 64-bit shift
 // (1 << 40 = 1099511627776) that would overflow a 32-bit register. Each is chained; exits 70 iff
 // all hold.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

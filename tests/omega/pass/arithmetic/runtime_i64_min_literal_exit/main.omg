@@ -4,7 +4,7 @@
 // and the value types as i64 exactly. The guard proves the stored value really is
 // the minimum (strictly below -(i64::MAX)) on both engines.
 // Expected exit: 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

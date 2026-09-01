@@ -4,7 +4,7 @@
 // a bare `128i8` would not -- the negation caveat the fit check is built
 // around. Sums verify the values arrived intact: 70 + (-128 + 127) + (255 -
 // 254) - 1 + 1 = 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; total: i32 in Wrapping; }
 machine Main::main(&mut self) {
     let a: i8 = -128i8;

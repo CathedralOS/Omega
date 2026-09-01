@@ -4,7 +4,7 @@
 // comparison is done at the operand width with the matching signed/unsigned
 // conditional move.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

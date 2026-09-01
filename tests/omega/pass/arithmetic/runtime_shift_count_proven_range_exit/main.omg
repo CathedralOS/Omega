@@ -3,7 +3,7 @@
 // proof side of proof-or-policy. `k: u32 [0..=7]` bounds the count at
 // [0,7] < 32, so `1 << k` carries no obligation and computes exactly
 // (k = 3 -> 8). Twin of fail/arithmetic/shift_count_unproven_rejected.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; k: u32 [0..=7]; n: u32; }
 machine Main::main(&mut self) {
     self.k = 3;

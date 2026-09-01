@@ -9,7 +9,7 @@
 // VALUE-overflow clamp machinery (wide compute + range-check tail on both
 // ISAs, i128 on the interp) keeps 32-bit coverage here.
 // exits: 71 = wrapped to 2147483648 (plain-shl truncation); 72 = neither.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: u32 in Saturating; c: u32 in Saturating; r: u32 in Saturating; }
 machine Main::main(&mut self) {
     self.a = 3;

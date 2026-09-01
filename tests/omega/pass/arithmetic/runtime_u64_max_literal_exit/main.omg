@@ -4,7 +4,7 @@
 // round-trip proves the STORED value really is 2^64 - 1 on both engines:
 // MAX + 1 wraps to exactly 0 only if every bit was set.
 // Expected exit: 70.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

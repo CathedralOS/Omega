@@ -6,7 +6,7 @@
 // Locks: a normal i8 divide, i8::MIN/-1 -> 127, and i16::MIN/-1 -> 32767. Each check
 // lives in its own state (divide into a local, compared immediately). Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

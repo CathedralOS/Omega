@@ -10,7 +10,7 @@
 //   MAX * 2, MAX * 3 fused in GUARD OPERANDS -> clamp with no store between
 // Values are built through runtime fields so the const folder cannot pre-clamp.
 // Exits 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: i64 in Saturating;

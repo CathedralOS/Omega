@@ -6,7 +6,7 @@
 // destructure param binding). Regression lock for the interpreter
 // eval_struct_literal field coercion. exit 71 = the field carried the raw 300.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Point { x: u8 in Wrapping; }
 data Main { console: Console; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) {

@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // interpreter bind_frame f32 rounding. exit 71 = the interpreter carried f64
 // through the params and over-accumulated to 16777218.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: f32; }
 machine Main::main(&mut self) {
     self.a = 16777216.0;

@@ -1,6 +1,6 @@
 // RUN CANARY (must trap). Constant folding must preserve the Trapping
 // domain's value-overflow behavior: u8 200 << 1 is 400, not wrapped 144.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; value: u8 in Trapping; }
 
 machine Main::main(&mut self) {

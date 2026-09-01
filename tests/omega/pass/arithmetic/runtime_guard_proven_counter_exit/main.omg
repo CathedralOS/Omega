@@ -7,7 +7,7 @@
 // shape: `arr[i] = px; i = i + 1`); a prior write to the counter itself or an
 // opaque call WOULD (see the fail canary guard_invalidated_by_prior_write).
 // Loops 5 times, then asserts the count. Exit 70. Differential.
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; count: i32 [0..=100]; scratch: i32; }
 machine Main::main(&mut self) {
     transition { _ -> head() }

@@ -5,7 +5,7 @@
 // -1e10 -> INT_MIN. exit 72 = positive overflow wrong; 73 = negative clamped to
 // the wrong bound.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main {
     console: Console;
     a: i32 in Saturating;

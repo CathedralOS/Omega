@@ -6,7 +6,7 @@
 //   - mixed-sign add:                        i32(100) + u32(3)   == 103
 // Exits 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

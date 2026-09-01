@@ -4,7 +4,7 @@
 // is built in a loop (base = 320) so the shifts run at runtime (not const-folded),
 // exercising the codegen. The differential oracle also checks native==interpreter.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

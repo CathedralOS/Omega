@@ -9,7 +9,7 @@
 // Checks dividends that need the full 64 bits (a 32-bit core would give a wrong
 // quotient), both signs, and modulo (remainder takes the dividend's sign). exit 70.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

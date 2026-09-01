@@ -3,7 +3,7 @@
 //   - arithmetic (sign-extending) right shift: -16 >> 2 == -4 (SAR), vs unsigned 16 >> 2 == 4 (SHR)
 //   - runtime shift amount: 1 << n with n == 5 a runtime value == 32 (count from CL, not an imm)
 // Each is discriminated; exits 70 iff all hold.
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

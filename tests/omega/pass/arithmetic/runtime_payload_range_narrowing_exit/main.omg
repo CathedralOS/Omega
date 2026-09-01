@@ -4,7 +4,7 @@
 // -> [65,80], no i32 overflow) with no annotation. Sound because construction
 // enforces the range (forged out-of-range values are rejected -- see
 // fail/arithmetic/construction_payload_out_of_range). Found{index:5} -> 5+65=70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Slot { case Found(index: i32 [0..=15]); case Full; }
 data Main { console: Console; }
 machine Main::run(&mut self, s: Slot) {

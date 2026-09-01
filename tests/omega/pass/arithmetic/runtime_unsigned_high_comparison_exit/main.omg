@@ -4,7 +4,7 @@
 // are chained and must give the UNSIGNED answer: a>b true, a<b false, a>=b true, a<=b false,
 // a==b false, a!=b true. Exits 70 iff all hold. (Both the leaf-guard and dispatch-loop paths were
 // verified; this locks the leaf-guard form, which uses the same unsigned setcc selection.)
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

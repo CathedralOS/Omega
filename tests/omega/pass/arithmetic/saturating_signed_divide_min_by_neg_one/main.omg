@@ -6,7 +6,7 @@
 // Verifies append_saturating_signed_divide_modulo's -1 guard (sibling of the
 // Wrapping fix). exit 72 = divide did not clamp to INT_MAX; 73 = modulo not 0.
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; x: i32 in Saturating; y: i32 in Saturating; }
 machine Main::main(&mut self) {
     self.x = 0 - 2147483647;

@@ -5,7 +5,7 @@
 // The differential oracle checks native==interpreter -- a boundary clamp that
 // disagrees would surface here.
 
-use omega::language::std::console;
+use omega_language_std::console;
 
 data Main {
     console: Console;

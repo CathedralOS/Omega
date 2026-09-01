@@ -2,7 +2,7 @@
 // payloads): a range-refined field `v: i32 [0..=15]` of a param flows into the
 // reader so `b.v + 65` proves EXACT with no annotation. Sound because every
 // write to the field is range-enforced (construction + assignment). Box{v:5} -> 70.
-use omega::language::std::console;
+use omega_language_std::console;
 data Box { v: i32 [0..=15]; }
 data Main { console: Console; }
 machine Main::use_box(&mut self, b: Box) {

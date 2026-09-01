@@ -13,7 +13,7 @@ use omega::language::core::float_operations;
 // gap: the host folder folds f32 in f64, so native + interp AGREE on 16777218 --
 // no divergence, but both imprecise; needs per-op f32 rounding. See TASKS/memory.)
 
-use omega::language::std::console;
+use omega_language_std::console;
 data Main { console: Console; a: f32; }
 machine Main::main(&mut self) {
     self.a = 16777216.0;
