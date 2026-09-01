@@ -162,6 +162,7 @@ use crash_routes::{
 };
 use debug_map::build_debug_map;
 use evidence_lowering::lower_and_install_evidence_artifacts;
+use float_meaning_projection::resolve_direct_float_parameter_binding;
 pub use float_meaning_projection::{
     FloatMeaningProjectionLoweringError, lower_float_meaning_equality,
     lower_float_meaning_projection,
@@ -1248,6 +1249,26 @@ pub fn lower_machine(
         | SelectedMachineRoute::StructuralUnitControl
         | SelectedMachineRoute::AttachedUnit => vec![selection.machine],
     };
+    let direct_float_parameter_machines = if route == SelectedMachineRoute::ScalarGraph {
+        if source_machines.len() != lowered.semantic_module.machines.len() {
+            return unsupported(
+                "scalar call closure source and Terminal machine tables must correspond exactly",
+            );
+        }
+        source_machines
+            .iter()
+            .copied()
+            .zip(
+                lowered
+                    .semantic_module
+                    .machines
+                    .iter()
+                    .map(|machine| machine.id),
+            )
+            .collect::<Vec<_>>()
+    } else {
+        vec![(selection.machine, lowered.semantic_module.entry)]
+    };
     retain_selected_placed_view_inputs(
         checked,
         selection.machine,
@@ -1292,9 +1313,17 @@ pub fn lower_machine(
         .float_meaning_projections
         .iter()
         .copied()
-        .map(lower_float_meaning_projection)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(LoweringError::InvalidFloatMeaningProjection)?;
+        .map(|projection| {
+            let direct_parameter = resolve_direct_float_parameter_binding(
+                checked,
+                &direct_float_parameter_machines,
+                &lowered.semantic_module.machines,
+                projection,
+            )?;
+            lower_float_meaning_projection(projection, direct_parameter)
+                .map_err(LoweringError::InvalidFloatMeaningProjection)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     lowered.semantic_module.float_meaning_equalities = checked
         .facts
         .proof

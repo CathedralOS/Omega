@@ -11,7 +11,7 @@ use psi_terminal::{
     BindingRelevance, Block, BoundaryMachineDeclaration, ClaimContentProjection, ClaimTransfer,
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
-    EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
+    DirectMachineFloatParameter, EntryClaim, EvidenceInterfaceIdentity, EvidenceTermDeclaration,
     FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
     FloatMeaningSource, InstallationReachDependency, MachineContract, NominalAffineCleanup,
     Operation, OperationKind, OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
@@ -42,7 +42,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     let bytes = encode_module(&module).expect("fixture should encode");
 
     assert_eq!(&bytes[..8], b"PSITERM\0");
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 
@@ -50,7 +50,7 @@ fn current_vocabulary_has_one_stable_canonical_encoding_and_identity() {
     assert_eq!(identity.vocabulary_marker, VocabularyMarker::CURRENT);
     assert_eq!(
         identity.program_fingerprint.to_string(),
-        "7051449e96ac49163f0be63d77a287d16c907422f549cce2dbfb87c48253f6ae"
+        "e0bb0ab6266542d48387462548f8ea002765cda8f96cd2418f49cc7192bc07f3"
     );
     assert_eq!(
         identity.program_fingerprint,
@@ -63,7 +63,7 @@ fn proof_recursive_components_round_trip_and_enter_terminal_identity() {
     let mut module = unit_fixture();
     module.proof_recursive_components = vec![proof_recursive_component_fixture()];
     let bytes = encode_module(&module).expect("proof-recursive module should encode");
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
 
     let original = semantic_fingerprint(&module).expect("recursive semantic identity");
@@ -167,7 +167,7 @@ fn placed_view_input_round_trips_with_exact_semantic_identity() {
 fn ranked_countdown_round_trips_in_current_terminal_identity() {
     let module = ranked_countdown_fixture();
     let bytes = encode_module(&module).expect("ranked representation should encode");
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -292,6 +292,11 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
         }
     };
     let mut module = fixture();
+    let direct_parameter = ValueDeclaration {
+        id: value_id(6),
+        scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+    };
+    module.machines[0].parameters.push(direct_parameter);
     module.float_meaning_projections = vec![
         FloatMeaningProjection {
             result: ProofValueDeclaration {
@@ -319,6 +324,19 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
             source: FloatMeaningSource::ExactBinary64Literal(0x8877_6655_4433_2211),
             operation: FloatMeaningProjectionOperation::Meaning64,
             contract: contract(psi_numerics::float_projection::FloatProjectionOperation::Meaning64),
+        },
+        FloatMeaningProjection {
+            result: ProofValueDeclaration {
+                id: ProofValueId(3),
+                value_type: ProofOnlyValueType::FloatMeaning,
+            },
+            source: FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
+                owner: module.entry,
+                parameter: direct_parameter.id,
+                format: IeeeFloatFormat::Binary32,
+            }),
+            operation: FloatMeaningProjectionOperation::Meaning32,
+            contract: contract(psi_numerics::float_projection::FloatProjectionOperation::Meaning32),
         },
     ];
     module.float_meaning_equalities = vec![FloatMeaningEqualityProposition {
@@ -380,6 +398,24 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
         original_identity,
         "raw literal bits are Terminal semantic identity"
     );
+    let mut changed_direct_parameter = module.clone();
+    changed_direct_parameter.machines[0]
+        .parameters
+        .push(ValueDeclaration {
+            id: value_id(7),
+            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        });
+    changed_direct_parameter.float_meaning_projections[3].source =
+        FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
+            owner: changed_direct_parameter.entry,
+            parameter: value_id(7),
+            format: IeeeFloatFormat::Binary32,
+        });
+    assert_ne!(
+        semantic_fingerprint(&changed_direct_parameter).expect("changed direct parameter identity"),
+        original_identity,
+        "direct owner and parameter coordinates enter Terminal semantic identity"
+    );
 
     let mut reordered = module.clone();
     reordered.float_meaning_projections.swap(0, 1);
@@ -406,7 +442,7 @@ fn proof_only_float_projections_round_trip_and_reject_tampering() {
     ));
 
     let mut unknown_operand = module.clone();
-    unknown_operand.float_meaning_equalities[0].right = ProofValueId(3);
+    unknown_operand.float_meaning_equalities[0].right = ProofValueId(4);
     assert!(matches!(
         encode_module(&unknown_operand),
         Err(CodecError::InvalidModule(
@@ -540,7 +576,7 @@ fn payload_sum_shape_round_trips_exact_fields_and_requires_canonical_order() {
 fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
     let module = partial_affine_fixture();
     let bytes = encode_module(&module).expect("partial affine return should encode");
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -553,7 +589,7 @@ fn partial_affine_unit_return_round_trips_exact_path_and_leaf_type() {
 fn nominal_affine_unit_return_round_trips_exact_root_type_and_cleanup_machine() {
     let module = nominal_affine_fixture();
     let bytes = encode_module(&module).expect("nominal affine return should encode");
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()
@@ -588,7 +624,7 @@ fn scalar_return_round_trips_nominal_affine_cleanup_action() {
     };
 
     let bytes = encode_module(&module).expect("scalar nominal cleanup should encode");
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(encode_module(&decode_module(&bytes).unwrap()), Ok(bytes));
 }
@@ -2234,10 +2270,10 @@ fn decoder_rejects_noncanonical_or_ambiguous_bytes() {
     assert_eq!(decode_module(&trailing), Err(CodecError::TrailingBytes(1)));
 
     let mut future_format = bytes.clone();
-    future_format[8..10].copy_from_slice(&58_u16.to_le_bytes());
+    future_format[8..10].copy_from_slice(&59_u16.to_le_bytes());
     assert_eq!(
         decode_module(&future_format),
-        Err(CodecError::UnsupportedFormatMarker(58))
+        Err(CodecError::UnsupportedFormatMarker(59))
     );
 
     let mut stale_format = bytes.clone();
@@ -2993,7 +3029,7 @@ fn structural_call_result_round_trips_with_current_format_and_vocabulary() {
     let module = structural_call_fixture();
     let bytes = encode_module(&module).expect("structural call should encode");
 
-    assert_eq!(&bytes[8..10], 57_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 58_u16.to_le_bytes());
     assert_eq!(
         &bytes[10..12],
         VocabularyMarker::CURRENT.get().to_le_bytes()

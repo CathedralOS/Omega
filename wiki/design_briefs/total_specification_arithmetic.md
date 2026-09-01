@@ -210,15 +210,21 @@ The closed artifact contract retains rooted-checker tuples `(32, 1, 1, 1)` and
 identity, private contract-free ordinary signature, source carrier, nominal
 result identity, and immutable catalog version. Same-format equality is
 required independently during source validation, checked projection, and
-Terminal replay. The checked plan now retains exact owner-machine and parameter
+Terminal replay. The checked plan retains exact owner-machine and parameter
 symbols for a direct primitive `f32`/`f64` parameter in its owning top-level
 machine contract, after replaying entry-state membership and primitive format.
-That provenance deliberately lowers through its fallback transitional ID:
-Terminal has no general float scalar parameter carrier, so this prerequisite
-does not widen execution or artifact trust. Results, nested state-contract
-parameters, locals, members, casts, const parameters, non-floats,
-foreign-owner sources, and other nonliteral forms remain transitional rather
-than production proof-ledger evidence.
+Checked-to-Terminal now rejoins that source to exact artifact-relative
+`(MachineId, ValueId, format)` identity when the owner is emitted and the
+complete checked entry-scalar shape exactly matches the Terminal direct
+parameter table. The independent verifier repeats owner uniqueness, direct
+parameter membership, and exact IEEE-format checks. An owner outside the
+emitted artifact, or a route without an exact scalar binding, retains the
+transitional fallback rather than guessing a coordinate. This carrier is
+proof-only metadata and does not widen execution, fuel, interpreter behavior,
+or native float support. Results, nested state-contract parameters, locals,
+members, casts, const parameters, non-floats, foreign-owner sources, and other
+nonliteral forms remain transitional rather than production proof-ledger
+evidence.
 
 ## Crash routes
 
