@@ -1,5 +1,5 @@
-use super::*;
 use super::structural_qualification_rosters::validate_projected_qualification_roster;
+use super::*;
 
 fn validate_structural_fields(
     module: &TerminalModule,
@@ -1119,12 +1119,19 @@ fn validate_provider_attachment_specialization(
     let Some(attachment) = machine.attachment else {
         return Err(invalid());
     };
+    let self_parameters = machine
+        .structural_parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .collect::<Vec<_>>();
+    let invalid_self = match self_parameters.as_slice() {
+        [] => false,
+        [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
+        _ => true,
+    };
     if provider_roots.is_empty()
-        || machine
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self)
         || provider_roots.windows(2).any(|pair| pair[0].3 >= pair[1].3)
+        || invalid_self
     {
         return Err(invalid());
     }

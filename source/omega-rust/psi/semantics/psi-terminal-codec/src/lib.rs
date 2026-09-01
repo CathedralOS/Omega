@@ -699,12 +699,19 @@ fn validate_provider_attachment_foundation(
     let Some(attachment) = machine.attachment else {
         return malformed("provider-backed attachment specialization is incomplete");
     };
+    let self_parameters = machine
+        .structural_parameters
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .collect::<Vec<_>>();
+    let invalid_self = match self_parameters.as_slice() {
+        [] => false,
+        [parameter] => parameter.position != 0 || parameter.structural_type != attachment,
+        _ => true,
+    };
     let mut boundaries = BTreeSet::new();
     if provider_roots.is_empty()
-        || machine
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self)
+        || invalid_self
         || provider_roots
             .iter()
             .any(|(root_attachment, field, boundary)| {
@@ -1002,8 +1009,10 @@ fn validate_operation_foundation(
                     }),
                     _ => None,
                 });
-            if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || parameter.access != psi_terminal::StructuralAccess::SharedBorrow
+            if !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || parameter.access != psi_terminal::StructuralAccess::SharedBorrow
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || machine

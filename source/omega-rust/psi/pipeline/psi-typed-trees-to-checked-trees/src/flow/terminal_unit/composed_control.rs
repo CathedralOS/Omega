@@ -4,11 +4,14 @@ use super::*;
 
 mod assembly;
 mod custody;
+mod dynamic_result;
 mod guards;
 mod leaves;
 mod nested_control;
 mod prefixed_control;
 mod topology;
+
+pub(crate) use dynamic_result::build as build_direct_dynamic_unit_continuation;
 
 pub(super) fn build_checked_composed_unit_control_machines(
     program: &TypedTrees,

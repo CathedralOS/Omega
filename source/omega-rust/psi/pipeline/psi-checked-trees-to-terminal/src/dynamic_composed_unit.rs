@@ -24,6 +24,8 @@ use psi_terminal::{
 
 use super::*;
 
+mod continuation;
+
 struct DirectCallerShape {
     attachment_type_identity: String,
 }
@@ -33,20 +35,23 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
     plan: &CheckedDirectDynamicScalarCallPlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     let caller = validate_exact_direct_plan(checked, plan)?;
+    if let Some(unit_continuation) = &plan.unit_continuation {
+        return continuation::lower(checked, plan, unit_continuation, caller);
+    }
     let (structural_types, type_ids) =
         lower_direct_structural_types(checked, plan, &caller.attachment_type_identity)?;
     let caller_attachment = lookup_type_id(&type_ids, &caller.attachment_type_identity)?;
-    let caller_access = if plan.caller_structural_scalar_field_store.is_some() {
-        StructuralAccess::MutableBorrow
-    } else {
-        StructuralAccess::SharedBorrow
+    let caller_access = match plan.caller_parameter_access {
+        CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+        CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+        _ => return unsupported("direct dynamic caller requires a borrowed self parameter"),
     };
     let caller_self = StructuralParameterDeclaration {
         place: place_id(1),
         position: 0,
         is_self: true,
         structural_type: caller_attachment,
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        multiplicity: terminal_structural_multiplicity(plan.caller_multiplicity),
         access: caller_access,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
@@ -103,7 +108,7 @@ pub(super) fn lower_direct_dynamic_composed_unit_machine(
         position: 0,
         is_self: true,
         structural_type: source_type,
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        multiplicity: terminal_projected_source_multiplicity(plan),
         access: StructuralAccess::SharedBorrow,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
@@ -289,6 +294,11 @@ fn validate_exact_direct_plan(
     plan: &CheckedDirectDynamicScalarCallPlan,
 ) -> Result<DirectCallerShape, LoweringError> {
     let store = plan.caller_structural_scalar_field_store.as_ref();
+    if store.is_some() && plan.unit_continuation.is_some() {
+        return unsupported(
+            "direct dynamic result control cannot also retain a caller field store",
+        );
+    }
     let selection_statement_index = usize::from(store.is_some());
     let call_statement_index = u32::from(store.is_some()) + 1;
     let exact_selections = checked
@@ -364,9 +374,50 @@ fn validate_exact_direct_plan(
         return unsupported("direct dynamic caller has no exact checked flow state");
     };
     let calls = checked.facts.flow.control.calls.span_or_empty(state.calls);
-    let [call] = calls else {
-        return unsupported("direct dynamic caller must contain one checked call");
+    let matching_calls = calls
+        .iter()
+        .filter(|call| {
+            call.statement_index == plan.coordinate.statement_index as usize
+                && call.call_ordinal == plan.coordinate.call_ordinal as usize
+                && call.receiver_symbol == plan.receiver_binding
+                && call.target_symbol == plan.requirement
+        })
+        .collect::<Vec<_>>();
+    let [call] = matching_calls.as_slice() else {
+        return unsupported("direct dynamic caller must retain one exact checked dynamic call");
     };
+    if let Some(continuation) = &plan.unit_continuation {
+        let expected_control_calls = [
+            (
+                continuation.when_true.statement_ordinal as usize,
+                continuation.when_true.target_state,
+            ),
+            (
+                continuation.when_false.statement_ordinal as usize,
+                continuation.when_false.target_state,
+            ),
+        ];
+        if calls.len() != 3
+            || expected_control_calls.iter().any(|(statement, target)| {
+                calls
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.statement_index == *statement
+                            && candidate.call_ordinal == 0
+                            && candidate.target_symbol == *target
+                    })
+                    .count()
+                    != 1
+            })
+        {
+            return unsupported("direct dynamic continuation lost its checked control calls");
+        }
+    } else if calls.len() != 1 {
+        return unsupported("direct dynamic caller must contain one checked call");
+    }
+    let expected_statement_count = usize::try_from(call_statement_index + 1)
+        .expect("bounded statement count")
+        + usize::from(plan.unit_continuation.is_some()) * 2;
     if call.statement_index != plan.coordinate.statement_index as usize
         || call.call_ordinal != plan.coordinate.call_ordinal as usize
         || call.receiver_symbol != plan.receiver_binding
@@ -380,7 +431,7 @@ fn validate_exact_direct_plan(
             .statements
             .span_or_empty(state.statements)
             .len()
-            != usize::try_from(call_statement_index + 1).expect("bounded statement count")
+            != expected_statement_count
     {
         return unsupported("direct dynamic call drifted from checked flow custody");
     }
@@ -397,14 +448,18 @@ fn validate_exact_direct_plan(
         plan.realization_contract_commitment,
     )?;
     if plan.source_parameter_position != 0
-        || plan.caller_multiplicity != Multiplicity::Unrestricted
+        || !matches!(
+            plan.caller_multiplicity,
+            Multiplicity::Unrestricted | Multiplicity::Affine
+        )
         || plan.source_multiplicity != Multiplicity::Unrestricted
-        || plan.caller_parameter_access
-            != if store.is_some() {
-                CheckedStructuralAccess::MutableBorrow
-            } else {
-                CheckedStructuralAccess::SharedBorrow
-            }
+        || !matches!(
+            plan.caller_parameter_access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
+        || (store.is_some()
+            && plan.caller_parameter_access != CheckedStructuralAccess::MutableBorrow)
+        || (store.is_some() && plan.caller_multiplicity != Multiplicity::Unrestricted)
         || plan.source_access != CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("direct dynamic source must be an exact shared field subloan");
@@ -425,7 +480,9 @@ fn validate_exact_direct_plan(
     if caller_service_reach != plan.caller_service_reach {
         return unsupported("direct dynamic caller service reach drifted from checking");
     }
-    validate_empty_service_summary(checked, caller_service_reach)?;
+    if plan.unit_continuation.is_none() {
+        validate_empty_service_summary(checked, caller_service_reach)?;
+    }
     Ok(DirectCallerShape {
         attachment_type_identity: plan.caller_attachment_type_identity.clone(),
     })
@@ -458,7 +515,7 @@ fn validate_and_lower_source(
                 _ => return unsupported("direct dynamic caller self access is unsupported"),
             }
         || !caller_self.is_self
-        || caller_self.multiplicity != StructuralMultiplicity::Unrestricted
+        || caller_self.multiplicity != terminal_structural_multiplicity(plan.caller_multiplicity)
         || plan.source_access != CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("direct dynamic caller self does not license a shared field subloan");
@@ -493,6 +550,26 @@ fn validate_and_lower_source(
         path: lower_structural_path(&plan.source_path),
         access: StructuralAccess::SharedBorrow,
     })
+}
+
+fn terminal_structural_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
+    match multiplicity {
+        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+        Multiplicity::Affine => StructuralMultiplicity::Affine,
+        Multiplicity::Linear => StructuralMultiplicity::Linear,
+    }
+}
+
+/// A shared field projection retains its caller root's consumption bound even
+/// when the projected field's own declared carrier is copyable.
+fn terminal_projected_source_multiplicity(
+    plan: &CheckedDirectDynamicScalarCallPlan,
+) -> StructuralMultiplicity {
+    match plan.caller_multiplicity {
+        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+        Multiplicity::Affine => StructuralMultiplicity::Affine,
+        Multiplicity::Linear => StructuralMultiplicity::Linear,
+    }
 }
 
 fn lower_direct_structural_types(

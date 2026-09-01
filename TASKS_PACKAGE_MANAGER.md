@@ -286,9 +286,11 @@ explicitly.
     current trait-fixture compatibility seams are the two synthesized
     trait-default roots that still need separate authored-requirement and
     executable-realization custody plus a Terminal composed-Unit plan; the
-    remaining local named-`dyn` work is rebound dynamic descriptor/table
-    custody for the rebound fixture; the
-    two build/runtime float twins
+    direct named-`dyn` scalar-result control and Console-exit leaves now compose
+    through one canonical Terminal route, but its end-to-end ordinary-package
+    native canary still waits on accepted Console semantic-binding replay from
+    the lock; rebound dynamic descriptor/table custody remains separate work
+    for the rebound fixture; the two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema

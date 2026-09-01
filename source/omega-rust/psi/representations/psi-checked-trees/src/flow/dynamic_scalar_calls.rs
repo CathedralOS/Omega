@@ -1,7 +1,11 @@
 use psi_language_semantics::ServiceReachSummary;
 use psi_symbols::SymbolHandle;
 
-use crate::{CheckedScalarExpression, DynamicConformanceBindingFact, MachineContractCommitment};
+use crate::{
+    CheckedComposedUnitControlStatePlan, CheckedProviderAttachmentRequirementPlan,
+    CheckedScalarExpression, CheckedStructuralControlSuccessorPlan, DynamicConformanceBindingFact,
+    MachineContractCommitment,
+};
 
 use super::{
     CheckedUnitCallCoordinate, CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralPathSegment,
@@ -66,6 +70,22 @@ pub struct CheckedDirectDynamicScalarCallPlan {
     /// binding, when the bounded three-statement structural-field shape was
     /// admitted. Ordinary direct calls retain `None`.
     pub caller_structural_scalar_field_store: Option<CheckedStructuralScalarFieldStorePlan>,
+    /// Exact checked control suffix when this result immediately selects two
+    /// Unit effect leaves. The dynamic call remains in this plan; this suffix
+    /// begins at the authored guard and therefore cannot be lowered as an
+    /// independent machine or silently discarded.
+    pub unit_continuation: Option<CheckedDirectDynamicUnitContinuationPlan>,
+}
+
+/// One direct named-dynamic scalar result consumed by an immediate binary
+/// control split whose leaves each perform one checked Unit effect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDirectDynamicUnitContinuationPlan {
+    pub guard: CheckedScalarExpression,
+    pub when_true: CheckedStructuralControlSuccessorPlan,
+    pub when_false: CheckedStructuralControlSuccessorPlan,
+    pub leaves: Vec<CheckedComposedUnitControlStatePlan>,
+    pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
 }
 
 /// Checked custody for one literal store into a primitive field below the

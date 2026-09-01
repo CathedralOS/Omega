@@ -7,33 +7,37 @@ use crate::attached_unit::catalog::{
     lower_unit_structural_type_roots,
 };
 
-pub(super) struct ComposedCatalogs {
-    pub(super) structural_types: Vec<StructuralTypeDeclaration>,
-    pub(super) type_ids: Vec<(String, StructuralTypeId)>,
-    pub(super) services: Vec<ServiceDeclaration>,
-    pub(super) root_service_reach: psi_terminal::TerminalRootServiceReach,
-    pub(super) boundary_machines: Vec<BoundaryMachineDeclaration>,
-    pub(super) lowered_boundaries: Vec<LoweredComposedBoundary>,
-    pub(super) internal_targets: Vec<LoweredComposedInternalTarget>,
-    pub(super) service_ids: Vec<(ServiceReachId, ServiceId)>,
-    pub(super) next_place: u64,
+pub(crate) struct ComposedCatalogs {
+    pub(crate) structural_types: Vec<StructuralTypeDeclaration>,
+    pub(crate) type_ids: Vec<(String, StructuralTypeId)>,
+    pub(crate) services: Vec<ServiceDeclaration>,
+    pub(crate) root_service_reach: psi_terminal::TerminalRootServiceReach,
+    pub(crate) boundary_machines: Vec<BoundaryMachineDeclaration>,
+    pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,
+    pub(crate) internal_targets: Vec<LoweredComposedInternalTarget>,
+    pub(crate) service_ids: Vec<(ServiceReachId, ServiceId)>,
+    pub(crate) next_place: u64,
 }
 
 fn lower_composed_services(
     checked: &CheckedTrees,
-    plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
-    admitted: &admission::AdmittedComposedUnit<'_>,
+    machine: psi_symbols::SymbolHandle,
+    contract_service_reach: ServiceReachPlan,
+    service_reach: ServiceReachSummary,
+    states: &[psi_checked_trees::CheckedComposedUnitControlStatePlan],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    internal_targets: &[(&psi_checked_trees::CheckedUnitEffectMachinePlan, String)],
 ) -> Result<(Vec<ServiceDeclaration>, Vec<(ServiceReachId, ServiceId)>), LoweringError> {
     let facts = &checked.facts.service_reaches;
     let mut selected = Vec::new();
     collect_installation_machine_contract_services(
         checked,
-        plan.machine,
-        plan.contract_service_reach,
-        plan.service_reach,
+        machine,
+        contract_service_reach,
+        service_reach,
         &mut selected,
     )?;
-    for operation in plan.states.iter().flat_map(|state| &state.operations) {
+    for operation in states.iter().flat_map(|state| &state.operations) {
         let service_reach = match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
@@ -41,7 +45,7 @@ fn lower_composed_services(
         };
         collect_service_summary(&facts.rows, service_reach, &mut selected)?;
     }
-    for (boundary, _) in &admitted.boundaries {
+    for (boundary, _) in boundaries {
         collect_published_contract_services(
             &facts.rows,
             boundary.contract_service_reach,
@@ -49,7 +53,7 @@ fn lower_composed_services(
             &mut selected,
         )?;
     }
-    for (target, _) in &admitted.internal_targets {
+    for (target, _) in internal_targets {
         collect_installation_machine_contract_services(
             checked,
             target.machine,
@@ -61,7 +65,7 @@ fn lower_composed_services(
     lower_selected_unit_services(checked, selected)
 }
 
-pub(super) struct LoweredComposedInternalTarget {
+pub(crate) struct LoweredComposedInternalTarget {
     pub(super) source: psi_symbols::SymbolHandle,
     pub(super) id: MachineId,
     pub(super) attachment_type_identity: String,
@@ -70,12 +74,12 @@ pub(super) struct LoweredComposedInternalTarget {
     pub(super) nested_call_target: Option<psi_symbols::SymbolHandle>,
 }
 
-pub(super) struct LoweredComposedBoundary {
-    pub(super) source: psi_symbols::SymbolHandle,
-    pub(super) id: BoundaryMachineId,
-    pub(super) checked_structural_parameters:
+pub(crate) struct LoweredComposedBoundary {
+    pub(crate) source: psi_symbols::SymbolHandle,
+    pub(crate) id: BoundaryMachineId,
+    pub(crate) checked_structural_parameters:
         Vec<psi_checked_trees::CheckedUnitStructuralParameterPlan>,
-    pub(super) scalar_parameters: Vec<ScalarType>,
+    pub(crate) scalar_parameters: Vec<ScalarType>,
 }
 
 pub(super) fn lower_composed_catalogs(
@@ -83,14 +87,62 @@ pub(super) fn lower_composed_catalogs(
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,
     admitted: &admission::AdmittedComposedUnit<'_>,
 ) -> Result<ComposedCatalogs, LoweringError> {
-    let mut type_roots = vec![plan.attachment_type_identity.clone()];
+    lower_catalogs(
+        checked,
+        plan.machine,
+        &plan.attachment_type_identity,
+        plan.contract_service_reach,
+        plan.service_reach,
+        &plan.states,
+        &admitted.boundaries,
+        &admitted.internal_targets,
+    )
+}
+
+pub(crate) fn lower_direct_dynamic_catalogs(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
+    continuation: &psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+) -> Result<ComposedCatalogs, LoweringError> {
+    let contract_service_reach = checked
+        .facts
+        .service_reaches
+        .plan_for_machine(plan.caller_machine)
+        .ok_or(LoweringError::Unsupported(
+            "direct dynamic continuation has no checked service contract",
+        ))?;
+    lower_catalogs(
+        checked,
+        plan.caller_machine,
+        &plan.caller_attachment_type_identity,
+        contract_service_reach,
+        plan.caller_service_reach,
+        &continuation.leaves,
+        boundaries,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_catalogs(
+    checked: &CheckedTrees,
+    machine: psi_symbols::SymbolHandle,
+    attachment_type_identity: &str,
+    contract_service_reach: ServiceReachPlan,
+    service_reach: ServiceReachSummary,
+    states: &[psi_checked_trees::CheckedComposedUnitControlStatePlan],
+    boundaries: &[(&CheckedBoundaryMachinePlan, String)],
+    admitted_internal_targets: &[(&psi_checked_trees::CheckedUnitEffectMachinePlan, String)],
+) -> Result<ComposedCatalogs, LoweringError> {
+    let mut type_roots = vec![attachment_type_identity.to_owned()];
     type_roots.extend(
-        plan.states
+        states
             .iter()
             .flat_map(|state| &state.structural_parameters)
             .map(|parameter| parameter.type_identity.clone()),
     );
-    for (boundary, _) in &admitted.boundaries {
+    for (boundary, _) in boundaries {
         type_roots.extend(boundary.attachment_type_identity.iter().cloned());
         type_roots.extend(
             boundary
@@ -100,18 +152,24 @@ pub(super) fn lower_composed_catalogs(
         );
     }
     type_roots.extend(
-        admitted
-            .internal_targets
+        admitted_internal_targets
             .iter()
             .map(|(target, _)| target.attachment_type_identity.clone()),
     );
     let (structural_types, type_ids) = lower_unit_structural_type_roots(checked, &type_roots)?;
-    let (services, service_ids) = lower_composed_services(checked, plan, admitted)?;
-    let root_service_reach = lower_root_service_reach(checked, plan.machine, &service_ids)?;
-    let mut boundary_machines = Vec::with_capacity(admitted.boundaries.len());
-    let mut lowered_boundaries = Vec::with_capacity(admitted.boundaries.len());
-    let internal_targets = admitted
-        .internal_targets
+    let (services, service_ids) = lower_composed_services(
+        checked,
+        machine,
+        contract_service_reach,
+        service_reach,
+        states,
+        boundaries,
+        admitted_internal_targets,
+    )?;
+    let root_service_reach = lower_root_service_reach(checked, machine, &service_ids)?;
+    let mut boundary_machines = Vec::with_capacity(boundaries.len());
+    let mut lowered_boundaries = Vec::with_capacity(boundaries.len());
+    let internal_targets = admitted_internal_targets
         .iter()
         .enumerate()
         .map(|(index, (target, _))| {
@@ -144,7 +202,7 @@ pub(super) fn lower_composed_catalogs(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut next_place = 1_u64;
-    for (index, (boundary, identity)) in admitted.boundaries.iter().enumerate() {
+    for (index, (boundary, identity)) in boundaries.iter().enumerate() {
         let scalar_parameters = boundary
             .scalar_parameters
             .iter()

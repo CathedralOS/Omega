@@ -185,7 +185,7 @@ pub(super) fn emit_composed_unit_control(
     finish_module(machines, catalogs, source_call_occurrences)
 }
 
-pub(super) fn emit_boundary_leaf(
+pub(crate) fn emit_boundary_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
     block: BlockId,
     boundaries: &[catalogs::LoweredComposedBoundary],

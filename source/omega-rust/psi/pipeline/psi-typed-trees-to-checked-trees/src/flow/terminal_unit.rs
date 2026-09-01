@@ -209,7 +209,8 @@ pub(crate) fn build_checked_unit_effect_plans(
         &mut shapes,
         &boundary_machines,
     );
-    let dynamic_dispatch = build_checked_dynamic_dispatch_plans(program, facts, &mut shapes);
+    let dynamic_dispatch =
+        build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
     loop {
         let checked_symbols = candidates

@@ -4,7 +4,7 @@ trait Shape {
     machine code(&self) -> i32;
 }
 
-data Item {
+data Item [copy] {
     value: i32;
 }
 
@@ -29,11 +29,10 @@ data Main {
     item: Item;
 }
 
-machine Main::main(&mut self) {
-    self.item.value = 99;
+machine Main::main(&mut self) reaches Console {
     let erased: &dyn Shape = &self.item as &dyn Item::Primary;
     let result: i32 = erased.code();
-    transition result == 99 {
+    transition result == 0 {
         true -> good()
         _ -> bad()
     }

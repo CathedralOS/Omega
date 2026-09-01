@@ -9,6 +9,18 @@ mod internal_calls;
 mod nested_control;
 mod prefixed_control;
 
+pub(crate) use catalogs::ComposedCatalogs;
+pub(crate) use emission::emit_boundary_leaf as emit_direct_dynamic_boundary_leaf;
+
+pub(crate) fn lower_direct_dynamic_control_catalogs(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedDirectDynamicScalarCallPlan,
+    continuation: &psi_checked_trees::CheckedDirectDynamicUnitContinuationPlan,
+) -> Result<ComposedCatalogs, LoweringError> {
+    let boundaries = admission::admit_direct_dynamic_continuation(checked, plan, continuation)?;
+    catalogs::lower_direct_dynamic_catalogs(checked, plan, continuation, &boundaries)
+}
+
 pub(crate) fn lower_composed_unit_control_machine(
     checked: &CheckedTrees,
     plan: &psi_checked_trees::CheckedComposedUnitControlMachinePlan,

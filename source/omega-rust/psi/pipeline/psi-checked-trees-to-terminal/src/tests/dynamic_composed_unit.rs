@@ -55,6 +55,41 @@ const DIRECT_DYNAMIC_INTEGER_STORE_SOURCE: &str = r#"
     }
 "#;
 
+const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        console: Console;
+        item: Item;
+    }
+
+    machine Main::run(&mut self) reaches Console {
+        let erased: &dyn Measure = &self.item as &dyn Item::Primary;
+        let result: i32 = erased.measure();
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+"#;
+
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
 }
@@ -307,7 +342,103 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
 }
 
 #[test]
+fn lowers_dynamic_scalar_result_into_console_effect_control() {
+    let checked = checked_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    assert!(
+        direct_plan(&checked)
+            .caller_structural_scalar_field_store
+            .is_none()
+    );
+    let lowered = lower_machine(&checked, "Main::run")
+        .expect("direct dynamic result control lowers as one module");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("direct dynamic result control verifies");
+    assert_eq!(lowered.semantic_module.machines.len(), 2);
+    assert_eq!(lowered.semantic_module.boundary_machines.len(), 1);
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("caller machine");
+    assert_eq!(caller.blocks.len(), 3);
+    assert!(matches!(
+        caller.blocks[0].terminator,
+        Terminator::Conditional { .. }
+    ));
+    assert_eq!(
+        caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(operation.kind, OperationKind::BoundaryCall { .. }))
+            .count(),
+        2
+    );
+    assert_eq!(lowered.source_call_occurrences.len(), 3);
+    let _artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("direct dynamic result control has canonical source-free encoding");
+
+    let mut wrong_self = lowered.semantic_module.clone();
+    let realization_attachment = wrong_self
+        .machines
+        .iter()
+        .find(|machine| machine.id != wrong_self.entry)
+        .and_then(|machine| machine.attachment)
+        .expect("realization attachment");
+    let caller = wrong_self
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == wrong_self.entry)
+        .expect("caller machine");
+    caller.structural_parameters[0].structural_type = realization_attachment;
+    let verification_error = psi_terminal_verifier::validate_module(&wrong_self)
+        .expect_err("provider specialization rejects a mismatched self type");
+    assert!(
+        matches!(
+            verification_error,
+            psi_terminal_verifier::ModuleError::InvalidStructuralSelfParameter { .. }
+        ),
+        "unexpected error: {verification_error:?}"
+    );
+    let codec_error = psi_terminal_codec::encode_module(&wrong_self)
+        .expect_err("canonical encoding rejects a mismatched provider self type");
+    assert!(
+        matches!(
+            codec_error,
+            psi_terminal_codec::CodecError::MalformedStructuralFoundation(
+                "provider-backed attachment specialization is incomplete"
+            )
+        ),
+        "unexpected error: {codec_error:?}"
+    );
+}
+
+#[test]
 fn rejects_tampered_checked_dynamic_store_custody() {
+    let mut guard = checked_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    direct_plan_mut(&mut guard)
+        .unit_continuation
+        .as_mut()
+        .expect("checked dynamic result continuation")
+        .guard =
+        CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(true)));
+    assert_eq!(
+        unsupported_message(&guard),
+        "direct dynamic continuation guard drifted from checked scalar facts"
+    );
+
+    let store = direct_plan(&checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE))
+        .caller_structural_scalar_field_store
+        .clone()
+        .expect("checked caller field store");
+    let mut combined = checked_source(DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    direct_plan_mut(&mut combined).caller_structural_scalar_field_store = Some(store);
+    assert_eq!(
+        unsupported_message(&combined),
+        "direct dynamic result control cannot also retain a caller field store"
+    );
+
     let mut checked = checked_source(DIRECT_DYNAMIC_INTEGER_STORE_SOURCE);
     direct_plan_mut(&mut checked)
         .caller_structural_scalar_field_store
