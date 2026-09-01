@@ -1,8 +1,8 @@
 //! Exact compiler-intrinsic application and selected-plan reconciliation.
 
 use super::{
-    authored_application_source_span, canonical_source_span_location, nominal_identity,
-    stage_realization, StagedRealization,
+    StagedRealization, authored_application_source_span, canonical_source_span_location,
+    expression_is_owned_by_package, nominal_identity, stage_realization,
 };
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
@@ -49,6 +49,15 @@ pub(super) fn project(
                 uses.len(),
             ))]);
         };
+        if !expression_is_owned_by_package(
+            compilation,
+            expression,
+            actual_use.kind,
+            application.requirement_symbol,
+            package,
+        )? {
+            continue;
+        }
         let location = canonical_source_span_location(
             compilation,
             authored_application_source_span(

@@ -1,8 +1,10 @@
 use omega_compiler::compile_to_checked_with_packages;
+use omega_package_evidence::record::PackageReviewNominalOwner;
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
 };
 use omega_package_manager::resolution::package_compilation_inputs;
+use omega_package_manager::review::compile_resolved_package_candidate_reviews;
 use omega_package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use psi_source::SourceOrigin;
 use std::fs;
@@ -173,6 +175,51 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
         Some(standard_library_identity)
     );
     assert_eq!(imported_source.origin, SourceOrigin::User);
+}
+
+#[test]
+fn real_standard_library_has_a_complete_ordinary_review_entry() {
+    let tree = TempTree::new();
+    let standard_library = repository_standard_library();
+    let storage = SourceResolverStorage::for_hardened_base(tree.0.join("review-resolved"))
+        .expect("create standard-library review storage");
+    let closure = resolve_external_local_package_closure_with_storage(
+        &standard_library,
+        ExternalSourceContext::derive(b"ordinary-standard-library-review-entry"),
+        omega_target::TargetProfile::LinuxX64,
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+    )
+    .expect("resolve the standard library as an ordinary package root");
+
+    let reviews = compile_resolved_package_candidate_reviews(
+        &closure,
+        "linux_x86_64",
+        &tree.0.join("review-build"),
+    )
+    .expect("compile the complete ordinary standard-library review entry");
+    let review = reviews
+        .review(closure.graph().root())
+        .expect("standard-library root review");
+    let console = review
+        .projection()
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "Console")
+        .expect("ordinary review entry reaches the public Console surface");
+    assert_eq!(
+        console.identity().owner(),
+        PackageReviewNominalOwner::Package(closure.graph().root().identity()),
+    );
+    assert!(
+        review
+            .projection()
+            .public_data()
+            .iter()
+            .any(|shape| shape.identity().path() == "UnknownMemberBehavior"),
+        "ordinary review entry reaches the public wire surface",
+    );
 }
 
 #[test]

@@ -19,7 +19,7 @@
 
 use omega::language::core::nat;
 
-data IntPair {
+pub data IntPair {
     neg: Nat;
     pos: Nat;
 }

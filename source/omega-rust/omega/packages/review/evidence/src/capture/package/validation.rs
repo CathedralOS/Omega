@@ -24,13 +24,25 @@ pub(super) fn validate_review_compilation(
             "package review target disagrees with the evaluated `via` binding table",
         )]);
     }
-    if !compilation.contract_entailment_stand_downs().is_empty() {
-        return Err(compilation
-            .contract_entailment_stand_downs()
-            .iter()
+    let package_stand_downs = compilation
+        .contract_entailment_stand_downs()
+        .iter()
+        .filter(|stand_down| {
+            compilation
+                .symbols
+                .symbol_package_identity(stand_down.machine_symbol)
+                == Some(package)
+        })
+        .collect::<Vec<_>>();
+    if !package_stand_downs.is_empty() {
+        return Err(package_stand_downs
+            .into_iter()
             .map(|stand_down| {
                 Diagnostic::error(format!(
-                    "package review rejects unresolved contract-entailment stand-down at machine symbol {}, contract {}, fact {}: {}",
+                    "package review rejects unresolved contract-entailment stand-down in machine `{}` (symbol {}), contract {}, fact {}: {}",
+                    compilation
+                        .symbols
+                        .display_path(stand_down.machine_symbol, "::"),
                     stand_down.machine_symbol.arena_index(),
                     stand_down.contract_index,
                     stand_down.fact_index,

@@ -1,5 +1,5 @@
 use omega::language::core::extent;
-use omega::language::std::calling;
+use calling;
 
 // Target-owned UEFI x86-64 physical contract. It remains a planned, non-invoked
 // surface until the settled target-runtime bootstrap adapter is built. That

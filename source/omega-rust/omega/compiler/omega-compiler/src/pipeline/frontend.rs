@@ -221,12 +221,13 @@ pub fn discover_imports(
     let mut imports = Vec::with_capacity(parsed_sources.len());
 
     for parsed_source in parsed_sources {
+        let source_root = standalone_source_root(&root_dir, &parsed_source.path);
         for root_item in &parsed_source.root_items {
             let item = syntax_trees.root_item(*root_item);
             match item {
                 Item::Use(use_item) => {
                     let members = syntax_trees.items.identifier_path_members(use_item.path);
-                    imports.push(normalize_path(&resolve_source_path(&root_dir, members))?);
+                    imports.push(normalize_path(&resolve_source_path(&source_root, members))?);
                 }
                 Item::Target(target) => {
                     let target_is_selected = selected_target_name
@@ -265,6 +266,20 @@ pub fn discover_imports(
     }
 
     Ok(imports)
+}
+
+/// Preserve standalone compilation of the bundled std sources while their
+/// authored self-imports use ordinary package-local paths. This is standalone
+/// toolchain routing only; package-aware compilation resolves the same paths
+/// through exact package custody.
+fn standalone_source_root(default_root: &Path, source: &Path) -> PathBuf {
+    let standard_library_root = bundled_omega_root().join("std");
+    source
+        .canonicalize()
+        .ok()
+        .filter(|source| source.starts_with(&standard_library_root))
+        .map(|_| standard_library_root)
+        .unwrap_or_else(|| default_root.to_path_buf())
 }
 
 /// Resolve imports exclusively through a reconciled, requester-local package
@@ -307,6 +322,26 @@ pub fn discover_imports_with_packages(
                             bundled_omega_root(),
                             &members[2..],
                             "toolchain",
+                        )?);
+                        continue;
+                    }
+
+                    // Transitional compatibility for package-aware callers
+                    // that still mount bundled std as toolchain source. Its
+                    // authored self-imports use the same package-local paths
+                    // as the ordinary-package route, but no package identity
+                    // is attached to this legacy mount. Keep resolution
+                    // confined to exact bundled std custody.
+                    let bundled_standard_library = bundled_omega_root().join("std");
+                    if requester.is_none()
+                        && canonical_source
+                            .as_deref()
+                            .is_some_and(|source| source.starts_with(&bundled_standard_library))
+                    {
+                        imports.push(resolve_reconciled_import(
+                            bundled_standard_library,
+                            members,
+                            "toolchain standard-library",
                         )?);
                         continue;
                     }

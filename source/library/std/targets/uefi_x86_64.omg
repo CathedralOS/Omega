@@ -1,2 +1,2 @@
 // Target-owned UEFI x86-64 physical-entry contract package.
-use omega::language::std::targets::uefi_x86_64::entry;
+use targets::uefi_x86_64::entry;

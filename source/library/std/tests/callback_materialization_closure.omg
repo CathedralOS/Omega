@@ -2,7 +2,7 @@ target windows_x86_64 {
 }
 
 use omega::language::core::layout;
-use omega::language::std::calling;
+use calling;
 
 boundary trait WindowProcedure {
     machine call(message: u64) -> u64;
