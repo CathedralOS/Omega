@@ -284,8 +284,9 @@ explicitly.
     source fixtures stay on the compatibility path until they acquire real
     package roots;
     current trait-fixture compatibility seams are the two synthesized
-    trait-default roots whose copied call token still loses its original
-    requirement identity and the two local named-`dyn` roots rejected by the
+    trait-default roots that still need separate authored-requirement and
+    executable-realization custody plus a Terminal composed-Unit plan, and the
+    two local named-`dyn` roots rejected by the
     native LET-receiver realization fence; the two build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain
