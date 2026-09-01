@@ -319,10 +319,22 @@ canonical instance spelling and retired identities, direct `T` field
 substitution, declaration/parameter/field symbol ownership, same-unit source
 ownership, and the two direct nominal wrapper uses; it
 does not infer an instance across generated units. Multiple, nested,
-base-owned, cross-unit, lifetime, const, constrained, nondefault, indirect-
-shell, fact-bearing, quotient, zero-gated, method-bearing, dynamic, or non-data
-forms return the owned base and raw parsed extension to the existing full
-rebuild/rebind. General continuation and removal of that fallback remain open.
+cross-unit, lifetime, const, constrained, nondefault, indirect-shell, fact-
+bearing, quotient, zero-gated, method-bearing, dynamic, or non-data forms
+return the owned base and raw parsed extension to the existing full rebuild/
+rebind. One base-owned application cohort now continues from the same
+checkpoint without inventing a cross-unit instance: exactly one generated
+wrapper may contain exactly two direct applications of one retained-base,
+methodless record template with one default-bound Type parameter and one shared
+builtin argument. The template uses that parameter directly and otherwise has
+only Unit/builtin fields; wrapper companions are Unit/builtin or zero-parameter
+retained-base data. The resolved and typed application retains the exact base
+symbol, builtin argument, and authored-selection rows as explicit `Generic`
+structure. Every retained symbol/table prefix and the selected build symbol
+remain unchanged. Single-use, differently argued, indirect, attached-method,
+fact-bearing, redirected, or otherwise broader base applications return the
+untouched checkpoint and raw extension to the fallback. Additional base-owned
+and general continuation and removal of that fallback remain open.
 Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is

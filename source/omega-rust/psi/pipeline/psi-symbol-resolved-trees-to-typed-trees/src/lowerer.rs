@@ -9,6 +9,8 @@ use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_typed_trees::TypedTrees;
 
+mod seeded_base_application;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SeededPlainDataContinuationError {
     UnsupportedExtensionShape,
@@ -242,7 +244,8 @@ fn plain_data_extension_shape_is_supported(
                             })
                         })
             })
-            || exact_local_single_type_instance_is_supported(source, data_frontier))
+            || exact_local_single_type_instance_is_supported(source, data_frontier)
+            || seeded_base_application::is_supported(source, data_frontier))
 }
 
 /// Admit one deliberately tiny normalized generic-data cohort. The ordinary
@@ -610,7 +613,6 @@ fn plain_type_is_supported(
                     .find(|definition| definition.symbol == generic.base_symbol)
                     .is_some_and(|definition| {
                         definition.type_parameters.is_empty()
-                            && definition.generic_instance.is_none()
                             && !definition.lifetime_parameters.is_empty()
                             && definition.lifetime_parameters.len()
                                 == generic.lifetime_arguments.len()
@@ -619,6 +621,7 @@ fn plain_type_is_supported(
                                     .iter()
                                     .any(|parameter| parameter.as_str() == argument.as_str())
                             })
+                            && definition.generic_instance.is_none()
                     })
         }
         TypeReference::Constrained(_)
