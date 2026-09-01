@@ -15,6 +15,7 @@ use super::immediate::{
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
     StraightLineWrappingIntegerAddImmediateTranslationError,
+    StraightLineWrappingIntegerMultiplyImmediateTranslationError,
     StraightLineWrappingIntegerSubtractImmediateTranslationError,
 };
 use super::parameter::{
@@ -64,6 +65,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineWrappingIntegerSubtractImmediate(
         StraightLineWrappingIntegerSubtractImmediateTranslationError,
+    ),
+    StraightLineWrappingIntegerMultiplyImmediate(
+        StraightLineWrappingIntegerMultiplyImmediateTranslationError,
     ),
     StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
     StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),

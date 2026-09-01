@@ -22,6 +22,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::immediate::INTEGER_BITWISE_AND,
     dispatch::immediate::WRAPPING_INTEGER_ADD,
     dispatch::immediate::WRAPPING_INTEGER_SUBTRACT,
+    dispatch::immediate::WRAPPING_INTEGER_MULTIPLY,
     dispatch::immediate::INTEGER_BITWISE_NOT,
     dispatch::immediate::INTEGER_EXACT_CAST_OPERAND,
     dispatch::immediate::INTEGER_EQUAL,
@@ -94,7 +95,6 @@ pub(super) fn validate_function(
         ieee_float_fma,
     )
 }
-
 pub(super) use plan::validate as validate_plan;
 #[cfg(test)]
 mod tests;
