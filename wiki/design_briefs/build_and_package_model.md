@@ -306,11 +306,24 @@ runtime-parameter data declaration at its complete arity without runtime
 arguments. Uninstantiated generated data with owner-local, type-only parameters
 and default bounds also continues from that retained frontend; those parameters
 may appear directly or beneath the admitted reference, slice, and literal
-fixed-array shells. Instantiated generic applications, constrained or non-type
-parameters, nondefault bounds, invalid-lifetime, const-expression, dynamic,
-fact-bearing, quotient, zero-gated, or non-data suffixes return the owned base
-to the existing full rebuild/rebind. General continuation and
-removal of that fallback remain open. Own generated outputs are now
+fixed-array shells. The first closed instance continuation is deliberately
+narrower: each already-parsed generated unit is normalized independently into
+a seeded-only clone while its raw tree remains owned by the fallback. One unit
+may contribute exactly one methodless record template with one default-bound
+Type parameter, one wrapper naming exactly two direct uses of one deduplicated
+builtin-argument instance, and that synthesized instance. Template companions
+are direct Unit/builtin fields only; wrapper companions are direct Unit/builtin
+or exact zero-parameter retained-base data, excluding extension-local cycles.
+The retained continuation checks the exact template/argument/origin tuple,
+canonical instance spelling and retired identities, direct `T` field
+substitution, declaration/parameter/field symbol ownership, same-unit source
+ownership, and the two direct nominal wrapper uses; it
+does not infer an instance across generated units. Multiple, nested,
+base-owned, cross-unit, lifetime, const, constrained, nondefault, indirect-
+shell, fact-bearing, quotient, zero-gated, method-bearing, dynamic, or non-data
+forms return the owned base and raw parsed extension to the existing full
+rebuild/rebind. General continuation and removal of that fallback remain open.
+Own generated outputs are now
 parsed once into an extension-only syntax carrier retaining exact unit-to-root
 ownership, source bytes/map, custody, and its base-frontier binding. It is
 consumed into the unchanged transitional combined pass without source reread or
