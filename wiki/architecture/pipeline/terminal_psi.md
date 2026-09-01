@@ -41,6 +41,21 @@ admissions or rejects realization without invalidating the Psi semantics. The
 compiler Terminal-product canary discards all frontend objects before
 exercising that consumer boundary.
 
+The first source-evaluated import re-entry is now concrete. A consuming
+compiler coordinator derives demanded boundary identities from canonical
+Terminal operations, joins each demanded evaluated import to one exact plan in
+the retained proposal, and accepts only externally supplied provider-execution
+evidence plus an admitted same-stack contribution. Callers do not supply a
+plan, plan index, locator, target, builtin identity, or checked-scope receipt.
+The lowerer independently replays the complete plan, retained external row,
+atomic locator, target, and strong same-stack commitment. Missing, extra,
+duplicate, or builtin-substituted import settlements reject, while selected but
+unreached imports remain identity custody and need no execution input. A zero-
+argument structured `MachODylibSymbol` source now reaches a validated AArch64
+Mach-O native artifact. This seam consumes admission; it does not create a
+deployment admission owner. Callback-bearing retained products remain fenced
+until one combined callback and checked-scope realization owner exists.
+
 Compiler-builtin proposals use the representation-rank
 `CompilerBuiltinExecution` catalog. Construction from the planner-rank
 intrinsic classification is one exhaustive `match` returning an optional

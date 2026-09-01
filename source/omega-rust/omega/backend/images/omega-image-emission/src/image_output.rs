@@ -96,10 +96,11 @@ pub fn can_emit_executable_image(target: NativeTarget) -> bool {
 
 /// Emit and validate one direct executable image.
 ///
-/// The clean lane admits only typed internal-call relocations. Final-text
-/// mutation outside their architecture-specific immediate bits, imports,
-/// appended thunks, overlapping/missing function spans, and unclassified
-/// executable bytes are hard failures.
+/// The direct lane admits typed internal calls and exactly retained imports
+/// supported by its target writer. Final-text mutation outside their
+/// architecture-specific immediate bits, unaccounted imports or thunks,
+/// overlapping/missing function spans, and unclassified executable bytes are
+/// hard failures.
 pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     subsystem: u16,
@@ -158,6 +159,7 @@ pub fn emit_executable_image(
         semantic_code_attribution: artifact.semantic_code_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
+        foreign_calls: artifact.foreign_calls.clone(),
         final_image_symbol_digest,
         output,
     })
@@ -181,6 +183,7 @@ pub fn validate_executable_image(
         || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
         || artifact.boundary_settlements() != image.boundary_settlements()
+        || artifact.foreign_calls() != image.foreign_calls()
     {
         return Err(Diagnostic::error(
             "terminal object and executable image have different semantic or evidence identity",
@@ -334,6 +337,7 @@ pub struct ExecutableImage {
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
+    foreign_calls: Vec<super::ObjectForeignCall>,
     final_image_symbol_digest: omega_image::FinalImageSymbolDigest,
     output: EmittedImageOutput,
 }
@@ -365,6 +369,10 @@ impl ExecutableImage {
 
     pub fn boundary_settlements(&self) -> &[ObjectBoundarySettlement] {
         &self.boundary_settlements
+    }
+
+    pub fn foreign_calls(&self) -> &[super::ObjectForeignCall] {
+        &self.foreign_calls
     }
 
     pub fn functions(&self) -> &[ObjectFunction] {

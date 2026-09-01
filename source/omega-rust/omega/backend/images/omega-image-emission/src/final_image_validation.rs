@@ -20,6 +20,12 @@ pub(super) fn validate_terminal_image(
     scalar_exit_shim: Option<LinuxX86ScalarExitShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    let expected_imports = object
+        .layout
+        .symbols
+        .iter()
+        .filter(|(_, symbol)| symbol.kind == omega_object_file::SymbolKind::Import)
+        .count();
     validate_terminal_image_with_import_count(
         artifact,
         object,
@@ -27,7 +33,7 @@ pub(super) fn validate_terminal_image(
         text_bytes,
         scalar_exit_shim,
         output,
-        0,
+        expected_imports,
     )
 }
 

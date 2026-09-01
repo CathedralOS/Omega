@@ -116,6 +116,7 @@ pub struct ObjectArtifact {
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
+    foreign_calls: Vec<ObjectForeignCall>,
 }
 
 impl ObjectArtifact {
@@ -166,6 +167,10 @@ impl ObjectArtifact {
 
     pub fn boundary_settlements(&self) -> &[ObjectBoundarySettlement] {
         &self.boundary_settlements
+    }
+
+    pub fn foreign_calls(&self) -> &[ObjectForeignCall] {
+        &self.foreign_calls
     }
 
     pub fn port_effects(&self) -> &[ObjectPortEffect] {
@@ -353,6 +358,18 @@ pub struct ObjectBoundarySettlement {
     pub machine: MachineId,
     pub settlement: BoundarySettlementRecord,
     /// Absolute offset in the object `.text` section.
+    pub text_offset: usize,
+}
+
+/// Source-free custody for one normalized foreign call retained after object
+/// construction has independently replayed its instruction and relocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectForeignCall {
+    pub machine: MachineId,
+    pub owner: CallSiteOwner,
+    pub locator: omega_target::NormalizedForeignLocator,
+    pub provider_execution: omega_machine_code::ProviderExecutionRecord,
+    /// Absolute offset of the mutable relocation field in object `.text`.
     pub text_offset: usize,
 }
 
@@ -1419,6 +1436,7 @@ fn build_object_artifact_with_x86_feature_profile(
     let mut semantic_code_attribution = Vec::new();
     let mut port_effects = Vec::new();
     let mut boundary_settlements = Vec::new();
+    let mut foreign_calls = Vec::with_capacity(foreign_call_count);
     let mut symbols_by_machine = std::collections::BTreeMap::new();
     for function in &plan.functions {
         let text_offset = text_bytes.len();
@@ -1464,6 +1482,17 @@ fn build_object_artifact_with_x86_feature_profile(
                 settlement: settlement.clone(),
                 text_offset: text_offset
                     .checked_add(settlement.code_offset)
+                    .ok_or(ObjectError::TextSizeOverflow)?,
+            });
+        }
+        for call in &function.foreign_calls {
+            foreign_calls.push(ObjectForeignCall {
+                machine: function.machine,
+                owner: call.owner,
+                locator: call.locator.clone(),
+                provider_execution: call.provider_execution,
+                text_offset: text_offset
+                    .checked_add(call.offset)
                     .ok_or(ObjectError::TextSizeOverflow)?,
             });
         }
@@ -1645,6 +1674,7 @@ fn build_object_artifact_with_x86_feature_profile(
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
+        foreign_calls,
     })
 }
 

@@ -434,6 +434,45 @@ impl NativeArtifact {
                 execution.boundary_contract_report_fingerprint,
             ));
         }
+        for foreign in self.image.foreign_calls() {
+            let omega_target_operations::CallSiteOwner::Operation(owner) = foreign.owner else {
+                return Err(
+                    "native artifact foreign provider execution has no semantic operation owner",
+                );
+            };
+            let matching_operations = module
+                .machines
+                .iter()
+                .filter(|machine| machine.id == foreign.machine)
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| operation.id == owner)
+                .collect::<Vec<_>>();
+            let [operation] = matching_operations.as_slice() else {
+                return Err(
+                    "native artifact foreign provider execution does not rejoin one semantic operation",
+                );
+            };
+            let psi_terminal::OperationKind::BoundaryCall { boundary, .. } = &operation.kind else {
+                return Err(
+                    "native artifact foreign provider execution owner is not a boundary call",
+                );
+            };
+            let boundary = module
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == *boundary)
+                .ok_or("native artifact foreign provider execution names an absent boundary")?;
+            let execution = foreign.provider_execution;
+            required_executions.insert((
+                boundary.identity.clone(),
+                execution.provider_plan_report_identity,
+                execution.provider_execution_report_identity,
+                execution.provider_execution_report_fingerprint,
+                execution.normalized_root_report_identity,
+                execution.boundary_contract_report_fingerprint,
+            ));
+        }
         validate_provider_execution_reports(
             &self.selected_provider_plans,
             &self.provider_executions,
