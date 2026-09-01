@@ -3,7 +3,7 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::rules::passes) enum ProofRangeKind {
+pub(crate) enum ProofRangeKind {
     Zero,
     ZeroToThree,
     Nonzero,
@@ -149,7 +149,7 @@ fn range_constant_operation(
     }
 }
 
-pub(in crate::rules::passes) fn range_constant_comparison_unit(
+pub(crate) fn range_constant_comparison_unit(
     kind: IntegerRangeComparisonKind,
     scalar_type: IntegerType,
     range_kind: ProofRangeKind,
@@ -268,7 +268,7 @@ fn range_pair_operation(
     }
 }
 
-pub(in crate::rules::passes) fn range_pair_comparison_unit(
+pub(crate) fn range_pair_comparison_unit(
     kind: IntegerRangePairComparisonKind,
     scalar_type: IntegerType,
     left_kind: ProofRangeKind,
@@ -383,7 +383,7 @@ pub(in crate::rules::passes) fn range_pair_comparison_unit(
     attach_proof_rows(unit, machine, proof_rows)
 }
 
-pub(in crate::rules::passes) fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
+pub(crate) fn proof_range_pair_comparison_unit() -> PsiOptimizationUnit {
     let scalar_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     range_pair_comparison_unit(
         IntegerRangePairComparisonKind::LessOrEqual,

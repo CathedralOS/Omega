@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::rules::passes) enum IntegerRangeComparisonKind {
+pub(crate) enum IntegerRangeComparisonKind {
     RangeEqualConstant,
     ConstantEqualRange,
     RangeLessThanConstant,
@@ -9,7 +9,7 @@ pub(in crate::rules::passes) enum IntegerRangeComparisonKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::rules::passes) enum IntegerRangePairComparisonKind {
+pub(crate) enum IntegerRangePairComparisonKind {
     Equal,
     LessThan,
     LessOrEqual,

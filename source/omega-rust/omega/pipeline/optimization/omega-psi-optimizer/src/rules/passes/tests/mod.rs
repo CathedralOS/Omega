@@ -69,6 +69,7 @@ use crate::{
 
 mod fixtures;
 
+pub(crate) use super::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
 pub(crate) use fixtures::*;
 
 mod catalog;

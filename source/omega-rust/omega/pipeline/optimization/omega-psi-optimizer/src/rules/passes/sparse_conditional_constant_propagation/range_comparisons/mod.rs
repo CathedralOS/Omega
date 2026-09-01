@@ -13,6 +13,4 @@ pub use against_range::{
     IntegerEqualRangeRangeRule, IntegerLessOrEqualRangeRangeRule, IntegerLessThanRangeRangeRule,
 };
 #[cfg(test)]
-pub(in crate::rules::passes) use model::{
-    IntegerRangeComparisonKind, IntegerRangePairComparisonKind,
-};
+pub(crate) use model::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
