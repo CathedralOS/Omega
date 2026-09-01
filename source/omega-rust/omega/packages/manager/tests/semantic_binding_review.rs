@@ -6,7 +6,9 @@ use omega_package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCompilerIntrinsicExecution,
     PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
 };
-use omega_package_manager::admission::accept_ordinary_closure_evidence;
+use omega_package_manager::admission::{
+    accept_ordinary_closure_evidence, accepted_terminal_authority_permission_policy,
+};
 use omega_package_manager::declarations::{PackageKey, PackageName};
 use omega_package_manager::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_package_closure_with_storage,
@@ -296,12 +298,24 @@ invokes console;
         Some(&root_policy),
     )
     .expect("fresh policy admits consumer-bound Console evidence");
-    assert_eq!(evidence.schema().version(), 4);
+    assert_eq!(evidence.schema().version(), 5);
     let root_evidence = evidence
         .packages()
         .iter()
         .find(|package| package.package() == &root_key)
         .expect("accepted evidence retains selected root");
+    assert_eq!(
+        root_evidence.selected_build_machine_identity(),
+        root_review.selected_build_machine_identity(),
+    );
+    assert_eq!(
+        root_evidence.build_evaluation_usage(),
+        root_review.build_evaluation_usage(),
+    );
+    assert_eq!(
+        root_evidence.build_observation(),
+        root_review.build_observation_summary(),
+    );
     assert_eq!(root_evidence.semantic_bindings(), &[binding]);
     let propagated_permissions = evidence
         .acceptance()
@@ -328,6 +342,20 @@ invokes console;
     );
     assert_eq!(
         permission.permission().permitted().classes(),
+        &[TerminalAuthorityClass::ProcessTermination]
+    );
+    let accepted_permission_policy = accepted_terminal_authority_permission_policy(&evidence)
+        .expect("accepted root-policy evidence projects one exact receiving policy");
+    let [accepted_permission] = accepted_permission_policy.rows() else {
+        panic!("accepted root-policy projection retains one exact permission row")
+    };
+    assert_eq!(
+        accepted_permission.service_schema(),
+        provider.schema().identity_digest()
+    );
+    assert_eq!(accepted_permission.requirement_identity(), exit_requirement);
+    assert_eq!(
+        accepted_permission.permitted().classes(),
         &[TerminalAuthorityClass::ProcessTermination]
     );
 

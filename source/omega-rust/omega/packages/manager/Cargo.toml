@@ -15,12 +15,15 @@ omega-compiler = { path = "../../compiler/omega-compiler" }
 omega-package-evidence = { path = "../review/evidence" }
 omega-package-source = { path = "../sources/acquisition" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-platform-custody = { path = "../../tooling/omega-platform-custody" }
 omega-target = { path = "../../representations/omega-target" }
+omega-terminal-psi-to-native-artifact = { path = "../../pipeline/omega-terminal-psi-to-native-artifact" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }

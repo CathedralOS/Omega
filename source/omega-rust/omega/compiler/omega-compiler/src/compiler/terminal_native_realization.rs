@@ -51,24 +51,44 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports(
     optimization_selections: &omega_optimization_core::OptimizationSelections,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<omega_compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
+    let accepted_package_permissions =
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy();
+    let receiving_permissions =
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy();
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
         retained,
         profile,
         optimization_selections,
         omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
-        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        accepted_package_permissions,
+        receiving_permissions,
         imports,
     )
 }
 
-/// Realize a retained Terminal product under one receiving-authority policy.
-/// Normalized foreign imports require exact explicit rows; the compatibility
-/// entrypoint above intentionally supplies only the closed intrinsic table.
+/// Realize a retained Terminal product under independently supplied package
+/// acceptance and receiving-authority policies.
+///
+/// The package policy must be the exact canonical projection from root-policy
+/// accepted evidence and must equal the rows preserved in the retained
+/// proposal. The receiving policy may contain unrelated rows but may neither
+/// omit nor alter any accepted package row. Normalized foreign imports still
+/// require explicit physical-policy rows. The compatibility entrypoint above
+/// supplies empty package and receiving policies and therefore remains
+/// deny-by-absence for every retained package permission.
+///
+/// This is the package-agnostic lower-level seam: passing freely constructed
+/// policy data here does not itself establish package admission. Package
+/// orchestration must consume opaque accepted evidence, bind it to the
+/// retained report's production subject, and derive this exact package policy
+/// before invoking the seam.
 pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
     retained: omega_compilation_report::RetainedTerminalArtifact,
     profile: &psi_proof_admission::AdmissionProfile,
     optimization_selections: &omega_optimization_core::OptimizationSelections,
     terminal_authority_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
+    accepted_package_terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     terminal_authority_permission_policy:
         omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     imports: &[SourceEvaluatedImportSettlement<'_>],
@@ -86,6 +106,16 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
     proposal
         .validate_for_artifact(&artifact)
         .map_err(|message| diagnostic("Terminal native proposal", message))?;
+    super::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
+        proposal.package_terminal_authority_permissions(),
+        &accepted_package_terminal_authority_permission_policy,
+    )?;
+    super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
+        accepted_package_terminal_authority_permission_policy
+            .rows()
+            .iter(),
+        &terminal_authority_permission_policy,
+    )?;
     let native_callbacks =
         admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
     let callback_thunks =

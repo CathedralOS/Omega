@@ -1,6 +1,7 @@
 use omega_compiler::{
     CompileOptions, CompileRequest, RequestedCompileProduct, compile, compile_to_checked,
     compile_to_checked_with_packages, compile_to_checked_with_packages_in_build_dir,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
 };
 use omega_package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
@@ -4095,6 +4096,7 @@ machine build(builder: &mut Build) {
         .display_path(retained.provider.schema.symbol(), "::");
     let schema_digest = plan.schema.identity_digest();
     let provider_plan_digest = plan.identity_digest();
+    let exit_requirement = plan.rows[exit].requirement_identity.clone();
     for (label, stale) in [
         (
             "nominal declaration",
@@ -4153,7 +4155,17 @@ machine build(builder: &mut Build) {
         schema_digest,
         provider_plan_digest,
     )
-    .expect("candidate-derived accepted Console binding");
+    .expect("candidate-derived accepted Console binding")
+    .with_terminal_authority_permissions(vec![
+        omega_effects::ServiceTerminalAuthorityPermission::new(
+            schema_digest,
+            exit_requirement.clone(),
+            omega_effects::TerminalAuthorityDisposition::from_classes([
+                omega_effects::TerminalAuthorityClass::ProcessTermination,
+            ]),
+        ),
+    ])
+    .expect("accepted Console binding carries its exact terminal permission");
 
     for (label, declaration) in [
         (
@@ -4235,6 +4247,261 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         .with_accepted_semantic_bindings(vec![accepted])
         .expect("accepted binding names the exact package closure");
     let output = tree.0.join("accepted-console-output");
+    let compile_retained = |label: &str| {
+        compile(
+            CompileRequest::new(CompileOptions {
+                root_path: root.join("main.omg"),
+                build_dir: Some(output.join(label)),
+                target_name: Some("linux_x86_64".to_owned()),
+            })
+            .with_package_inputs(accepted_inputs.clone())
+            .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "exact accepted Console binding should reach retained Terminal: {diagnostics:#?}"
+            )
+        })
+        .into_retained_terminal_artifact()
+        .expect("Terminal request retains its exact product")
+    };
+    let checked_for_subject = compile_to_checked_with_packages(
+        &root.join("main.omg"),
+        Some("linux_x86_64"),
+        accepted_inputs.clone(),
+    )
+    .expect("accepted Console package checks for production-subject substitution test");
+    let mismatched_profile = omega_target::TargetProfile::WindowsX64;
+    let mismatched_subject = omega_compilation_report::ProductionCompilationSubject::from_checked(
+        checked_for_subject
+            .package_compilation_subject()
+            .expect("package-aware check retains its package subject")
+            .clone(),
+        checked_for_subject
+            .selected_build_machine_identity()
+            .expect("package-aware check retains its build-machine identity")
+            .to_owned(),
+        checked_for_subject
+            .build_evaluation_usage()
+            .expect("package-aware check retains build-evaluation usage"),
+        checked_for_subject
+            .build_observation_summary()
+            .expect("package-aware check retains build-observation custody"),
+        mismatched_profile,
+        mismatched_profile.native_target(),
+    )
+    .expect("internally coherent but substituted production subject");
+    assert_eq!(
+        omega_compilation_report::CompileReport::from_retained_terminal_artifact(
+            root.join("main.omg"),
+            checked_for_subject.source_file_count(),
+            compile_retained("retained-target-substitution"),
+            Some(mismatched_subject),
+        )
+        .expect_err("production subject target cannot differ from retained proposal target"),
+        "compiler report retained inconsistent Terminal-artifact custody",
+    );
+    let retained = compile_retained("retained-exact");
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    let [retained_permission] = proposal.package_terminal_authority_permissions() else {
+        panic!("retained Terminal proposal preserves one exact package permission")
+    };
+    assert_eq!(retained_permission.service_schema(), schema_digest);
+    assert_eq!(retained_permission.requirement_identity(), exit_requirement);
+    assert_eq!(
+        retained_permission.permitted().classes(),
+        &[omega_effects::TerminalAuthorityClass::ProcessTermination]
+    );
+    assert!(
+        omega_compilation_report::TerminalNativeRealizationProposal::new(
+            retained.artifact(),
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            vec![retained_permission.clone(), retained_permission.clone()],
+            proposal.compiler_builtins().to_vec(),
+            proposal.callback_occurrences().to_vec(),
+            proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
+            proposal.checked_boundary_operator_scope().clone(),
+        )
+        .is_err(),
+        "retained Terminal proposal must reject duplicate package permission coordinates",
+    );
+
+    let permission_policy = |classes: &[omega_effects::TerminalAuthorityClass],
+                             include_unrelated| {
+        let mut rows = vec![
+            omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                schema_digest,
+                exit_requirement.clone(),
+                omega_effects::TerminalAuthorityDisposition::from_classes(classes.iter().copied()),
+            ),
+        ];
+        if include_unrelated {
+            rows.push(
+                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                    omega_effects::provider_plan::ServiceSchemaDigest::from_digest([93; 32]),
+                    "Unrelated::operation#exact",
+                    omega_effects::TerminalAuthorityDisposition::from_classes([]),
+                ),
+            );
+        }
+        omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(rows)
+            .expect("exact receiving permission policy")
+    };
+    let profile = psi_proof_admission::AdmissionProfile::default();
+    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let accepted_permission_policy = || {
+        permission_policy(
+            &[omega_effects::TerminalAuthorityClass::ProcessTermination],
+            false,
+        )
+    };
+    let reconstruct_with_permissions = |label: &str,
+                                        permissions: Vec<
+        omega_effects::ServiceTerminalAuthorityPermission,
+    >| {
+        let retained = compile_retained(label);
+        let (artifact, callback_placements, proposal) = retained.into_parts();
+        let proposal = proposal.expect("retained Terminal product has a native proposal");
+        let reconstructed = omega_compilation_report::TerminalNativeRealizationProposal::new(
+            &artifact,
+            proposal.target_profile(),
+            proposal.native_target(),
+            proposal.subsystem(),
+            proposal.program_entry().clone(),
+            proposal.selected_provider_plans().clone(),
+            proposal.external_binding_rows().to_vec(),
+            permissions,
+            proposal.compiler_builtins().to_vec(),
+            proposal.callback_occurrences().to_vec(),
+            proposal.ieee_float_fma_occurrences().to_vec(),
+            proposal.boundary_application_demands().clone(),
+            proposal.boundary_application_realizations().clone(),
+            proposal.checked_boundary_operator_scope().clone(),
+        )
+        .expect("syntactically valid reconstructed proposal");
+        omega_compilation_report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact,
+            callback_placements,
+            reconstructed,
+        )
+        .expect("syntactically valid reconstructed retained product")
+    };
+
+    let omitted = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        reconstruct_with_permissions("retained-omitted-proposal", vec![]),
+        &profile,
+        &optimizations,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        accepted_permission_policy(),
+        accepted_permission_policy(),
+        &[],
+    )
+    .expect_err("reconstructed proposal cannot omit an accepted package permission");
+    assert!(
+        omitted.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("differ from the independently accepted package policy")),
+        "unexpected omitted-proposal diagnostics: {omitted:#?}",
+    );
+
+    let widened_permission = omega_effects::ServiceTerminalAuthorityPermission::new(
+        schema_digest,
+        exit_requirement.clone(),
+        omega_effects::TerminalAuthorityDisposition::from_classes([
+            omega_effects::TerminalAuthorityClass::ProcessOutput,
+            omega_effects::TerminalAuthorityClass::ProcessTermination,
+        ]),
+    );
+    let widened = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        reconstruct_with_permissions("retained-widened-proposal", vec![widened_permission]),
+        &profile,
+        &optimizations,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        accepted_permission_policy(),
+        permission_policy(
+            &[
+                omega_effects::TerminalAuthorityClass::ProcessOutput,
+                omega_effects::TerminalAuthorityClass::ProcessTermination,
+            ],
+            false,
+        ),
+        &[],
+    )
+    .expect_err("coordinated proposal/policy widening cannot replace accepted evidence");
+    assert!(
+        widened.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("differ from the independently accepted package policy")),
+        "unexpected widened-proposal diagnostics: {widened:#?}",
+    );
+
+    let missing = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        compile_retained("retained-missing"),
+        &profile,
+        &optimizations,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        accepted_permission_policy(),
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        &[],
+    )
+    .expect_err("retained re-entry must reject a missing accepted package permission");
+    assert!(
+        missing
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("omits the accepted permission")),
+        "unexpected missing-permission diagnostics: {missing:#?}",
+    );
+
+    let substituted = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        compile_retained("retained-substituted"),
+        &profile,
+        &optimizations,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+        accepted_permission_policy(),
+        permission_policy(
+            &[omega_effects::TerminalAuthorityClass::ProcessOutput],
+            false,
+        ),
+        &[],
+    )
+    .expect_err("retained re-entry must reject changed accepted package classes");
+    assert!(
+        substituted.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("substitutes the accepted permission")),
+        "unexpected substituted-permission diagnostics: {substituted:#?}",
+    );
+
+    let retained_policy = permission_policy(
+        &[omega_effects::TerminalAuthorityClass::ProcessTermination],
+        true,
+    );
+    let accepted_policy_identity = retained_policy.identity();
+    let retained_native =
+        realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+            retained,
+            &profile,
+            &optimizations,
+            omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            accepted_permission_policy(),
+            retained_policy,
+            &[],
+        )
+        .expect("exact retained permission plus an unrelated row should realize");
+    assert_eq!(
+        retained_native.terminal_authority_permission_policy_identity(),
+        accepted_policy_identity,
+    );
+
     let report = compile(
         CompileRequest::new(CompileOptions {
             root_path: root.join("main.omg"),
@@ -4242,6 +4509,10 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             target_name: Some("linux_x86_64".to_owned()),
         })
         .with_package_inputs(accepted_inputs)
+        .with_terminal_authority_permission_policy(permission_policy(
+            &[omega_effects::TerminalAuthorityClass::ProcessTermination],
+            true,
+        ))
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .expect("exact accepted Console binding should close Linux native realization");
@@ -4252,6 +4523,14 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
             .children()
             .len(),
         1,
+    );
+    assert_eq!(
+        report
+            .retained_native_artifact()
+            .expect("direct native request retains its artifact")
+            .terminal_authority_permission_policy_identity(),
+        accepted_policy_identity,
+        "direct and retained native routes must consume the same exact policy identity",
     );
 }
 

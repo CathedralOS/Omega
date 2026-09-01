@@ -164,6 +164,7 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,
@@ -368,6 +369,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         missing_policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         missing_permission_policy,
         &[],
     )
@@ -392,6 +394,7 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         &psi_proof_admission::AdmissionProfile::default(),
         &omega_optimization_core::OptimizationSelections::default(),
         policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
         permission_policy,
         &[SourceEvaluatedImportSettlement::new(
             &admission.execution,

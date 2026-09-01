@@ -1389,6 +1389,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             proposal.program_entry().clone(),
             proposal.selected_provider_plans().clone(),
             proposal.external_binding_rows().to_vec(),
+            proposal.package_terminal_authority_permissions().to_vec(),
             proposal.compiler_builtins().to_vec(),
             proposal.callback_occurrences().to_vec(),
             proposal.ieee_float_fma_occurrences().to_vec(),

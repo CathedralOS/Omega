@@ -12,7 +12,7 @@ use omega_package_evidence::ledger::{
 };
 use omega_package_source::{ImmutableSourceResolution, SourceResolveError};
 
-pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 4;
+pub const ACCEPTED_ORDINARY_EVIDENCE_SCHEMA_VERSION: u16 = 5;
 
 /// Closed identity for the exact accepted-evidence vocabulary represented by
 /// this module. This is distinct from the obligation schema and any future
@@ -44,6 +44,7 @@ pub struct AcceptedOrdinaryPackageEvidence {
     pub(super) package: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
     pub(super) source_consumption: PackageSourceConsumptionCommitment,
+    pub(super) selected_build_machine_identity: String,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation: Option<BuildObservationSummary>,
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
@@ -63,6 +64,12 @@ impl AcceptedOrdinaryPackageEvidence {
 
     pub const fn source_consumption(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption
+    }
+
+    /// Canonical semantic identity of the build machine admitted by this
+    /// exact compiler review.
+    pub fn selected_build_machine_identity(&self) -> &str {
+        &self.selected_build_machine_identity
     }
 
     pub const fn build_evaluation_usage(&self) -> Option<BuildEvaluationUsage> {

@@ -1,6 +1,5 @@
 use omega_optimization_core::OptimizationSelections;
 use psi_diagnostics::Diagnostic;
-use std::collections::BTreeSet;
 
 pub(super) fn realize(
     checked: &crate::pipeline::CheckedCompilation,
@@ -10,8 +9,10 @@ pub(super) fn realize(
         omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     optimization_selections: &OptimizationSelections,
 ) -> Result<omega_terminal_psi_to_native_artifact::NativeArtifact, Vec<Diagnostic>> {
-    validate_resolved_package_terminal_authority_permissions(
-        checked.resolved_semantic_bindings(),
+    super::super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
+        checked
+            .resolved_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions()),
         &terminal_authority_permission_policy,
     )?;
     let entry_machine = admission.program_entry.machine_name().to_owned();
@@ -96,55 +97,9 @@ pub(super) fn realize(
     )
 }
 
-/// Rejoin consumer-approved package permission rows to the independently
-/// supplied receiving policy before native realization. The receiving policy
-/// may contain rows for other artifacts, but it may neither omit nor alter a
-/// row already accepted for this exact package compilation.
-fn validate_resolved_package_terminal_authority_permissions<'a>(
-    bindings: impl Iterator<Item = &'a omega_package_compilation::AcceptedSemanticBinding>,
-    policy: &omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut seen = BTreeSet::new();
-    let mut diagnostics = Vec::new();
-    for binding in bindings {
-        for permission in binding.terminal_authority_permissions() {
-            let coordinate = (
-                permission.service_schema(),
-                permission.requirement_identity().to_owned(),
-            );
-            if !seen.insert(coordinate) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "resolved semantic bindings repeat terminal-authority permission `{}` for one exact service schema",
-                    permission.requirement_identity(),
-                )));
-                continue;
-            }
-            match policy.permission_for(
-                permission.service_schema(),
-                permission.requirement_identity(),
-            ) {
-                Ok(permitted) if &permitted == permission.permitted() => {}
-                Ok(_) => diagnostics.push(Diagnostic::error(format!(
-                    "receiving terminal-authority policy substitutes the accepted permission for `{}`",
-                    permission.requirement_identity(),
-                ))),
-                Err(_) => diagnostics.push(Diagnostic::error(format!(
-                    "receiving terminal-authority policy omits the accepted permission for `{}`",
-                    permission.requirement_identity(),
-                ))),
-            }
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::validate_resolved_package_terminal_authority_permissions;
+    use crate::compiler::terminal_authority_permissions::validate_package_terminal_authority_permissions;
     use omega_effects::{
         ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
         provider_plan::{ProviderPlanDigest, ServiceSchemaDigest},
@@ -192,8 +147,8 @@ mod tests {
             TerminalAuthorityClass::ProcessTermination,
         ]));
         assert!(
-            validate_resolved_package_terminal_authority_permissions(
-                std::iter::once(&binding),
+            validate_package_terminal_authority_permissions(
+                binding.terminal_authority_permissions().iter(),
                 &exact,
             )
             .is_ok()
@@ -202,8 +157,8 @@ mod tests {
         let substituted = policy(TerminalAuthorityDisposition::from_classes([
             TerminalAuthorityClass::ProcessOutput,
         ]));
-        let diagnostics = validate_resolved_package_terminal_authority_permissions(
-            std::iter::once(&binding),
+        let diagnostics = validate_package_terminal_authority_permissions(
+            binding.terminal_authority_permissions().iter(),
             &substituted,
         )
         .expect_err("changed classes must reject");
@@ -211,8 +166,8 @@ mod tests {
 
         let missing =
             omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy();
-        let diagnostics = validate_resolved_package_terminal_authority_permissions(
-            std::iter::once(&binding),
+        let diagnostics = validate_package_terminal_authority_permissions(
+            binding.terminal_authority_permissions().iter(),
             &missing,
         )
         .expect_err("missing exact row must reject");
@@ -226,8 +181,10 @@ mod tests {
         let exact = policy(TerminalAuthorityDisposition::from_classes([
             TerminalAuthorityClass::ProcessTermination,
         ]));
-        let diagnostics = validate_resolved_package_terminal_authority_permissions(
-            [&first, &second].into_iter(),
+        let diagnostics = validate_package_terminal_authority_permissions(
+            [&first, &second]
+                .into_iter()
+                .flat_map(|binding| binding.terminal_authority_permissions()),
             &exact,
         )
         .expect_err("cross-binding duplicate must reject");

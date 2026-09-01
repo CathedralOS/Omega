@@ -375,6 +375,37 @@ pub struct BuildEvaluationUsage {
     pub replay_result_text_bytes: u64,
 }
 
+impl BuildEvaluationUsage {
+    /// Compare the deterministic accounting owned by one build-machine
+    /// invocation and its exact replay, excluding aggregate sponsor/session
+    /// context.
+    ///
+    /// A package review may run inside a shared sponsored session while the
+    /// later production compile runs independently. Session ceilings and
+    /// session-wide peaks therefore identify the review orchestration, not the
+    /// individual build whose source and observation are being rejoined.
+    pub const fn has_same_invocation_usage(self, other: Self) -> bool {
+        self.usage_schema_version == other.usage_schema_version
+            && self.step_schedule_marker == other.step_schedule_marker
+            && self.invocation_fuel_ceiling == other.invocation_fuel_ceiling
+            && self.fuel_units == other.fuel_units
+            && self.replay_fuel_units == other.replay_fuel_units
+            && self.build_log_bytes == other.build_log_bytes
+            && self.replay_build_log_bytes == other.replay_build_log_bytes
+            && self.filesystem_operation_attempts == other.filesystem_operation_attempts
+            && self.replay_filesystem_operation_attempts
+                == other.replay_filesystem_operation_attempts
+            && self.peak_live_cells == other.peak_live_cells
+            && self.replay_peak_live_cells == other.replay_peak_live_cells
+            && self.peak_live_text_bytes == other.peak_live_text_bytes
+            && self.replay_peak_live_text_bytes == other.replay_peak_live_text_bytes
+            && self.result_cells == other.result_cells
+            && self.replay_result_cells == other.replay_result_cells
+            && self.result_text_bytes == other.result_text_bytes
+            && self.replay_result_text_bytes == other.replay_result_text_bytes
+    }
+}
+
 pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 75;
 pub const BUILD_FILESYSTEM_REPLAY_VERDICT_SCHEMA_VERSION: u32 = 1;
 

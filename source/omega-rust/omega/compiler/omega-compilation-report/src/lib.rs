@@ -793,6 +793,16 @@ impl CompileReport {
             .map(RetainedTerminalArtifact::callback_placements)
     }
 
+    /// Borrow the target-constrained native proposal without detaching it from
+    /// the retained Terminal product or its report custody.
+    pub fn terminal_native_realization_proposal(
+        &self,
+    ) -> Option<&TerminalNativeRealizationProposal> {
+        self.artifact
+            .as_ref()
+            .and_then(RetainedTerminalArtifact::native_realization_proposal)
+    }
+
     /// Transfer the complete Terminal product without dropping its callback
     /// sidecar. There is deliberately no consuming artifact-only projection.
     pub fn into_retained_terminal_artifact(self) -> Option<RetainedTerminalArtifact> {
@@ -873,6 +883,14 @@ impl CompileReport {
                             .as_ref()
                             .is_some_and(|artifact| {
                                 manifest.matches_terminal_artifact(artifact.artifact())
+                                    && artifact.native_realization_proposal().is_some_and(
+                                        |proposal| {
+                                            proposal.target_profile()
+                                                == manifest.subject().target_profile()
+                                                && proposal.native_target()
+                                                    == manifest.subject().native_target()
+                                        },
+                                    )
                             })
                     })
             }
