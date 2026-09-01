@@ -181,7 +181,10 @@ machine build(builder: &mut Build) {{
 fn generated_local_instance_collection_preserves_build_symbol_and_source_custody() {
     let profile = omega_target::TargetProfile::host();
     let project = Project::new("generated-local-instance");
-    project.write("main.omg", "data Main { value: u8; }\n");
+    project.write(
+        "main.omg",
+        "data Main { value: u8; }\ndata DomainCarrier [copy] { value: u8; }\ndomain DomainCarrier::Ready;\n",
+    );
     project.write(
         "build.omg",
         &format!(
@@ -193,7 +196,7 @@ machine build(builder: &mut Build) {{
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
         descriptor,
-        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata LifetimeBox<'boxed, T> {{ value: T; }}\ndata LifetimeOuter<'outer, T> {{ value: T; }}\ndata WithLifetimeTypeArgument<'call> {{ value: LifetimeOuter<'call, LifetimeBox<'call, Borrowed<'call, u32>>>; }}\ndata WithArithmeticDomain {{ value: Cell<u32 in Wrapping>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata StructuredConfig {{ count: u8; enabled: bool; }}\ndata StructuredConfigs {{}}\nconst StructuredConfigs::PRIMARY: StructuredConfig = StructuredConfig {{ count: 7, enabled: true }};\ndata StructuredIndexed<const C: StructuredConfig> {{ marker: u8; }}\ndata StructuredNested<const C: StructuredConfig> {{ value: StructuredIndexed<C>; }}\ndata WithStructured {{ value: StructuredNested<StructuredConfigs::PRIMARY>; }}\ndata StructuredMode {{ case Left(value: u8); case Right; }}\ndata StructuredModes {{}}\nconst StructuredModes::LEFT: StructuredMode = StructuredMode::Left {{ value: 9 }};\ndata StructuredByMode<const M: StructuredMode> {{ marker: u8; }}\ndata WithStructuredMode {{ value: StructuredByMode<StructuredModes::LEFT>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
+        "data Cell<T [copy]> [copy] {{ values: [T; 2]; }}\ndata Pair<A, B> {{ first: A; second: B; }}\ndata Outer<T [copy]> [copy] {{ inner: Cell<T>; direct: T; }}\ndata Maybe<T> {{ case #1 None; case #2 Some(#1 value: T, retired #3); retired #4; }}\ndata Borrowed<'scope, T> {{ value: &'scope T; }}\ndata NestedBorrow<'scope, T> {{ value: Borrowed<'scope, T>; }}\ndata WithBorrow<'scope> {{ value: Borrowed<'scope, u32>; }}\ndata WithNestedBorrow<'scope> {{ value: NestedBorrow<'scope, u32>; }}\ndata LifetimeBox<'boxed, T> {{ value: T; }}\ndata LifetimeOuter<'outer, T> {{ value: T; }}\ndata WithLifetimeTypeArgument<'call> {{ value: LifetimeOuter<'call, LifetimeBox<'call, Borrowed<'call, u32>>>; }}\ndata WithArithmeticDomain {{ value: Cell<u32 in Wrapping>; }}\ndata WithDeclaredDomain {{ value: Cell<DomainCarrier in Ready>; }}\ndata ConstBlock<T, const N: u64> {{ values: [T; N]; }}\ndata NestedConst<T, const N: u64> {{ value: ConstBlock<T, N>; }}\ndata WithConst {{ value: NestedConst<u16, 2>; }}\ndata BoolFlag<const ENABLED: bool> {{ marker: u8; }}\ndata NestedBool<const ENABLED: bool> {{ value: BoolFlag<ENABLED>; }}\ndata WithBool {{ value: NestedBool<true>; }}\ndata StructuredConfig {{ count: u8; enabled: bool; }}\ndata StructuredConfigs {{}}\nconst StructuredConfigs::PRIMARY: StructuredConfig = StructuredConfig {{ count: 7, enabled: true }};\ndata StructuredIndexed<const C: StructuredConfig> {{ marker: u8; }}\ndata StructuredNested<const C: StructuredConfig> {{ value: StructuredIndexed<C>; }}\ndata WithStructured {{ value: StructuredNested<StructuredConfigs::PRIMARY>; }}\ndata StructuredMode {{ case Left(value: u8); case Right; }}\ndata StructuredModes {{}}\nconst StructuredModes::LEFT: StructuredMode = StructuredMode::Left {{ value: 9 }};\ndata StructuredByMode<const M: StructuredMode> {{ marker: u8; }}\ndata WithStructuredMode {{ value: StructuredByMode<StructuredModes::LEFT>; }}\ndata Item [copy] {{ value: u8; }}\ndata Generated {{ first: Cell<u32>; second: Cell<u32>; pair: Pair<u16, u64>; outer: Outer<u32>; maybe: Maybe<u32>; nominal: Cell<Item>; base: Main; }}\ndata More {{ indirect: [Cell<Item>; 2]; repeated: Pair<u16, u64>; nested: Outer<u32>; }}\n"
     );
     let close: i32 = builder.output.close(descriptor);
     builder.output.include_source(generated);
@@ -267,8 +270,8 @@ machine build(builder: &mut Build) {{
         .collect::<Vec<_>>();
     assert_eq!(
         instances.len(),
-        17,
-        "seventeen deduplicated closed instances"
+        18,
+        "eighteen deduplicated closed instances"
     );
     let instance = instances
         .iter()
@@ -481,6 +484,65 @@ machine build(builder: &mut Build) {{
             .type_reference(arithmetic_use.type_reference),
         psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
             if *symbol == arithmetic_domain_instance.symbol
+    ));
+    let declared_domain_instance = find_data("Cell<DomainCarrier in Ready>");
+    let domain_carrier = find_data("DomainCarrier");
+    let ready_domain = checked
+        .typed
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.name.as_str() == "DomainCarrier::Ready")
+        .expect("authored Ready domain");
+    let [psi_typed_trees::data::DataMember::Field(declared_value)] =
+        checked.typed.data_members(declared_domain_instance)
+    else {
+        panic!("the declared-domain instance retains its substituted field")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } = checked
+        .typed
+        .type_reference_table
+        .type_reference(declared_value.type_reference)
+    else {
+        panic!("the declared-domain instance retains Cell's array shell")
+    };
+    let psi_typed_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = checked
+        .typed
+        .type_reference_table
+        .type_reference(*element_type)
+    else {
+        panic!("the declared-domain Type argument remains constrained")
+    };
+    assert!(matches!(
+        checked.typed.type_reference_table.type_reference(*base_type),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+            if *symbol == domain_carrier.symbol
+    ));
+    let [psi_typed_trees::types::TypeConstraintNode::Domain(domain)] =
+        checked.typed.type_reference_table.constraints(*constraints)
+    else {
+        panic!("the declared-domain Type argument retains one semantic domain")
+    };
+    assert_eq!(domain.symbol, ready_domain.symbol);
+    assert_eq!(
+        domain.subject,
+        psi_typed_trees::types::DomainConstraintSubject::Declared
+    );
+    assert!(domain.arguments.is_empty());
+    let [psi_typed_trees::data::DataMember::Field(declared_use)] =
+        checked.typed.data_members(find_data("WithDeclaredDomain"))
+    else {
+        panic!("the declared-domain wrapper retains one field")
+    };
+    assert!(matches!(
+        checked
+            .typed
+            .type_reference_table
+            .type_reference(declared_use.type_reference),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, .. }
+            if *symbol == declared_domain_instance.symbol
     ));
     let const_block_template = find_data("ConstBlock");
     let [_, const_parameter] = checked.typed.data_type_parameters(const_block_template) else {

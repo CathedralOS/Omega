@@ -275,8 +275,17 @@ fn instance_argument_name(
         (
             psi_symbol_resolved_trees::data::TypeParameterKind::Type,
             TypeReference::Constrained(constrained),
-        ) => arithmetic_constrained_argument(source, constrained)
-            .map(|(name, domain)| format!("{} in {}", name.as_str(), domain.name())),
+        ) => exact_constrained_argument(source, constrained).map(|argument| match argument {
+            ExactConstrainedArgument::Arithmetic {
+                carrier_name,
+                domain,
+            } => format!("{} in {}", carrier_name.as_str(), domain.name()),
+            ExactConstrainedArgument::Declared {
+                carrier_name,
+                domain_name,
+                ..
+            } => format!("{} in {}", carrier_name.as_str(), domain_name.as_str()),
+        }),
         _ => None,
     }
 }
@@ -354,13 +363,18 @@ fn instance_argument_is_supported(
                 application,
             ),
             TypeReference::Constrained(constrained) => {
-                arithmetic_constrained_argument(source, constrained).is_some_and(|(name, _)| {
+                exact_constrained_argument(source, constrained).is_some_and(|argument| {
                     let TypeReference::Named { symbol, .. } =
                         source.child_type_reference(constrained.base_type)
                     else {
                         return false;
                     };
-                    supported_named_argument(source, validated_instances, *symbol, name.as_str())
+                    supported_named_argument(
+                        source,
+                        validated_instances,
+                        *symbol,
+                        argument.carrier_name().as_str(),
+                    )
                 })
             }
             _ => false,
@@ -373,13 +387,33 @@ fn instance_argument_is_supported(
     }
 }
 
-fn arithmetic_constrained_argument<'source>(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ExactConstrainedArgument<'source> {
+    Arithmetic {
+        carrier_name: &'source psi_symbol_resolved_trees::name::DiagnosticName,
+        domain: psi_numerics::arithmetic::ArithmeticDomain,
+    },
+    Declared {
+        carrier_name: &'source psi_symbol_resolved_trees::name::DiagnosticName,
+        domain_name: &'source psi_symbol_resolved_trees::name::DiagnosticName,
+        domain_symbol: SymbolHandle,
+    },
+}
+
+impl<'source> ExactConstrainedArgument<'source> {
+    fn carrier_name(self) -> &'source psi_symbol_resolved_trees::name::DiagnosticName {
+        match self {
+            Self::Arithmetic { carrier_name, .. } | Self::Declared { carrier_name, .. } => {
+                carrier_name
+            }
+        }
+    }
+}
+
+pub(super) fn exact_constrained_argument<'source>(
     source: &'source SymbolResolvedTrees,
     constrained: &psi_symbol_resolved_trees::types::ConstrainedTypeReference,
-) -> Option<(
-    &'source psi_symbol_resolved_trees::name::DiagnosticName,
-    psi_numerics::arithmetic::ArithmeticDomain,
-)> {
+) -> Option<ExactConstrainedArgument<'source>> {
     let TypeReference::Named { symbol, name } = source.child_type_reference(constrained.base_type)
     else {
         return None;
@@ -387,7 +421,7 @@ fn arithmetic_constrained_argument<'source>(
     if !symbol.is_valid() || source.symbols.name(*symbol) != name.as_str() {
         return None;
     }
-    let [psi_symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(domain)] = source
+    let [constraint] = source
         .tables
         .types
         .constraints
@@ -395,7 +429,69 @@ fn arithmetic_constrained_argument<'source>(
     else {
         return None;
     };
-    Some((name, *domain))
+    match constraint {
+        psi_symbol_resolved_trees::types::TypeConstraint::ArithmeticDomain(domain) => {
+            Some(ExactConstrainedArgument::Arithmetic {
+                carrier_name: name,
+                domain: *domain,
+            })
+        }
+        psi_symbol_resolved_trees::types::TypeConstraint::Domain(domain)
+            if domain.arguments.is_empty() =>
+        {
+            let domain_symbol =
+                exact_unindexed_domain_for_named_carrier(source, *symbol, name.as_str(), domain)?;
+            Some(ExactConstrainedArgument::Declared {
+                carrier_name: name,
+                domain_name: &domain.name,
+                domain_symbol,
+            })
+        }
+        psi_symbol_resolved_trees::types::TypeConstraint::Named(_)
+        | psi_symbol_resolved_trees::types::TypeConstraint::Range { .. }
+        | psi_symbol_resolved_trees::types::TypeConstraint::Domain(_) => None,
+    }
+}
+
+fn exact_unindexed_domain_for_named_carrier(
+    source: &SymbolResolvedTrees,
+    carrier_symbol: SymbolHandle,
+    carrier_name: &str,
+    constraint: &psi_symbol_resolved_trees::types::DomainConstraint,
+) -> Option<SymbolHandle> {
+    if !constraint.name.is_source_backed() || !constraint.arguments.is_empty() {
+        return None;
+    }
+    let matches = source
+        .domain_definitions
+        .iter()
+        .filter(|domain| {
+            let declared_name = domain.name.as_str();
+            let authored_name = constraint.name.as_str();
+            let spelling_matches = declared_name == authored_name
+                || declared_name.rsplit("::").next() == Some(authored_name);
+            let target_matches = matches!(
+                &domain.target_type,
+                TypeReference::Named { symbol, name }
+                    if *symbol == carrier_symbol && name.as_str() == carrier_name
+            );
+            domain.symbol.is_valid()
+                && source.symbols.get(domain.symbol).kind == psi_symbols::SymbolKind::Domain
+                && source
+                    .symbols
+                    .source_reference_can_see_symbol(constraint.name.source_span(), domain.symbol)
+                && spelling_matches
+                && target_matches
+                && domain.type_parameters.is_empty()
+                && domain.index_arguments.is_empty()
+                && domain.alias.is_none()
+        })
+        .map(|domain| domain.symbol)
+        .collect::<Vec<_>>();
+    let [domain] = matches.as_slice() else {
+        return None;
+    };
+    Some(*domain)
 }
 
 fn lifetime_instance_type_argument_is_supported(

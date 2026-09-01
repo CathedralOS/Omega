@@ -2375,6 +2375,73 @@ fn arithmetic_domain_type_arguments_have_distinct_canonical_instances() {
 }
 
 #[test]
+fn unindexed_declared_domain_type_arguments_retain_the_exact_constraint() {
+    let source = r#"
+        data Token {}
+        domain Token::Issued;
+
+        data Cell<T> {
+            value: T;
+        }
+
+        data Generated {
+            issued: Cell<Token in Issued>;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
+
+    desugar_generic_data_instances(&mut syntax)
+        .expect("normalize exact unindexed declared-domain Type argument");
+
+    let instance = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(definition) if definition.name.as_str() == "Cell<Token in Issued>" => {
+                Some(definition)
+            }
+            _ => None,
+        })
+        .expect("declared-domain Cell instance");
+    let assert_exact_domain = |type_reference| {
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = syntax.type_references.type_reference(type_reference)
+        else {
+            panic!("instance retains the constrained Type argument")
+        };
+        assert!(matches!(
+            syntax.type_references.type_reference(*base_type),
+            TypeReferenceNode::Named(name) if name.as_str() == "Token"
+        ));
+        let [psi_syntax_trees::types::TypeConstraintNode::Domain(domain)] =
+            syntax.type_references.constraints(*constraints)
+        else {
+            panic!("instance retains one declared-domain constraint")
+        };
+        assert_eq!(domain.name.as_str(), "Issued");
+        assert!(domain.arguments.is_empty());
+    };
+
+    let [DataMember::Field(value)] = syntax.items.data_members(instance.members) else {
+        panic!("declared-domain Cell instance retains one field")
+    };
+    assert_exact_domain(value.type_reference);
+
+    let TypeReferenceNode::Generic { arguments, .. } = syntax
+        .type_references
+        .type_reference(instance.generic_instance.expect("retained instance origin"))
+    else {
+        panic!("instance origin remains structural")
+    };
+    let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
+        panic!("instance origin retains one Type argument")
+    };
+    assert_exact_domain(*argument);
+}
+
+#[test]
 fn concrete_conformance_arguments_follow_generic_result_rewrites() {
     let source = r#"
         data Unit {}
