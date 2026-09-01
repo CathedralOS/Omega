@@ -1,3 +1,0 @@
-# id	name	maximum_sealed_input_bytes	maximum_success_output_bytes	entry
-1	ConformanceBytesV1	4194304	4194304	main:Bytes->Bytes
-2	DeltaCompilerV1	4194304	1048572	main:Bytes->DeltaCompileOutcome

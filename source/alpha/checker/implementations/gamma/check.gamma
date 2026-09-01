@@ -1,0 +1,2188 @@
+; check.gamma - a minimal proof-kernel certificate checker, written in Beta.
+;
+; This is the first appearance of the lattice's whole point (proof_kernel.md): a
+; SMALL, hand-auditable checker that validates evidence. An untrusted, arbitrarily
+; clever proof-SEARCH engine may produce certificates; this checker has the only
+; authority - a false proposition cannot get past it, however the certificate was
+; found.
+;
+; Full intuitionistic first-order predicate logic with induction (implication,
+; conjunction, disjunction, falsity - so not A = A -> bottom - equality with the conversion
+; rule, forall /exists  with capture-avoiding instantiation, induction over Nat/Lists/declared
+; types, Leibniz eqelim, named lemmas). By Curry-Howard the checker IS a
+; simply-typed lambda-calculus type checker with a definitional-equality rule, so
+; "does this certificate prove this proposition?" = "does this term have this type?".
+;
+; CONTROL FLOW is CFG/Omega-shaped: every proc is a set of `state` basic blocks
+; linked by guarded `to ... when ...` transitions - no if/while. A proc falls into its
+; first state and into the next unless it transitions or returns; tag dispatch is a
+; chain of guard-states (branch to the handler on a matching tag, else fall to the
+; next check), and a loop is a state that transitions back to itself. The many
+; reject paths share one `state reject { return 0 }` per checker proc.
+;
+; Input (stdin): either a legacy certificate stream, or an exact-subject frame:
+;   "OMGCHK1\n" u64le(source_len) source u64le(tape_len) tape
+;               u64le(cert_len) cert
+; A framed certificate may use the individual constants `source` and `tape`.
+; They are checker-built immutable power-of-two-indexed byte trees. A byte is
+; (k 60 (k HIGH_NIBBLE) (k LOW_NIBBLE)); tree constructors are empty/leaf/node
+; CIDs 61/62/63. The certificate stream itself is
+; then zero or more declarations, a goal proposition, and a certificate term.
+;   ( def N prop term )        a lemma: checked like any proof, then citable by ( use N )
+;   ( data CID ARITY R0 R1 )   a user constructor: arity (0/1/2) and which args recurse
+;   proposition := UPPERCASE | ( -> prop prop ) | ( & prop prop )
+;                | ( + prop prop ) | ( bot ) | ( = nat nat )
+;                | ( All prop ) | ( Exists prop ) | ( Pred id nat ) | ( Rel id nat nat )
+;                | ( FloatMeaningEqual fm fm )
+;   term        := z | ( s term ) | ( p term term ) | ( m term term ) | ( v k )
+;                | nil | ( cons term term ) | ( app term term ) | ( len term ) | ( k cid term... )
+;                | ( fm FORMAT OP DECL CATALOG SOURCE_KIND SOURCE_A SOURCE_B )
+;   term        := ( hyp N ) | ( lam prop term ) | ( app term term )
+;                | ( pair term term ) | ( fst term ) | ( snd term )
+;                | ( inl prop term ) | ( inr prop term ) | ( case term term term )
+;                | ( absurd prop term ) | ( refl nat ) | ( gen term ) | ( inst term nat )
+;                | ( wit prop nat term ) | ( unpack term term )
+;                | ( natind prop term term ) | ( listind prop term term )
+;                | ( rec cidA cidB prop term term ) | ( eqelim prop term term )
+;                | ( disj term ) | ( sinj term ) | ( use N )
+; Output: "accept\n" (exit 1) if the term proves the goal, else "reject\n" (exit 0).
+;
+; AlphaBootstrapV2 logical raw-memory layout:
+;          2097152 SRC   2097144 CUR   2097136 LEN   2097128 APTR (arena bump)
+;          2097120 CTXN  2097112 IDEP  2097104 FRAMED
+;          2097096 SOURCE_LIST  2097088 TAPE_LIST  2097080 INPUT_OVERFLOW
+;          2097072 PARSE_ERROR  2097064 THEORY_FROZEN
+;          2097056 RAW_BEGIN    2097048 RAW_END
+;          8388608 CTX (type stack)  10616832 DATA_DECLARED
+;          10747904 BYTE_TERM_CACHE  10749952 NIBBLE_TERM_CACHE
+;          10750080 RAW_CON_CACHE  16777216 ARENA (bump)
+; The input buffer is bounded at 2,810,748 bytes, the exact largest V2 framed
+; source+tape+certificate carrier. CTX/IDEP each own 65,536 entries. ARENA owns
+; 4,893,354 complete 24-byte nodes through logical byte 134,217,711; the final
+; 16 logical raw-memory bytes are unused. Every exhaustion marks the candidate
+; invalid before acceptance; 0 is the reject/none sentinel.
+;
+; Tags:  type  0 ATOM(char) 1 ARROW(l,r) 2 AND(l,r) 3 FALSE 4 OR(l,r) 5 EQ(t1,t2)
+;             6 ALL(body)  7 PRED(id,term)  8 EXISTS(body)  9 REL(id,(99 t1 t2))
+;             10 FLOAT_MEANING_EQUAL(left,right)
+;        term 10 HYP(idx)   11 LAM(ty,body) 12 APP(f,a) 13 PAIR(a,b) 14 FST(p)
+;             15 SND(p)     16 ABSURD(Cty,p) 17 INL(Bty,p) 18 INR(Aty,p)
+;             19 CASE(p, aux)  20 REFL(t)  21 GEN(pf)  22 INST(pf,term)
+;             23 WIT(body, (99 t pf))  24 UNPACK(epf, handler)
+;             25 NATIND(motive, (99 base step))  26 EQELIM(motive, (99 pf_eq pf_pa))
+;             27 DISJ(pf)  28 SINJ(pf)  29 LISTIND(motive, (99 base step))
+;        term 30 ZERO 31 SUC(x) 32 PLUS(a,b) 33 MUL(a,b) 34 IVAR(k)
+;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)  38 LEN(l)
+;             50 CON(cid)  51 APPLY(f,a)   ; user constructors: CON head + APPLY spine
+;             64 FLOAT_MEANING((99 format operation), (99 declaration (99 catalog (99 source-kind (99 source-a source-b)))))
+;        term  40 USE(N)  41 REC((99 (98 cidA cidB) motive) (99 caseA caseB))
+;              61 PRODREC((99 cid motive) case)   ; product elim; cid must be (prod cid)-declared
+;              62 FLOAT_MEANING_REFL(fm)
+
+proc slurp() {
+    let n = 0
+    let c = read_byte()
+    state loop {
+        to body when (c >= 0)
+        to done
+    }
+    state body {
+        to overflow when (n >= 2810748)
+        byte[2097152 + n] = c
+        n = n + 1
+        c = read_byte()
+        to loop
+    }
+    state overflow {
+        word[2097080] = 1
+        return 0
+    }
+    state done {
+        word[2097136] = n            ; LEN
+        word[2097144] = 0            ; CUR
+        word[2097128] = 16777216     ; APTR = ARENA base (16 MiB; grows through 128 MiB logical raw memory)
+        word[2097120] = 0            ; CTXN
+        word[2097112] = 0            ; IDEP - individual-binder depth (forall /exists  binders entered)
+        word[2097104] = 0            ; FRAMED
+        word[2097096] = 0            ; SOURCE_LIST
+        word[2097088] = 0            ; TAPE_LIST
+        word[2097080] = 0            ; INPUT_OVERFLOW
+        word[2097072] = 0            ; PARSE_ERROR
+        word[2097064] = 0            ; THEORY_FROZEN
+        word[2097056] = 0            ; RAW_BEGIN
+        word[2097048] = 0            ; RAW_END
+    }
+}
+
+; The frame deliberately uses bounded u64 fields: the high four bytes must be
+; zero, then the low value is checked against the checker-owned subject profile.
+proc frame_len(pos) {
+    state high0 { to bad when (byte[2097152 + pos + 4] != 0)  to high1 }
+    state high1 { to bad when (byte[2097152 + pos + 5] != 0)  to high2 }
+    state high2 { to bad when (byte[2097152 + pos + 6] != 0)  to high3 }
+    state high3 { to bad when (byte[2097152 + pos + 7] != 0)  to good }
+    state good {
+        return byte[2097152 + pos] + byte[2097152 + pos + 1] * 256 + byte[2097152 + pos + 2] * 65536 + byte[2097152 + pos + 3] * 16777216
+    }
+    state bad { return 0 - 1 }
+}
+
+proc has_frame_magic() {
+    state len { to no when (word[2097136] < 8)  to m0 }
+    state m0 { to no when (byte[2097152] != 'O')  to m1 }
+    state m1 { to no when (byte[2097153] != 'M')  to m2 }
+    state m2 { to no when (byte[2097154] != 'G')  to m3 }
+    state m3 { to no when (byte[2097155] != 'C')  to m4 }
+    state m4 { to no when (byte[2097156] != 'H')  to m5 }
+    state m5 { to no when (byte[2097157] != 'K')  to m6 }
+    state m6 { to no when (byte[2097158] != '1')  to m7 }
+    state m7 { to no when (byte[2097159] != 10)  return 1 }
+    state no { return 0 }
+}
+
+proc raw_con(cid) {
+    let slot = 10750080 + (cid - 60) * 8
+    let t = word[slot]
+    state cached { to make when (t == 0)  return t }
+    state make {
+        t = alloc(50, cid, 0)
+        word[slot] = t
+        return t
+    }
+}
+
+proc raw_nibble_term(n) {
+    let t = word[10749952 + n * 8]
+    state cached { to make when (t == 0)  return t }
+    state make {
+        t = alloc(50, n, 0)
+        word[10749952 + n * 8] = t
+        return t
+    }
+}
+
+; Byte values are interned as BYTE(high-nibble, low-nibble), using only the
+; existing bounded constructor vocabulary available to certificate functions.
+proc raw_byte_term(b) {
+    let t = word[10747904 + b * 8]
+    state cached { to make when (t == 0)  return t }
+    state make {
+        let hi = b / 16
+        let lo = b - hi * 16
+        t = alloc(51, alloc(51, raw_con(60), raw_nibble_term(hi)), raw_nibble_term(lo))
+        word[10747904 + b * 8] = t
+        return t
+    }
+}
+
+; The root span is a power of two, so a certificate can address a byte by a
+; fixed left/right path without trusting a host-produced split table. A wholly
+; padded suffix is the shared EMPTY term; every real byte remains a LEAF at the
+; root's fixed depth. EMPTY=61, LEAF(byte)=62, NODE(left,right)=63.
+proc raw_span(n) {
+    let span = 1
+    state grow { to more when (span < n)  return span }
+    state more { span = span * 2  to grow }
+}
+
+proc raw_tree(start, n, span) {
+    state empty { to do_empty when (n == 0)  to leaf }
+    state leaf {
+        to node when (span != 1)
+        return alloc(51, raw_con(62), raw_byte_term(byte[2097152 + start]))
+    }
+    state node {
+        let half = span / 2
+        let left_n = n
+        state cap_left { to cap when (left_n > half)  to build }
+        state cap { left_n = half  to build }
+        state build {
+            let left = raw_tree(start, left_n, half)
+            let right = raw_tree(start + half, n - left_n, half)
+            return alloc(51, alloc(51, raw_con(63), left), right)
+        }
+    }
+    state do_empty { return raw_con(61) }
+}
+
+proc bind_raw_ctor(cid, arity, rec0, rec1) {
+    word[9699328 + cid * 8] = arity
+    word[9830400 + cid * 8] = rec0
+    word[9961472 + cid * 8] = rec1
+    word[10616832 + cid * 8] = 1
+}
+
+proc bind_raw_theory() {
+    let cid = 0
+    state nibbles { to nibble when (cid < 16)  to byte_ctor }
+    state nibble {
+        bind_raw_ctor(cid, 0, 0, 0)
+        cid = cid + 1
+        to nibbles
+    }
+    state byte_ctor {
+        bind_raw_ctor(60, 2, 0, 0)
+        bind_raw_ctor(61, 0, 0, 0)
+        bind_raw_ctor(62, 1, 0, 0)
+        bind_raw_ctor(63, 2, 1, 1)
+        return 0
+    }
+}
+
+proc copy_cert(start, n) {
+    let i = 0
+    state loop { to body when (i < n)  return 0 }
+    state body {
+        byte[2097152 + i] = byte[2097152 + start + i]
+        i = i + 1
+        to loop
+    }
+}
+
+proc prepare_input() {
+    let total = word[2097136]
+    let p = 0
+    let n = 0
+    let source_start = 0
+    let source_len = 0
+    let tape_start = 0
+    let tape_len = 0
+    let cert_start = 0
+    let cert_len = 0
+    state overflow { to bad when (word[2097080] != 0)  to magic }
+    state magic { to legacy when (has_frame_magic() == 0)  p = 8  to source_header }
+    state source_header { to bad when (p + 8 > total)  source_len = frame_len(p)  to source_bound }
+    state source_bound {
+        to bad when (source_len < 0)
+        to bad when (source_len > 262144)
+        p = p + 8
+        source_start = p
+        to bad when (source_len > total - p)
+        p = p + source_len
+        to tape_header
+    }
+    state tape_header { to bad when (p + 8 > total)  tape_len = frame_len(p)  to tape_bound }
+    state tape_bound {
+        to bad when (tape_len < 0)
+        to bad when (tape_len > 1048572)
+        p = p + 8
+        tape_start = p
+        to bad when (tape_len > total - p)
+        p = p + tape_len
+        to cert_header
+    }
+    state cert_header { to bad when (p + 8 > total)  cert_len = frame_len(p)  to cert_bound }
+    state cert_bound {
+        to bad when (cert_len < 1)
+        to bad when (cert_len > 1500000)
+        p = p + 8
+        cert_start = p
+        to bad when (cert_len != total - p)
+        to bind
+    }
+    state bind {
+        word[2097056] = word[2097128]
+        bind_raw_theory()
+        word[2097096] = raw_tree(source_start, source_len, raw_span(source_len))
+        to bad when (word[2097072] != 0)
+        word[2097088] = raw_tree(tape_start, tape_len, raw_span(tape_len))
+        to bad when (word[2097072] != 0)
+        word[2097048] = word[2097128]
+        copy_cert(cert_start, cert_len)
+        word[2097136] = cert_len
+        word[2097144] = 0
+        word[2097104] = 1
+        return 1
+    }
+    state legacy {
+        word[2097104] = 0
+        return 1
+    }
+    state bad { return 0 }
+}
+
+proc cbyte() {
+    let i = word[2097144]
+    state chk { to hit when (i < word[2097136])  return 0 }
+    state hit { return byte[2097152 + i] }
+}
+
+proc adv() {
+    word[2097144] = word[2097144] + 1
+}
+
+proc is_space(c) {
+    state c1 { to yes when (c == ' ')  to c2 }
+    state c2 { to yes when (c == 9)    to c3 }
+    state c3 { to yes when (c == 10)   to c4 }
+    state c4 { to yes when (c == 13)   return 0 }
+    state yes { return 1 }
+}
+
+proc skip_ws() {
+    state loop { to body when (is_space(cbyte()) == 1)  return 0 }
+    state body { adv()  to loop }
+}
+
+proc is_digit(c) {
+    state c1 { to no when (c < '0')  to c2 }
+    state c2 { to no when (c > '9')  return 1 }
+    state no { return 0 }
+}
+
+proc is_upper(c) {
+    state c1 { to no when (c < 'A')  to c2 }
+    state c2 { to no when (c > 'Z')  return 1 }
+    state no { return 0 }
+}
+
+proc is_lower(c) {
+    state c1 { to no when (c < 'a')  to c2 }
+    state c2 { to no when (c > 'z')  return 1 }
+    state no { return 0 }
+}
+
+proc is_term_delim_at(pos) {
+    state eof { to yes when (pos >= word[2097136])  to c0 }
+    state c0 {
+        let c = byte[2097152 + pos]
+        to yes when (c == ' ')
+        to yes when (c == 9)
+        to yes when (c == 10)
+        to yes when (c == 13)
+        to yes when (c == ')')
+        return 0
+    }
+    state yes { return 1 }
+}
+
+proc at_source_term() {
+    let p = word[2097144]
+    state framed { to no when (word[2097104] == 0)  to len }
+    state len { to no when (p + 6 > word[2097136])  to c0 }
+    state c0 { to no when (byte[2097152 + p] != 's')  to c1 }
+    state c1 { to no when (byte[2097152 + p + 1] != 'o')  to c2 }
+    state c2 { to no when (byte[2097152 + p + 2] != 'u')  to c3 }
+    state c3 { to no when (byte[2097152 + p + 3] != 'r')  to c4 }
+    state c4 { to no when (byte[2097152 + p + 4] != 'c')  to c5 }
+    state c5 { to no when (byte[2097152 + p + 5] != 'e')  to delim }
+    state delim { return is_term_delim_at(p + 6) }
+    state no { return 0 }
+}
+
+proc at_tape_term() {
+    let p = word[2097144]
+    state framed { to no when (word[2097104] == 0)  to len }
+    state len { to no when (p + 4 > word[2097136])  to c0 }
+    state c0 { to no when (byte[2097152 + p] != 't')  to c1 }
+    state c1 { to no when (byte[2097152 + p + 1] != 'a')  to c2 }
+    state c2 { to no when (byte[2097152 + p + 2] != 'p')  to c3 }
+    state c3 { to no when (byte[2097152 + p + 3] != 'e')  to delim }
+    state delim { return is_term_delim_at(p + 4) }
+    state no { return 0 }
+}
+
+proc parse_number() {
+    let v = 0
+    state loop { to body when (is_digit(cbyte()) == 1)  return v }
+    state body { v = v * 10 + (cbyte() - '0')  adv()  to loop }
+}
+
+; A FloatMeaning term is a closed PCC key, not executable float data.  The
+; checker owns the exact format/projection/declaration/catalog correspondence:
+; Binary32=(32,1,1,1), Binary64=(64,2,2,1).  Source kinds are contract
+; parameter/result, Terminal value, structural float leaf, and exact bits.
+proc float_meaning_format(t) {
+    return word[word[t + 8] + 8]
+}
+
+proc valid_float_meaning(t) {
+    state tag { to pair0 when (word[t] == 64)  return 0 }
+    state pair0 {
+        to bad when (word[word[t + 8]] != 99)
+        to pair1
+    }
+    state pair1 {
+        let tail1 = word[t + 16]
+        to bad when (word[tail1] != 99)
+        let tail2 = word[tail1 + 16]
+        to bad when (word[tail2] != 99)
+        let tail3 = word[tail2 + 16]
+        to bad when (word[tail3] != 99)
+        let tail4 = word[tail3 + 16]
+        to bad when (word[tail4] != 99)
+        let format = word[word[t + 8] + 8]
+        let operation = word[word[t + 8] + 16]
+        let declaration = word[tail1 + 8]
+        let catalog = word[tail2 + 8]
+        let source_kind = word[tail3 + 8]
+        let source_a = word[tail4 + 8]
+        let source_b = word[tail4 + 16]
+        to bad when (catalog != 1)
+        to bad when (source_kind < 0)
+        to bad when (source_kind > 4)
+        to bad when (source_a < 0)
+        to bad when (source_a > 4294967295)
+        to bad when (source_b < 0)
+        to bad when (source_b > 4294967295)
+        to terminal_source when (source_kind == 2)
+        to format_check
+    }
+    state terminal_source { to bad when (source_b != 0)  to format_check }
+    state format_check {
+        to f32 when (format == 32)
+        to f64 when (format == 64)
+        to bad
+    }
+    state f32 {
+        to bad when (operation != 1)
+        to bad when (declaration != 1)
+        to f32_bits when (source_kind == 4)
+        return 1
+    }
+    state f32_bits { to bad when (source_b != 0)  return 1 }
+    state f64 {
+        to bad when (operation != 2)
+        to bad when (declaration != 2)
+        return 1
+    }
+    state bad { return 0 }
+}
+
+proc float_meaning_eq(a, b) {
+    state valid_a { to no when (valid_float_meaning(a) == 0)  to valid_b }
+    state valid_b { to no when (valid_float_meaning(b) == 0)  to head }
+    state head {
+        let ah = word[a + 8]
+        let bh = word[b + 8]
+        to no when (word[ah + 8] != word[bh + 8])
+        to no when (word[ah + 16] != word[bh + 16])
+        let at1 = word[a + 16]
+        let bt1 = word[b + 16]
+        to no when (word[at1 + 8] != word[bt1 + 8])
+        let at2 = word[at1 + 16]
+        let bt2 = word[bt1 + 16]
+        to no when (word[at2 + 8] != word[bt2 + 8])
+        let at3 = word[at2 + 16]
+        let bt3 = word[bt2 + 16]
+        to no when (word[at3 + 8] != word[bt3 + 8])
+        let at4 = word[at3 + 16]
+        let bt4 = word[bt3 + 16]
+        to no when (word[at4 + 8] != word[bt4 + 8])
+        to yes when (word[at4 + 16] == word[bt4 + 16])
+        to no
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc contains_float_meaning(t) {
+    state fm { to yes when (word[t] == 64)  to leaves }
+    state yes { return 1 }
+    state leaves {
+        to no when (word[t] == 30)
+        to no when (word[t] == 34)
+        to no when (word[t] == 35)
+        to no when (word[t] == 50)
+        to unary
+    }
+    state unary { to child when (word[t] == 31)  to len }
+    state len { to child when (word[t] == 38)  to fapp }
+    state fapp { to farg when (word[t] == 52)  to both }
+    state farg { return contains_float_meaning(word[t + 16]) }
+    state child { return contains_float_meaning(word[t + 8]) }
+    state both {
+        to yes when (contains_float_meaning(word[t + 8]) == 1)
+        return contains_float_meaning(word[t + 16])
+    }
+    state no { return 0 }
+}
+
+; ---- individual terms: Peano z/(s t)/(p a b)/(m a b), de Bruijn (v k), and
+;      Lists nil/(cons h t)/(app l1 l2) - a SECOND inductive type alongside Nat ----
+; tags 30 ZERO 31 SUC 32 PLUS 33 MUL 34 IVAR 35 NIL 36 CONS 37 APPEND.
+proc parse_nat() {
+    skip_ws()
+    let a = 0
+    let b = 0
+    let invalid_fm_spelling = 0
+    state tz { to do_z when (cbyte() == 'z')  to raw_source }
+    state do_z { adv()  return alloc(30, 0, 0) }
+    state raw_source { to source_head when (cbyte() == 's')  to raw_tape }
+    state source_head { to do_source when (at_source_term() == 1)  to raw_bad }
+    state do_source { skip_ident()  return word[2097096] }
+    state raw_tape { to tape_head when (cbyte() == 't')  to tn }
+    state tape_head { to do_tape when (at_tape_term() == 1)  to raw_bad }
+    state do_tape { skip_ident()  return word[2097088] }
+    state raw_bad { skip_ident()  word[2097072] = 1  return alloc(30, 0, 0) }
+    state tn { to do_n when (cbyte() == 'n')  to paren }   ; nil (the empty list)
+    state do_n { skip_ident()  return alloc(35, 0, 0) }
+    state paren {
+        adv()                    ; '('
+        skip_ws()
+        let op = cbyte()
+        let op2 = byte[2097152 + word[2097144] + 1]
+        let opx = byte[2097152 + word[2097144] + 3]   ; 'x' at +3 distinguishes recx from rec
+        let op_start = word[2097144]
+        skip_ident()             ; consume the whole operator keyword
+        let op_length = word[2097144] - op_start
+        to op_s when (op == 's')
+        to op_m
+    }
+    state op_s { a = parse_nat()  skip_ws()  adv()  return alloc(31, a, 0) }
+    state op_m { to do_m when (op == 'm')  to op_v }
+    state do_m { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(33, a, b) }
+    state op_v { to do_v when (op == 'v')  to op_f }
+    state do_v { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(34, a, 0) }
+    state op_f { to maybe_f when (op == 'f')  to op_y }   ; (f fid a [a2]) or closed (fm ...) term
+    state maybe_f { to fm_prefix when (op2 == 'm')  to do_f }
+    state fm_prefix {
+        to do_fm when (op_length == 2)
+        invalid_fm_spelling = 1
+        to do_fm
+    }
+    state do_fm {
+        skip_ws()
+        a = parse_number()       ; exact format: 32 or 64
+        skip_ws()
+        b = parse_number()       ; exact projection operation: 1 or 2
+        let head = alloc(99, a, b)
+        skip_ws()
+        a = parse_number()       ; recognized core declaration: 1 or 2
+        skip_ws()
+        b = parse_number()       ; numeric catalog version: exactly 1
+        let tail = alloc(99, b, 0)
+        skip_ws()
+        b = parse_number()       ; source kind: 0..4
+        let source = alloc(99, b, 0)
+        skip_ws()
+        b = parse_number()       ; source coordinate / literal low bits
+        skip_ws()
+        let source_b = parse_number()  ; path coordinate / literal high bits
+        word[source + 16] = alloc(99, b, source_b)
+        word[tail + 16] = source
+        b = alloc(64, head, alloc(99, a, tail))
+        expect(')')
+        to fm_ok when (valid_float_meaning(b) == 1)
+        word[2097072] = 1
+        return b
+    }
+    state fm_ok { to invalid_fm when (invalid_fm_spelling == 1)  return b }
+    state invalid_fm { word[2097072] = 1  return b }
+    state do_f {
+        skip_ws()
+        a = parse_number()       ; fid
+        b = parse_nat()          ; first argument
+        skip_ws()
+        to f_bin when (cbyte() != ')')   ; a 2nd argument present -> binary application
+        adv()                    ; ')'
+        return alloc(52, a, b)
+    }
+    state f_bin {
+        b = alloc(53, b, parse_nat())    ; FBUNDLE(arg1, arg2)
+        skip_ws()
+        adv()                    ; ')'
+        return alloc(52, a, b)
+    }
+    state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) - k-th extra arg in a fun body
+    state do_y { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(56, a, 0) }
+    state op_r { to do_r when (op == 'r')  to op_c }      ; (rec i) / (recx i E) in a fun body
+    state do_r {
+        to do_rx when (opx == 'x')
+        skip_ws()  a = parse_number()  skip_ws()  adv()
+        return alloc(54, a, 0)
+    }
+    state do_rx {                ; (recx i E): recursive call on field i, extra := E (accumulator
+        skip_ws()                ; recursion - still structurally decreasing on field i)
+        a = parse_number()
+        b = parse_nat()
+        skip_ws()  adv()
+        return alloc(55, a, b)
+    }
+    state op_c { to do_c when (op == 'c')  to op_a }
+    state do_c { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(36, a, b) }
+    state op_a { to do_a when (op == 'a')  to op_k }
+    state do_a { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(37, a, b) }
+    state op_k { to do_k when (op == 'k')  to op_l }      ; (k cid args...) user constructor
+    state do_k {
+        skip_ws()
+        a = parse_number()       ; constructor id
+        b = alloc(50, a, 0)      ; CON(cid)
+        skip_ws()
+        to kloop
+    }
+    state kloop {
+        to kbody when (cbyte() != ')')
+        adv()                    ; ')'
+        return b
+    }
+    state kbody { b = alloc(51, b, parse_nat())  skip_ws()  to kloop }   ; APPLY(b, next-arg)
+    state op_l { to do_l when (op == 'l')  to do_plus }   ; (len l)
+    state do_l { a = parse_nat()  skip_ws()  adv()  return alloc(38, a, 0) }
+    state do_plus { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(32, a, b) }
+}
+
+; reduce a Peano term to normal form, fuel-bounded (total - the slow ref route).
+proc normalize(t, fuel) {
+    ; Framing constructs already-normal immutable raw subjects before parsing
+    ; any certificate node. Preserve every pointer in that closed arena range:
+    ; a selector can then descend one branch without strongly copying the
+    ; selected raw subtree.
+    state raw_low { to fuelchk when (t < word[2097056])  to raw_high }
+    state raw_high { to ret_t when (t < word[2097048])  to fuelchk }
+    state fuelchk { to live when (fuel >= 1)  return t }
+    state live {
+        let tag = word[t]
+        to ret_t when (tag == 30)
+        to ret_t when (tag == 64)
+        to t34
+    }
+    state ret_t { return t }
+    state t34 { to ret_t when (tag == 34)  to t35 }       ; Ivar - free, normal
+    state t35 { to ret_t when (tag == 35)  to t50 }       ; nil - normal
+    state t50 { to ret_t when (tag == 50)  to dispatch }  ; CON(cid) - normal
+    state dispatch {
+        let a = 0
+        let b = 0
+        to t51 when (tag == 51)
+        to t31
+    }
+    state t51 {
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(51, a, b)
+    }
+    state t31 { to do_31 when (tag == 31)  to t36 }
+    state do_31 { a = normalize(word[t + 8], fuel - 1)  return alloc(31, a, 0) }
+    state t36 { to do_36 when (tag == 36)  to t32 }
+    state do_36 {
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(36, a, b)
+    }
+    state t32 { to do_32 when (tag == 32)  to t37 }
+    state do_32 {
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        to p_z when (word[a] == 30)              ; p z b => b
+        to p_s
+    }
+    state p_z { return b }
+    state p_s {
+        to do_p_s when (word[a] == 31)           ; p (s x) b => s (p x b)
+        return alloc(32, a, b)
+    }
+    state do_p_s {
+        a = normalize(alloc(32, word[a + 8], b), fuel - 1)
+        return alloc(31, a, 0)
+    }
+    state t37 { to do_37 when (tag == 37)  to t33 }
+    state do_37 {
+        a = normalize(word[t + 8], fuel - 1)
+        to ap_nil when (word[a] == 35)           ; app nil l2 => l2
+        to ap_cons
+    }
+    state ap_nil { return normalize(word[t + 16], fuel - 1) }
+    state ap_cons {
+        to do_ap_cons when (word[a] == 36)       ; app (cons h t) l2 => cons h (app t l2)
+        return alloc(37, a, normalize(word[t + 16], fuel - 1))
+    }
+    state do_ap_cons {
+        b = alloc(37, word[a + 16], word[t + 16])
+        return alloc(36, word[a + 8], normalize(b, fuel - 1))
+    }
+    state t33 { to do_33 when (tag == 33)  to t38 }
+    state do_33 {
+        a = normalize(word[t + 8], fuel - 1)
+        to m_z when (word[a] == 30)              ; m z y => z
+        to m_s
+    }
+    state m_z { return alloc(30, 0, 0) }
+    state m_s {
+        to do_m_s when (word[a] == 31)           ; m (s x) y => p y (m x y)
+        return alloc(33, a, word[t + 16])
+    }
+    state do_m_s {
+        b = alloc(33, word[a + 8], word[t + 16])
+        return normalize(alloc(32, word[t + 16], b), fuel - 1)
+    }
+    state t38 { to do_38 when (tag == 38)  to t52 }
+    state do_38 {
+        a = normalize(word[t + 8], fuel - 1)
+        to l_nil when (word[a] == 35)            ; len nil => z
+        to l_cons
+    }
+    state l_nil { return alloc(30, 0, 0) }
+    state l_cons {
+        to do_l_cons when (word[a] == 36)        ; len (cons h t) => s (len t)
+        return alloc(38, a, 0)
+    }
+    state do_l_cons {
+        b = normalize(alloc(38, word[a + 16], 0), fuel - 1)
+        return alloc(31, b, 0)
+    }
+    state t52 { to do_fapp when (tag == 52)  to t53 }     ; (f fid arg) user-function application
+    state do_fapp {
+        a = reduce_fun(word[t + 8], word[t + 16], fuel - 1)   ; one rewrite step, or 0 (STUCK)
+        to fapp_stuck when (a == 0)
+        return normalize(a, fuel - 1)            ; keep reducing the rewritten term
+    }
+    state fapp_stuck { return alloc(52, word[t + 8], normalize(word[t + 16], fuel - 1)) }
+    state t53 { to do_53 when (tag == 53)  return t }     ; FBUNDLE(scrut,extra) - normalize both
+    state do_53 {
+        a = normalize(word[t + 8], fuel - 1)
+        b = normalize(word[t + 16], fuel - 1)
+        return alloc(53, a, b)
+    }
+}
+
+; one rewrite step of (f fid arg): if arg normalizes to a constructor head with a rule,
+; instantiate that rule's body; else 0 (STUCK - open arg, or no rule). Fuel-bounded via
+; normalize, so a divergent definition simply never reduces (totality is preserved).
+; FRULE table at 10092544, indexed by (fid*64 + cid).  Supports arity 0 and 1 constructors.
+; arg is the application's argument bundle: a single term (unary function) or
+; FBUNDLE(53, scrutinee, extra) for a BINARY function (extra = the 2nd argument). The
+; rule fires on the scrutinee's constructor; the constructor's own arity (0/1/2) gives
+; the pattern fields a0/a1. `extra` (0 if unary) is threaded into the body and recursion.
+proc reduce_fun(fid, arg, fuel) {
+    let scrut = arg
+    let extra = 0
+    let a = 0
+    let cid = 0
+    let body = 0
+    state bundle { to do_bundle when (word[arg] == 53)  to view }    ; binary application
+    state do_bundle { scrut = word[arg + 8]  extra = word[arg + 16]  to view }
+    ; Constructor heads are already visible. Do not normalize their fields just
+    ; to select a rule; a framed subject may contain hundreds of thousands of
+    ; already-normal constructor nodes.
+    state view {
+        a = scrut
+        to nullary when (word[a] == 50)
+        to applied when (word[a] == 51)
+        to norm
+    }
+    state norm { a = normalize(scrut, fuel)  to nullary }
+    state nullary { to do_null when (word[a] == 50)  to applied }    ; CON(cid) - arity 0
+    state do_null {
+        cid = word[a + 8]
+        body = word[10092544 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, alloc(53, 0, 0), extra)
+    }
+    state applied { to do_app when (word[a] == 51)  to stuck }
+    state do_app {
+        to unary when (word[word[a + 8]] == 50)    ; APPLY(CON, a0) - constructor arity 1
+        to binary when (word[word[a + 8]] == 51)   ; APPLY(APPLY(CON, a0), a1) - arity 2
+        to stuck
+    }
+    state unary {
+        cid = word[word[a + 8] + 8]
+        body = word[10092544 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, alloc(53, word[a + 16], 0), extra)
+    }
+    state binary {
+        to bin_ok when (word[word[word[a + 8] + 8]] == 50)
+        to stuck
+    }
+    state bin_ok {
+        cid = word[word[word[a + 8] + 8] + 8]
+        body = word[10092544 + (fid * 64 + cid) * 8]
+        to stuck when (body == 0)
+        return instantiate(body, fid, alloc(53, word[word[a + 8] + 16], word[a + 16]), extra)
+    }
+    state stuck { return 0 }
+}
+
+; Only terms allocated while the framed raw subjects are constructed qualify
+; for this shortcut. Certificate-spelled CID 60..63 terms are allocated after
+; RAW_END and remain ordinary open terms subject to substitution.
+proc is_checker_raw_term(t) {
+    let begin = word[2097056]
+    let end = word[2097048]
+    state active { to no when (begin == 0)  to lower }
+    state lower { to no when (t < begin)  to upper }
+    state upper { to yes when (t < end)  return 0 }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+; instantiate a rule body: pattern vars (v 0)/(v 1) -> the scrutinee fields (carried as
+; FBUNDLE `flds`, to stay within the 4-arg calling convention) ; (y k) -> the extra arg ;
+; (rec 0)/(rec 1) -> the recursive call on field 0/1 (re-bundling extra if binary); else
+; structural. extra==0 means a unary function (no 2nd arg, no PAR/bundle in the body).
+proc instantiate(t, fid, flds, extra) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
+    state iv { to do_iv when (word[t] == 34)  to par }     ; IVAR - pattern var
+    state do_iv {
+        to ret_a0 when (word[t + 8] == 0)
+        to ret_a1 when (word[t + 8] == 1)
+        return t
+    }
+    state ret_a0 { return word[flds + 8] }
+    state ret_a1 { return word[flds + 16] }
+    state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) - the extra argument
+    state do_par { return extra }
+    state rc { to do_rc when (word[t] == 54)  to rx }      ; RECCALL (rec 0)/(rec 1)
+    state rx { to do_rx2 when (word[t] == 55)  to fapp }   ; RECX (recx i E)
+    state do_rx2 {
+        to rx_stuck when (extra == 0)                       ; recx in a unary rule: malformed, stuck
+        to rx_f0 when (word[t + 8] == 0)
+        return alloc(52, fid, alloc(53, word[flds + 16], instantiate(word[t + 16], fid, flds, extra)))
+    }
+    state rx_stuck { return t }
+    state rx_f0 { return alloc(52, fid, alloc(53, word[flds + 8], instantiate(word[t + 16], fid, flds, extra))) }
+    state do_rc {
+        to rec_a0 when (word[t + 8] == 0)
+        to rec_a1
+    }
+    state rec_a0 {
+        to ra0_bin when (extra != 0)
+        return alloc(52, fid, word[flds + 8])              ; unary: (f fid field0)
+    }
+    state ra0_bin { return alloc(52, fid, alloc(53, word[flds + 8], extra)) }    ; binary
+    state rec_a1 {
+        to ra1_bin when (extra != 0)
+        return alloc(52, fid, word[flds + 16])
+    }
+    state ra1_bin { return alloc(52, fid, alloc(53, word[flds + 16], extra)) }
+    state fapp { to do_fa when (word[t] == 52)  to leaf }  ; nested (f gid e): keep gid, recurse e
+    state do_fa { return alloc(52, word[t + 8], instantiate(word[t + 16], fid, flds, extra)) }
+    state leaf { to ret_t when (word[t] == 30)  to leaf2 }
+    state ret_t { return t }
+    state leaf2 { to ret_t when (word[t] == 35)  to leaf3 }
+    state leaf3 { to ret_t when (word[t] == 50)  to fmleaf }   ; CON(cid) - leaf
+    state fmleaf { to ret_t when (word[t] == 64)  to suc }
+    state suc { to do_un when (word[t] == 31)  to lenc }
+    state do_un { return alloc(31, instantiate(word[t + 8], fid, flds, extra), 0) }
+    state lenc { to do_len when (word[t] == 38)  to dflt }
+    state do_len { return alloc(38, instantiate(word[t + 8], fid, flds, extra), 0) }
+    state dflt { return alloc(word[t], instantiate(word[t + 8], fid, flds, extra), instantiate(word[t + 16], fid, flds, extra)) }
+}
+
+proc nat_eq(a, b) {
+    state same { to z when (a == b)  to tchk }
+    state tchk { to teq when (word[a] == word[b])  return 0 }
+    state teq { to z when (word[a] == 30)  to nilc }
+    state z { return 1 }
+    state nilc { to z when (word[a] == 35)  to fm }       ; nil - equal (tags match)
+    state fm { to fmeq when (word[a] == 64)  to con }
+    state fmeq { return float_meaning_eq(a, b) }
+    state con { to concheck when (word[a] == 50)  to fapp }   ; CON: same cid?
+    state concheck { to z when (word[a + 8] == word[b + 8])  return 0 }
+    state fapp { to fappchk when (word[a] == 52)  to ivar }   ; (f fid arg): same fid + arg?
+    state fappchk {
+        to bdiff when (word[a + 8] != word[b + 8])
+        return nat_eq(word[a + 16], word[b + 16])
+    }
+    state ivar { to ivcheck when (word[a] == 34)  to suc }    ; Ivar: same index?
+    state ivcheck { to z when (word[a + 8] == word[b + 8])  return 0 }
+    state suc { to child when (word[a] == 31)  to lenc }
+    state child { return nat_eq(word[a + 8], word[b + 8]) }
+    state lenc { to child when (word[a] == 38)  to recxq }    ; len - unary
+    state recxq { to recxchk when (word[a] == 55)  to both }  ; stuck RECX: index (int) + E (subtree)
+    state recxchk {
+        to bdiff when (word[a + 8] != word[b + 8])
+        return nat_eq(word[a + 16], word[b + 16])
+    }
+    state both {
+        to bdiff when (nat_eq(word[a + 8], word[b + 8]) == 0)
+        return nat_eq(word[a + 16], word[b + 16])
+    }
+    state bdiff { return 0 }
+}
+
+; does a term / prop mention a FREE individual variable (index >= depth)?
+proc free_ivt(t, depth) {
+    state iv { to ivcheck when (word[t] == 34)  to z }
+    state ivcheck {
+        to yes when (word[t + 8] >= depth)
+        return 0
+    }
+    state yes { return 1 }
+    state z { to no when (word[t] == 30)  to fm }
+    state fm { to no when (word[t] == 64)  to nilc }
+    state no { return 0 }
+    state nilc { to no when (word[t] == 35)  to con }
+    state con { to no when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }    ; (f fid arg) - only arg has vars
+    state fa { return free_ivt(word[t + 16], depth) }
+    state suc { to child when (word[t] == 31)  to lenc }
+    state child { return free_ivt(word[t + 8], depth) }
+    state lenc { to child when (word[t] == 38)  to both }
+    state both {
+        to yes when (free_ivt(word[t + 8], depth) == 1)
+        return free_ivt(word[t + 16], depth)
+    }
+}
+
+proc free_ivp(p, depth) {
+    let tag = word[p]
+    state t0 { to ret0 when (tag == 0)  to t3 }
+    state ret0 { return 0 }
+    state t3 { to ret0 when (tag == 3)  to t7 }
+    state t7 { to pred when (tag == 7)  to t9 }
+    state pred { return free_ivt(word[p + 16], depth) }
+    state t9 { to rel when (tag == 9)  to t10 }
+    state rel {
+        to yes when (free_ivt(word[word[p + 16] + 8], depth) == 1)
+        return free_ivt(word[word[p + 16] + 16], depth)
+    }
+    state yes { return 1 }
+    state t10 { to ret0 when (tag == 10)  to t5 }
+    state t5 { to eq when (tag == 5)  to t6 }
+    state eq {
+        to yes when (free_ivt(word[p + 8], depth) == 1)
+        return free_ivt(word[p + 16], depth)
+    }
+    state t6 { to all when (tag == 6)  to t8 }
+    state all { return free_ivp(word[p + 8], depth + 1) }     ; binder one level deeper
+    state t8 { to all when (tag == 8)  to conn }
+    state conn {
+        to yes when (free_ivp(word[p + 8], depth) == 1)
+        return free_ivp(word[p + 16], depth)
+    }
+}
+
+; does a term / prop reference the variable bound EXACTLY `depth` levels out - i.e. the
+; witness variable of an enclosing exists -elim?  (free_iv* tests index >= depth; this tests
+; index == depth, tracking binders, so an outer individual is allowed but the witness
+; is not.)  Used by unpack to admit a conclusion C that mentions outer individuals.
+proc wit_in_term(t, depth) {
+    state iv { to ivchk when (word[t] == 34)  to z }
+    state ivchk { to yes when (word[t + 8] == depth)  return 0 }
+    state yes { return 1 }
+    state z { to no when (word[t] == 30)  to fm }
+    state fm { to no when (word[t] == 64)  to nilc }
+    state no { return 0 }
+    state nilc { to no when (word[t] == 35)  to con }
+    state con { to no when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return wit_in_term(word[t + 16], depth) }
+    state suc { to child when (word[t] == 31)  to lenc }
+    state child { return wit_in_term(word[t + 8], depth) }
+    state lenc { to child when (word[t] == 38)  to both }
+    state both {
+        to yes when (wit_in_term(word[t + 8], depth) == 1)
+        return wit_in_term(word[t + 16], depth)
+    }
+}
+
+proc wit_in_prop(p, depth) {
+    let tag = word[p]
+    state t0 { to ret0 when (tag == 0)  to t3 }
+    state ret0 { return 0 }
+    state t3 { to ret0 when (tag == 3)  to t7 }
+    state t7 { to pred when (tag == 7)  to t9 }
+    state pred { return wit_in_term(word[p + 16], depth) }
+    state t9 { to rel when (tag == 9)  to t10 }
+    state rel {
+        to yes when (wit_in_term(word[word[p + 16] + 8], depth) == 1)
+        return wit_in_term(word[word[p + 16] + 16], depth)
+    }
+    state yes { return 1 }
+    state t10 { to ret0 when (tag == 10)  to t5 }
+    state t5 { to eq when (tag == 5)  to t6 }
+    state eq {
+        to yes when (wit_in_term(word[p + 8], depth) == 1)
+        return wit_in_term(word[p + 16], depth)
+    }
+    state t6 { to deeper when (tag == 6)  to t8 }   ; All - the witness is one binder further out
+    state deeper { return wit_in_prop(word[p + 8], depth + 1) }
+    state t8 { to deeper when (tag == 8)  to conn }  ; Exists - likewise
+    state conn {
+        to yes when (wit_in_prop(word[p + 8], depth) == 1)
+        return wit_in_prop(word[p + 16], depth)
+    }
+}
+
+; shift every FREE individual variable (index >= cutoff) in a term up by `d`.
+proc shift_term(t, d, cutoff) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
+    state iv { to ivcheck when (word[t] == 34)  to z }
+    state ivcheck {
+        to do_shift when (word[t + 8] >= cutoff)
+        return t
+    }
+    state do_shift { return alloc(34, word[t + 8] + d, 0) }
+    state z { to ret_t when (word[t] == 30)  to fm }
+    state fm { to ret_t when (word[t] == 64)  to nilc }
+    state ret_t { return t }
+    state nilc { to ret_t when (word[t] == 35)  to con }
+    state con { to ret_t when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return alloc(52, word[t + 8], shift_term(word[t + 16], d, cutoff)) }
+    state suc { to do_suc when (word[t] == 31)  to lenc }
+    state do_suc { return alloc(31, shift_term(word[t + 8], d, cutoff), 0) }
+    state lenc { to do_len when (word[t] == 38)  to dflt }
+    state do_len { return alloc(38, shift_term(word[t + 8], d, cutoff), 0) }
+    state dflt { return alloc(word[t], shift_term(word[t + 8], d, cutoff), shift_term(word[t + 16], d, cutoff)) }
+}
+
+; substitute individual term `s` for Ivar `depth`, in a term.  Capture-avoiding.
+proc subst_term(t, s, depth) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
+    state iv { to ivcheck when (word[t] == 34)  to z }
+    state ivcheck {
+        to ret_s when (word[t + 8] == depth)
+        to gt
+    }
+    state ret_s { return s }
+    state gt {
+        to do_dec when (word[t + 8] > depth)
+        return t
+    }
+    state do_dec { return alloc(34, word[t + 8] - 1, 0) }
+    state z { to ret_t when (word[t] == 30)  to fm }
+    state fm { to ret_t when (word[t] == 64)  to nilc }
+    state ret_t { return t }
+    state nilc { to ret_t when (word[t] == 35)  to con }
+    state con { to ret_t when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return alloc(52, word[t + 8], subst_term(word[t + 16], s, depth)) }
+    state suc { to do_suc when (word[t] == 31)  to lenc }
+    state do_suc { return alloc(31, subst_term(word[t + 8], s, depth), 0) }
+    state lenc { to do_len when (word[t] == 38)  to dflt }
+    state do_len { return alloc(38, subst_term(word[t + 8], s, depth), 0) }
+    state dflt { return alloc(word[t], subst_term(word[t + 8], s, depth), subst_term(word[t + 16], s, depth)) }
+}
+
+proc subst_prop(p, s, depth) {
+    let tag = word[p]
+    state t0 { to ret_p when (tag == 0)  to t3 }
+    state ret_p { return p }
+    state t3 { to ret_p when (tag == 3)  to t7 }
+    state t7 { to pred when (tag == 7)  to t9 }
+    state pred { return alloc(7, word[p + 8], subst_term(word[p + 16], s, depth)) }
+    state t9 { to rel when (tag == 9)  to t10 }
+    state rel { return alloc(9, word[p + 8], alloc(99, subst_term(word[word[p + 16] + 8], s, depth), subst_term(word[word[p + 16] + 16], s, depth))) }
+    state t10 { to ret_p when (tag == 10)  to t5 }
+    state t5 { to eq when (tag == 5)  to t6 }
+    state eq { return alloc(5, subst_term(word[p + 8], s, depth), subst_term(word[p + 16], s, depth)) }
+    state t6 { to all when (tag == 6)  to t8 }
+    state all { return alloc(6, subst_prop(word[p + 8], shift_term(s, 1, 0), depth + 1), 0) }   ; cross binder: lift
+    state t8 { to exists when (tag == 8)  to conn }
+    state exists { return alloc(8, subst_prop(word[p + 8], shift_term(s, 1, 0), depth + 1), 0) }
+    state conn { return alloc(tag, subst_prop(word[p + 8], s, depth), subst_prop(word[p + 16], s, depth)) }
+}
+
+; --- substitution that KEEPS the binder (induction's P(s n), not inst's P(t)) ---
+proc subst_term_keep(t, s, depth) {
+    state raw { to ret_raw when (is_checker_raw_term(t) == 1)  to iv }
+    state ret_raw { return t }
+    state iv { to ivcheck when (word[t] == 34)  to z }
+    state ivcheck {
+        to ret_s when (word[t + 8] == depth)
+        return t                      ; no decrement - the binder remains
+    }
+    state ret_s { return s }
+    state z { to ret_t when (word[t] == 30)  to fm }
+    state fm { to ret_t when (word[t] == 64)  to nilc }
+    state ret_t { return t }
+    state nilc { to ret_t when (word[t] == 35)  to con }
+    state con { to ret_t when (word[t] == 50)  to fapp }
+    state fapp { to fa when (word[t] == 52)  to suc }
+    state fa { return alloc(52, word[t + 8], subst_term_keep(word[t + 16], s, depth)) }
+    state suc { to do_suc when (word[t] == 31)  to lenc }
+    state do_suc { return alloc(31, subst_term_keep(word[t + 8], s, depth), 0) }
+    state lenc { to do_len when (word[t] == 38)  to dflt }
+    state do_len { return alloc(38, subst_term_keep(word[t + 8], s, depth), 0) }
+    state dflt { return alloc(word[t], subst_term_keep(word[t + 8], s, depth), subst_term_keep(word[t + 16], s, depth)) }
+}
+
+proc subst_prop_keep(p, s, depth) {
+    let tag = word[p]
+    state t0 { to ret_p when (tag == 0)  to t3 }
+    state ret_p { return p }
+    state t3 { to ret_p when (tag == 3)  to t7 }
+    state t7 { to pred when (tag == 7)  to t9 }
+    state pred { return alloc(7, word[p + 8], subst_term_keep(word[p + 16], s, depth)) }
+    state t9 { to rel when (tag == 9)  to t10 }
+    state rel { return alloc(9, word[p + 8], alloc(99, subst_term_keep(word[word[p + 16] + 8], s, depth), subst_term_keep(word[word[p + 16] + 16], s, depth))) }
+    state t10 { to ret_p when (tag == 10)  to t5 }
+    state t5 { to eq when (tag == 5)  to t6 }
+    state eq { return alloc(5, subst_term_keep(word[p + 8], s, depth), subst_term_keep(word[p + 16], s, depth)) }
+    state t6 { to all when (tag == 6)  to t8 }
+    state all { return alloc(6, subst_prop_keep(word[p + 8], shift_term(s, 1, 0), depth + 1), 0) }
+    state t8 { to exists when (tag == 8)  to conn }
+    state exists { return alloc(8, subst_prop_keep(word[p + 8], shift_term(s, 1, 0), depth + 1), 0) }
+    state conn { return alloc(tag, subst_prop_keep(word[p + 8], s, depth), subst_prop_keep(word[p + 16], s, depth)) }
+}
+
+; shift free individual variables (index >= cutoff) up by `d` in a PROPOSITION.
+proc shift_prop(p, d, cutoff) {
+    let tag = word[p]
+    state t0 { to ret_p when (tag == 0)  to t3 }
+    state ret_p { return p }
+    state t3 { to ret_p when (tag == 3)  to t7 }
+    state t7 { to pred when (tag == 7)  to t9 }
+    state pred { return alloc(7, word[p + 8], shift_term(word[p + 16], d, cutoff)) }
+    state t9 { to rel when (tag == 9)  to t10 }
+    state rel { return alloc(9, word[p + 8], alloc(99, shift_term(word[word[p + 16] + 8], d, cutoff), shift_term(word[word[p + 16] + 16], d, cutoff))) }
+    state t10 { to ret_p when (tag == 10)  to t5 }
+    state t5 { to eq when (tag == 5)  to t6 }
+    state eq { return alloc(5, shift_term(word[p + 8], d, cutoff), shift_term(word[p + 16], d, cutoff)) }
+    state t6 { to all when (tag == 6)  to t8 }
+    state all { return alloc(6, shift_prop(word[p + 8], d, cutoff + 1), 0) }
+    state t8 { to exists when (tag == 8)  to conn }
+    state exists { return alloc(8, shift_prop(word[p + 8], d, cutoff + 1), 0) }
+    state conn { return alloc(tag, shift_prop(word[p + 8], d, cutoff), shift_prop(word[p + 16], d, cutoff)) }
+}
+
+proc constructor_cid(t) {
+    let x = t
+    state loop { to con when (word[x] == 50)  to app }
+    state app { to no when (word[x] != 51)  x = word[x + 8]  to loop }
+    state con { return word[x + 8] }
+    state no { return 0 - 1 }
+}
+
+; Definitional equality preserves pointer identity. Checker-owned subjects are
+; already-normal balanced trees, so structural comparison is logarithmic-depth
+; and does not allocate a normalized duplicate.
+proc conv_eq(a, b) {
+    let acid = constructor_cid(a)
+    let bcid = 0 - 1
+    let mark = 0
+    let equal = 0
+    state same { to yes when (a == b)  to raw_low }
+    state raw_low { to ordinary when (acid < 61)  to raw_high }
+    state raw_high { to ordinary when (acid > 63)  bcid = constructor_cid(b)  to raw_rhs }
+    state raw_rhs { to ordinary when (bcid < 61)  to raw_rhs_high }
+    state raw_rhs_high { to ordinary when (bcid > 63)  return nat_eq(a, b) }
+    state ordinary {
+        ; Normal forms produced solely for this decision cannot escape it.
+        ; Reclaim them after comparison so a certificate with many independent
+        ; computed equalities does not consume the permanent parse/subject arena.
+        mark = word[2097128]
+        equal = nat_eq(normalize(a, 100000), normalize(b, 100000))
+        word[2097128] = mark
+        return equal
+    }
+    state yes { return 1 }
+}
+
+proc skip_ident() {              ; advance over a lowercase keyword
+    state loop { to body when (is_lower(cbyte()) == 1)  return 0 }
+    state body { adv()  to loop }
+}
+
+proc is_kwchar(c) {              ; a letter, either case (for All / Pred keywords)
+    state lower { to yes when (is_lower(c) == 1)  to c1 }
+    state c1 { to no when (c < 'A')  to c2 }
+    state c2 { to no when (c > 'Z')  return 1 }
+    state no { return 0 }
+    state yes { return 1 }
+}
+
+proc skip_kw() {                 ; advance over a keyword of any case
+    state loop { to body when (is_kwchar(cbyte()) == 1)  return 0 }
+    state body { adv()  to loop }
+}
+
+proc expect(ch) {
+    skip_ws()
+    state chk { to do_adv when (cbyte() == ch)  to bad }
+    state do_adv { adv()  return 0 }
+    state bad { word[2097072] = 1  return 0 }
+}
+
+; ---- node arena: 3 words per node, bump-allocated ----
+proc alloc(tag, f0, f1) {
+    let p = word[2097128]
+    state bound { to exhausted when (p > 134217688)  to store }
+    state store {
+        word[p] = tag
+        word[p + 8] = f0
+        word[p + 16] = f1
+        word[2097128] = p + 24
+        return p
+    }
+    state exhausted { word[2097072] = 1  return 0 }
+}
+
+; ---- parsers ----
+
+proc parse_type() {
+    skip_ws()
+    let a = 0                    ; one declaration each (function-scoped locals)
+    let b = 0
+    let invalid_float_keyword = 0
+    state paren { to compound when (cbyte() == '(')  to atom }
+    state compound {
+        adv()
+        skip_ws()
+        to imp when (cbyte() == '-')
+        to bot
+    }
+    state imp {
+        adv()                    ; the '-'
+        adv()                    ; the '>'
+        a = parse_type()
+        b = parse_type()
+        expect(')')
+        return alloc(1, a, b)
+    }
+    state bot { to do_bot when (cbyte() == 'b')  to disj }
+    state do_bot { skip_ident()  expect(')')  return alloc(3, 0, 0) }
+    state disj { to do_disj when (cbyte() == '+')  to eq }
+    state do_disj { adv()  a = parse_type()  b = parse_type()  expect(')')  return alloc(4, a, b) }
+    state eq { to do_eq when (cbyte() == '=')  to all }
+    state do_eq {
+        adv()
+        a = parse_nat()
+        b = parse_nat()
+        expect(')')
+        to invalid_float_carrier when (contains_float_meaning(a) == 1)
+        to invalid_float_carrier when (contains_float_meaning(b) == 1)
+        return alloc(5, a, b)
+    }
+    state all { to do_all when (cbyte() == 'A')  to exists }
+    state do_all { skip_kw()  a = parse_type()  expect(')')  return alloc(6, a, 0) }
+    state exists { to do_exists when (cbyte() == 'E')  to pred }
+    state do_exists { skip_kw()  a = parse_type()  expect(')')  return alloc(8, a, 0) }
+    state pred { to do_pred when (cbyte() == 'P')  to rel }
+    state do_pred {
+        skip_kw()
+        skip_ws()
+        a = parse_number()
+        b = parse_nat()
+        expect(')')
+        to invalid_float_carrier when (contains_float_meaning(b) == 1)
+        return alloc(7, a, b)
+    }
+    state rel { to do_rel when (cbyte() == 'R')  to float_equal }
+    state do_rel {
+        skip_kw()
+        skip_ws()
+        a = parse_number()
+        b = parse_nat()
+        b = alloc(99, b, parse_nat())   ; aux holds (t1, t2)
+        expect(')')
+        to invalid_float_carrier when (contains_float_meaning(word[b + 8]) == 1)
+        to invalid_float_carrier when (contains_float_meaning(word[b + 16]) == 1)
+        return alloc(9, a, b)
+    }
+    state float_equal { to do_float_equal when (cbyte() == 'F')  to conj }
+    state do_float_equal {
+        let keyword_start = word[2097144]
+        skip_kw()
+        to float_keyword_invalid when (word[2097144] - keyword_start != 17)
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 1] != 'l')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 2] != 'o')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 3] != 'a')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 4] != 't')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 5] != 'M')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 6] != 'e')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 7] != 'a')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 8] != 'n')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 9] != 'i')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 10] != 'n')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 11] != 'g')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 12] != 'E')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 13] != 'q')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 14] != 'u')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 15] != 'a')
+        to float_keyword_invalid when (byte[2097152 + keyword_start + 16] != 'l')
+        to float_keyword_parsed
+    }
+    state float_keyword_invalid {
+        invalid_float_keyword = 1
+        to float_keyword_parsed
+    }
+    state float_keyword_parsed {
+        a = parse_nat()
+        b = parse_nat()
+        expect(')')
+        to invalid_float_carrier when (valid_float_meaning(a) == 0)
+        to invalid_float_carrier when (valid_float_meaning(b) == 0)
+        to invalid_float_carrier when (float_meaning_format(a) != float_meaning_format(b))
+        to invalid_float_spelling when (invalid_float_keyword == 1)
+        return alloc(10, a, b)
+    }
+    state invalid_float_spelling {
+        word[2097072] = 1
+        return alloc(10, a, b)
+    }
+    state invalid_float_carrier {
+        word[2097072] = 1
+        return alloc(3, 0, 0)
+    }
+    state conj {
+        adv()                    ; '&' conjunction
+        a = parse_type()
+        b = parse_type()
+        expect(')')
+        return alloc(2, a, b)
+    }
+    state atom {
+        a = cbyte()              ; atom: a single uppercase letter
+        adv()
+        return alloc(0, a, 0)
+    }
+}
+
+proc parse_term() {
+    skip_ws()
+    expect('(')
+    skip_ws()
+    let kc = cbyte()             ; first letter of the rule keyword
+    let kc2 = byte[2097152 + word[2097144] + 1]   ; second letter (app vs absurd)
+    let kc3 = byte[2097152 + word[2097144] + 2]   ; third letter (inl vs inr)
+    let kc4 = byte[2097152 + word[2097144] + 3]   ; fourth letter (memHead/Tail/Cons/Nil)
+    let kc5 = byte[2097152 + word[2097144] + 4]   ; fifth letter (prodNilinv/prodConsinv ; perm Nil/Skip/Swap/Trans)
+    let kc6 = byte[2097152 + word[2097144] + 5]   ; sixth letter (permsKip vs permsWap)
+    let keyword_start = word[2097144]
+    skip_ident()
+    let keyword_length = word[2097144] - keyword_start
+    let x = 0
+    let y = 0
+    let z = 0
+    let invalid_fmrefl_spelling = 0
+    state k_h { to do_hyp when (kc == 'h')  to k_l }
+    state do_hyp { skip_ws()  x = parse_number()  expect(')')  return alloc(10, x, 0) }
+    state k_l { to is_l when (kc == 'l')  to k_a }
+    state is_l { to do_listind when (kc2 == 'i')  to do_lam }
+    state do_listind {
+        x = parse_type()         ; motive P(l), list var = Ivar 0
+        y = parse_term()         ; base : P(nil)
+        z = parse_term()         ; step : All h. All t. (P(t) -> P(cons h t))
+        expect(')')
+        return alloc(29, x, alloc(99, y, z))
+    }
+    state do_lam { x = parse_type()  y = parse_term()  expect(')')  return alloc(11, x, y) }
+    state k_a { to is_a when (kc == 'a')  to k_p }
+    state is_a { to do_absurd when (kc2 == 'b')  to do_app }
+    state do_absurd { x = parse_type()  y = parse_term()  expect(')')  return alloc(16, x, y) }
+    state do_app { x = parse_term()  y = parse_term()  expect(')')  return alloc(12, x, y) }
+    state k_p { to is_p when (kc == 'p')  to k_f }
+    state is_p { to do_pnil when (kc2 == 'n')  to is_pc }       ; pnil  : product-of-nil intro
+    state do_pnil { expect(')')  return alloc(46, 0, 0) }
+    state is_pc { to do_pcons when (kc2 == 'c')  to is_pe }     ; pcons : product-of-cons intro
+    state do_pcons { x = parse_nat()  y = parse_term()  expect(')')  return alloc(47, x, y) }
+    state is_pe { to do_perm when (kc2 == 'e')  to is_pr }      ; perm* : list-permutation intro
+    state do_perm { to do_permnil when (kc5 == 'n')  to perm_t }
+    state do_permnil { expect(')')  return alloc(57, 0, 0) }                       ; permnil : Perm(nil,nil)
+    state perm_t { to do_permtr when (kc5 == 't')  to perm_sk }
+    state do_permtr { x = parse_term()  y = parse_term()  expect(')')  return alloc(60, x, y) }  ; permtrans pf1 pf2
+    state perm_sk { to do_permsk when (kc6 == 'k')  to do_permsw }
+    state do_permsk { x = parse_nat()  y = parse_term()  expect(')')  return alloc(58, x, y) }   ; permskip x pf
+    state do_permsw { x = parse_nat()  y = parse_nat()  z = parse_nat()  expect(')')  return alloc(59, x, alloc(99, y, z)) }  ; permswap x y r (r is a list term)
+    state is_pr { to is_pinv when (kc2 == 'r')  to do_pair }    ; prod*inv : ProdIs inversion
+    state is_pinv { to do_prodrec when (kc5 == 'r')  to pinv2 }   ; prodrec (kc5 r) vs prod{nil,cons}inv
+    state pinv2 { to do_pnilinv when (kc5 == 'n')  to do_pconsinv }
+    state do_prodrec {           ; (prodrec CID motive case) - product elimination: from P on the type's
+        skip_ws()                ; sole constructor conclude forall x. P(x). CID must be (prod CID)-declared.
+        x = parse_number()       ; CID (the declared-sole product constructor)
+        y = parse_type()         ; motive P(x), eliminated var = Ivar 0
+        z = parse_term()         ; case : con_case(CID, motive) = forall a b. P(CON CID a b)
+        expect(')')
+        return alloc(61, alloc(99, x, y), z)   ; (99 CID motive) + case
+    }
+    state do_pnilinv { x = parse_term()  expect(')')  return alloc(48, x, 0) }
+    state do_pconsinv { x = parse_term()  expect(')')  return alloc(49, x, 0) }
+    state do_pair { x = parse_term()  y = parse_term()  expect(')')  return alloc(13, x, y) }
+    state k_f { to is_f when (kc == 'f')  to k_i }
+    state is_f { to fmrefl_prefix when (kc2 == 'm')  to do_fst }
+    state fmrefl_prefix { to fmrefl_length when (keyword_length == 6)  to invalid_fmrefl_prefix }
+    state fmrefl_length { to fmrefl_c3 when (kc3 == 'r')  to invalid_fmrefl_prefix }
+    state fmrefl_c3 { to fmrefl_c4 when (kc4 == 'e')  to invalid_fmrefl_prefix }
+    state fmrefl_c4 { to fmrefl_c5 when (kc5 == 'f')  to invalid_fmrefl_prefix }
+    state fmrefl_c5 { to do_fmrefl when (kc6 == 'l')  to invalid_fmrefl_prefix }
+    state invalid_fmrefl_prefix {
+        invalid_fmrefl_spelling = 1
+        to do_fmrefl
+    }
+    state do_fmrefl {
+        x = parse_nat()
+        expect(')')
+        to fmrefl_ok when (valid_float_meaning(x) == 1)
+        word[2097072] = 1
+        return alloc(62, x, 0)
+    }
+    state fmrefl_ok {
+        to invalid_fmrefl when (invalid_fmrefl_spelling == 1)
+        return alloc(62, x, 0)
+    }
+    state invalid_fmrefl { word[2097072] = 1  return alloc(62, x, 0) }
+    state do_fst { x = parse_term()  expect(')')  return alloc(14, x, 0) }
+    state k_i { to is_i when (kc == 'i')  to k_g }
+    state is_i { to do_inst when (kc3 == 's')  to do_inj }
+    state do_inst { x = parse_term()  y = parse_nat()  expect(')')  return alloc(22, x, y) }
+    state do_inj {
+        x = parse_type()
+        y = parse_term()
+        expect(')')
+        to inl when (kc3 == 'l')
+        return alloc(18, x, y)    ; inr: x or (typeof y)
+    }
+    state inl { return alloc(17, x, y) }   ; inl: (typeof y) or x
+    state k_g { to do_gen when (kc == 'g')  to k_w }
+    state do_gen { x = parse_term()  expect(')')  return alloc(21, x, 0) }
+    state k_w { to do_wit when (kc == 'w')  to k_u }
+    state do_wit {
+        x = parse_type()         ; body (predicate with bound var)
+        y = parse_nat()          ; the witness (a closed individual)
+        z = parse_term()         ; proof of body[t/x]
+        expect(')')
+        return alloc(23, x, alloc(99, y, z))
+    }
+    state k_u { to is_u when (kc == 'u')  to k_n }
+    state is_u { to do_use when (kc2 == 's')  to do_unpack }
+    state do_use { skip_ws()  x = parse_number()  expect(')')  return alloc(40, x, 0) }
+    state do_unpack { x = parse_term()  y = parse_term()  expect(')')  return alloc(24, x, y) }
+    state k_n { to do_natind when (kc == 'n')  to k_e }
+    state do_natind {
+        x = parse_type()         ; motive P(x), induction var = Ivar 0
+        y = parse_term()         ; base : P(0)
+        z = parse_term()         ; step : All (P(n) -> P(s n))
+        expect(')')
+        return alloc(25, x, alloc(99, y, z))
+    }
+    state k_e { to do_eqelim when (kc == 'e')  to k_m }
+    state do_eqelim {
+        x = parse_type()         ; motive P(x), substituted var = Ivar 0
+        y = parse_term()         ; pf_eq : a = b
+        z = parse_term()         ; pf_pa : P(a)
+        expect(')')
+        return alloc(26, x, alloc(99, y, z))
+    }
+    state k_m { to is_m when (kc == 'm')  to k_c }
+    state is_m { to do_memhead when (kc4 == 'h')  to m_t }       ; mem-introduction (head)
+    state do_memhead { x = parse_nat()  y = parse_nat()  expect(')')  return alloc(42, x, y) }
+    state m_t { to do_memtail when (kc4 == 't')  to m_c }        ; mem-introduction (tail)
+    state do_memtail { x = parse_nat()  y = parse_term()  expect(')')  return alloc(43, x, y) }
+    state m_c { to do_memcons when (kc4 == 'c')  to do_memnil }  ; mem-inversion on cons
+    state do_memcons { x = parse_term()  expect(')')  return alloc(44, x, 0) }
+    state do_memnil { x = parse_term()  expect(')')  return alloc(45, x, 0) }   ; mem-inversion on nil
+    state k_c { to do_case when (kc == 'c')  to k_r }
+    state do_case {
+        x = parse_term()         ; p
+        y = parse_term()         ; f
+        z = parse_term()         ; g
+        expect(')')
+        return alloc(19, x, alloc(99, y, z))   ; nest (f,g) in an aux node
+    }
+    state k_r { to is_r when (kc == 'r')  to k_d }
+    state is_r { to do_rec when (kc3 == 'c')  to do_refl }
+    state do_rec {
+        skip_ws()
+        x = parse_number()       ; constructor id A
+        skip_ws()
+        y = parse_number()       ; constructor id B
+        z = parse_type()         ; motive P(x), induction var = Ivar 0
+        z = alloc(99, alloc(98, x, y), z)      ; (98 cidA cidB) + motive
+        x = parse_term()         ; caseA
+        y = parse_term()         ; caseB
+        expect(')')
+        return alloc(41, z, alloc(99, x, y))
+    }
+    state do_refl { x = parse_nat()  expect(')')  return alloc(20, x, 0) }   ; (refl t)
+    state k_d { to do_disj when (kc == 'd')  to k_s }
+    state do_disj { x = parse_term()  expect(')')  return alloc(27, x, 0) }  ; (disj pf)
+    state k_s { to is_s when (kc == 's')  to do_snd }
+    state is_s { to do_sinj when (kc2 == 'i')  to do_snd }
+    state do_sinj { x = parse_term()  expect(')')  return alloc(28, x, 0) }  ; (sinj pf)
+    state do_snd { x = parse_term()  expect(')')  return alloc(15, x, 0) }   ; (snd p)
+}
+
+; ---- structural type equality ----
+proc type_eq(a, b) {
+    state tchk { to teq when (word[a] == word[b])  return 0 }
+    state teq { to atom when (word[a] == 0)  to fls }
+    state atom { to one when (word[a + 8] == word[b + 8])  return 0 }   ; ATOM: compare char
+    state one { return 1 }
+    state fls { to one when (word[a] == 3)  to eqp }                    ; FALSE: leaf, equal
+    state eqp { to do_eq when (word[a] == 5)  to allp }
+    state do_eq {                                                       ; EQ: defn'l equality
+        to zero when (conv_eq(word[a + 8], word[b + 8]) == 0)
+        return conv_eq(word[a + 16], word[b + 16])
+    }
+    state zero { return 0 }
+    state allp { to recurse1 when (word[a] == 6)  to exp }              ; All body
+    state recurse1 { return type_eq(word[a + 8], word[b + 8]) }
+    state exp { to recurse1 when (word[a] == 8)  to predp }             ; Exists body
+    state predp { to do_pred when (word[a] == 7)  to relp }
+    state do_pred {                                                     ; Pred id term
+        to zero when (word[a + 8] != word[b + 8])
+        return conv_eq(word[a + 16], word[b + 16])
+    }
+    state relp { to do_rel when (word[a] == 9)  to fmep }
+    state do_rel {                                                      ; Rel id (t1,t2)
+        to zero when (word[a + 8] != word[b + 8])
+        to zero when (conv_eq(word[word[a + 16] + 8], word[word[b + 16] + 8]) == 0)
+        return conv_eq(word[word[a + 16] + 16], word[word[b + 16] + 16])
+    }
+    state fmep { to do_fme when (word[a] == 10)  to conn }
+    state do_fme {
+        to zero when (valid_float_meaning(word[a + 8]) == 0)
+        to zero when (valid_float_meaning(word[a + 16]) == 0)
+        to zero when (float_meaning_format(word[a + 8]) != float_meaning_format(word[a + 16]))
+        to zero when (float_meaning_eq(word[a + 8], word[b + 8]) == 0)
+        return float_meaning_eq(word[a + 16], word[b + 16])
+    }
+    state conn {
+        to zero when (type_eq(word[a + 8], word[b + 8]) == 0)
+        return type_eq(word[a + 16], word[b + 16])
+    }
+}
+
+; ---- the checker: infer the proposition a term proves, or 0 (reject) ----
+proc ctx_push(ty) {
+    let n = word[2097120]
+    state bound { to exhausted when (n >= 65536)  to store }
+    state store {
+        word[8388608 + n * 8] = ty
+        word[8912896 + n * 8] = word[2097112]   ; remember the IDEP at which this hyp was pushed
+        word[2097120] = n + 1
+        return 1
+    }
+    state exhausted { word[2097072] = 1  return 0 }
+}
+
+proc ctx_pop() {
+    word[2097120] = word[2097120] - 1
+}
+
+; build the expected CASE type for constructor `cid` under motive P (var = Ivar 0).
+; Tables: ARITY 9699328, REC0 9830400, REC1 9961472, PRODUCTS 10485760 (indexed by cid).
+proc con_case(cid, motive) {
+    let arity = word[9699328 + cid * 8]
+    let r0 = word[9830400 + cid * 8]
+    let r1 = word[9961472 + cid * 8]
+    let body = 0
+    state a0 { to do_a0 when (arity == 0)  to a1 }
+    state do_a0 { return subst_prop(motive, alloc(50, cid, 0), 0) }     ; P(CON cid)
+    state a1 { to do_a1 when (arity == 1)  to a2 }
+    state do_a1 {
+        body = subst_prop_keep(motive, alloc(51, alloc(50, cid, 0), alloc(34, 0, 0)), 0)
+        to a1_rec when (r0 == 1)
+        to a1_done
+    }
+    state a1_rec { body = alloc(1, motive, body)  to a1_done }          ; IH P(a0) = motive
+    state a1_done { return alloc(6, body, 0) }
+    state a2 {
+        let mp = shift_prop(motive, 1, 1)        ; two binders -> shift params up by one
+        body = subst_prop_keep(mp, alloc(51, alloc(51, alloc(50, cid, 0), alloc(34, 1, 0)), alloc(34, 0, 0)), 0)
+        to a2_r1 when (r1 == 1)
+        to a2_r0chk
+    }
+    state a2_r1 { body = alloc(1, mp, body)  to a2_r0chk }              ; IH for a1 (= Iv0)
+    state a2_r0chk {
+        to a2_r0 when (r0 == 1)
+        to a2_done
+    }
+    state a2_r0 { body = alloc(1, subst_prop_keep(mp, alloc(34, 1, 0), 0), body)  to a2_done }   ; IH for a0
+    state a2_done { return alloc(6, alloc(6, body, 0), 0) }
+}
+
+proc infer(term) {
+    let tag = word[term]
+    let t1 = 0                   ; shared temps (function-scoped, declared once)
+    let t2 = 0
+    let t3 = 0
+    state d10 { to hyp when (tag == 10)  to d11 }
+    state hyp {                  ; HYP idx - de Bruijn: 0 is the innermost binder
+        t1 = word[term + 8]      ; idx
+        t2 = word[2097120]       ; ctx depth
+        to hyp_ok when (t1 < t2)
+        return 0                 ; unbound hypothesis
+    }
+    state hyp_ok {
+        t3 = t2 - 1 - t1                                      ; CTX slot for this hyp
+        ; lift the stored prop from its push-time IDEP to the current IDEP: every forall/exists
+        ; binder entered since makes its free individual vars one deeper.
+        return shift_prop(word[8388608 + t3 * 8], word[2097112] - word[8912896 + t3 * 8], 0)
+    }
+    state reject { return 0 }
+    state d11 { to lam when (tag == 11)  to d12 }
+    state lam {                  ; LAM ty body -> ty -> typeof(body in ctx+ty)
+        t1 = word[term + 8]
+        to reject when (ctx_push(t1) == 0)
+        t2 = infer(word[term + 16])
+        ctx_pop()
+        to reject when (t2 == 0)
+        return alloc(1, t1, t2)
+    }
+    state d12 { to app when (tag == 12)  to d13 }
+    state app {                  ; APP f a  (modus ponens)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to app1
+    }
+    state app1 {
+        to reject when (word[t1] != 1)        ; f must prove an implication
+        t2 = infer(word[term + 16])
+        to reject when (t2 == 0)
+        to app2
+    }
+    state app2 {
+        to reject when (type_eq(word[t1 + 8], t2) == 0)   ; antecedent matches the arg
+        return word[t1 + 16]
+    }
+    state d13 { to pair when (tag == 13)  to d14 }
+    state pair {                 ; PAIR a b  (&-intro)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        t2 = infer(word[term + 16])
+        to reject when (t2 == 0)
+        return alloc(2, t1, t2)
+    }
+    state d14 { to fst when (tag == 14)  to d15 }
+    state fst {                  ; FST p  (&-elim left)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to fst1
+    }
+    state fst1 {
+        to reject when (word[t1] != 2)
+        return word[t1 + 8]
+    }
+    state d15 { to snd when (tag == 15)  to d16 }
+    state snd {                  ; SND p  (&-elim right)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to snd1
+    }
+    state snd1 {
+        to reject when (word[t1] != 2)
+        return word[t1 + 16]
+    }
+    state d16 { to absurd when (tag == 16)  to d17 }
+    state absurd {               ; ABSURD Cty p  (ex falso)
+        t1 = infer(word[term + 16])
+        to reject when (t1 == 0)
+        to absurd1
+    }
+    state absurd1 {
+        to reject when (word[t1] != 3)
+        return word[term + 8]
+    }
+    state d17 { to inl when (tag == 17)  to d18 }
+    state inl {                  ; INL Bty p : (typeof p) or Bty
+        t1 = infer(word[term + 16])
+        to reject when (t1 == 0)
+        return alloc(4, t1, word[term + 8])
+    }
+    state d18 { to inr when (tag == 18)  to d19 }
+    state inr {                  ; INR Aty p : Aty or (typeof p)
+        t1 = infer(word[term + 16])
+        to reject when (t1 == 0)
+        return alloc(4, word[term + 8], t1)
+    }
+    state d19 { to case_t when (tag == 19)  to d20 }
+    state case_t {               ; CASE p (aux f g)
+        t1 = infer(word[term + 8])              ; tp = OR(A, B)
+        to reject when (t1 == 0)
+        to case1
+    }
+    state case1 {
+        to reject when (word[t1] != 4)
+        t2 = infer(word[word[term + 16] + 8])   ; tf = A' -> C1
+        to reject when (t2 == 0)
+        to case2
+    }
+    state case2 {
+        to reject when (word[t2] != 1)
+        to reject when (type_eq(word[t2 + 8], word[t1 + 8]) == 0)    ; A' == A
+        t3 = infer(word[word[term + 16] + 16])  ; tg = B' -> C2
+        to reject when (t3 == 0)
+        to case3
+    }
+    state case3 {
+        to reject when (word[t3] != 1)
+        to reject when (type_eq(word[t3 + 8], word[t1 + 16]) == 0)   ; B' == B
+        to reject when (type_eq(word[t2 + 16], word[t3 + 16]) == 0)  ; C1 == C2
+        return word[t2 + 16]
+    }
+    state d20 { to refl when (tag == 20)  to d41 }
+    state refl {
+        to reject when (contains_float_meaning(word[term + 8]) == 1)
+        return alloc(5, word[term + 8], word[term + 8])               ; REFL t : (= t t)
+    }
+    state d41 { to rec when (tag == 41)  to d61 }
+    state rec {                  ; REC cidA cidB motive caseA caseB : structural induction
+        t1 = word[term + 8]      ; (99 (98 cidA cidB) motive)
+        t2 = word[t1 + 8]        ; (98 cidA cidB)
+        t3 = infer(word[word[term + 16] + 8])            ; typeof caseA
+        to reject when (t3 == 0)
+        to rec1
+    }
+    state rec1 {
+        to reject when (type_eq(t3, con_case(word[t2 + 8], word[t1 + 16])) == 0)
+        t3 = infer(word[word[term + 16] + 16])           ; typeof caseB
+        to reject when (t3 == 0)
+        to rec2
+    }
+    state rec2 {
+        to reject when (type_eq(t3, con_case(word[t2 + 16], word[t1 + 16])) == 0)
+        return alloc(6, word[t1 + 16], 0)                ; forall x. P(x)
+    }
+    state d61 { to prodrec when (tag == 61)  to d62 }
+    state prodrec {              ; PRODREC cid motive case : SINGLE-constructor product elimination.
+        t1 = word[term + 8]      ; (99 cid motive)
+        ; SOUNDNESS GUARD: prodrec proves forall x.P from ONE case, so it is sound only when cid is its
+        ; type's SOLE constructor. Unlike REC (locked to two cases, hence used only on 2-constructor types),
+        ; one case aimed at a SUM constructor would prove a bogus universal. So cid must be explicitly
+        ; declared a product via (prod cid) - PRODUCTS[cid] == 1 - an auditable, opt-in assertion.
+        to reject when (word[10485760 + word[t1 + 8] * 8] != 1)
+        t3 = infer(word[term + 16])                      ; typeof case
+        to reject when (t3 == 0)
+        to prodrec1
+    }
+    state prodrec1 {
+        to reject when (type_eq(t3, con_case(word[t1 + 8], word[t1 + 16])) == 0)
+        return alloc(6, word[t1 + 16], 0)                ; forall x. motive(x)
+    }
+    state d62 { to fmrefl when (tag == 62)  to d40 }
+    state fmrefl {
+        to reject when (valid_float_meaning(word[term + 8]) == 0)
+        return alloc(10, word[term + 8], word[term + 8])
+    }
+    state d40 { to use when (tag == 40)  to d21 }
+    state use { return word[9437184 + word[term + 8] * 8] }   ; USE N : the lemma's type
+    state d21 { to gen when (tag == 21)  to d22 }
+    state gen {                  ; GEN pf : forall -intro -> All (typeof pf)
+        ; Enter one individual binder. Hypotheses already in scope are now one binder
+        ; deeper; hyp lookup shifts them by the IDEP delta, so the freshly bound variable
+        ; (Iv 0) is mentioned by NO hypothesis - the eigenvariable condition holds
+        ; structurally. (This replaces the old conservative reject that forbade forall -intro
+        ; whenever any hypothesis mentioned any individual variable.)
+        word[2097112] = word[2097112] + 1
+        t1 = infer(word[term + 8])
+        word[2097112] = word[2097112] - 1
+        to reject when (t1 == 0)
+        return alloc(6, t1, 0)
+    }
+    state d22 { to inst when (tag == 22)  to d23 }
+    state inst {                 ; INST pf t : forall -elim -> body[t / bound var]
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to inst1
+    }
+    state inst1 {
+        to reject when (word[t1] != 6)        ; pf must prove a universal
+        return subst_prop(word[t1 + 8], word[term + 16], 0)
+    }
+    state d23 { to wit when (tag == 23)  to d24 }
+    state wit {                  ; WIT body t pf : exists -intro -> Exists body
+        t1 = infer(word[word[term + 16] + 16])           ; typeof pf
+        to reject when (t1 == 0)
+        t2 = subst_prop(word[term + 8], word[word[term + 16] + 8], 0)   ; body[t/x]
+        to reject when (type_eq(t1, t2) == 0)
+        return alloc(8, word[term + 8], 0)
+    }
+    state d24 { to unpack when (tag == 24)  to d25 }
+    state unpack {               ; UNPACK epf handler : exists -elim -> C
+        t1 = infer(word[term + 8])                       ; Exists b
+        to reject when (t1 == 0)
+        to unpack1
+    }
+    state unpack1 {
+        to reject when (word[t1] != 8)
+        t2 = infer(word[term + 16])                      ; All (b' -> C)
+        to reject when (t2 == 0)
+        to unpack2
+    }
+    state unpack2 {
+        to reject when (word[t2] != 6)                   ; handler must be a universal
+        to reject when (word[word[t2 + 8]] != 1)         ; whose body is an implication
+        to reject when (type_eq(word[word[t2 + 8] + 8], word[t1 + 8]) == 0)   ; antecedent == b
+        ; C must not depend on the WITNESS var (the handler's forall -bound individual = Ivar 0);
+        ; it MAY mention outer individuals. Then drop that binder, lowering outer vars.
+        to reject when (wit_in_prop(word[word[t2 + 8] + 16], 0) == 1)
+        return subst_prop(word[word[t2 + 8] + 16], alloc(30, 0, 0), 0)   ; the conclusion C
+    }
+    state d25 { to natind when (tag == 25)  to d29 }
+    state natind {               ; NATIND motive base step : Peano induction
+        t1 = infer(word[word[term + 16] + 8])            ; typeof base
+        to reject when (t1 == 0)
+        to natind1
+    }
+    state natind1 {
+        to reject when (type_eq(t1, subst_prop(word[term + 8], alloc(30, 0, 0), 0)) == 0)   ; base : P(0)
+        t1 = infer(word[word[term + 16] + 16])           ; typeof step
+        to reject when (t1 == 0)
+        to natind2
+    }
+    state natind2 {
+        t2 = subst_prop_keep(word[term + 8], alloc(31, alloc(34, 0, 0), 0), 0)   ; P(s n), binder kept
+        t2 = alloc(6, alloc(1, word[term + 8], t2), 0)
+        to reject when (type_eq(t1, t2) == 0)
+        return alloc(6, word[term + 8], 0)               ; forall n. P(n)
+    }
+    state d29 { to listind when (tag == 29)  to d26 }
+    state listind {              ; LISTIND motive base step : list induction
+        t1 = infer(word[word[term + 16] + 8])            ; typeof base
+        to reject when (t1 == 0)
+        to listind1
+    }
+    state listind1 {
+        to reject when (type_eq(t1, subst_prop(word[term + 8], alloc(35, 0, 0), 0)) == 0)   ; base : P(nil)
+        t1 = infer(word[word[term + 16] + 16])           ; typeof step
+        to reject when (t1 == 0)
+        to listind2
+    }
+    state listind2 {
+        t2 = shift_prop(word[term + 8], 1, 1)            ; motive', for P(t)
+        t3 = subst_prop_keep(t2, alloc(36, alloc(34, 1, 0), alloc(34, 0, 0)), 0)   ; P(cons h t)
+        t2 = alloc(6, alloc(6, alloc(1, t2, t3), 0), 0)  ; All h. All t. (P(t) -> P(cons h t))
+        to reject when (type_eq(t1, t2) == 0)
+        return alloc(6, word[term + 8], 0)               ; forall l. P(l)
+    }
+    state d26 { to eqelim when (tag == 26)  to d27 }
+    state eqelim {               ; EQELIM motive pf_eq pf_pa : Leibniz / transport
+        t1 = infer(word[word[term + 16] + 8])            ; pf_eq : a = b
+        to reject when (t1 == 0)
+        to eqelim1
+    }
+    state eqelim1 {
+        to reject when (word[t1] != 5)                   ; must be an equality
+        t2 = infer(word[word[term + 16] + 16])           ; pf_pa : P(a)
+        to reject when (t2 == 0)
+        to eqelim2
+    }
+    state eqelim2 {
+        to reject when (type_eq(t2, subst_prop(word[term + 8], word[t1 + 8], 0)) == 0)
+        return subst_prop(word[term + 8], word[t1 + 16], 0)   ; P(b)
+    }
+    state d27 { to disj when (tag == 27)  to d28 }
+    state disj {                 ; DISJ pf : from (0 = s t), falsity
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to disj1
+    }
+    state disj1 {
+        to reject when (word[t1] != 5)                   ; pf must prove an equality
+        t2 = normalize(word[t1 + 8], 100000)
+        t3 = normalize(word[t1 + 16], 100000)
+        to disj_zs when (word[t2] == 30)                 ; ZERO vs SUC
+        to disj_sz
+    }
+    state disj_zs {
+        to disj_yes when (word[t3] == 31)
+        to disj_sz
+    }
+    state disj_sz {
+        to disj_sz2 when (word[t2] == 31)                ; SUC vs ZERO
+        return 0
+    }
+    state disj_sz2 {
+        to disj_yes when (word[t3] == 30)
+        return 0
+    }
+    state disj_yes { return alloc(3, 0, 0) }             ; falsity
+    state d28 { to sinj when (tag == 28)  to d42 }
+    state sinj {                 ; SINJ pf : from (s a = s b), (a = b)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to sinj1
+    }
+    state sinj1 {
+        to reject when (word[t1] != 5)
+        t2 = normalize(word[t1 + 8], 100000)
+        t3 = normalize(word[t1 + 16], 100000)
+        to reject when (word[t2] != 31)                  ; both sides must be successors
+        to reject when (word[t3] != 31)
+        return alloc(5, word[t2 + 8], word[t3 + 8])      ; (= a b)
+    }
+    ; ---- list membership: Mem(x,L) is Rel(777, x, L), an inductive predicate with two
+    ; introduction rules (head/tail) and matching inversions (cons/nil). Sound because the
+    ; ONLY closed sources of Rel(777,..) are these intros, so the inversions are valid.
+    state d42 { to memhead when (tag == 42)  to d43 }
+    state memhead {              ; MEMHEAD x t : Mem(x, cons(x,t))   [no premise]
+        t1 = word[term + 8]      ; x
+        t2 = word[term + 16]     ; t
+        return alloc(9, 777, alloc(99, t1, alloc(36, t1, t2)))
+    }
+    state d43 { to memtail when (tag == 43)  to d44 }
+    state memtail {              ; MEMTAIL h pf : from Mem(x,t) infer Mem(x, cons(h,t))
+        t1 = infer(word[term + 16])                      ; pf : Mem(x,t) = Rel(777, x, t)
+        to reject when (t1 == 0)
+        to memtail1
+    }
+    state memtail1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 777)
+        return alloc(9, 777, alloc(99, word[word[t1 + 16] + 8], alloc(36, word[term + 8], word[word[t1 + 16] + 16])))
+    }
+    state d44 { to memcons when (tag == 44)  to d45 }
+    state memcons {              ; MEMCONS pf : from Mem(x, cons(h,t)) infer (x=h) or Mem(x,t)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to memcons1
+    }
+    state memcons1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 777)
+        t2 = word[word[t1 + 16] + 16]                    ; L = the list argument
+        to reject when (word[t2] != 36)                  ; must be CONS(h,t)
+        return alloc(4, alloc(5, word[word[t1 + 16] + 8], word[t2 + 8]), alloc(9, 777, alloc(99, word[word[t1 + 16] + 8], word[t2 + 16])))
+    }
+    state d45 { to memnil when (tag == 45)  to d46 }
+    state memnil {               ; MEMNIL pf : from Mem(x, nil) infer falsity
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to memnil1
+    }
+    state memnil1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 777)
+        to reject when (word[word[word[t1 + 16] + 16]] != 35)   ; list argument must be NIL
+        return alloc(3, 0, 0)
+    }
+    ; ---- product-of-a-list as a relation: ProdIs(L,n) is Rel(778, L, n). The relational
+    ; fold of multiplication over built-in lists (built-in lists admit no `fun`, so the
+    ; product is expressed inductively). Two introduction rules, no inversion needed.
+    state d46 { to pnil when (tag == 46)  to d47 }
+    state pnil {                 ; PNIL : ProdIs(nil, 1)
+        return alloc(9, 778, alloc(99, alloc(35, 0, 0), alloc(31, alloc(30, 0, 0), 0)))
+    }
+    state d47 { to pcons when (tag == 47)  to d48 }
+    state pcons {                ; PCONS h pf : from ProdIs(t,m) infer ProdIs(cons h t, h*m)
+        t1 = infer(word[term + 16])                      ; pf : ProdIs(t,m) = Rel(778, t, m)
+        to reject when (t1 == 0)
+        to pcons1
+    }
+    state pcons1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 778)
+        return alloc(9, 778, alloc(99, alloc(36, word[term + 8], word[word[t1 + 16] + 8]), alloc(33, word[term + 8], word[word[t1 + 16] + 16])))
+    }
+    ; ---- ProdIs inversions (sound: the only closed source of Rel(778,L,n) is pnil/pcons) ----
+    state d48 { to pnilinv when (tag == 48)  to d49 }
+    state pnilinv {              ; PNILINV pf : from ProdIs(nil, n) infer n = 1
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to pnilinv1
+    }
+    state pnilinv1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 778)
+        to reject when (word[word[word[t1 + 16] + 8]] != 35)    ; list arg must be NIL
+        return alloc(5, word[word[t1 + 16] + 16], alloc(31, alloc(30, 0, 0), 0))   ; (= n 1)
+    }
+    state d49 { to pconsinv when (tag == 49)  to d57 }
+    state pconsinv {             ; PCONSINV pf : from ProdIs(cons h t, n) infer exists m. n=h*m & ProdIs(t,m)
+        t1 = infer(word[term + 8])
+        to reject when (t1 == 0)
+        to pconsinv1
+    }
+    state pconsinv1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 778)
+        t2 = word[word[t1 + 16] + 8]                            ; L = the list argument
+        to reject when (word[t2] != 36)                        ; must be CONS(h,t)
+        ; under the Exists binder (m = Iv 0), shift h/t/n up one: AND(EQ(n', MUL(h',m)), Rel(778, t', m))
+        return alloc(8, alloc(2, alloc(5, shift_term(word[word[t1 + 16] + 16], 1, 0), alloc(33, shift_term(word[t2 + 8], 1, 0), alloc(34, 0, 0))), alloc(9, 778, alloc(99, shift_term(word[t2 + 16], 1, 0), alloc(34, 0, 0)))), 0)
+    }
+    ; ---- list permutation: Perm(L1,L2) is Rel(779, L1, L2), four SOUND introduction rules.
+    ; nil: Perm(nil,nil); skip: cons-congruence; swap: adjacent transposition; trans: composition.
+    ; Intro-only - the only closed sources of Rel(779,..) are these, each a true permutation fact,
+    ; so (as with Mem/ProdIs) no inversion rule is needed and none can be unsoundly assumed.
+    state d57 { to permnil when (tag == 57)  to d58 }
+    state permnil {              ; PERMNIL : Perm(nil, nil)   [no premise]
+        return alloc(9, 779, alloc(99, alloc(35, 0, 0), alloc(35, 0, 0)))
+    }
+    state d58 { to permskip when (tag == 58)  to d59 }
+    state permskip {             ; PERMSKIP x pf : from Perm(t1,t2) infer Perm(cons x t1, cons x t2)
+        t1 = infer(word[term + 16])                      ; pf : Perm(t1,t2) = Rel(779, t1, t2)
+        to reject when (t1 == 0)
+        to permskip1
+    }
+    state permskip1 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 779)
+        return alloc(9, 779, alloc(99, alloc(36, word[term + 8], word[word[t1 + 16] + 8]), alloc(36, word[term + 8], word[word[t1 + 16] + 16])))
+    }
+    state d59 { to permswap when (tag == 59)  to d60 }
+    state permswap {             ; PERMSWAP x y r : Perm(cons x (cons y r), cons y (cons x r))   [no premise]
+        return alloc(9, 779, alloc(99, alloc(36, word[term + 8], alloc(36, word[word[term + 16] + 8], word[word[term + 16] + 16])), alloc(36, word[word[term + 16] + 8], alloc(36, word[term + 8], word[word[term + 16] + 16]))))
+    }
+    state d60 { to permtrans when (tag == 60)  return 0 }
+    state permtrans {            ; PERMTRANS pf1 pf2 : from Perm(a,b) & Perm(b,c) infer Perm(a,c)
+        t1 = infer(word[term + 8])                       ; pf1 : Rel(779, a, b)
+        to reject when (t1 == 0)
+        to permtrans1
+    }
+    state permtrans1 {
+        t2 = infer(word[term + 16])                      ; pf2 : Rel(779, b, c)
+        to reject when (t2 == 0)
+        to permtrans2
+    }
+    state permtrans2 {
+        to reject when (word[t1] != 9)
+        to reject when (word[t1 + 8] != 779)
+        to reject when (word[t2] != 9)
+        to reject when (word[t2 + 8] != 779)
+        to permtrans3
+    }
+    state permtrans3 {           ; the shared middle term must match up to conversion
+        to reject when (conv_eq(word[word[t1 + 16] + 16], word[word[t2 + 16] + 8]) == 0)
+        return alloc(9, 779, alloc(99, word[word[t1 + 16] + 8], word[word[t2 + 16] + 16]))
+    }
+}
+
+; peek (without consuming) whether the next form is a lemma definition "(def ...".
+proc at_def() {
+    let save = word[2097144]
+    skip_ws()
+    let r = 0
+    state p1 { to p2 when (cbyte() == '(')  to done }
+    state p2 {
+        adv()
+        skip_ws()
+        to setr when (cbyte() == 'd')    ; (def / (data
+        to chkf
+    }
+    state chkf { to setr when (cbyte() == 'f')  to chkp }   ; (fun
+    state chkp { to setr when (cbyte() == 'p')  to done }   ; (prod - the only 'p'-headed leading decl
+                                                            ; (goal is a prop, never lowercase-'p'-headed)
+    state setr { r = 1  to done }
+    state done { word[2097144] = save  return r }
+}
+
+proc main() {
+    slurp()
+    ; Lemma definitions first: (def N type proof).  Each proof is VERIFIED against its
+    ; stated type before the lemma is usable; (use N) then cites the verified type.
+    let lt = 0
+    let lp = 0
+    let n = 0
+    let kind = 0
+    state input {
+        to reject when (prepare_input() == 0)
+        to defloop
+    }
+    state defloop {
+        to defbody when (at_def() == 1)
+        to goal
+    }
+    state defbody {
+        skip_ws()
+        adv()                    ; '('
+        skip_ws()
+        to kfun when (cbyte() == 'f')     ; (fun FID CID body)
+        to kprod when (cbyte() == 'p')    ; (prod CID) - mark a sole-constructor product
+        adv()                    ; 'd'
+        kind = cbyte()           ; 'e' = def (lemma) ; 'a' = data (constructor decl)
+        skip_ident()             ; rest of "def" / "data"
+        skip_ws()
+        n = parse_number()       ; lemma number OR constructor id
+        to kdata when (kind == 'a')
+        to kdef
+    }
+    state kfun {                 ; (fun FID CID body) - one rewrite rule of function FID
+        to reject when (word[2097064] != 0)
+        skip_ident()             ; "fun"
+        skip_ws()
+        n = parse_number()       ; FID
+        to reject when (n < 0)
+        to reject when (n >= 768)
+        skip_ws()
+        let fcid = parse_number()  ; CID (which constructor this rule fires on)
+        to reject when (fcid < 0)
+        to reject when (fcid >= 64)
+        let fslot = 10092544 + (n * 64 + fcid) * 8
+        to reject when (word[fslot] != 0)
+        let fbody = parse_nat()    ; rule body (over pattern var (v 0) and (rec 0))
+        expect(')')
+        to reject when (word[2097072] != 0)
+        word[fslot] = fbody       ; FRULE[fid][cid] = body
+        to defloop
+    }
+    state kdata {                ; (data CID ARITY R0 R1) - record a constructor's shape
+        to reject when (word[2097064] != 0)
+        to reject when (n < 0)
+        to reject when (n >= 64)
+        to reject when (word[10616832 + n * 8] != 0)
+        skip_ws()
+        let arity = parse_number()
+        to reject when (arity < 0)
+        to reject when (arity > 2)
+        skip_ws()
+        let rec0 = parse_number()
+        to reject when (rec0 < 0)
+        to reject when (rec0 > 1)
+        skip_ws()
+        let rec1 = parse_number()
+        to reject when (rec1 < 0)
+        to reject when (rec1 > 1)
+        to kdata_a0 when (arity == 0)
+        to kdata_a1 when (arity == 1)
+        to kdata_finish
+    }
+    state kdata_a0 {
+        to reject when (rec0 != 0)
+        to reject when (rec1 != 0)
+        to kdata_finish
+    }
+    state kdata_a1 {
+        to reject when (rec1 != 0)
+        to kdata_finish
+    }
+    state kdata_finish {
+        expect(')')
+        to reject when (word[2097072] != 0)
+        word[9699328 + n * 8] = arity       ; ARITY
+        word[9830400 + n * 8] = rec0        ; REC0
+        word[9961472 + n * 8] = rec1        ; REC1
+        word[10616832 + n * 8] = 1          ; declared exactly once
+        to defloop
+    }
+    state kprod {                ; (prod CID) - assert CID is its type's SOLE constructor, licensing prodrec
+        to reject when (word[2097064] != 0)
+        skip_ident()             ; "prod"  (cursor is at 'p'; not yet advanced)
+        skip_ws()
+        n = parse_number()       ; CID
+        to reject when (n < 0)
+        to reject when (n >= 64)
+        to reject when (word[10485760 + n * 8] != 0)
+        expect(')')
+        to reject when (word[2097072] != 0)
+        word[10485760 + n * 8] = 1                    ; PRODUCTS[CID] = 1
+        to defloop
+    }
+    state kdef {
+        to reject when (kind != 'e')
+        to reject when (n < 0)
+        to reject when (n >= 32768)
+        to reject when (word[9437184 + n * 8] != 0)
+        word[2097064] = 1
+        to do_def
+    }
+    state do_def {               ; (def N type proof) - a verified-then-cited lemma
+        lt = parse_type()
+        lp = parse_term()
+        expect(')')
+        lp = infer(lp)
+        to reject when (lp == 0)
+        to do_def2
+    }
+    state do_def2 {
+        to reject when (type_eq(lp, lt) == 0)
+        word[9437184 + n * 8] = lt
+        to defloop
+    }
+    state reject { emit("reject\n")  return 0 }
+    state goal {
+        let g = parse_type()
+        let term = parse_term()
+        skip_ws()
+        to reject when (word[2097072] != 0)
+        to reject when (word[2097144] != word[2097136])
+        let proved = infer(term)
+        to reject when (proved == 0)
+        to verdict
+    }
+    state verdict {
+        to reject when (word[2097072] != 0)
+        to accept when (type_eq(proved, g) == 1)
+        emit("reject\n")
+        return 0
+    }
+    state accept { emit("accept\n")  return 1 }
+}

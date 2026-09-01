@@ -3,19 +3,18 @@
 [Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
 > **Status: ROOTED CHECKER SERVICE; EDGE ADMISSION OPEN.** The authoritative
-> Beta implementation and one temporary independent diagnostic reference exercise the shared calculus, and the accepted checker
-> tape is constructed directly from the Alpha-written Beta compiler source,
-> independently of the persisted Beta compiler artifact. The lattice
+> Gamma implementation and one temporary independent diagnostic reference exercise the shared calculus, and the accepted checker
+> tape is constructed from Gamma source by the canonical Gamma compiler artifact. The lattice
 > requires every compiler edge to relate its immediate-predecessor source
 > directly to Alpha tape. Former self-host-specific proof machinery was deleted;
-> retained machinery targets the canonical Alpha-written Beta compiler or a
+> retained machinery targets the canonical Beta-to-Gamma compiler edge or a
 > later source-to-tape edge. No coinductive kernel extension is selected.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
-through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned
+through it, and it adds no stage between Delta and Epsilon. It is an Alpha-owned
 service used by producers and artifact verifiers throughout the build lattice.
 
-Its canonical owner is `source/alpha/checker/`. The authoritative Beta and
+Its canonical owner is `source/alpha/checker/`. The authoritative Gamma and
 untrusted executable reference implementations live under `implementations/`;
 the one retained deterministic generator and executable policy live under
 `corpus/` and `gates/`. A theorem library, proof-search stack, conversion layer,
@@ -26,10 +25,10 @@ derivation checker. Its role name does not move it into the bootstrap assurance
 owner.
 
 ```text
-Alpha source ───────────────▶ Beta compiler tape
-Beta source  ───────────────▶ Gamma compiler tape
-Gamma source ───────────────▶ Delta compiler tape
-Delta source D ─────────────▶ omega₀ compiler tape
+Beta source ───────────────▶ Gamma compiler tape
+Gamma source  ───────────────▶ Delta compiler tape
+Delta source ───────────────▶ Epsilon compiler tape
+Epsilon source D ─────────────▶ omega₀ compiler tape
 Omega source C ─────────────▶ omega compiler tape
                  all targets are exact Alpha tape
 
@@ -82,7 +81,7 @@ version. `FloatMeaningEqual` accepts only same-carrier terms, and its dedicated
 reflexivity rule treats an identical NaN projection as reflexive while exact
 literal bits keep positive and negative zero distinct. Ordinary equality and
 generic predicates/relations cannot consume the term. Capture-avoiding
-substitution preserves the closed key unchanged, and the authoritative Beta
+substitution preserves the closed key unchanged, and the authoritative Gamma
 checker plus the independent diagnostic comparator reject every mutated tuple
 in the retained diamond. Terminal now retains the corresponding closed
 artifact descriptor: rooted tuples `(32, 1, 1, 1)` / `(64, 2, 2, 1)` and a
@@ -97,18 +96,19 @@ slice.
 
 The currently retained implementations are:
 
-- `source/alpha/checker/implementations/beta/check.beta` — logical proof checking in Beta;
-- `source/alpha/checker/implementations/beta/eq.beta` — fuel-bounded definitional equality;
+- `source/alpha/checker/implementations/gamma/check.gamma` — logical proof checking in Gamma;
+- `source/alpha/checker/implementations/gamma/eq.gamma` — fuel-bounded definitional equality;
 - `source/alpha/checker/implementations/reference/check_ref.py` — one
   independently written, untrusted complete diagnostic checker.
 
 The compact discriminator and adversarial suites exercise the authoritative
 checker. One deterministic differential generator checks the complete retained
 rule set against the independent reference, and one bounded operational seam
-compares definitional equality with Gamma evaluation. Agreement is evidence
+compares definitional equality with Delta evaluation. Agreement is evidence
 while the formal soundness bridge matures; it does not grant the reference
 authority over artifact-specific obligation reconstruction. The accepted
-checker artifact is reconstructed independently below `bc`. Checker acceptance
+checker artifact is reconstructed independently through the canonical Gamma
+compiler artifact. Checker acceptance
 can authorize a compiler edge only after an artifact-aware producer
 reconstructs the exact proposition and supplies a derivation in the kernel's
 supported calculus.
@@ -140,7 +140,7 @@ reconstructed independently from the fingerprinted artifact. A producer cannot
 omit an access, weaken a contract, relabel a derived fact as admitted, or attach
 a valid theorem to unrelated code.
 
-This is why Gamma is not “the Psi proof checker.” Gamma's evaluator participates
+This is why Delta is not “the Psi proof checker.” Delta's evaluator participates
 only in one bounded semantic diagnostic; it does not own checker authority. A
 low-rung Psi-aware semantic-ledger generator supplies the artifact-specific
 reconstruction assurance. A future Psi- or Omega-hosted kernel
@@ -247,7 +247,7 @@ the execution trace, not the profile, carries runtime values. Terminal sites
 remain correspondence coordinates rather than user-visible values. Fuel,
 timeouts, `Incomplete`, compiler diagnostics/artifact bytes, and deployment
 admissions extend consumer/product subjects instead of redefining Terminal
-meaning. A product such as the Delta compiler composes those observations over
+meaning. A product such as the Epsilon compiler composes those observations over
 `TerminalTraceV1`.
 
 The profile schema and one module-scoped instance are distinct. The consumer
@@ -303,7 +303,7 @@ An untrusted elaborator may construct or compress those derivations; it cannot
 add a trusted LTS judgment or assert a reconstructed premise. Reusable generic
 simulation lemmas are checked once and referenced through a shared proof DAG.
 
-The Alpha assembly source used to construct the Beta compiler is not such an
+The Beta assembly source used to construct the Gamma compiler is not such an
 edge. Its authoritative encoder must produce the exact persisted tape; byte
 equality gives identical Alpha initial programs and therefore lockstep traces.
 That one root equality may be derived from bounded checked pass-one and pass-two
@@ -313,7 +313,7 @@ encoding against that frozen state. One checked joint and composition proof
 establish per-pass adjacency, unique ownership, canonical endpoints, and total
 exhaustion. The certificate producer may choose cuts but cannot choose the
 relation, subjects, schemas, joint, endpoints, or root proposition. Non-lockstep
-machinery begins with proving that the compiler correctly lowers arbitrary Beta
+machinery begins with proving that the compiler correctly lowers arbitrary Gamma
 source, and with later compiler rungs.
 
 The first implementation must measure certificate size and checking time and
@@ -325,7 +325,7 @@ expressiveness failure can reopen the kernel-rule decision.
 
 ## Producer and self-host boundaries
 
-The Delta-written compiler `D`, `omega₀`, and production Omega may all emit
+The Epsilon-written compiler `D`, `omega₀`, and production Omega may all emit
 certificates. No compiler decides whether its own evidence is valid. A compiler
 bug can reproduce into production Omega, but it
 cannot forge a derivation accepted by an independent sound kernel or choose a

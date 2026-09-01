@@ -1,116 +1,81 @@
-# Rung: Gamma — safe definitional computation
+# Rung: Gamma — structured compiler construction
 
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Beta](beta.md) | Next:
 [Delta](delta.md)
 
-Gamma is the first safe definitional rung: enough algebraic data, pattern
-matching, typing, and recursion to implement the Delta compiler without making
-Beta understand Delta.
+Gamma turns Beta-level tape construction into a small language suitable for writing
+the Delta compiler. It resembles Omega control flow without importing higher
+types, effects, ownership, or proofs.
 
 ## Adds
 
-- algebraic data types and pattern matching;
-- checked signed integers and compact immutable bytes;
-- pure functions, recursion, and proper tail calls;
-- a small monomorphic static type system; and
-- explicit, bounded evaluation resources.
+- named procedures, parameters, locals, calls, and recursion;
+- explicit stack frames and a fixed calling convention;
+- recursively organized state blocks that flatten to one procedure-wide CFG,
+  guarded transitions, and fixed-point definite initialization;
+- one fixed-width scalar plus raw byte/word memory; and
+- deterministic byte I/O and fixed-text emission.
 
-Gamma has one typed executable contract: `data* def*`, exhaustive matches,
-nominal immutable data, and no trailing untyped expression. The required
-compiler artifact is written in Beta and emits Alpha tape for arbitrary source
-accepted by that contract. An interpreter may remain a bounded oracle, but the
-canonical edge yields a standalone tape for the Gamma-written Delta compiler
-without an external Beta compiler or host transformation.
+Gamma's meaning is the written small-step
+[`SEMANTICS.md`](../../../../source/gamma/SEMANTICS.md). The canonical Gamma
+compiler is written in Alpha and emits Alpha tape. Its output is the standalone
+compiler used to consume the Gamma-written Delta compiler source.
 
-## Direct responsibility
+Nested state braces are an authoring aid for substantial compiler CFGs, not a
+second control hierarchy. Labels and locals remain procedure-wide; exact
+depth-first lexical flattening and every-path initialization keep the Alpha
+compiler and its proof obligations finite and explicit.
 
-```text
-Beta-written Gamma compiler source
-  └─ beta_compiler.tape ─▶ gamma_compiler_bytecode.tape
+## Current implementation
 
-Gamma-written Delta compiler source
-  └─ gamma_compiler_bytecode.tape ─▶ delta_compiler_bytecode.tape
-```
+The repository promotes `compiler/gamma_compiler.beta` directly as the Gamma
+compiler. Its persisted artifact is the one-step output of the Beta-written
+assembler. The historical Gamma self-host was deleted after the direct artifact
+and focused compiler gate subsumed its useful migration role.
 
-Gamma implements the Delta compiler. It does not merely provide an evaluator
-for a Beta-written translator that already parsed Delta.
-
-D19 makes the generated application adapter a sealed compilation input rather
-than Gamma syntax. `ConformanceBytesV1` selects pure
-`main : Bytes -> Bytes`; `DeltaCompilerV1` selects the source-owned pure
-`main : Bytes -> DeltaCompileOutcome`. The latter sum contains success, a
-structured Delta rejection, and D31/D34's attributed/aggregate bounded-witness
-application-static-storage refusals. Its profile-owned reason-code table is
-checked as a complete bijection over the exact resolved constructors before
-emission. A generated
-Alpha adapter owns sealed byte I/O, validates the sole source-authored
-Incomplete resource, and owns every private exhaustion, internal failure, and
-selected external observation. Gamma source receives no general I/O primitive
-and matching names do not select `DCOUT`.
-
-D20 fixes the resolver beneath those profiles. Types, constructors, functions,
-and local values occupy four grammar-selected namespaces. Globals are unique
-within their own namespace; local bindings cannot shadow an active binding but
-may reuse names in disjoint scopes. Collection precedes mutually visible type
-resolution, and duplicates reject at the exact later declaration or binder.
-
-D21 requires every valid `Bytes` logical length to fit nonnegative `Int`.
-Concatenation checks the operands' stored logical lengths before allocation and
-traps on an exact sum above `INT64_MAX`; physical storage exhaustion remains
-`Incomplete`. D19 profiles validate their sealed-input maxima against the same
-bound before adapter emission.
-
-## Current migration
-
-`source/gamma/compiler/gamma_compiler.beta` now owns the moved strict frontend,
-direct Alpha payload/fixup substrate, executed heap/stack and checked-`Int`
-helpers, resolved expression lowering, and profile-neutral whole-function
-label/body emission. It also validates both exact D19 source schemas and the
-26-code Delta rejection bijection without declaration-order authority. D30
-fixes the physical `GCREQ`, profile limits, generated-runtime observations, and
-`GCOUT`/`DCOUT` tables. D33 fixes bounded length admission before body exact-end
-work, total schema-category priority, absence coordinates, and request-profile
-code availability. The adapters remain incomplete and there is no published
-tape. Its
-251,142-byte historical fixed gate exhausted the former V1 Alpha ceiling before
-those later slices and the D19 adapters. D23 therefore selects the coherent
-`AlphaBootstrapV2` profile—a one-MiB stamped hole and 1,048,572-byte raw-tape
-maximum across seeds, compilers, checker, and exact gates—rather than another
-Gamma-specific density gate or private execution path.
-`source/gamma/interp.beta` remains a bounded semantic oracle; it does not define
-an alternate Gamma language or a serialized-AST runtime. Their
-now-hardened historical omission of match exhaustiveness remains the warning
-that differential agreement cannot establish a rule both sides omit. The former
-Beta-written Delta-to-Gamma route was outside Gamma ownership and is deleted
-rather than retained as the Delta edge or a compatibility layer.
-
-D58 settles how the complete Gamma compiler revises the Beta compiler's private
-resource profile. The current incomplete source's 965 calls, 739 states, and 586
-edges are a baseline, not a final projection. A roomy noncanonical Beta compiler
-stages the complete source; final procedures, calls, states, edges, derived
-initialization storage, fixups, tape, and maximum work are then measured
-conjunctively. Each independently provisioned authored-structure count receives
-the least power-of-two provision with at most 75 percent occupancy; derived
-guards remain bound to their owners and tape capacity remains D23-owned. Changed
-tables move above the fixup table in the same atomic publication as the rebuilt
-Beta tape and admission subject.
+Evidence tied specifically to “Gamma source admits the Gamma compiler” does not
+apply to this edge and cannot be reused as authority.
 
 ## Must not contain
 
-No mutable host memory, hardware boundary, package manager, product optimizer,
-or Delta parser hidden in Beta. Proof checking is not a Gamma language feature;
-the universal checker remains Alpha-owned and outside the language rung.
+No algebraic data types, pattern matching, safe ownership, regions, effects,
+generics, or proof language. Gamma does not parse Epsilon or manufacture Epsilon
+semantics. Its only upward compiler responsibility is Delta.
+
+## Canonical artifact
+
+```text
+Beta-written Gamma compiler source
+  └─ audited Alpha construction/refinement ─▶ gamma_compiler_bytecode.tape
+```
+
+The tape is platform-independent. Native seeds merely execute it.
+
+Its construction certificate derives one exact source-to-payload root equality
+from bounded checked assembler lemmas. Pass-one and pass-two partitions compose
+through one checked frozen-label-map joint; certificate-selected cuts carry no
+authority. Source and payload byte counts are derived artifact observations, so
+any edit or size reduction rebuilds and rechecks this certificate rather than
+changing the architecture.
+
+The compiler boundary is a closed `Complete` / `Reject` / `Incomplete` /
+`InternalFailure` result. Alpha halt values 0/1/2/3 carry only that case tag.
+Successful stdout remains the exact runnable payload; failures carry the
+versioned diagnostic frame defined by the compiler owner and can never publish
+an artifact. `Reject` means a Gamma rule was observed to fail. `Incomplete`
+means only that this compiler's private profile was insufficient. Generated
+program statuses remain runtime observations rather than compiler failures.
+D30 preserves Gamma's 250 StackExhausted and 251
+MemoryContainmentViolation meanings inside the common 248-through-254
+generated-program block; Alpha's VM trap remains 132 and 255 is noncanonical.
 
 ## Implementation frontiers
 
-- retain D23's coherent `AlphaBootstrapV2` profile and the consolidated adjacent
-  conformance gate until D58 atomically publishes its measured private-table
-  revision;
-- implement D30's exact physical profiles, complete the two D19-selected
-  adapters and remaining lowering in the exact Gamma compiler source, then
-  publish its artifact closure;
-- reuse the interpreter only as a specification or isolated algorithm source
-  without turning runtime interpretation into a permanent dependency;
-- emit exact Alpha tapes and checked source-to-tape certificates; and
-- escalate on terrible compiler performance, Alpha verbosity, or proof
-  explosion rather than adding special Gamma accelerators.
+- complete the Beta-written compiler for the Gamma surface required by the
+  Delta compiler;
+- guard explicit data/return stacks and expose fail-closed resources;
+- check the exact Beta-assembly-source-to-tape encoding of the compiler
+  artifact, then separately prove that compiler correct for arbitrary admitted
+  Gamma source; and
+- escalate rather than extend Alpha locally if realistic Delta compiler source
+  creates unacceptable tape verbosity or performance.

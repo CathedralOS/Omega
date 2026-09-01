@@ -1,0 +1,28 @@
+; factorial.beta - recursive factorial using the data-stack calling convention.
+; r15 = data stack pointer (grows down). arg in r0, result in r0.
+; Proves real recursion with per-call frames - no fixed globals. factorial(5) = 120.
+; See ../CALLING_CONVENTION.md.
+
+        imm   r15, 1048576      ; init data stack pointer (1 MiB; grows downward)
+        imm   r0, 5             ; factorial(5)
+        call  factorial
+        halt  r0                ; exit code = 120
+
+factorial:
+        imm   r1, 2
+        jlt   r0, r1, fact_one  ; n < 2  ->  return 1
+        ; frame: one slot, save n across the recursive call
+        imm   r1, 8
+        sub   r15, r1
+        store r15, r0           ; [dsp] = n
+        imm   r1, 1
+        sub   r0, r1            ; r0 = n - 1
+        call  factorial         ; r0 = (n-1)!
+        load  r1, r15           ; r1 = n  (reloaded from the frame)
+        mul   r0, r1            ; r0 = n * (n-1)!
+        imm   r1, 8
+        add   r15, r1           ; pop the frame
+        ret
+fact_one:
+        imm   r0, 1
+        ret

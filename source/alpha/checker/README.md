@@ -7,7 +7,7 @@ compiler edge. It answers one bounded question:
 Does certificate C derive proposition P under the declarations in the input?
 ```
 
-Only the persisted Alpha tape built from `implementations/beta/check.beta` has
+Only the persisted Alpha tape built from `implementations/gamma/check.gamma` has
 authority to answer that question. Proof search, artifact-obligation
 reconstruction, compiler execution, and deployment policy remain outside the
 checker. In particular, the checker does not decide that a valid derivation is
@@ -18,23 +18,21 @@ bind the exact subject and construct the proposition independently.
 
 ```text
 audited Alpha seed
-  + Alpha-written assembler
-  + source/beta/compiler/beta_compiler.alpha
-      -> fresh Beta compiler tape
-      -> implementations/beta/check.beta
+  + gamma_compiler_bytecode.tape
+      -> implementations/gamma/check.gamma
       -> artifacts/proof_checker_bytecode.tape
       -> accept | reject
 ```
 
-`reconstruct-artifact.sh` repeats this construction without trusting the
-persisted Beta compiler tape and compares the result byte-for-byte. This closes
-the checker's construction route; it does not by itself prove the Beta
+`reconstruct-artifact.sh` repeats this construction with the exact canonical
+Gamma compiler tape and compares the result byte-for-byte. This closes
+the checker's construction route; it does not by itself prove the Gamma
 compiler correct. Exact source-to-tape edge admission still requires the
 artifact-bound derivation tracked in `TASKS_BOOTSTRAP.md`.
 
 Input is a declaration prefix followed by one proposition and one proof term.
 Output is `accept` with exit status 1 or `reject` with exit status 0. The
-calculus implemented by `check.beta` includes constructive propositional and
+calculus implemented by `check.gamma` includes constructive propositional and
 first-order rules, computation-aware equality, natural/list/user-data
 induction, equality transport, no-confusion, named lemmas, bounded user-function
 reduction, list membership, and product witnesses. The compact gate suite owns
@@ -135,7 +133,7 @@ subjects, boundary-state schemas, composition theorem, canonical endpoints, and
 root proposition, while checked adjacency, ownership, and exhaustion decide
 whether a proposed partition is valid.
 
-The canonical Beta checker must publish an exact resource profile for its
+The canonical Gamma checker must publish an exact resource profile for its
 arena, semantic stack, framed input, certificate, declaration, and lemma tables.
 Artifact producers target that profile rather than the unbounded diagnostic
 reference implementation. A future authoritative replacement must continue to
@@ -162,7 +160,7 @@ maximum fits the arena. A candidate accepts only if its exact framed subjects,
 declarations, proof, inference, and all retained normal forms fit every row.
 Anything other than status 1 with exact `accept\n` is non-acceptance.
 
-The V2 gate retains a real maximum-size Beta-compiler output together with its
+The V2 gate retains a real maximum-size Gamma-compiler output together with its
 source, named subject lemmas, bounded raw-tree selection, normalization, and
 conversion scratch. Separate exact-maximum and adjacent cases pin every frame
 extent, while a balanced structural identity rebuild crosses the published
@@ -184,7 +182,7 @@ discarded possibilities.
 
 | Retained child | Bounded role | Deletion condition |
 | --- | --- | --- |
-| `implementations/` | Authoritative Beta checker, its bounded equality seam, and one independent diagnostic reference. | Delete a diagnostic implementation when no retained gate consumes it; replace the Beta checker only atomically with the accepted checker tape. |
+| `implementations/` | Authoritative Gamma checker, its bounded equality seam, and one independent diagnostic reference. | Delete a diagnostic implementation when no retained gate consumes it; replace the Gamma checker only atomically with the accepted checker tape. |
 | `artifacts/` | One persisted platform-independent Alpha checker tape. | Delete when an equally low or lower accepted checker artifact replaces the service. |
 | `gates/` | Compact rule discriminators, adversarial rejects, one complete independent diamond, and one operational equality seam. | Delete a gate when subsumed by a stronger formal check or when its implementation/seam is retired. |
 | `corpus/` | The deterministic generator for the single independent checker diamond. | Delete with that diamond or replace atomically with its successor generator. |
@@ -194,7 +192,7 @@ Root scripts are retained only for exact construction and loading:
 | File | Role | Deletion condition |
 | --- | --- | --- |
 | `artifact_env.sh` | Stamp the accepted tape into the selected audited Alpha seed. | Delete when the canonical Alpha executor accepts a tape without stamping. |
-| `construct-artifact.sh` | Construct the checker tape through the exact below-Beta route. | Delete when the authoritative checker source or immediate construction edge changes. |
+| `construct-artifact.sh` | Construct the checker tape with the canonical Gamma compiler artifact. | Delete when the authoritative checker source or immediate construction edge changes. |
 | `reconstruct-artifact.sh` | Compare a fresh construction to the persisted tape and run accept/reject controls. | Delete when a stronger exact construction gate fully subsumes it. |
 
 ## Principal checks

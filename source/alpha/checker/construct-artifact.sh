@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# Construct proof_checker_bytecode.tape directly through the Alpha assembler
-# and canonical Alpha-written Beta compiler. No Beta self-host or
-# post-compilation assembler stage participates.
+# Construct proof_checker_bytecode.tape with the canonical Gamma compiler tape.
+# No frontend or host compiler state participates in this construction step.
 set -eu
 
 [ "$#" -eq 1 ] || { echo "usage: $0 OUTPUT_TAPE" >&2; exit 2; }
@@ -16,12 +15,10 @@ unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
 
-ASSEMBLER="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 TMP=$(mktemp -d)
-trap 'trash "$TMP"' EXIT
+trap 'rm -rf -- "$TMP"' EXIT
 
-"$ASSEMBLER" < "$OMEGA_PATH_BETA_COMPILER/beta_compiler.alpha" > "$TMP/compiler.tape"
-stamp_seed "$TMP/compiler.tape" "$SEED" "$TMP/compiler" >/dev/null
-"$TMP/compiler" < "$SCRIPT_DIR/implementations/beta/check.beta" > "$TMP/proof_checker_bytecode.tape"
+stamp_seed "$OMEGA_PATH_GAMMA_COMPILER_TAPE" "$SEED" "$TMP/compiler" >/dev/null
+"$TMP/compiler" < "$SCRIPT_DIR/implementations/gamma/check.gamma" > "$TMP/proof_checker_bytecode.tape"
 cp "$TMP/proof_checker_bytecode.tape" "$1"

@@ -1,6 +1,6 @@
 # Omega product toolchain
 
-[Lattice overview](bootstrap_lattice.md) | [Delta](rungs/delta.md) |
+[Lattice overview](bootstrap_lattice.md) | [Epsilon](rungs/epsilon.md) |
 [Compiler source profile](compiler_source_profile.md)
 
 Omega is the product-language endpoint. Psi is the publishable target-neutral
@@ -9,10 +9,10 @@ after PCC at a canonical Terminal Psi product, which a later interpreter or
 native lowerer consumes under its own realization authority.
 
 ```text
-Gamma-written Delta compiler ─▶ delta_compiler.tape
+Delta-written Epsilon compiler ─▶ epsilon_compiler.tape
 
-Delta-written Omega D
-  └─ delta_compiler.tape ─────▶ omega₀.tape
+Epsilon-written Omega D
+  └─ epsilon_compiler.tape ─────▶ omega₀.tape
 
 Omega-written Omega C
   └─ omega₀.tape ─────────────▶ omega.tape
@@ -20,19 +20,19 @@ Omega-written Omega C
 
 `omega₀` and `omega` are full Omega compilers represented canonically as Alpha
 tapes. `omega₀` may itself be unoptimized, but the optimizer implemented by its
-Delta-written source can run while compiling `C`, producing a better `omega`.
+Epsilon-written source can run while compiling `C`, producing a better `omega`.
 
 ## Source ownership
 
-- `source/delta/compiler/` owns the Gamma-written compiler that accepts Delta.
-- the Delta-written first Omega compiler source closure `D` belongs under
-  `source/omega/`, even though its files end in `.delta`;
+- `source/epsilon/compiler/` owns the Delta-written compiler that accepts Epsilon.
+- the Epsilon-written first Omega compiler source closure `D` belongs under
+  `source/omega/`, even though its files end in `.epsilon`;
 - `source/{psi,omega}/` owns the Omega-written self-hosting closure `C` and the
   product target-neutral/target-specific split; and
 - `source/omega-rust/{psi,omega}/` remains the working Rust implementation and
   comparator without bootstrap authority.
 
-The former restricted Delta-written Darwin compiler prototype was deleted
+The former restricted Epsilon-written Darwin compiler prototype was deleted
 rather than relabeled as `D`. It lacked the complete Omega frontend, Psi
 pipeline, optimizer, and product target model; the real closure `D` is being
 authored under `source/omega/` from the full contract.
@@ -97,8 +97,8 @@ because the generated unit did not cross the request boundary.
 
 The compiler programs themselves remain Alpha tapes. Omega may emit native user
 artifacts for ARM64, x86-64, UEFI, or other targets and may attach PCC evidence
-to those artifacts. That product target machinery does not require Beta, Gamma,
-or Delta to emit native code.
+to those artifacts. That product target machinery does not require Gamma, Delta,
+or Epsilon to emit native code.
 
 An optional general Alpha AOT realization can accelerate execution of
 `omega₀.tape` or `omega.tape`, but it is checked against Alpha semantics and may
@@ -106,7 +106,7 @@ not specialize recognized compiler functions.
 
 ## Assurance
 
-Both Omega tapes owe direct source-to-Alpha refinement. The first uses Delta
+Both Omega tapes owe direct source-to-Alpha refinement. The first uses Epsilon
 semantics for `D`; the second uses Omega semantics for `C`. Their different
 source languages and expected different bytes are explicit. Neither a
 self-build nor agreement with Rust substitutes for either proposition.

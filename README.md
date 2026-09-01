@@ -129,11 +129,11 @@ portable format.
 
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
-The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Omega. The published Delta-produced compiler compiles the exact production source closure `C`, deliberately written with a conservative subset of ordinary Omega, into a first binary `omega₀`; `omega₀` then recompiles the same `C` into production `omega`. The subset is an incidental property of the source, not another language or compiler artifact. Its active queue lives in
+The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Epsilon → Omega. Alpha is raw tape execution; Beta is its textual assembly. The Epsilon-written compiler closure `D` produces the first full Omega compiler `omega₀`, which compiles the Omega-written closure `C` into production `omega`. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_lattice/repository_structure.md).
-The literal Delta v1 contract and the incidental ordinary-Omega surface used by
+The literal Epsilon v1 contract and the incidental ordinary-Omega surface used by
 the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 [`source/omega/README.md`](source/omega/README.md) describes the product-source side;

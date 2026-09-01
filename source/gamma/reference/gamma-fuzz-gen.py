@@ -1,51 +1,90 @@
 #!/usr/bin/env python3
-# gamma-fuzz-gen.py SEED — emit ONE random, valid, TERMINATING, int-returning Gamma program, chosen
-# deterministically from SEED. gamma-diamond-py.sh runs it through both interp.beta and gamma_ref.py and
-# asserts they agree, differential-testing the meaning substrate over ADTs / match / recursion / arithmetic.
+# gamma-fuzz-gen.py SEED — emit ONE random, valid, TERMINATING Gamma program to stdout, chosen
+# deterministically from SEED. Used by gamma-correctness-fuzz.sh to differential-test the Gamma COMPILER:
+# the program is both interpreted (gamma_interp.py) and compiled by the Gamma compiler + run on the VM,
+# and the two must agree — so a Gamma compiler miscompile shows up as a disagreement.
 #
-# Templates (each terminating by construction):
-#   arith    — a nested arithmetic/comparison/if expression over constants
-#   nat-rec  — structural recursion over a Peano Nat (match Z / (S m), recurse on m)
-#   list-rec — structural recursion over a List of ints (match Nil / (Cons h t), recurse on t)
-# div/mod by a possibly-zero value is fine: both evaluators trap identically (exit 132).
+# The program is one of several TEMPLATES, each terminating by construction, together covering the
+# compiler's back end broadly:
+#   expr  — a DAG of value-returning procs (proc f{i} calls only f{j>i}): expression codegen + the calling
+#           convention + div/mod (incl. traps, which both sides hit identically -> exit 132)
+#   loop  — a bounded counting loop accumulating a value: state/CFG control flow + guarded transitions
+#   rec   — structural recursion on a decreasing argument: recursion + frames + a base-case guard
+#   mem   — fill a word[] buffer then sum it back: byte[]/word[] memory codegen
+# NOTE: Gamma uses `;` for COMMENTS, so statements are whitespace-separated (never `;`-separated).
 import sys, random
 
-OPS = ['+', '-', '*', '/', '%', 'eq', 'lt']
-
-def arith(rng, depth, atoms):                          # atoms = int-valued expressions in scope (strings)
+def gen_arith(rng, depth, params):                     # +,-,* only (trap-free, value-varied) over params/consts
     if depth <= 0 or rng.random() < 0.4:
-        if atoms and rng.random() < 0.6:
-            return rng.choice(atoms)
-        # a spread of constants incl. large ones, so `-` yields negatives and signed lt / div/mod / wraparound
-        # get exercised (not just small non-negative values)
-        return str(rng.choice([0, 1, 2, 3, 5, 7, 10, 100, 200, 1000, 100000]))
-    if rng.random() < 0.15:
-        return f'(if {arith(rng, depth - 1, atoms)} {arith(rng, depth - 1, atoms)} {arith(rng, depth - 1, atoms)})'
-    return f'({rng.choice(OPS)} {arith(rng, depth - 1, atoms)} {arith(rng, depth - 1, atoms)})'
+        if params and rng.random() < 0.5:
+            return rng.choice(params)
+        return str(rng.choice([0, 1, 2, 3, 5, 7, 11]))
+    op = rng.choice(['+', '-', '*'])
+    return f'({gen_arith(rng, depth - 1, params)} {op} {gen_arith(rng, depth - 1, params)})'
 
-def gen_nat(rng, d):
-    return 'Z' if d <= 0 else f'(S {gen_nat(rng, d - 1)})'
+def gen_expr(rng, depth, params, callees):             # full surface incl. div/mod + calls (for the DAG)
+    if depth <= 0 or rng.random() < 0.35:
+        if params and rng.random() < 0.5:
+            return rng.choice(params)
+        return str(rng.choice([0, 1, 2, 3, 5, 7, 10, 42, 100, 255]))
+    r = rng.random()
+    if callees and r < 0.3:
+        name, arity = rng.choice(callees)
+        return f'{name}({", ".join(gen_expr(rng, depth - 1, params, callees) for _ in range(arity))})'
+    op = rng.choice(['+', '-', '*', '/', '%', '<', '>', '<=', '>=', '==', '!='])
+    return f'({gen_expr(rng, depth - 1, params, callees)} {op} {gen_expr(rng, depth - 1, params, callees)})'
 
-def gen_list(rng, n):
-    return 'Nil' if n <= 0 else f'(Cons {rng.randint(0, 12)} {gen_list(rng, n - 1)})'
+def t_expr(rng):
+    k = rng.randint(1, 4)
+    arities = [rng.randint(1, 3) for _ in range(k)]
+    out = []
+    for i in range(k):
+        params = ['a', 'b', 'c'][:arities[i]]
+        callees = [(f'f{j}', arities[j]) for j in range(i + 1, k)]
+        out.append(f'proc f{i}({", ".join(params)}) {{ return {gen_expr(rng, rng.randint(2, 4), params, callees)} }}')
+    callees = [(f'f{j}', arities[j]) for j in range(k)]
+    out.append(f'proc main() {{ return {gen_expr(rng, rng.randint(2, 4), [], callees)} }}')
+    return '\n'.join(out)
 
-def t_arith(rng):
-    return arith(rng, rng.randint(2, 5), [])
+def t_loop(rng):
+    n = rng.randint(1, 12)
+    c0 = rng.randint(0, 9)
+    body = gen_arith(rng, rng.randint(1, 3), ['i'])
+    op = rng.choice(['+', '-', '*'])
+    return (f'proc main() {{\n'
+            f'    let i = 0\n'
+            f'    let acc = {c0}\n'
+            f'    state lp {{ to body when (i < {n})  return acc }}\n'
+            f'    state body {{ acc = (acc {op} {body})  i = i + 1  to lp }}\n'
+            f'}}')
 
-def t_nat(rng):
-    base = arith(rng, 2, [])
-    step = arith(rng, 2, ['(f m)'])                    # only (f m) is int-valued; n and m are Nats
-    d = rng.randint(0, 6)
-    return f'(def f (n) (match n (Z {base}) ((S m) {step}))) (f {gen_nat(rng, d)})'
+def t_rec(rng):
+    n = rng.randint(1, 8)
+    base = rng.randint(0, 9)
+    step = gen_arith(rng, rng.randint(1, 3), ['n'])
+    return (f'proc rec(n) {{\n'
+            f'    state b {{ to r when (n > 0)  return {base} }}\n'
+            f'    state r {{ return ({step} + rec(n - 1)) }}\n'
+            f'}}\n'
+            f'proc main() {{ return rec({n}) }}')
 
-def t_list(rng):
-    base = arith(rng, 2, [])
-    step = arith(rng, 2, ['h', '(g t)'])               # h is an int head; (g t) the recursive result
-    n = rng.randint(0, 6)
-    return f'(def g (xs) (match xs (Nil {base}) ((Cons h t) {step}))) (g {gen_list(rng, n)})'
+def t_mem(rng):
+    n = rng.randint(1, 8)
+    cell = gen_arith(rng, rng.randint(1, 3), ['i'])
+    return (f'proc main() {{\n'
+            f'    let buf = 2097152\n'
+            f'    let i = 0\n'
+            f'    state fill {{ to sum0 when (i >= {n})  to body }}\n'
+            f'    state body {{ word[buf + i * 8] = {cell}  i = i + 1  to fill }}\n'
+            f'    state sum0 {{ let s = 0  let j = 0  to loop }}\n'
+            f'    state loop {{ to done when (j >= {n})  to acc }}\n'
+            f'    state acc {{ s = (s + word[buf + j * 8])  j = j + 1  to loop }}\n'
+            f'    state done {{ return s }}\n'
+            f'}}')
 
 def main():
     rng = random.Random(int(sys.argv[1]))
-    sys.stdout.write(rng.choice([t_arith, t_nat, t_list])(rng) + '\n')
+    tmpl = rng.choice([t_expr, t_loop, t_rec, t_mem])
+    sys.stdout.write(tmpl(rng) + '\n')
 
 main()

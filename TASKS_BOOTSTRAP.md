@@ -6,10 +6,11 @@ This queue exists to construct exactly one sequence:
 
 ```text
 audited Alpha VM seed
-  → Alpha-written Beta compiler       → beta_compiler_bytecode.tape
+  → direct Beta assembler tape
   → Beta-written Gamma compiler       → gamma_compiler_bytecode.tape
-  → Gamma-written Delta compiler      → delta_compiler_bytecode.tape
-  → Delta-written full Omega D        → omega0_compiler_bytecode.tape
+  → Gamma-written Delta compiler       → delta_compiler_bytecode.tape
+  → Delta-written Epsilon compiler      → epsilon_compiler_bytecode.tape
+  → Epsilon-written full Omega D        → omega0_compiler_bytecode.tape
   → Omega-written full Omega C        → omega_compiler_bytecode.tape
 ```
 
@@ -18,8 +19,8 @@ Alpha VM seed is the sole native bootstrap component. `D` and `C` are different
 source closures implementing the same complete Omega language; the first may
 optimize poorly, while the second is the production self-host.
 
-There is no DDC stage, `omega-bootstrap` language, Delta-to-Gamma bridge,
-native Beta/Gamma/Delta compiler, checkpoint generation, or executable proof
+There is no DDC stage, `omega-bootstrap` language, Epsilon-to-Delta bridge,
+native Gamma/Delta/Epsilon compiler, checkpoint generation, or executable proof
 kernel rung. Psi is an internal product compiler boundary, not part of this
 queue.
 
@@ -41,27 +42,27 @@ abstraction, delete the component and its bespoke gates together. Git history
 is the archive; the working repository is exclusively the implementation of
 the agreed chain.
 
-- [x] Delete the Beta-written Delta-to-Gamma translator, its host encoders and
-  decoder, and the entire Darwin-native Delta publication/custody apparatus.
+- [x] Delete the Gamma-written Epsilon-to-Delta translator, its host encoders and
+  decoder, and the entire Darwin-native Epsilon publication/custody apparatus.
   They crossed the immediate-predecessor boundary and established the wrong
   artifact identity.
-- [x] Delete the restricted Delta-written native compiler prototype rather than
+- [x] Delete the restricted Epsilon-written native compiler prototype rather than
   relabeling it as `D`. Its monolithic single-source frontend and Darwin ARM64
-  backend implemented neither the Gamma-written Delta edge nor full Omega, and
+  backend implemented neither the Delta-written Epsilon edge nor full Omega, and
   no unit-level adaptation was economical. Also delete the 31 `certify-*`
   proof-application programs; they serialized checker certificates but did not
-  state Delta semantics or test the replacement compiler.
+  state Epsilon semantics or test the replacement compiler.
 - [x] Audit every remaining bootstrap viewer, generated report, repeated-run
   receipt, wrapper, fixed-point gate, and differential implementation. Give it
   one bounded diagnostic or canonical-edge role, or delete it. No viewer,
-  report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Delta
+  report, receipt, `bootstrap/`, or canary tree remains in the Alpha–Epsilon
   lattice. Retained wrappers now divide into exact seed/assembler construction,
-  below-Beta checker construction and soundness tests, exact seed/assembler and
-  Beta artifact reconstruction, and one structure check. The status-only
+  Gamma-source checker construction and soundness tests, exact seed/assembler and
+  Gamma artifact reconstruction, and one structure check. The status-only
   encoding reconstructor was deleted when it could not be adapted into the
-  selected derivation. The duplicate Beta self-host wrapper was deleted. The Alpha checker was subsequently cut
+  selected derivation. The duplicate Gamma self-host wrapper was deleted. The Alpha checker was subsequently cut
   from a 293-file theorem/prover/adapter and overlapping-gate tree to one
-  authoritative Beta source/tape, one temporary complete independent reference, one
+  authoritative Gamma source/tape, one temporary complete independent reference, one
   bounded semantic seam, and compact positive/negative discriminators.
 
 ## Non-negotiable edge contract
@@ -84,11 +85,12 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 | Edge | Reusable work | Missing canonical result |
 | --- | --- | --- |
-| Alpha seed | written semantics, two native seeds, assembler, checker | keep trust floor small and exact |
-| Alpha-written Beta compiler | canonical `beta_compiler.alpha` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
-| Beta-written Gamma compiler | canonical GCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.beta` oracle, Gamma semantics/tests, and settled D30/D33 profiles | complete semantic GCOUT judgment and production adapters, measure and publish D58's conjunctive Beta profile, publish the standalone tape, and close refinement |
-| Gamma-written Delta compiler | Delta contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56/D57, complete the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
-| `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Delta closure `D`, full Omega acceptance, tape, and refinement |
+| Alpha seed | written semantics, two native seeds, checker | keep trust floor small and exact |
+| Direct Beta assembler | canonical raw tape, readable self-host source, and exact reconstruction | close its checked text-to-tape relation without adding another native binary |
+| Beta-written Gamma compiler | canonical `gamma_compiler.beta` and direct tape artifact | close remaining language/resource checks and exact source-to-tape refinement |
+| Gamma-written Delta compiler | canonical DCREQ ingress, frontend/direct emitter, resolved whole-function lowering, `interp.gamma` oracle, Delta semantics/tests, and settled D30/D33 profiles | complete semantic DCOUT judgment and production adapters, measure and publish D58's conjunctive Gamma profile, publish the standalone tape, and close refinement |
+| Delta-written Epsilon compiler | Epsilon contract/ledger; canonical source through parsing, D22/D24 census, D31 structural type formation, source-backed resolution catalog, ordered local resolution with positive receiver-scoped `self`, scalar/aggregate value-place facts, settled direct/grouped/unqualified/named-receiver callables, postfix-statement category, explicit state applications, transition subject/resolved-case/complete-binder facts and retained sum coverage, field/index/slice projection facts, D37 scalar, argument-`never`, let/assignment/assert, explicit-return, and statement-after-`never` relations, D38 `.as_slice` facts, and symbolic Alpha encoding | implement D50/D51/D52/D53/D56/D57, complete the remaining D37 premise-DAG rules, lower and execute D38, implement D34 physical storage refusal, publish the tape, and close refinement |
+| `D → omega₀` | full Omega/Rust implementation as a nonauthoritative reference | correctly owned complete Epsilon closure `D`, full Omega acceptance, tape, and refinement |
 | `C → omega` | Omega/Psi product work and Rust comparator | exact Omega closure, self-build tape, and independent refinement |
 
 ## 0. Make the repository tell the truth
@@ -97,33 +99,35 @@ code, discover a closure, manufacture proof premises, or decide admission.
   currently exists. Do not create placeholders for missing compiler edges:
 
   ```text
-  source/beta/compiler/beta_compiler.alpha
+  source/beta/compiler/assembler.beta
+  source/beta/compiler/beta_assembler_bytecode.tape
   source/gamma/compiler/gamma_compiler.beta
   source/delta/compiler/delta_compiler.gamma
-  source/omega/omega_compiler.delta       # D
+  source/epsilon/compiler/epsilon_compiler.delta
+  source/omega/omega_compiler.epsilon       # D
   source/omega/{build,main}.omg            # C roots
   ```
 
   Each completed compiler owner contains its descriptive `.tape` artifact and
-  adjacent validation. Incomplete canonical sources and missing Gamma, Delta,
+  adjacent validation. Incomplete canonical sources and missing Delta, Epsilon,
   or `D` artifacts are work gaps, not permission for substitute owners.
   Do not create generic `bootstrap/`, `on-ramp/`, `assurance/`, `canaries/`, or
   generation directories. `omega₀` and `omega` are artifacts, not languages or
   source owners.
-  - [x] Move the existing Beta tape adjacent to `beta_compiler.alpha`, delete
+  - [x] Move the existing Gamma tape adjacent to `gamma_compiler.beta`, delete
     its otherwise content-free `artifacts/` bucket, and make path hygiene reject
     nested artifact buckets for every canonical compiler owner.
-  - [ ] Complete the Gamma compiler source, tape, and adjacent validation in
-    `source/gamma/compiler/` under D16. The canonical source and its bounded
+  - [ ] Complete the Delta compiler source, tape, and adjacent validation in
+    `source/delta/compiler/` under D16. The canonical source and its bounded
     frontend/emitter gate now exist; section 3 owns lowering, adapter selection,
     tape publication, and refinement.
-  - [ ] Complete the existing Delta compiler source, tape, and adjacent
-    validation in `source/delta/compiler/` under D17; section 4 owns the
+  - [ ] Complete the existing Epsilon compiler source, tape, and adjacent
+    validation in `source/epsilon/compiler/` under D17; section 4 owns the
     implementation.
-  - [ ] Complete `source/omega/omega_compiler.delta` under D17; section 5 owns
+  - [ ] Complete `source/omega/omega_compiler.epsilon` under D17; section 5 owns
     the existing incomplete implementation. This source work does not wait for
-    the physical Gamma/Delta compiler artifacts.
-  - [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compilers and `D`.**
+    the physical Delta/Epsilon compiler artifacts.
+  - [ ] **DEPENDENCY-BLOCKED — incomplete Delta/Epsilon compilers and `D`.**
     Materialize the resulting `omega0_compiler_bytecode.tape` only after
     the predecessor chain and source closure exist. Section 5 owns `D → omega₀`;
     section 6 owns completion of the existing `build.omg`/`main.omg` closure and
@@ -141,18 +145,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
   including leaf files inside a classified child, and every inventory must
   state deletion conditions. Delete unowned wrappers, comparators, corpora,
   reports, and generators; do not create an indefinite “diagnostic” exemption.
-  `check-path-hygiene.sh` enforces this file-level proof. The unrun 43-file Delta
+  `check-path-hygiene.sh` enforces this file-level proof. The unrun 43-file Epsilon
   native-route corpus, completed Alpha extent-migration script, duplicate
   seed/reference random fuzzer, checker theorem museum/prover/adapters, and
-  misleading Beta `cold-start/` owner were removed.
+  misleading Gamma `cold-start/` owner were removed.
 - [x] Make every rung/compiler README distinguish the language accepted by a compiler from
   the language in which it is implemented. The source suffix names the latter;
-  the owner directory names the former. The Alpha/Beta/Gamma/Delta/Omega roots,
+  the owner directory names the former. The Alpha/Gamma/Delta/Epsilon/Omega roots,
   compiler owners, rung pages, repository map, and chain manifest now use this
   distinction consistently; paths that still contradict it are migration tasks
   above rather than alternate roles.
 - [x] **BOOTSTRAP-ASCII-SOURCE:** Implement D15's one source-byte envelope for
-  Alpha assembly, Beta, the fixed Gamma contract, and Delta. Reject before
+  Beta assembly, Gamma, the fixed Delta contract, and Epsilon. Reject before
   tokenization every byte other than HT, LF, CR, and printable ASCII; use
   explicit ASCII identifier/digit predicates, exactly space/tab/CR/LF trivia,
   CR/LF/source-end comment termination, and printable direct literal bytes plus
@@ -166,19 +170,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
   rerun the assembler, compiler, checker, and diamond gates. Short-term Python
   references must implement the same byte contract if retained, but no Python
   implementation survives completion of the checked direct chain.
-  - [x] Enforce the envelope in the Alpha assembler and its independent
-    reference, clean the retained Alpha corpus, refresh both stamped platform
+  - [x] Enforce the envelope in the Beta assembler and its independent
+    reference, clean the retained Beta corpus, refresh both stamped platform
     realizations, and pin CR comments plus NUL/VT/DEL/high-byte rejection.
   - [x] Enforce the envelope and exact rejection coordinates in the
-    Alpha-written Beta compiler and temporary Python reference; replace the
-    extent control with space padding, clean every retained Beta implementation
+    Beta-written Gamma compiler and temporary Python reference; replace the
+    extent control with space padding, clean every retained Gamma implementation
     source, and refresh the current 104,572-byte source / 27,087-byte tape observations.
   - [x] Enforce the envelope, explicit ASCII identifier classes, and CR/LF
-    comments in both bounded Gamma oracle surfaces and the temporary Python
+    comments in both bounded Delta oracle surfaces and the temporary Python
     evaluator. The existing gates now retain matching positive and negative
     byte controls.
-  - [x] Apply D15's fixed outer envelope and D17's exact Delta lexical rules in
-    `delta_compiler.gamma`. `check_source_bytes` rejects the complete source
+  - [x] Apply D15's fixed outer envelope and D17's exact Epsilon lexical rules in
+    `epsilon_compiler.delta`. `check_source_bytes` rejects the complete source
     before tokenization, and the retained lexical phase owns explicit ASCII
     identifiers/digits, exact trivia/comment termination, printable literal
     bytes, closed escapes, and exact rejection offsets.
@@ -198,22 +202,22 @@ code, discover a closure, manufacture proof premises, or decide admission.
 - [x] Keep the root derivation checker separate from the VM and assembler. Its
   calculus may check every compiler edge, but the checker is not a language
   rung and never decides artifact-specific obligations by itself. It is owned
-  by `source/alpha/checker/` and reconstructs independently below Beta.
+  by `source/alpha/checker/` and reconstructs independently through the canonical Gamma compiler.
 - [x] Ratify the performance boundary: if execution speed becomes unacceptable, first profile the VM and tape.
   A general checked Alpha-to-native realization may be proposed; source-,
   function-, hash-, or workload-specific jets are forbidden. No current floor
-  measurement triggers escalation: the complete Alpha-written Beta compiler
+  measurement triggers escalation: the complete Beta-written Gamma compiler
   surface gate runs 197 cases in about nine seconds on the development host.
-  The largest current retained Beta output, the 238,926-byte checker tape,
-  leaves 809,646 bytes in the V2 Alpha payload after replacing repeated inline
+  The largest current retained Gamma output, the 271,096-byte checker tape,
+  leaves 777,476 bytes in the V2 Alpha payload after replacing repeated inline
   stack-fault blocks with one local terminal block per procedure.
 
-## 2. Alpha-written Beta compiler
+## 2. Beta-written Gamma compiler
 
-- [ ] **ADMIT-ALPHA-BETA-COMPILER.** Audit the canonical
-  `source/beta/compiler/beta_compiler.alpha` against the complete Beta v1
-  contract. Its exact directly assembled Alpha tape is now the canonical Beta
-  compiler artifact. It must accept arbitrary valid Beta within explicit
+- [ ] **ADMIT-BETA-GAMMA-COMPILER.** Audit the canonical
+  `source/gamma/compiler/gamma_compiler.beta` against the complete Gamma v1
+  contract. Its exact directly assembled Alpha tape is now the canonical Gamma
+  compiler artifact. It must accept arbitrary valid Gamma within explicit
   resource bounds and reject or return `Incomplete` fail-closed.
   - [x] Remove pinned syntax/runtime defects found by the general-source audit:
     full-range Word literals, zero final fallthrough, `r13=8` stack convention,
@@ -223,16 +227,16 @@ code, discover a closure, manufacture proof premises, or decide admission.
     left-to-right side-effect discriminators;
     the canonical tape passes the generic structural checker.
   - [x] Replace emitted Alpha text plus an external assembler invocation with
-    direct Alpha tape emission inside the compiler. The Alpha assembler may
+    direct Alpha tape emission inside the compiler. The Beta assembler may
     construct the compiler artifact, but it cannot remain a semantic stage when
-    the compiler processes Beta input. The compiler now reserves and encodes a
+    the compiler processes Gamma input. The compiler now reserves and encodes a
     private bounded tape, resolves procedure/state/internal fixups, and publishes
     only after complete replay. The former full self-host source was byte-identical to
     the removed text-plus-assembler route; the direct encoder then deliberately
     corrected that assembler's signed-division bug for high-bit `u64` immediate
     bytes. The canonical tape passes the generic structural gate. Every
     production consumer now uses its direct tape output.
-  - [x] **BETA-FLATTENED-CFG-INITIALIZATION:** enforce the settled recursive
+  - [x] **GAMMA-FLATTENED-CFG-INITIALIZATION:** enforce the settled recursive
     authoring surface and every-path initialization judgment. Each procedure or
     state body is an ordinary-statement prefix followed by child states; reject
     loose ordinary statements after the first child and ordinary statements
@@ -243,13 +247,13 @@ code, discover a closure, manufacture proof premises, or decide admission.
     visibility. Derive exact guarded target and false-continuation edges without
     constant folding, compute per-procedure reachability, then iterate the
     initialized-slot intersection judgment to a fixed point before validating
-    reads. Add positive controls for the checker/Gamma nested-state shapes,
+    reads. Add positive controls for the checker/Delta nested-state shapes,
     `boff`-style loop-carried joins, alternate-path assignment establishment,
     subtree fallthrough, and unreachable blocks; add rejections for skipped
     initialization, invalid interleaving, post-terminator statements, and
     traversal-order-sensitive loop handling. Update the reference parser and
     interpreter atomically so they no longer hoist loose statements or reject
-    nested states. The Alpha compiler and independent reference now share the
+    nested states. The Gamma compiler and independent reference now share the
     recursive block formation, depth-first flattening, exact transition-prefix
     facts, reachability, and fixed-point must-initialization judgment. The
     focused compiler surface passes 197 cases, including subtree fallthrough,
@@ -260,7 +264,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Extend the compiler's one checked syntax-recursion budget across nested
     state parsing as well as parentheses, calls, and loads. The current selected
     compiler profile admits combined depth 64; that number is private resource
-    policy, not Beta language meaning. Exhaustion must join the settled
+    policy, not Gamma language meaning. Exhaustion must join the settled
     compiler-boundary `Incomplete` outcome rather than become invalid source or
     an Alpha return-stack accident. Reuse initialization work storage per
     procedure (one entry plus at most 128 states) or account for all procedure
@@ -269,7 +273,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     bodies now use the same checked depth counter as parentheses, calls, and
     loads; exact depth 64 is accepted and the adjacent state-only and mixed
     depth-65 cases return canonical `Incomplete(syntax_depth, 64, 65)`.
-  - [x] Separate source-visible raw Beta memory from generated frame/expression
+  - [x] Separate source-visible raw Gamma memory from generated frame/expression
     stacks and bind the call/stack profile that proves non-aliasing. The D23
     compiler source uses a checked, zeroed 128 MiB logical region biased at
     physical byte 4 MiB. Every generated frame/expression reservation is
@@ -288,10 +292,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     guards are necessarily dominated by the tape extent and are
     documented as corruption teeth rather than falsely advertised independent
     source capacities.
-  - [x] **BETA-COMPILER-OUTCOME:** Implement the settled four-case boundary.
+  - [x] **GAMMA-COMPILER-OUTCOME:** Implement the settled four-case boundary.
     Reserve Alpha halt tags 0/1/2/3 for `Complete`/`Reject`/`Incomplete`/
     `InternalFailure`; leave successful stdout as the exact raw runnable
-    payload; and emit the canonical `0xFF BCOUT v1` 40-byte diagnostic frame on
+    payload; and emit the canonical `0xFF GCOUT v1` 40-byte diagnostic frame on
     every failure. Replace parser-stage halt values with closed stable rejection
     reasons and zero-based source offsets. Give each independently reachable
     private source/name/depth/procedure/state/edge/call/slot/payload ceiling a
@@ -302,8 +306,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     noncanonical-field, partial-output/trap, shell-low-byte, and runtime-status
     250/251 separation canaries. Publish the exact version-1 code tables beside
     the compiler and make gates consume rather than invent them.
-    The Alpha compiler now records the first decisive typed outcome, emits the
-    exact 40-byte `BCOUT` frame only after all fields are fixed, and leaves
+    The Gamma compiler now records the first decisive typed outcome, emits the
+    exact 40-byte `GCOUT` frame only after all fields are fixed, and leaves
     successful tape bytes unwrapped. `outcomes-v1.tsv` owns the closed tables;
     the focused gate consumes them and passes 197 language, ceiling, framing,
     partial-output/trap, runtime-separation, and internal-producer cases. All
@@ -320,26 +324,26 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and six single-site internal cases pin the exact values. The independent
     semantic differential still agrees on 60 generated programs and the
     bounded I/O comparison on all 10,240 selected inputs.
-  - [ ] **BETA-COMPILER-OPERATIONAL-REFINEMENT:** close actual compiler
-    correctness for arbitrary accepted Beta under the selected resource
-    profile. Reconstruct the complete written Beta small-step judgment and the
+  - [ ] **GAMMA-COMPILER-OPERATIONAL-REFINEMENT:** close actual compiler
+    correctness for arbitrary accepted Gamma under the selected resource
+    profile. Reconstruct the complete written Gamma small-step judgment and the
     emitted Alpha observation, including traps, output prefixes, fail-closed
     runtime containment, and every finite input, then check the refinement in
     the rooted calculus. The focused suite and temporary Python differential
     are regression evidence only; they do not turn the parent admission into a
     theorem. This semantic obligation is distinct from
-    `ALPHA-BETA-EXACT-CONSTRUCTION`, which proves that the persisted compiler
-    tape is exactly the assembly of `beta_compiler.alpha`.
+    `BETA-GAMMA-EXACT-CONSTRUCTION`, which proves that the persisted compiler
+    tape is exactly the assembly of `gamma_compiler.beta`.
 - [x] Redirect the existing cold construction, exact-tape comparison, and
-  focused language tests to the Alpha source subject. Remove any two-stage
-  “cold compiler builds a Beta self-host, then that self-host becomes canonical” logic. The
+  focused language tests to the Beta source subject. Remove any two-stage
+  “cold compiler builds a Gamma self-host, then that self-host becomes canonical” logic. The
   persisted artifact is now the direct assembly of
-  `beta_compiler.alpha`; checker, Gamma, reference, and seed-diamond consumers
-  no longer invoke an assembler after compiling Beta.
+  `gamma_compiler.beta`; checker, Delta, reference, and seed-diamond consumers
+  no longer invoke an assembler after compiling Gamma.
 - [x] Reassess the large historical self-host refinement/admission tree module by module.
   Adapt general Alpha-machine decoding and proof-DAG machinery to the actual
-  Alpha-written compiler edge. Delete source-specific
-  machinery that exists only to prove the noncanonical Beta fixed point.
+  Beta-written compiler edge. Delete source-specific
+  machinery that exists only to prove the noncanonical Gamma fixed point.
   The retained diagnostic surface is one generic artifact-structure check; the
   exact checked source/tape derivation remains the open canonical obligation.
   The status reconstructor, toy FOL seam, source-only loop
@@ -348,31 +352,31 @@ code, discover a closure, manufacture proof premises, or decide admission.
   duplicated cheaper owners. The final symbolic differential had also drifted
   to 13/18 while returning success, making it a false-green parallel semantics.
   About 65,000 historical source-specific lines had already been removed.
-- [x] Delete the historical Beta self-host after promotion. Its full-source
+- [x] Delete the historical Gamma self-host after promotion. Its full-source
   migration comparison helped pin the direct emitter, but it had zero remaining
   executable consumers and no bounded comparison gate; constructing a new gate
   merely to justify retention would reverse the repository policy. Its fixed
   point and source now survive only in Git history.
-- [ ] **ALPHA-BETA-EXACT-CONSTRUCTION.** Close exact
-  Alpha-assembly-source-to-Alpha-tape correspondence. First
+- [ ] **BETA-GAMMA-EXACT-CONSTRUCTION.** Close exact
+  Beta-assembly-source-to-Alpha-tape correspondence. First
   specify the authoritative assembly grammar and two-pass encoding, then bind
-  the exact raw `beta_compiler.alpha` and tape subjects and check that every
+  the exact raw `gamma_compiler.beta` and tape subjects and check that every
   source span, instruction, label fixup, `db` row, and artifact byte belongs to
   one total encoding partition with no gaps or extras. Exercise source-byte,
   tape-byte, label-target, and extent mutations and measure certificate size and
   checking time. Exact tape equality transports through deterministic Alpha
   semantics in lockstep, preserving every defined termination, trap, output,
   resource, and divergence observation; this first edge needs no stuttering
-  rank or new trusted LTS rule. Correctness of the compiler for arbitrary Beta
-  source is a separate `ADMIT-ALPHA-BETA-COMPILER` obligation.
-  - [x] Freeze `source/alpha/ASSEMBLY.md`: byte-stream lexical form, exact operand grammar, full
+  rank or new trusted LTS rule. Correctness of the compiler for arbitrary Gamma
+  source is a separate `ADMIT-BETA-GAMMA-COMPILER` obligation.
+  - [x] Freeze `source/beta/LANGUAGE.md`: byte-stream lexical form, exact operand grammar, full
     opcode/width table, string decoding, absolute label meaning, deterministic
     two-pass encoding, and the raw-payload/container boundary. Close the Alpha
     assembler and independent reference implementation over that grammar while
     retaining their byte-identical fixed point. D15 subsequently narrowed the
     shared outer source envelope; `BOOTSTRAP-ASCII-SOURCE` owns that atomic
     implementation and evidence refresh without reopening this encoding work.
-  - [x] Retire the Alpha-written status-only encoding reconstructor and its
+  - [x] Retire the Beta-written status-only encoding reconstructor and its
     parallel mutation gate. It exercised the then-current 78,109-byte source and
     20,977-byte tape, but returned private halt statuses rather than a checked
     derivation and could not be adapted into the selected certificate shape.
@@ -383,8 +387,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     certificate extents; checker-built immutable power-of-two-indexed byte trees are available only
     as the framed `source` and `tape` constants. Identical subjects accept a
     reflexivity control, a one-byte mutation rejects, unframed input cannot
-    spoof either constant, and the rebuilt 238,926-byte checker tape retains
-    809,646 bytes of AlphaBootstrapV2 payload headroom. The exact 104,572-byte compiler
+    spoof either constant, and the rebuilt 271,096-byte checker tape retains
+    777,476 bytes of AlphaBootstrapV2 payload headroom. The exact 104,572-byte compiler
     source plus 27,087-byte tape carrier remains within the same bounded
     subject interface. Fixed
     byte/empty/leaf/node constructors give every real byte a stable fixed-depth
@@ -398,7 +402,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     `OMGCHK1` frame, reserves the same raw constructors, builds the same
     source/tape trees, and agrees on framed equality, mutation, computation,
     constructor-spoofing, and unframed-name controls.
-  - [ ] **ALPHA-BETA-COMPOSED-CERTIFICATE:** Turn the ground assembly judgment into a derivation certificate
+  - [ ] **BETA-GAMMA-COMPOSED-CERTIFICATE:** Turn the ground assembly judgment into a derivation certificate
     over those checker-bound subjects. The certificate must check the complete
     two-pass ledger, unique label map, total source/tape partitions, exact
     fixups, and full exhaustion.
@@ -420,7 +424,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       span ownership, canonical initial/terminal states, and full exhaustion
       without gaps, overlap, duplication, or suffixes.
     - Treat cut locations as untrusted certificate witnesses, not owner-fixed
-      authority. The owner fixes the exact framed subjects, Alpha assembly
+      authority. The owner fixes the exact framed subjects, Beta assembly
       relation, pass schemas and joint, composition theorem, canonical
       endpoints, and root proposition. Any cut strategy is accepted only when
       those generic checks establish the same total edge.
@@ -445,7 +449,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       framed subject crosses equality transport without being copied, while a
       certificate-spelled raw-constructor lookalike still substitutes normally.
       With that closed-term boundary, a temporary two-chunk composition over
-      the exact current Beta source/tape checks both named chunk equalities and
+      the exact current Gamma source/tape checks both named chunk equalities and
       the second nested `eqelim`; this validates the selected composition shape,
       but no skeleton proof is retained and assembly-row semantics remain open.
       The current framed subjects allocate 395,493 of the 4,893,354-node V2
@@ -509,14 +513,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
       one-chunk demonstration or advertise partial pass-one acceptance as edge
       admission; extend the same final `.proof` and single gate with pass two
       and `VERIFY` after the complete pass-one checkpoint.
-    - [x] Publish the canonical Beta checker's exact arena, semantic-stack,
+    - [x] Publish the canonical Gamma checker's exact arena, semantic-stack,
       framed input, certificate, declaration, function, and lemma-table profile.
       Arena and proof-context exhaustion are now explicit fail-closed guards,
       and complete stdin is bounded to the exact largest permitted frame rather
       than overlapping later checker tables. The fixed proof must fit that
       profile. While retained, the independent Python checker must
       agree on the logical result but is diagnostic and need not reproduce
-      Beta's resource ceilings. Delete it when this checked route subsumes the
+      Gamma's resource ceilings. Delete it when this checked route subsumes the
       comparison. A future authoritative checker cannot replace the service
       while silently refusing its live certificate/profile.
     - Repeat measurements against the exact current bound subjects rather than
@@ -532,14 +536,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
       bound, weakening exact exhaustion, or restoring the deleted status ledger
       is not an option.
 
-## 3. Beta-written Gamma compiler
+## 3. Gamma-written Delta compiler
 
 - [ ] **BUILD-GAMMA-COMPILER.** Implement D16 and
-  `source/gamma/LANGUAGE.md` in
-  `source/gamma/compiler/gamma_compiler.beta` as a standalone compiler from
-  Gamma source to Alpha tape. Type-check before emission, use the private
-  arbitrary-arity Gamma frame ABI, preserve proper tail calls, and emit Alpha
-  tape directly. It may reuse or reorganize `interp.beta`; no
+  `source/delta/LANGUAGE.md` in
+  `source/delta/compiler/delta_compiler.gamma` as a standalone compiler from
+  Delta source to Alpha tape. Type-check before emission, use the private
+  arbitrary-arity Delta frame ABI, preserve proper tail calls, and emit Alpha
+  tape directly. It may reuse or reorganize `interp.gamma`; no
   external interpreter or serialized-AST runtime may remain part of
   compilation.
   - Derive positive and negative canaries directly from the fixed grammar and
@@ -586,9 +590,9 @@ code, discover a closure, manufacture proof premises, or decide admission.
       whole-function body emission consume those profiles.
   - [x] Resolve D19's two exact application schemas without selecting a boundary
     from source names. `ConformanceBytesV1` requires the unique resolved
-    `main : Bytes -> Bytes`. `DeltaCompilerV1` requires the exact source-owned
-    `DeltaRejectReason`, `DeltaCompileOutcome`, `Complete(Bytes)`,
-    `Reject(DeltaRejectReason, Int)`, and `main` identities. A private exact-name
+    `main : Bytes -> Bytes`. `EpsilonCompilerV1` requires the exact source-owned
+    `EpsilonRejectReason`, `EpsilonCompileOutcome`, `Complete(Bytes)`,
+    `Reject(EpsilonRejectReason, Int)`, and `main` identities. A private exact-name
     table covers identifiers through 24 bytes and fixes D17's 26 reason codes
     independently of declaration order; staged private identities are
     consumable only when the selected validator succeeds, and it authors no
@@ -598,21 +602,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
     located coordinate, wrong-owner and extra-member handling, ordinary
     `unknown_type` precedence, unrelated nominal declarations, and exact
     retained identities.
-  - [x] **D30 — PHYSICAL GAMMA APPLICATION PROFILES.** Fix `GCREQ` V1,
+  - [x] **D30 — PHYSICAL GAMMA APPLICATION PROFILES.** Fix `DCREQ` V1,
     profile IDs 1/2, both 4-MiB sealed-input maxima, the 4-MiB Conformance output
-    maximum, AlphaBootstrapV2's 1,048,572-byte Delta output maximum, the shared
-    generated-runtime block, and the exact `GCOUT`/`DCOUT` magics, coordinates,
+    maximum, AlphaBootstrapV2's 1,048,572-byte Epsilon output maximum, the shared
+    generated-runtime block, and the exact `DCOUT`/`ECOUT` magics, coordinates,
     and closed tables. The checked TSV projections live beside the compiler;
     their constants belong in the offline artifact rather than becoming host
     runtime inputs.
-  - [x] **D33 — BOUNDED GCOUT ADMISSION AND TOTAL SCHEMA DIAGNOSIS.** Fix the
+  - [x] **D33 — BOUNDED DCOUT ADMISSION AND TOTAL SCHEMA DIAGNOSIS.** Fix the
     header/profile/provision/body ordering, category priority 19/20/21,
     truthful none-or-source schema coordinates, and the normative table's
     request-profile availability. A completed adapter and gate reject a code
     impossible for the originating request rather than treating a detached
-    GCOUT frame as sufficient context.
-  - [x] Implement D30/D33's canonical `GCREQ` admission in
-    `gamma_compiler.beta`. The fixed 16-byte header is obtained before its
+    DCOUT frame as sufficient context.
+  - [x] Implement D30/D33's canonical `DCREQ` admission in
+    `delta_compiler.gamma`. The fixed 16-byte header is obtained before its
     first-difference check; profile 1/2 selection precedes the 4-MiB source
     provision; an adjacent declared length returns
     `Incomplete(source_bytes, 4194304, 4194305)` without consuming the body;
@@ -622,14 +626,14 @@ code, discover a closure, manufacture proof premises, or decide admission.
     header/body, first bad magic byte, unknown-profile precedence, exact and
     adjacent source capacity, trailing input, and exact-end precedence over an
     invalid source byte without adding request-specific non-builtin helpers.
-  - [ ] Complete the semantic `GCOUT` judgment behind the retained private
+  - [ ] Complete the semantic `DCOUT` judgment behind the retained private
     outcome fields. Retain every profile-schema `(reason, coordinate)` candidate
     for codes 19/20/21, apply D33's total ordering, add the remaining
     internal classes 1/5/6 when their producers exist, check each code against
     the selected profile, and gate the four embedded TSV projections. This is
     This work is part of the complete canonical source measured by D58; a roomy
     staging compiler does not authorize omitting it from the final profile.
-    - [x] Retain ordinary Gamma rejection codes 4 through 18 at their decisive
+    - [x] Retain ordinary Delta rejection codes 4 through 18 at their decisive
       source coordinate. Parsing records syntax and integer-range failures;
       declaration resolution distinguishes duplicate type, constructor, and
       function namespaces plus unknown types; environment/type checking
@@ -639,18 +643,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
       every code while all existing positive/negative behavior remains green.
     - [x] Retain compiler-resource codes 2 through 12 and the implemented
       emitter-internal classes 2 through 4. Every frontend allocation producer
-      now supplies its exact Gamma coordinate, limit, and adjacent request;
+      now supplies its exact Delta coordinate, limit, and adjacent request;
       emitter payload, label, and fixup exhaustion supplies the ruled
       payload/internal-row coordinate spaces; and metadata, label/fixup, and
       replay contradictions map from the existing sticky emitter judgment.
       Fourteen projection cases cover every resource plus the three present
       internal classes, while the existing exact/adjacent gates continue to
-      exercise the real producer sites. Code 1 remains canonical GCREQ source
+      exercise the real producer sites. Code 1 remains canonical DCREQ source
       exhaustion; remaining internal classes 1/5/6 do not yet have producers.
     - [x] Retain D33's selected-profile schema judgment for codes 19 through
       21. One bounded fold admits only the request-selected profile, makes
       missing entry outrank entry mismatch and profile mismatch, makes any
-      absent Delta nominal fact outrank located defects, and otherwise selects
+      absent Epsilon nominal fact outrank located defects, and otherwise selects
       the earliest constructor-name coordinate. Profile 1 has no code-21 path;
       successful validation alone publishes its selected identities. Seventeen
       public-outcome cases plus the exact declaration-order-independent D19
@@ -664,19 +668,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     adjacent input/heap, zero-capacity, binary, containment, and deterministic-
     reconstruction canaries exercise the split.
   - [ ] **IMPLEMENTATION — D58 MEASURED BETA COMPILER PROFILE.** Use a roomy
-    noncanonical Beta compiler to complete the Gamma entry, returned-`Bytes`
+    noncanonical Gamma compiler to complete the Delta entry, returned-`Bytes`
     preflight, both D19 adapters, failure framing, and publication as ordinary
-    Beta source. Measure procedures, global calls, global/per-procedure states
+    Gamma source. Measure procedures, global calls, global/per-procedure states
     and edges, derived initialization rows, labels, fixups, tape, and maximum
     work. Select each independently provisioned authored-structure count as the
     least power of two with at most 75% measured occupancy; keep tape under D23
     and derived guards bound to their owners. Relocate every changed and derived
     table into one new aligned region above `FIXUP_TABLE`, retain maximum-work plus exact/adjacent
-    `Incomplete` gates, and atomically rebuild the Beta tape and admission
+    `Incomplete` gates, and atomically rebuild the Gamma tape and admission
     subject. The current 1,024-row call probe remains the pre-completion baseline
     until that publication. Source-visible emitter consolidation is independent
     quality work, never a hidden table/blob or a condition for preserving 1,024.
-  - [x] Materialize `gamma_compiler.beta` by moving the reusable strict frontend
+  - [x] Materialize `delta_compiler.gamma` by moving the reusable strict frontend
     into its canonical owner rather than copying it. Reserve `[10.5 MiB,11 MiB)`
     for 65,536 exact labels, `[11 MiB,13 MiB)` for 116,508 fixups,
     `[16 MiB,125 MiB)` for the bounded frontend arena, and
@@ -706,7 +710,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and stack boundaries, their adjacent one-byte failures, both negative
     requests, and heap-addition/stack-subtraction wrap; no case enters Alpha's
     undefined out-of-range memory behavior.
-  - [x] Establish the private arbitrary-arity Gamma frame ABI independently of
+  - [x] Establish the private arbitrary-arity Delta frame ABI independently of
     D20's source identities. Retain complete two-word values; lay out
     previous-frame and caller-cursor words, fixed local slots, and reverse-
     positioned source-order parameters in one downward explicit frame. Ordinary
@@ -804,7 +808,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     range traps. Recompile one nested `Bytes` source twice and require identical
     raw payloads.
     Focused emitter/runtime probes compile the canonical emitter section alone
-    so unrelated frontend growth cannot force those diagnostics past Beta's
+    so unrelated frontend growth cannot force those diagnostics past Gamma's
     fixed payload ceiling; the actual lowering probe still compiles the whole
     canonical source.
   - [x] Pin D21 with one focused emitted-runtime canary that repeatedly doubles
@@ -845,7 +849,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     expression backend without assigning source identity. Reuse the
     fixed-frame validator and emitter for complete two-word loads and stores;
     encode the let's bounded `(prefix,index)` metadata in one private scalar to
-    respect Beta's four-argument call limit. Validate that profile before any
+    respect Gamma's four-argument call limit. Validate that profile before any
     initializer byte is emitted, lower the initializer non-tail exactly once,
     retain its complete value, and pass the incoming tail context unchanged to
     the body. Execute a mixed `Bytes` initializer/`Int` body in a real 48-byte
@@ -876,7 +880,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     scrutinee evaluation from two; focused malformed identity, slot, and cyclic
     arm controls retain sticky private failure and zero payload; repeated
     compilation is byte-identical.
-  - [x] Emit every checked Gamma function without taking ownership of D19's
+  - [x] Emit every checked Delta function without taking ownership of D19's
     application adapter. Validate the complete function table, body pointers,
     packed return/local/parameter profiles, and exact forward parameter spines;
     preflight label capacity and allocate all source-order function labels
@@ -900,19 +904,19 @@ code, discover a closure, manufacture proof premises, or decide admission.
     254,109 to 250,761 bytes; the then-complete adjacent gate remained 193/193.
   - [x] **PROFILE-REVISION — D23: ALPHA-BOOTSTRAP-V2.** Migrate the complete
     lattice profile atomically to a one-MiB stamped seed hole and 1,048,572-byte
-    raw-tape maximum without changing Alpha instructions. Both native seeds,
+    raw-tape maximum without changing Beta instructions. Both native seeds,
     stamping and assembler containers now carry 256 MiB of semantic memory and
-    the exact hole. Beta-generated programs use a one-MiB stack, two-MiB
+    the exact hole. Gamma-generated programs use a one-MiB stack, two-MiB
     separation, 128 MiB biased raw region, 256 procedure rows, and
-    payload-dominated 262,144-PC/116,508-fixup tables. Gamma-generated programs
-    use `[1 MiB,16 MiB)` stack and `[16 MiB,128 MiB)` heap regions; the Gamma,
-    Delta, and Omega encoders share the new cap, with Delta's depth-20 target
+    payload-dominated 262,144-PC/116,508-fixup tables. Delta-generated programs
+    use `[1 MiB,16 MiB)` stack and `[16 MiB,128 MiB)` heap regions; the Delta,
+    Epsilon, and Omega encoders share the new cap, with Epsilon's depth-20 target
     trie and Omega's 116,508 fixups derived from it. The authoritative checker
     admits a 2,810,748-byte frame and 4,893,354-node nonpaged arena; its executed
     gate retains a real exact-maximum compiler tape with representative source,
     named lemmas, normalization, scratch, simultaneous outer maxima, balanced
-    arena exhaustion, and adjacent fail-closed cases. Rebuilt Beta and checker
-    tapes reproduce exactly; the current consolidated Gamma gate is 206/206
+    arena exhaustion, and adjacent fail-closed cases. Rebuilt Gamma and checker
+    tapes reproduce exactly; the current consolidated Delta gate is 206/206
     after replacing five redundant full-source compiler variants with one
     whole-function emitter. Ordinary density work remains useful but is no
     longer a condition for the retired V1 ceiling.
@@ -946,7 +950,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     one exact packed-ASCII matcher. Preserve identifier-boundary checks and pin
     `bytes_emptyx`, `matchx`, `Bytesx`, and `Intx` as ordinary user spellings.
     This recovers 16,761 tape bytes and four procedure slots without changing
-    Gamma meaning or emitted code.
+    Delta meaning or emitted code.
   - [x] Reuse that packed matcher for top-level `data` lookahead and merge the
     byte-identical declared-type/constructor spelling validators into one
     nominal-name predicate. D16 gives both forms the same capitalization and
@@ -958,7 +962,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     require a nonempty match on an algebraic scrutinee, reject duplicate
     constructor arms and every arm after a catch-all, and require either a final
     catch-all or every constructor of the nominal type. The epoch-marked
-    constructor table and 82-case gate now live in `gamma_compiler.beta` and its
+    constructor table and 82-case gate now live in `delta_compiler.gamma` and its
     adjacent validation; no standalone checker source remains.
   - [x] Close the first strict-parser slice in the reusable front end: require a
     nonempty function-declaration sequence and exact source exhaustion; check
@@ -971,7 +975,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     source buffer no longer overlaps its type, constructor, function,
     environment, or match-coverage tables. Reserve one readable error node and
     bound the AST arena below the compiler's reserved 125 MiB edge before
-    writes; Beta exposes 128 MiB of biased logical raw memory while Alpha keeps
+    writes; Gamma exposes 128 MiB of biased logical raw memory while Alpha keeps
     its hidden-return-stack allowance disjoint. A 2 MiB-boundary canary places a later
     declaration exactly where the former function table corrupted source.
   - [x] Remove recursive list parsing from the reusable front end's argument,
@@ -992,8 +996,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Bound recursive expression parsing at one explicit 1,024-level private
     profile while leaving list arity iterative. A 900-level valid program checks;
     a 1,100-level program fails closed through private resource state rather
-    than overflowing the Beta/Alpha return stack. This ceiling is an eventual
-    `Incomplete` outcome and never a Gamma validity rule.
+    than overflowing the Gamma/Alpha return stack. This ceiling is an eventual
+    `Incomplete` outcome and never a Delta validity rule.
   - [x] Separate declaration collection from type-spelling resolution in the
     reusable front end. Constructor fields, parameters, and function results
     retain source spellings during the single strict parse and resolve only
@@ -1006,15 +1010,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     typed subexpression share one sticky first-source-failure coordinate. The
     Boolean oracle does not publish a compiler frame; the direct compiler must
     absorb this metadata into its accepted-language rejection table and final
-    `GCOUT` boundary under D19's selected profile.
+    `DCOUT` boundary under D19's selected profile.
 - [x] **GAMMA-NO-MATCH-HARDENING.** Make both tail and nested interpreter match
   paths trap rather than fabricate integer zero when no arm matches, and pin
   both with focused no-output trap canaries. The direct compiler task separately
   owns complete static match-exhaustiveness rejection. Keep the
   correlated-oracle warning explicit: the two oracles historically shared the
   omission, demonstrating that agreement alone could not establish it.
-- [x] Absorb the reusable static frontend into `gamma_compiler.beta` without a
-  duplicate checker source, and keep `interp.beta` only as a bounded semantic
+- [x] Absorb the reusable static frontend into `delta_compiler.gamma` without a
+  duplicate checker source, and keep `interp.gamma` only as a bounded semantic
   oracle/candidate algorithm source. Neither the oracle nor the incomplete
   compiler source is an accepted compiler artifact. The retained compiler gate
   passes 206 cases spanning 98 frontend discriminators, direct emitter and
@@ -1026,43 +1030,43 @@ code, discover a closure, manufacture proof premises, or decide admission.
   - [x] Delete the interpreter's dead environment lookup and the
     `Node`/`Chunks`/`ZeroTree` compact representation plus 524,288-slot
     translator-carrier case. They existed for the deleted cross-rung translator,
-    not for Gamma semantics or the canonical compiler edge. Rewrite the
+    not for Delta semantics or the canonical compiler edge. Rewrite the
     interpreter-first claims to classify both executables as pre-contract
     oracles.
   - [x] Remove the type checker's retired proof-kernel purpose and reject
     unknown declared types explicitly instead of allowing the shared `-1`
     error/type sentinel to compare equal.
-- [ ] **DEPENDENCY-BLOCKED — incomplete `gamma_compiler.beta` and missing
-  tape.** Check the exact Beta-source-to-Alpha-tape refinement and all resource
+- [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma` and missing
+  tape.** Check the exact Gamma-source-to-Alpha-tape refinement and all resource
   outcomes after lowering and both D19 adapters are complete. Measure
   representative compiler-sized inputs; a 12-hour ceiling is emergency
   containment, not acceptable normal performance.
 
-## 4. Gamma-written Delta compiler
+## 4. Delta-written Epsilon compiler
 
-- [x] **FREEZE-DELTA-V1.** D17 and `source/delta/LANGUAGE.md` fix one
+- [x] **FREEZE-DELTA-V1.** D17 and `source/epsilon/LANGUAGE.md` fix one
   self-contained grammar, static semantics, execution model, boundary,
   rejection/trap taxonomy, closure presentation, and resource classification.
 - [ ] **BUILD-DELTA-COMPILER.** Implement
-  `source/delta/compiler/delta_compiler.gamma` to consume arbitrary valid Delta
-  and emit exact Alpha tape directly. No Beta translator, Gamma evaluator
+  `source/epsilon/compiler/epsilon_compiler.delta` to consume arbitrary valid Epsilon
+  and emit exact Alpha tape directly. No Gamma translator, Delta evaluator
   subprocess, host encoder/decoder, native assembler stream, or older compiler
   participates.
-  - [x] Author the exact 26-constructor `DeltaRejectReason`, the two-constructor
-    `DeltaCompileOutcome`, and the complete first checking phase in the final
+  - [x] Author the exact 26-constructor `EpsilonRejectReason`, the two-constructor
+    `EpsilonCompileOutcome`, and the complete first checking phase in the final
     source path. `check_lexical` validates the whole D15 envelope before a
     second whole-source token/literal scan, preserves D17 lexical phase
     priority, reports exact lexical reason/offset pairs, rescans source spans
-    without retaining a token ledger, and type-checks as Gamma. The source has
+    without retaining a token ledger, and type-checks as Delta. The source has
     no `main` or placeholder artifact until all checking and direct lowering
     phases can return an honest complete outcome.
   - [x] Establish the complete D17 syntax representation and transient parser
-    cursor foundation in native Gamma values. Every retained syntax form owns
+    cursor foundation in native Delta values. Every retained syntax form owns
     exact source spans; identifiers and literals retain source-span identity;
     token rescanning covers the closed keyword, literal, punctuation, and
     operator set without a whole-source ledger. Token start, code, end, and
     literal value are scalar `Int` facts, so repeated parser lookahead allocates
-    no token/outcome objects in Gamma's fixed immutable heap. A
+    no token/outcome objects in Delta's fixed immutable heap. A
     semicolon-terminated postfix form is retained without a parser-time
     semantic guess. D53 subsequently fixes it syntactically as a statement and
     gives a successfully resolved `never` call `NoNormalReturn` semantics. No
@@ -1114,11 +1118,11 @@ code, discover a closure, manufacture proof premises, or decide admission.
     order. The
     whole-program entry preserves lexical-phase priority, rejects an empty
     source at its extent, requires at least one declaration, and consumes the
-    exact source through trivia to EOF. `delta_parse_program_syntax` now parses
+    exact source through trivia to EOF. `epsilon_parse_program_syntax` now parses
     every D17 grammar form without claiming collection, type/control checking,
     lowering, or a compiler artifact.
-  - [x] Implement the pure final symbolic-Alpha encoder used after Delta
-    lowering. Its closed, nonempty compiler IR covers all 21 Alpha instructions
+  - [x] Implement the pure final symbolic-Alpha encoder used after Epsilon
+    lowering. Its closed, nonempty compiler IR covers all 21 Beta instructions
     plus dense symbolic labels and admits forward/backward references and
     aliases. Successful encoding requires every allocated label to bind exactly
     once and emits the exact raw at-most-1,048,572-byte AlphaBootstrapV2
@@ -1132,17 +1136,17 @@ code, discover a closure, manufacture proof premises, or decide admission.
     linear rope depth, then an independent two-pass replay partitions the raw
     opcodes and proves every distinct direct target is an instruction start.
     The implementation uses no host encoder, decoder, evaluator, or older rung
-    and type-checks through the Gamma frontend gate. Executed exact-vector and
-    mutation canaries join the real Gamma-compiler gate once that edge exists.
+    and type-checks through the Delta frontend gate. Executed exact-vector and
+    mutation canaries join the real Delta-compiler gate once that edge exists.
     Immutable heap use scales with authored instructions and distinct direct
     targets, so private exhaustion may honestly become outer `Incomplete` below
     Alpha's payload cap. Profile the real `D` closure; terrible performance,
-    unacceptable heap pressure, or pressure to extend Alpha instructions is an
+    unacceptable heap pressure, or pressure to extend Beta instructions is an
     owner-escalation trigger, not permission for a hidden alternate backend.
     Its exact preflight, depth-20 target trie, oversize sentinel, and adjacent
     vectors now share the common V2 profile.
   - [x] **IMPLEMENTATION — D24: DELTA-CENSUS-BINDERS-PRIORITY-V1.** Implement
-    D22 and D24's exact Delta identity census before type formation. The
+    D22 and D24's exact Epsilon identity census before type formation. The
     source-shaped collector first builds complete owner and exact qualified-
     machine rows, then covers grammar-selected member, state, parameter, let,
     and transition-binder scopes with byte-exact authored-name comparison.
@@ -1154,7 +1158,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     are disjoint; duplicate and boundary candidates share one coordinate
     minimum; and every duplicate owner table, including same-kind duplication,
     is ambiguous rather than first-wins classified. The complete source
-    type-checks through the Gamma frontend. Runtime behavior remains owned by
+    type-checks through the Delta frontend. Runtime behavior remains owned by
     the dependency-blocked real-compiler suite below; no host collector was
     introduced.
   - [x] Begin D17 type formation with the declaration-order-independent portion
@@ -1165,15 +1169,15 @@ code, discover a closure, manufacture proof premises, or decide admission.
     exact type start beside the collected native syntax for later shape,
     recursion, body, and lowering passes. Do not promote that candidate to a
     rejection before D31's structural priority is implemented. The source
-    type-checks through the full Gamma frontend gate;
-    behavioral canaries remain dependency-blocked on the real Gamma compiler
+    type-checks through the full Delta frontend gate;
+    behavioral canaries remain dependency-blocked on the real Delta compiler
     edge.
   - [x] **D31 — DELTA-TYPE-FORMATION-V1.** Fix lengths `1..INT32_MAX`, empty
     data as one zero-field record, mixed-data rejection, exact storage-only
     `u8` and `never`/view/`Console` placement, and disjoint structural anchors.
     Valid
     source that exceeds one selected application-static-storage profile returns
-    attributed or aggregate outer `Incomplete`; it is never a Delta rejection.
+    attributed or aggregate outer `Incomplete`; it is never a Epsilon rejection.
   - [x] **IMPLEMENTATION — D31 STRUCTURAL TYPE FORMATION.** Replace the
     unknown-name-only precursor with the complete profile-independent
     structural judgment. It classifies every empty declaration explicitly as
@@ -1191,18 +1195,18 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reachability marks every recursive edge at its named-reference coordinate
     without path-exponential expansion through acyclic diamonds. The native
     pass now promotes the winning candidate after D22/D24 census and type-
-    checks through the Gamma frontend gate. Exact behavioral vectors remain in
-    the adjacent contract-derived plan until the real Gamma compiler can
+    checks through the Delta frontend gate. Exact behavioral vectors remain in
+    the adjacent contract-derived plan until the real Delta compiler can
     execute them; no host evaluator is introduced.
     - [x] Close the standalone-`u8` enforcement hole: admit it in stored data
       and nested array/view element positions, but reject an exact outer
       parameter, local, or return as `TypeMismatch` at its type token. Treat
       `Main.console` as structurally stored and leave its required sealed type
       to D56's entry-shape judgment. This enforces D17's existing storage-only
-      rule rather than creating a new Delta decision.
+      rule rather than creating a new Epsilon decision.
   - [x] **D31 OUTCOME-SCHEMA PLUMBING.** Retain the two source-owned
     `StorageIncompleteAt`/`StorageIncompleteTotal` constructors and the D19
-    Gamma-profile schema check. This establishes nominal plumbing only and
+    Delta-profile schema check. This establishes nominal plumbing only and
     claims no storage-demand calculation or refusal behavior.
   - [x] **D34 — BOUNDED APPLICATION-STATIC-STORAGE WITNESS.** Preserve D31's
     profile-independent validity and existing V1 outcome/frame. Require the
@@ -1219,7 +1223,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     for malformed, competing, or missing supporting shapes at D56's exact
     anchors. Treat `Console` members as an unordered signature set and binder
     names as nonsemantic. Delete the redundant integer `kind` from
-    `DeltaTypeFormationCandidateAt`, derive same-reason equality centrally from
+    `EpsilonTypeFormationCandidateAt`, derive same-reason equality centrally from
     the closed reason/code bijection without ordering by code, and author the
     first entry-bearing fixtures before publishing golden coordinates.
   - [ ] **IMPLEMENTATION — DELTA BODY/CONTROL CHECKING.** Resolve every value,
@@ -1243,7 +1247,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     candidates in the distinct earlier type-formation carrier. D36 separately
     requires the earlier callable collision census,
     and D37 fixes body/control premise-DAG composition.
-    The foundation type-checks through the real Gamma frontend;
+    The foundation type-checks through the real Delta frontend;
     it claims no completed body judgment or behavioral execution.
   - [x] **IMPLEMENTATION — DELTA ORDERED LOCAL RESOLUTION.** Retain the exact
     machine parameter, state parameter, `let`, or transition-binder declaration
@@ -1258,8 +1262,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     in source order and are recoverable by exact expression constructor and
     span, so same-start postfix nodes cannot alias their bases; one neutral
     candidate bucket collects all failures without promoting a rejection. The
-    complete source type-checks through the Gamma frontend. Exact behavioral
-    vectors remain planned until the real Gamma compiler edge can execute them.
+    complete source type-checks through the Delta frontend. Exact behavioral
+    vectors remain planned until the real Delta compiler edge can execute them.
   - [x] **IMPLEMENTATION — DELTA SCALAR VALUE/PLACE FACT FOUNDATION.** Extend
     the existing ordered expression walk instead of adding a duplicate
     recursive checker. Retain deterministic child-before-parent exact-AST facts
@@ -1270,8 +1274,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     complete scalar negation/binary operands. Do not manufacture a parent fact
     or dependent error when a needed child judgment is absent. Call, receiver,
     constructor, transition-binder, resultless, and never completion remain in
-    the body/control task. The Gamma frontend type-checks the complete source;
-    executable semantics remain dependency-blocked on the real Gamma compiler
+    the body/control task. The Delta frontend type-checks the complete source;
+    executable semantics remain dependency-blocked on the real Delta compiler
     edge.
     - [x] Extend the same walk with positive aggregate postfix facts. Retain
       exact record-owner/field custody for named-record projections; preserve a
@@ -1298,7 +1302,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     owners/cases keep their settled name diagnostics. D57 now fixes category,
     semantic-identity, payload-arity, grammar-owned wildcard placement, and
     missing-coverage order. D53 separately owns local block exits.
-    The Gamma gate establishes source formation only until the real compiler
+    The Delta gate establishes source formation only until the real compiler
     edge exists.
   - [ ] **IMPLEMENTATION — D57 DELTA TRANSITION-PATTERN/COVERAGE TOTALITY.**
     Restrict transition parsing to one or more nonwildcard arms with an optional
@@ -1383,7 +1387,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
         be discarded and a successful `never` result is left for the later
         block-flow judgment. At this submilestone, transition-continuation/state
         admission and post-`never` flow remained open; the later bullet closes
-        the settled explicit-state slice. The Gamma gate proves source
+        the settled explicit-state slice. The Delta gate proves source
         formation only until the real compiler edge exists.
       - [x] Implement transition-continuation admission except D50's bare-state
         branch. Thread
@@ -1404,7 +1408,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
         authored arguments keep their sibling failures. D50 now leaves only the
         state-only bare branch unimplemented; D53 separately owns machine-call
         exit effects. Transition subject/pattern/binder rules
-        remain open. The Gamma gate establishes source formation only until the
+        remain open. The Delta gate establishes source formation only until the
         real compiler edge exists.
       - [ ] **IMPLEMENTATION — D50 DELTA BARE STATE TRANSFER.** For every known
         bare state, independent of arity, add `InvalidControlTarget` at the
@@ -1422,8 +1426,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
         namespaces. Normalize the reserved `self` keyword to an ordinary name
         expression, replace the nameless self carrier with one named receiver
         local carrying the owner-derived type/place, and delete self-only lookup
-        plus `NoDeltaLocalBindingName`. Undeclared `self` then reaches the
-        existing `UnknownName` branch. Keep `NoDeltaLocalBindingType` for
+        plus `NoEpsilonLocalBindingName`. Undeclared `self` then reaches the
+        existing `UnknownName` branch. Keep `NoEpsilonLocalBindingType` for
         unresolved transition binders. Add D51's syntax, namespace, state-scope,
         no-cascade, and earliest-coordinate controls.
   - [ ] **IMPLEMENTATION — D37 DELTA PREMISE-DAG COMPOSITION.** Retain every
@@ -1456,7 +1460,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       relations, reject unsupported bases or non-`i32` operands at the postfix
       start, preserve array/view place distinctions, and leave bounds to
       runtime. Missing sibling facts manufacture neither a relation nor a
-      parent result. The Gamma admission gate covers source formation only;
+      parent result. The Delta admission gate covers source formation only;
       executable controls remain dependency-blocked on the real compiler edge.
     - [x] Generalize the complete-result value-use branch across scalar
       operators and ordinary statement relations, and retain the explicitly
@@ -1473,7 +1477,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       reads while admitting `i32` establishment into a `u8` place, derives no
       secondary mismatch from an unresolved or non-place left side, and keeps
       exact candidate deduplication. Transition relations, explicit returns,
-      and terminal flow remained for later slices. The Gamma gate
+      and terminal flow remained for later slices. The Delta gate
       establishes source formation only until the real compiler edge exists.
     - [x] Thread each enclosing machine's exact optional return type through
       entry blocks, states, and transition arms. An explicit `return;` is
@@ -1489,7 +1493,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       D53 now supersedes the first-following-statement coordinate and settles
       later constructs after `never`, local falloff, and machine-continuation
       exit behavior; transition target and pattern relations remain open
-      independently. The Gamma gate establishes
+      independently. The Delta gate establishes
       source formation only until the real compiler edge exists.
     - [ ] **IMPLEMENTATION — D52 RESULTLESS ARGUMENT ANCHOR.** In the existing
       argument-category sibling scan, make a resultless machine or constructor
@@ -1542,10 +1546,10 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reachable roots. Implement D34's bounded arithmetic, deterministic
     attributed/aggregate refusal, exact-versus-witness boundary, zero-factor
     path, adapter validation, and no-publication canaries. Do not trap, choose
-    undocumented saturation, impose a Delta validity limit, or report a
+    undocumented saturation, impose a Epsilon validity limit, or report a
     traversal prefix.
 - [x] Derive compact positive, negative, trap, and private-budget `Incomplete`
-  conformance directly from settled portions of the Delta contract. Include
+  conformance directly from settled portions of the Epsilon contract. Include
   D22's namespace, boundary-owner, duplicate-priority, active-shadowing, and
   disjoint-state vectors. Do not recreate cases that
   merely pin quirks of the removed translator or materialize another unrun
@@ -1562,28 +1566,28 @@ code, discover a closure, manufacture proof premises, or decide admission.
     ArityMismatch` two-round diagnostics; and covers both unrelated-failure
     source orders plus the boundary/data-ambiguous owner. These are contract-
     derived planned vectors, not claimed execution evidence.
-- [ ] **DEPENDENCY-BLOCKED — incomplete `delta_compiler.gamma`.** Materialize
+- [ ] **DEPENDENCY-BLOCKED — incomplete `epsilon_compiler.delta`.** Materialize
   and run that
-  contract-derived suite through the real Gamma-written compiler and bind every
+  contract-derived suite through the real Delta-written compiler and bind every
   outcome to its no-partial-tape behavior.
-  - [x] Delete `exprc.delta` and `minic.delta`; both were demonstrations of the
-    removed Darwin-native route rather than authoritative Delta observations.
-  - [x] Delete the unrun 43-file pre-migration Delta corpus rather than
+  - [x] Delete `exprc.epsilon` and `minic.epsilon`; both were demonstrations of the
+    removed Darwin-native route rather than authoritative Epsilon observations.
+  - [x] Delete the unrun 43-file pre-migration Epsilon corpus rather than
     classifying native-backend slices as language tests. It mixed retired
     Darwin/ARM layout and trap assumptions, deleted `contracts.sh` workflows,
     demonstrations, and unresolved keyword/domain/result/builtin proposals.
     Derive a compact positive/negative suite from D17 and run it through the
-    actual Gamma-written compiler.
-- [ ] **DEPENDENCY-BLOCKED — missing Gamma/Delta compilers.** Check
-  exact Gamma-source-to-Alpha-tape refinement, including realistic source
+    actual Delta-written compiler.
+- [ ] **DEPENDENCY-BLOCKED — missing Delta/Epsilon compilers.** Check
+  exact Delta-source-to-Alpha-tape refinement, including realistic source
   closures large enough to compile `D`.
 
-## 5. Delta-written full Omega compiler `D`
+## 5. Epsilon-written full Omega compiler `D`
 
 - [ ] **OWN-OMEGA-D.** Author one exact package-resolved closure `D` at
-  `source/omega/omega_compiler.delta`; do not preserve historical filenames,
+  `source/omega/omega_compiler.epsilon`; do not preserve historical filenames,
   snapshots, or native-publication adapters as authorities. This is downstream
-  of the frozen Delta/Gamma contracts; source authoring need not wait for the
+  of the frozen Epsilon/Delta contracts; source authoring need not wait for the
   physical compiler artifacts. The deleted prototype
   remains available in Git for selectively re-deriving an isolated algorithm,
   but it cannot be restored or copied as a compiler-shaped starting point.
@@ -1592,7 +1596,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     Encode the committed canonical subject and invocation, structural package
     keys, separately selected immutable revisions, graph indices, closed-tree
     snapshots, products, targets, and admissions. V1 carries no preaccepted
-    `PackageInstance`. Reject every raw `u32` high bit before signed Delta
+    `PackageInstance`. Reject every raw `u32` high bit before signed Epsilon
     conversion, validate exact end and canonical order, and implement the
     shared 40-byte `OCOUT` header plus its sole eight-byte package/source
     coordinate tail. Retain the edge-owned closed reason/resource tables and
@@ -1608,7 +1612,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       section bounds, requires exact end, and retains only the subject and
       invocation spans on success. It does not call the source parser, invent a
       package/source identity, add `Main`, or publish `OCOUT`. Exact malformed
-      frame vectors remain assigned to the real Delta-compiler gate.
+      frame vectors remain assigned to the real Epsilon-compiler gate.
   - [ ] **DEPENDENCY-BLOCKED — INCOMPLETE D AND D59 TABLE IMPLEMENTATION:
     D18/D25/D59 OMEGA-COMPILER-REQUEST-V1.** Implement the canonical sealed Omega
     compiler edge for both `D -> omega0` and `C -> omega`: encode the resolved
@@ -1627,7 +1631,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     and offset but re-anchor `OCOUT` to the authored `include_source` handoff.
     Add exact request/framing, scope-stratum, no-reread, dependency-bundle,
     diagnostic-order, resource, and no-partial-output gates.
-  - [x] Establish the final Delta-side Alpha tape encoder in `D`. It owns the
+  - [x] Establish the final Epsilon-side Alpha tape encoder in `D`. It owns the
     complete closed opcode-shape table, paired-`i32` representation of arbitrary
     64-bit immediates, instruction-atomic capacity checks, bounded address
     fixups, and the exact raw 1,048,572-byte AlphaBootstrapV2 payload ceiling.
@@ -1636,7 +1640,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     reconstructs the complete instruction-start partition, rejects unknown or
     truncated instructions, and requires every direct target to land on a
     reconstructed start. Native seed stamping alone owns the descriptive
-    four-byte length prefix; it is not part of the `.tape`. Because Delta has no
+    four-byte length prefix; it is not part of the `.tape`. Because Epsilon has no
     private visibility, even the reserved-write helpers independently enforce
     open state, byte range, and whole-write capacity rather than relying on a
     prose-only caller precondition. `D` deliberately has no `Main`, source
@@ -1655,8 +1659,8 @@ code, discover a closure, manufacture proof premises, or decide admission.
     resource framing. There is no arbitrary public patch operation or
     unresolved-zero convention. Exact forged-owner, stale-map, forward/
     backward/alias, undefined/end-label, duplicate-bind, interior-target, and
-    capacity canaries join the real Delta-compiler gate when that executable
-    exists; do not create a host Delta executor to run this incomplete closure.
+    capacity canaries join the real Epsilon-compiler gate when that executable
+    exists; do not create a host Epsilon executor to run this incomplete closure.
   - [x] Establish `D`'s source-view UTF-8 framing primitive independently of
     D18's package/source custody. It accepts an immutable byte view, implements
     the complete one- through four-byte scalar envelope, rejects overlong
@@ -1664,7 +1668,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     tails, and reports the malformed scalar's lead-byte offset. It does not
     invent source IDs, unit ordering, token custody, or where otherwise-valid
     non-ASCII scalars are permitted by LEXICAL-PROFILE-V1. Exact boundary and
-    malformed-family vectors join the real Delta-compiler gate rather than a
+    malformed-family vectors join the real Epsilon-compiler gate rather than a
     host reimplementation.
   - [x] Establish `D`'s complete source-neutral lexical scanner independently
     of D18's package/source custody. It implements the exact current Omega
@@ -1681,7 +1685,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
     decoded string length: it invents no source identity, package order, token
     ledger, or decoded-byte mirror. D18 fixes source size/admission and outer
     `Incomplete` framing. Exact lexical vectors join the real
-    Delta-compiler gate; do not add a host lexer or test executor.
+    Epsilon-compiler gate; do not add a host lexer or test executor.
   - [ ] Parse semantic tokens inside one canonical parser-machine invocation.
     That entry validates the complete immutable view once, then threads the
     same view through private internal states that call the bounded scanner
@@ -1707,7 +1711,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       outer `Incomplete` mapping remains D18-owned; profile both against the real
       `C` closure before publication rather than treating the provisional
       values as semantic necessities. Executed vectors wait for the real
-      Delta-compiler gate; do not add a host Delta executor.
+      Epsilon-compiler gate; do not add a host Epsilon executor.
     - [x] Extend that same invocation with one mixed root ledger and basic
       `[pub] data` syntax. Preserve authored use/data order; optional `[copy]`;
       empty, field-only, case-only, and mixed bodies; contextual
@@ -1728,7 +1732,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Governed built-ins and plausible richer suffixes remain incomplete until
       their full forms are retained. Exact/adjacent resource controls and the
       source-shaped positive/negative/incomplete vectors join the real
-      Delta-compiler gate rather than a host executor.
+      Epsilon-compiler gate rather than a host executor.
     - [x] Retain structured case payloads in that same parser invocation.
       Cases own a contiguous span in one separate payload-field arena; empty,
       multiple, trailing-comma payloads and an optional final case semicolon
@@ -1757,7 +1761,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       payload-field and constraint tables in this slice. Preserve the same
       invocation-local view custody, relative spans, reset behavior,
       `Complete`-only publication, and D18 request neutrality. Executed and
-      exact-edge resource vectors wait for the real Delta-compiler gate.
+      exact-edge resource vectors wait for the real Epsilon-compiler gate.
     - [x] Retain the first range-refined field type on the same constrained
       node path: `Base [minimum..=maximum]` with nonnegative integer-literal
       bounds in the unsuffixed decimal spelling needed by the current compiler
@@ -1772,7 +1776,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       constraint row into kind-selected payload words without allocating
       parallel full-size variant arenas, and preserve the existing TypeNodes
       dominance and atomic field publication. Exact semantic and capacity
-      vectors still belong to the unavailable Delta-compiler gate, not a host
+      vectors still belong to the unavailable Epsilon-compiler gate, not a host
       parser.
     - [x] Retain recursively nested fixed-array field types over one bare named
       leaf: `[Type; length]`, with unsuffixed decimal length spans and the
@@ -1789,7 +1793,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       type reset so no prior frame or constraint can leak. This completes the
       type shapes used by every current `C`-closure data field, without claiming
       that the surrounding root grammar or full closure is implemented. Keep
-      exact depth/node/delimiter vectors at the real Delta-compiler gate.
+      exact depth/node/delimiter vectors at the real Epsilon-compiler gate.
     - [x] Retain the first durable machine root without inventing a body skip:
       a bare ordinary machine with an arbitrary name-like path, optional empty
       parentheses, and an immediately empty body. Publish it in the existing
@@ -1806,7 +1810,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       establishes the durable representation and control boundary without
       claiming present `C`-closure progress. Exact positive, malformed,
       incomplete, capacity, reset, and mixed-order vectors wait for the real
-      Delta-compiler gate.
+      Epsilon-compiler gate.
     - [x] Generalize the existing field-type continuation into one explicit
       consumer-neutral type engine, then use it for complete comma-separated
       ordinary `name: Type` machine parameter lists. Direct fields, case
@@ -1825,7 +1829,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       nonempty bodies remain implementation-incomplete. This still completes
       zero current `C` machine roots; it is the reusable signature foundation,
       not a closure-coverage claim. Exact list/delimiter/path-isolation/
-      capacity/reset vectors remain assigned to the real Delta-compiler gate.
+      capacity/reset vectors remain assigned to the real Epsilon-compiler gate.
     - [x] Retain the complete simple state-parameter prefix matrix and one
       elided-lifetime outer Reference type without creating a receiver or data-
       field special case. Parse canonical optional `const`, then optional
@@ -1848,7 +1852,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       complete root parameter lists in current `C`; 40 headers now reach body
       parsing, but zero roots complete because every reached body is nonempty.
       Keep exact
-      modifier/access/flag/postorder/resource/reset vectors at the real Delta-
+      modifier/access/flag/postorder/resource/reset vectors at the real Epsilon-
       compiler gate.
     - [x] Retain bracket slice syntax `[T]` through the existing shared type
       engine and bounded bracket stack. Classify each completed bracket frame
@@ -1868,7 +1872,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       but zero roots complete because every reached body remains nonempty. Keep
       exact bracket-kind,
       nesting, delimiter, postorder, resource, and reset vectors at the real
-      Delta-compiler gate.
+      Epsilon-compiler gate.
     - [x] Retain an ordinary machine's optional immediate `-> Type` on its
       implicit entry state through the same consumer-neutral type engine used
       by fields and parameters. Both parameterized and zero-parameter machines
@@ -1884,7 +1888,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       root now reaches body parsing, raising the current total from 41 to 42
       without claiming a completed root. Keep exact arrow/type/delimiter,
       consumer-isolation, resource, reset, and state-publication vectors at the
-      real Delta-compiler gate.
+      real Epsilon-compiler gate.
     - [x] Generalize the existing `pub` root dispatcher from Data-only handling
       to ordinary machines without cloning the machine parser. The direct root
       path supplies `is_public = 0`; the recursive public-root path preserves
@@ -1896,7 +1900,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       otherwise representable headers, so they now reach body parsing and raise
       the current total from 42 to 50; their bodies are nonempty, so no root
       completes. Keep exact direct/public reset, span, visibility, capacity,
-      mixed-order, and publication vectors at the real Delta-compiler gate.
+      mixed-order, and publication vectors at the real Epsilon-compiler gate.
     - [x] Retain canonical identifier-led target-scoped machines as ordinary
       machine rows with an exact optional target-selector span. A target prefix
       must be followed by the `machine` keyword, then enters the same root
@@ -1910,7 +1914,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       the four `provider_defaults` headers now reach their nonempty bodies,
       raising the current body-boundary total from 50 to 54 without completing a
       root. Keep exact target span/presence, unscoped-reset, malformed-prefix,
-      capacity, mixed-order, and publication vectors at the real Delta-compiler
+      capacity, mixed-order, and publication vectors at the real Epsilon-compiler
       gate.
     - [x] Complete two settled leaves of the shared type engine without adding
       a consumer special case. General `Self` now emits the same payload-free
@@ -1927,7 +1931,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       full-language progress rather than a closure-shaped shortcut. Keep exact
       Self nesting, bare-versus-structural domain, lifetime ordering/span,
       access, reset, postorder, and consumer-isolation vectors at the real
-      Delta-compiler gate.
+      Epsilon-compiler gate.
     - [x] Retain the payload-free Unit type `()` through the same shared base
       node path as Named and SelfType. Exact paired delimiters admit Unit as a
       direct field, parameter, return, or outer-reference referee, and as the
@@ -1937,7 +1941,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       needs no arena, resource class, or consumer branch. Current `C` signatures
       do not use Unit, so body-boundary coverage remains 54 of 73. Keep exact
       delimiter/EOF, nested bracket, reference, domain, reset, postorder, and
-      consumer-isolation vectors at the real Delta-compiler gate.
+      consumer-isolation vectors at the real Epsilon-compiler gate.
     - [x] Retain the first honest nonempty machine bodies: zero or more ordinary
       semicolon-terminated path-call statements whose arguments are name/self
       paths. Mirror the canonical call-statement shape instead of preserving an
@@ -1960,7 +1964,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and `Parser::parse`—while all 54 representable headers still reach the
       body boundary. Keep exact receiver/target/argument spans, trailing-comma,
       malformed delimiter, capacity, reset, multi-statement, mixed-root, and
-      Complete-only publication vectors at the real Delta-compiler gate.
+      Complete-only publication vectors at the real Epsilon-compiler gate.
     - [x] Retain ordinary `target = value;` assignments alongside calls in the
       same machine-body statement ledger. This first value slice preserves
       self/name place paths, self-member and qualified-name value paths,
@@ -1981,7 +1985,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       four to twelve while all 54 representable headers still reach the body
       boundary. Keep exact path-kind, literal-span, delimiter,
       expression/statement-capacity, reset, mixed-call/assignment, and partial-
-      publication vectors at the real Delta-compiler gate.
+      publication vectors at the real Epsilon-compiler gate.
     - [x] Retain the first canonical static machine-call argument lane:
       nonempty comma-separated path arguments in `<...>` immediately before
       the value-argument list. Each path-only static argument owns its exact
@@ -2000,7 +2004,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       current `C` roots from twelve to sixteen while body-boundary coverage
       remains 54 of 73. Keep exact path/list/delimiter, static-versus-value
       ownership, capacity, reset, and Complete-only publication vectors at the
-      real Delta-compiler gate.
+      real Epsilon-compiler gate.
     - [x] Share one retained primary-literal path between call arguments and
       assignment values, and add source-shaped string expressions beside the
       existing booleans and unsuffixed nonnegative decimal integers. Boolean
@@ -2016,7 +2020,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       root (`builder.package("psi");`), raising completed current `C` roots from
       sixteen to seventeen while body-boundary coverage remains 54 of 73. Keep
       exact literal/span/decoded-length, consumer/delimiter, capacity, reset,
-      and partial-publication vectors at the real Delta-compiler gate.
+      and partial-publication vectors at the real Epsilon-compiler gate.
     - [x] Retain shallow named struct literals as ordinary expression nodes for
       call arguments and assignment values. Accept the canonical one-member
       record or two-member case type path, empty or comma-separated named-field
@@ -2034,7 +2038,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       body-boundary coverage remains 54 of 73. Keep exact record-versus-case
       type paths, field/value/delimiter spans, empty/trailing-comma behavior,
       capacity, reset, nested-incomplete, and Complete-only publication vectors
-      at the real Delta-compiler gate.
+      at the real Epsilon-compiler gate.
     - [x] Retain canonical source-ordered explicit states without forcing every
       machine through a fabricated entry. A machine owns zero or one implicit
       entry followed by its authored states; parameters, a return, implicit
@@ -2056,7 +2060,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       from nineteen to twenty-one while all 54 representable headers still reach
       the body boundary. Keep exact implicit-entry presence, state ordering,
       per-state ownership, transition expansion, guard/target spans, resource,
-      reset, and partial-publication vectors at the real Delta-compiler gate.
+      reset, and partial-publication vectors at the real Epsilon-compiler gate.
     - [x] Retain the first source-shaped machine clause ledger instead of
       treating header clauses as disposable punctuation. Exact non-generic
       `satisfies Trait::requirement` bindings and nonempty `reaches` ceilings
@@ -2070,7 +2074,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       `ConsoleNativeProvider::{write,write_line}`, raising completed current
       `C` roots from twenty-one to twenty-three and body-boundary coverage from
       54 to 56 of 73. Keep exact clause/member/order/delimiter, no-parentheses header,
-      resource, reset, and Complete-only publication vectors at the real Delta-
+      resource, reset, and Complete-only publication vectors at the real Epsilon-
       compiler gate.
     - [x] Materialize the first source-ordered binary-expression layer instead
       of recognizing one closure-specific assignment spelling. Assignment
@@ -2085,7 +2089,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       current `C` roots from twenty-three to twenty-four while body-boundary
       coverage remains 56 of 73. Keep exact associativity/operator/delimiter,
       mixed-primary, expression-capacity, reset, and partial-publication vectors
-      at the real Delta-compiler gate.
+      at the real Epsilon-compiler gate.
     - [x] Add one bounded nonrecursive precedence frame for transition subjects
       instead of accumulating comparison-shaped parser branches. It retains
       path, boolean, and unsuffixed decimal-integer primaries; left-associated
@@ -2102,7 +2106,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       raising completed current `C` roots from twenty-four to twenty-seven while
       body-boundary coverage remains 56 of 73. Keep exact precedence,
       associativity, reduction-depth, mixed-primary, resource, reset, and
-      Complete-only publication vectors at the real Delta-compiler gate.
+      Complete-only publication vectors at the real Epsilon-compiler gate.
     - [x] Retain the first indexed assignment place as an ordinary expression
       composition: one self/name/member base path, one self/name/member path
       index, and an exact bracket span materialize a dedicated `(base, index)`
@@ -2118,7 +2122,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       73. `TokenStream::push` still requires its transition target argument.
       Keep exact base/index/bracket/equal spans, expression/path capacity,
       richer-postfix incompleteness, reset, and Complete-only publication
-      vectors at the real Delta-compiler gate.
+      vectors at the real Epsilon-compiler gate.
     - [x] Retain canonical terminal expression statements without inventing a
       separate state-result channel. `Expression` statements point directly to
       the shared expression arena and may close a state with a retained
@@ -2131,7 +2135,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       raising completed current `C` roots from twenty-nine to thirty while
       body-boundary coverage remains 56 of 73. Keep exact terminal/bracket
       spans, value/place discrimination, statement/expression capacity, reset,
-      and Complete-only publication vectors at the real Delta-compiler gate.
+      and Complete-only publication vectors at the real Epsilon-compiler gate.
     - [x] Retain subjectless `transition { ... }` blocks as the canonical
       zero-subject form rather than manufacturing a unit/path expression.
       Every expanded arm now records subject presence separately from its
@@ -2141,7 +2145,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       yet because every owning root also contains target arguments, local
       bindings, casts, or another unretained form. Keep zero-versus-one-subject,
       wildcard, reset, and Complete-only publication vectors at the real
-      Delta-compiler gate.
+      Epsilon-compiler gate.
     - [x] Retain nonempty named transition-target argument lists through the
       same expression-handle ledger used by ordinary calls. The current lane
       accepts comma-separated self/name/member paths, Booleans, unsuffixed
@@ -2153,7 +2157,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       completed current `C` roots from thirty to thirty-one while body-
       boundary coverage remains 56 of 73. Keep exact argument order,
       delimiter/trailing-comma behavior, expression/argument capacity, reset,
-      and Complete-only publication vectors at the real Delta-compiler gate.
+      and Complete-only publication vectors at the real Epsilon-compiler gate.
     - [x] Retain canonical local-data statements as dedicated source-shaped
       rows: `let [mut] name: Type [= expression];`. `mut` is contextual only
       when followed by another name-like token, so `let mut: T;` remains an
@@ -2170,7 +2174,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       completed current `C` roots from thirty-one to thirty-six while body-
       boundary coverage remains 56 of 73. Keep exact contextual-mut,
       initialized/uninitialized, type/expression consumer isolation, capacity,
-      reset, and Complete-only publication vectors at the real Delta-compiler
+      reset, and Complete-only publication vectors at the real Epsilon-compiler
       gate.
     - [x] Retain ordinary call expressions as expression nodes and share their
       receiver, target, static-argument, runtime-argument, and delimiter parser
@@ -2274,7 +2278,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       consumer-specific shortcut. This is full-language
       parser progress and changes no current `C` root count. Exact nesting,
       precedence, depth, reset, and no-partial-publication vectors remain at
-      the unavailable real Delta-compiler gate.
+      the unavailable real Epsilon-compiler gate.
     - [x] Complete the canonical multiplicative tier by routing `/` and `%`
       through the same bounded reducer as `*`. Both retain source-ordered binary
       rows at the canonical multiplicative tier, so mixed
@@ -2286,7 +2290,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       not enter this binary lane. No arena, consumer, resource, or current `C`
       census changes. Exact association, precedence, grouping/prefix, malformed
       operand, reset, and no-partial-publication vectors remain assigned to the
-      real Delta-compiler gate.
+      real Epsilon-compiler gate.
     - [x] Retain the complete `<<`/`>>` shift tier in that same reducer. Shifts
       are source-ordered, left-associated, looser than additive forms, and
       tighter than comparison in transition subjects, assignments, locals, and
@@ -2299,7 +2303,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       Spaced `< <`/`> >` and unsupported compound assignment do not become
       shifts. No arena, resource, consumer, or current `C` census changes.
       Exact association, precedence, operator-span, malformed-operand, reset,
-      and no-partial-publication vectors remain assigned to the real Delta-
+      and no-partial-publication vectors remain assigned to the real Epsilon-
       compiler gate.
     - [x] Retain the complete `|`/`^`/`&` bitwise tiers in that same reducer.
       They are source-ordered and left-associated within each tier, with
@@ -2312,7 +2316,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       No arena, resource, consumer, or current `C` census changes. Exact
       association, cross-tier precedence, operator-span, malformed-operand,
       reset, and no-partial-publication vectors remain assigned to the real
-      Delta-compiler gate.
+      Epsilon-compiler gate.
     - [x] Retain single-domain contextual membership as a distinct expression
       shape: `value in Domain::Path`. Tighter arithmetic, shift, and bitwise
       forms reduce into the value before membership; comparison, equality, and
@@ -2330,7 +2334,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       membership owns an expression and at least one shared path member, so no
       new resource or current `C` census row is needed. Exact precedence,
       repeated-membership, domain-path, malformed-domain, capacity, reset, and
-      no-partial-publication vectors remain assigned to the real Delta-compiler
+      no-partial-publication vectors remain assigned to the real Epsilon-compiler
       gate.
     - [x] Retain the first closed external-leaf declaration as one coherent
       source-shaped form: `satisfies Trait::requirement via
@@ -2392,7 +2396,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       and nested/chained indexing remained implementation-incomplete. The
       current `C` census was unchanged; exact shape, malformed-inclusive,
       capacity, reset, and publication vectors remain assigned to the real
-      Delta-compiler gate.
+      Epsilon-compiler gate.
     - [x] Generalize that indexed-expression builder into a true repeatable
       postfix over the retained framed-value lane. Ordinary assignment values,
       local initializers, call arguments, transition subjects, and transition-
@@ -2409,7 +2413,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
       requires a bounded nested-index context stack rather than overwriting the
       live outer builder. The current `C` census is unchanged; exact chain,
       precedence, assignment-place, capacity, reset, and no-partial-publication
-      vectors remain assigned to the real Delta-compiler gate.
+      vectors remain assigned to the real Epsilon-compiler gate.
     - [x] Add the bounded nested-index context stack required by that postfix
       builder. Before an admitted path or completed primary begins an index
       while already serving as an outer index operand, one 128-row frame saves
@@ -2422,21 +2426,21 @@ code, discover a closure, manufacture proof premises, or decide admission.
       invalidates every old frame by zeroing its count. This adds no syntax
       variant, semantic rule, or resource identity. The current `C` census is
       unchanged; exact nesting, range, depth, reset, and no-partial-publication
-      vectors remain assigned to the real Delta-compiler gate.
+      vectors remain assigned to the real Epsilon-compiler gate.
 - [ ] **IMPLEMENTATION-INCOMPLETE — `D` exists but is not yet a compiler.**
   Complete `D` against the full Omega specification, including difficult
-  features even if `D` itself uses only plain Delta. Conservative lowering and
+  features even if `D` itself uses only plain Epsilon. Conservative lowering and
   poor optimization are
   allowed; weakened Omega semantics are not. D40 fixes the proof-only
   `FloatMeaning` equality/source-correspondence slice for implementation. D31
-  unblocks the earlier Delta compiler's type-formation implementation, while
+  unblocks the earlier Epsilon compiler's type-formation implementation, while
   D59 fixes the standalone Omega compiler's exact inner-wire rules and failure
   profile; assigning and implementing its checked numeric tables remains open.
   D25 fixes that edge's logical request and outer envelope, and D24 unblocks the
-  Delta census implementation. None prevents implementation of independently
+  Epsilon census implementation. None prevents implementation of independently
   settled source-shaped parser slices.
-- [ ] **DEPENDENCY-BLOCKED — incomplete Gamma/Delta compiler edge and `D`.**
-  Compile `D` with `delta_compiler_bytecode.tape` into
+- [ ] **DEPENDENCY-BLOCKED — incomplete Delta/Epsilon compiler edge and `D`.**
+  Compile `D` with `epsilon_compiler_bytecode.tape` into
   `omega0_compiler_bytecode.tape`, reconstruct the exact edge, and run the full
   Omega acceptance/rejection suite.
 - [ ] **DEPENDENCY-BLOCKED — incomplete `D` and absent `omega0`.** Verify that product
@@ -2473,7 +2477,7 @@ code, discover a closure, manufacture proof premises, or decide admission.
 
 Open an owner question when any of these appears:
 
-- representative `delta → omega₀` or `omega₀ → omega` work has terrible wall
+- representative `epsilon → omega₀` or `omega₀ → omega` work has terrible wall
   time, memory use, or tape size after ordinary profiling and cleanup;
 - Alpha verbosity creates pressure for a new opcode, wider encoding, or hidden
   high-level primitive;

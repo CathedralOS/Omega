@@ -1,446 +1,211 @@
-# Gamma compiler owner
+# Gamma compiler
 
-The canonical compiler owned here accepts Gamma, is implemented in Beta, and
-emits platform-independent Alpha tape:
+This directory owns the compiler artifact required by the Gamma rung:
 
-```text
-gamma_compiler.beta → gamma_compiler_bytecode.tape
-```
+- `gamma_compiler.beta` is the canonical immediate-predecessor source;
+- `gamma_compiler_bytecode.tape` is the current platform-independent artifact;
+- `outcomes-v1.tsv` is the closed compiler-boundary code table consumed by the
+  focused gate;
+- `validation/` contains only machinery that targets the canonical source or
+  its emitted tape;
+- `rebuild-artifact.sh` performs exact direct construction;
+- `test.sh` owns the focused accepted/rejected language discriminators;
+- `artifact_env.sh` installs the admitted tape into the selected Alpha seed.
 
-The source now exists as an incomplete implementation; the tape does not. Its
-retained frontend is the former standalone checker, moved rather than copied,
-and its direct Alpha payload/label/fixup substrate is final compiler material.
-The adjacent gate compiles this one source with temporary fixed test
-entries, retains all 98 frontend discriminators, and executes the emitter,
-runtime containment, frame/value ABI, checked `Int`, compact `Bytes`, sealed
-input, resolved-expression, selected-match, and whole-function paths. One
-full-source test emitter now covers ordinary and proper-tail calls,
-constructors, locals, matches, and general expressions instead of rebuilding
-five redundant compiler variants. It also pins malformed whole-function
-metadata and exact/adjacent label capacity before payload mutation. Seven D19
-schema cases cover both profiles, reversed reason declaration order, and
-missing/malformed outcome rows without emitting an adapter. The gate publishes
-no compiler artifact.
+Construction, testing, and evidence generation do not grant authority by
+themselves. One Beta source directly produces one exact Gamma compiler tape.
+The validation directory belongs here because the artifact
+being admitted owns its validation. Bounded diagnostics can expose regressions,
+but acceptance must ultimately terminate in the independently
+rooted checker under `source/alpha/checker/`.
 
-The retained compiler source declares 116 procedures. With the fixed frontend
-gate entry, the compiled gate uses 117 of Beta's 256 procedure slots and
-compiles to 333,928 bytes. The remaining 714,644 bytes under
-Alpha's runnable payload ceiling are a measured implementation budget, not a
-Gamma language limit or evidence that every remaining compiler component fits.
-Before the production entry and D19 adapters exist, the source also consumes
-965 of 1,024 non-builtin call rows, 739 of 1,024 global states, and 586 of 1,024
-global edges. D58 keeps those current limits canonical only as a staging
-baseline. A roomy noncanonical Beta compiler completes this source, after which
-the full conjunctive demand selects independently provisioned authored-
-structure counts with no more than 75 percent occupancy. Derived guards remain
-bound to their owners and tape capacity remains D23-owned when the Beta compiler
-profile republishes atomically.
+## Persisted artifact
 
-`../interp.beta` remains a bounded execution oracle. It may contribute an
-isolated lowering/runtime algorithm where economical, but no interpreter loop,
-serialized Gamma AST, or second frontend enters the canonical compiler.
-
-The compiler uses a private arbitrary-arity frame ABI and preserves proper tail
-calls. Its emitted compiler-application adapter alone supplies sealed input as
-Gamma `Bytes`, invokes the typed `main`, and serializes exact success or the
-accepted-language edge's failure frame. Fuel and private storage ceilings yield
-outer resource outcomes; they never change Gamma meaning.
-
-Fixed frame locals use zero-based opaque indexes into the aligned two-word
-slots after the frame header. One shared validator and guarded emitter own both
-load and store, so resolved variables, lets, and pattern binders reuse
-one containment rule. The resolved let seam validates its packed
-`(prefix,index)` profile before emitting its initializer, evaluates that
-initializer once outside tail position, stores the complete value, and passes
-the caller's tail context to its body. D20 assigns source binders and references
-to those indexes without active lexical shadowing; the ABI chooses neither.
-Resolved parameters use the frame's already-fixed reverse physical order: a
-guarded accessor validates the complete prefix, parameter count, and opaque
-source-order index, and requires their combined extent to stay inside the
-explicit-stack profile before loading one pair. D20 assigns references to those
-indexes but does not own or alter their runtime placement.
-
-## Implementation shape
-
-The compiler source is growing one pipeline inside `gamma_compiler.beta`:
+`gamma_compiler_bytecode.tape` is emitted directly from
+`gamma_compiler.beta`. Its complete construction lineage is:
 
 ```text
-sealed source
-  -> strict parse and declaration collection
-  -> type resolution and checked typed IR
-  -> direct Alpha lowering and fixups
-  -> complete private payload validation
-  -> one publication
+audited Alpha seed + direct Beta assembler tape
+  -> gamma_compiler.beta
+  -> gamma_compiler_bytecode.tape
 ```
 
-The compile-time AST/IR is never serialized into the emitted program. No Gamma
-evaluator loop, syntax-tag dispatcher, textual Alpha stream, or host-side
-assembler participates in the edge.
+`rebuild-artifact.sh --check` reconstructs the tape and compares it
+byte-for-byte without changing the repository. `artifact_env.sh` stamps it into
+the selected audited Alpha seed. No Gamma self-host, textual Beta output, or
+second assembler invocation participates.
 
-Under `AlphaBootstrapV2`, the Beta executable has exactly 128 MiB of
-source-visible logical raw memory. The frontend
-keeps sealed source in `[2 MiB,6 MiB)`, declaration and environment tables in
-`[6 MiB,10.5 MiB)`, labels/fixups below 13 MiB, payload instruction starts in
-`[126 MiB,127 MiB)`, and AST storage in `[16 MiB,125 MiB)`. The final
-`[127 MiB,128 MiB)` is the private one-MiB payload buffer; the runnable Alpha
-payload limit is 1,048,572 bytes. Source,
-table, arena, fixup, and payload writes are checked before mutation. No output
-byte is published until every fixup and the complete payload extent validate.
+The former Beta-written status reconstructor was deleted after measured proof
+work showed that it could not become the selected checked derivation. It was a
+parallel assembly semantics, not an admission premise. The exact source/tape
+certificate remains open under **BETA-GAMMA-COMPOSED-CERTIFICATE** in
+`TASKS_BOOTSTRAP.md`. Its one root edge proof is settled to compose bounded
+pass-one and pass-two equalities rather than require one compiler-scale
+conversion.
 
-Those extents describe the `AlphaBootstrapV2` profile selected by D23 and
-migrated with the seeds, Beta compiler, checker, outcome tables, and exact-limit
-gates. The measured 251,142-byte fixed frontend no longer has to fit the retired
-V1 ceiling. The current consolidated 206-case gate remains mandatory, and
-ordinary density improvements remain useful rather than a release gate.
+The committed artifact is 27,087 bytes with SHA-256
+`2e41027179e615ba1e532ad5f5d20157d67bf6cec38e2c74f98bf355af9aa06e`.
+The byte comparison, not the convenient digest, governs repository identity.
 
-The retained front end's four-word syntax nodes retain the exact
-zero-based source start in the high bits of their tag word; the 4 MiB source
-ceiling and closed tags make that packing exact without reducing AST capacity.
-Its first source failure is sticky across the outer byte envelope, parsing,
-literal checking, type-name resolution, and typed subexpression traversal.
-This is coordinate custody for later absorption, not an oracle-owned diagnostic
-format: the final compiler maps it through `GCOUT`'s fixed rejection table and
-publication boundary. D19's selected generated-program application profile is
-a separate concern.
+## Compiler boundary outcome
 
-Closed keyword, builtin, and builtin-type recognition shares one exact
-packed-ASCII matcher rather than five dedicated procedures and an unrolled
-`bytes_*` suffix tree. The matcher still checks the following identifier
-boundary; focused controls keep builtin and keyword prefixes available as
-ordinary user spellings. This is compiler-size engineering, not a lexical rule.
-Top-level `data` lookahead now uses that same bounded matcher rather than a
-second hand-unrolled spelling check. Declared type and constructor names also
-share one predicate because D16 gives them identical capitalization and
-builtin exclusions; D20 keeps their semantic namespaces separate.
+Compilation has one closed semantic result:
 
-Static match coverage now survives recursive body checking over the same
-nominal type. After typing every arm once, the checker replays only the already-
-resolved patterns under one fresh epoch before deciding duplicate and exhaustive
-coverage; nested matches can no longer overwrite an outer match's live rows.
-Equivalent pattern-failure states were merged so this repair does not revise
-Beta's fixed global-edge profile. The adjacent gate pins the same-type nested
-case directly.
+```text
+GammaCompileOutcome =
+    Complete(tape)
+  | Reject(reason, source_offset)
+  | Incomplete(resource, limit, requested, coordinate?)
+  | InternalFailure(reason, coordinate?)
+```
 
-D20 global collection now rejects the exact later duplicate independently in
-the type, constructor, and function namespaces before resolving declaration
-types. One bounded open-addressed pass per namespace reuses the match-coverage
-scratch, verifies every hash collision with exact source spelling, and retains
-the earliest conflicting source offset across namespaces. This avoids the
-quadratic declaration scan exposed by the 32,768-function capacity canary.
-The active local environment rejects a parameter, `let`, pattern field, or
-catch-all binder before mutation when its spelling is already active; existing
-push/pop boundaries preserve initializer, sibling-branch, and sibling-arm
-scope. Checked ordinary calls, constructor applications, and constructor
-patterns retain their exact one-based function or constructor table identity
-directly in the source AST; zero remains reserved for unresolved/builtin nodes.
-The same lexical environment now assigns source-order parameter indexes and
-fixed local slots to parameters, lets, pattern fields, catch-alls, and every
-variable reference. Disjoint scopes reuse local slots, while each function
-retains its return type, maximum live-local count, and exact parameter count in
-one packed profile word. That 16-bit field admits at most 65,535 simultaneously
-live locals; active parameters may exhaust the shared lexical environment
-earlier. Attempting the adjacent local fails through the private resource state
-before publishing an environment/AST slot or a wrapped profile. Source
-variables, lets, ordinary calls, constructor applications, and selected matches
-consume those identities directly in `lower_expr`.
+`Reject` records an observed Gamma-language violation. `Incomplete` records that
+the selected compiler exhausted a private profile before deciding the remaining
+source; it is neither acceptance nor rejection. `InternalFailure` records a
+contradiction in the compiler itself and grants no artifact authority. Parser
+phase numbers are private implementation state and never identify an outcome.
 
-Whole-function emission validates every retained function row and exact
-parameter spine, preflights label capacity, and publishes every source-order
-function label before emitting any body. It then defines bodies in source order,
-installs each packed frame profile, lowers the body in tail position, and emits
-the common return-frame epilogue. D19 remains the separate owner of profile
-selection, the generated PC-zero application adapter, result framing, and final
-publication.
+The Alpha realization uses the halt word only as a case tag: `0` is `Complete`,
+`1` is `Reject`, `2` is `Incomplete`, and `3` is `InternalFailure`. These values
+survive both Alpha's 32-bit halt observation and a shell's low-byte projection.
+On `Complete`, stdout is exactly the runnable Alpha payload and receives no
+prefix; the seed-stamping envelope supplies its length outside this compiler
+boundary. On every non-complete outcome, stdout is exactly one canonical
+40-byte diagnostic frame:
 
-D19 schema admission now resolves the exact `main` signature for both profiles.
-For `DeltaCompilerV1` it additionally validates the two source-owned nominal
-types, the exact `Complete`/`Reject` and D31/D34 storage-refusal field lists,
-all 26 nullary rejection constructors, and the fixed code bijection without using
-declaration order or runtime constructor kinds. D30 fixes the physical sealed
-request, exact profile maxima, Conformance observations, and complete
-`GCOUT`/`DCOUT` tables. `admit_gcreq` now implements D33's bounded request half:
-it obtains and validates the fixed header, selects profile 1 or 2, refuses an
-oversized declaration before body work, requires the exact admitted body and
-EOF, and only then validates Gamma source bytes. It retains the selected
-profile and private outcome kind/code/space/coordinate/limit/requested fields.
+| Bytes | Meaning |
+| --- | --- |
+| 0..7 | magic/version `[FF 47 43 4F 55 54 01 00]` (`FF`, `GCOUT`, version 1, reserved) |
+| 8 | outcome kind; must equal the halt tag |
+| 9 | coordinate space: 0 none, 1 source byte, 2 emitted-payload byte, 3 internal row |
+| 10..11 | zero; reserved |
+| 12..15 | closed reason or resource code, little-endian `u32` |
+| 16..23 | zero-based coordinate, little-endian `u64`; zero when the space is none |
+| 24..31 | resource limit, little-endian `u64`; zero outside `Incomplete` |
+| 32..39 | requested amount, little-endian `u64`; zero outside `Incomplete` |
 
-The ordinary frontend retains every closed rejection class from
-`invalid_syntax` (4) through `nonexhaustive_match` (18) at its decisive Gamma
-source coordinate. Frontend exhaustion retains resource codes 2 through 9;
-the emitter projects label, fixup, and payload exhaustion to codes 10 through
-12 and its present metadata, label/fixup, and replay contradictions to internal
-classes 2 through 4. The remaining semantic work is to retain and order schema
-codes 19/20/21, add internal classes 1/5/6 with their eventual
-producers, check all embedded tables, emit the two PC-zero adapters, and publish
-no canonical artifact until the projections and exact/adjacent gates agree.
+Source coordinates are consumed-prefix boundaries in the compiler's fixed
+first-decisive traversal. They range from zero through the exact source extent:
+an outer-envelope failure records the offending unconsumed byte; an immediate
+scanner/parser/formation failure records the current boundary after all
+successfully consumed bytes and trivia; and a failure decidable only after
+whole-program validation records the then-current boundary, ordinarily the
+source extent. Thus a source coordinate is stable evidence of where the
+streaming decision occurred, not a promise that every rejection names the
+first byte of a human-selected token. Source-profile refusals use the same
+boundary before the refused admission. Emitted-payload coordinates identify
+the first unpublishable payload byte, and internal-row coordinates are
+zero-based private row indexes. The focused gate pins the numeric coordinate of
+every retained failure producer, including the exact trailing LF supplied by
+its string-input helpers.
 
-## D30 physical application profiles
+`0xFF` is permanently never an Alpha opcode, so a failure frame cannot be a
+runnable payload. Unknown versions, kinds, coordinate spaces, reason/resource
+codes, nonzero reserved bytes, noncanonical unused fields, or disagreement
+between frame and halt tag reject the boundary observation. `outcomes-v1.tsv`
+is the closed version-1 reason/resource table. `test.sh` consumes it directly;
+the gate may decode the producer's fields but cannot define or repair them.
 
-`GCREQ` V1 is `[47 43 52 45 51 01 00 00]`, followed by one little-endian
-`u32` profile ID, one little-endian `u32` Gamma-source length, the exact source
-bytes, and exact EOF. Profile 1 is `ConformanceBytesV1`; profile 2 is
-`DeltaCompilerV1`. Both generated applications admit 4,194,304 input bytes.
-Conformance admits 4,194,304 successful output bytes, while Delta compilation
-admits AlphaBootstrapV2's 1,048,572-byte tape maximum. These application facts
-do not derive from this compiler's separate 4-MiB source buffer.
+Success is intentionally not self-describing. Its integrity rests jointly on
+complete first-pass validation, byte-count agreement with the private replay,
+successful fixup resolution, an exact-length publication loop, Alpha's total
+`write`, and `halt 0` occurring only after that loop returns. A gate stages all
+stdout privately and publishes it as an artifact only after observing
+`Complete`; partial output followed by a trap or nonzero halt never becomes a
+tape.
 
-The compiler edge uses `GCOUT` magic `[FF 47 43 4F 55 54 01 00]`; the
-generated Delta-compiler edge uses `DCOUT` magic
-`[FF 44 43 4F 55 54 01 00]`. Both retain the common 40-byte failure frame and
-halt tags 0 through 3. `GCREQ` validation obtains the fixed header, validates
-magic/version/reserved bytes and the profile, then enforces the selected
-profile's declared source provision before reading the body and one exact-end
-probe. Unknown profile anchors at request byte 8; source exhaustion anchors at
-byte 12 with the declared length as `requested`; admitted body truncation or a
-trailing byte is `malformed_request` at the first missing or extra request byte.
-This bounded order prevents a four-byte length from forcing unprovisioned input
-consumption. The retained compiler and focused gate implement this ingress,
-including both profiles, first-missing/first-differing coordinates, the exact
-and adjacent 4-MiB source boundary, and exact-end precedence over source-byte
-diagnosis. GCOUT frame publication is deliberately not part of ingress.
+The compiler reports the first decisive event in its fixed traversal. A known
+language violation is `Reject`; exhaustion before a verdict is `Incomplete`;
+and validation/replay disagreement or a supposedly impossible internal
+condition is `InternalFailure`. Runtime statuses 250 (generated data-stack
+exhaustion) and 251 (generated raw-memory violation) belong to execution of the
+compiled Gamma program and never to this compiler carrier.
 
-After the ordinary frontend succeeds, schema reasons use category priority 19
-missing entry, 20 wrong present entry, then 21 nominal profile schema. Missing
-facts use coordinate space `none`; a wrong `main` anchors at its declaration
-name; present malformed profile members anchor at their declaration or
-constructor name. Within one category absence precedes located defects, then
-located defects use their earliest coordinate. Code 21 is legal only for
-`DeltaCompilerV1`; `ConformanceBytesV1` has no additional nominal schema.
+## Current compiler resource profile
 
-The embedded profile and outcome constants project exactly to:
-
-- `profiles-v1.tsv`;
-- `conformance-observations-v1.tsv`;
-- `gcout-v1.tsv`; and
-- `dcout-v1.tsv`.
-
-The gate must compare every row rather than merely parse those files. They are
-not inputs read by the completed offline compiler. `gcout-v1.tsv` deliberately
-publishes authored semantic rejection classes instead of the frontend's private
-parser states or its historical one-bit `INVALID_TYPE`. Its
-`profile_context` column uses `unselected` before a valid profile exists and
-otherwise enumerates the permitted profile IDs. The originating request and
-frame are checked together; a detached GCOUT frame cannot validate this column
-because it does not repeat the profile ID. `dcout-v1.tsv` retains D17 codes 1
-through 26 unchanged.
-
-The compiler's exact V1 resource limits are:
+The selected compiler profile fixes the following private ceilings before tape
+publication. The compiler enforces every row below, including state-block
+participation in the combined syntax-depth budget. These ceilings bound the
+implementation accepted by the current edge. Exceeding any independently
+reachable row below is `Incomplete`, never invalid Gamma source. The focused
+gate checks the exact resource code, limit, requested amount, and canonical
+failure framing at each adjacent refusal.
 
 | Resource | Last admitted extent |
 | --- | ---: |
-| Gamma source | 4,194,304 bytes |
-| Total type rows, including `Int` and `Bytes` | 65,536 |
-| Constructor rows | 65,536 |
-| Function rows | 32,768 |
-| Active environment rows | 65,536 |
-| Coverage rows | 65,536 |
-| Syntax arena | 114,294,752 bytes / 3,571,711 nodes |
-| Parse depth | 1,024 |
-| Simultaneously live local slots | 65,535 |
-| Labels | 65,536 |
-| Fixups | 116,508 |
+| Source byte stream | 1,048,576 bytes |
+| Identifier | 64 bytes |
+| Combined state-block, parenthesis, nested-call, and nested-load syntax depth | 64 |
+| Parameters plus function-scoped locals | 64 per procedure |
+| Procedures | 256 |
+| Non-builtin procedure call-reference rows | 1,024 |
+| States | 128 per procedure; 1,024 total |
+| Transitions | 256 per procedure; 1,024 total |
 | Emitted runnable Alpha payload | 1,048,572 bytes |
 
-Generated applications separately use a 15-MiB explicit Gamma stack and a
-112-MiB immutable heap. The shared generated-program observation block is 248
-InternalFailure, 249 AuthoredTrap, 250 StackExhausted, 251
-MemoryContainmentViolation, 252 HeapExhausted, 253 InputExtent, and 254
-OutputExtent. Alpha's illegal-instruction trap remains 132; 255 is unassigned
-and noncanonical. `interp.beta` predates this block and its private statuses 252
-through 255 remain oracle-only until that oracle is deleted.
+These are compiler-profile ceilings, not Gamma language limits. State nesting
+remains a recursive language form. Parentheses, calls, loads, and state bodies
+consume one combined checked recursion budget because they compose on the same
+Alpha parser call path; exhaustion reports `Incomplete` rather than rejecting
+otherwise valid Gamma or exhausting the Alpha return stack.
 
-An emitted Gamma program uses this Alpha-memory profile:
+D23 selects the one-MiB stamped-hole profile: the private
+payload buffer admits exactly 1,048,572 raw bytes, and the procedure table
+admits 256 rows. The rebuilt compiler tape, seeds, checker, downstream emitters,
+and exact/adjacent gates now share that profile. The closed `GCOUT` v1
+reason/resource identities do not change; their producer-owned numeric limits
+do.
 
-```text
-[0, 1 MiB)         canonical stamped Alpha tape region
-[1 MiB, 16 MiB)    downward Gamma activation/argument stack
-[16 MiB, 128 MiB)  upward immutable value/Bytes heap
-[128 MiB, 256 MiB) Alpha hidden-return-stack allowance
-```
+D58 governs the next private-table revision without changing the current
+canonical limits prematurely. A roomy noncanonical compiler first stages the
+complete `delta_compiler.gamma`; the completed source then selects each
+independently provisioned authored-structure count as the least power of two
+with measured occupancy no greater than 75 percent. Procedures, global calls,
+global/per-procedure states and edges, derived initialization storage, labels,
+fixups, tape, and maximum execution work are measured conjunctively rather than
+projecting call pressure onto the other dimensions. Derived guards remain bound
+to their owners and tape capacity remains D23-owned. The resulting memory map,
+compiler tape, admission subject, and exact/adjacent gates publish atomically.
 
-Every private limit is an outer resource profile, not a Gamma validity rule.
-The compiler measures the minimum generated frame and helper nesting needed to
-keep the explicit stack, heap, tape, and hidden return stack disjoint.
+The generated data stack is separately guarded in `[1048576,2097152)` and every
+procedure reserves at least its caller-frame word, as specified in
+`../CALLING_CONVENTION.md`. Generated programs receive 134,217,728 zeroed bytes
+of source-visible raw memory biased at physical byte 4,194,304. Their data-stack
+and raw-memory containment failures are runtime statuses 250 and 251, not
+compiler `Incomplete` results. D30 preserves those meanings in the lattice-wide
+generated-program block: 248 InternalFailure, 249 AuthoredTrap, 250
+StackExhausted, 251 MemoryContainmentViolation, 252 HeapExhausted, 253
+InputExtent, and 254 OutputExtent. A generated profile need not produce every
+row. Alpha's VM trap remains 132, and 255 is deliberately unassigned and
+noncanonical rather than aliasing a shell's projection of `-1`.
 
-Gamma values use two words `(kind, payload)`: `Int` carries all signed 64 value
-bits in `payload`; `Bytes` points to an immutable descriptor; and an algebraic
-value uses its resolved constructor tag plus a pointer to two-word fields.
-Nullary constructors allocate no field vector. Functions return through
-`r0/r1`. Arbitrary-arity arguments occupy two-word slots in the explicit Gamma
-stack rather than Beta's four argument registers.
-
-The executed algebraic substrate copies already-resolved constructor arguments
-from that stack into source-order immutable field vectors and checks private
-field-pointer extent/alignment before loads. Odd field counts round to a
-32-byte heap row, preserving the compact `Bytes` descriptor alignment across
-mixed allocations. The adjacent probe covers 600 fields, nested and nullary
-values, malformed private pointers, and the exact heap edge. Source tag 7 maps
-its retained one-based constructor table identity to the disjoint runtime kind
-range starting at two, then uses the resolved-constructor seam and the call
-seam's single guarded argument routine rather than retaining a second list
-verifier. Its focused failure discriminator also keeps a malformed child
-lowering distinct from successful zero arity. Selected-match lowering uses the
-same identity-to-kind map and the already-retained pattern slots. It validates
-the complete forward arm and field metadata before lowering the scrutinee,
-tests constructor kinds in source order, copies fields into fixed frame slots
-in source order, and retains the complete value pair for a catch-all. The
-executed bridge limits the heap to one algebraic row, proving a nonnull
-scrutinee is evaluated exactly once; it also pins nullary and payload arms,
-sibling slot reuse, unselected traps, catch-all rematching, proper-tail arm
-calls, malformed metadata with zero payload, sticky failure, and byte-identical
-reconstruction.
-
-Generated code treats `r249`/`r250` as caller-clobbered fixed-offset address
-scratch, reserves `r252` for the downward stack pointer, `r253` for the current
-frame base, `r254` for the upward heap pointer, and `r255` for the heap limit.
-Central emitter helpers own the scratch pair so repeated field/frame accesses
-do not duplicate address-building logic or tape. Each frame retains the previous
-base, caller's pre-argument cursor,
-fixed local slots, and two-word parameters at its high end. A mandatory 16-byte
-header bounds live Alpha return addresses before hidden-stack/heap overlap;
-tail relocation preflights its complete target and copies pairs high-to-low
-before mutation. The runtime initializer fixes the canonical endpoints. Directly
-emitted heap and stack reservation helpers reject negative, overflowed, and
-adjacent-out-of-range requests before mutation and transfer to one
-caller-supplied terminal failure label. The adjacent gate executes the emitted
-Alpha payload at both exact boundaries and one byte beyond each, and separately
-checks negative and arithmetic-wrap requests; no helper relies on Alpha's
-undefined out-of-range memory behavior.
-
-Directly emitted signed-add, subtract, multiply, divide, and remainder helpers
-use a private scalar ABI through `r0` and transfer every arithmetic overflow,
-zero divisor, and `INT64_MIN / -1` case to the supplied terminal failure label
-before Alpha can trap. General lowering moves that scalar into the `Int` payload
-in `r1` and restores kind `0` in `r0`. Their executed probe covers ordinary
-negative division/remainder, both
-addition and subtraction overflow directions, multiplication overflow and the
-valid `INT64_MIN * 1` edge, and both exceptional division/remainder classes.
-
-The retained `lower_expr(expr, tail_position)` dispatcher currently consumes
-already checked trees with literals, variables, lets, ordinary calls,
-constructor applications, all seven primitive operators, `if`, and the six
-closed `Bytes` forms. It emits nested evaluation left-to-right, spills
-intermediates through the guarded explicit stack, calls the checked helpers,
-and reconstructs `(kind,payload)` results. Conditions lower non-tail; both arms inherit the
-caller's tail position before call lowering gives that bit executable behavior.
-Condition lowering evaluates once and branches before either arm, so an
-unselected trap-bearing arm remains unexecuted. Its adjacent gate feeds real
-Gamma declarations through the canonical parser and type checker, executes 31
-emitted Alpha tapes for arithmetic, comparisons, nested and spill-surrounded
-conditionals, every `Bytes` operation, balanced stack restoration, and
-contained failures, then checks two repeated raw payloads byte-for-byte. This
-is general expression-dispatch material; no partial Gamma compiler or subset
-artifact is published.
-
-Resolved local and let lowering reuse the fixed-frame ABI. Source tag 1 decodes
-the retained parameter/local kind and zero-based runtime index; source tag 4
-converts the retained one-based slot identity into the current function's fixed
-frame profile. A local loads one complete pair from that slot. A let
-prevalidates that slot before emission, lowers its initializer non-tail exactly
-once, retains the pair, and lowers its body with the incoming tail-position bit.
-The focused executable bridge carries a `Bytes` initializer through a real
-48-byte frame, reads it from the source-resolved local in a `bytes_get`,
-restores the root frame, rejects malformed prefix/index profiles with zero
-payload, and reconstructs the same tape twice. The ABI makes no additional
-source-spelling or scope choice.
-
-Ordinary calls use Alpha `call`/`ret`. A tail call first evaluates arguments
-exactly once from left to right into temporary stack slots, relocates them
-overlap-safely into the replacement frame, restores the original caller frame,
-and jumps to the callee. The retained resolved-call seam now consumes the
-canonical source-order argument list, spills complete values, and selects that
-ordinary or tail transfer from an opaque callee label and fixed frame prefix.
-It prevalidates the forward arena list and every fixed extent before emitting
-argument code; malformed private metadata cannot loop, wrap frame arithmetic,
-or leave a partial candidate payload.
-Its compact executed payload carries mixed `Bytes`/`Int` arguments through both
-paths from a source tag-5 node, reads both parameters through the guarded
-resolved accessor and source tag-1 node, and returns
-with the root stack and frame restored. `if`, resolved lets, and every selected
-match arm preserve their incoming tail-position bit, so terminating tail
-recursion grows neither Gamma activations nor Alpha's hidden return stack. The source connection
-uses the retained one-based function identity, the compiler-owned label table,
-and the callee's packed maximum-live-local profile. The two-phase whole-function
-emitter populates the complete table before lowering any caller, so forward,
-mutual, and self calls share the same path. No resolved AST is serialized or
-executed.
-
-`Bytes` uses a compact immutable rope/view representation with closed descriptor
-kinds `EMPTY`, `LEAF(pointer,length)`, `CONCAT(left,right,total_length)`, and
-`SLICE(base,start,length)`. Concatenation is constant-time after checked length
-addition. Under D21 that addition operates on stored logical lengths and traps
-before allocation when the exact sum exceeds `INT64_MAX`; successful descriptors
-store the exact sum. The focused runtime probe doubles a valid singleton rope
-to logical length `2^62`, then distinguishes the adjacent overflow trap from a
-malformed-descriptor internal failure and actual heap exhaustion; every failure
-retains the pre-operation heap cursor. Slicing validates the complete signed range; indexed access
-descends iteratively. An application adapter preflights an entire returned rope and
-output extent before replaying it to stdout, preventing partial artifacts.
-
-The dormant sealed-input reader is reusable emitted runtime machinery, not an
-application adapter or a profile choice. It accepts a compiler-supplied maximum,
-reads stdin exactly once into a flat `LEAF`, and atomically commits its aligned
-descriptor and heap cursor only after EOF and full extent validation. Input
-extent and heap extent transfer to distinct adapter-owned terminals while
-containment remains independently compiler-owned. Its seven ordinary runtime
-paths plus one malformed-private-heap path pin empty and binary input, exact
-and adjacent source/heap limits, zero capacity, unchanged heap publication on
-either resource failure, internal containment, no output, and byte-identical
-reconstruction. D19 now fixes the
-two closed profiles, their selected entries, result validation, and wire
-ownership, while D30 fixes their exact maxima and physical boundaries, D31
-adds the checked application-static-storage resource, and D34 fixes its
-bounded witness and deterministic attribution. Adapter
-emission remains implementation work.
-
-The direct emitter owns byte/word append, label definition, and
-`{payload_offset,label_id}` fixup rows. Branch and call targets remain private
-placeholders until all code exists; duplicate or missing labels and out-of-range
-targets are sticky internal failures. After resolution, an independent replay
-partitions the complete payload under Alpha's closed instruction widths and
-requires every encoded direct target to land on its rebuilt instruction-start
-map. Generated Gamma tapes are instruction-only: jump-skipped inline data is not
-an alternate payload path. Exact source-to-tape refinement remains open. Checked `Int` lowering
-branches explicitly around overflow, division-by-zero, signed-division-overflow,
-and invalid byte/range operations so required diagnostic publication never
-depends on falling into an uncatchable Alpha trap.
-
-D20's declaration/binder resolver, source joins, and profile-neutral
-whole-function label/body emission are implemented. D19's exact source-owned
-schemas and reason-code bijection, D30's physical profile facts, and D33's
-canonical request ingress are implemented. Ordinary rejection codes 3 through
-18 and compiler-resource codes 1 through 12 are retained with their exact
-coordinates and quantitative fields; emitter-internal classes 2 through 4 are
-also retained. Schema diagnosis, remaining internal classes,
-both adapters, and final publication still gate the tape. No incomplete slice
-authorizes a subset compiler or blocks the settled parser, private target ABI,
-runtime helpers, direct emitter, or profile-independent lowering described
-above.
-
-D58's final measurement occurs only after every item above is present in this
-canonical source. The current 965-row call measurement and adjacent refusal are
-retained as a pre-completion baseline, not promoted into a guessed 2,048-row
-published profile. Emitter-plan consolidation may proceed when it independently
-reduces source and proof complexity; it cannot replace the measurement or hide
-adapter behavior outside Beta source.
-
-Any future validation placed here must reconstruct the exact
-Beta-source-to-Alpha-tape edge for `gamma_compiler.beta`. Generic evidence,
-external interpreter execution, and host-side source lowering do not belong in
-this owner.
-
-The implementation order is tracked in
-[`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
+The private compiler map keeps the expanded procedure/initialization tables in
+`[5 MiB,5,556,417)`, the payload buffer at 16 MiB, the internal-PC table at
+20 MiB, and the fixup table at 24 MiB. The 116,508-row fixup table is dominated
+by the shortest 9-byte direct-reference encoding. The 262,144-row internal-PC
+table conservatively admits one identity per four emitted bytes. Both remain
+secondary corruption guards: reaching either while the payload bound still
+holds is `InternalFailure`, not an advertised resource refusal.
+When D58 lands, changed count tables and their derived initialization rows move
+to a new aligned private region above the fixup table rather than repacking this
+dense low-memory block. Global-state maximum work receives an executed gate
+because the current name collector scans prior global rows; per-procedure state
+and edge limits separately own initialization/reachability fixed-point work.
+`test.sh` pins practical source limits at the exact accepted boundary and the
+adjacent fail-closed case. Single-site temporary compiler mutations lower each
+otherwise dominated invariant and positively exercise all six closed
+`InternalFailure` producers without adding production test hooks. The gate also
+pins the last valid byte/word raw-memory addresses and generated-stack
+containment.
 
 ## Retention inventory
 
-| Retained file | Canonical role | Deletion condition |
+| Retained child | Bounded role | Deletion condition |
 | --- | --- | --- |
-| `gamma_compiler.beta` | Sole Beta-written Gamma compiler source; currently owns the strict frontend and direct Alpha payload/fixup substrate. | Replace only atomically with another implementation of the same ruled edge. |
-| `test-frontend.sh` | Adjacent bounded gate for canonical GCREQ ingress, the retained frontend, source/resource guards, exact emitter substrate, and executed runtime-containment payloads. | Delete or reduce when exact source-to-tape validation subsumes every named discriminator. |
+| `validation/` | Exact reachable-artifact structure for this compiler edge. | Delete it when the direct checked source/tape refinement proves the same facts. |
 
-## Deletion condition
-
-Delete any future file or child subtree that does not reconstruct, implement,
-or efficiently test `gamma_compiler.beta → gamma_compiler_bytecode.tape`;
-replace this owner only atomically with a changed, explicitly ruled topology.
+Root files are the one compiler source, one Alpha-tape artifact, one boundary
+code table, one artifact loader, one exact reconstruction entry point, and one
+focused language gate.
+No separate cold-start, self-host, generated-artifact, or publication owner is
+retained.

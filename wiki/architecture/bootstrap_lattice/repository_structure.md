@@ -12,31 +12,35 @@ a build-graph property, not a generic folder or source owner.
 ```text
 source/
   alpha/                         Alpha semantics and audited native VM seeds
-    assembler/                   Alpha assembler and its tape
     checker/                     universal derivation checker
 
-  beta/                          Beta language
+  beta/                          Beta assembly language
     compiler/
-      beta_compiler.alpha        canonical compiler implementation
-      beta_compiler_bytecode.tape
-      validation/                Alpha-source/Beta-compiler tape refinement
+      assembler.beta             readable self-host source
+      beta_assembler_bytecode.tape direct Alpha implementation
 
-  gamma/                         Gamma language
+  gamma/                          Gamma language
     compiler/
-      gamma_compiler.beta        canonical compiler/reference implementation
+      gamma_compiler.beta        canonical compiler implementation
       gamma_compiler_bytecode.tape
-      validation/                Beta-source/Gamma-compiler tape refinement
-    reference/                   temporary differential implementations only
+      validation/                Alpha-source/Gamma-compiler tape refinement
 
   delta/                         Delta language
     compiler/
-      delta_compiler.gamma       canonical compiler implementation
+      delta_compiler.gamma        canonical compiler/reference implementation
       delta_compiler_bytecode.tape
       validation/                Gamma-source/Delta-compiler tape refinement
+    reference/                   temporary differential implementations only
+
+  epsilon/                         Epsilon language
+    compiler/
+      epsilon_compiler.delta       canonical compiler implementation
+      epsilon_compiler_bytecode.tape
+      validation/                Delta-source/Epsilon-compiler tape refinement
 
   psi/                           target-neutral product compiler packages
   omega/                         Omega language and both Omega implementations
-    omega_compiler.delta         Delta-written source closure D
+    omega_compiler.epsilon         Epsilon-written source closure D
     main.omg / build.omg         Omega-written source closure C
     omega0_compiler_bytecode.tape
     omega_compiler_bytecode.tape
@@ -57,15 +61,15 @@ trees. `omega₀` and `omega` are artifacts, not directories or languages.
 
 The committed tree still has two important gaps:
 
-- `source/gamma/compiler/gamma_compiler.beta` now owns a real strict frontend,
+- `source/delta/compiler/delta_compiler.gamma` now owns a real strict frontend,
   direct Alpha emitter substrate, resolved expression lowering, and
   profile-neutral whole-function emission. Both D19 source schemas are
   validated, D30 fixes the physical application profiles, and D33 fixes
   bounded request/schema failure selection; the generated adapters, canonical
   tape, and refinement are still missing.
-- the former Beta-written Delta-to-Gamma and Darwin-native publication trees
+- the former Gamma-written Epsilon-to-Delta and Darwin-native publication trees
   were deleted because they implemented a superseded cross-rung route. The
-  Gamma-written replacement now owns complete syntax, D22/D24 identity census,
+  Delta-written replacement now owns complete syntax, D22/D24 identity census,
   D36's receiver parser and now-superseded case/machine collision census, D31
   structural type formation, a source-backed resolution catalog, ordered local
   resolution, scalar/aggregate value-place facts, one generalized callable
@@ -87,7 +91,7 @@ The committed tree still has two important gaps:
   D38 lowering/executable controls, body/control
   checking, D34 physical storage refusal, lowering, tape publication, and
   refinement are still open.
-  The restricted Delta-written native compiler prototype was also deleted: it
+  The restricted Epsilon-written native compiler prototype was also deleted: it
   was neither that compiler nor the full Omega closure `D` and had no
   economical unit-level adaptation into either owner.
 
@@ -117,14 +121,14 @@ optional acceleration       = checked general Alpha-to-native realization
 Mach-O, ELF, PE, code signatures, installation inventories, and elapsed-time
 records do not become rung-specific compiler identities. Product Omega may emit
 native artifacts for users; that target work remains inside the product
-compiler rather than Beta, Gamma, or Delta.
+compiler rather than Gamma, Delta, or Epsilon.
 
 ## Ownership rules
 
 - `source/<language>/compiler/` owns the compiler accepting that language, even
   though its source is written in the immediate predecessor language.
-- The source suffix must match the implementation language: `.alpha` for the
-  Beta compiler, `.beta` for Gamma, `.gamma` for Delta, `.delta` for `omega₀`,
+- The source suffix must match the implementation language: `.beta` for the
+  Gamma compiler, `.gamma` for Delta, `.delta` for Epsilon, `.epsilon` for `omega₀`,
   and `.omg` for self-hosted `omega`.
 - A lower rung must not parse a language beyond its immediate successor.
 - A compiler artifact must consume its own language and emit the next runnable
@@ -146,10 +150,10 @@ compiler rather than Beta, Gamma, or Delta.
 
 ## File naming
 
-`.alpha`, `.beta`, `.gamma`, `.delta`, `.omg`, and `.psi` identify source
+`.beta`, `.gamma`, `.delta`, `.epsilon`, `.omg`, and `.psi` identify source
 languages. `.proof` identifies proof-source input to untrusted elaboration.
 `.tape` identifies canonical Alpha VM bytecode. Artifact base names describe
-their role, such as `delta_compiler_bytecode.tape`; opaque rung abbreviations
+their role, such as `epsilon_compiler_bytecode.tape`; opaque rung abbreviations
 are not canonical names.
 
 ## Canonical ownership map
@@ -158,9 +162,10 @@ are not canonical names.
 | --- | --- |
 | Alpha execution and tape semantics | `source/alpha/` |
 | universal proof checking | `source/alpha/checker/` |
-| Beta compiler and admission | `source/beta/compiler/` |
+| Beta assembly and direct assembler | `source/beta/` |
 | Gamma compiler and admission | `source/gamma/compiler/` |
 | Delta compiler and admission | `source/delta/compiler/` |
+| Epsilon compiler and admission | `source/epsilon/compiler/` |
 | first and self-hosted Omega compilers | `source/omega/` |
 | product target-neutral phases | `source/psi/` |
 | language libraries | `source/library/` |

@@ -1,59 +1,37 @@
-# `source/beta/` — Beta language and compiler implementations
+# Beta assembly language
 
-This directory owns the Beta language and the compiler accepting Beta. Under
-D11 the canonical compiler edge is implemented in Alpha and produces the
-platform-independent Beta compiler tape. No Beta self-host participates in or
-shadows that edge.
+Beta is the first textual rung above Alpha. Alpha owns only the raw portable
+instruction tape and the native VM that executes it; Beta gives those
+instructions human-readable mnemonics, labels, decimal operands, and data
+spelling.
+
+[`LANGUAGE.md`](LANGUAGE.md) defines the exact deterministic relation from one
+Beta source byte sequence to one raw Alpha `.tape`. The compiler is the
+platform-independent [`compiler/beta_assembler_bytecode.tape`](compiler/beta_assembler_bytecode.tape),
+the one directly retained Alpha program at the cold-start boundary. Its
+readable [`compiler/assembler.beta`](compiler/assembler.beta) source must
+self-host back to that exact tape.
 
 ```text
-compiler/     canonical source, artifact, construction tests, and validation
-reference/    optional executable reference meaning
+audited native Alpha VM
+  + beta_assembler_bytecode.tape
+  + program.beta
+    -> program.tape
 ```
 
-## Canonical construction
+Callers materialize that tape in the selected Alpha VM only for the duration of
+an invocation. No second platform-native assembler binary is retained.
 
-```text
-beta_compiler.alpha --(Alpha seed + assembler)--> beta_compiler_bytecode.tape
-```
-
-[`compiler/rebuild-artifact.sh`](compiler/rebuild-artifact.sh) owns the
-lower-rooted construction. It rebuilds the accepted
-[`compiler/beta_compiler_bytecode.tape`](compiler/beta_compiler_bytecode.tape)
-directly, without a Rust producer or Beta self-host stage. The current tape is
-27,087 bytes.
-
-The Alpha-written [`compiler/beta_compiler.alpha`](compiler/beta_compiler.alpha)
-is the complete canonical Beta compiler used by the direct chain.
-
-[`compiler/validation/`](compiler/validation/README.md) retains the general
-Alpha-tape structure checker that targets the canonical compiler. The
-status-only encoding reconstructor and the
-60k-line former self-host obligation tree, source/PC witnesses, and toy FOL
-capability seam were deleted because none reconstructed the exact
-Alpha-written source/tape proposition.
-
-## Role in the lattice
-
-The admitted `beta_compiler_bytecode.tape` consumes the Beta-written Gamma
-compiler and emits `gamma_compiler_bytecode.tape`. It does not parse Delta.
-The Alpha-owned derivation checker is a trust-floor service beside these
-producer edges, not another compiler rung.
-
-Run the construction and diagnostic gates directly with:
-
-```sh
-sh source/beta/compiler/rebuild-artifact.sh --check
-sh source/beta/compiler/test.sh
-sh source/beta/compiler/validation/admission/bc-artifact-structure.sh
-```
-
-The active reduction and admission work is tracked in
-[`TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
+Beta exists to author the Gamma compiler and other trust-floor Alpha programs.
+It has no independent runtime semantics: successful assembly yields Alpha tape,
+whose execution is governed solely by [`../alpha/SEMANTICS.md`](../alpha/SEMANTICS.md).
 
 ## Retention inventory
 
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
-| `compiler/` | The sole Alpha-written compiler accepting Beta, its exact Alpha tape, and adjacent edge validation. | Replace only atomically with the admitted immediate-predecessor compiler edge. |
-| `reference/` | One untrusted executable interpretation of written Beta semantics used by focused differential gates. | Delete when a stronger semantic oracle fully subsumes every retained caller. |
-| `LANGUAGE.md`, `SEMANTICS.md`, `CALLING_CONVENTION.md` | The accepted Beta surface, execution relation, and compiler/Alpha frame contract. | Replace only atomically with a ruled Beta revision and synchronized compiler tests. |
+| `LANGUAGE.md` | Exact Beta-text-to-Alpha-tape relation. | Replace only with a versioned Beta encoding and synchronized assembler. |
+| `compiler/` | Direct assembler tape, readable reconstruction, and bounded gates. | Delete only when an equally direct Beta implementation replaces the owner. |
+| `compiler/assembler.beta` | Readable self-host source for the Beta assembler. | Delete only if another exact reconstruction of the direct assembler tape replaces it. |
+| `compiler/beta_assembler_bytecode.tape` | Direct portable Alpha implementation of Beta assembly. | Replace atomically with its source, reconstruction, and checked relation. |
+| `compiler/examples/` | Small encoding and execution discriminators. | Delete only when generated checked vectors subsume them. |

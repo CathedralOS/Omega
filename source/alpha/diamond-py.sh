@@ -8,7 +8,7 @@
 # alpha_ref.py is UNTRUSTED and checked; the
 # runtime lineage never runs it.
 #
-# Corpus = the opcode EDGES that real code rarely hits (signedness, traps, EOF) + REAL bc-compiled programs
+# Corpus = the opcode EDGES that real code rarely hits (signedness, traps, EOF) + real Gamma-compiled programs
 # (call/ret/frames/memory/IO exercised through actual generated code). The seed's own per-opcode battery is
 # conformance.sh; this gate's job is cross-implementation agreement, not re-pinning every opcode.
 set -e
@@ -28,7 +28,7 @@ fi
 . "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "diamond-py SKIP — no python3"; exit 0; }
-. "${OMEGA_PATH_BETA_COMPILER}/artifact_env.sh"
+. "${OMEGA_PATH_GAMMA_COMPILER}/artifact_env.sh"
 SEED="$ALPHA_SEED"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
@@ -55,21 +55,21 @@ hex jlt_signed    "01 00 ffffffffffffffff 01 01 0100000000000000 0f 00 01 210000
 hex read_eof      "11 00 00 00" ""                                                               # read at EOF -> 0xFF.. ; halt low8 = 0xFF=255
 hex bad_opcode    "ff 00" ""                                                                     # unknown -> trap 132
 
-# --- REAL bc-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
-BC="$T/bc.exe"
-stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "seed diamond: lattice bc artifact unavailable"; exit 1; }
-mkbeta() { "$BC" < "$1" > "$T/$2.tape" 2>/dev/null; }
-if [ -x "$BC" ]; then
-  printf 'proc fact(n){ state c{ to r when (n>1) return 1 } state r{ return n*fact(n-1) } }\nproc main(){ return fact(5) }\n' > "$T/f.beta"
-  printf 'proc gcd(a,b){ state c{ to d when (b==0) return gcd(b, a%%b) } state d{ return a } }\nproc main(){ return gcd(48,36) }\n' > "$T/g.beta"
-  printf 'proc main(){ let c=read_byte()  state l{ to b when (c>=0) return 0 } state b{ write_byte(c) c=read_byte() to l } }\n' > "$T/e.beta"
-  printf 'proc n(x){ state b{ to r when (x>=10) to d } state r{ n(x/10) to d } state d{ write_byte(x%%10+48) return 0 } }\nproc main(){ n(1234) return 0 }\n' > "$T/p.beta"
-  mkbeta "$T/f.beta" fact && cmp_tape "real: fact(5) recursion"       "$T/fact.tape" ""
-  mkbeta "$T/g.beta" gcd  && cmp_tape "real: gcd(48,36) mod/recursion" "$T/gcd.tape"  ""
-  mkbeta "$T/e.beta" echo && cmp_tape "real: echo read/write/loop"     "$T/echo.tape" "diamond!"
-  mkbeta "$T/p.beta" pn   && cmp_tape "real: print_num 1234"           "$T/pn.tape"   ""
+# --- real Gamma-compiled programs: call/ret/frames/recursion/memory/IO through actual generated code ---
+GC="$T/gc.exe"
+stamp_gamma_compiler "$GC" >/dev/null 2>&1 || { echo "seed diamond: lattice Gamma artifact unavailable"; exit 1; }
+mkgamma() { "$GC" < "$1" > "$T/$2.tape" 2>/dev/null; }
+if [ -x "$GC" ]; then
+  printf 'proc fact(n){ state c{ to r when (n>1) return 1 } state r{ return n*fact(n-1) } }\nproc main(){ return fact(5) }\n' > "$T/f.gamma"
+  printf 'proc gcd(a,b){ state c{ to d when (b==0) return gcd(b, a%%b) } state d{ return a } }\nproc main(){ return gcd(48,36) }\n' > "$T/g.gamma"
+  printf 'proc main(){ let c=read_byte()  state l{ to b when (c>=0) return 0 } state b{ write_byte(c) c=read_byte() to l } }\n' > "$T/e.gamma"
+  printf 'proc n(x){ state b{ to r when (x>=10) to d } state r{ n(x/10) to d } state d{ write_byte(x%%10+48) return 0 } }\nproc main(){ n(1234) return 0 }\n' > "$T/p.gamma"
+  mkgamma "$T/f.gamma" fact && cmp_tape "real: fact(5) recursion"       "$T/fact.tape" ""
+  mkgamma "$T/g.gamma" gcd  && cmp_tape "real: gcd(48,36) mod/recursion" "$T/gcd.tape"  ""
+  mkgamma "$T/e.gamma" echo && cmp_tape "real: echo read/write/loop"     "$T/echo.tape" "diamond!"
+  mkgamma "$T/p.gamma" pn   && cmp_tape "real: print_num 1234"           "$T/pn.tape"   ""
 else
-  echo "  (skipped real-program cases — Beta compiler not available)"
+  echo "  (skipped real-program cases — Gamma compiler not available)"
 fi
 
 echo "seed diamond (independent Python reference VM alpha_ref.py agrees with the host seed on edges + real programs): $PASS ok, $FAIL failed"

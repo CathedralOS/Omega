@@ -1,211 +1,45 @@
-# Beta compiler
+# Beta assembler
 
-This directory owns the compiler artifact required by the Beta rung:
+This directory owns the compiler from Beta assembly text to raw Alpha tape.
+The authoritative grammar and encoding are fixed by
+[`../LANGUAGE.md`](../LANGUAGE.md).
 
-- `beta_compiler.alpha` is the canonical immediate-predecessor source;
-- `beta_compiler_bytecode.tape` is the current platform-independent artifact;
-- `outcomes-v1.tsv` is the closed compiler-boundary code table consumed by the
-  focused gate;
-- `validation/` contains only machinery that targets the canonical source or
-  its emitted tape;
-- `rebuild-artifact.sh` performs exact direct construction;
-- `test.sh` owns the focused accepted/rejected language discriminators;
-- `artifact_env.sh` installs the admitted tape into the selected Alpha seed.
+The cold-start implementation is
+[`beta_assembler_bytecode.tape`](beta_assembler_bytecode.tape), a 6,816-byte
+platform-independent Alpha program retained directly rather than pretending
+that another textual compiler precedes Beta. The readable
+[`assembler.beta`](assembler.beta) source is the same assembler expressed in
+Beta; `selfhost.sh` requires it to reproduce the direct tape byte-for-byte.
 
-Construction, testing, and evidence generation do not grant authority by
-themselves. One Alpha source directly produces one exact Beta compiler tape.
-The validation directory belongs here because the artifact
-being admitted owns its validation. Bounded diagnostics can expose regressions,
-but acceptance must ultimately terminate in the independently
-rooted checker under `source/alpha/checker/`.
+The assembler accepts mnemonic opcodes, complete-token `rN` registers for
+`N` in `0..255`, unsigned 64-bit decimal immediates, labels, comments, and the
+closed `db` string encoding. It emits no host container. Current local build
+scripts may stamp an emitted tape into a native Alpha seed because the seeds do
+not yet load an external tape directly.
 
-## Persisted artifact
-
-`beta_compiler_bytecode.tape` is emitted directly from
-`beta_compiler.alpha`. Its complete construction lineage is:
-
-```text
-audited Alpha seed + Alpha-written assembler
-  -> beta_compiler.alpha
-  -> beta_compiler_bytecode.tape
-```
-
-`rebuild-artifact.sh --check` reconstructs the tape and compares it
-byte-for-byte without changing the repository. `artifact_env.sh` stamps it into
-the selected audited Alpha seed. No Beta self-host, textual Alpha output, or
-second assembler invocation participates.
-
-The former Alpha-written status reconstructor was deleted after measured proof
-work showed that it could not become the selected checked derivation. It was a
-parallel assembly semantics, not an admission premise. The exact source/tape
-certificate remains open under **ALPHA-BETA-COMPOSED-CERTIFICATE** in
-`TASKS_BOOTSTRAP.md`. Its one root edge proof is settled to compose bounded
-pass-one and pass-two equalities rather than require one compiler-scale
-conversion.
-
-The committed artifact is 27,087 bytes with SHA-256
-`2e41027179e615ba1e532ad5f5d20157d67bf6cec38e2c74f98bf355af9aa06e`.
-The byte comparison, not the convenient digest, governs repository identity.
-
-## Compiler boundary outcome
-
-Compilation has one closed semantic result:
-
-```text
-BetaCompileOutcome =
-    Complete(tape)
-  | Reject(reason, source_offset)
-  | Incomplete(resource, limit, requested, coordinate?)
-  | InternalFailure(reason, coordinate?)
-```
-
-`Reject` records an observed Beta-language violation. `Incomplete` records that
-the selected compiler exhausted a private profile before deciding the remaining
-source; it is neither acceptance nor rejection. `InternalFailure` records a
-contradiction in the compiler itself and grants no artifact authority. Parser
-phase numbers are private implementation state and never identify an outcome.
-
-The Alpha realization uses the halt word only as a case tag: `0` is `Complete`,
-`1` is `Reject`, `2` is `Incomplete`, and `3` is `InternalFailure`. These values
-survive both Alpha's 32-bit halt observation and a shell's low-byte projection.
-On `Complete`, stdout is exactly the runnable Alpha payload and receives no
-prefix; the seed-stamping envelope supplies its length outside this compiler
-boundary. On every non-complete outcome, stdout is exactly one canonical
-40-byte diagnostic frame:
-
-| Bytes | Meaning |
-| --- | --- |
-| 0..7 | magic/version `[FF 42 43 4F 55 54 01 00]` (`FF`, `BCOUT`, version 1, reserved) |
-| 8 | outcome kind; must equal the halt tag |
-| 9 | coordinate space: 0 none, 1 source byte, 2 emitted-payload byte, 3 internal row |
-| 10..11 | zero; reserved |
-| 12..15 | closed reason or resource code, little-endian `u32` |
-| 16..23 | zero-based coordinate, little-endian `u64`; zero when the space is none |
-| 24..31 | resource limit, little-endian `u64`; zero outside `Incomplete` |
-| 32..39 | requested amount, little-endian `u64`; zero outside `Incomplete` |
-
-Source coordinates are consumed-prefix boundaries in the compiler's fixed
-first-decisive traversal. They range from zero through the exact source extent:
-an outer-envelope failure records the offending unconsumed byte; an immediate
-scanner/parser/formation failure records the current boundary after all
-successfully consumed bytes and trivia; and a failure decidable only after
-whole-program validation records the then-current boundary, ordinarily the
-source extent. Thus a source coordinate is stable evidence of where the
-streaming decision occurred, not a promise that every rejection names the
-first byte of a human-selected token. Source-profile refusals use the same
-boundary before the refused admission. Emitted-payload coordinates identify
-the first unpublishable payload byte, and internal-row coordinates are
-zero-based private row indexes. The focused gate pins the numeric coordinate of
-every retained failure producer, including the exact trailing LF supplied by
-its string-input helpers.
-
-`0xFF` is permanently never an Alpha opcode, so a failure frame cannot be a
-runnable payload. Unknown versions, kinds, coordinate spaces, reason/resource
-codes, nonzero reserved bytes, noncanonical unused fields, or disagreement
-between frame and halt tag reject the boundary observation. `outcomes-v1.tsv`
-is the closed version-1 reason/resource table. `test.sh` consumes it directly;
-the gate may decode the producer's fields but cannot define or repair them.
-
-Success is intentionally not self-describing. Its integrity rests jointly on
-complete first-pass validation, byte-count agreement with the private replay,
-successful fixup resolution, an exact-length publication loop, Alpha's total
-`write`, and `halt 0` occurring only after that loop returns. A gate stages all
-stdout privately and publishes it as an artifact only after observing
-`Complete`; partial output followed by a trap or nonzero halt never becomes a
-tape.
-
-The compiler reports the first decisive event in its fixed traversal. A known
-language violation is `Reject`; exhaustion before a verdict is `Incomplete`;
-and validation/replay disagreement or a supposedly impossible internal
-condition is `InternalFailure`. Runtime statuses 250 (generated data-stack
-exhaustion) and 251 (generated raw-memory violation) belong to execution of the
-compiled Beta program and never to this compiler carrier.
-
-## Current compiler resource profile
-
-The selected compiler profile fixes the following private ceilings before tape
-publication. The compiler enforces every row below, including state-block
-participation in the combined syntax-depth budget. These ceilings bound the
-implementation accepted by the current edge. Exceeding any independently
-reachable row below is `Incomplete`, never invalid Beta source. The focused
-gate checks the exact resource code, limit, requested amount, and canonical
-failure framing at each adjacent refusal.
-
-| Resource | Last admitted extent |
-| --- | ---: |
-| Source byte stream | 1,048,576 bytes |
-| Identifier | 64 bytes |
-| Combined state-block, parenthesis, nested-call, and nested-load syntax depth | 64 |
-| Parameters plus function-scoped locals | 64 per procedure |
-| Procedures | 256 |
-| Non-builtin procedure call-reference rows | 1,024 |
-| States | 128 per procedure; 1,024 total |
-| Transitions | 256 per procedure; 1,024 total |
-| Emitted runnable Alpha payload | 1,048,572 bytes |
-
-These are compiler-profile ceilings, not Beta language limits. State nesting
-remains a recursive language form. Parentheses, calls, loads, and state bodies
-consume one combined checked recursion budget because they compose on the same
-Alpha parser call path; exhaustion reports `Incomplete` rather than rejecting
-otherwise valid Beta or exhausting the Alpha return stack.
-
-D23 selects the one-MiB stamped-hole profile: the private
-payload buffer admits exactly 1,048,572 raw bytes, and the procedure table
-admits 256 rows. The rebuilt compiler tape, seeds, checker, downstream emitters,
-and exact/adjacent gates now share that profile. The closed `BCOUT` v1
-reason/resource identities do not change; their producer-owned numeric limits
-do.
-
-D58 governs the next private-table revision without changing the current
-canonical limits prematurely. A roomy noncanonical compiler first stages the
-complete `gamma_compiler.beta`; the completed source then selects each
-independently provisioned authored-structure count as the least power of two
-with measured occupancy no greater than 75 percent. Procedures, global calls,
-global/per-procedure states and edges, derived initialization storage, labels,
-fixups, tape, and maximum execution work are measured conjunctively rather than
-projecting call pressure onto the other dimensions. Derived guards remain bound
-to their owners and tape capacity remains D23-owned. The resulting memory map,
-compiler tape, admission subject, and exact/adjacent gates publish atomically.
-
-The generated data stack is separately guarded in `[1048576,2097152)` and every
-procedure reserves at least its caller-frame word, as specified in
-`../CALLING_CONVENTION.md`. Generated programs receive 134,217,728 zeroed bytes
-of source-visible raw memory biased at physical byte 4,194,304. Their data-stack
-and raw-memory containment failures are runtime statuses 250 and 251, not
-compiler `Incomplete` results. D30 preserves those meanings in the lattice-wide
-generated-program block: 248 InternalFailure, 249 AuthoredTrap, 250
-StackExhausted, 251 MemoryContainmentViolation, 252 HeapExhausted, 253
-InputExtent, and 254 OutputExtent. A generated profile need not produce every
-row. Alpha's VM trap remains 132, and 255 is deliberately unassigned and
-noncanonical rather than aliasing a shell's projection of `-1`.
-
-The private compiler map keeps the expanded procedure/initialization tables in
-`[5 MiB,5,556,417)`, the payload buffer at 16 MiB, the internal-PC table at
-20 MiB, and the fixup table at 24 MiB. The 116,508-row fixup table is dominated
-by the shortest 9-byte direct-reference encoding. The 262,144-row internal-PC
-table conservatively admits one identity per four emitted bytes. Both remain
-secondary corruption guards: reaching either while the payload bound still
-holds is `InternalFailure`, not an advertised resource refusal.
-When D58 lands, changed count tables and their derived initialization rows move
-to a new aligned private region above the fixup table rather than repacking this
-dense low-memory block. Global-state maximum work receives an executed gate
-because the current name collector scans prior global rows; per-procedure state
-and edge limits separately own initialization/reachability fixed-point work.
-`test.sh` pins practical source limits at the exact accepted boundary and the
-adjacent fail-closed case. Single-site temporary compiler mutations lower each
-otherwise dominated invariant and positively exercise all six closed
-`InternalFailure` producers without adding production test hooks. The gate also
-pins the last valid byte/word raw-memory addresses and generated-stack
-containment.
+- `beta_assembler_bytecode.tape` — direct Alpha implementation and canonical
+  cold-start compiler artifact.
+- `assembler.beta` — readable self-host source.
+- `artifact_env.sh` — materializes the direct tape in the selected Alpha VM.
+- `build.sh` — `./build.sh PROGRAM.beta` produces a stamped local executable.
+- `selfhost.sh` — reconstructs the exact direct tape byte-for-byte.
+- `asm_ref.py` / `asm-diamond.sh` — temporary independent executable relation
+  and differential regression.
+- `examples/` — small Beta assembly cases.
 
 ## Retention inventory
 
-| Retained child | Bounded role | Deletion condition |
+| Retained child | Direct role | Deletion condition |
 | --- | --- | --- |
-| `validation/` | Exact reachable-artifact structure for this compiler edge. | Delete it when the direct checked source/tape refinement proves the same facts. |
+| `beta_assembler_bytecode.tape` | Sole directly retained Alpha program implementing Beta assembly. | Replace atomically with its exact checked relation and reconstruction. |
+| `assembler.beta` | Readable self-host reconstruction source. | Delete only if another equally direct reconstruction replaces it. |
+| `artifact_env.sh` | Materialize the canonical raw tape through the selected Alpha VM without retaining a second native binary. | Delete when Alpha loads arbitrary tapes directly. |
+| `build.sh`, `selfhost.sh` | Disposable stamping and exact reconstruction. | Delete stamping after raw-tape loading; retain reconstruction until stronger checked evidence subsumes it. |
+| `asm_ref.py`, `asm-diamond.sh` | Independent diagnostic implementation. | Delete when the checked assembly relation subsumes its failure detection. |
+| `register-label-regression.sh` | Closed lexical, operand, and width discriminator. | Delete when generated checked vectors cover every retained boundary. |
+| `examples/` | Small executable encoding controls. | Delete cases only when an equally direct generated control subsumes them. |
+| `echo.beta`, `factorial.beta`, `fib.beta`, `gcd.beta`, `multiply.beta` | Closed example set for I/O, recursion, calls, and arithmetic encoding. | Delete an example only when an equally direct generated control subsumes it. |
+| `.gitignore` | Keeps disposable stamped programs and tapes out of source ownership. | Delete when local build output moves outside this owner. |
 
-Root files are the one compiler source, one Alpha-tape artifact, one boundary
-code table, one artifact loader, one exact reconstruction entry point, and one
-focused language gate.
-No separate cold-start, self-host, generated-artifact, or publication owner is
-retained.
+The assembler is a compiler rung, not a second native implementation. Only the
+Alpha VM is hand-authored per platform.

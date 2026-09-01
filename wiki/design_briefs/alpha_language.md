@@ -22,10 +22,10 @@ Alpha supplies raw deterministic computation:
 - byte input/output;
 - halt and defined traps.
 
-It does not parse Omega, check proofs, define higher-language meaning, manage
-ownership, allocate objects, or optimize code. The Alpha assembler is the next
-tool above the VM and lives at `source/alpha/assembler/`; the former
-`compiler/beta` compatibility entry has been retired.
+It does not parse source text, check proofs, define higher-language meaning, manage
+ownership, allocate objects, or optimize code. The textual assembler is the
+Beta rung and lives at `source/beta/compiler/`; its implementation is itself a
+raw Alpha tape.
 
 ## Auditability constraints
 
@@ -69,14 +69,14 @@ standing design brief as universal constants.
 The language spine and hosted build are:
 
 ```text
-Alpha → Beta → Gamma → Delta
-lattice-built Delta compiler + exact ordinary-Omega source C ──▶ omega₀
-omega₀ + the same C ──────────────────────────────────▶ omega
+Alpha VM → Beta assembler → Gamma → Delta → Epsilon
+Epsilon-written Omega compiler D ──▶ omega₀
+omega₀ + Omega-written compiler C ──▶ omega
 ```
 
-The native Alpha executor and Alpha-written assembler are implementation
-components owned by the Alpha rung; they are not extra language rungs in that
-diagram.
+The native Alpha executor is the sole per-platform binary. Beta is a real
+language rung; its direct assembler tape is loaded into Alpha on demand rather
+than retained as a second native executable.
 
 Self-reproduction at any compiler stage establishes deterministic dependency
 closure, not correctness. Compiler artifacts become authoritative only when the

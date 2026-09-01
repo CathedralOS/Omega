@@ -14,14 +14,12 @@ ALPHA_MAX_RAW_TAPE_SIZE=1048572
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)
     ALPHA_SEED=alpha_arm64_macos
-    BETA_SEED=beta_arm64_macos
     HOLE_OFF=32768
     HOLE_SIZE=$ALPHA_SEED_HOLE_SIZE
     SEED_SIGN=1
     ;;
   *)
     ALPHA_SEED=alpha_x64_windows.exe
-    BETA_SEED=beta_x64_windows.exe
     HOLE_OFF=5120
     HOLE_SIZE=$ALPHA_SEED_HOLE_SIZE
     SEED_SIGN=0
