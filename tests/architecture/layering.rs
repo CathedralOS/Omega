@@ -3555,6 +3555,62 @@ fn abstract_spill_memory_effects_are_independent_and_non_executable() {
 }
 
 #[test]
+fn abstract_spill_access_constraints_are_independent_and_non_executable() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/abstract_spill_access_constraints",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read abstract spill-access constraint entrance");
+    assert!(
+        entrance.contains("let plan = compute::compute(")
+            && entrance.contains("validate_abstract_spill_access_constraints("),
+        "the abstract spill-access entrance must visibly join production to independent replay",
+    );
+    let mut producer = recursive_rust_source(&stage.join("compute"));
+    producer.push_str(
+        &std::fs::read_to_string(stage.join("compute.rs"))
+            .expect("read abstract spill-access producer"),
+    );
+    let mut replay = recursive_rust_source(&stage.join("replay"));
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("replay.rs"))
+            .expect("read abstract spill-access replay"),
+    );
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validate.rs"))
+            .expect("read abstract spill-access validator"),
+    );
+    for forbidden in ["super::compute", "compute::compute", "compute::accesses"] {
+        assert!(
+            !replay.contains(forbidden),
+            "abstract spill-access replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "BTreeSet", "fn reconstruct("] {
+        assert!(
+            replay.contains(required),
+            "abstract spill-access replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    let all_source = recursive_rust_source(&stage);
+    for forbidden in [
+        "omega_machine_optimizer",
+        "MachineEncoded",
+        "PostAllocationMachineInstruction",
+        "StackPointer",
+        "FrameOffset",
+        "TrapBehavior",
+        "ProgramMemory",
+    ] {
+        assert!(
+            !all_source.contains(forbidden),
+            "abstract spill-access constraints must not acquire executable authority `{forbidden}`",
+        );
+    }
+}
+
+#[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
@@ -5186,6 +5242,73 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
         assert!(
             !entrance.contains(forbidden),
             "countdown placement entrance must remain authority-sensitive analysis only; found `{forbidden}`",
+        );
+    }
+}
+
+#[test]
+fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
+    let root = workspace_root();
+    let rewrite_root = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-psi-optimizer/src/ranked_rewrites/countdown_invariant_constant_relocation",
+    );
+    let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
+        .expect("read countdown invariant-constant relocation validator");
+    for forbidden in [
+        "propose::",
+        "validate_psi_rewrite_candidate",
+        "countdown_ranking",
+        "validate_canonical_preheader_suffix",
+        "normalized_component",
+        "AnalysisManager",
+    ] {
+        assert!(
+            !validation.contains(forbidden),
+            "countdown relocation validation must not consume `{forbidden}`",
+        );
+    }
+    for required in [
+        "countdown_invariant_constant_placement_analysis",
+        "apply::realize",
+        "candidate_identity",
+        "VerifiedPsiOptimizationSession::from_transformed",
+        "apply::reconstruct_custody",
+        "ProvenanceDisposition::RealizedAt",
+        "output_node.provenance != node.provenance",
+        "relocation.constant.provenance.clone()",
+        "relocation.constant.fuel.clone()",
+    ] {
+        assert!(
+            validation.contains(required),
+            "countdown relocation validation must independently retain `{required}`",
+        );
+    }
+
+    let mut application = std::fs::read_to_string(rewrite_root.join("apply.rs"))
+        .expect("read countdown invariant-constant relocation application");
+    application.push_str(
+        &std::fs::read_to_string(rewrite_root.join("apply/realize.rs"))
+            .expect("read countdown invariant-constant relocation realization"),
+    );
+    for required in [
+        "VerifiedPsiOptimizationSession::from_transformed",
+        "reconstruct_custody(&next)",
+        "PsiTransformationRecord",
+        "PsiTransformationLedger::new",
+        "recompute_psi_optimization_unit_identity",
+    ] {
+        assert!(
+            application.contains(required),
+            "countdown relocation application must retain atomic boundary `{required}`",
+        );
+    }
+
+    let entrance = std::fs::read_to_string(rewrite_root.join("mod.rs"))
+        .expect("read countdown invariant-constant relocation entrance");
+    for forbidden in ["PsiRewritePatch", "PsiOptimizationRule", "AnalysisManager", "LICM"] {
+        assert!(
+            !entrance.contains(forbidden),
+            "countdown relocation entrance must remain exact; found `{forbidden}`",
         );
     }
 }

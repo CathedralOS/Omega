@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Register-allocation test group by exact retained artifact family.
 
+mod abstract_spill_access_constraints;
 mod abstract_spill_insertion;
 mod abstract_spill_memory_effects;
 mod allocation_legality;
