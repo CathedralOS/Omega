@@ -67,14 +67,14 @@ const SEVEN_DEFINITION_SOURCE: &str = r#"
     }
 "#;
 
-const EIGHT_DEFINITION_SOURCE: &str = r#"
+const NINE_DEFINITION_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
     data Token {}
     machine Token::drop(&mut self) { Helper::touch(); }
     data Root {}
-    machine Root::divide_and_remainder_after_eight_definitions(token: Token, root: i8) -> bool
-    requires -7i8 <= root, root <= 119i8
+    machine Root::divide_and_remainder_after_nine_definitions(token: Token, root: i8) -> bool
+    requires -8i8 <= root, root <= 118i8
     {
         let first: i8 = root + 1i8;
         let second: i8 = first + 1i8;
@@ -83,7 +83,33 @@ const EIGHT_DEFINITION_SOURCE: &str = r#"
         let fifth: i8 = fourth + 1i8;
         let sixth: i8 = fifth + 1i8;
         let seventh: i8 = sixth + 1i8;
-        let divisor: i8 = seventh + 1i8;
+        let eighth: i8 = seventh + 1i8;
+        let divisor: i8 = eighth + 1i8;
+        let quotient: i8 = 6i8 / divisor;
+        let remainder: i8 = 6i8 % divisor;
+        quotient <= 6i8 && remainder <= 6i8
+    }
+"#;
+
+const TEN_DEFINITION_SOURCE: &str = r#"
+    data Helper {}
+    machine Helper::touch() {}
+    data Token {}
+    machine Token::drop(&mut self) { Helper::touch(); }
+    data Root {}
+    machine Root::divide_and_remainder_after_ten_definitions(token: Token, root: i8) -> bool
+    requires -9i8 <= root, root <= 117i8
+    {
+        let first: i8 = root + 1i8;
+        let second: i8 = first + 1i8;
+        let third: i8 = second + 1i8;
+        let fourth: i8 = third + 1i8;
+        let fifth: i8 = fourth + 1i8;
+        let sixth: i8 = fifth + 1i8;
+        let seventh: i8 = sixth + 1i8;
+        let eighth: i8 = seventh + 1i8;
+        let ninth: i8 = eighth + 1i8;
+        let divisor: i8 = ninth + 1i8;
         let quotient: i8 = 6i8 / divisor;
         let remainder: i8 = 6i8 % divisor;
         quotient <= 6i8 && remainder <= 6i8
@@ -401,13 +427,29 @@ fn seven_definition_affine_divisor_crosses_source_codec_and_independent_verifica
 }
 
 #[test]
-fn eight_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
+fn nine_definition_affine_divisor_crosses_source_codec_and_independent_verification() {
     definition_affine_divisor_crosses_source_codec_and_independent_verification(
-        EIGHT_DEFINITION_SOURCE,
-        "Root::divide_and_remainder_after_eight_definitions",
-        8,
+        NINE_DEFINITION_SOURCE,
+        "Root::divide_and_remainder_after_nine_definitions",
+        9,
         2,
     );
+}
+
+#[test]
+fn ten_definition_affine_divisor_remains_outside_the_source_frontier() {
+    let tokens = Lexer::new(TEN_DEFINITION_SOURCE)
+        .tokenize()
+        .expect("tokenize ten-definition source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse ten-definition source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve ten-definition source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type ten-definition affine divisor");
+    let checked = lower_typed_trees(typed).expect("check ten-definition affine divisor");
+    psi_checked_trees_to_terminal::lower_machine(
+        &checked,
+        "Root::divide_and_remainder_after_ten_definitions",
+    )
+    .expect_err("a ten-definition source word must remain on trusted reduction");
 }
 
 #[test]

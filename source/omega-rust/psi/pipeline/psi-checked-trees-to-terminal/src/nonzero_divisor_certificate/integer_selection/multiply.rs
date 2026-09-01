@@ -15,7 +15,7 @@ use super::super::{cast_custody, cast_selection};
 use super::dispatch::{add_endpoint_candidates, lower_add_math_leaf, relax_math_bound};
 use super::{bound, range};
 
-const MAX_TARGETED_OPERAND_WITNESS_DEFINITIONS: usize = 7;
+const MAX_TARGETED_OPERAND_WITNESS_DEFINITIONS: usize = 8;
 
 pub(super) fn prove(
     context: &PropositionContext,

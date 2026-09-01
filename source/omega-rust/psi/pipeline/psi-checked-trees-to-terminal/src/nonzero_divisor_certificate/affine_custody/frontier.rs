@@ -15,7 +15,7 @@ pub(super) fn definition_words(
     definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
 ) -> Rc<[Vec<usize>]> {
-    const MAX_DEFINITIONS: usize = 8;
+    const MAX_DEFINITIONS: usize = 9;
 
     if let Some(words) = definitions.cached_words(root) {
         return words;
