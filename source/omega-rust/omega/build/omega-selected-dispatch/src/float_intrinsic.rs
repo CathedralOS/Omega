@@ -480,12 +480,12 @@ fn resolve_float_intrinsic_call(
         psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
             .map(|resolved| resolved.symbol)
             == Some(operator.symbol);
-    let source_is_matching_builtin = match realization {
-        NamedFloatRealization::Builtin { function, .. } => {
-            checked.typed.symbols.builtin_function_symbol(function) == Some(call.target_symbol)
-        }
-        _ => false,
-    };
+    let source_is_matching_builtin = matches!(realization, NamedFloatRealization::Builtin { .. })
+        && psi_typed_trees_to_checked_trees::resolve_checked_builtin_float_operator_requirement(
+            &checked.typed,
+            operator_use.expression,
+            operator_use.origin,
+        ) == Some(operator.symbol);
     if !source_names_selected_operator && !source_is_matching_builtin {
         return Err(Diagnostic::error(format!(
             "selected named float intrinsic at expression {:?} no longer names its checked operator symbol or normalized builtin",

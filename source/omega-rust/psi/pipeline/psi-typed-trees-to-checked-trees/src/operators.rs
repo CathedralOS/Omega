@@ -571,6 +571,37 @@ fn builtin_float_operator_use_fact(
     origin: CheckedValueOrigin,
     call: &TableCallExpression,
 ) -> Option<CheckedNamedOperatorUseFact> {
+    let (selected_operator_symbol, format) =
+        builtin_float_operator_selection(program, expression, origin, call)?;
+
+    Some(CheckedNamedOperatorUseFact {
+        expression,
+        origin,
+        selected_operator_symbol,
+        policy_adapter: named_float_policy_adapter(program, call, origin, format),
+        provider_plan_report_fingerprint: 0,
+        provider_plan_commitment: Default::default(),
+    })
+}
+
+pub(super) fn resolve_builtin_float_operator_requirement(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    builtin_float_operator_selection(program, expression, origin, call)
+        .map(|(operator, _)| operator)
+}
+
+fn builtin_float_operator_selection(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+    call: &TableCallExpression,
+) -> Option<(SymbolHandle, FloatFormat)> {
     let (_, requirement, arity) = [
         (BuiltinFunction::Min, "minimum", 2),
         (BuiltinFunction::Max, "maximum", 2),
@@ -602,28 +633,47 @@ fn builtin_float_operator_use_fact(
         format = Some(candidate);
     }
     let format = format?;
-    let namespace = if format == FloatFormat::BINARY32 {
-        "F32"
+    let (namespace, primitive) = if format == FloatFormat::BINARY32 {
+        ("F32", PrimitiveType::F32)
     } else if format == FloatFormat::BINARY64 {
-        "F64"
+        ("F64", PrimitiveType::F64)
     } else {
         return None;
     };
-    let operator = program.operators().iter().find(|operator| {
-        let path = program.operator_path_members(operator.name);
-        matches!(path, [candidate_namespace, candidate_requirement]
-            if candidate_namespace.as_str() == namespace
-                && candidate_requirement.as_str() == requirement)
-    })?;
-
-    Some(CheckedNamedOperatorUseFact {
-        expression,
-        origin,
-        selected_operator_symbol: operator.symbol,
-        policy_adapter: named_float_policy_adapter(program, call, origin, format),
-        provider_plan_report_fingerprint: 0,
-        provider_plan_commitment: Default::default(),
-    })
+    let reference_span = origin_machine_symbol(origin)
+        .and_then(|machine| program.symbols.symbol_source_span(machine))
+        .unwrap_or_else(|| program.expression_table.source_span(expression));
+    let matching = program
+        .operators()
+        .iter()
+        .filter(|operator| {
+            operator.is_boundary
+                && operator.spelling.is_none()
+                && operator.lifetime_parameters.is_empty()
+                && program.operator_type_parameters(operator).is_empty()
+                && program
+                    .symbols
+                    .source_reference_can_see_symbol(reference_span, operator.symbol)
+        })
+        .filter(|operator| {
+            let path = program.operator_path_members(operator.name);
+            matches!(path, [candidate_namespace, candidate_requirement]
+                if candidate_namespace.as_str() == namespace
+                    && candidate_requirement.as_str() == requirement)
+        })
+        .filter(|operator| {
+            let parameters = program.operator_parameters(operator);
+            parameters.len() == arity
+                && parameters.iter().all(|parameter| {
+                    program.primitive_type_reference(parameter.type_reference) == Some(primitive)
+                })
+                && program.primitive_type_reference(operator.return_type) == Some(primitive)
+        })
+        .collect::<Vec<_>>();
+    let [operator] = matching.as_slice() else {
+        return None;
+    };
+    Some((operator.symbol, format))
 }
 
 /// Retain the selected identity of one unambiguously resolved named operator

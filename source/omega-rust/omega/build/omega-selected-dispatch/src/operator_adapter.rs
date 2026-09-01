@@ -395,10 +395,17 @@ fn resolve_operator_adapter_call(
             operator_use.expression,
         )));
     };
-    if psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
-        .map(|resolved| resolved.symbol)
-        != Some(operator.symbol)
-    {
+    let source_names_selected_operator =
+        psi_typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
+            .map(|resolved| resolved.symbol)
+            == Some(operator.symbol);
+    let source_maps_to_selected_builtin =
+        psi_typed_trees_to_checked_trees::resolve_checked_builtin_float_operator_requirement(
+            &checked.typed,
+            operator_use.expression,
+            operator_use.origin,
+        ) == Some(operator.symbol);
+    if !source_names_selected_operator && !source_maps_to_selected_builtin {
         return Err(Diagnostic::error(format!(
             "selected checked operator at expression {:?} no longer names its checked operator symbol",
             operator_use.expression,

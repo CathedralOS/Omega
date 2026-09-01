@@ -353,9 +353,10 @@ explicitly.
     so because targetless package dependency projection omits the exact-target
     `Build.x86_deployment_features` field; six nested/repeated wire roots retain
     compatibility because generated codec source loses requester-owned schema
-    type visibility under package-scoped compilation; three arithmetic float
-    helper roots retain compatibility because checked provider selection and
-    post-normalization named-call resolution disagree on operator identity;
+    type visibility under package-scoped compilation; exact visible requirement
+    identity now survives normalized float-builtin settlement, but three
+    arithmetic float helper roots retain compatibility because their scalar
+    setup and control roots have no Terminal composed-Unit plan;
     three call roots retain compatibility for transition-argument operator
     finalization, inline subslice-member finalization, and borrow-liveness
     across an owned receiver call;
