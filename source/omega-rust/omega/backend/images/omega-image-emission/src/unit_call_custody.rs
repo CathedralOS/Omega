@@ -5,19 +5,126 @@
 //! exact copy bytes, and call-span containment. It neither assigns layouts nor
 //! emits relocations or executable bytes.
 
-use omega_machine_code::{SemanticCodeAttribution, SemanticCodeSite};
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use omega_machine_code::{MachineCodeFunction, SemanticCodeAttribution, SemanticCodeSite};
 use omega_target::{Architecture, NativeTarget};
-use omega_target_operations::{CallSiteOwner, TerminalPsiProvenance};
+use omega_target_operations::{
+    CallSiteOwner, MixedStructuralScalarFunctionAbi, TerminalPsiProvenance,
+};
 use psi_core::MachineId;
 
 use super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_memory_load, expected_aarch64_stack_load,
     expected_x86_memory_load, expected_x86_stack_load, x86_terminal_register,
 };
+use super::unit_scalar_call_custody::{expected_argument_bytes, validate_source};
 use super::{ObjectError, ObjectScalarCallStack, ObjectUnitCallStack, ObjectUnitStack};
+
+pub(super) fn validate_mixed_structural_scalar_abi(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+) -> Result<(), ObjectError> {
+    let Some(abi) = function.mixed_structural_scalar_abi.as_ref() else {
+        return Ok(());
+    };
+    let invalid = || ObjectError::InvalidInternalUnitCallEvidence(function.machine);
+    let scalar_shapes = abi
+        .scalar_parameters
+        .iter()
+        .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_shape = fixed_integer_shape(abi.result.scalar_type).ok_or_else(invalid)?;
+    let expected = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(
+                    abi.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.shape),
+                )
+                .collect(),
+            result: Some(result_shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    let scalar_count = abi.scalar_parameters.len();
+    let structural_count = abi.structural_parameters.len();
+    if scalar_count == 0
+        || structural_count == 0
+        || function.fixed_integer_scalar_abi.is_some()
+        || function.unit_scalar_abi.is_some()
+        || expected != abi.call_plan
+        || abi.call_plan.parameters.len() != scalar_count + structural_count
+        || abi.call_plan.result.as_ref() != Some(&abi.result.placement)
+        || abi.result.placement.shape != result_shape
+        || abi
+            .scalar_parameters
+            .iter()
+            .zip(&scalar_shapes)
+            .zip(&abi.call_plan.parameters[..scalar_count])
+            .any(|((parameter, shape), placement)| {
+                parameter.placement != *placement || placement.shape != *shape
+            })
+        || abi
+            .structural_parameters
+            .iter()
+            .zip(&abi.call_plan.parameters[scalar_count..])
+            .any(|(parameter, placement)| {
+                parameter.placement != *placement || placement.shape != parameter.shape
+            })
+        || abi
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.value)
+            .chain(std::iter::once(abi.result.value))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != scalar_count + 1
+        || abi
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != structural_count
+        || function.scalar_structural_parameters.len() != structural_count
+        || function.scalar_structural_parameter_homes.len() != structural_count
+        || abi
+            .structural_parameters
+            .iter()
+            .zip(&function.scalar_structural_parameters)
+            .zip(&function.scalar_structural_parameter_homes)
+            .any(|((parameter, retained), home)| {
+                retained.place != parameter.place
+                    || retained.structural_type != parameter.structural_type
+                    || retained.multiplicity != parameter.multiplicity
+                    || retained.shape != parameter.shape
+                    || home.place != parameter.place
+                    || home.structural_type != parameter.structural_type
+                    || home.multiplicity != parameter.multiplicity
+                    || home.shape != parameter.shape
+                    || home.source != parameter.placement
+            })
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn fixed_integer_shape(integer: psi_core::IntegerType) -> Option<ValueShape> {
+    if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let bytes = integer.bits() / 8;
+    Some(ValueShape::integer(bytes, bytes))
+}
 
 pub(super) fn validate_internal_unit_call_custody(
     target: NativeTarget,
+    function: &MachineCodeFunction,
     machine: MachineId,
     provenance: &TerminalPsiProvenance,
     function_bytes: &[u8],
@@ -28,11 +135,15 @@ pub(super) fn validate_internal_unit_call_custody(
     validated_function_stack: Option<&ObjectUnitStack>,
     validated_call_stack: Option<&ObjectUnitCallStack>,
     validated_scalar_call_stack: Option<&ObjectScalarCallStack>,
+    callee_mixed_abi: Option<&MixedStructuralScalarFunctionAbi>,
     custody: &omega_machine_code::InternalUnitCallRecord,
     affine_cleanup: Option<&omega_machine_code::UnitAffineCleanupRecord>,
     fully_consumed_affine_pair: bool,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitCallEvidence(machine);
+    if function.machine != machine || function.bytes.as_slice() != function_bytes {
+        return Err(invalid());
+    }
     let Some(relocation) = relocations.iter().find(|relocation| {
         relocation.owner == custody.owner
             && relocation.target == custody.target
@@ -58,7 +169,10 @@ pub(super) fn validate_internal_unit_call_custody(
     if custody.result.is_some() && custody.structural_result.is_some() {
         return Err(invalid());
     }
-    if custody.arguments.is_empty() && custody.claim_transfers.is_empty() {
+    if custody.scalar_arguments.is_empty()
+        && custody.arguments.is_empty()
+        && custody.claim_transfers.is_empty()
+    {
         if custody.result.is_some() || custody.structural_result.is_some() {
             return Err(invalid());
         }
@@ -134,14 +248,29 @@ pub(super) fn validate_internal_unit_call_custody(
         .iter()
         .position(|candidate| *candidate == operation)
         .ok_or_else(invalid)?;
+    if callee_mixed_abi.is_none() != custody.scalar_arguments.is_empty() {
+        return Err(invalid());
+    }
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &omega_calling_conventions::CallSignature {
-            parameters: custody
-                .arguments
-                .iter()
-                .map(|argument| argument.shape)
-                .collect(),
+            parameters: if let Some(abi) = callee_mixed_abi {
+                abi.scalar_parameters
+                    .iter()
+                    .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
+                    .chain(
+                        abi.structural_parameters
+                            .iter()
+                            .map(|parameter| Ok(parameter.shape)),
+                    )
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                custody
+                    .arguments
+                    .iter()
+                    .map(|argument| argument.shape)
+                    .collect()
+            },
             result: if let Some(result) = custody.result {
                 let bytes = match result {
                     psi_core::ScalarType::Boolean => 1,
@@ -166,6 +295,38 @@ pub(super) fn validate_internal_unit_call_custody(
         },
     )
     .map_err(|_| invalid())?;
+    if let Some(abi) = callee_mixed_abi {
+        if expected_plan != abi.call_plan
+            || custody.result != Some(psi_core::ScalarType::Integer(abi.result.scalar_type))
+            || custody.scalar_arguments.len() != abi.scalar_parameters.len()
+            || custody.arguments.len() != abi.structural_parameters.len()
+            || custody
+                .scalar_arguments
+                .iter()
+                .zip(&abi.scalar_parameters)
+                .enumerate()
+                .any(|(index, (argument, parameter))| {
+                    usize::try_from(argument.parameter_index) != Ok(index)
+                        || argument.destination != parameter.placement
+                        || argument.source.scalar_type() != parameter.scalar_type
+                })
+            || custody
+                .arguments
+                .iter()
+                .zip(&abi.structural_parameters)
+                .any(|(argument, parameter)| {
+                    !argument.path.is_empty()
+                        || argument.root_structural_type != parameter.structural_type
+                        || argument.access != parameter.access
+                        || argument.structural_type != parameter.structural_type
+                        || argument.shape != parameter.shape
+                        || argument.destination != parameter.placement
+                })
+        {
+            return Err(invalid());
+        }
+        validate_mixed_argument_bytes_and_order(target, function, relocation, custody)?;
+    }
     let projected_argument_indexes = custody
         .arguments
         .iter()
@@ -445,6 +606,82 @@ pub(super) fn validate_internal_unit_call_custody(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != custody.claim_transfers.len()
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+fn validate_mixed_argument_bytes_and_order(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    relocation: &omega_machine_code::InternalCallRelocation,
+    custody: &omega_machine_code::InternalUnitCallRecord,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidInternalUnitCallEvidence(function.machine);
+    let outbound = relocation.unit_stack.ok_or_else(invalid)?.outbound;
+    let outbound_bytes = outbound.map_or(0, |area| area.byte_size);
+    let mut cursor = match outbound {
+        Some(area) => {
+            if custody.code_offset != area.allocation_offset {
+                return Err(invalid());
+            }
+            area.allocation_offset
+                .checked_add(area.allocation_byte_count)
+                .ok_or_else(invalid)?
+        }
+        None => custody.code_offset,
+    };
+    for argument in &custody.scalar_arguments {
+        if argument.code_offset != cursor {
+            return Err(invalid());
+        }
+        validate_source(
+            function,
+            custody.operation_ordinal,
+            custody.code_offset,
+            argument.source,
+        )
+        .map_err(|_| invalid())?;
+        let expected =
+            expected_argument_bytes(target, argument, outbound_bytes).ok_or_else(invalid)?;
+        let argument_end = cursor.checked_add(expected.len()).ok_or_else(invalid)?;
+        if argument.byte_count != expected.len()
+            || function.bytes.get(cursor..argument_end) != Some(expected.as_slice())
+        {
+            return Err(invalid());
+        }
+        cursor = argument_end;
+    }
+    for argument in &custody.arguments {
+        if argument.code_offset != cursor {
+            return Err(invalid());
+        }
+        cursor = cursor
+            .checked_add(argument.byte_count)
+            .ok_or_else(invalid)?;
+    }
+    let native_call_start = match target.architecture {
+        Architecture::X86_64 => relocation.offset.checked_sub(1).ok_or_else(invalid)?,
+        Architecture::Aarch64 => relocation.offset,
+    };
+    if cursor != native_call_start {
+        return Err(invalid());
+    }
+    cursor = relocation.offset.checked_add(4).ok_or_else(invalid)?;
+    if let Some(area) = outbound {
+        if area.release_offset != cursor {
+            return Err(invalid());
+        }
+        cursor = area
+            .release_offset
+            .checked_add(area.release_byte_count)
+            .ok_or_else(invalid)?;
+    }
+    if custody
+        .code_offset
+        .checked_add(custody.byte_count)
+        .is_none_or(|end| end != cursor)
     {
         return Err(invalid());
     }
