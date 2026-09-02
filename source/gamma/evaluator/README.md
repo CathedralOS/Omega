@@ -5,12 +5,13 @@ Beta compiler translates it to Alpha tape, making this the Beta-to-Gamma
 compiler edge rather than optional reconstruction tooling.
 
 The current slice implements exact-ended request loading, source-envelope
-validation, one unary entry function, `if`, `let`, checked integer primitives,
+validation, bounded unary function declaration rows, exact entry selection,
+`if`, `let`, checked integer primitives,
 all five byte primitives, total equality over its value universe,
 `Complete`/`Reject`, immutable raw/hex/single/concat/slice nodes, linear local
 lookup, bounded arena/stack collision checks, and terminal status classes. It
-does not yet implement declaration tables, general function calls,
-source-declared constructors, `match`, or proper tail calls.
+does not yet implement function calls, source-declared constructors, `match`,
+or proper tail calls.
 
 | Retained file | Role | Deletion condition |
 | --- | --- | --- |

@@ -176,6 +176,15 @@ assert_case unresolved-entry 1 \
 assert_case unsupported-valid-form 3 \
     '(def main (input) (helper input)) (entry main)' \
     '' ''
+assert_case unused-declaration 0 \
+    '(def helper (value) (Complete #x00)) (def main (input) (Complete input)) (entry main)' \
+    61 61
+assert_case later-entry 0 \
+    '(def first (value) (Complete #x61)) (entry second) (def second (input) (Complete #x62))' \
+    '' 62
+assert_case duplicate-function 1 \
+    '(def same (value) (Complete #x61)) (def same (input) (Complete #x62)) (entry same)' \
+    '' ''
 
 printf 'BAD' > "$TMP/request"
 set +e
@@ -188,4 +197,4 @@ set -e
 }
 echo "ok - malformed-request"
 
-echo "Gamma evaluator development slice: 42/42 cases passed"
+echo "Gamma evaluator development slice: 45/45 cases passed"
