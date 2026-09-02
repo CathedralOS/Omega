@@ -641,6 +641,17 @@ fn build_object_artifact_with_x86_feature_profile(
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
+    if let Some((function, call)) = plan.functions.iter().find_map(|function| {
+        function
+            .dynamic_parameter_scalar_calls
+            .first()
+            .map(|call| (function, call))
+    }) {
+        return Err(ObjectError::DynamicParameterAdapterTablesUnavailable {
+            caller: function.machine,
+            operation: call.psi_operation,
+        });
+    }
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
     ranked_u32_countdown::replay_ranked_u32_countdown(plan)?;
     let mut previous = None;
@@ -2354,6 +2365,7 @@ fn validate_private_functions<'plan>(
             || !private.function.internal_unit_calls.is_empty()
             || !private.function.internal_unit_scalar_calls.is_empty()
             || !private.function.dynamic_scalar_calls.is_empty()
+            || !private.function.dynamic_parameter_scalar_calls.is_empty()
             || !private.function.x86_scalar_fma.is_empty()
             || !private.function.x86_scalar_fma_occurrences.is_empty()
             || private.function.x86_floating_control.is_some()
@@ -3296,6 +3308,10 @@ pub enum ObjectError {
     DynamicConformanceCommitmentCollision,
     DynamicConformanceDataSizeOverflow,
     InvalidDynamicConformanceTable,
+    DynamicParameterAdapterTablesUnavailable {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
     UnknownDynamicConformanceTarget(MachineId),
     NonCanonicalFunctionOrder {
         previous: MachineId,

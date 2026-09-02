@@ -516,6 +516,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         internal_unit_calls: emitted.internal_unit_calls,
         internal_unit_scalar_calls: Vec::new(),
         dynamic_scalar_calls: Vec::new(),
+        dynamic_parameter_scalar_calls: Vec::new(),
         unit_scalar_homes: Vec::new(),
         unit_integer_constants: Vec::new(),
         unit_structural_scalar_field_stores: Vec::new(),

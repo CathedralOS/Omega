@@ -11775,16 +11775,19 @@ checked-result arithmetic decision listed below.
   integer ABI. Assignment now rejoins those two calling plans, selects the
   exact incoming data/table registers, and records either an x86-64 memory-
   indirect call or an AArch64 load-and-indirect-call mechanism. Machine-code
-  emission and replay remain fail-closed until their role-specific custody
-  lands. Descriptor-bearing caller calls still fail closed before target
-  planning. The older
+  emission now produces the corresponding slot call, balanced x86 call stack,
+  and AArch64 link-register preservation with role-specific semantic, ABI,
+  register, slot, stack, and byte custody. Object construction explicitly
+  rejects that new record until erased-data adapter tables can be generated
+  and replayed; it never silently drops the evidence. Descriptor-bearing
+  caller calls still fail closed before target planning. The older
   direct and caller-local rebound lanes still cross target lowering,
   assignment, object replay, and x86-64/AArch64 execution unchanged.
 
   Remaining work:
 
-  - lower the retained descriptor parameter/argument/slot model through target
-    calling plans, assignment, relocation, object replay, and x86-64/AArch64
+  - lower the retained descriptor argument model through caller target plans,
+    adapter generation, relocation, object replay, and x86-64/AArch64
     execution. The receiving lowerer must select one conventional erased
     `{data pointer, table pointer}` ABI and generate one role-identified adapter
     thunk per table slot: the forwarded helper does not know the concrete
