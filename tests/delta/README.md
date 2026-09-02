@@ -6,4 +6,4 @@ and bootstrap manifest explicitly promote it.
 
 | Retained child | Role | Deletion condition |
 | --- | --- | --- |
-| `state-machine-experiment/` | Measures a Gamma-written typed state-machine compiler across nominal data, fixed storage, states, exhaustive transitions, calls, and direct Alpha emission. | Delete after its evidence is superseded by a representative canonical Delta compiler comparison. |
+| `state-machine-experiment/` | Exercises the speculative source-owned typed state-machine compiler across nominal data, fixed storage, states, exhaustive transitions, calls, and direct Alpha emission. | Delete after its evidence is superseded by a representative canonical Delta compiler comparison. |

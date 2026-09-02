@@ -57,7 +57,8 @@ Delta, and the former Delta is Epsilon.
   records, fixed arrays, typed machine variables, states, exhaustive
   transitions, calls, and direct Alpha emission in 564 Gamma lines. It does not
   yet justify inserting another functional rung; larger syntax/scope/diagnostic
-  customers remain the revisit trigger.
+  customers remain the revisit trigger. Its latest implementation is retained
+  at `source/delta/compiler/experiments/state_machine/delta_compiler.gamma`.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
   absent.
 - [ ] `source/omega/omega_compiler.epsilon` (`D`) is incomplete; `omega0` is

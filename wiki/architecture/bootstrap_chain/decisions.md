@@ -3185,7 +3185,9 @@ global namespaces, sum representation, storage allocation, array indexes, and
 call recursion. Reopen the functional-rung comparison when a representative
 larger slice requires recursive syntax values, variable-length collections,
 nested scopes, or rich deterministic diagnostics. Those costs are absent here
-and could reverse the result.
+and could reverse the result. Its latest Gamma implementation is retained under
+`source/delta/compiler/experiments/state_machine/`; the test owner retains the
+customer and interpreted/native agreement gate.
 
 ## D72 — Address target comments use compact spacing
 

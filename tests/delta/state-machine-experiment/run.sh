@@ -13,7 +13,7 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-COMPILER="$GATE_DIR/delta_sm_compiler.gamma"
+COMPILER="$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.gamma"
 SAMPLE="$GATE_DIR/sample.delta"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null

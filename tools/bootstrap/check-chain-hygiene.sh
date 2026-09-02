@@ -76,6 +76,7 @@ tracked_compiler_sources=$(find \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
 expected_compiler_sources='source/beta/compiler/beta_compiler.beta
+source/delta/compiler/experiments/state_machine/delta_compiler.gamma
 source/epsilon/compiler/epsilon_compiler.delta
 source/gamma/compiler/gamma_compiler.gamma
 source/omega/omega_compiler.epsilon'
@@ -108,6 +109,7 @@ for bootstrap_source in \
   "$OMEGA_PATH_GAMMA/compiler/gamma_compiler.gamma" \
   "$OMEGA_PATH_GAMMA/reconstruction/gamma_evaluator_reconstructor.gamma" \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
+  "$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.gamma" \
   "$OMEGA_PATH_EPSILON_COMPILER_SOURCE" \
   "$OMEGA_PATH_OMEGA_COMPILER_SOURCE"
 do
