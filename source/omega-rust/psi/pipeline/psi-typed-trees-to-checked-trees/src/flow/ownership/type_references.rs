@@ -86,35 +86,9 @@ pub(in crate::flow::ownership) fn type_requires_ownership(
     program: &psi_typed_trees::TypedTrees,
     type_reference: psi_typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    if !type_reference.is_valid() {
-        return false;
-    }
-
-    match program.type_reference_table.type_reference(type_reference) {
-        psi_typed_trees::types::TypeReferenceNode::Reference { .. } => false,
-        psi_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-            type_requires_ownership(program, *base_type)
-        }
-        psi_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_requires_ownership(program, *element_type)
-        }
-        psi_typed_trees::types::TypeReferenceNode::Named { name, .. } => !matches!(
-            psi_typed_trees::types::PrimitiveType::from_name(name.as_str()),
-            Some(
-                psi_typed_trees::types::PrimitiveType::Bool
-                    | psi_typed_trees::types::PrimitiveType::F32
-                    | psi_typed_trees::types::PrimitiveType::F64
-                    | psi_typed_trees::types::PrimitiveType::I32
-                    | psi_typed_trees::types::PrimitiveType::U32
-                    | psi_typed_trees::types::PrimitiveType::U64
-            )
-        ),
-        psi_typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-        | psi_typed_trees::types::TypeReferenceNode::Slice { .. }
-        | psi_typed_trees::types::TypeReferenceNode::Generic { .. } => true,
-        psi_typed_trees::types::TypeReferenceNode::ConstExpression(_)
-        | psi_typed_trees::types::TypeReferenceNode::Unit => false,
-    }
+    type_reference.is_valid()
+        && program.type_multiplicity(type_reference)
+            != psi_language_semantics::Multiplicity::Unrestricted
 }
 
 fn expression_is_place_like(
