@@ -38,12 +38,13 @@ Delta is Epsilon.
 - [x] Trusted Beta's 16,812-byte addressed source reconstructs its admitted 2,135-byte
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
-- [x] Gamma's minimal functional contract is fixed at `source/gamma/LANGUAGE.md`.
-- [ ] A Beta-authored Gamma evaluator development source and 51-case focused
-  gate now cover the request boundary, declaration census, entry selection, and
-  expression core. Unary calls are implemented with isolated lexical environments
-  and bounded ordinary recursion. Constructors, `match`, arbitrary arity, proper tail calls, its derived Alpha
-  tape, and complete conformance suite remain absent.
+- [x] Gamma's unary-function, pair-based functional contract is fixed at
+  `source/gamma/LANGUAGE.md`; a 96-line Gamma compiler emits and runs an exact
+  35-byte addressed-CFG customer tape.
+- [ ] A Beta-authored Gamma evaluator source and 62-case focused gate cover the
+  complete narrowed expression surface, declaration census, entry selection,
+  isolated unary calls, immutable pairs, and bounded ordinary recursion. Its
+  derived Alpha tape and complete conformance suite remain absent.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
@@ -66,14 +67,13 @@ Delta is Epsilon.
 - **GAMMA-EVALUATOR.** Complete the Beta-authored evaluator for the exact strict
   first-order calculus in `source/gamma/LANGUAGE.md`.
 
-  Keep only signed checked `Int`, compact immutable `Bytes`, immutable tagged
-  constructors, exhaustive `match`, `if`, one-binding `let`, first-order calls,
-  mutual recursion, and proper tail calls. Retain exact immutable source bytes
-  plus declaration spans only; resolve global and local names through exact
+  Keep only signed checked `Int`, compact immutable `Bytes`, immutable pairs,
+  `if`, one-binding `let`, unary first-order calls, and mutual recursion. Retain
+  exact immutable source bytes plus declaration spans only; resolve global and local names through exact
   source-order linear byte scans. Persistent values use a bounded bump arena;
-  bindings and continuations use a separate reusable bounded stack. Do not add
-  an AST, token array, hashes, caches, interning, general GC, closures, function
-  values, mutation, raw memory, macros, polymorphism, source-visible
+  bindings and call contexts use a separate reusable bounded stack. Do not add
+  an AST, token array, hashes, caches, interning, general GC, user-defined
+  constructors, pattern matching, closures, function values, mutation, raw memory, macros, polymorphism, source-visible
   continuations, exceptions, modules, packages, interactive evaluation, or
   ambient effects.
 
@@ -97,20 +97,22 @@ Delta is Epsilon.
   Its derived Alpha tape is bound through the admitted Beta compiler rather
   than separately admitted as opaque bytecode.
 
-  The current source is a 51-case-passing development slice. It implements
-  framing, bounded unary function rows, entry selection and calls, structural checks for its accepted forms,
-  `if`, `let`, checked integer operations, every byte primitive, total equality
-  over values it can construct, outcomes, and bounded arena/stack operation.
-  Constructor, match, arbitrary-arity, and tail-call work remains on this task.
+  The current source is a 62-case-passing evaluator core. It implements
+  framing, bounded unary function rows, entry selection and calls, structural
+  checks for every retained form, `if`, `let`, checked integer operations, every
+  byte primitive, defined non-pair equality, pair traps, outcomes, and bounded
+  arena/stack operation.
+  A 96-line Gamma-written Delta0 compiler exercises pairs, recursive source
+  traversal, exact address assertions, byte emission, and direct CFG execution.
 
   Acceptance: a closed positive/negative suite pins lexical rejection,
-  complete structural syntax rejection, declaration census, runtime name and
-  arity traps, runtime declaration-order match checking, left-to-right
-  strictness, branch selectivity, checked integer edges, `bytes-single`, rope
-  and view bounds, total structural equality, forward/mutual calls, exact
-  linear name lookup, deep proper tail recursion, arena exhaustion, frame
+  complete structural syntax rejection, declaration census, runtime name traps,
+  left-to-right strictness, branch selectivity, checked integer edges,
+  `bytes-single`, rope
+  and view bounds, pair projection and equality traps, forward/mutual calls, exact
+  linear name lookup, deep bounded recursion, arena exhaustion, frame
   exhaustion, malformed private state, and deterministic replay. Mutating an
-  evaluator opcode, branch target, allocation bound, constructor tag, or trap
+  evaluator opcode, branch target, allocation bound, pair tag, or trap
   path is detected by audit or a focused case. Output gates cover successful
   single-pass streaming plus late malformed-rope and oversize prefixes that
   remain unpublished under nonzero status.

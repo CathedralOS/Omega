@@ -16,8 +16,8 @@ audited Alpha VM + admitted Beta compiler tape
     -> returned Gamma value
 ```
 
-The complete evaluator artifact and Gamma-written Delta compiler are currently
-open. An executable evaluator development slice lives at
+The admitted evaluator artifact, complete conformance closure, and Gamma-written
+Delta compiler are currently open. The executable narrowed evaluator core lives at
 [`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), with its
 focused gate at
 [`../../tests/gamma/evaluator-slice.sh`](../../tests/gamma/evaluator-slice.sh).

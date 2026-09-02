@@ -1,0 +1,96 @@
+; Delta0 experiment: Gamma-written compiler for a compact addressed CFG language.
+; Records concatenate without separators:
+;   SAA     assert current output address AA
+;   Hrr     halt register rr
+;   Irrvv   immediate byte vv into register rr
+;   Mrrss   move ss into rr
+;   Arrss   add ss into rr
+;   Urrss   subtract ss from rr
+;   JAA     jump to address AA
+;   NrrAA   jump to AA when register rr is nonzero
+
+(def nibble (value)
+  (if (< value 58) (- value 48) (- value 87)))
+
+(def hex_byte (source)
+  (+ (* (nibble (bytes-get source 0)) 16)
+     (nibble (bytes-get source 1))))
+
+(def drop_prefix (value)
+  (bytes-slice (pair-first value)
+               (pair-second value)
+               (- (bytes-length (pair-first value)) (pair-second value))))
+
+(def word_byte (value)
+  (bytes-concat (bytes-single value) #x00000000000000))
+
+(def continue (value)
+  (bytes-concat
+    (pair-first value)
+    (compile (pair (pair-first (pair-second value))
+                   (+ (bytes-length (pair-first value))
+                      (pair-second (pair-second value)))))))
+
+(def compile_state (state)
+  (let source (pair-first state)
+    (let offset (pair-second state)
+      (let opcode (bytes-get source 0)
+        (if (= opcode 83)
+            (if (= offset (hex_byte (bytes-slice source 1 2)))
+                (compile (pair (drop_prefix (pair source 3)) offset))
+                (/ 1 0))
+            (if (= opcode 72)
+                (continue
+                  (pair (bytes-concat #x00 (bytes-single (hex_byte (bytes-slice source 1 2))))
+                        (pair (drop_prefix (pair source 3)) offset)))
+                (if (= opcode 73)
+                    (continue
+                      (pair
+                        (bytes-concat
+                          (bytes-concat #x01 (bytes-single (hex_byte (bytes-slice source 1 2))))
+                          (word_byte (hex_byte (bytes-slice source 3 2))))
+                        (pair (drop_prefix (pair source 5)) offset)))
+                    (if (= opcode 77)
+                        (continue
+                          (pair
+                            (bytes-concat
+                              (bytes-concat #x02 (bytes-single (hex_byte (bytes-slice source 1 2))))
+                              (bytes-single (hex_byte (bytes-slice source 3 2))))
+                            (pair (drop_prefix (pair source 5)) offset)))
+                        (if (= opcode 65)
+                            (continue
+                              (pair
+                                (bytes-concat
+                                  (bytes-concat #x03 (bytes-single (hex_byte (bytes-slice source 1 2))))
+                                  (bytes-single (hex_byte (bytes-slice source 3 2))))
+                                (pair (drop_prefix (pair source 5)) offset)))
+                            (if (= opcode 85)
+                                (continue
+                                  (pair
+                                    (bytes-concat
+                                      (bytes-concat #x04 (bytes-single (hex_byte (bytes-slice source 1 2))))
+                                      (bytes-single (hex_byte (bytes-slice source 3 2))))
+                                    (pair (drop_prefix (pair source 5)) offset)))
+                                (if (= opcode 74)
+                                    (continue
+                                      (pair
+                                        (bytes-concat #x0c (word_byte (hex_byte (bytes-slice source 1 2))))
+                                        (pair (drop_prefix (pair source 3)) offset)))
+                                    (if (= opcode 78)
+                                        (continue
+                                          (pair
+                                            (bytes-concat
+                                              (bytes-concat #x0e (bytes-single (hex_byte (bytes-slice source 1 2))))
+                                              (word_byte (hex_byte (bytes-slice source 3 2))))
+                                            (pair (drop_prefix (pair source 5)) offset)))
+                                        (/ 1 0)))))))))))))
+
+(def compile (state)
+  (if (= (bytes-length (pair-first state)) 0)
+      #x
+      (compile_state state)))
+
+(def main (input)
+  (Complete (compile (pair input 0))))
+
+(entry main)
