@@ -203,9 +203,11 @@ target-scoped declarations. A consumer depends on one stable package such as
 `std`; selection of that package's Linux, Windows, macOS, or firmware machines
 happens when an exact-target child filters the source closure. An invocation
 may request one target or a nonempty explicit canonical set; target-independent
-source, parsing, and immutable build facts are shared before the pipeline fans
-out. Target-qualified application entries are flat unconditional build facts,
-not a support matrix:
+source and parsing are shared before the pipeline fans out. The selected
+`build.omg` project role and name, plus the resolver's unconditional dependency
+rows, are the shared immutable build facts. Target-qualified application
+entries remain flat unconditional rows in that shared source, not a support
+matrix, but each exact child resolves and validates only its target's root slot:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -215,6 +217,12 @@ machine build(builder: &mut Build) {
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 ```
+
+This does not make executed `Build` state shareable. `Build.target`, root-slot
+schema admission, filesystem observations, generated output, optimization
+selection, provider selection, and all other results of evaluating `build` are
+exact-child facts. Naming a cache or checkpoint around those values would not
+turn them into target-independent evidence.
 
 If a concrete future customer cannot be expressed by a package containing
 target-scoped declarations and genuinely requires a target-specific dependency
