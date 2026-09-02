@@ -477,7 +477,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Sixty-five abstract-to-target families are covered,
+  machine-rule family. Sixty-six abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -619,6 +619,17 @@ decision. Only true language-semantic questions belong in
   at direct and optimized custody (180 cases at each boundary). Exact/wrapping
   multiply, saturating add/subtract, plain-immediate, parameter, and runtime-
   expression substitution fail closed.
+  The adjacent constant wrapping-integer-shift-left-to-immediate family admits
+  only `[IntegerConstant, IntegerConstant, WrappingIntegerShiftLeft, Return]`
+  with independently typed native value and count constants. Independent
+  source grammar preserves their ordered roles and recomputes only through
+  `IntegerType::wrapping_shift_left`; target replay requires the exact
+  `ReturnIntegerImmediate` with all definitions, provenance, and the return
+  edge. All 81 signed/unsigned fixed-or-address value/count type pairs cross
+  zero, width, width-plus-one, and signed-negative or unsigned-maximum count
+  boundaries on all five targets at direct and optimized custody (1,620 cases
+  at each boundary). Shift-right, proof-bearing exact shifts, plain-immediate,
+  parameter, mixed-runtime, arithmetic, and bitwise substitution fail closed.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -1268,6 +1279,15 @@ decision. Only true language-semantic questions belong in
     multiply, saturating add/subtract, plain/parameter/runtime-expression
     substitution fail closed. This authenticates existing lowering without new
     target or persisted-wire vocabulary.
+  - [x] Add constant wrapping-integer-shift-left-to-immediate as its own exact
+    abstract-to-target family. Its four-operation grammar retains independently
+    typed native value/count constants and ordered roles, then recomputes with
+    `IntegerType::wrapping_shift_left` and requires the precise immediate.
+    Direct and optimized custody each cover all 81 type pairs, four modulo-
+    count boundaries, and five targets (1,620 cases); catalog ambiguity,
+    corruption, shift-right/exact/plain/parameter/mixed-runtime/arithmetic/
+    bitwise substitution fail closed. This authenticates existing lowering
+    without new target or persisted-wire vocabulary.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both

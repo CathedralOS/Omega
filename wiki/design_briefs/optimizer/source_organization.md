@@ -845,6 +845,16 @@ signed/unsigned fixed 8/16/32/64 and address64 on all five targets with 180
 direct and 180 optimized cases. The family remains disjoint from
 exact/saturating multiply, wrapping add/subtract, plain immediate, and
 parameter wrapping-multiply.
+Constant wrapping integer-shift-left immediate translation begins the distinct-
+type shift taxonomy under
+`straight_line_wrapping_integer_shift_left_immediate/`. Its 27-line entrance
+joins only the exact two-constant grammar to independent immediate-target
+replay. The lower rungs retain separate value/count types and ordered roles and
+use `IntegerType::wrapping_shift_left` as the sole oracle. Receipt, catalog,
+fixture, corruption, and optimized-custody leaves cover all 81 native type
+pairs, four count boundaries, and five targets (1,620 direct and 1,620
+optimized cases) while direction, exact policy, plain, parameter, mixed-
+runtime, arithmetic, and bitwise siblings remain disjoint.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line

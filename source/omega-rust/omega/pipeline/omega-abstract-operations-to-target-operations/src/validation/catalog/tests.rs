@@ -1,7 +1,7 @@
 use omega_abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractResult,
 };
-use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+use omega_calling_conventions::{evaluate_call_plan, CallSignature, CallingPolicy};
 use omega_target::NativeTarget;
 use omega_target_operations::{
     TargetFunction, TargetOperation, TargetUnitBody, TargetUnitOperation, TerminalPsiProvenance,
@@ -37,10 +37,11 @@ mod integer_less_or_equal_immediate;
 mod integer_less_than_immediate;
 mod integer_widen_immediate;
 mod saturating_integer_add_immediate;
-mod saturating_integer_subtract_immediate;
 mod saturating_integer_multiply_immediate;
+mod saturating_integer_subtract_immediate;
 mod wrapping_integer_add_immediate;
 mod wrapping_integer_multiply_immediate;
+mod wrapping_integer_shift_left_immediate;
 mod wrapping_integer_subtract_immediate;
 
 fn boolean_literal_pair() -> (AbstractFunction, TargetFunction) {
