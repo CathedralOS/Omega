@@ -7,6 +7,7 @@ mod allocation_legality;
 mod callee_save_storage;
 mod callee_saved_requirements;
 mod fixed_precolored_intervals;
+mod fixed_precolored_segment_homes;
 mod fixed_precolored_split_requirements;
 mod fixed_view_copies;
 mod fixed_view_copy_operational;

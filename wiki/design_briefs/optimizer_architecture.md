@@ -331,9 +331,34 @@ qualification, copy, rematerialization, spill/reload, or another recovery
 strategy, and is not a segmented home map or transformed liveness result.
 Other CFG shapes, ties, any early-clobber participant, fixed Def/UseDef
 transitions, ambiguous fixed cuts, and unexplained domain breaks reject in V1.
-A later recovery decision must choose homes and strategy, introduce any new
-VReg/instruction phases, and rerun the complete liveness/range/legality chain
-before executable or publication authority exists.
+
+The adjacent `fixed_precolored_segment_homes` allocation entrance consumes
+that complete partition rather than rediscovering fixed transitions. Its
+`MostConstrainedLowestCompatibleViewV1` policy joins only
+`IncomingSourceEdgeV1` segments whose candidate intersection remains nonempty;
+every incompatible opening starts a distinct allocation domain. It precomputes
+segment-local interference from overlapping source intervals authenticated by
+the original interference relation, compares symmetric physical
+`units + write_units` footprints, then places the most constrained remaining
+domain in its lowest viable view. Consequently mutually exclusive fanout leaves
+may reuse one physical view while still retaining distinct domain identities.
+Direct positional production and keyed replay own separate `domains`,
+`conflicts`, `placement`, and exact-work ladders. Pressure is a typed result,
+not permission to spill. The plan assigns only source-segment homes; it creates
+no copy, VReg, instruction, transformed liveness, or assertion that distinct
+views require physical movement. A later recovery decision must choose an
+explicit strategy, introduce any new VReg/instruction phases, and rerun the
+complete liveness/range/legality chain before executable or publication
+authority exists.
+
+Segment-home work is structural rather than implementation-loop accounting.
+For `F` functions, `R` source registers, `S` segments, `D` allocation domains,
+`Q` unordered domain pairs, `C` candidate-footprint comparisons on live
+interfering pairs, and `K` candidate-viability probes across deterministic
+most-constrained selection scans, both traversals charge
+`{rules: 1+F+R+D, candidates: C+K, validation: 1+F+R+S+Q+C+K+D,
+commits: 1+S+D, iterations: 1+F+R+S+Q+K+D}`. This keeps a future internal data
+structure change from silently changing the public budget contract.
 
 Two more explicit compiler-private boundaries continue that descent. Abstract
 spill insertion joins the validated logical operations and slot coloring into

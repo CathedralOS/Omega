@@ -3,6 +3,7 @@
 pub(crate) mod abstract_spill_access_constraints;
 pub(crate) mod abstract_spill_insertion;
 pub(crate) mod abstract_spill_memory_effects;
+pub(crate) mod fixed_precolored_segment_homes;
 pub(crate) mod generalized_reload_value_homes;
 pub(crate) mod generalized_spill_insertion;
 pub(crate) mod generalized_spill_recovery_actions;
@@ -25,6 +26,7 @@ pub(crate) mod synthetic_reload_values;
 pub use abstract_spill_access_constraints::*;
 pub use abstract_spill_insertion::*;
 pub use abstract_spill_memory_effects::*;
+pub use fixed_precolored_segment_homes::*;
 pub use generalized_reload_value_homes::*;
 pub use generalized_spill_insertion::*;
 pub use generalized_spill_recovery_actions::*;

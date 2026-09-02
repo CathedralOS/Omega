@@ -1601,9 +1601,20 @@ decision. Only true language-semantic questions belong in
   pinned exact usage `{3, 7, 59, 6, 12}` on x86-64 and
   `{3, 7, 104, 6, 12}` on AArch64. This remains source-topology evidence only:
   it chooses no home, creates no VReg or instruction, and does not claim
-  transformed liveness. Segmented home assignment, recovery selection, full
-  analysis replay, coalescing, general CFG splitting, and rematerialization
-  costs remain open.
+  transformed liveness. The adjacent independently replayed
+  `MostConstrainedLowestCompatibleViewV1` assignment now consumes every source
+  segment exactly once, joins only connector-compatible domains, and assigns
+  one deterministic physical view per domain. Segment-local live overlap plus
+  authenticated original interference controls symmetric physical-footprint
+  conflicts; mutually exclusive leaf domains may therefore reuse one view.
+  The authentic forwarded conditional produces four assignments in four
+  domains, retaining `RSI -> RAX` on x86-64 and `X1 -> X0` on AArch64 under
+  exact usage `{8, 11, 29, 9, 28}`. Direct positional placement and separately
+  keyed replay bind every source identity, domain, segment, view, target, and
+  budget. Typed pressure selects no spill or recovery. The artifact creates no
+  copy, VReg, instruction, transformed liveness, or movement claim. Recovery
+  selection and reanalysis, coalescing, general CFG splitting, and
+  rematerialization costs remain open.
 - [>] Implement frame layout, alignment, red-zone/shadow-space, unwind,
   probing, stable-address loans, and dynamic-allocation constraints. The first
   non-authoritative requirements artifact now retains abstract spill geometry
