@@ -256,6 +256,33 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE: &str = r#"
     }
 "#;
 
+const FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main [copy] { selected: Item; }
+
+    machine Main::run(&mut self) {
+        self.selected.value = 23;
+        let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+    }
+
+    machine forward(erased: &dyn Measure) -> i32 {
+        let result: i32 = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
 const DIRECT_DYNAMIC_UNIT_SOURCE: &str = r#"
     trait Touch {
         machine touch(&self);
@@ -521,6 +548,93 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
         unsupported_message(&checked),
         "direct dynamic call drifted from checked flow custody"
     );
+}
+
+#[test]
+fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() {
+    let checked = checked_source(FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE);
+    let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert_eq!(catalog.transfers.len(), 1);
+    assert_eq!(catalog.direct_scalar_calls.len(), 1);
+    assert!(catalog.rebound_scalar_calls.is_empty());
+    let mut lowered = lower_machine(&checked, "Main::run")
+        .expect("transparent direct scalar forwarding should lower");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("forwarded direct scalar module should verify");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 1);
+    assert!(catalog.rebound_descriptors.is_empty());
+    assert!(catalog.direct_dispatches.is_empty());
+    assert!(catalog.indirect_dispatches.is_empty());
+    let [parameter] = catalog.parameters.as_slice() else {
+        panic!("one direct scalar descriptor parameter expected: {catalog:#?}")
+    };
+    let [argument] = catalog.arguments.as_slice() else {
+        panic!("one direct scalar descriptor argument expected: {catalog:#?}")
+    };
+    let [dispatch] = catalog.parameter_dispatches.as_slice() else {
+        panic!("one direct scalar parameter dispatch expected: {catalog:#?}")
+    };
+    assert_eq!(parameter.owner, dispatch.owner);
+    assert_eq!(
+        argument.source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
+    );
+    assert_eq!(
+        parameter.requirements[0].result,
+        psi_terminal::ClosedConformanceCallableResult::I32
+    );
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == argument.owner)
+        .expect("forwarded direct scalar caller");
+    let outer = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == argument.operation)
+        .expect("outer direct scalar call");
+    assert!(matches!(
+        outer.kind,
+        OperationKind::CallStructuralScalar { .. }
+    ));
+    let helper = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == parameter.owner)
+        .expect("forwarded direct scalar helper");
+    assert!(
+        helper
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                OperationKind::CallDynamicParameterScalar {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    ..
+                }
+            ))
+    );
+    assert_eq!(lowered.source_call_occurrences.len(), 2);
+
+    lowered.semantic_module.dynamic_dispatch.arguments[0].source =
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
+    assert!(psi_terminal_verifier::validate_module(&lowered.semantic_module).is_err());
+
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("forwarded direct scalar module should encode");
+    let decoded = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("forwarded direct scalar module should decode");
+    assert_eq!(
+        decoded.dynamic_dispatch.arguments[0].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
+    );
+    assert_dynamic_unit_artifact_executes(&artifact);
 }
 
 #[test]

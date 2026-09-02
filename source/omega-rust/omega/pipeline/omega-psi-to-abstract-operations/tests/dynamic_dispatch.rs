@@ -564,3 +564,97 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     missing_argument.identity = recompute_psi_optimization_unit_identity(&missing_argument);
     assert!(validate_psi_optimization_unit(&missing_argument).is_err());
 }
+
+#[test]
+fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
+    let source = r#"
+        trait Measure { machine measure(&self) -> i32; }
+        data Item { value: i32; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 { transition { _ -> self.value } }
+        }
+        data Main { selected: Item; }
+        machine Main::run(&mut self) {
+            let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+        machine forward(erased: &dyn Measure) -> i32 {
+            let result: i32 = erased.measure();
+            transition { _ -> result }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("direct scalar forwarding lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("direct scalar forwarding reaches target-neutral Omega");
+
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let (callee, result, arguments) = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                callee,
+                result,
+                dynamic_arguments,
+                ..
+            } if !dynamic_arguments.is_empty() => Some((*callee, *result, dynamic_arguments)),
+            _ => None,
+        })
+        .expect("caller retains one descriptor-bearing scalar helper call");
+    assert_eq!(
+        result.scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    );
+    let [argument] = arguments.as_slice() else {
+        panic!("one direct-selection descriptor argument expected: {arguments:#?}")
+    };
+    assert!(argument.has_complete_custody(caller.machine, argument.argument.operation, callee));
+    let AbstractDynamicDescriptorSource::Selection {
+        selection,
+        application,
+    } = &argument.source
+    else {
+        panic!("the direct caller must supply its exact selection")
+    };
+    assert_eq!(selection.owner, caller.machine);
+    assert_eq!(application.owner, caller.machine);
+    assert_eq!(
+        selection.conformance_application_commitment,
+        application.commitment
+    );
+
+    let helper = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)
+        .expect("forward helper retained");
+    assert!(helper.operations.iter().any(|operation| matches!(
+        operation,
+        AbstractOperation::CallDynamicParameterScalar {
+            result: helper_result,
+            dynamic_dispatch,
+            ..
+        } if helper_result.scalar_type == result.scalar_type
+            && dynamic_dispatch.parameter == argument.target
+    )));
+
+    let optimization = reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).expect("nonzero test fuel schedule"),
+    )
+    .expect("direct descriptor custody reconstructs into the optimizer");
+    validate_psi_optimization_unit(&optimization)
+        .expect("direct descriptor optimizer custody validates independently");
+}

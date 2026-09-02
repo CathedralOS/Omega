@@ -416,23 +416,28 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                     call_site: inner_site,
                     transfer,
                 };
-                let Some(CheckedDynamicScalarCall::Rebound(plan)) =
-                    build_checked_dynamic_scalar_call(
-                        program,
-                        facts,
-                        binding_facts,
-                        machine,
-                        state,
-                        outer_call,
-                        outer_site,
-                        shapes,
-                        boundaries,
-                        Some(forwarded),
-                    )
-                else {
+                let Some(plan) = build_checked_dynamic_scalar_call(
+                    program,
+                    facts,
+                    binding_facts,
+                    machine,
+                    state,
+                    outer_call,
+                    outer_site,
+                    shapes,
+                    boundaries,
+                    Some(forwarded),
+                ) else {
                     continue;
                 };
-                plans.rebound_scalar_calls.push(plan);
+                match plan {
+                    CheckedDynamicScalarCall::Direct(plan) => {
+                        plans.direct_scalar_calls.push(plan);
+                    }
+                    CheckedDynamicScalarCall::Rebound(plan) => {
+                        plans.rebound_scalar_calls.push(plan);
+                    }
+                }
             }
         }
     }

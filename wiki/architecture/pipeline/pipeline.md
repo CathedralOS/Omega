@@ -158,6 +158,9 @@ erased-data adapters, and emits distinct forwarded tables. Object and image
 replay bind caller-to-table, table-to-adapter, and adapter-to-realization
 relocations. Canonical installation format 64 retains the application/row/
 realization identities and exact code/data spans needed to rejoin those facts.
+Both a direct local selection and a once-rebound descriptor may supply the
+one-hop argument under their distinct semantic source identities; forwarding
+does not manufacture a rebound merely to obtain a physical descriptor.
 Its forwarding rows retain an exact semantic and physical scalar result when
 one exists, while Unit rows explicitly retain neither; they do not invent
 Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut

@@ -12176,9 +12176,11 @@ checked-result arithmetic decision listed below.
   `CallDynamicParameterUnit` helper. Canonical encoding, call-composition rows,
   verification, fixed fuel, and reference interpretation all retain Unit as
   Unit and reject scalar-result substitution. Current format 71 / vocabulary
-  74 adds an honest owner-local selection argument source, so direct Unit
-  descriptor forwarding crosses the same helper boundary without fabricating a
-  rebound. Direct scalar forwarding remains outside this bounded Unit rung.
+  74 adds an honest owner-local selection argument source, so direct Unit and
+  scalar descriptor forwarding cross the same helper boundary without
+  fabricating a rebound. The scalar form retains its checked result, helper
+  parameter dispatch, durable caller home, adapters, and machine/object/image/
+  installation replay on x86-64 and AArch64; the Unit form retains no result.
   Target-neutral abstract operations now retain the same result-independent
   direct-selection, rebound, and parameter dispatch carriers used by scalar
   requirements. A
