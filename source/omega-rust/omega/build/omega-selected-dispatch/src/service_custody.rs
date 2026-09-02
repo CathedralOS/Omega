@@ -36,7 +36,9 @@ pub fn validate_fused_service_terminal_custody(
             .terminal_unit_effects
             .machines
             .iter()
-            .filter(|machine| machine.attachment_type_identity == plan.identity)
+            .filter(|machine| {
+                machine.attachment_type_identity.as_deref() == Some(plan.identity.as_str())
+            })
             .map(|machine| machine.machine)
             .chain(
                 checked

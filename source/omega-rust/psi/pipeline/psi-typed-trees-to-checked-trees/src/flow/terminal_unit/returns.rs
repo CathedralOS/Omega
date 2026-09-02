@@ -2195,7 +2195,8 @@ pub(super) fn build_structural_scalar_return_machine(
                     ));
                     return None;
                 }
-                if cleanup_target.attachment_type_identity != checked_parameter.type_identity
+                if cleanup_target.attachment_type_identity.as_deref()
+                    != Some(checked_parameter.type_identity.as_str())
                     || !is_bounded_scalar_nominal_cleanup_target(
                         facts,
                         unit_effects,
@@ -2319,10 +2320,9 @@ pub(super) fn is_bounded_scalar_nominal_cleanup_target(
             let Some(helper) = unit_effects.for_machine(helper_machine) else {
                 return false;
             };
-            let helper_shape = unit_effects
-                .structural_types
-                .iter()
-                .find(|shape| shape.identity == helper.attachment_type_identity);
+            let helper_shape = unit_effects.structural_types.iter().find(|shape| {
+                helper.attachment_type_identity.as_deref() == Some(shape.identity.as_str())
+            });
             helper.machine != cleanup_machine
                 && helper.state == helper_state
                 && helper.contract_report_fingerprint == helper_fingerprint

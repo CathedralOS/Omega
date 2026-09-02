@@ -5122,6 +5122,71 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+fn free_process_exit_helper_lowers_without_a_synthetic_attachment() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("repository root");
+    let process_exit_root = repository.join("tests/fixtures/packages/process-exit");
+    let host_services_root = repository.join("tests/fixtures/packages/host-services");
+    let process_exit_package = identity(45);
+    let host_services_package = identity(52);
+    let inputs = PackageCompilationInputs::new_package(
+        process_exit_package,
+        vec![
+            PackageSourceBinding::new(
+                process_exit_package,
+                "process-exit",
+                process_exit_root.clone(),
+            ),
+            PackageSourceBinding::new(host_services_package, "host-services", host_services_root),
+        ],
+        vec![PackageDependencyBinding::new(
+            process_exit_package,
+            "host_services",
+            host_services_package,
+        )],
+    )
+    .expect("ordinary process-exit dependency graph");
+    let checked = compile_to_checked_with_packages(
+        &process_exit_root.join("main.omg"),
+        Some("linux_x86_64"),
+        inputs,
+    )
+    .expect("ordinary process-exit candidate should check");
+
+    omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &checked,
+        checked.selected_provider_provenance(),
+    )
+    .expect("free process-exit helper should rejoin exact Fused Service custody");
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "terminate")
+        .expect("free process-exit helper should lower to canonical Terminal Psi");
+    let terminal = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("free process-exit helper should remain the Terminal entry");
+    assert_eq!(terminal.attachment, None);
+    assert_eq!(terminal.structural_parameters.len(), 1);
+    assert_eq!(terminal.parameters.len(), 1);
+    let calls = terminal
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            psi_terminal::OperationKind::BoundaryCall { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("free process-exit helper should retain one Terminal boundary call")
+    };
+    assert_eq!(call.as_slice(), [terminal.parameters[0].id]);
+}
+
+#[test]
 fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

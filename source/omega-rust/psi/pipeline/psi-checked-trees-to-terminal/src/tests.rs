@@ -2882,7 +2882,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
             CheckedUnitEffectMachinePlan {
                 machine: root,
                 state: root_state,
-                attachment_type_identity: "example::Root".to_owned(),
+                attachment_type_identity: Some("example::Root".to_owned()),
                 structural_parameters: vec![structural_parameter(7)],
                 scalar_parameters: Vec::new(),
                 provider_attachment_requirements: Vec::new(),
@@ -2929,7 +2929,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
             CheckedUnitEffectMachinePlan {
                 machine: helper,
                 state: helper_state,
-                attachment_type_identity: "example::Helper".to_owned(),
+                attachment_type_identity: Some("example::Helper".to_owned()),
                 structural_parameters: vec![structural_parameter(3)],
                 scalar_parameters: Vec::new(),
                 provider_attachment_requirements: Vec::new(),

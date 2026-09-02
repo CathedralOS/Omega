@@ -21,16 +21,18 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     || !machine.owned_data.is_empty()
                     || !machine.satisfies.is_empty()
                     || machine.termination_plan.implementation_witness.is_some()
-                    || !program
-                        .service_reach_rows
-                        .services(machine.service_reach_row)
-                        .is_empty()
-                    || !machine.invokes.is_empty()
                     || machine.suspends
                     || machine.blocks
                     || !machine.supply_mode.is_checked_body()
                 {
                     CheckedTerminalSignatureEligibility::Unsupported
+                } else if !program
+                    .service_reach_rows
+                    .services(machine.service_reach_row)
+                    .is_empty()
+                    || !machine.invokes.is_empty()
+                {
+                    CheckedTerminalSignatureEligibility::FreeUnitEffect
                 } else {
                     CheckedTerminalSignatureEligibility::Eligible
                 },

@@ -26,6 +26,7 @@ pub struct CheckedTerminalMachineSelection {
 pub enum CheckedTerminalSignatureEligibility {
     Eligible,
     Attached,
+    FreeUnitEffect,
     Unsupported,
 }
 
@@ -1297,7 +1298,8 @@ pub enum CheckedUnitEffectOperationPlan {
 pub struct CheckedUnitEffectMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// Exact attached data carrier, or `None` for an ordinary free machine.
+    pub attachment_type_identity: Option<String>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.

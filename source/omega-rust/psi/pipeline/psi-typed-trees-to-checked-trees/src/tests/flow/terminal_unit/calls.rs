@@ -90,7 +90,7 @@ fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirem
     let attachment = plans
         .structural_types
         .iter()
-        .find(|shape| shape.identity == main.attachment_type_identity)
+        .find(|shape| Some(shape.identity.as_str()) == main.attachment_type_identity.as_deref())
         .expect("Main attachment shape");
     let CheckedUnitStructuralTypeShape::Record { fields } = &attachment.shape else {
         panic!("Main should remain a record")
@@ -1332,8 +1332,17 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
         .boundary_for_machine(settle_symbol)
         .expect("boundary settlement plan");
 
-    assert!(root.attachment_type_identity.contains("Root"));
-    assert!(helper.attachment_type_identity.contains("Helper"));
+    assert!(
+        root.attachment_type_identity
+            .as_deref()
+            .is_some_and(|identity| identity.contains("Root"))
+    );
+    assert!(
+        helper
+            .attachment_type_identity
+            .as_deref()
+            .is_some_and(|identity| identity.contains("Helper"))
+    );
     assert_eq!(root.structural_parameters.len(), 1);
     assert_eq!(helper.structural_parameters.len(), 1);
     assert_eq!(

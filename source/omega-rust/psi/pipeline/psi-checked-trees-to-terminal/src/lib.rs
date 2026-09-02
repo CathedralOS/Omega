@@ -133,10 +133,10 @@ use attached_unit::lower_root_service_reach;
 use attached_unit::{
     checked_unit_boundary_identity, checked_unit_call_closure_including,
     checked_unit_target_reach_matches, collect_installation_machine_contract_services,
-    collect_published_contract_services, collect_service_summary, lower_attached_unit_closure,
+    collect_published_contract_services, collect_service_summary,
     lower_attached_unit_closure_including, lower_installation_machine_service_ceiling,
     lower_published_service_ceiling, lower_structural_arguments, lower_structural_path,
-    lower_unit_parameters, unique_unit_machine, validate_transfer_shape,
+    lower_unit_effect_closure, lower_unit_parameters, unique_unit_machine, validate_transfer_shape,
 };
 #[cfg(test)]
 use attached_unit::{collect_contract_services, lower_contract_service_ceiling};
@@ -1240,7 +1240,7 @@ pub fn lower_machine(
         SelectedMachineRoute::ReboundDynamicComposedUnit {
             realization_machine,
         } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::AttachedUnit
+        SelectedMachineRoute::UnitEffect
             if checked
                 .facts
                 .proof
@@ -1273,7 +1273,7 @@ pub fn lower_machine(
         | SelectedMachineRoute::StructuralReturn
         | SelectedMachineRoute::ComposedAttachedUnit
         | SelectedMachineRoute::StructuralUnitControl
-        | SelectedMachineRoute::AttachedUnit => vec![selection.machine],
+        | SelectedMachineRoute::UnitEffect => vec![selection.machine],
     };
     let direct_float_source_machines = if route == SelectedMachineRoute::ScalarGraph {
         if source_machines.len() != lowered.semantic_module.machines.len() {

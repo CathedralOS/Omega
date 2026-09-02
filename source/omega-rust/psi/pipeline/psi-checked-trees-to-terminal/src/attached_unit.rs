@@ -169,7 +169,7 @@ pub(super) fn retain_exact_unit_boundary<'plans>(
     Ok(())
 }
 
-pub(super) fn lower_attached_unit_closure(
+pub(super) fn lower_unit_effect_closure(
     checked: &CheckedTrees,
     entry: psi_symbols::SymbolHandle,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
@@ -636,14 +636,6 @@ pub(super) fn lower_attached_unit_closure_including(
             &plan.entry_claims,
             claim_bindings,
         )?;
-        let attachment = lookup_type_id(&type_ids, &plan.attachment_type_identity)?;
-        let checked_attachment = plans
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.identity == plan.attachment_type_identity)
-            .ok_or(LoweringError::Unsupported(
-                "attached Unit machine is missing its checked attachment shape",
-            ))?;
         let called_boundaries = plan
             .operations
             .iter()
@@ -655,26 +647,49 @@ pub(super) fn lower_attached_unit_closure_including(
                 _ => None,
             })
             .collect::<Vec<_>>();
-        validate_provider_attachment_requirements(
-            checked_attachment,
-            &plan.provider_attachment_requirements,
-            &called_boundaries,
-        )?;
-        let attachment_declaration = structural_types
-            .iter()
-            .find(|declaration| declaration.id == attachment)
-            .expect("lowered attachment declaration exists");
         let provider_boundaries = lowered_boundary_parameters
             .iter()
             .map(|(symbol, boundary, _, _)| (*symbol, *boundary))
             .collect::<Vec<_>>();
-        let provider_places = lower_provider_attachment_places(
-            attachment,
-            attachment_declaration,
-            &plan.provider_attachment_requirements,
-            &provider_boundaries,
-            &mut next_place,
-        )?;
+        let attachment = plan
+            .attachment_type_identity
+            .as_deref()
+            .map(|identity| lookup_type_id(&type_ids, identity))
+            .transpose()?;
+        let provider_places = if let Some(attachment) = attachment {
+            let checked_attachment = plans
+                .structural_types
+                .iter()
+                .find(|declaration| {
+                    Some(declaration.identity.as_str()) == plan.attachment_type_identity.as_deref()
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "attached Unit machine is missing its checked attachment shape",
+                ))?;
+            validate_provider_attachment_requirements(
+                checked_attachment,
+                &plan.provider_attachment_requirements,
+                &called_boundaries,
+            )?;
+            let attachment_declaration = structural_types
+                .iter()
+                .find(|declaration| declaration.id == attachment)
+                .expect("lowered attachment declaration exists");
+            lower_provider_attachment_places(
+                attachment,
+                attachment_declaration,
+                &plan.provider_attachment_requirements,
+                &provider_boundaries,
+                &mut next_place,
+            )?
+        } else {
+            if !plan.provider_attachment_requirements.is_empty() {
+                return unsupported(
+                    "free Unit machine fabricates provider-backed attachment requirements",
+                );
+            }
+            Vec::new()
+        };
         let local_places = plan
             .trivial_affine_locals
             .iter()
@@ -1668,7 +1683,7 @@ pub(super) fn lower_attached_unit_closure_including(
         selected_ieee_float_fma_occurrences.extend(selected_ieee_float_fmas);
         machines.push(TerminalMachine {
             id: terminal_machine,
-            attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+            attachment,
             parameters: scalar_parameters.clone(),
             structural_parameters: parameters.clone(),
             ranked_scc: None,

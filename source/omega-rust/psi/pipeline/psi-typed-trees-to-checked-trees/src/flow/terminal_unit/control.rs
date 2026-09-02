@@ -947,14 +947,25 @@ pub(super) fn build_checked_machine(
                 .is_some()
     });
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        if carries_fused_service_parameter {
-            fused_service_scalar_signature(program, shapes, machine, state, &binders)?
+        if machine.attached_data.is_none() {
+            if !carries_fused_service_parameter {
+                return None;
+            }
+            let (structural, scalar) =
+                free_fused_service_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        } else if carries_fused_service_parameter {
+            let (attachment, structural, scalar) =
+                fused_service_scalar_signature(program, shapes, machine, state, &binders)?;
+            (Some(attachment), structural, scalar)
         } else if carries_scalar_parameter {
-            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
+            let (attachment, structural, scalar) =
+                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            (Some(attachment), structural, scalar)
         } else {
             let (attachment, structural) =
                 structural_signature(program, shapes, machine, state, &binders)?;
-            (attachment, structural, Vec::new())
+            (Some(attachment), structural, Vec::new())
         };
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters) {
         return None;
@@ -1261,16 +1272,19 @@ pub(super) fn build_checked_machine(
     body_qualifications.sort_by_key(|domain| domain.0);
     body_qualifications.dedup();
 
-    let provider_attachment_requirements = checked_provider_attachment_requirements(
-        program,
-        shapes,
-        machine,
-        state,
-        &attachment_type_identity,
-        &structural_parameters,
-        calls,
-        &operations,
-    )?;
+    let provider_attachment_requirements = match attachment_type_identity.as_deref() {
+        Some(attachment) => checked_provider_attachment_requirements(
+            program,
+            shapes,
+            machine,
+            state,
+            attachment,
+            &structural_parameters,
+            calls,
+            &operations,
+        )?,
+        None => Vec::new(),
+    };
 
     Some(CheckedUnitEffectMachinePlan {
         machine: machine.symbol,

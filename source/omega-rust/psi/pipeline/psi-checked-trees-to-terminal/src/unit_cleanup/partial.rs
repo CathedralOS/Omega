@@ -203,7 +203,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         }
     }
     staged_unit.machines.push(plan.clone());
-    let mut lowered = lower_attached_unit_closure(&staged, plan.machine)?;
+    let mut lowered = lower_unit_effect_closure(&staged, plan.machine)?;
     let entry = lowered
         .semantic_module
         .machines

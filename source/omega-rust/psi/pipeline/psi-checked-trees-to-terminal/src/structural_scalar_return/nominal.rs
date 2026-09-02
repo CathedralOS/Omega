@@ -168,7 +168,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
     let synthetic = CheckedUnitEffectMachinePlan {
         machine: plan.machine,
         state: plan.state,
-        attachment_type_identity: plan.attachment_type_identity.clone(),
+        attachment_type_identity: Some(plan.attachment_type_identity.clone()),
         structural_parameters: nominal_parameters,
         scalar_parameters: Vec::new(),
         provider_attachment_requirements: Vec::new(),

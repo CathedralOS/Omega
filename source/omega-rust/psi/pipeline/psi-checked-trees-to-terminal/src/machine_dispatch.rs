@@ -4,7 +4,7 @@ use psi_checked_trees::{
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
 };
 
-use crate::attached_unit::{lower_attached_unit_closure, lower_composed_unit_control_machine};
+use crate::attached_unit::{lower_composed_unit_control_machine, lower_unit_effect_closure};
 use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::dynamic_composed_unit::{
     lower_direct_dynamic_composed_unit_machine, lower_rebound_dynamic_composed_unit_machine,
@@ -51,7 +51,7 @@ pub(super) enum SelectedMachineRoute {
     StructuralReturn,
     ComposedAttachedUnit,
     StructuralUnitControl,
-    AttachedUnit,
+    UnitEffect,
     ScalarGraph,
 }
 
@@ -328,10 +328,11 @@ pub(super) fn lower_selected_machine(
     }
     match selection.signature {
         CheckedTerminalSignatureEligibility::Eligible => {}
-        CheckedTerminalSignatureEligibility::Attached => {
+        CheckedTerminalSignatureEligibility::Attached
+        | CheckedTerminalSignatureEligibility::FreeUnitEffect => {
             return routed_machine(
-                lower_attached_unit_closure(checked, selection.machine),
-                SelectedMachineRoute::AttachedUnit,
+                lower_unit_effect_closure(checked, selection.machine),
+                SelectedMachineRoute::UnitEffect,
             );
         }
         CheckedTerminalSignatureEligibility::Unsupported => {
