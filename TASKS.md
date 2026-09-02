@@ -2179,17 +2179,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through fifteenth bounded represented-record levels are now live under
+  Third through sixteenth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of thirteen
+  recursive classifier and validator owns every admitted depth instead of fourteen
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A sixteenth
+  storage, content, domain, provider, or establishment authority. A seventeenth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -10502,23 +10502,23 @@ Remaining N6/N8 work:
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
   bounded rung now permits one, two, three, four, five, six, seven, eight,
-  nine, ten, eleven, or twelve distinct bound whole-result terms to be used once
-  each: the matching payloadless arm may pass them as dense ordered named
-  `requires` inputs of one direct tail state whose sole ordinary argument is the
-  saved result and whose body returns that argument unchanged. Terminal retains
-  an independently resolvable third machine with the exact ordered requirement
-  lanes and identity-return shape, plus one selected-use row per term naming its
-  machine, input position, proposition applications, evidence terms, and
-  caller/target result places. Codec format 42 / vocabulary 45 and
+  nine, ten, eleven, twelve, or thirteen distinct bound whole-result terms to be
+  used once each: the matching payloadless arm may pass them as dense ordered
+  named `requires` inputs of one direct tail state whose sole ordinary argument
+  is the saved result and whose body returns that argument unchanged. Terminal
+  retains an independently resolvable third machine with the exact ordered
+  requirement lanes and identity-return shape, plus one selected-use row per
+  term naming its machine, input position, proposition applications, evidence
+  terms, and caller/target result places. Codec format 42 / vocabulary 45 and
   the verifier reject omitted, duplicated, reordered, redirected, interface-
   drifted, or non-identity uses while fixed fuel and interpretation retain the
-  existing four-unit runtime. The length-twelve source, canonical codec,
+  existing four-unit runtime. The length-thirteen source, canonical codec,
   independent verifier, proof admission, fixed-fuel, and interpreter path retain
-  twelve dense distinct rows, while an otherwise fully rejoined thirteenth row
-  fails the bounded cardinality gate. Payload projections, multiple or partial-
-  result substitutions, thirteen-or-more evidence arguments, repeated term use,
-  later invalidation, erased proof-output linkage, wider structural calls, and
-  tagged-sum execution remain fail-closed.
+  thirteen dense distinct rows, while an otherwise fully rejoined fourteenth
+  row fails the bounded cardinality gate. Payload projections, multiple or
+  partial-result substitutions, fourteen-or-more evidence arguments, repeated
+  term use, later invalidation, erased proof-output linkage, wider structural
+  calls, and tagged-sum execution remain fail-closed.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct
