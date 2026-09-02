@@ -12234,6 +12234,11 @@ checked-result arithmetic decision listed below.
     carrier parameters/calls, composed control, scalar-bearing executable
     helpers, free-machine Terminal lowering, root establishment, and
     Independent execution remain separately fenced;
+  - final Fused custody is split by source responsibility: the 304-line field
+    owner rejoins routed record fields, while a private 430-line parameter
+    owner independently rejoins direct machine parameters and rejects receipts
+    in every unsupported Terminal plan family. The public custody gate and
+    diagnostic contract remain unchanged;
   - replace transitional bare boundary-trait runtime values with the explicit
     affine `Service<R> in Bound` carrier and routed installation/publication
     establishment; fused selection may erase it, while independent calls
