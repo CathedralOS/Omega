@@ -18,6 +18,7 @@ mod byte_sequence_custody;
 mod completion_receipts;
 mod dynamic_conformance;
 mod dynamic_elf;
+mod forwarded_dynamic_descriptor;
 mod final_image_validation;
 mod fully_consumed_affine_pair;
 mod image_output;
@@ -73,6 +74,7 @@ use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
 use dynamic_conformance::validate_dynamic_scalar_calls;
+use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
 };
@@ -122,6 +124,8 @@ pub struct ObjectArtifact {
     text_bytes: Vec<u8>,
     data_bytes: Vec<u8>,
     dynamic_conformance_tables: Vec<ObjectDynamicConformanceTable>,
+    forwarded_dynamic_descriptor_adapters: Vec<ObjectForwardedDynamicDescriptorAdapter>,
+    forwarded_dynamic_descriptor_tables: Vec<ObjectForwardedDynamicDescriptorTable>,
     functions: Vec<ObjectFunction>,
     private_functions: Vec<ObjectCompilerPrivateFunction>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
@@ -171,6 +175,16 @@ impl ObjectArtifact {
 
     pub fn dynamic_conformance_tables(&self) -> &[ObjectDynamicConformanceTable] {
         &self.dynamic_conformance_tables
+    }
+
+    pub fn forwarded_dynamic_descriptor_adapters(
+        &self,
+    ) -> &[ObjectForwardedDynamicDescriptorAdapter] {
+        &self.forwarded_dynamic_descriptor_adapters
+    }
+
+    pub fn forwarded_dynamic_descriptor_tables(&self) -> &[ObjectForwardedDynamicDescriptorTable] {
+        &self.forwarded_dynamic_descriptor_tables
     }
 
     pub fn functions(&self) -> &[ObjectFunction] {
@@ -249,6 +263,10 @@ pub struct ObjectFunction {
     pub internal_unit_calls: Vec<omega_machine_code::InternalUnitCallRecord>,
     pub internal_unit_scalar_calls: Vec<omega_machine_code::InternalUnitScalarCallRecord>,
     pub dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
+    pub dynamic_parameter_scalar_calls:
+        Vec<omega_machine_code::DynamicParameterScalarCallRecord>,
+    pub forwarded_dynamic_descriptor_calls:
+        Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub unit_structural_scalar_field_stores:
@@ -285,6 +303,42 @@ pub struct ObjectDynamicConformanceSlot {
     pub realization_callable_identity: Option<String>,
     pub target: Option<MachineId>,
     pub target_symbol: Option<ObjectSymbolHandle>,
+    pub data_offset: usize,
+}
+
+/// One independently replayed erased-to-concrete bridge emitted outside the
+/// Terminal machine namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectForwardedDynamicDescriptorAdapter {
+    pub record: omega_machine_code::ForwardedDynamicDescriptorAdapterRecord,
+    pub symbol: ObjectSymbolHandle,
+    pub target_symbol: ObjectSymbolHandle,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+impl ObjectForwardedDynamicDescriptorAdapter {
+    pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
+        &artifact.text_bytes[self.text_offset..self.text_offset + self.byte_count]
+    }
+}
+
+/// Role-specific descriptor table whose slots address erased-ABI adapters,
+/// never concrete realization functions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectForwardedDynamicDescriptorTable {
+    pub application: psi_terminal::ClosedConformanceApplication,
+    pub symbol: ObjectSymbolHandle,
+    pub data_offset: usize,
+    pub byte_count: usize,
+    pub slots: Vec<ObjectForwardedDynamicDescriptorSlot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectForwardedDynamicDescriptorSlot {
+    pub row_index: u32,
+    pub adapter: omega_machine_code::ForwardedDynamicDescriptorAdapterIdentity,
+    pub adapter_symbol: ObjectSymbolHandle,
     pub data_offset: usize,
 }
 
@@ -616,7 +670,7 @@ pub fn build_admitted_x86_fma_object_artifact(
     )
 }
 
-fn same_dynamic_table_application(
+pub(crate) fn same_dynamic_table_application(
     left: &psi_terminal::ClosedConformanceApplication,
     right: &psi_terminal::ClosedConformanceApplication,
 ) -> bool {
@@ -641,28 +695,8 @@ fn build_object_artifact_with_x86_feature_profile(
     if plan.functions.is_empty() {
         return Err(ObjectError::EmptyPlan);
     }
-    if let Some((function, call)) = plan.functions.iter().find_map(|function| {
-        function
-            .forwarded_dynamic_descriptor_calls
-            .first()
-            .map(|call| (function, call))
-    }) {
-        return Err(ObjectError::DynamicParameterAdapterTablesUnavailable {
-            caller: function.machine,
-            operation: call.psi_operation,
-        });
-    }
-    if let Some((function, call)) = plan.functions.iter().find_map(|function| {
-        function
-            .dynamic_parameter_scalar_calls
-            .first()
-            .map(|call| (function, call))
-    }) {
-        return Err(ObjectError::DynamicParameterAdapterTablesUnavailable {
-            caller: function.machine,
-            operation: call.psi_operation,
-        });
-    }
+    let forwarded_dynamic_applications =
+        validate_forwarded_dynamic_descriptors(plan.target, &plan.functions)?;
     let validated_private_functions = validate_private_functions(plan.target, private_functions)?;
     ranked_u32_countdown::replay_ranked_u32_countdown(plan)?;
     let mut previous = None;
@@ -877,6 +911,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     function.machine,
                     &function.bytes,
                     &function.internal_calls,
+                    &function.dynamic_parameter_scalar_calls,
                     &function.provenance,
                     &function.semantic_code_attribution,
                     stack,
@@ -1020,6 +1055,9 @@ fn build_object_artifact_with_x86_feature_profile(
             .internal_unit_calls
             .len()
             .checked_add(function.internal_unit_scalar_calls.len())
+            .and_then(|count| {
+                count.checked_add(function.forwarded_dynamic_descriptor_calls.len())
+            })
             .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
                 function.machine,
             ))?;
@@ -1050,6 +1088,12 @@ fn build_object_artifact_with_x86_feature_profile(
                     .iter()
                     .map(|call| (call.owner, call.target)),
             )
+            .chain(function.forwarded_dynamic_descriptor_calls.iter().map(|call| {
+                (
+                    CallSiteOwner::Operation(call.psi_operation),
+                    call.callee,
+                )
+            }))
             .collect::<std::collections::BTreeSet<_>>();
         if custody_identities.len() != unit_custody_count
             || custody_identities != relocation_identities
@@ -1200,6 +1244,22 @@ fn build_object_artifact_with_x86_feature_profile(
                     call.rebound_instance.source.place,
                 ]
             })
+            .chain(
+                function
+                    .forwarded_dynamic_descriptor_calls
+                    .iter()
+                    .flat_map(|call| &call.dynamic_arguments)
+                    .filter_map(|argument| {
+                        let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            rebound,
+                            ..
+                        } = &argument.custody.source
+                        else {
+                            return None;
+                        };
+                        Some(rebound.source.place)
+                    }),
+            )
             .collect::<std::collections::BTreeSet<_>>();
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
@@ -1665,6 +1725,13 @@ fn build_object_artifact_with_x86_feature_profile(
             .checked_add(private.machine.function.bytes.len())
             .ok_or(ObjectError::TextSizeOverflow)?;
     }
+    for application in &forwarded_dynamic_applications {
+        for adapter in &application.adapters {
+            text_size = text_size
+                .checked_add(adapter.bytes.len())
+                .ok_or(ObjectError::TextSizeOverflow)?;
+        }
+    }
 
     let mut dynamic_applications = Vec::<psi_terminal::ClosedConformanceApplication>::new();
     for application in plan
@@ -1695,7 +1762,14 @@ fn build_object_artifact_with_x86_feature_profile(
         .len()
         .saturating_add(private_functions.len())
         .saturating_add(foreign_call_count)
-        .saturating_add(dynamic_applications.len());
+        .saturating_add(dynamic_applications.len())
+        .saturating_add(forwarded_dynamic_applications.len())
+        .saturating_add(
+            forwarded_dynamic_applications
+                .iter()
+                .map(|application| application.adapters.len())
+                .sum::<usize>(),
+        );
     let mut object = if private_functions.is_empty() {
         ObjectPlan::with_capacity(plan.target, 1, symbol_capacity)
     } else {
@@ -1715,7 +1789,20 @@ fn build_object_artifact_with_x86_feature_profile(
                 .checked_mul(8)
                 .and_then(|bytes| size.checked_add(bytes))
                 .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)
-        })?;
+        })?
+        .checked_add(
+            forwarded_dynamic_applications
+                .iter()
+                .try_fold(0usize, |size, application| {
+                    application
+                        .adapters
+                        .len()
+                        .checked_mul(8)
+                        .and_then(|bytes| size.checked_add(bytes))
+                        .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)
+                })?,
+        )
+        .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?;
     if dynamic_data_size != 0 {
         object.layout.sections.insert(SectionPlan {
             kind: SectionKind::Data,
@@ -1911,6 +1998,10 @@ fn build_object_artifact_with_x86_feature_profile(
             internal_unit_calls: function.internal_unit_calls.clone(),
             internal_unit_scalar_calls: function.internal_unit_scalar_calls.clone(),
             dynamic_scalar_calls: function.dynamic_scalar_calls.clone(),
+            dynamic_parameter_scalar_calls: function.dynamic_parameter_scalar_calls.clone(),
+            forwarded_dynamic_descriptor_calls: function
+                .forwarded_dynamic_descriptor_calls
+                .clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
             unit_structural_scalar_field_stores: function
@@ -1926,6 +2017,55 @@ fn build_object_artifact_with_x86_feature_profile(
             ranked_u32_countdown: function.ranked_u32_countdown.clone(),
             structural_return: function.structural_return.clone(),
         });
+    }
+
+    let mut forwarded_dynamic_descriptor_adapters = Vec::new();
+    let mut forwarded_adapter_symbols = std::collections::BTreeMap::new();
+    for application in &forwarded_dynamic_applications {
+        for adapter in &application.adapters {
+            let target_symbol = symbols_by_machine
+                .get(&adapter.identity.realization)
+                .copied()
+                .ok_or(ObjectError::UnknownDynamicConformanceTarget(
+                    adapter.identity.realization,
+                ))?;
+            let text_offset = text_bytes.len();
+            text_bytes.extend_from_slice(&adapter.bytes);
+            let commitment = adapter
+                .identity
+                .application
+                .as_bytes()
+                .into_iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            let symbol = object.layout.symbols.insert(SymbolPlan {
+                name: format!(
+                    "omega_forwarded_descriptor_adapter_{commitment}_{}_{}",
+                    adapter.identity.row_index,
+                    adapter.identity.realization.get()
+                ),
+                section: SymbolSection::Section(SectionKind::Text),
+                offset: text_offset,
+                size: adapter.bytes.len(),
+                kind: SymbolKind::Function,
+                import_library: String::new(),
+            });
+            if forwarded_adapter_symbols
+                .insert(adapter.identity.clone(), symbol)
+                .is_some()
+            {
+                return Err(ObjectError::DuplicateForwardedDynamicDescriptorAdapter);
+            }
+            forwarded_dynamic_descriptor_adapters.push(
+                ObjectForwardedDynamicDescriptorAdapter {
+                    record: adapter.clone(),
+                    symbol,
+                    target_symbol,
+                    text_offset,
+                    byte_count: adapter.bytes.len(),
+                },
+            );
+        }
     }
 
     let mut data_bytes = Vec::with_capacity(dynamic_data_size);
@@ -2001,6 +2141,73 @@ fn build_object_artifact_with_x86_feature_profile(
             .collect::<Result<Vec<_>, ObjectError>>()?;
         dynamic_conformance_tables.push(ObjectDynamicConformanceTable {
             application,
+            symbol,
+            data_offset,
+            byte_count,
+            slots,
+        });
+    }
+
+    let mut forwarded_dynamic_descriptor_tables =
+        Vec::with_capacity(forwarded_dynamic_applications.len());
+    for application in &forwarded_dynamic_applications {
+        if application.adapters.is_empty() {
+            return Err(ObjectError::InvalidForwardedDynamicDescriptorTable);
+        }
+        let data_offset = data_bytes.len();
+        let byte_count = application
+            .adapters
+            .len()
+            .checked_mul(8)
+            .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?;
+        data_bytes.resize(
+            data_bytes
+                .len()
+                .checked_add(byte_count)
+                .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?,
+            0,
+        );
+        let commitment = application
+            .application
+            .commitment
+            .as_bytes()
+            .into_iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: format!("omega_forwarded_descriptor_table_{commitment}"),
+            section: SymbolSection::Section(SectionKind::Data),
+            offset: data_offset,
+            size: byte_count,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+        let slots = application
+            .adapters
+            .iter()
+            .enumerate()
+            .map(|(row_index, adapter)| {
+                let adapter_symbol = forwarded_adapter_symbols
+                    .get(&adapter.identity)
+                    .copied()
+                    .ok_or(ObjectError::InvalidForwardedDynamicDescriptorTable)?;
+                Ok(ObjectForwardedDynamicDescriptorSlot {
+                    row_index: u32::try_from(row_index)
+                        .map_err(|_| ObjectError::DynamicConformanceDataSizeOverflow)?,
+                    adapter: adapter.identity.clone(),
+                    adapter_symbol,
+                    data_offset: data_offset
+                        .checked_add(
+                            row_index
+                                .checked_mul(8)
+                                .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?,
+                        )
+                        .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?,
+                })
+            })
+            .collect::<Result<Vec<_>, ObjectError>>()?;
+        forwarded_dynamic_descriptor_tables.push(ObjectForwardedDynamicDescriptorTable {
+            application: application.application.clone(),
             symbol,
             data_offset,
             byte_count,
@@ -2096,6 +2303,11 @@ fn build_object_artifact_with_x86_feature_profile(
         .flat_map(|table| &table.slots)
         .filter(|slot| slot.target_symbol.is_some())
         .count();
+    let forwarded_table_relocation_count = forwarded_dynamic_descriptor_tables
+        .iter()
+        .map(|table| table.slots.len())
+        .sum::<usize>();
+    let forwarded_adapter_relocation_count = forwarded_dynamic_descriptor_adapters.len();
     let dynamic_address_relocation_count = plan
         .functions
         .iter()
@@ -2105,12 +2317,25 @@ fn build_object_artifact_with_x86_feature_profile(
             omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress { .. } => 2,
         })
         .sum::<usize>();
+    let forwarded_address_relocation_count = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.forwarded_dynamic_descriptor_calls)
+        .flat_map(|call| &call.dynamic_arguments)
+        .map(|argument| match argument.table_address.encoding {
+            omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 { .. } => 1,
+            omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress { .. } => 2,
+        })
+        .sum::<usize>();
     let mut relocations = RelocationPlan::with_record_capacity(
         plan.target,
         ordinary_relocation_count
             .saturating_add(callback_relocation_count)
             .saturating_add(dynamic_table_relocation_count)
-            .saturating_add(dynamic_address_relocation_count),
+            .saturating_add(dynamic_address_relocation_count)
+            .saturating_add(forwarded_table_relocation_count)
+            .saturating_add(forwarded_adapter_relocation_count)
+            .saturating_add(forwarded_address_relocation_count),
     );
     for table in &dynamic_conformance_tables {
         for slot in &table.slots {
@@ -2129,6 +2354,51 @@ fn build_object_artifact_with_x86_feature_profile(
                 kind: RelocationKind::Absolute64,
             });
         }
+    }
+    for table in &forwarded_dynamic_descriptor_tables {
+        for slot in &table.slots {
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Materialization {
+                    object_symbol_handle: table.symbol,
+                },
+                section: SectionKind::Data,
+                offset: slot.data_offset,
+                byte_width: 8,
+                symbol_handle: slot.adapter_symbol,
+                addend: 0,
+                kind: RelocationKind::Absolute64,
+            });
+        }
+    }
+    for adapter in &forwarded_dynamic_descriptor_adapters {
+        let (offset, kind) = match plan.target.architecture {
+            Architecture::X86_64 => (
+                adapter
+                    .text_offset
+                    .checked_add(adapter.record.direct_call_offset)
+                    .and_then(|offset| offset.checked_add(1))
+                    .ok_or(ObjectError::TextSizeOverflow)?,
+                RelocationKind::X86_64Relative32,
+            ),
+            Architecture::Aarch64 => (
+                adapter
+                    .text_offset
+                    .checked_add(adapter.record.direct_call_offset)
+                    .ok_or(ObjectError::TextSizeOverflow)?,
+                RelocationKind::Aarch64Branch26,
+            ),
+        };
+        relocations.push_record(RelocationRecord {
+            origin: RelocationOrigin::Materialization {
+                object_symbol_handle: adapter.symbol,
+            },
+            section: SectionKind::Text,
+            offset,
+            byte_width: 4,
+            symbol_handle: adapter.target_symbol,
+            addend: 0,
+            kind,
+        });
     }
     for (function, emitted) in plan.functions.iter().zip(&functions) {
         for call in &function.dynamic_scalar_calls {
@@ -2175,6 +2445,62 @@ fn build_object_artifact_with_x86_feature_profile(
                         page_offset_relocation_offset,
                         RelocationKind::Aarch64PageOffset12,
                     )?;
+                }
+            }
+        }
+        for call in &function.forwarded_dynamic_descriptor_calls {
+            for argument in &call.dynamic_arguments {
+                let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    application,
+                    ..
+                } = &argument.custody.source
+                else {
+                    return Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
+                        caller: function.machine,
+                        operation: call.psi_operation,
+                    });
+                };
+                let table = forwarded_dynamic_descriptor_tables
+                    .iter()
+                    .find(|table| {
+                        table.application.commitment == application.commitment
+                            && same_dynamic_table_application(&table.application, application)
+                    })
+                    .ok_or(ObjectError::InvalidForwardedDynamicDescriptorTable)?;
+                let origin = RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: emitted.symbol,
+                    operation_identity: call.psi_operation.get(),
+                };
+                let mut push_address =
+                    |local_offset: usize, kind: RelocationKind| -> Result<(), ObjectError> {
+                        relocations.push_record(RelocationRecord {
+                            origin,
+                            section: SectionKind::Text,
+                            offset: emitted
+                                .text_offset
+                                .checked_add(local_offset)
+                                .ok_or(ObjectError::TextSizeOverflow)?,
+                            byte_width: 4,
+                            symbol_handle: table.symbol,
+                            addend: 0,
+                            kind,
+                        });
+                        Ok(())
+                    };
+                match argument.table_address.encoding {
+                    omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                        relocation_offset,
+                    } => push_address(relocation_offset, RelocationKind::X86_64Relative32)?,
+                    omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                        page_relocation_offset,
+                        page_offset_relocation_offset,
+                    } => {
+                        push_address(page_relocation_offset, RelocationKind::Aarch64Page21)?;
+                        push_address(
+                            page_offset_relocation_offset,
+                            RelocationKind::Aarch64PageOffset12,
+                        )?;
+                    }
                 }
             }
         }
@@ -2336,6 +2662,8 @@ fn build_object_artifact_with_x86_feature_profile(
         text_bytes,
         data_bytes,
         dynamic_conformance_tables,
+        forwarded_dynamic_descriptor_adapters,
+        forwarded_dynamic_descriptor_tables,
         functions,
         private_functions: object_private_functions,
         semantic_code_attribution,
@@ -3320,10 +3648,17 @@ pub enum ObjectError {
     DynamicConformanceCommitmentCollision,
     DynamicConformanceDataSizeOverflow,
     InvalidDynamicConformanceTable,
-    DynamicParameterAdapterTablesUnavailable {
+    InvalidForwardedDynamicDescriptorEvidence {
         caller: MachineId,
         operation: psi_core::OperationId,
     },
+    InvalidDynamicParameterScalarCallEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
+    },
+    ForwardedDynamicDescriptorCommitmentCollision,
+    DuplicateForwardedDynamicDescriptorAdapter,
+    InvalidForwardedDynamicDescriptorTable,
     UnknownDynamicConformanceTarget(MachineId),
     NonCanonicalFunctionOrder {
         previous: MachineId,

@@ -158,6 +158,10 @@ pub fn emit_executable_image(
         functions: artifact.functions.clone(),
         private_functions: artifact.private_functions.clone(),
         dynamic_conformance_tables: artifact.dynamic_conformance_tables.clone(),
+        forwarded_dynamic_descriptor_adapters: artifact
+            .forwarded_dynamic_descriptor_adapters
+            .clone(),
+        forwarded_dynamic_descriptor_tables: artifact.forwarded_dynamic_descriptor_tables.clone(),
         semantic_code_attribution: artifact.semantic_code_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
@@ -184,6 +188,10 @@ pub fn validate_executable_image(
         || artifact.functions() != image.functions()
         || artifact.private_functions() != image.private_functions()
         || artifact.dynamic_conformance_tables() != image.dynamic_conformance_tables()
+        || artifact.forwarded_dynamic_descriptor_adapters()
+            != image.forwarded_dynamic_descriptor_adapters()
+        || artifact.forwarded_dynamic_descriptor_tables()
+            != image.forwarded_dynamic_descriptor_tables()
         || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
         || artifact.boundary_settlements() != image.boundary_settlements()
@@ -340,6 +348,8 @@ pub struct ExecutableImage {
     functions: Vec<ObjectFunction>,
     private_functions: Vec<ObjectCompilerPrivateFunction>,
     dynamic_conformance_tables: Vec<super::ObjectDynamicConformanceTable>,
+    forwarded_dynamic_descriptor_adapters: Vec<super::ObjectForwardedDynamicDescriptorAdapter>,
+    forwarded_dynamic_descriptor_tables: Vec<super::ObjectForwardedDynamicDescriptorTable>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -391,6 +401,18 @@ impl ExecutableImage {
 
     pub fn dynamic_conformance_tables(&self) -> &[super::ObjectDynamicConformanceTable] {
         &self.dynamic_conformance_tables
+    }
+
+    pub fn forwarded_dynamic_descriptor_adapters(
+        &self,
+    ) -> &[super::ObjectForwardedDynamicDescriptorAdapter] {
+        &self.forwarded_dynamic_descriptor_adapters
+    }
+
+    pub fn forwarded_dynamic_descriptor_tables(
+        &self,
+    ) -> &[super::ObjectForwardedDynamicDescriptorTable] {
+        &self.forwarded_dynamic_descriptor_tables
     }
 
     pub fn port_effects(&self) -> &[ObjectPortEffect] {
