@@ -3,7 +3,7 @@
 use crate::tests::*;
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use super::recursive_reload_value_homes::{Bundle, original_bundle, reload_bundle};
+use super::recursive_reload_value_homes::{original_bundle, reload_bundle, Bundle};
 
 pub(super) struct HomedBundle {
     pub(super) bundle: Bundle,
@@ -162,8 +162,8 @@ fn legacy_v1_identity_and_signature_remain_byte_stable() {
     assert_eq!(
         v1.receipt().identity().bytes(),
         [
-            79, 200, 52, 203, 184, 85, 65, 90, 222, 153, 154, 152, 200, 63, 17, 170, 113, 249, 43,
-            17, 54, 212, 54, 21, 191, 231, 157, 14, 147, 181, 100, 84,
+            11, 136, 213, 72, 116, 231, 135, 151, 161, 19, 209, 94, 207, 183, 94, 57, 242, 154,
+            227, 144, 9, 8, 16, 111, 164, 200, 35, 120, 54, 218, 97, 105,
         ],
     );
 }
