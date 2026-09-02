@@ -3308,8 +3308,19 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         machine Root::one_twelve(values: [[Token; 12]; 2]) {
             Sink::take(values[1][11]);
         }
-        machine Root::too_wide(values: [[Token; 13]; 2]) {
+        machine Root::nested_thirteen(values: [[Token; 13]; 2]) {
             Sink::take(values[1][12]);
+            Sink::take(values[0][1]);
+        }
+        machine Root::same_outer_thirteen(values: [[Token; 13]; 2]) {
+            Sink::take(values[0][0]);
+            Sink::take(values[0][12]);
+        }
+        machine Root::one_thirteen(values: [[Token; 13]; 2]) {
+            Sink::take(values[1][12]);
+        }
+        machine Root::too_wide(values: [[Token; 14]; 2]) {
+            Sink::take(values[1][13]);
             Sink::take(values[0][1]);
         }
         "#,
@@ -3731,6 +3742,59 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         ],
         "length-twelve outer and inner live complements both descend",
     );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "nested_thirteen"))
+        .expect("one leaf move per outer length-thirteen array leaves twenty-four exact residual leaves");
+    assert_eq!(
+        plan.machine.operations[..2]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => path(&structural_arguments[0].path),
+                _ => panic!("nested length-thirteen cleanup contains calls before return"),
+            })
+            .collect::<Vec<_>>(),
+        vec![(1, 12), (0, 1)],
+        "authored nested length-thirteen move order is retained",
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| path(&discard.path))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, 11),
+            (1, 10),
+            (1, 9),
+            (1, 8),
+            (1, 7),
+            (1, 6),
+            (1, 5),
+            (1, 4),
+            (1, 3),
+            (1, 2),
+            (1, 1),
+            (1, 0),
+            (0, 12),
+            (0, 11),
+            (0, 10),
+            (0, 9),
+            (0, 8),
+            (0, 7),
+            (0, 6),
+            (0, 5),
+            (0, 4),
+            (0, 3),
+            (0, 2),
+            (0, 0),
+        ],
+        "length-thirteen outer and inner live complements both descend",
+    );
     for machine in [
         "same_outer",
         "one",
@@ -3752,6 +3816,8 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         "one_eleven",
         "same_outer_twelve",
         "one_twelve",
+        "same_outer_thirteen",
+        "one_thirteen",
         "too_wide",
     ] {
         assert!(
