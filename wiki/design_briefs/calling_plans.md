@@ -1301,13 +1301,16 @@ a different authority. Many live registrations may share one compatible
 statically emitted thunk, so capacity bounds runtime registration state rather
 than code size.
 
-There is currently no callback-specific deployment pending/live carrier. The
-earlier custom object-store/installation-manifest implementation and its
-callback registration modules were removed. Generic installed-code and
-external-root infrastructure remains, including opaque callback replacement,
-but those primitives do not by themselves establish registrar success, finite
-live-registration capacity, callback code/component leases, or a source-level
-`Registration`.
+The earlier custom object-store/installation-manifest implementation and its
+callback registration modules were removed. The replacement runtime bridge is
+deliberately narrower: it joins exact compiler-private entry attribution to the
+complete installed-code occurrence and exact entry of an admitted external
+root, and retains that attribution beside the provider's reclaimable
+registration through unregister and root quiescence. Its runnable-component
+split borrow permits the root to pin code while teardown mutates only the
+independent root ledger. Admission and teardown rejection preserve their full
+inputs for retry. This carrier still does not establish the package-visible
+linear `Registration` or its component-era lease.
 
 The current direct-parameter path stops at canonical installation custody.
 Installation format 51 retains the exact compiler-private thunk identity,
@@ -1317,11 +1320,12 @@ first deployment prerequisite now accepts a caller-supplied, already-admitted
 entry identity and binds it to that unique row's exact final-text start, bytes,
 and opaque installed occurrence. It does not derive an entry identity, expose
 an executable address, publish code, admit an external root, or establish
-registrar success. The next deployment rung must join that pinned entry to an
-admitted external root and exact provider result, then preserve complete retry
-custody through failure, unregister, and quiescence. Capacity still means
-simultaneous live registrations, not emitted thunk count or a consumable
-lifetime budget.
+registrar success by itself. The runtime bridge now performs the exact admitted
+root/provider-result join and preserves retry custody through provider failure,
+unregister, and quiescence. The remaining deployment rung binds that live
+registration to the exact component-era lease and lowers the source-visible
+linear `Registration`. Capacity still means simultaneous live registrations,
+not emitted thunk count or a consumable lifetime budget.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained

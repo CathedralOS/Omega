@@ -1,5 +1,12 @@
 use super::*;
 
+use omega_calling_conventions::{
+    ArrivalContextId, ArrivalContextRealization, CallSignature, CallingPolicy, EntryStackEpoch,
+    EntryStackRealization, EntryStackStage, MachineRegister, MachineState, MachineStateSet,
+    ProviderExitRealization, RegisterSet, StackDomainRef, StateFootprintEvidence,
+    ValidatedBoundaryEntryPlan, ValueLocation, ValueShape, evaluate_call_plan,
+    evaluate_ordinary_boundary_entry_plan, validate_entry_stack_realization,
+};
 use omega_effects::provider_plan::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
     ServiceProgressEstablishmentRoute, ServiceProgressEstablishmentRouteKind,
@@ -21,34 +28,58 @@ use omega_executable_installation::{
     validate_final_placement,
 };
 use omega_external_roots::{
-    ComponentProgressDemandIdentity, ComponentProgressReceiptBinding, ExternalRootDiagnostic,
-    InstalledProviderOccurrenceId, InstalledRootLedger, ProgressProfileEstablishmentAttestation,
-    ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId,
+    AcknowledgementPolicyId, AdmittedOpaqueArrivalContextSet, BoundEpochStackComposition,
+    ComponentArtifactId, ComponentContractId, ComponentProgressDemandIdentity,
+    ComponentProgressReceiptBinding, ComponentProviderId, ComponentVersionPin,
+    ComponentVersionPinId, ExternalRootCandidate, ExternalRootDiagnostic, ExternalRootId,
+    FixedFuelCall, FixedFuelProviderSummary, FuelProvisionId, FuelScheduleIdentity,
+    InstalledProviderOccurrenceId, InstalledRootLedger, LogicalFuelResourceColumn,
+    MachineStateResourceColumn, NestingRelationId, OpaqueCallbackProviderId,
+    OpaqueCallbackRegistrationCapacityOccurrence, OpaqueCallbackRegistrationCapacityOccurrenceId,
+    OpaqueCallbackRegistrationId, OpaqueCallbackRegistrationReceipt,
+    OpaqueCallbackRegistrationReceiptId, OpaqueCallbackUnregistrationContractId,
+    OpaqueCallbackUnregistrationReceipt, OpaqueCallbackUnregistrationReceiptId,
+    OpaqueProviderExitAssurance, ProgressProfileEstablishmentAttestation,
+    ProgressProfileEstablishmentReceiptId, ProgressProfileGrantInvocationId, ProviderExecution,
+    ProviderExecutionId, ProviderFuelSummaryId, ProviderFuelValidationReceiptId,
     ProviderOccurrenceInstallationReceipt, ProviderOccurrenceInstallationReceiptId,
-    ProviderOccurrencePlanBinding,
+    ProviderOccurrencePlanBinding, ProviderPlanId, ProviderStackSummary, ResolvedRootServiceReach,
+    RootAdmission, RootAdmissionId, RootEffectId, RootProviderId, RootRemovalReceipt,
+    RootRemovalReceiptId, RootSlotAuthority, RootSlotId, RootSlotOwnerId, StackNestingRelation,
+    StackResourceColumn, StackValidationReceiptId, TrustReceiptId,
+    admit_opaque_arrival_context_set, bind_opaque_adapter_stack_realization,
+    compose_bound_entry_stack_epochs, compose_fixed_fuel, validate_external_root,
 };
+use omega_function_identity::{MachineFunctionIdentity, StateKey};
 use omega_image_emission::{
-    bind_installed_artifact, build_installation_record_with_evidence, build_object_artifact,
+    bind_installed_artifact, bind_installed_compiler_private_function_entry,
+    build_installation_record_with_evidence, build_object_artifact_with_private_functions,
     emit_executable_image,
 };
 use omega_installation_evidence::ProviderExecutionEvidence;
 use omega_machine_code::{
-    BoundarySettlementRecord, MachineCodeFunction, MachineCodePlan, SemanticCodeAttribution,
+    BoundarySettlementRecord, CompilerPrivateMachineCodeFunction, MachineCodeFunction,
+    MachineCodePlan, MachineCodePlanWithPrivateFunctions, SemanticCodeAttribution,
     SemanticCodeSite,
 };
 use omega_target_operations::{
     BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
-    LinuxExitGroupI32Realization, ProviderExecutionBinding, ProviderPlanReportIdentity,
-    TerminalPsiProvenance,
+    FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi, LinuxExitGroupI32Realization,
+    ProviderExecutionBinding, ProviderPlanReportIdentity, ScalarParameterLocation, TargetFunction,
+    TargetOperation, TargetOperationPlan, TerminalPsiProvenance,
 };
-use psi_core::{BoundaryMachineId, EdgeId, MachineId, OperationId, ProfileDecisionId};
+use psi_core::{
+    BoundaryMachineId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ProfileDecisionId,
+    ValueId,
+};
 use psi_extents::{
     AddressSpaceId, ExtentDiagnostic, ExtentLineageId, ExtentProvenanceId, ExtentRightId,
     ExtentRights, ExtentRootGrant, MappingEraId,
 };
 use psi_layout_plans::{
-    ArtifactInstallationScopeId, PlacementConstraints, PlacementPhase, PlacementSite,
+    ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
 };
+use psi_symbols::SymbolHandle;
 use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[derive(Debug)]
@@ -405,9 +436,102 @@ fn terminal_image(
             structural_return: None,
         }],
     };
-    let object = build_object_artifact(&plan).expect("terminal object");
+    let private_plan = callback_private_operation_plan();
+    let private_source_psi = private_plan.psi;
+    let assigned_private =
+        omega_target_operations_to_assigned_target_operations::assign_registers(&private_plan)
+            .expect("private callback register assignment");
+    let private_machine = omega_machine_emission::emit_machine_code(&assigned_private)
+        .expect("private callback machine emission");
+    let [private_function] = private_machine.functions.as_slice() else {
+        panic!("one private callback machine function expected")
+    };
+    let private_identity = callback_private_function_identity();
+    let object =
+        build_object_artifact_with_private_functions(&MachineCodePlanWithPrivateFunctions {
+            plan,
+            private_functions: vec![CompilerPrivateMachineCodeFunction {
+                identity: private_identity,
+                private_symbol: "__omega_component_callback".into(),
+                source_psi: private_source_psi,
+                function: private_function.clone(),
+            }],
+        })
+        .expect("terminal object with private callback");
     let image = emit_executable_image(&object, 3).expect("terminal image");
     (object, image)
+}
+
+fn callback_private_operation_plan() -> TargetOperationPlan {
+    let target = omega_target::NativeTarget::linux_x64();
+    let machine = MachineId::new(2).expect("private machine");
+    let parameter = ValueId::new(20).expect("private parameter");
+    let result = ValueId::new(21).expect("private result");
+    let scalar_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let shape = ValueShape::integer(8, 8);
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![shape],
+            result: Some(shape),
+        },
+    )
+    .expect("private callback ABI");
+    let parameter_placement = call_plan.parameters[0].clone();
+    let result_placement = call_plan.result.clone().expect("private result placement");
+    let location = match parameter_placement.locations.as_slice() {
+        [ValueLocation::Register { register, .. }] => ScalarParameterLocation::Register(*register),
+        _ => panic!("one-u64 parameter must use one register"),
+    };
+    TargetOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x52; 32]),
+        },
+        target,
+        entry: machine,
+        functions: vec![TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: Some(FixedIntegerScalarFunctionAbi {
+                call_plan,
+                parameters: vec![FixedIntegerScalarAbiValue {
+                    value: parameter,
+                    scalar_type,
+                    placement: parameter_placement,
+                }],
+                result: FixedIntegerScalarAbiValue {
+                    value: result,
+                    scalar_type,
+                    placement: result_placement,
+                },
+            }),
+            mixed_structural_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: Vec::new(),
+                edges: vec![EdgeId::new(2).expect("private return edge")],
+            },
+            operation: TargetOperation::ReturnIntegerParameter {
+                psi_edge: EdgeId::new(2).expect("private return edge"),
+                source_value: result,
+                scalar_type,
+                parameter_index: 0,
+                location,
+            },
+        }],
+    }
+}
+
+fn callback_private_function_identity() -> MachineFunctionIdentity {
+    MachineFunctionIdentity::callback_thunk(
+        StateKey {
+            machine: SymbolHandle::from_parts(91, 2),
+            state: SymbolHandle::from_parts(93, 3),
+            segment_index: 5,
+        },
+        0,
+    )
+    .expect("private callback identity")
 }
 
 fn install_terminal_text(
@@ -419,7 +543,11 @@ fn install_terminal_text(
     let scope = ArtifactInstallationScopeId::from_normalized_identity(1).expect("scope");
     let constraints = PlacementConstraints::new(None, 16, PlacementPhase::Load, None, Some(scope))
         .expect("constraints");
-    let entry = psi_layout_plans::EntryStubId::from_normalized_identity(1).expect("entry");
+    let entry = EntryStubId::from_normalized_identity(1).expect("entry");
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let [private_function] = object.private_functions() else {
+        panic!("one private callback expected")
+    };
     let contracts = install_id(2, MachineContractSetId::from_normalized_identity);
     let footprint = install_id(3, MachineFootprintId::from_normalized_identity);
     let artifact = Artifact::from_canonical_decode(
@@ -431,7 +559,14 @@ fn install_terminal_text(
         install_id(4, PlacementPlanId::from_normalized_identity),
         constraints,
         install_id(5, EntrySetId::from_normalized_identity),
-        vec![ArtifactEntry::from_canonical_decode(entry, 0)],
+        vec![
+            ArtifactEntry::from_canonical_decode(entry, 0),
+            ArtifactEntry::from_canonical_decode(
+                private_entry,
+                u64::try_from(private_function.function.text_offset)
+                    .expect("private callback offset"),
+            ),
+        ],
         install_id(6, RelocationSetId::from_normalized_identity),
         Vec::new(),
         omega_executable_installation::ArtifactAuthorityCommitments::from_canonical_evidence(
@@ -670,6 +805,295 @@ fn runnable_publication_rejects_compact_equal_different_artifact_occurrence() {
         .expect_err("compact-equal artifact occurrence substitution rejects");
     assert!(error.diagnostic().contains("different installed artifact"));
     assert_eq!(ledger.current_era(), None);
+}
+
+#[test]
+fn registered_private_callback_preserves_exact_runtime_custody_through_retry() {
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let process_entry = EntryStubId::from_normalized_identity(1).expect("process entry");
+    let private_function = callback_private_function_identity();
+    let mut fixture = runnable_fixture(800);
+    let other = runnable_fixture_at(800, 0x9000);
+    let attribution = bind_installed_compiler_private_function_entry(
+        fixture.runnable.installed_artifact(),
+        private_function,
+        private_entry,
+    )
+    .expect("private callback attribution");
+    let other_attribution = bind_installed_compiler_private_function_entry(
+        other.runnable.installed_artifact(),
+        private_function,
+        private_entry,
+    )
+    .expect("other installed occurrence attribution");
+    assert!(
+        bind_installed_compiler_private_function_entry(
+            fixture.runnable.installed_artifact(),
+            private_function,
+            process_entry,
+        )
+        .expect_err("process entry cannot substitute for private callback")
+        .diagnostic()
+        .contains("text offset")
+    );
+
+    let candidate = callback_root_candidate(fixture.runnable.installed(), private_entry);
+    let boundary = callback_boundary();
+    let validated = validate_external_root(candidate, &boundary).expect("callback root");
+    let slot = RootSlotAuthority::from_admitted_owner(
+        root_id(720, RootSlotId::from_normalized_identity),
+        root_id(721, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = ProviderExecution::from_admitted_provider(
+        root_id(754, ProviderExecutionId::from_normalized_identity),
+        &validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: validated.boundary().call.entry_control,
+                restored_state: validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(704, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("callback provider execution");
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(722, RootAdmissionId::from_normalized_identity),
+        &validated,
+        &execution,
+        fixture.runnable.installed(),
+        &slot,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("callback root admission");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let root = runtime
+        .install(validated, slot, admission)
+        .expect("installed callback root");
+    let root_identity = root.root();
+    let not_quiesced = RootRemovalReceipt::from_provider(
+        root_id(780, RootRemovalReceiptId::from_normalized_identity),
+        &root,
+        true,
+        false,
+    );
+    let quiesced = RootRemovalReceipt::from_provider(
+        root_id(781, RootRemovalReceiptId::from_normalized_identity),
+        &root,
+        true,
+        true,
+    );
+    let provider = root_id(784, OpaqueCallbackProviderId::from_normalized_identity);
+    let capacity_identity = root_id(
+        789,
+        OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+    );
+    let capacity =
+        OpaqueCallbackRegistrationCapacityOccurrence::from_provider(capacity_identity, provider);
+    let failed_provider_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
+        root_id(
+            782,
+            OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
+        ),
+        root_id(783, OpaqueCallbackRegistrationId::from_normalized_identity),
+        provider,
+        root_id(
+            785,
+            OpaqueCallbackUnregistrationContractId::from_normalized_identity,
+        ),
+        &root,
+        &capacity,
+        false,
+    );
+    let error = runtime
+        .admit_compiler_private_callback(other_attribution, root, failed_provider_receipt, capacity)
+        .expect_err("cross-occurrence attribution rejects before provider success");
+    let (other_attribution, root, _failed_provider_receipt, capacity) = (*error).into_parts();
+    assert_eq!(other_attribution.entry(), private_entry);
+    assert_eq!(capacity.identity(), capacity_identity);
+    assert_eq!(root.root(), root_identity);
+
+    let failed_provider_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
+        root_id(
+            786,
+            OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
+        ),
+        root_id(783, OpaqueCallbackRegistrationId::from_normalized_identity),
+        provider,
+        root_id(
+            785,
+            OpaqueCallbackUnregistrationContractId::from_normalized_identity,
+        ),
+        &root,
+        &capacity,
+        false,
+    );
+    let error = runtime
+        .admit_compiler_private_callback(attribution, root, failed_provider_receipt, capacity)
+        .expect_err("provider rejection establishes no registration");
+    let (attribution, root, _failed_provider_receipt, capacity) = (*error).into_parts();
+    assert_eq!(attribution.entry(), private_entry);
+    assert_eq!(capacity.identity(), capacity_identity);
+
+    let accepted_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
+        root_id(
+            787,
+            OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
+        ),
+        root_id(783, OpaqueCallbackRegistrationId::from_normalized_identity),
+        provider,
+        root_id(
+            785,
+            OpaqueCallbackUnregistrationContractId::from_normalized_identity,
+        ),
+        &root,
+        &capacity,
+        true,
+    );
+    let collision_capacity =
+        OpaqueCallbackRegistrationCapacityOccurrence::from_provider(capacity_identity, provider);
+    let error = runtime
+        .admit_compiler_private_callback(attribution, root, accepted_receipt, collision_capacity)
+        .expect_err("collision-equal capacity occurrence rejects");
+    let (attribution, root, accepted_receipt, collision_capacity) = (*error).into_parts();
+    assert_eq!(collision_capacity.identity(), capacity_identity);
+    let registration = runtime
+        .admit_compiler_private_callback(attribution, root, accepted_receipt, capacity)
+        .expect("exact provider registration");
+    assert_eq!(registration.attribution().entry(), private_entry);
+    assert_eq!(
+        registration.registration().capacity().identity(),
+        capacity_identity
+    );
+
+    let unsuccessful = OpaqueCallbackUnregistrationReceipt::from_provider(
+        root_id(
+            788,
+            OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+        ),
+        registration.registration(),
+        false,
+    );
+    let error = registration
+        .unregister_and_quiesce(&mut runtime, unsuccessful, not_quiesced)
+        .expect_err("unsuccessful unregister retains callback custody");
+    let (registration, _, not_quiesced) = (*error).into_parts();
+    assert_eq!(registration.attribution().entry(), private_entry);
+    assert_eq!(
+        registration.registration().capacity().identity(),
+        capacity_identity
+    );
+
+    let successful = OpaqueCallbackUnregistrationReceipt::from_provider(
+        root_id(
+            790,
+            OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+        ),
+        registration.registration(),
+        true,
+    );
+    let error = registration
+        .unregister_and_quiesce(&mut runtime, successful, not_quiesced)
+        .expect_err("provider success without quiescence retains callback custody");
+    let (registration, _, _) = (*error).into_parts();
+    assert_eq!(registration.attribution().entry(), private_entry);
+
+    let successful = OpaqueCallbackUnregistrationReceipt::from_provider(
+        root_id(
+            791,
+            OpaqueCallbackUnregistrationReceiptId::from_normalized_identity,
+        ),
+        registration.registration(),
+        true,
+    );
+    let completed = registration
+        .unregister_and_quiesce(&mut runtime, successful, quiesced)
+        .expect("provider unregister plus root quiescence");
+    let (attribution, completion) = completed.into_parts();
+    assert_eq!(attribution.entry(), private_entry);
+    let (returned_slot, returned_capacity) = completion.into_parts();
+    assert_eq!(
+        returned_slot.slot(),
+        root_id(720, RootSlotId::from_normalized_identity)
+    );
+    assert_eq!(returned_capacity.identity(), capacity_identity);
+}
+
+#[test]
+fn registered_private_callback_rejects_a_different_admitted_root_entry() {
+    let private_entry = EntryStubId::from_normalized_identity(2).expect("private entry");
+    let process_entry = EntryStubId::from_normalized_identity(1).expect("process entry");
+    let mut fixture = runnable_fixture(900);
+    let attribution = bind_installed_compiler_private_function_entry(
+        fixture.runnable.installed_artifact(),
+        callback_private_function_identity(),
+        private_entry,
+    )
+    .expect("private callback attribution");
+    let candidate = callback_root_candidate(fixture.runnable.installed(), process_entry);
+    let boundary = callback_boundary();
+    let validated = validate_external_root(candidate, &boundary).expect("process-entry root");
+    let slot = RootSlotAuthority::from_admitted_owner(
+        root_id(820, RootSlotId::from_normalized_identity),
+        root_id(821, RootSlotOwnerId::from_normalized_identity),
+    );
+    let execution = ProviderExecution::from_admitted_provider(
+        root_id(854, ProviderExecutionId::from_normalized_identity),
+        &validated,
+        Some(OpaqueProviderExitAssurance::AcceptedClaim {
+            realization: ProviderExitRealization {
+                control: validated.boundary().call.entry_control,
+                restored_state: validated.boundary().state.restored_state,
+            },
+            validation_receipt: root_id(704, TrustReceiptId::from_normalized_identity),
+        }),
+    )
+    .expect("process-entry provider execution");
+    let admission = RootAdmission::from_admitted_provider(
+        root_id(822, RootAdmissionId::from_normalized_identity),
+        &validated,
+        &execution,
+        fixture.runnable.installed(),
+        &slot,
+        validated.candidate().trust_receipts.iter().copied(),
+    )
+    .expect("process-entry root admission");
+    let mut runtime = fixture.runnable.external_root_runtime();
+    let root = runtime
+        .install(validated, slot, admission)
+        .expect("installed process-entry root");
+    let provider = root_id(884, OpaqueCallbackProviderId::from_normalized_identity);
+    let capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+        root_id(
+            889,
+            OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+        ),
+        provider,
+    );
+    let receipt = OpaqueCallbackRegistrationReceipt::from_provider(
+        root_id(
+            882,
+            OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
+        ),
+        root_id(883, OpaqueCallbackRegistrationId::from_normalized_identity),
+        provider,
+        root_id(
+            885,
+            OpaqueCallbackUnregistrationContractId::from_normalized_identity,
+        ),
+        &root,
+        &capacity,
+        true,
+    );
+    let error = runtime
+        .admit_compiler_private_callback(attribution, root, receipt, capacity)
+        .expect_err("an admitted process entry cannot substitute for the private entry");
+    let (attribution, root, _, capacity) = (*error).into_parts();
+    assert_eq!(attribution.entry(), private_entry);
+    assert_eq!(
+        root.root(),
+        root_id(701, ExternalRootId::from_normalized_identity)
+    );
+    assert_eq!(capacity.provider(), provider);
 }
 
 fn journal_acceptance() -> ComponentDeploymentAcceptanceSnapshot {
@@ -984,4 +1408,171 @@ fn install_id<T>(
 
 fn extent_id<T>(identity: u64, constructor: fn(u64) -> Result<T, ExtentDiagnostic>) -> T {
     constructor(identity).expect("normalized extent identity")
+}
+
+fn callback_boundary() -> ValidatedBoundaryEntryPlan {
+    evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::SystemVAMD64,
+        &CallSignature {
+            parameters: vec![ValueShape::integer(8, 8)],
+            result: None,
+        },
+    )
+    .expect("callback boundary")
+}
+
+fn callback_fuel(_root: ExternalRootId) -> omega_external_roots::ComposedFuelDemand {
+    let leaf_identity = root_id(731, ProviderFuelSummaryId::from_normalized_identity);
+    let owner_identity = root_id(730, ProviderFuelSummaryId::from_normalized_identity);
+    let leaf = FixedFuelProviderSummary::from_admitted_provider(
+        leaf_identity,
+        root_id(712, RootProviderId::from_normalized_identity),
+        FuelScheduleIdentity::new(1).expect("fuel schedule"),
+        5,
+        std::collections::BTreeSet::new(),
+        root_id(
+            741,
+            ProviderFuelValidationReceiptId::from_normalized_identity,
+        ),
+    );
+    let owner = FixedFuelProviderSummary::from_admitted_provider(
+        owner_identity,
+        root_id(702, RootProviderId::from_normalized_identity),
+        FuelScheduleIdentity::new(1).expect("fuel schedule"),
+        2,
+        std::collections::BTreeSet::from([FixedFuelCall {
+            callee: leaf_identity,
+            maximum_invocations: 1,
+        }]),
+        root_id(
+            740,
+            ProviderFuelValidationReceiptId::from_normalized_identity,
+        ),
+    );
+    compose_fixed_fuel(owner_identity, [&owner, &leaf]).expect("callback fuel")
+}
+
+fn callback_stack(
+    root: ExternalRootId,
+    provider: RootProviderId,
+    relation: NestingRelationId,
+    boundary: &ValidatedBoundaryEntryPlan,
+    code: &InstalledCode,
+    entry: EntryStubId,
+) -> BoundEpochStackComposition {
+    let active_domain = StackDomainRef::Interrupted;
+    let realization = validate_entry_stack_realization(EntryStackRealization {
+        contexts: vec![ArrivalContextRealization {
+            context: ArrivalContextId::new(1).expect("arrival context"),
+            epochs: vec![EntryStackEpoch {
+                stage: EntryStackStage::Body,
+                active_domain,
+                occupancy_by_domain: Vec::new(),
+                nesting: boundary.plan().state.preemption,
+            }],
+        }],
+    })
+    .expect("callback stack realization");
+    let summary = ProviderStackSummary::from_admitted_provider(
+        root,
+        provider,
+        boundary.plan().state.stack,
+        2048,
+        16,
+        root_id(749, StackValidationReceiptId::from_normalized_identity),
+    );
+    let contexts: AdmittedOpaqueArrivalContextSet = admit_opaque_arrival_context_set(
+        &summary,
+        boundary,
+        code,
+        entry,
+        vec![ArrivalContextId::new(1).expect("arrival context")],
+        root_id(748, StackValidationReceiptId::from_normalized_identity),
+    )
+    .expect("callback arrival context");
+    let bound = bind_opaque_adapter_stack_realization(
+        &summary,
+        boundary,
+        code,
+        entry,
+        realization,
+        contexts,
+    )
+    .expect("callback stack binding");
+    compose_bound_entry_stack_epochs(
+        &StackNestingRelation {
+            identity: relation,
+            edges: std::collections::BTreeSet::new(),
+        },
+        [&bound],
+    )
+    .expect("callback stack composition")
+}
+
+fn callback_root_candidate(code: &InstalledCode, entry: EntryStubId) -> ExternalRootCandidate {
+    let root = root_id(701, ExternalRootId::from_normalized_identity);
+    let provider = root_id(702, RootProviderId::from_normalized_identity);
+    let relation = root_id(706, NestingRelationId::from_normalized_identity);
+    let boundary = callback_boundary();
+    ExternalRootCandidate {
+        identity: root,
+        entry,
+        provider,
+        provider_plan: root_id(755, ProviderPlanId::from_normalized_identity),
+        provider_plan_digest: ProviderPlan::default().identity_digest(),
+        requirement_identity: "Callback::entry".into(),
+        entry_claims: Vec::new(),
+        acknowledgement_parameter_index: None,
+        interrupt_mask_guard_claim: None,
+        service_reach: ResolvedRootServiceReach::from_selected_provider_closure(
+            Vec::new(),
+            Vec::new(),
+            &SelectedProviderPlanFacts::default(),
+        )
+        .expect("empty callback service reach"),
+        effects: [root_id(703, RootEffectId::from_normalized_identity)]
+            .into_iter()
+            .collect(),
+        trust_receipts: [root_id(704, TrustReceiptId::from_normalized_identity)]
+            .into_iter()
+            .collect(),
+        nesting_relation: relation,
+        acknowledgement_policy: Some(root_id(
+            707,
+            AcknowledgementPolicyId::from_normalized_identity,
+        )),
+        stack: StackResourceColumn {
+            ceiling_bytes: 8192,
+            realization: callback_stack(root, provider, relation, &boundary, code, entry),
+            validation_receipt: root_id(750, StackValidationReceiptId::from_normalized_identity),
+        },
+        logical_fuel: LogicalFuelResourceColumn {
+            schedule: FuelScheduleIdentity::new(1).expect("fuel schedule"),
+            provision: root_id(753, FuelProvisionId::from_normalized_identity),
+            ceiling_units: 64,
+            realization: callback_fuel(root),
+            validation_receipt: root_id(
+                751,
+                omega_external_roots::FuelValidationReceiptId::from_normalized_identity,
+            ),
+        },
+        machine_state: MachineStateResourceColumn {
+            realization: StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rax]),
+                MachineStateSet::new([MachineState::Flags]),
+            ),
+            validation_receipt: root_id(
+                752,
+                omega_external_roots::StateValidationReceiptId::from_normalized_identity,
+            ),
+        },
+        component_pins: [ComponentVersionPin {
+            contract: root_id(708, ComponentContractId::from_normalized_identity),
+            artifact: root_id(709, ComponentArtifactId::from_normalized_identity),
+            provider: root_id(710, ComponentProviderId::from_normalized_identity),
+            version: root_id(711, ComponentVersionPinId::from_normalized_identity),
+        }]
+        .into_iter()
+        .collect(),
+    }
 }

@@ -16,13 +16,17 @@ omega-image-emission = { path = "../../images/omega-image-emission", features = 
 
 [dev-dependencies]
 omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
+omega-function-identity = { path = "../../../representations/omega-function-identity" }
 omega-target = { path = "../../../representations/omega-target" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
+omega-machine-emission = { path = "../../omega-machine-emission" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
+omega-target-operations-to-assigned-target-operations = { path = "../../../pipeline/omega-target-operations-to-assigned-target-operations" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-extents = { path = "../../../../psi/foundation/psi-extents" }
 psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
+psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 psi-terminal-fuel = { path = "../../../../psi/semantics/psi-terminal-fuel" }

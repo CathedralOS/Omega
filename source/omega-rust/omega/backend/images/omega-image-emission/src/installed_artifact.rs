@@ -278,6 +278,12 @@ impl InstalledCompilerPrivateFunctionEntry {
         self.installed_code
     }
 
+    /// Opaque complete installed-occurrence evidence for downstream equality
+    /// gates. The context contains no executable address or constructor.
+    pub const fn installed_context(&self) -> &InstalledCodeContext {
+        &self.installed_context
+    }
+
     pub fn occurrence_digest(&self) -> InstalledArtifactOccurrenceDigest {
         self.installed_context.occurrence_digest()
     }

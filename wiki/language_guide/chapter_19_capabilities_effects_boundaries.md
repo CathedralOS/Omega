@@ -2079,10 +2079,12 @@ generational handle into package-owned state.
 The current compiler carries a direct callback through private native-function
 emission, relocation, final-image replay, and canonical installation format 51.
 That installation row preserves identity, source Psi, ABI, and final text
-interval but grants no runtime registration authority. The earlier callback-
-specific deployment pending/live carrier was removed; generic installed-code
-and external-root primitives do not replace its missing provider success,
-capacity, lease, unregister, quiescence, and source `Registration` joins. Those
+interval but grants no runtime registration authority. A runtime bridge can
+consume its exact installed-entry attribution with an admitted external root,
+provider success receipt, and one exact capacity occurrence. The bridge retains
+the attribution and root/code pin until provider unregister and root quiescence
+both succeed; every failed join or teardown preserves the complete retry
+custody. The source `Registration` lowering and exact component-era lease join
 remain engineering work. Runtime capacity still bounds live registrations,
 not emitted thunk count, and is distinct from a consumable lifetime budget.
 

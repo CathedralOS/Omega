@@ -2206,6 +2206,61 @@ fn emitted_direct_float_parameter_rejoins_terminal_owner_and_dense_scalar_parame
     );
 }
 
+#[test]
+fn emitted_direct_structural_float_leaf_rejoins_owner_root_and_member_path() {
+    let source = r#"
+        data Sample { value: f32; }
+        data Root {}
+
+        machine Root::structural_source(sample: Sample)
+        requires
+            Float::meaning32(sample.value) == Float::meaning32(sample.value);
+        {
+            transition { _ -> done(sample) }
+            state done(sample: Sample) {}
+        }
+    "#;
+    let checked = checked_float_projection_source(source);
+    let lowered = lower_machine(&checked, "Root::structural_source")
+        .expect("lower direct structural float owner");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let [parameter] = machine.structural_parameters.as_slice() else {
+        panic!("one structural parameter expected")
+    };
+    let [projection] = lowered.semantic_module.float_meaning_projections.as_slice() else {
+        panic!("one structural FloatMeaning projection expected")
+    };
+    let psi_terminal::FloatMeaningSource::DirectStructuralLeaf(leaf) = &projection.source else {
+        panic!("structural source should retain an exact Terminal leaf")
+    };
+    assert_eq!(leaf.owner, machine.id);
+    assert_eq!(leaf.field.root(), parameter.place);
+    assert_eq!(leaf.field.path().len(), 1);
+    assert_eq!(leaf.format, IeeeFloatFormat::Binary32);
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("verify direct structural source");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module).expect("encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module)
+    );
+
+    let mut path_drift = checked;
+    let psi_checked_trees::CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) =
+        &mut path_drift.facts.proof.float_meaning_projections[0].source
+    else {
+        panic!("checked structural source expected")
+    };
+    leaf.field.path[0] =
+        psi_checked_trees::CheckedStructuralPredicatePathSegment::Field("missing".to_owned());
+    assert!(lower_machine(&path_drift, "Root::structural_source").is_err());
+}
+
 fn assert_source_direct_float_result(primitive: &str, projection: &str, format: IeeeFloatFormat) {
     let source = format!(
         r#"

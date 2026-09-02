@@ -5613,6 +5613,21 @@ fn opaque_callback_gateway_must_be_exact_current_dispatch_and_process_lifetime()
 }
 
 #[test]
+fn installed_root_entry_replay_requires_exact_code_occurrence_and_entry() {
+    let entry = entry_id(1001);
+    let other_entry = entry_id(1002);
+    let mut code = installed_code_with_fill(1, entry, 0x90);
+    let substituted_code = installed_code_with_fill(1, entry, 0xcc);
+    let context = code.receipt_context();
+    let substituted_context = substituted_code.receipt_context();
+    let (_ledger, installed) = install_test_root(&mut code, entry);
+
+    assert!(installed.binds_installed_entry(&context, entry));
+    assert!(!installed.binds_installed_entry(&context, other_entry));
+    assert!(!installed.binds_installed_entry(&substituted_context, entry));
+}
+
+#[test]
 fn reclaimable_opaque_callback_requires_unregister_and_root_quiescence() {
     let entry = entry_id(1001);
     let mut code = installed_code(1, entry);
