@@ -1166,7 +1166,22 @@ fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
         parameter_transfer.source_binding
     );
     assert_eq!(selection_transfer.selection, parameter_transfer.selection);
-    assert!(dynamic.direct_scalar_calls.is_empty());
+    let [plan] = dynamic.direct_scalar_calls.as_slice() else {
+        panic!("one multi-hop dynamic scalar call expected, got {dynamic:#?}")
+    };
+    assert_eq!(plan.forwarding_transfers, [parameter_transfer.clone()]);
+    let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+        machine,
+        state,
+        parameter,
+        ..
+    } = plan.origin
+    else {
+        panic!("multi-hop call must retain its final dynamic helper")
+    };
+    assert_eq!(parameter_transfer.target_machine, machine);
+    assert_eq!(parameter_transfer.target_state, state);
+    assert_eq!(parameter_transfer.parameter, parameter);
     assert!(dynamic.rebound_scalar_calls.is_empty());
 }
 

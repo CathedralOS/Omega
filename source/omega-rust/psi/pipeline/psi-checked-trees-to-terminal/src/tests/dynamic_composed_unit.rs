@@ -312,6 +312,37 @@ const FORWARDED_DIRECT_DYNAMIC_INTEGER_SOURCE: &str = r#"
     }
 "#;
 
+const MULTI_HOP_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item [copy] { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main [copy] { selected: Item; }
+
+    machine Main::run(&self) {
+        let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+    }
+
+    machine forward(erased: &dyn Measure) -> i32 {
+        let result: i32 = finish(erased);
+        transition { _ -> result }
+    }
+
+    machine finish(erased: &dyn Measure) -> i32 {
+        let result: i32 = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
 const DIRECT_DYNAMIC_UNIT_SOURCE: &str = r#"
     trait Touch {
         machine touch(&self);
@@ -737,6 +768,67 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
         psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
     );
     assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+#[test]
+fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
+    let mut checked = checked_source(MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
+    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert_eq!(checked_catalog.transfers.len(), 2);
+    let [plan] = checked_catalog.direct_scalar_calls.as_slice() else {
+        panic!("one multi-hop checked plan expected: {checked_catalog:#?}")
+    };
+    assert_eq!(plan.forwarding_transfers.len(), 1);
+
+    let lowered = lower_machine(&checked, "Main::run")
+        .expect("the exact parameter-sourced forwarding path should lower");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("the multi-hop dynamic module should verify");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 1);
+    assert_eq!(catalog.parameters.len(), 2);
+    assert_eq!(catalog.arguments.len(), 2);
+    assert_eq!(catalog.parameter_dispatches.len(), 1);
+    assert_eq!(
+        catalog.arguments[0].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
+    );
+    assert_eq!(
+        catalog.arguments[1].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
+    );
+    assert_eq!(catalog.arguments[1].owner, catalog.parameters[0].owner);
+    assert_eq!(
+        catalog.parameter_dispatches[0].owner,
+        catalog.parameters[1].owner
+    );
+    assert_eq!(lowered.source_call_occurrences.len(), 3);
+
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("multi-hop dynamic module should encode canonically");
+    let decoded = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("multi-hop dynamic module should decode");
+    assert_eq!(decoded.dynamic_dispatch.parameters.len(), 2);
+    assert_eq!(
+        decoded.dynamic_dispatch.arguments[1].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 }
+    );
+
+    let [plan] = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .direct_scalar_calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    plan.forwarding_transfers[0].coordinate.statement_index = 1;
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic call drifted from checked flow custody"
+    );
 }
 
 #[test]

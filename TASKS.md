@@ -12348,17 +12348,28 @@ checked-result arithmetic decision listed below.
   and x86-64/AArch64 installation replay rejoins that table for local and
   forwarded calls without inventing a scalar carrier for Unit.
 
-  The next within-artifact escape rung is checked-only. Source validation now
+  The next within-artifact escape rung now reaches verified Terminal Psi for
+  scalar results. Source validation
   permits a bare dynamic parameter to pass unchanged to a bare parameter of
   the same trait instead of demanding a new local conformance selection.
   Checked descriptor transfers distinguish an owner-local `Selection` from an
-  incoming `Parameter`, and a fixed-point walk retains the original exact
-  selection through an unambiguous parameter-forwarding edge. The source
-  parameter position and both call coordinates remain explicit. A target
+  incoming `Parameter`, and a fixed-point walk retains the complete ordered
+  path from the original exact selection through unambiguous parameter-
+  forwarding edges. Every source parameter position and call coordinate
+  remains explicit. A target
   state with multiple syntactic inbound call sites publishes no propagated
   transfer, so two predecessor selections cannot be mistaken for one proved
-  join. Terminal and native consumers remain fenced to the existing one-hop
-  lane until they consume this parameter-source custody explicitly.
+  join. Checked-to-Terminal lowering independently reconstructs that path and
+  materializes one explicit helper per hop: the outer argument is sourced from
+  the exact selection, each intermediate argument is sourced from parameter
+  zero of the preceding helper, and only the final helper performs dynamic
+  parameter dispatch. Terminal verification and canonical encoding retain the
+  distinction and reject coordinate drift. Target-neutral abstract lowering
+  also preserves both calls. Target lowering remains fail closed because its
+  scalar function representation has no carrier for returning a structural
+  scalar call while forwarding an incoming dynamic-descriptor parameter.
+  Multi-hop Unit results and scalar callers with continuations remain outside
+  this bounded rung.
 
   Remaining work:
 
@@ -12378,8 +12389,10 @@ checked-result arithmetic decision listed below.
     rule; computed values, indexed/case projections, repeated destinations, and
     a fourth write still has no native carrier;
   - extend descriptors to within-artifact stored/joined/escaping and
-    aggregate-erased forms, beginning by carrying the checked parameter-source
-    forwarding hop through Terminal and native replay. Do not extend local
+    aggregate-erased forms, beginning by adding the honest scalar target,
+    assigned-target, machine, and native carrier for the now-canonical
+    parameter-source forwarding path, then widening the same custody to Unit
+    results and continuations. Do not extend local
     descriptor tables across a replaceable component boundary: that is a
     settled rejection, enforced by type-reference validation. Component calls
     use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a
