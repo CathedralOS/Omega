@@ -62,6 +62,12 @@ pub struct CheckedDynamicScalarCallPlan {
     /// unrestricted borrowed `self`, so downstream lowering consumes this
     /// expression directly instead of reopening typed source.
     pub realization_return_expression: CheckedScalarExpression,
+    /// Complete closed realization roster for the selected conformance. A
+    /// rebound dynamic descriptor is materializable only when every table
+    /// slot retains its exact checked callable and scalar body; retaining only
+    /// the currently selected row would make the later indirect table a
+    /// producer assertion rather than a reconstruction.
+    pub realization_callables: Vec<CheckedDynamicRealizationCallablePlan>,
     /// Compact report coordinate; authority uses the adjacent commitment.
     pub realization_contract_report_fingerprint: u64,
     pub realization_contract_commitment: MachineContractCommitment,
@@ -75,6 +81,21 @@ pub struct CheckedDynamicScalarCallPlan {
     /// begins at the authored guard and therefore cannot be lowered as an
     /// independent machine or silently discarded.
     pub unit_continuation: Option<CheckedDynamicUnitContinuationPlan>,
+}
+
+/// One exact checked callable behind a closed dynamic-conformance table row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicRealizationCallablePlan {
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub requirement_identity: String,
+    pub realization_machine: SymbolHandle,
+    pub realization_state: SymbolHandle,
+    pub realization_identity: String,
+    pub result_type: psi_typed_trees::types::PrimitiveType,
+    pub return_expression: CheckedScalarExpression,
+    pub contract_report_fingerprint: u64,
+    pub contract_commitment: MachineContractCommitment,
 }
 
 /// Checked custody for one local named-dynamic scalar call after exactly one

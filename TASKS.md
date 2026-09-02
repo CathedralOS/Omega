@@ -11719,20 +11719,37 @@ checked-result arithmetic decision listed below.
   Each dynamic carrier retains its complete canonically ordered
   `ClosedConformanceApplication`; downstream boundaries rejoin its strong
   commitment, selected row, and callable, and multi-row tests reject removal
-  or reordering of an unselected table row. It fails explicitly at static table
-  materialization. The pre-refactor
+  or reordering of an unselected table row. The pre-refactor
   `omega-state-calls` path and its downstream table planning, instruction
   selection, and relocation consumers were deleted; their historical tests and
   task prose are not evidence that the canonical pipeline still implements
-  them. The pass-through baseline also lacks a complete canonical Terminal
-  route.
+  them. Canonical target lowering now materializes every retained realization
+  callable as a private function, emits one complete ordered descriptor table
+  in object data, binds every slot with an exact absolute relocation, and
+  reaches that table through target-specific address relocations plus a real
+  indirect call on x86-64 and AArch64. Object replay independently rejoins the
+  application commitment, selected row/slot, callable roster, emitted opcode,
+  relocation set, and indirect-call stack custody. Cross-architecture source
+  canaries exercise the complete two-row table rather than a synthetic
+  single-row fixture.
+
+  The remaining pass-through baseline is blocked one layer earlier: an
+  attached Unit caller cannot yet compose a scalar-returning structural helper
+  that owns the dynamic dispatch. The direct rebound continuation reaches
+  canonical Terminal and the abstract-operation plan, then stops at the
+  explicit straight-line-only Unit target-lowering fence. These are distinct
+  call-composition and Unit-control gaps; neither is a descriptor-table
+  materialization gap.
 
   Remaining work:
 
-  - materialize private realization tables/functions and exact relocations,
-    then lower the checked indirect call through the selected table row;
-  - restore pass-through and rebound native canaries on the canonical Terminal
-    pipeline before claiming either route live; and
+  - compose scalar-returning structural helpers into attached Unit closures so
+    the pass-through canary retains and forwards the descriptor without
+    flattening it into a static call;
+  - lower the verified bounded multi-block Unit continuation needed by the
+    direct rebound canary, preserving its dynamic call, conditional branch,
+    and bodyless terminal leaves; then restore both native canaries before
+    claiming either route live; and
   - only then extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

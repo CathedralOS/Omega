@@ -104,7 +104,7 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             .records()
             .filter(|(_, relocation)| relocation.section == omega_object_file::SectionKind::Data)
             .collect::<Vec<_>>();
-        assert_eq!(data_relocations.len(), 1);
+        assert_eq!(data_relocations.len(), 2);
         assert!(data_relocations.iter().all(|(_, relocation)| {
             relocation.kind == omega_object_file::RelocationKind::Absolute64
                 && relocation.byte_width == 8
@@ -118,7 +118,8 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             .expect("direct image replay must retain relocated table data");
         assert_eq!(image.output().final_data_bytes.len(), 16);
         assert_ne!(image.output().final_data_bytes, vec![0; 16]);
-        assert_eq!(&image.output().final_data_bytes[8..], &[0; 8]);
+        assert_ne!(&image.output().final_data_bytes[..8], &[0; 8]);
+        assert_ne!(&image.output().final_data_bytes[8..], &[0; 8]);
         assert!(matches!(
             build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"),),
             Err(InstallationError::DynamicConformanceInstallationPending)

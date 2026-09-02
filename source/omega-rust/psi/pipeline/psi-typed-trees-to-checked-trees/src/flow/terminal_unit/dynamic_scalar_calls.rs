@@ -405,6 +405,13 @@ fn build_checked_dynamic_scalar_call(
     if contract.report_fingerprint == 0 || contract.commitment.is_zero() {
         return None;
     }
+    let realization_callables = checked_dynamic_realization_callables(
+        program,
+        facts,
+        conformance,
+        &selection,
+        source_access,
+    )?;
     let checked_call_service_reach =
         checked_call_service_reach(facts, state.symbol, flow_call, coordinate)?;
     let caller_contract = facts.contract_plans.for_machine(machine.symbol)?;
@@ -446,6 +453,7 @@ fn build_checked_dynamic_scalar_call(
         realization_state: row.realization_state,
         realization_identity: row.realization_identity.clone(),
         realization_return_expression,
+        realization_callables,
         realization_contract_report_fingerprint: contract.report_fingerprint,
         realization_contract_commitment: contract.commitment,
         checked_call_service_reach,
@@ -476,6 +484,101 @@ fn build_checked_dynamic_scalar_call(
         ),
         None => CheckedDynamicScalarCall::Direct(plan),
     })
+}
+
+fn checked_dynamic_realization_callables(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    conformance: &psi_typed_trees::trait_definition::Conformance,
+    selection: &psi_checked_trees::DynamicConformanceBindingFact,
+    source_access: psi_checked_trees::CheckedStructuralAccess,
+) -> Option<Vec<psi_checked_trees::CheckedDynamicRealizationCallablePlan>> {
+    let closed_rows = program.closed_conformance_rows(conformance)?;
+    if closed_rows.len() != selection.rows.len() {
+        return None;
+    }
+    closed_rows
+        .iter()
+        .zip(&selection.rows)
+        .map(|(closed, retained)| {
+            if closed.declaring_trait != retained.declaring_trait
+                || closed.requirement != retained.requirement
+                || closed.realization_machine != retained.realization_machine
+                || closed.realization_state != retained.realization_state
+            {
+                return None;
+            }
+            let (requirement_identity, realization_identity) =
+                crate::facts::normalized_dynamic_row_identities(program, closed).ok()?;
+            if requirement_identity != retained.requirement_identity
+                || realization_identity != retained.realization_identity
+            {
+                return None;
+            }
+            let declaring_trait = program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == closed.declaring_trait)?;
+            let requirement = program
+                .trait_machine_signatures(declaring_trait)
+                .iter()
+                .find(|candidate| candidate.symbol == closed.requirement)?;
+            let realization_machine = program
+                .machines()
+                .iter()
+                .find(|candidate| candidate.symbol == closed.realization_machine)?;
+            let realization_state = program
+                .machine_states(realization_machine)
+                .iter()
+                .find(|candidate| candidate.symbol == closed.realization_state)?;
+            let [requirement_self] = program.state_signature_parameters(requirement) else {
+                return None;
+            };
+            let [realization_self] = program.state_parameters(realization_state) else {
+                return None;
+            };
+            let result_type = program.primitive_type_reference(requirement.return_type)?;
+            if !matches!(result_type, PrimitiveType::Bool | PrimitiveType::I32)
+                || program.primitive_type_reference(realization_state.return_type)
+                    != Some(result_type)
+                || !requirement_self.is_self
+                || !realization_self.is_self
+                || structural_access_for_type_reference(program, requirement_self.type_reference)
+                    != Some(source_access)
+                || structural_access_for_type_reference(program, realization_self.type_reference)
+                    != Some(source_access)
+                || realization_machine.supply_mode != MachineSupplyMode::CheckedBody
+                || realization_machine.attached_data_symbol != selection.source_data
+            {
+                return None;
+            }
+            let return_expression = checked_realization_scalar_return_expression(
+                program,
+                facts,
+                realization_machine,
+                realization_state,
+                result_type,
+            )?;
+            let contract = facts
+                .contract_plans
+                .for_machine(closed.realization_machine)?;
+            if contract.report_fingerprint == 0 || contract.commitment.is_zero() {
+                return None;
+            }
+            Some(psi_checked_trees::CheckedDynamicRealizationCallablePlan {
+                declaring_trait: closed.declaring_trait,
+                requirement: closed.requirement,
+                requirement_identity,
+                realization_machine: closed.realization_machine,
+                realization_state: closed.realization_state,
+                realization_identity,
+                result_type,
+                return_expression,
+                contract_report_fingerprint: contract.report_fingerprint,
+                contract_commitment: contract.commitment,
+            })
+        })
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]

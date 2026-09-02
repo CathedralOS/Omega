@@ -44,7 +44,6 @@ pub(super) fn lower(
     )?;
 
     let caller_machine = machine_id(1);
-    let realization_machine = machine_id(2);
     let call_operation = operation_id(1);
     let call_result_value = value_id(1);
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
@@ -52,20 +51,28 @@ pub(super) fn lower(
         id: call_result_value,
         scalar_type: call_result_type,
     };
-    let callable_result = terminal_callable_result(plan.result.primitive_type)?;
-    let callable_identity =
-        evidence_lowering::checked_evidence_machine_identity(checked, plan.realization_machine)?;
-    if callable_identity != plan.realization_identity {
-        return unsupported("direct dynamic realization callable identity drifted");
+    let source_type = lookup_type_id(&catalogs.type_ids, &plan.source_type_identity)?;
+    let all_realizations = collect_dynamic_realizations(checked, plan)?;
+    let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
+    let selected_realizations = lowered_realizations
+        .iter()
+        .filter(|candidate| {
+            candidate.source_machine == plan.realization_machine
+                && candidate.source_state == plan.realization_state
+        })
+        .collect::<Vec<_>>();
+    let [selected_realization] = selected_realizations.as_slice() else {
+        return unsupported("direct dynamic selected realization is absent or ambiguous");
+    };
+    let realization_machine = selected_realization.machine;
+    let callable_identity = selected_realization.callable_identity.clone();
+    if selected_realization.result != terminal_callable_result(plan.result.primitive_type)?
+        || callable_identity != plan.realization_identity
+    {
+        return unsupported("direct dynamic selected realization callable drifted");
     }
-    let (application, selected_row) = lower_exact_application(
-        checked,
-        plan,
-        caller_machine,
-        realization_machine,
-        callable_result,
-        &callable_identity,
-    )?;
+    let (application, selected_row) =
+        lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
     let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
         lane,
         &caller_self,
@@ -101,7 +108,6 @@ pub(super) fn lower(
 
     let caller_block = block_id(1);
     let leaf_blocks = [block_id(2), block_id(3)];
-    let realization_block = block_id(4);
     let mut next_edge = 1_u64;
     let mut caller_blocks = vec![Block {
         id: caller_block,
@@ -141,39 +147,6 @@ pub(super) fn lower(
         source_call_occurrences.append(&mut occurrences);
     }
 
-    let source_type = lookup_type_id(&catalogs.type_ids, &plan.source_type_identity)?;
-    let realization_parameter = StructuralParameterDeclaration {
-        place: place_id(2),
-        position: 0,
-        is_self: true,
-        structural_type: source_type,
-        multiplicity: terminal_projected_source_multiplicity(plan),
-        access: StructuralAccess::SharedBorrow,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
-    let realization_machine_result_value = value_id(next_value);
-    next_value = next_value.checked_add(1).ok_or(LoweringError::Unsupported(
-        "direct dynamic continuation value identity space is exhausted",
-    ))?;
-    let realization_result_value = value_id(next_value);
-    let realization_operation = operation_id(next_operation);
-    let realization_operations = lower_realization_operations(
-        &plan.realization_return_expression,
-        call_result_type,
-        &realization_parameter,
-        &catalogs.structural_types,
-        realization_operation,
-        realization_result_value,
-    )?;
-    let realization_value = realization_operations
-        .last()
-        .and_then(|operation| operation.result.scalar())
-        .map(|result| result.id)
-        .ok_or(LoweringError::Unsupported(
-            "direct dynamic realization did not emit one scalar result",
-        ))?;
-
     let caller_contract_service_reach = checked
         .facts
         .service_reaches
@@ -188,11 +161,6 @@ pub(super) fn lower(
         plan.caller_service_reach,
         &catalogs.service_ids,
     )?;
-    let realization_reach = exact_empty_machine_service_ceiling(
-        checked,
-        plan.realization_machine,
-        plan.checked_call_service_reach,
-    )?;
     let attachment = catalogs
         .structural_types
         .iter()
@@ -205,7 +173,7 @@ pub(super) fn lower(
         .iter()
         .map(|boundary| (boundary.source, boundary.id))
         .collect::<Vec<_>>();
-    let mut next_place = 3_u64;
+    let mut next_place = 2_u64;
     let provider_places = crate::attached_unit::lower_provider_attachment_places(
         caller_attachment,
         attachment,
@@ -222,14 +190,19 @@ pub(super) fn lower(
     })
     .chain(provider_places)
     .collect();
-    let realization_structural_places = vec![StructuralPlaceDeclaration {
-        id: realization_parameter.place,
-        kind: StructuralPlaceKind::Parameter {
-            position: realization_parameter.position,
-            is_self: realization_parameter.is_self,
-        },
-    }];
-    let realization_return_edge = edge_id(allocate_dense(&mut next_edge)?);
+    let mut next_block = 4_u64;
+    let realization_machines = materialize_dynamic_realizations(
+        checked,
+        plan,
+        &lowered_realizations,
+        source_type,
+        &catalogs.structural_types,
+        &mut next_block,
+        &mut next_place,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+    )?;
 
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -255,8 +228,8 @@ pub(super) fn lower(
             closed_conformance_applications: vec![application],
             dynamic_dispatch,
             quotient_correspondences: Vec::new(),
-            machines: vec![
-                TerminalMachine {
+            machines: {
+                let mut machines = vec![TerminalMachine {
                     id: caller_machine,
                     attachment: Some(caller_attachment),
                     parameters: Vec::new(),
@@ -272,37 +245,10 @@ pub(super) fn lower(
                     entry: caller_block,
                     blocks: caller_blocks,
                     contract: empty_terminal_contract(caller_machine.get()),
-                },
-                TerminalMachine {
-                    id: realization_machine,
-                    attachment: Some(source_type),
-                    parameters: Vec::new(),
-                    structural_parameters: vec![realization_parameter],
-                    ranked_scc: None,
-                    result: TerminalMachineResult::Scalar(ValueDeclaration {
-                        id: realization_machine_result_value,
-                        scalar_type: call_result_type,
-                    }),
-                    structural_places: realization_structural_places,
-                    entry_claims: Vec::new(),
-                    published_service_ceiling: realization_reach,
-                    content_entry_claims: Vec::new(),
-                    content_identity_reshuffles: Vec::new(),
-                    content_partition_compositions: Vec::new(),
-                    entry: realization_block,
-                    blocks: vec![Block {
-                        id: realization_block,
-                        parameters: Vec::new(),
-                        operations: realization_operations,
-                        terminator: Terminator::Return {
-                            cleanup_actions: Vec::new(),
-                            edge: realization_return_edge,
-                            value: realization_value,
-                        },
-                    }],
-                    contract: empty_terminal_contract(realization_machine.get()),
-                },
-            ],
+                }];
+                machines.extend(realization_machines);
+                machines
+            },
         },
         proof_bundle: ProofBundle {
             recursive_components: Vec::new(),

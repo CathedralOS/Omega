@@ -32,6 +32,15 @@ struct DynamicCallerShape {
     attachment_type_identity: String,
 }
 
+#[derive(Clone)]
+struct LoweredDynamicRealization {
+    source_machine: psi_symbols::SymbolHandle,
+    source_state: psi_symbols::SymbolHandle,
+    callable_identity: String,
+    machine: psi_core::MachineId,
+    result: ClosedConformanceCallableResult,
+}
+
 #[derive(Clone, Copy)]
 enum DynamicLoweringLane<'a> {
     Direct,
@@ -92,29 +101,34 @@ fn lower_dynamic_composed_unit_machine(
     let source = validate_and_lower_source(&caller_self, plan, &structural_types, &type_ids)?;
 
     let caller_machine = machine_id(1);
-    let realization_machine = machine_id(2);
     let has_caller_store = plan.caller_structural_scalar_field_store.is_some();
     let call_operation = operation_id(if has_caller_store { 3 } else { 1 });
     let call_result_value = value_id(if has_caller_store { 2 } else { 1 });
-    let realization_operation = operation_id(if has_caller_store { 4 } else { 2 });
-    let realization_result_value = value_id(if has_caller_store { 4 } else { 3 });
-    let realization_machine_result_value = value_id(if has_caller_store { 3 } else { 2 });
     let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
-    let callable_result = terminal_callable_result(plan.result.primitive_type)?;
-    let callable_identity =
-        evidence_lowering::checked_evidence_machine_identity(checked, plan.realization_machine)?;
-    if callable_identity != plan.realization_identity {
-        return unsupported("direct dynamic realization callable identity drifted");
+    let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
+    let all_realizations = collect_dynamic_realizations(checked, plan)?;
+    let lowered_realizations = retain_realizations_for_lane(&all_realizations, plan, lane)?;
+    let selected_realizations = lowered_realizations
+        .iter()
+        .filter(|candidate| {
+            candidate.source_machine == plan.realization_machine
+                && candidate.source_state == plan.realization_state
+        })
+        .collect::<Vec<_>>();
+    let [selected_realization] = selected_realizations.as_slice() else {
+        return unsupported("direct dynamic selected realization is absent or ambiguous");
+    };
+    let realization_machine = selected_realization.machine;
+    let callable_result = selected_realization.result;
+    let callable_identity = selected_realization.callable_identity.clone();
+    if callable_result != terminal_callable_result(plan.result.primitive_type)?
+        || callable_identity != plan.realization_identity
+    {
+        return unsupported("direct dynamic selected realization callable drifted");
     }
 
-    let (application, selected_row) = lower_exact_application(
-        checked,
-        plan,
-        caller_machine,
-        realization_machine,
-        callable_result,
-        &callable_identity,
-    )?;
+    let (application, selected_row) =
+        lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
     let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
         lane,
         &caller_self,
@@ -130,36 +144,7 @@ fn lower_dynamic_composed_unit_machine(
         realization_machine,
     )?;
 
-    let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
-    let realization_parameter = StructuralParameterDeclaration {
-        place: place_id(2),
-        position: 0,
-        is_self: true,
-        structural_type: source_type,
-        multiplicity: terminal_projected_source_multiplicity(plan),
-        access: StructuralAccess::SharedBorrow,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
-
-    let realization_operations = lower_realization_operations(
-        &plan.realization_return_expression,
-        call_result_type,
-        &realization_parameter,
-        &structural_types,
-        realization_operation,
-        realization_result_value,
-    )?;
-    let realization_value = realization_operations
-        .last()
-        .and_then(|operation| operation.result.scalar())
-        .map(|result| result.id)
-        .ok_or(LoweringError::Unsupported(
-            "direct dynamic realization did not emit one scalar result",
-        ))?;
-
     let caller_block = block_id(1);
-    let realization_block = block_id(2);
     let caller_reach = lower_installation_machine_service_ceiling(
         checked,
         plan.caller_machine,
@@ -173,11 +158,6 @@ fn lower_dynamic_composed_unit_machine(
         exact_machine_service_summary(checked, plan.caller_machine)?,
         &[],
     )?;
-    let realization_reach = exact_empty_machine_service_ceiling(
-        checked,
-        plan.realization_machine,
-        plan.checked_call_service_reach,
-    )?;
     let root_service_reach = lower_root_service_reach(checked, plan.caller_machine, &[])?;
     let mut caller_operations =
         lower_caller_store_operations(plan, &caller_self, &structural_types, &type_ids)?;
@@ -189,6 +169,23 @@ fn lower_dynamic_composed_unit_machine(
         }),
         kind: call_kind,
     });
+    let mut next_block = 2_u64;
+    let mut next_place = 2_u64;
+    let mut next_operation = if has_caller_store { 4 } else { 2 };
+    let mut next_value = if has_caller_store { 3 } else { 2 };
+    let mut next_edge = 2_u64;
+    let realization_machines = materialize_dynamic_realizations(
+        checked,
+        plan,
+        &lowered_realizations,
+        source_type,
+        &structural_types,
+        &mut next_block,
+        &mut next_place,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+    )?;
 
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -214,8 +211,8 @@ fn lower_dynamic_composed_unit_machine(
             closed_conformance_applications: vec![application],
             dynamic_dispatch,
             quotient_correspondences: Vec::new(),
-            machines: vec![
-                TerminalMachine {
+            machines: {
+                let mut machines = vec![TerminalMachine {
                     id: caller_machine,
                     attachment: Some(caller_attachment),
                     parameters: Vec::new(),
@@ -248,43 +245,10 @@ fn lower_dynamic_composed_unit_machine(
                         },
                     }],
                     contract: empty_terminal_contract(caller_machine.get()),
-                },
-                TerminalMachine {
-                    id: realization_machine,
-                    attachment: Some(source_type),
-                    parameters: Vec::new(),
-                    structural_parameters: vec![realization_parameter.clone()],
-                    ranked_scc: None,
-                    result: TerminalMachineResult::Scalar(ValueDeclaration {
-                        id: realization_machine_result_value,
-                        scalar_type: call_result_type,
-                    }),
-                    structural_places: vec![StructuralPlaceDeclaration {
-                        id: realization_parameter.place,
-                        kind: StructuralPlaceKind::Parameter {
-                            position: realization_parameter.position,
-                            is_self: realization_parameter.is_self,
-                        },
-                    }],
-                    entry_claims: Vec::new(),
-                    published_service_ceiling: realization_reach,
-                    content_entry_claims: Vec::new(),
-                    content_identity_reshuffles: Vec::new(),
-                    content_partition_compositions: Vec::new(),
-                    entry: realization_block,
-                    blocks: vec![Block {
-                        id: realization_block,
-                        parameters: Vec::new(),
-                        operations: realization_operations,
-                        terminator: Terminator::Return {
-                            cleanup_actions: Vec::new(),
-                            edge: edge_id(2),
-                            value: realization_value,
-                        },
-                    }],
-                    contract: empty_terminal_contract(realization_machine.get()),
-                },
-            ],
+                }];
+                machines.extend(realization_machines);
+                machines
+            },
         },
         proof_bundle: ProofBundle {
             recursive_components: Vec::new(),
@@ -816,14 +780,200 @@ fn lower_dynamic_structural_types(
     )
 }
 
+fn collect_dynamic_realizations(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
+    if plan.realization_callables.is_empty() {
+        return unsupported("dynamic conformance has no checked realization callables");
+    }
+    plan.realization_callables
+        .iter()
+        .enumerate()
+        .map(|(ordinal, callable)| {
+            let ordinal = u64::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("dynamic realization ordinal exceeds u64")
+            })?;
+            let identity = evidence_lowering::checked_evidence_machine_identity(
+                checked,
+                callable.realization_machine,
+            )?;
+            if identity != callable.realization_identity {
+                return unsupported("dynamic realization callable identity drifted");
+            }
+            let result = terminal_callable_result(callable.result_type)?;
+            let machine = machine_id(ordinal.checked_add(2).ok_or(LoweringError::Unsupported(
+                "dynamic realization machine identity overflowed",
+            ))?);
+            Ok(LoweredDynamicRealization {
+                source_machine: callable.realization_machine,
+                source_state: callable.realization_state,
+                callable_identity: identity,
+                machine,
+                result,
+            })
+        })
+        .collect()
+}
+
+fn retain_realizations_for_lane(
+    all: &[LoweredDynamicRealization],
+    plan: &CheckedDynamicScalarCallPlan,
+    lane: DynamicLoweringLane<'_>,
+) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
+    let retained = all
+        .iter()
+        .filter(|candidate| {
+            matches!(lane, DynamicLoweringLane::Rebound(_))
+                || (candidate.source_machine == plan.realization_machine
+                    && candidate.source_state == plan.realization_state)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if retained.is_empty() {
+        return unsupported("dynamic selected realization callable is absent");
+    }
+    Ok(retained)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn materialize_dynamic_realizations(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    lowered: &[LoweredDynamicRealization],
+    source_type: psi_core::StructuralTypeId,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    next_block: &mut u64,
+    next_place: &mut u64,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    next_edge: &mut u64,
+) -> Result<Vec<TerminalMachine>, LoweringError> {
+    lowered
+        .iter()
+        .map(|realization| {
+            let matching = plan
+                .realization_callables
+                .iter()
+                .filter(|candidate| {
+                    candidate.realization_machine == realization.source_machine
+                        && candidate.realization_state == realization.source_state
+                        && candidate.realization_identity == realization.callable_identity
+                })
+                .collect::<Vec<_>>();
+            let [callable] = matching.as_slice() else {
+                return unsupported("dynamic realization checked body is absent or ambiguous");
+            };
+            validate_empty_contract(
+                checked,
+                callable.realization_machine,
+                callable.contract_report_fingerprint,
+                callable.contract_commitment,
+            )?;
+            let published_service_ceiling = if callable.realization_machine
+                == plan.realization_machine
+                && callable.realization_state == plan.realization_state
+            {
+                exact_empty_machine_service_ceiling(
+                    checked,
+                    callable.realization_machine,
+                    plan.checked_call_service_reach,
+                )?
+            } else {
+                let summary = exact_machine_service_summary(checked, callable.realization_machine)?;
+                validate_empty_service_summary(checked, summary)?;
+                let contract = checked
+                    .facts
+                    .service_reaches
+                    .plan_for_machine(callable.realization_machine)
+                    .ok_or(LoweringError::Unsupported(
+                        "dynamic realization has no service contract",
+                    ))?;
+                lower_installation_machine_service_ceiling(
+                    checked,
+                    callable.realization_machine,
+                    contract,
+                    summary,
+                    &[],
+                )?
+            };
+            let scalar_type = terminal_scalar_type(callable.result_type)?;
+            let block = block_id(allocate_dense(next_block)?);
+            let place = place_id(allocate_dense(next_place)?);
+            let operation = operation_id(allocate_dense(next_operation)?);
+            let operation_value = value_id(allocate_dense(next_value)?);
+            let result_value = value_id(allocate_dense(next_value)?);
+            let edge = edge_id(allocate_dense(next_edge)?);
+            let parameter = StructuralParameterDeclaration {
+                place,
+                position: 0,
+                is_self: true,
+                structural_type: source_type,
+                multiplicity: terminal_projected_source_multiplicity(plan),
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            };
+            let operations = lower_realization_operations(
+                &callable.return_expression,
+                scalar_type,
+                &parameter,
+                structural_types,
+                operation,
+                operation_value,
+            )?;
+            let returned = operations
+                .last()
+                .and_then(|operation| operation.result.scalar())
+                .map(|value| value.id)
+                .ok_or(LoweringError::Unsupported(
+                    "dynamic realization did not emit one scalar result",
+                ))?;
+            Ok(TerminalMachine {
+                id: realization.machine,
+                attachment: Some(source_type),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter.clone()],
+                ranked_scc: None,
+                result: TerminalMachineResult::Scalar(ValueDeclaration {
+                    id: result_value,
+                    scalar_type,
+                }),
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                        is_self: parameter.is_self,
+                    },
+                }],
+                entry_claims: Vec::new(),
+                published_service_ceiling,
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block,
+                blocks: vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations,
+                    terminator: Terminator::Return {
+                        cleanup_actions: Vec::new(),
+                        edge,
+                        value: returned,
+                    },
+                }],
+                contract: empty_terminal_contract(realization.machine.get()),
+            })
+        })
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn lower_exact_application(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     owner: psi_core::MachineId,
-    realization: psi_core::MachineId,
-    callable_result: ClosedConformanceCallableResult,
-    callable_identity: &str,
+    lowered_realizations: &[LoweredDynamicRealization],
 ) -> Result<(ClosedConformanceApplication, ClosedConformanceRow), LoweringError> {
     let conformances = checked
         .typed
@@ -897,12 +1047,26 @@ fn lower_exact_application(
             && closed.requirement == plan.requirement
             && closed.realization_machine == plan.realization_machine
             && closed.realization_state == plan.realization_state;
+        let matching_realizations = lowered_realizations
+            .iter()
+            .filter(|candidate| {
+                candidate.source_machine == closed.realization_machine
+                    && candidate.source_state == closed.realization_state
+                    && candidate.callable_identity == realization_identity
+            })
+            .collect::<Vec<_>>();
+        let matching_realization = match matching_realizations.as_slice() {
+            [] if !selected => None,
+            [matching] => Some(*matching),
+            _ => return unsupported("dynamic conformance row callable is absent or ambiguous"),
+        };
         let row = ClosedConformanceRow {
             declaring_trait_identity: checked.symbols.display_path(closed.declaring_trait, "::"),
             public_requirement_identity: requirement_identity,
             requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
             realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
-            realization_callable_identity: selected.then(|| callable_identity.to_owned()),
+            realization_callable_identity: matching_realization
+                .map(|matching| matching.callable_identity.clone()),
         };
         if selected && selected_row.replace(row.clone()).is_some() {
             return unsupported("direct dynamic selected row is duplicated");
@@ -916,6 +1080,19 @@ fn lower_exact_application(
         return unsupported("direct dynamic public requirement identity drifted");
     }
 
+    let mut realization_callables = lowered_realizations
+        .iter()
+        .map(|callable| ClosedConformanceRealizationCallable {
+            source_callable_identity: callable.callable_identity.clone(),
+            machine: callable.machine,
+            result: callable.result,
+        })
+        .collect::<Vec<_>>();
+    realization_callables.sort();
+    realization_callables.dedup();
+    if realization_callables.len() != lowered_realizations.len() {
+        return unsupported("dynamic realization callable registry is not one-to-one");
+    }
     let mut application = ClosedConformanceApplication {
         owner,
         declaration_identity: checked
@@ -926,11 +1103,7 @@ fn lower_exact_application(
         trait_identity: checked.symbols.display_path(plan.target_trait, "::"),
         trait_lifetime_arguments: Vec::new(),
         trait_arguments: Vec::new(),
-        realization_callables: vec![ClosedConformanceRealizationCallable {
-            source_callable_identity: callable_identity.to_owned(),
-            machine: realization,
-            result: callable_result,
-        }],
+        realization_callables,
         rows,
         report_fingerprint: 0,
         commitment: Default::default(),
