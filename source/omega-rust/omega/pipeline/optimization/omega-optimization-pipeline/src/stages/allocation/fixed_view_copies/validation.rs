@@ -1,8 +1,9 @@
 use omega_regalloc::{FixedViewCopyError, ValidatedFixedViewCopies, validate_fixed_view_copies};
 
 use crate::{
-    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
-    validate_optimized_allocation_legality_custody,
+    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+    StagedOptimizedFixedPrecoloredSegmentHomes,
+    validate_optimized_fixed_precolored_segment_home_custody,
 };
 
 use super::custody::fixed_view_copy_custody_receipt;
@@ -11,7 +12,7 @@ use super::model::{
 };
 
 pub fn validate_optimized_fixed_view_copy_custody(
-    source: &StagedOptimizedAllocationLegality,
+    source: &StagedOptimizedFixedPrecoloredSegmentHomes,
     copies: &ValidatedFixedViewCopies,
 ) -> Result<StagedOptimizedFixedViewCopyCustodyReceipt, OptimizedFixedViewCopyCustodyError> {
     let upstream = validate_source(source)?;
@@ -27,15 +28,22 @@ pub fn validate_optimized_fixed_view_copy_custody(
 }
 
 fn revalidate(
-    source: &StagedOptimizedAllocationLegality,
+    source: &StagedOptimizedFixedPrecoloredSegmentHomes,
     copies: &ValidatedFixedViewCopies,
 ) -> Result<ValidatedFixedViewCopies, FixedViewCopyError> {
-    let selected_stage = source.live_range_stage().liveness_stage().selected_stage();
+    let legality = source.source_legality_stage();
+    let selected_stage = legality
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
     let environment = selected_stage.register_environment();
     validate_fixed_view_copies(
         selected_stage.selected(),
-        source.live_range_stage().ranges(),
-        source.legality(),
+        legality.live_range_stage().ranges(),
+        legality.legality(),
+        source.fixed_intervals(),
+        source.split_requirements(),
+        source.segment_homes(),
         environment.identity(),
         environment.physical(),
         environment.constraints(),
@@ -46,12 +54,16 @@ fn revalidate(
 }
 
 pub(super) fn validate_source(
-    source: &StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedFixedViewCopyCustodyError> {
-    validate_optimized_allocation_legality_custody(
-        source.live_range_stage(),
-        source.allocator_availability(),
-        source.legality(),
+    source: &StagedOptimizedFixedPrecoloredSegmentHomes,
+) -> Result<
+    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
+    OptimizedFixedViewCopyCustodyError,
+> {
+    validate_optimized_fixed_precolored_segment_home_custody(
+        source.source_legality_stage(),
+        source.fixed_intervals(),
+        source.split_requirements(),
+        source.segment_homes(),
     )
-    .map_err(OptimizedFixedViewCopyCustodyError::UpstreamLegality)
+    .map_err(OptimizedFixedViewCopyCustodyError::UpstreamSegmentHomes)
 }

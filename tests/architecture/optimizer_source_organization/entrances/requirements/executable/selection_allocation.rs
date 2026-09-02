@@ -42,6 +42,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn assign_fixed_precolored_segment_homes",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/fixed_precolored_segment_homes/mod.rs",
+        coordination_marker: "pub fn stage_optimized_fixed_precolored_segment_homes",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/home_assignment/compute/mod.rs",
         coordination_marker: "compute_function(index, legality, ranges, physical)",
     },

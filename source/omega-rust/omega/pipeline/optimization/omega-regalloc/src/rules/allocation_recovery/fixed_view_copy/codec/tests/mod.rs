@@ -40,6 +40,7 @@ pub(super) fn plan(policy: FixedViewCopyPolicy) -> FixedViewCopyPlan {
         source_legality: AllocationLegalityIdentity::from_bytes([3; 32]),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
         allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
+        source_evidence: crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
         policy,
         budget: OptimizationWorkBudget::new(3, 3, 3, 3, 1).unwrap(),
         usage: OptimizationWorkUsage {

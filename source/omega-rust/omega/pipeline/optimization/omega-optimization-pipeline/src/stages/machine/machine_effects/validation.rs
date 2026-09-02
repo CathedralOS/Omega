@@ -38,9 +38,11 @@ pub fn validate_optimized_machine_effect_custody_after_fixed_view_copies(
     source: &StagedOptimizedFixedViewCopies,
     effects: &ValidatedPreAllocationMachineEffects,
 ) -> Result<StagedOptimizedMachineEffectCustodyReceipt, OptimizedMachineEffectPipelineError> {
-    let source_receipt =
-        validate_optimized_fixed_view_copy_custody(source.source_legality_stage(), source.copies())
-            .map_err(OptimizedMachineEffectPipelineError::FixedViewCopies)?;
+    let source_receipt = validate_optimized_fixed_view_copy_custody(
+        source.source_segment_home_stage(),
+        source.copies(),
+    )
+    .map_err(OptimizedMachineEffectPipelineError::FixedViewCopies)?;
     let selected_stage = source
         .source_legality_stage()
         .live_range_stage()

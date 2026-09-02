@@ -14,10 +14,10 @@ pub use validation::validate_optimized_fixed_view_copy_custody;
 use omega_optimization_core::OptimizationWorkBudget;
 use omega_regalloc::FixedViewCopyPolicy;
 
-use crate::StagedOptimizedAllocationLegality;
+use crate::StagedOptimizedFixedPrecoloredSegmentHomes;
 
 pub fn stage_optimized_fixed_view_copies(
-    source: StagedOptimizedAllocationLegality,
+    source: StagedOptimizedFixedPrecoloredSegmentHomes,
     policy: FixedViewCopyPolicy,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedFixedViewCopies, OptimizedFixedViewCopyCustodyError> {

@@ -68,7 +68,7 @@ pub(super) fn validate_source(
     transformation: &StagedOptimizedFixedViewCopies,
 ) -> Result<StagedOptimizedFixedViewCopyCustodyReceipt, OptimizedSelectedReanalysisError> {
     validate_optimized_fixed_view_copy_custody(
-        transformation.source_legality_stage(),
+        transformation.source_segment_home_stage(),
         transformation.copies(),
     )
     .map_err(OptimizedSelectedReanalysisError::UpstreamTransformation)

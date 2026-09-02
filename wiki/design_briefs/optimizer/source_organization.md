@@ -311,6 +311,19 @@ The mirrored pipeline tests live under
 Neither boundary adds a selectable rule or hides copy/recovery strategy inside
 allocation mechanics.
 
+The first consumer remains the explicitly selected
+`rules/allocation_recovery/fixed_view_copy/mod.rs` entrance. Its new
+`evidence/mod.rs` stage group descends into positional `compute.rs`, keyed
+`replay.rs`, and a shared closed boundary model; neither production nor replay
+enumerates allocation-legality transitions. The pipeline's
+`stages/allocation/fixed_precolored_segment_homes/mod.rs` entrance gathers the
+three independently validated prerequisites before the tiny
+`fixed_view_copies/mod.rs` stage applies one exact named policy. The validator's
+`source_evidence.rs` and `seal.rs` leaves keep source admission and receipt
+construction out of its 99-line coordination entrance. `codec/evidence.rs`
+owns the V11 evidence tag and identities. Legacy V4 through V10 decoding is
+transport compatibility only and cannot pass current source admission.
+
 Logical spill planning is deliberately absent from this rule table. It is a
 non-selectable allocation decision below
 `omega-regalloc/src/allocation/logical_spill_operations/mod.rs`. That small

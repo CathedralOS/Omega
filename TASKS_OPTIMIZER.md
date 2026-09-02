@@ -651,7 +651,7 @@ decision. Only true language-semantic questions belong in
   `requirement_obligations` and `crash_continuations`. The exact rows now cross
   Terminal projection, current optimization-unit V18 identity, target and temporary
   assigned carriers, legalized V10 and selected V12 identity, allocation
-  recovery, and fixed-view-copy V6 persistence. Ordinary, Unit, and
+  recovery, and current fixed-view-copy V11 persistence. Ordinary, Unit, and
   structural-scalar nonempty projection/lowering tests plus identity,
   independent replay, corruption, and V5 compatibility tests pin custody.
 - [>] Apply **Boundary domain requirements consume carried qualifications**.
@@ -1056,7 +1056,8 @@ decision. Only true language-semantic questions belong in
     `I64::MAX` and explicitly distinguishes signed from unsigned ordering at
     the sign boundary. Append-only custody advances legalized V18 and selected
     V17 identities, pre-allocation-effect V8 and post-allocation-plan V4 wire
-    formats, and fixed-view-copy V10 while preserving every prior decoder.
+    formats, and fixed-view-copy V10 while preserving every prior decoder;
+    fixed-view-copy source evidence subsequently advances that carrier to V11.
   - [x] Add inclusive unsigned-`U64` runtime comparison without expanding the
     machine predicate vocabulary. Legalization admits one exact
     `[IntegerLessOrEqual, Conditional]` sibling in the same bounded
@@ -1243,6 +1244,15 @@ decision. Only true language-semantic questions belong in
   interference allocation.
 - [x] Fixed-view-copy and active-resident rematerialization recovery with one
   generic allocation-recovery publication carrier.
+- [x] Make fixed-view-copy discovery consume authenticated fixed intervals,
+  split requirements, and segment homes instead of rediscovering legality
+  transitions. The exact opt-in route now stages those three prerequisites,
+  binds them into semantic identity V7 and wire V11, independently reconstructs
+  segment boundaries by a keyed path, and then performs the existing mandatory
+  transformed liveness/range/legality replay. V4 through V10 remain decodable
+  as legacy evidence but cannot obtain current validation custody. This adds no
+  optimization name or implicit suite: the selectable policies remain the
+  exact leaf-local and shared-entry fixed-view-copy transformations.
 - [x] x86-64 and AArch64 register-environment ABI/call-clobber corruption
   matrices.
 - [>] Add spill choice, insertion, reload/store validation, and stack-slot
