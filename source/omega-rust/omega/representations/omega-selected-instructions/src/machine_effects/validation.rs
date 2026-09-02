@@ -72,6 +72,8 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::ReturnUnit
     ) {
         MachineBarrier::ControlFlow
+    } else if matches!(semantic, MachineSemanticKind::CallI64) {
+        MachineBarrier::Call
     } else {
         MachineBarrier::None
     };
@@ -79,6 +81,25 @@ pub(super) fn validate_declaration(
         return Err(MachineEffectCatalogValidationError::BarrierMismatch(
             semantic,
         ));
+    }
+    match (semantic, declaration.call) {
+        (
+            MachineSemanticKind::CallI64,
+            crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+                pre_call_stack_alignment,
+            },
+        ) if pre_call_stack_alignment.is_power_of_two() => {}
+        (MachineSemanticKind::CallI64, _) => {
+            return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+                semantic,
+            ));
+        }
+        (_, crate::MachineCallEffect::NoneV1) => {}
+        _ => {
+            return Err(MachineEffectCatalogValidationError::InvalidEncodedEffects(
+                semantic,
+            ));
+        }
     }
     if declaration.alternatives.is_empty() {
         return Err(MachineEffectCatalogValidationError::EmptyAlternatives(
@@ -189,8 +210,27 @@ fn validate_encoded_effects(
     {
         return Err(());
     }
-    let control = !matches!(encoded.control, MachineEncodedControlEffect::FallThroughV1);
-    if control != matches!(declaration.barrier, MachineBarrier::ControlFlow) {
+    if declaration.semantic == MachineSemanticKind::CallI64
+        && (encoded.external_operand_reads != [0, 1]
+            || encoded.external_operand_writes != [2]
+            || encoded.implicit_unit_uses != constraint.implicit_uses
+            || encoded.implicit_unit_defs != constraint.implicit_defs
+            || encoded.implicit_unit_clobbers != constraint.clobbers
+            || encoded.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            || encoded.control != MachineEncodedControlEffect::DirectRelativeCallV1)
+    {
+        return Err(());
+    }
+    let expected_barrier = match encoded.control {
+        MachineEncodedControlEffect::FallThroughV1 => MachineBarrier::None,
+        MachineEncodedControlEffect::DirectRelativeCallV1 => MachineBarrier::Call,
+        MachineEncodedControlEffect::ConditionalRelativeBranchV1
+        | MachineEncodedControlEffect::ReturnFromActivationStackV1
+        | MachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. } => {
+            MachineBarrier::ControlFlow
+        }
+    };
+    if declaration.barrier != expected_barrier {
         return Err(());
     }
     match (encoded.memory, encoded.stack, encoded.trap) {
@@ -207,6 +247,19 @@ fn validate_encoded_effects(
         ) if memory_pointer == stack_pointer
             && memory_bytes == stack_bytes
             && memory_bytes != 0 => {}
+        (
+            MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                stack_pointer: memory_pointer,
+                byte_count: memory_bytes,
+            },
+            MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                stack_pointer,
+                return_address_byte_count,
+            },
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if memory_pointer == stack_pointer
+            && memory_bytes == return_address_byte_count
+            && return_address_byte_count != 0 => {}
         (MachineEncodedMemoryEffect::NoneV1, MachineEncodedStackEffect::UnchangedV1, _) => {}
         _ => return Err(()),
     }

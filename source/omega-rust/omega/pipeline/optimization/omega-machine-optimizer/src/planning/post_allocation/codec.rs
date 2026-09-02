@@ -1,4 +1,4 @@
-//! Version-4 post-allocation machine-plan framing and final admission.
+//! Version-5 post-allocation machine-plan framing and final admission.
 //!
 //! The entrance owns the wire marker/version, canonical content boundary,
 //! trailing-byte rejection, and final identity authentication. Ordered content,
@@ -18,8 +18,9 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const LEGACY_VERSION: u32 = 3;
-const VERSION: u32 = 4;
+const LEGACY_V3_VERSION: u32 = 3;
+const LEGACY_V4_VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
@@ -41,20 +42,26 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         return Err(PostAllocationMachineDecodeError::WrongMagic);
     }
     let version = cursor::u32_field(&mut cursor)?;
-    if !matches!(version, LEGACY_VERSION | VERSION) {
+    if !matches!(version, LEGACY_V3_VERSION | LEGACY_V4_VERSION | VERSION) {
         return Err(PostAllocationMachineDecodeError::UnsupportedVersion(
             version,
         ));
     }
     let identity = PostAllocationMachineIdentity::from_bytes(cursor::array(&mut cursor)?);
-    let plan = v3::decode_content(&mut cursor, identity, version == VERSION)?;
+    let plan = v3::decode_content(
+        &mut cursor,
+        identity,
+        matches!(version, LEGACY_V4_VERSION | VERSION),
+        version == VERSION,
+    )?;
     if cursor.remaining() != 0 {
         return Err(PostAllocationMachineDecodeError::TrailingBytes);
     }
-    let expected_identity = if version == LEGACY_VERSION {
-        super::identity::post_allocation_machine_identity_v4_legacy(&plan)
-    } else {
-        post_allocation_machine_identity(&plan)
+    let expected_identity = match version {
+        LEGACY_V3_VERSION => super::identity::post_allocation_machine_identity_v4_legacy(&plan),
+        LEGACY_V4_VERSION => super::identity::post_allocation_machine_identity_v5_legacy(&plan),
+        VERSION => post_allocation_machine_identity(&plan),
+        _ => unreachable!("wire version admitted above"),
     };
     if plan.identity != expected_identity {
         return Err(PostAllocationMachineDecodeError::InvalidIdentity);

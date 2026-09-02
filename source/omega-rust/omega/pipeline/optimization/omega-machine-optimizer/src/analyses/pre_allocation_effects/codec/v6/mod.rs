@@ -1,4 +1,4 @@
-//! Optimizer module role: stage group. V6/V7/V8 pre-allocation machine-effect wire vocabulary.
+//! Optimizer module role: stage group. V6-V9 pre-allocation machine-effect wire vocabulary.
 //!
 //! `framing` owns exact envelope and field order. Named payload leaves retain
 //! independent structural, instruction, ownership, and shared-value decode
@@ -49,7 +49,10 @@ pub(crate) use framing::{
     encode_terminal_pre_allocation_machine_effect_plan,
 };
 use instruction::decode_instruction;
-pub(crate) use instruction::{decode_alternative, decode_alternative_legacy, decode_provenance};
+pub(crate) use instruction::{
+    decode_alternative, decode_alternative_legacy, decode_alternative_without_scalar_call,
+    decode_provenance,
+};
 pub(crate) use ownership::decode_ownership;
 use structural::decode_structural_function;
 pub(crate) use structural::{decode_effect_link, decode_structural_call};
@@ -59,4 +62,5 @@ pub(crate) use values::{decode_target, decode_units};
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
 const LEGACY_V6_VERSION: u32 = 6;
 const LEGACY_V7_VERSION: u32 = 7;
-const VERSION: u32 = 8;
+const LEGACY_V8_VERSION: u32 = 8;
+const VERSION: u32 = 9;

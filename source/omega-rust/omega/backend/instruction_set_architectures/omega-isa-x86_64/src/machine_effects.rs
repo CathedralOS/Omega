@@ -10,6 +10,10 @@ use omega_selected_instructions::{
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
+mod scalar_call;
+
+use scalar_call::declaration as scalar_call_declaration;
+
 use crate::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_ZERO,
     X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
@@ -68,7 +72,11 @@ pub fn x86_64_machine_effect_catalog(
         }),
         declarations: MachineSemanticKind::ALL
             .into_iter()
-            .map(|semantic| declaration(semantic, selected_keys))
+            .filter_map(|semantic| {
+                selected_keys
+                    .for_semantic(semantic)
+                    .map(|_| declaration(semantic, selected_keys, constraints))
+            })
             .collect(),
     })
 }
@@ -131,7 +139,11 @@ fn selected_keys(
 fn declaration(
     semantic: MachineSemanticKind,
     keys: SelectedConstraintKeys,
+    constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
+    if semantic == MachineSemanticKind::CallI64 {
+        return scalar_call_declaration(keys, constraints);
+    }
     let alternatives = match semantic {
         MachineSemanticKind::ExactAddI64 => vec![alternative(
             semantic,
@@ -197,7 +209,9 @@ fn declaration(
     };
     MachineEffectDeclaration {
         semantic,
-        constraint: keys.for_semantic(semantic),
+        constraint: keys
+            .for_semantic(semantic)
+            .expect("required x86-64 machine semantic has a constraint"),
         memory: MachineMemoryEffect::NoneV1,
         trap: MachineTrapBehavior::NeverV1,
         barrier: if matches!(
@@ -266,6 +280,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
+        MachineSemanticKind::CallI64 => {
+            unreachable!("scalar calls use their dedicated declaration")
+        }
     };
     let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
         match semantic {
@@ -380,6 +397,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         }
         MachineSemanticKind::ExactSubtractI64 => {
             unreachable!("subtraction declares alias-dependent alternatives")
+        }
+        MachineSemanticKind::CallI64 => {
+            unreachable!("scalar calls use their dedicated declaration")
         }
     }
 }
@@ -510,10 +530,45 @@ mod tests {
                             | MachineSemanticKind::ReturnUnit
                     ) {
                         MachineBarrier::ControlFlow
+                    } else if row.semantic == MachineSemanticKind::CallI64 {
+                        MachineBarrier::Call
                     } else {
                         MachineBarrier::None
                     }
             }));
+            let scalar_call = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::CallI64);
+            if target == NativeTarget::linux_x64() {
+                let scalar_call = scalar_call.expect("System V target declares scalar call");
+                assert_eq!(
+                    scalar_call.call,
+                    MachineCallEffect::DirectInternalNormalReturnV1 {
+                        pre_call_stack_alignment: 16,
+                    }
+                );
+                assert_eq!(
+                    scalar_call.alternatives[0].size,
+                    MachineSizeKnowledge::ExactBytes(5)
+                );
+                assert!(matches!(
+                    scalar_call.alternatives[0].encoded.memory,
+                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                        byte_count: 8,
+                        ..
+                    }
+                ));
+                assert!(matches!(
+                    scalar_call.alternatives[0].encoded.stack,
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                        return_address_byte_count: 8,
+                        ..
+                    }
+                ));
+            } else {
+                assert!(scalar_call.is_none());
+            }
             let return_unit = catalog
                 .declarations
                 .iter()

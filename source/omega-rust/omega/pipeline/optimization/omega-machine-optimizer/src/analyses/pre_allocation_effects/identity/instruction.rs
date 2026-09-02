@@ -9,16 +9,10 @@ use super::alternative::encode_alternative;
 use super::provenance::encode_provenance;
 use super::values::{encode_constraint_key, encode_len, encode_units};
 
-/// Encodes an ordinary CFG instruction. At this analysis boundary memory,
-/// trap, call, and cleanup are fixed protocol values; only the barrier varies.
+/// Encodes an ordinary CFG instruction, retaining the complete semantic
+/// effect row. Scalar calls make these fields nontrivial.
 pub(super) fn encode_cfg_instruction(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
-    encode_common_fields(bytes, instruction);
-    bytes.push(0); // memory: NoneV1
-    bytes.push(0); // trap: NeverV1
-    encode_barrier(bytes, instruction.barrier);
-    bytes.push(0); // call: NoneV1
-    bytes.push(0); // cleanup: NoneV1
-    encode_provenance_and_alternatives(bytes, instruction);
+    encode_ordinary_instruction(bytes, instruction);
 }
 
 /// Encodes the structural-unit return row, retaining every modeled effect
@@ -31,14 +25,24 @@ pub(super) fn encode_ordinary_instruction(
     bytes.push(match instruction.memory {
         MachineMemoryEffect::NoneV1 => 0,
     });
+    encode_effect_tail(bytes, instruction);
+}
+
+fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
     bytes.push(match instruction.trap {
         MachineTrapBehavior::NeverV1 => 0,
         MachineTrapBehavior::MayArchitecturalFaultV1 => 1,
     });
     encode_barrier(bytes, instruction.barrier);
-    bytes.push(match instruction.call {
-        MachineCallEffect::NoneV1 => 0,
-    });
+    match instruction.call {
+        MachineCallEffect::NoneV1 => bytes.push(0),
+        MachineCallEffect::DirectInternalNormalReturnV1 {
+            pre_call_stack_alignment,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+        }
+    }
     bytes.push(match instruction.cleanup {
         MachineCleanupEffect::NoneV1 => 0,
     });
@@ -69,6 +73,7 @@ fn encode_barrier(bytes: &mut Vec<u8>, barrier: MachineBarrier) {
     bytes.push(match barrier {
         MachineBarrier::None => 0,
         MachineBarrier::ControlFlow => 1,
+        MachineBarrier::Call => 2,
     });
 }
 
@@ -87,9 +92,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
-        SelectedInstructionKind::CallI64 { .. } => {
-            unreachable!("scalar calls are refused before machine-effect identity")
-        }
+        SelectedInstructionKind::CallI64 { .. } => 13,
     });
     match kind {
         SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
@@ -126,8 +129,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
-        SelectedInstructionKind::CallI64 { .. } => {
-            unreachable!("scalar calls are refused before machine-effect identity")
+        SelectedInstructionKind::CallI64 { callee } => {
+            bytes.extend_from_slice(&callee.get().to_le_bytes());
         }
     }
 }

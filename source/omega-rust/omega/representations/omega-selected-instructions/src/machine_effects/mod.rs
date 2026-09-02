@@ -49,14 +49,21 @@ pub fn validate_machine_effect_catalog(
         return Err(MachineEffectCatalogValidationError::NonCanonicalDeclarations);
     }
     let expected = MachineSemanticKind::ALL
-        .map(|semantic| (semantic, catalog.selected_keys.for_semantic(semantic)));
+        .into_iter()
+        .filter_map(|semantic| {
+            catalog
+                .selected_keys
+                .for_semantic(semantic)
+                .map(|constraint| (semantic, constraint))
+        })
+        .collect::<Vec<_>>();
     if catalog.declarations.len() != expected.len()
         || catalog
             .declarations
             .iter()
-            .zip(expected)
+            .zip(&expected)
             .any(|(actual, (semantic, constraint))| {
-                actual.semantic != semantic || actual.constraint != constraint
+                actual.semantic != *semantic || actual.constraint != *constraint
             })
     {
         return Err(MachineEffectCatalogValidationError::DeclarationRosterMismatch);

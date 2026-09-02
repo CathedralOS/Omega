@@ -220,6 +220,14 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update(stack_pointer.0.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
         }
+        Memory::WriteReturnAddressBelowStackPointerV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            hasher.update([2]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(byte_count.to_le_bytes());
+        }
     }
     match effects.stack {
         Stack::UnchangedV1 => hasher.update([0]),
@@ -230,6 +238,14 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update([1]);
             hasher.update(stack_pointer.0.to_le_bytes());
             hasher.update(byte_count.to_le_bytes());
+        }
+        Stack::CallReturnAddressLifecycleV1 {
+            stack_pointer,
+            return_address_byte_count,
+        } => {
+            hasher.update([2]);
+            hasher.update(stack_pointer.0.to_le_bytes());
+            hasher.update(return_address_byte_count.to_le_bytes());
         }
     }
     hasher.update([match effects.trap {
@@ -244,6 +260,7 @@ fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
             hasher.update([3]);
             hasher.update(target.0.to_le_bytes());
         }
+        Control::DirectRelativeCallV1 => hasher.update([4]),
     }
 }
 
@@ -262,6 +279,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
+        MachineAlternativeFamily::CallI64 => 13,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

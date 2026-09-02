@@ -59,12 +59,15 @@ stop the item on one precise owner question before adding machinery.
     custody, then allocation, post-allocation, and layout optimization. A
     direct selected call followed by a source-ordered, branch-free immutable
     scalar local now retains exact checked Unit custody and lowers through
-    Terminal Psi. The native selected route still stops at its next honest
-    boundaries: selected machine-effect analysis rejects `CallI64`, and
-    selected fragments do not yet retain the internal-call fixup needed by
-    existing checked-call D32 replay. Close those production lanes in order
-    and establish a real source path whose allocation pressure applies the
-    fold; a test-only reduced-register policy is not production coverage.
+    Terminal Psi. On Linux System V AMD64 and AAPCS64, each selected `CallI64`
+    now enters exact target-owned machine-effect custody and survives current
+    pre- and post-allocation persistence and independent replay. The native
+    selected route still stops before executable call realization: it has no
+    callee-save sequence, x86 call-site alignment adjustment, AArch64 incoming
+    link-register preservation, or selected-fragment internal-call fixup.
+    Close those production lanes in order and establish a real source path
+    whose allocation pressure applies the fold; a test-only reduced-register
+    policy is not production coverage.
     Extend admitted-provider D41 custody beyond the landed normalized-import
     lane with fixed-width integer scalar arguments/results and one direct
     compiler-private callback parameter to structural arguments/results,

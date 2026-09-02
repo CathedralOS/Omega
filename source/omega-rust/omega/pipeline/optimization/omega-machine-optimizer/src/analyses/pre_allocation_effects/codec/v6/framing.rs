@@ -20,7 +20,10 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         return Err(PreAllocationMachineEffectDecodeError::WrongMagic);
     }
     let version = cursor.u32()?;
-    if !matches!(version, LEGACY_V6_VERSION | LEGACY_V7_VERSION | VERSION) {
+    if !matches!(
+        version,
+        LEGACY_V6_VERSION | LEGACY_V7_VERSION | LEGACY_V8_VERSION | VERSION
+    ) {
         return Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
             version,
         ));
@@ -46,7 +49,11 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
             let instruction_count = cursor.length()?;
             let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
             for _ in 0..instruction_count {
-                instructions.push(decode_instruction(&mut cursor, version == VERSION)?);
+                instructions.push(decode_instruction(
+                    &mut cursor,
+                    matches!(version, LEGACY_V8_VERSION | VERSION),
+                    version == VERSION,
+                )?);
             }
             blocks.push(BlockMachineEffects {
                 block,
@@ -59,8 +66,10 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
     let mut structural_unit_functions =
         Vec::with_capacity(structural_count.min(cursor.remaining()));
     for _ in 0..structural_count {
-        structural_unit_functions
-            .push(decode_structural_function(&mut cursor, version == VERSION)?);
+        structural_unit_functions.push(decode_structural_function(
+            &mut cursor,
+            matches!(version, LEGACY_V8_VERSION | VERSION),
+        )?);
     }
     if cursor.remaining() != 0 {
         return Err(PreAllocationMachineEffectDecodeError::TrailingBytes);
@@ -80,6 +89,7 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
     let expected_identity = match version {
         LEGACY_V6_VERSION => crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v5_legacy(&plan),
         LEGACY_V7_VERSION => crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v6_legacy(&plan),
+        LEGACY_V8_VERSION => crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v7_legacy(&plan),
         VERSION => pre_allocation_machine_effect_identity(&plan),
         _ => unreachable!("wire version admitted above"),
     };

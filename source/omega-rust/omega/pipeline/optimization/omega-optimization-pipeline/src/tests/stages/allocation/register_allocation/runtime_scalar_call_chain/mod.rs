@@ -5,3 +5,4 @@ mod allocation;
 mod corruption;
 mod custody;
 mod fixture;
+mod machine_effects;

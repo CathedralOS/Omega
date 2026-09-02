@@ -184,7 +184,6 @@ impl ValidatedPreAllocationMachineEffects {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineEffectError {
     ProjectedStructuralCallReturnUnsupported,
-    ScalarCallMachineEffectsUnsupported { instruction: SelectedInstructionId },
     RegisterEnvironmentMismatch,
     CatalogTargetMismatch,
     CatalogConstraintMismatch,

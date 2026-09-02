@@ -1819,12 +1819,18 @@ decision. Only true language-semantic questions belong in
   append-only legalized V17 and selected V16 identities; fixed-view-copy V9
   persists the call kind and callee while V10 retains that payload and adds the
   signed-branch vocabulary. V4-V9 decode compatibility remains supported.
-  This is allocation evidence only: general call shapes and ABIs, callee-save
-  prologue/epilogue realization, call memory/stack/trap effects, relocation,
-  encoding, emission, and publication remain unsupported. The adjacent exact
-  allocation-visible requirements stage now proves which ABI-preserved units
-  this selected program may modify, with per-write witnesses and independent
-  replay. It deliberately stops before choosing or realizing callee saves.
+  The Linux System V AMD64 and AAPCS64 calls now also retain exact semantic and
+  encoded machine effects through current pre- and post-allocation persistence:
+  fixed operand reads/writes, complete implicit uses/defs/clobbers, direct
+  relative control, architectural-fault behavior, and the ISA-specific return
+  address stack lifecycle. Older wire formats remain decode-only and cannot
+  acquire this vocabulary. General call shapes and ABIs, callee-save
+  prologue/epilogue realization, x86 call-site alignment adjustment, AArch64
+  incoming link-register preservation, selected-fragment relocation, encoding,
+  emission, and publication remain unsupported. The adjacent exact
+  allocation-visible requirements stage proves which ABI-preserved units this
+  selected program may modify, with per-write witnesses and independent replay.
+  It deliberately stops before choosing or realizing callee saves.
 
 ## P6 — Machine optimizer
 

@@ -264,10 +264,10 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
     );
 
     let mut unsupported_version = encoded.clone();
-    unsupported_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
+    unsupported_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
     assert_eq!(
         PostAllocationMachinePlan::decode(&unsupported_version),
-        Err(PostAllocationMachineDecodeError::UnsupportedVersion(5))
+        Err(PostAllocationMachineDecodeError::UnsupportedVersion(6))
     );
 
     for offset in [

@@ -267,11 +267,6 @@ fn replay_declaration<'a>(
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
-    if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
-        return Err(MachineEffectError::ScalarCallMachineEffectsUnsupported {
-            instruction: instruction.id,
-        });
-    }
     let semantic = match instruction.kind {
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
@@ -296,9 +291,7 @@ fn replay_declaration<'a>(
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
-        SelectedInstructionKind::CallI64 { .. } => {
-            unreachable!("scalar calls are refused before semantic replay")
-        }
+        SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
     };
     let declarations = catalog
         .catalog()
