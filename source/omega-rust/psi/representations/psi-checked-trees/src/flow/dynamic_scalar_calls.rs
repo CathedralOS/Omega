@@ -26,6 +26,12 @@ pub struct CheckedDynamicDispatchPlans {
 /// repeat conformance discovery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedDynamicScalarCallPlan {
+    /// Exact authored route by which the selected descriptor reaches this
+    /// scalar dispatch. A forwarded route is admitted only for one transparent
+    /// scalar helper whose dynamic parameter is returned directly; Terminal
+    /// lowering may then compose that internal call without inventing
+    /// descriptor custody.
+    pub origin: CheckedDynamicScalarCallOrigin,
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
     pub caller_attachment_type_identity: String,
@@ -81,6 +87,17 @@ pub struct CheckedDynamicScalarCallPlan {
     /// begins at the authored guard and therefore cannot be lowered as an
     /// independent machine or silently discarded.
     pub unit_continuation: Option<CheckedDynamicUnitContinuationPlan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedDynamicScalarCallOrigin {
+    Local,
+    Forwarded {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        coordinate: CheckedUnitCallCoordinate,
+        parameter: SymbolHandle,
+    },
 }
 
 /// One exact checked callable behind a closed dynamic-conformance table row.

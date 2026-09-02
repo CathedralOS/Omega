@@ -11733,21 +11733,26 @@ checked-result arithmetic decision listed below.
   canaries exercise the complete two-row table rather than a synthetic
   single-row fixture.
 
-  The remaining pass-through baseline is blocked one layer earlier: an
-  attached Unit caller cannot yet compose a scalar-returning structural helper
-  that owns the dynamic dispatch. The direct rebound continuation is live: its
-  exact three-block equality/exit diamond crosses target lowering, assignment,
-  x86-64 and AArch64 emission, object replay, and Linux execution while
-  retaining the original Terminal operation and edge ordinals. This is a
-  deliberately bounded Unit-control family, not a claim that arbitrary Unit
-  CFG lowering is complete.
+  The first pass-through baseline is also live. Checked custody distinguishes
+  a local dispatch from one reached through an exact transparent scalar
+  helper, binds the caller's selected descriptor to the helper's dynamic
+  parameter and sole dispatch, and composes that unobservable internal call
+  before Terminal publication. The resulting descriptor/table call remains
+  indirect and crosses the same Terminal, target, assignment, object-replay,
+  and x86-64/AArch64 machine-code path. Cross-target compilation and Linux
+  execution select the rebound instance rather than a same-type decoy. The
+  direct rebound continuation likewise carries its exact three-block
+  equality/exit diamond while retaining Terminal operation and edge ordinals.
+  These are deliberately bounded control and transparent-helper families, not
+  a claim that arbitrary Unit CFG or general descriptor-parameter ABI lowering
+  is complete.
 
   Remaining work:
 
-  - compose scalar-returning structural helpers into attached Unit closures so
-    the pass-through canary retains and forwards the descriptor without
-    flattening it into a static call;
-  - only then extend custody to changed-conformance, stored/joined/escaping,
+  - generalize transparent helper composition into explicit descriptor
+    parameters/arguments when nontransparent cross-machine dynamic values earn
+    a stable semantic and physical ABI;
+  - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target

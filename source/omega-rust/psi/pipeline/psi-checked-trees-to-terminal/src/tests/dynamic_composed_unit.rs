@@ -127,6 +127,48 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
+    boundary trait Console {
+        machine exit_process(return_code: i32) reaches Console;
+    }
+
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        console: Console;
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) reaches Console {
+        let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+        transition result == 0 {
+            true -> good()
+            _ -> bad()
+        }
+
+        state good(&mut self) { self.console.exit_process(70); }
+        state bad(&mut self) { self.console.exit_process(71); }
+    }
+
+    machine forward(erased: &dyn Measure) -> i32 {
+        let result: i32 = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
 }
@@ -211,6 +253,67 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
     assert_eq!(
         unsupported_message(&checked),
         "rebound dynamic dispatch plan is duplicated for one caller"
+    );
+}
+
+#[test]
+fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody() {
+    let mut checked = checked_source(FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
+    let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [plan] = catalog.rebound_scalar_calls.as_slice() else {
+        panic!("one forwarded rebound dynamic plan expected, got {catalog:#?}")
+    };
+    assert!(matches!(
+        plan.latest.origin,
+        psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+            coordinate: psi_checked_trees::CheckedUnitCallCoordinate {
+                statement_index: 0,
+                call_ordinal: 0,
+            },
+            ..
+        }
+    ));
+
+    let lowered =
+        lower_machine(&checked, "Main::run").expect("transparent forwarded dynamic call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("forwarded dynamic module verifies");
+    assert_eq!(
+        lowered
+            .semantic_module
+            .dynamic_dispatch
+            .rebound_descriptors
+            .len(),
+        1
+    );
+    assert_eq!(
+        lowered
+            .semantic_module
+            .dynamic_dispatch
+            .indirect_dispatches
+            .len(),
+        1
+    );
+
+    let [plan] = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .rebound_scalar_calls
+        .as_mut_slice()
+    else {
+        unreachable!("checked above")
+    };
+    let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { coordinate, .. } =
+        &mut plan.latest.origin
+    else {
+        unreachable!("checked above")
+    };
+    coordinate.call_ordinal = 1;
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic call drifted from checked flow custody"
     );
 }
 

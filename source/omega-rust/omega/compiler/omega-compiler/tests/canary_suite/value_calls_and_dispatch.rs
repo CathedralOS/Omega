@@ -1075,35 +1075,71 @@ fn runtime_local_named_dyn_devirtualized_exit_canary_runs() {
 fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_pass_through_exit");
     for target in ["linux_x86_64", "linux_arm64"] {
-        compile_rooted_backend_canary_without_output_for_target(&canary, target).unwrap_or_else(
-            |diagnostics| {
-                panic!(
-                    "{target} should link the exact private realization function into the dynamic table:\n{}",
-                    diagnostics
-                        .iter()
-                        .map(|diagnostic| diagnostic.message.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )
-            },
-        );
+        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
+            .expect("forwarded fixture should reach checked provider custody");
+        let permission_policy =
+            omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+                checked
+                    .selected_provider_plans()
+                    .plans()
+                    .iter()
+                    .flat_map(|plan| {
+                        plan.rows.iter().filter_map(move |row| {
+                            matches!(
+                                row.binding,
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                                    ..
+                                }
+                            )
+                            .then(|| {
+                                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                                    plan.schema.identity_digest(),
+                                    row.requirement_identity.clone(),
+                                    omega_effects::TerminalAuthorityDisposition::from_classes([
+                                        omega_effects::TerminalAuthorityClass::ProcessTermination,
+                                    ]),
+                                )
+                            })
+                        })
+                    })
+                    .collect(),
+            )
+            .expect("exact Console exit permission policy");
+        compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+            &canary,
+            target,
+            permission_policy,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{target} should link the forwarded descriptor's exact private realization:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
     }
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-runtime-local-named-dyn-pass-through-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
+    #[cfg(target_os = "linux")]
+    {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-runtime-local-named-dyn-pass-through-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
-        .expect("a forwarded named dynamic value should emit its exact private table function");
-    assert_native_exit_code(
-        &compilation,
-        70,
-        "forwarded named dynamic descriptor canary",
-        "the indirect slot must execute against the selected Item instance, not the same-type decoy",
-    );
+        let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("a forwarded named dynamic value should emit its exact private table function");
+        assert_native_exit_code(
+            &compilation,
+            70,
+            "forwarded named dynamic descriptor canary",
+            "the indirect slot must execute against the selected Item instance, not the same-type decoy",
+        );
 
-    let _ = fs::remove_dir_all(&build_dir);
+        let _ = fs::remove_dir_all(&build_dir);
+    }
 }
 
 #[test]
