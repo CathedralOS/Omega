@@ -31,6 +31,7 @@ Statements are:
 const DEST NAT
 add DEST LEFT RIGHT
 sub DEST LEFT RIGHT
+div DEST LEFT RIGHT
 construct DEST SUM CASE
 field-set RECORD FIELD SOURCE
 field-get DEST RECORD FIELD
@@ -80,19 +81,22 @@ they are not proposed Delta semantics.
 | Nested-scope parser Alpha tape | 1,919 bytes |
 | Recursive AST transform source | 427 lines / 10,774 bytes |
 | Recursive AST transform Alpha tape | 9,563 bytes |
+| Symbolic Alpha encoder source | 539 lines / 12,635 bytes |
+| Symbolic Alpha encoder tape | 10,842 bytes |
+| Retained functional Alpha backend declarations/implementation | 834 lines / 39,426 bytes |
 
 The compiler line spend is approximately:
 
 | Concern | Lines |
 | --- | ---: |
 | named compiler state | 69 |
-| tokenizer and exact keyword checks | 70 |
+| tokenizer and exact keyword checks | 71 |
 | identifiers and integers | 37 |
 | symbols and nominal types | 74 |
 | declaration/state census | 77 |
-| statement sizing | 56 |
-| Alpha emitters and type helpers | 39 |
-| typed replay and lowering | 214 |
+| statement sizing | 57 |
+| Alpha emitters and type helpers | 40 |
+| typed replay and lowering | 216 |
 
 The canonical Gamma evaluator and self-hosted Gamma compiler independently
 execute/compile this Gamma source. Their resulting native Delta compiler agrees
@@ -102,6 +106,10 @@ including identical failure prefixes. The compiled parser passes nested-scope,
 shadowing, duplicate-offset, malformed-scope, and arena-exhaustion cases. The
 transform customer passes mixed and fully folded trees, a surviving conditional,
 arity and framing errors, exact source offsets, and node/depth exhaustion.
+The encoder covers every Alpha opcode and target shape, forward labels,
+exact-ended input, high-bit immediate bytes, duplicate/missing/extra labels,
+undefined targets, malformed records, fail-before-output behavior, and item
+exhaustion.
 
 ## Reading the result
 
@@ -125,3 +133,14 @@ could compress traversal and reconstruction, at the cost of a larger trusted
 compiler and implicit allocation/recursion machinery. The next decision should
 compare those whole-edge costs against the actual Epsilon compiler rather than
 adding richer values speculatively.
+
+The symbolic backend supplies that first actual-customer comparison. The
+state-machine encoder is 539 lines and 103 states; the corresponding retained
+functional declarations and implementation occupy 834 lines. The smaller
+version also avoids a persistent trie and balanced byte rope because it uses
+fixed indexed item/label arenas and streams only after complete validation.
+This is not yet a complete replacement result: its experiment profile admits
+128 items and 256 labels, while the functional subsystem carries the full
+1,048,572-byte Alpha payload envelope and independently replays emitted bytes.
+Scaling the fixed arenas and closing Epsilon lowering remain required before
+selecting normative Delta.

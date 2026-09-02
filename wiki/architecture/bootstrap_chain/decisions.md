@@ -3293,3 +3293,38 @@ may reduce customer source while increasing the trusted compiler with recursive
 values, allocation, and implicit control. Selection should therefore compare
 whole-edge cost against the actual Epsilon compiler customer; it should not add
 a functional rung merely because recursive syntax exists.
+
+## D75 — Symbolic Alpha encoding favors explicit bounded state
+
+The state-machine experiment adds typed signed division, growing its Gamma
+compiler from 636 to 643 lines, from 25,533 to 25,943 source bytes, and from
+22,339 to 22,690 native bytes. Existing sample, parser, and recursive-transform
+tapes remain byte-identical. Division is required only to stream positive
+label targets as eight little-endian bytes; Alpha retains its existing signed
+division semantics and traps.
+
+A 539-line, 103-state Delta customer now performs the closed backend job already
+present in the incomplete functional Epsilon compiler. Its 22-case nominal sum
+covers symbolic labels and all 21 Alpha instructions. Fixed item and label
+arenas support exact layout, dense and duplicate label checks, forward-target
+resolution, complete prevalidation, and output only after every structural
+check succeeds. One all-opcode case pins exact widths, high-bit immediate bytes,
+and every target operand shape. Negative cases cover duplicate, missing, and
+extra labels, undefined targets, unknown and truncated records, trailing input,
+empty payload, and item-arena exhaustion.
+
+The state-machine customer is 539 lines and 12,635 bytes and compiles to a
+10,842-byte tape. The corresponding retained functional Alpha declarations and
+implementation occupy 834 lines and 39,426 bytes in
+`source/epsilon/compiler/epsilon_compiler.delta`. The explicit version avoids
+the functional backend's persistent 20-level label trie, balanced byte rope,
+and post-encoding replay by retaining bounded mutable arenas and withholding
+all output until symbolic validation is complete.
+
+This is favorable evidence, not a canonical replacement. The customer profile
+is 128 symbolic items and 256 labels; the retained functional implementation
+targets the complete 1,048,572-byte Alpha envelope and independently replays
+the raw payload. The next experiment must scale the arena profile and connect
+real Epsilon semantic lowering. Within the tested profile, however, the actual
+backend workload is about 300 source lines smaller in state-machine Delta, so
+neither recursion nor symbolic encoding currently pays for a functional rung.
