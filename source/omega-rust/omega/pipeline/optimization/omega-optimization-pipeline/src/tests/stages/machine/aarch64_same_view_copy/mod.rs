@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group. Same-view-copy admission and publication custody.
 
 mod before_compare_i64_left_operand;
+mod before_compare_i64_right_operand;
 mod before_compare_zero;
 mod before_return;
 mod custody_corruption;

@@ -83,11 +83,20 @@ retains footprint, liveness, and provenance evidence. Its exact selection and
 sole catalog row flow through the shared copy-elision artifact codec and the
 generic downstream carrier; no arbitrary-length matching authority follows.
 
+The fourth and fifth descriptor consumers are distinct ordered-operand rules
+over `CopyI64; CompareI64`. The left rule binds the copy destination to operand
+zero and the right rule binds it to operand one. Each has an exact descriptor,
+contract, validator, catalog row, build selection, policy tag, and rollback
+name. They share only bounded comparison-consumer reconstruction and the
+rule-neutral copy-elision artifact/codec; selecting one never enables the
+other.
+
 The matcher only proposes. CBNZ and same-view-copy acceptance each reconstruct
 their preconditions in an independent rule-local validator without calling the
-matcher, so a producer-interpreter defect cannot attest to itself. Each rule
-owns its plan codec, identity, attempt ordering, budget charges, and public
-error vocabulary.
+matcher, so a producer-interpreter defect cannot attest to itself. Each exact
+copy rule owns its contract, attempt interpretation, budget charges, and
+independent replay. The sibling `same_view_copy_elision/artifact/` rung owns
+the common plan, identity, codec, and public artifact-error vocabulary.
 
 Two exact rules may share a non-executable semantic family when they consume
 the same custody mechanics without sharing one execution point. Adjacent and

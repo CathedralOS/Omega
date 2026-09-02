@@ -310,6 +310,12 @@ fn decode_post_allocation_optimization(
         {
             Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1)
         }
+        value
+            if value
+                == Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 as u8 =>
+        {
+            Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1)
+        }
         value => Err(
             FunctionFragmentTextSectionManifestDecodeError::UnknownPostAllocationMachineOptimization(
                 value,

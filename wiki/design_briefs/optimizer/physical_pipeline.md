@@ -1146,6 +1146,21 @@ boundary. Current compiler lowering produces no admissible same-view pair, so
 Linux and macOS AArch64 compiler coverage truthfully retains the selected
 policy with zero actions rather than claiming an applied deletion.
 
+The ordered right-operand sibling
+`Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1` has its own exact
+selection and machine-catalog row. Its descriptor admits only
+`CopyI64; CompareI64`, requires the same physical view/storage relation, and
+binds the copy destination to comparison operand one; operand zero is not
+reclassified. Independent replay reconstructs the same roots, footprints,
+liveness continuity, provenance, attempts, actions, and revisions without
+calling the matcher. The rule-neutral copy-elision artifact identity and codec
+advance to V4 with appended policy tag `3`, while the revision domain remains
+V2. The source-visible selection identity advances to V15 with appended tag
+`20`; existing downstream V9 realization and fragment frames learn that tag
+without changing schema. The generic encoding, layout, realization, object,
+and callable route remains unchanged, and current compiler lowering honestly
+publishes zero actions on both hosted AArch64 targets.
+
 The adjacent `costs/` rung is deliberately non-authoritative. Its V1 model
 binds the complete native target and model version into a stable identity, and
 projects existing `MachineSizeKnowledge` without converting encoder-resolved
@@ -1354,14 +1369,14 @@ transformation and custody.
 - direct, selected-lowering-composed, and final artifact paths retain the same
   full selection identity.
 
-The catalog matrix covers all 19 current exact names across all five native
-target constructors: 72 admitted cells and 23 typed architecture rejections.
+The catalog matrix covers all 20 current exact names across all five native
+target constructors: 74 admitted cells and 26 typed architecture rejections.
 Target-independent Psi, selected-lowering, and allocation-recovery rules are
 explicit declarations, not untested fallthrough behavior.
 
-The adjacent composition matrix covers all 171 unordered exact-name pairs on
-both x86-64 and AArch64. Its 342 cells contain 156 admitted routes, 110 typed
-composition rejections, and 76 target rejections. Every cell also checks the
+The adjacent composition matrix covers all 190 unordered exact-name pairs on
+both x86-64 and AArch64. Its 380 cells contain 164 admitted routes, 132 typed
+composition rejections, and 84 target rejections. Every cell also checks the
 exact Psi pass projection and proves that overlaying the complete Psi suite
 does not change the physical disposition; focused triple cases pin the two
 selected-lowering rules with machine and layout routes.
@@ -1401,12 +1416,12 @@ container. UEFI and unwind are not implied by this matrix. The former lacks
 publication authority, while physical frames and unwind carriers remain P5
 prerequisites.
 
-Post-allocation publication coverage crosses all eight exact machine rules
+Post-allocation publication coverage crosses all nine exact machine rules
 with both applicable hosted operating systems: three x86-64 rules on Linux and
-Windows, and five AArch64 rules on Linux and macOS. The 16 rows run twice and
+Windows, and six AArch64 rules on Linux and macOS. The 18 rows run twice and
 compare authenticated realization, fragment, text, object, artifact, and
 callable records plus final text and ELF/COFF/Mach-O container bytes. Applied
-materialization and fusion fixtures require nonzero actions; the three copy-
+materialization and fusion fixtures require nonzero actions; the four copy-
 elision fixtures retain honest zero-action custody because current lowering
 does not emit their exact candidates. Every rule also has one typed wrong-
 architecture refusal before execution. This matrix grants no UEFI publication

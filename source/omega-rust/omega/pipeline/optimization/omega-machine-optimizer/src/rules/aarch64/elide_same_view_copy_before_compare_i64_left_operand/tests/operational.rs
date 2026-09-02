@@ -7,7 +7,7 @@ use crate::{
     Aarch64SameViewCopyInstructionDisposition,
 };
 
-use super::super::super::elide_same_view_copy_before_return::tests::fixture;
+use super::super::super::same_view_copy_elision::test_support::fixture;
 
 fn compute(
     fixture: &fixture::Fixture,
@@ -165,8 +165,7 @@ fn valid_non_candidates_are_retained_with_typed_outcomes() {
 #[test]
 fn copy_consumed_only_by_the_right_operand_is_outside_this_exact_rule() {
     let mut fixture = fixture::compare_i64_left_operand_fixture();
-    let selected_compare =
-        &mut fixture.selected.functions[0].blocks[0].instructions[1];
+    let selected_compare = &mut fixture.selected.functions[0].blocks[0].instructions[1];
     selected_compare.operands.swap(0, 1);
     selected_compare.operands[0].operand = 0;
     selected_compare.operands[1].operand = 1;

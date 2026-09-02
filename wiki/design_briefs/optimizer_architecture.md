@@ -685,8 +685,10 @@ names. Rule-specific mechanics must not leak upward into complete-route files.
 
 The second cataloged consumer below that taxonomy is AArch64 same-view-copy
 elision. Its sub-40-line rule entrance joins a declarative
-`CopyI64; ReturnI64` proposal to independent replay; named codec, computation,
-identity, model, pattern, validation, and test rungs sit immediately below it.
+`CopyI64; ReturnI64` proposal to independent replay; named computation,
+pattern, validation, and test rungs sit immediately below it. The neutral plan,
+identity, and codec live in the sibling `same_view_copy_elision/artifact/`
+rung shared by all exact copy-elision leaves.
 Its exact build selection and sole machine-catalog row feed a rule-neutral
 pipeline leaf, which retains the validated disposition through physical
 publication. No current ordinary lowering emits the exact body-tail pair, so
@@ -710,8 +712,16 @@ destination only to comparison operand zero. Its independent validator does
 not import the descriptor matcher, and its catalog row reuses the shared
 copy-disposition publication route. The compiler selection is intentionally an
 honest zero-action route until ordinary lowering produces that exact same-view
-pair; this milestone does not authorize right-operand matching or general copy
-elimination.
+pair; this milestone does not authorize general copy elimination.
+
+The fifth descriptor consumer is the separately selected right-operand sibling
+`Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1`. Its exact
+adjacent-body descriptor binds the copy destination only to comparison operand
+one. The rule retains its own entrance, contract, validator, catalog row,
+selection identity, and rollback name; it does not broaden the left-operand
+rule or create an implicit two-sided optimization bundle. Both exact
+comparison rules reuse the same lower comparison-consumer mechanics and the
+generic physical publication route.
 
 The two comparison-consuming copy rules share only the lower
 `same_view_copy_before_compare/{roots,footprints,proposal,replay}` mechanics.
@@ -720,6 +730,13 @@ contracts, and tests. Physical custody likewise descends through the small
 `post_allocation_optimizations/aarch64_same_view_copy/mod.rs` entrance into
 separate baseline-source, selected-lowering-source, model, and execution
 leaves; the deleted flat stage file is not a second route.
+
+The rule-neutral copy-elision artifact and codec live at the sibling
+`same_view_copy_elision/artifact/` rung rather than under the return rule. Test
+fixtures shared by all copy-elision policies likewise live under
+`same_view_copy_elision/test_support/`. Exact rule entrances therefore descend
+to their own pattern, contract, computation, validation, and tests without one
+rule appearing to own another rule's wire format or fixtures.
 
 ## Deeper briefs
 

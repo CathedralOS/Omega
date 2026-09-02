@@ -5,20 +5,18 @@
 //! The machine catalog owns compiler admission; downstream pipeline custody
 //! carries this independently validated disposition into realization.
 
-mod codec;
 mod compute;
-mod identity;
-mod model;
 mod pattern;
 mod validate;
 
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use identity::aarch64_same_view_copy_elision_identity;
-pub(crate) use identity::revision_identity;
-pub use model::*;
 pub use validate::validate_aarch64_same_view_copy_elision;
+
+use super::same_view_copy_elision::{
+    Aarch64SameViewCopyElisionError, ValidatedAarch64SameViewCopyElision,
+};
 
 /// Propose and independently validate the core symbolic disposition.
 pub fn optimize_aarch64_same_view_copy_i64_before_return<

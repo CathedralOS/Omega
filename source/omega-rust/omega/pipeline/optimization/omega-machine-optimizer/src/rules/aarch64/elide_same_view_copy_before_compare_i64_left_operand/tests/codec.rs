@@ -1,6 +1,6 @@
 use crate::Aarch64SameViewCopyElisionDecodeError;
 
-use super::super::super::elide_same_view_copy_before_return::tests::fixture;
+use super::super::super::same_view_copy_elision::test_support::fixture;
 
 #[test]
 fn codec_round_trip_and_malformed_envelopes_fail_closed() {
@@ -8,7 +8,7 @@ fn codec_round_trip_and_malformed_envelopes_fail_closed() {
     let plan =
         super::super::compute::compute_from_inputs(fixture.inputs(), fixture::budget()).unwrap();
     let encoded = plan.encode();
-    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 3);
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 4);
     assert_eq!(
         crate::Aarch64SameViewCopyElisionPlan::decode(&encoded),
         Ok(plan)

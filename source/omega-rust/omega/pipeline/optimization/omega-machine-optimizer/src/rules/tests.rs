@@ -20,6 +20,7 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
             Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1,
             Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
             Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1,
+            Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1,
         ]
     );
     let declared = Optimization::ALL
@@ -38,6 +39,7 @@ fn catalog_exactly_matches_the_post_allocation_machine_vocabulary() {
         PostAllocationMachineRuleKind::Aarch64SameViewCopyElision,
         PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareZeroElision,
         PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareI64LeftOperandElision,
+        PostAllocationMachineRuleKind::Aarch64SameViewCopyBeforeCompareI64RightOperandElision,
     ];
     assert_eq!(
         POST_ALLOCATION_MACHINE_RULE_CATALOG.len(),

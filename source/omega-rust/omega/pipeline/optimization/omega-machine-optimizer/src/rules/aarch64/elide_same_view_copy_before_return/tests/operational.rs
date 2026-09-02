@@ -1,22 +1,23 @@
 use omega_optimization_core::OptimizationWorkBudget;
 use omega_selected_instructions::VirtualRegisterId;
 
-use super::super::{
+use crate::rules::aarch64::same_view_copy_elision::test_support::fixture;
+use crate::{
     Aarch64SameViewCopyElisionAttemptOutcome, Aarch64SameViewCopyElisionError,
-    Aarch64SameViewCopyElisionWorkAxis,
+    Aarch64SameViewCopyElisionPlan, Aarch64SameViewCopyElisionWorkAxis,
 };
 
 fn compute(
-    fixture: &super::fixture::Fixture,
+    fixture: &fixture::Fixture,
     budget: OptimizationWorkBudget,
-) -> Result<super::super::Aarch64SameViewCopyElisionPlan, Aarch64SameViewCopyElisionError> {
+) -> Result<Aarch64SameViewCopyElisionPlan, Aarch64SameViewCopyElisionError> {
     super::super::compute::compute_from_inputs(fixture.inputs(), budget)
 }
 
 #[test]
 fn exact_pair_elides_once_and_independent_replay_agrees() {
-    let fixture = super::fixture::fixture();
-    let plan = compute(&fixture, super::fixture::budget()).unwrap();
+    let fixture = fixture::fixture();
+    let plan = compute(&fixture, fixture::budget()).unwrap();
     let validated =
         super::super::validate::validate_from_inputs(fixture.inputs(), plan.clone()).unwrap();
 
@@ -46,7 +47,7 @@ fn exact_pair_elides_once_and_independent_replay_agrees() {
         plan.actions[0].consumed.virtual_register
     );
 
-    let repeated = compute(&fixture, super::fixture::budget()).unwrap();
+    let repeated = compute(&fixture, fixture::budget()).unwrap();
     assert_eq!(
         repeated, plan,
         "immutable-source reconstruction is deterministic"
@@ -59,7 +60,7 @@ fn two_pair_budget() -> OptimizationWorkBudget {
 
 #[test]
 fn two_pairs_pin_the_exact_nonzero_work_vector() {
-    let fixture = super::fixture::two_pair_fixture();
+    let fixture = fixture::two_pair_fixture();
     let plan = compute(&fixture, two_pair_budget()).unwrap();
     let validated =
         super::super::validate::validate_from_inputs(fixture.inputs(), plan.clone()).unwrap();
@@ -76,7 +77,7 @@ fn two_pairs_pin_the_exact_nonzero_work_vector() {
 
 #[test]
 fn every_work_axis_rejects_the_first_unit_past_its_boundary() {
-    let fixture = super::fixture::two_pair_fixture();
+    let fixture = fixture::two_pair_fixture();
     for (budget, axis) in [
         (
             OptimizationWorkBudget::new(4, 2, 2, 2, 3).unwrap(),
@@ -109,7 +110,7 @@ fn every_work_axis_rejects_the_first_unit_past_its_boundary() {
 
 #[test]
 fn valid_non_candidates_are_retained_with_typed_outcomes() {
-    let mut different_storage = super::fixture::fixture();
+    let mut different_storage = fixture::fixture();
     let x1 = different_storage
         .physical
         .model()
@@ -133,7 +134,7 @@ fn valid_non_candidates_are_retained_with_typed_outcomes() {
         Aarch64SameViewCopyElisionAttemptOutcome::DifferentPhysicalStorage
     );
 
-    let mut wrong_value = super::fixture::fixture();
+    let mut wrong_value = fixture::fixture();
     let returned = match &mut wrong_value.selected.functions[0].blocks[0].terminator {
         omega_selected_instructions::SelectedTerminator::Return { instruction, .. } => instruction,
         _ => unreachable!(),
@@ -151,7 +152,7 @@ fn valid_non_candidates_are_retained_with_typed_outcomes() {
         Aarch64SameViewCopyElisionAttemptOutcome::DestinationNotConsumed
     );
 
-    let mut semantic = super::fixture::fixture();
+    let mut semantic = fixture::fixture();
     semantic.selected.functions[0].blocks[0].instructions[0]
         .provenance
         .values

@@ -3,10 +3,12 @@
 use omega_machine_optimizer::{
     ValidatedAarch64SameViewCopyElision,
     optimize_aarch64_same_view_copy_i64_before_compare_i64_left_operand,
+    optimize_aarch64_same_view_copy_i64_before_compare_i64_right_operand,
     optimize_aarch64_same_view_copy_i64_before_compare_zero,
     optimize_aarch64_same_view_copy_i64_before_return, require_post_allocation_machine_rule,
     validate_aarch64_same_view_copy_elision,
     validate_aarch64_same_view_copy_i64_before_compare_i64_left_operand,
+    validate_aarch64_same_view_copy_i64_before_compare_i64_right_operand,
     validate_aarch64_same_view_copy_i64_before_compare_zero,
 };
 use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
@@ -67,6 +69,15 @@ pub(super) fn stage_with_inputs<S: ValidatedSelectedAnalysis>(
                 budget,
             )
         }
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 => {
+            optimize_aarch64_same_view_copy_i64_before_compare_i64_right_operand(
+                selected,
+                liveness,
+                machine.machine(),
+                physical,
+                budget,
+            )
+        }
         _ => unreachable!("catalog dispatch supplies an exact same-view copy rule"),
     }
     .map_err(OptimizedPostAllocationMachineOptimizationError::SameViewCopyElision)?;
@@ -119,6 +130,15 @@ pub(super) fn validate_with_inputs<S: ValidatedSelectedAnalysis>(
         }
         Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1 => {
             validate_aarch64_same_view_copy_i64_before_compare_i64_left_operand(
+                selected,
+                liveness,
+                machine.machine(),
+                physical,
+                staged.elision().plan().clone(),
+            )
+        }
+        Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 => {
+            validate_aarch64_same_view_copy_i64_before_compare_i64_right_operand(
                 selected,
                 liveness,
                 machine.machine(),

@@ -1,6 +1,6 @@
 use omega_target::Architecture;
 
-use super::super::{Aarch64SameViewCopyElisionError, SameViewCopyInputs};
+use crate::{Aarch64SameViewCopyElisionError, SameViewCopyInputs};
 
 pub(super) fn validate(
     inputs: &SameViewCopyInputs<'_>,

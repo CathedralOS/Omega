@@ -64,6 +64,7 @@ fn decode_optimization(tag: u8) -> Result<Optimization, Error> {
         17 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1),
         18 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1),
         19 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1),
+        20 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1),
         value => Err(Error::UnknownPostAllocationMachineOptimization(value)),
     }
 }

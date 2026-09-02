@@ -1134,6 +1134,14 @@ Shared mechanics belong at the nearest ancestor where at least two exact
 leaves consume the same semantic contract. Producer and validator mechanics
 remain separate even when they share neutral canonical vocabulary.
 
+The AArch64 copy-elision family demonstrates that ownership boundary. Exact
+return, compare-zero, CompareI64-left, and CompareI64-right leaves retain their
+own entrances, contracts, patterns, computation, validation, and tests. Their
+rule-neutral plan, identity, and codec descend through
+`same_view_copy_elision/artifact/`; shared fixture construction descends
+through the adjacent `test_support/` group and an ordered-right fixture leaf.
+No exact rule owns another exact rule's persistence or test vocabulary.
+
 Tests mirror production taxonomy. Large matrices descend first by artifact or
 rule family, then by behavior such as `positive`, `source_corruption`,
 `target_corruption`, and `compatibility`.

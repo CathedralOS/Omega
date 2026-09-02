@@ -1,6 +1,6 @@
 use crate::{Aarch64SameViewCopyElisionError, aarch64_same_view_copy_elision_identity};
 
-use super::super::super::elide_same_view_copy_before_return::tests::fixture;
+use super::super::super::same_view_copy_elision::test_support::fixture;
 
 #[test]
 fn independent_replay_rejects_every_reauthenticated_action_field_corruption() {
