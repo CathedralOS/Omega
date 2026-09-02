@@ -26,6 +26,8 @@ pub use candidate::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, ConsumerScopedSemanticBindingReviewInput,
     PackageSourceVerificationPhase, ReviewOnlyCanonicalRow, ReviewOnlySourceConsumptionCommitment,
+    ReviewedPackageProductionCandidate, compile_resolved_package_candidate_for_production,
+    compile_resolved_package_candidate_for_production_with_semantic_bindings,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
 };

@@ -261,15 +261,16 @@ explicitly.
   - add package/application replay, tampering, and role-change fixtures as each
     accepted-lock, command, and audit boundary lands.
 
-- [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.**
-  Route native-image production through the sponsored package transaction
-  without rerunning `build.omg` or reopening discovery. Lower the exact frozen
-  checked program after generated-source handoff, retain the unpublished native
-  artifact as an exact subject, reconstruct every source/build/generated/native
-  commitment, and publish only after complete accepted comparison. Consume the
-  retained application-root `PackageKey` and role above; exact requested-target
-  identity comes from **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in
-  `TASKS.md`.
+- [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION — finish accepted
+  publication around retained reviewed production.**
+  - join the retained unpublished native artifact to complete recheckable
+    package evidence and accepted-lock state after the remaining P2 authority
+    and final-realization lanes close;
+  - consume the application-root `PackageKey`, authored role, and exact
+    requested-target identity from
+    **IMMUTABLE-TARGET-ACTIVATION-AND-REACH-CLOSURE** in `TASKS.md`; and
+  - publish only after exact source/build/generated/native comparison and
+    `PackageInstance` construction succeed.
 
 - [ ] **OPTIONAL-STDLIB-BUILD-PROTOCOL-AND-SEMANTIC-BINDINGS.** Finish the
   ordinary-package std migration without recreating a privileged `std` role.

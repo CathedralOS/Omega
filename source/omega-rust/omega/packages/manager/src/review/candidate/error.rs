@@ -1,7 +1,9 @@
 use super::PackageSourceVerificationPhase;
 use crate::declarations::PackageKey;
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
-use omega_package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputError};
+use omega_package_compilation::{
+    AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
+};
 use omega_package_evidence::encoding::PackageReviewEncodingError;
 use omega_package_source::SourceResolveError;
 use psi_checked_interpreter::FilesystemSponsorError;
@@ -114,6 +116,10 @@ pub enum CompileResolvedPackageReviewsError {
     },
     IdentityMismatch {
         package: PackageKey,
+    },
+    InvalidProductionRootRole {
+        package: PackageKey,
+        role: BuildDeclarationKind,
     },
     RetainedObligationLedgerBudget {
         package: PackageKey,
@@ -293,6 +299,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::IdentityMismatch { package } => write!(
                 formatter,
                 "compiler review identity did not match package `{}`",
+                package.name().as_str()
+            ),
+            Self::InvalidProductionRootRole { package, role } => write!(
+                formatter,
+                "reviewed native production requires application root `{}`; found {role:?}",
                 package.name().as_str()
             ),
             Self::RetainedObligationLedgerBudget {

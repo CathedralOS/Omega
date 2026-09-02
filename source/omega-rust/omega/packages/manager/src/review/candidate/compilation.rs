@@ -14,6 +14,7 @@ use super::session::ReviewBuildSession;
 use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
+    ReviewedPackageProductionCandidate,
 };
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
@@ -69,6 +70,87 @@ pub fn compile_resolved_package_candidate_reviews(
     )
 }
 
+/// Compile one install/update candidate and retain its exact final checked
+/// application root for later accepted production.
+pub fn compile_resolved_package_candidate_for_production(
+    closure: &ResolvedPackageSourceClosure,
+    target: &str,
+    build_root: &Path,
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    let preliminary = compile_resolved_package_candidate_for_production_with_semantic_bindings(
+        closure,
+        target,
+        build_root,
+        &[],
+    )?;
+    let semantic_binding_inputs = candidate_semantic_binding_inputs(preliminary.reviews())?;
+    if semantic_binding_inputs.is_empty() {
+        return Ok(preliminary);
+    }
+    compile_resolved_package_candidate_for_production_with_semantic_bindings(
+        closure,
+        target,
+        build_root,
+        &semantic_binding_inputs,
+    )
+}
+
+/// Compile one candidate with explicit consumer policy and retain the checked
+/// root from that same final review pass.
+pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
+    closure: &ResolvedPackageSourceClosure,
+    target: &str,
+    build_root: &Path,
+    semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    let root = closure.graph().root().clone();
+    if closure.root_role() != omega_package_compilation::BuildDeclarationKind::Application {
+        return Err(
+            CompileResolvedPackageReviewsError::InvalidProductionRootRole {
+                package: root,
+                role: closure.root_role(),
+            },
+        );
+    }
+    let semantic_bindings_by_consumer =
+        semantic_bindings_by_consumer(closure, semantic_binding_inputs)?;
+    let build_session = ReviewBuildSession::create(build_root)?;
+    let result = compile_resolved_package_reviews_in_session(
+        closure,
+        target,
+        build_session.root(),
+        build_session.filesystem_sponsor(),
+        build_session.evaluation_sponsor(),
+        &semantic_bindings_by_consumer,
+        true,
+    );
+    let compiled = build_session.dispose(result)?;
+    let root_path = closure
+        .source_root(&root)
+        .expect("validated source closure retains its root custody")
+        .join("main.omg");
+    let checked_root = compiled.checked_root.ok_or_else(|| {
+        CompileResolvedPackageReviewsError::IdentityMismatch {
+            package: root.clone(),
+        }
+    })?;
+    let checked_subject = checked_root.package_compilation_subject();
+    if checked_subject.map(|subject| subject.root()) != Some(root.identity())
+        || checked_subject.map(|subject| subject.root_role()) != Some(closure.root_role())
+        || checked_root.selected_target_profile() != Some(closure.target_profile())
+    {
+        return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: root });
+    }
+    Ok(ReviewedPackageProductionCandidate {
+        reviews: compiled.reviews,
+        root,
+        root_path,
+        root_role: closure.root_role(),
+        target_profile: closure.target_profile(),
+        checked_root,
+    })
+}
+
 /// Compile candidate reviews with explicit consumer-policy semantic bindings.
 ///
 /// Inputs are scoped to one exact consumer. Each package receives only its own
@@ -91,8 +173,16 @@ pub fn compile_resolved_package_reviews_with_semantic_bindings(
         build_session.filesystem_sponsor(),
         build_session.evaluation_sponsor(),
         &semantic_bindings_by_consumer,
+        false,
     );
-    build_session.dispose(result)
+    build_session
+        .dispose(result)
+        .map(|compiled| compiled.reviews)
+}
+
+struct CompiledPackageReviews {
+    reviews: CompilerIssuedPackageReviewSet,
+    checked_root: Option<omega_compiler::CheckedCompilation>,
 }
 
 fn compile_resolved_package_reviews_in_session(
@@ -102,8 +192,10 @@ fn compile_resolved_package_reviews_in_session(
     filesystem_sponsor: &FilesystemSponsor,
     evaluation_sponsor: &BuildEvaluationSponsor,
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
-) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    retain_checked_root: bool,
+) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
+    let mut checked_root = None;
     let mut retained_obligation_ledger_total = 0usize;
     for key in dependency_first_package_order(closure) {
         verify_transitive_source_custody(
@@ -335,6 +427,9 @@ fn compile_resolved_package_reviews_in_session(
             obligation_results,
             comparison_rows,
         });
+        if retain_checked_root && &key == closure.graph().root() {
+            checked_root = Some(checked);
+        }
     }
     let reported_fuel = reviews.iter().try_fold(0_u64, |total, review| {
         let Some(usage) = review.build_evaluation_usage() else {
@@ -496,5 +591,8 @@ fn compile_resolved_package_reviews_in_session(
             },
         );
     }
-    Ok(CompilerIssuedPackageReviewSet { reviews })
+    Ok(CompiledPackageReviews {
+        reviews: CompilerIssuedPackageReviewSet { reviews },
+        checked_root,
+    })
 }

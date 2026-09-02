@@ -9,6 +9,7 @@ use omega_package_evidence::ledger::{
 };
 use omega_package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
 use omega_package_source::ImmutableSourceResolution;
+use std::path::PathBuf;
 
 /// Compiler-issued review material for one exact package source selection.
 ///
@@ -119,6 +120,22 @@ pub struct CompilerIssuedPackageReviewSet {
     pub(super) reviews: Vec<CompilerIssuedPackageReview>,
 }
 
+/// One frozen package-review result together with the exact checked root that
+/// produced its final policy-bearing rows.
+///
+/// This carrier is deliberately non-clonable. It is not accepted evidence, a
+/// package instance, or publication authority; admission may inspect the
+/// review set before consuming the checked root into unpublished production.
+#[derive(Debug)]
+pub struct ReviewedPackageProductionCandidate {
+    pub(super) reviews: CompilerIssuedPackageReviewSet,
+    pub(super) root: PackageKey,
+    pub(super) root_path: PathBuf,
+    pub(super) root_role: omega_package_compilation::BuildDeclarationKind,
+    pub(super) target_profile: omega_target::TargetProfile,
+    pub(super) checked_root: omega_compiler::CheckedCompilation,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageSourceVerificationPhase {
     BeforeCompilation,
@@ -132,5 +149,33 @@ impl CompilerIssuedPackageReviewSet {
 
     pub fn review(&self, key: &PackageKey) -> Option<&CompilerIssuedPackageReview> {
         self.reviews.iter().find(|review| review.key() == key)
+    }
+}
+
+impl ReviewedPackageProductionCandidate {
+    pub const fn reviews(&self) -> &CompilerIssuedPackageReviewSet {
+        &self.reviews
+    }
+
+    pub const fn root(&self) -> &PackageKey {
+        &self.root
+    }
+
+    pub const fn root_role(&self) -> omega_package_compilation::BuildDeclarationKind {
+        self.root_role
+    }
+
+    pub const fn target_profile(&self) -> omega_target::TargetProfile {
+        self.target_profile
+    }
+
+    pub(crate) fn into_production_parts(
+        self,
+    ) -> (
+        CompilerIssuedPackageReviewSet,
+        PathBuf,
+        omega_compiler::CheckedCompilation,
+    ) {
+        (self.reviews, self.root_path, self.checked_root)
     }
 }

@@ -11,6 +11,7 @@ use omega_package_evidence::record::{
 };
 use omega_package_manager::admission::{
     accept_ordinary_closure_evidence, accepted_terminal_authority_permission_policy,
+    realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy,
     realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy,
 };
 use omega_package_manager::declarations::{PackageKey, PackageName};
@@ -23,6 +24,7 @@ use omega_package_manager::review::{
     ConsumerScopedSemanticBindingReviewInput, FreshPackageRootPolicyError,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyDisposition,
     bind_fresh_package_root_policy, compare_review_only_initial_capabilities,
+    compile_resolved_package_candidate_for_production_with_semantic_bindings,
     compile_resolved_package_candidate_reviews, compile_resolved_package_reviews,
     compile_resolved_package_reviews_with_semantic_bindings,
     resolve_review_only_root_policy_decisions,
@@ -231,13 +233,24 @@ invokes console;
         ) if consumer == root_key
     ));
 
-    let reviews = compile_resolved_package_reviews_with_semantic_bindings(
-        &closure,
-        "linux_x86_64",
-        &temporary.0.join("accepted-build"),
-        std::slice::from_ref(&binding_input),
-    )
-    .expect("compile exact consumer-bound Console review with explicit terminal permission");
+    let production_candidate =
+        compile_resolved_package_candidate_for_production_with_semantic_bindings(
+            &closure,
+            "linux_x86_64",
+            &temporary.0.join("accepted-build"),
+            std::slice::from_ref(&binding_input),
+        )
+        .expect("compile exact consumer-bound Console review with explicit terminal permission");
+    assert_eq!(production_candidate.root(), &root_key);
+    assert_eq!(
+        production_candidate.root_role(),
+        BuildDeclarationKind::Application
+    );
+    assert_eq!(
+        production_candidate.target_profile(),
+        omega_target::TargetProfile::LinuxX64
+    );
+    let reviews = production_candidate.reviews();
     let root_review = reviews.review(&root_key).expect("bound root review");
     assert_eq!(root_review.semantic_bindings(), &[binding.clone()]);
     let [authority] = root_review.projection().dangerous_authorities() else {
@@ -413,19 +426,18 @@ invokes console;
     )
     .expect("accepted package application checks for subject mutation coverage");
 
-    let report =
-        compile_terminal_report("terminal-build", root_evidence.semantic_bindings().to_vec());
     let receiving_policy_identity = accepted_permission_policy.identity();
-    let native = realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
-        report,
-        &evidence,
-        &psi_proof_admission::AdmissionProfile::default(),
-        &omega_optimization_core::OptimizationSelections::default(),
-        omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
-        accepted_permission_policy.clone(),
-        &[],
-    )
-    .expect("manager joins accepted evidence to the exact retained Terminal report");
+    let native =
+        realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
+            production_candidate,
+            &evidence,
+            &psi_proof_admission::AdmissionProfile::default(),
+            &omega_optimization_core::OptimizationSelections::default(),
+            omega_terminal_psi_to_native_artifact::current_terminal_authority_policy(),
+            accepted_permission_policy.clone(),
+            &[],
+        )
+        .expect("manager joins accepted evidence to the exact retained Terminal report");
     native
         .validate()
         .expect("manager-realized native artifact remains internally valid");

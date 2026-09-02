@@ -4123,12 +4123,20 @@ access remains policy-package-confined, and statement-position operations
 retain their exact generated target.
 The package-facing source/staging root capabilities, checked relative resolver,
 explicit generated-source handoff, and frozen package-review final pass are
-implemented. The native-image entry still rejects generated-source builds until
-`PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION` runs it inside the same sponsored
-package transaction; it must not invent ambient staging custody. That route
-follows recheckable package evidence and accepted-lock state so a rebuild can be
-compared before installation; it is not a standalone compiler escape hatch.
-`TASKS_PACKAGE_MANAGER.md` owns that integration.
+implemented. Final review can now retain its exact application-root checked
+compilation in a non-clonable production candidate. After the disposable
+sponsored staging session is removed, the compiler consumes that checked value
+directly into a package-bound Terminal report, and manager admission can join
+the report to fresh accepted evidence before producing an unpublished native
+artifact. This continuation does not reload source, rerun `build.omg`, reopen
+dependency discovery, or admit standalone checked values. Generated-source
+custody is retained in the checked product rather than reconstructed from an
+ambient staging path.
+
+Publication remains downstream of complete recheckable package evidence,
+accepted-lock state, the remaining physical/final-realization lanes, and
+`PackageInstance` construction so a rebuild can be compared before
+installation. `TASKS_PACKAGE_MANAGER.md` owns that remaining integration.
 
 ## Still open
 

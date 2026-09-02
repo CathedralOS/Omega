@@ -1,5 +1,4 @@
 //! Omega compilation coordination.
-//!
 //! The rooted API is [`Compiler`]. Domain models are imported from their
 //! owning subsystem crates rather than republished here.
 mod compiler;
@@ -15,6 +14,7 @@ pub use compiler::{
     TrustAdmissionSettlement, compile,
     realize_retained_terminal_artifact_with_source_evaluated_imports,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    retained_terminal_report_from_checked_package,
 };
 pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

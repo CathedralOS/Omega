@@ -95,6 +95,38 @@ pub fn realize_accepted_terminal_artifact_with_source_evaluated_imports_and_poli
     )
 }
 
+/// Consume the exact checked root retained by final package review and realize
+/// it only after joining its Terminal production subject to accepted evidence.
+///
+/// This route never reloads package source, reruns `build.omg`, or reopens
+/// dependency discovery. The review set stays owned for the duration of the
+/// handoff and the resulting native artifact remains unpublished.
+pub fn realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy(
+    candidate: crate::review::ReviewedPackageProductionCandidate,
+    evidence: &AcceptedOrdinaryClosureEvidence,
+    profile: &psi_proof_admission::AdmissionProfile,
+    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    terminal_authority_policy: TerminalAuthorityPolicy,
+    receiving_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,
+    imports: &[omega_compiler::SourceEvaluatedImportSettlement<'_>],
+) -> Result<omega_compiler::RetainedNativeArtifact, Vec<Diagnostic>> {
+    let (_reviews, root_path, checked_root) = candidate.into_production_parts();
+    let report = omega_compiler::retained_terminal_report_from_checked_package(
+        root_path,
+        checked_root,
+        profile.clone(),
+    )?;
+    realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy(
+        report,
+        evidence,
+        profile,
+        optimization_selections,
+        terminal_authority_policy,
+        receiving_terminal_authority_permission_policy,
+        imports,
+    )
+}
+
 fn validate_accepted_terminal_production_subject(
     report: &omega_compiler::CompileReport,
     evidence: &AcceptedOrdinaryClosureEvidence,
