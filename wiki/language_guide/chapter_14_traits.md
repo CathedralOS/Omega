@@ -784,6 +784,19 @@ private indirect slot call used by a bare dynamic parameter. Different-
 conformance or non-cast assignments, aggregate erased calls, storage, joins,
 escaping, and component crossing remain open. Those consumers use the same
 complete normalized maps.
+
+The bounded pass-through lane accepts either `&dyn Trait` or `&mut dyn Trait`
+when the initializer, rebound source, descriptor parameter, and requirement
+receiver all retain the same exact borrow access. A mutable descriptor must
+come from a mutable caller subloan; it cannot be reconstructed from a shared
+selection. The current scalar-returning lane gives the forwarded result a
+durable attached-Unit frame home, so later bounded control flow reads the exact
+normalized result rather than relying on a transient ABI register. Target
+assignment and object/image replay independently rejoin that home to the
+operation, value, integer type, shape, result placement, and emitted store
+bytes on x86-64 and AArch64. Mutation-bearing realization bodies and
+Unit-returning dynamic requirements remain outside this bounded rung.
+
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected
 conformance identity.
