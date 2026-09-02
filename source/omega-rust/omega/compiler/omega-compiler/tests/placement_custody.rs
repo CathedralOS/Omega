@@ -739,6 +739,32 @@ fn depth_sixteen_source_with(
     )
 }
 
+fn depth_seventeen_source_with(
+    header_custody_fields: &str,
+    basilica_custody_fields: &str,
+    packet_custody_fields: &str,
+) -> String {
+    depth_sixteen_source_with(
+        header_custody_fields,
+        "    tabernacle: TabernacleCustody;",
+        "    frame: ChapelCustody;",
+    )
+    .replacen(
+        "pub data Packet {\n    frame: Chapel;\n    sibling: Plain;\n}",
+        "pub data Basilica {\n    chapel: Chapel;\n    marker: u32;\n}\npub data Packet {\n    frame: Basilica;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 64", "offset: 68", 1)
+    .replacen("size_fixed: 68", "size_fixed: 72", 1)
+    .replacen(
+        "data PacketCustody {\n    frame: ChapelCustody;\n}",
+        &format!(
+            "data BasilicaCustody {{\n{basilica_custody_fields}\n}}\ndata PacketCustody {{\n{packet_custody_fields}\n}}"
+        ),
+        1,
+    )
+}
+
 #[test]
 fn source_placement_custody_accepts_the_exact_erased_field_projection() {
     let main = write_program("exact", &source("    authority: Evidence;"));
@@ -1110,7 +1136,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_two_wrapper() {
             "Native::plan",
             "Packet.envelope",
             "represented at offset 0 with width 4",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -1332,7 +1358,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_three_wrapper() {
             "Native::plan",
             "Packet.frame",
             "represented at offset 0 with width 8",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -1449,7 +1475,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_four_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -1600,7 +1626,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_five_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -1760,7 +1786,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_six_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -1938,7 +1964,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_seven_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -2169,7 +2195,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eight_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -2412,7 +2438,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_nine_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -2667,7 +2693,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_ten_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -2814,7 +2840,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_eleven_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -2953,7 +2979,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_twelve_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -3092,7 +3118,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_thirteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -3231,7 +3257,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_fourteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -3370,7 +3396,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_fifteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -3509,7 +3535,7 @@ fn source_placement_custody_rejects_a_zero_layout_depth_sixteen_wrapper() {
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -3541,33 +3567,173 @@ fn source_placement_custody_rejects_a_depth_sixteen_back_edge() {
 }
 
 #[test]
-fn source_placement_custody_keeps_a_seventeenth_record_level_fenced() {
-    let source = depth_sixteen_source_with(
+fn source_placement_custody_accepts_seventeen_nested_projection_record_paths() {
+    let source = depth_seventeen_source_with(
         "    authority: Evidence;",
-        "    tabernacle: TabernacleCustody;",
-        "    frame: ChapelCustody;",
+        "    chapel: ChapelCustody;",
+        "    frame: BasilicaCustody;",
+    );
+    let main = write_program("depth-seventeen-exact", &source);
+    compile_to_checked(&main, None)
+        .expect("exact depth-seventeen placement custody should compile");
+}
+
+#[test]
+fn source_placement_custody_rejects_depth_seventeen_projection_drift() {
+    const LEAF_PATH: &str = "Packet.frame.chapel.tabernacle.sanctum.shrine.reliquary.casket.coffer.lockbox.strongbox.vault.chest.item.boxed.frame.envelope.header.authority";
+    for (name, header, basilica, packet, expected) in [
+        (
+            "depth-seventeen-missing-leaf",
+            "",
+            "    chapel: ChapelCustody;",
+            "    frame: BasilicaCustody;",
+            vec![LEAF_PATH, "omits canonical field path"],
+        ),
+        (
+            "depth-seventeen-missing-inner-projection",
+            "    authority: Evidence;",
+            "",
+            "    frame: BasilicaCustody;",
+            vec![LEAF_PATH, "omits canonical field path"],
+        ),
+        (
+            "depth-seventeen-represented-leaf",
+            "    authority: Evidence;\n    bits: u32;",
+            "    chapel: ChapelCustody;",
+            "    frame: BasilicaCustody;",
+            vec![
+                "Packet.frame.chapel.tabernacle.sanctum.shrine.reliquary.casket.coffer.lockbox.strongbox.vault.chest.item.boxed.frame.envelope.header.bits",
+                "must be absent",
+            ],
+        ),
+        (
+            "depth-seventeen-wrong-type",
+            "    authority: OtherEvidence;",
+            "    chapel: ChapelCustody;",
+            "    frame: BasilicaCustody;",
+            vec!["exact type", "OtherEvidence"],
+        ),
+        (
+            "depth-seventeen-wrong-multiplicity",
+            "    authority: CopyEvidence;",
+            "    chapel: ChapelCustody;",
+            "    frame: BasilicaCustody;",
+            vec!["multiplicity Affine", "multiplicity Unrestricted"],
+        ),
+    ] {
+        let main = write_program(name, &depth_seventeen_source_with(header, basilica, packet));
+        let diagnostics = compile_to_checked(&main, None)
+            .expect_err("depth-seventeen custody drift must fail closed");
+        assert_diagnostic(&diagnostics, &["Native::plan", expected[0], expected[1]]);
+    }
+}
+
+#[test]
+fn source_placement_custody_preserves_depth_first_diagnostic_order_at_depth_seventeen() {
+    const LEAF_PATH: &str = "Packet.frame.chapel.tabernacle.sanctum.shrine.reliquary.casket.coffer.lockbox.strongbox.vault.chest.item.boxed.frame.envelope.header.authority";
+    let source = depth_seventeen_source_with(
+        "    authority: Evidence;",
+        "    sibling: ChapelCustody;",
+        "    frame: BasilicaCustody;",
+    );
+    let main = write_program("depth-seventeen-cross-sibling", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a cross-sibling depth-seventeen projection must fail closed");
+    let messages = diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(messages.len(), 2, "unexpected diagnostics: {messages:#?}");
+    assert!(
+        messages[0].contains(LEAF_PATH) && messages[0].contains("omits canonical field path"),
+        "the missing depth-first leaf must be diagnosed first: {messages:#?}"
+    );
+    assert!(
+        messages[1].contains("Packet.frame.sibling")
+            && messages[1].contains("extra canonical field path"),
+        "the extra sibling must be diagnosed after the missing subtree: {messages:#?}"
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_zero_layout_depth_seventeen_wrapper() {
+    let source = depth_seventeen_source_with(
+        "    authority: Evidence;",
+        "    chapel: ChapelCustody;",
+        "    frame: BasilicaCustody;",
     )
     .replacen(
-        "pub data Packet {\n    frame: Chapel;\n    sibling: Plain;\n}",
-        "pub data Basilica {\n    chapel: Chapel;\n    marker: u32;\n}\npub data Packet {\n    frame: Basilica;\n    sibling: Plain;\n}",
-        1,
-    )
-    .replacen("offset: 64", "offset: 68", 1)
-    .replacen("size_fixed: 68", "size_fixed: 72", 1)
-    .replacen(
-        "data PacketCustody {\n    frame: ChapelCustody;\n}",
-        "data BasilicaCustody {\n    chapel: ChapelCustody;\n}\ndata PacketCustody {\n    frame: BasilicaCustody;\n}",
+        "    bits: u32;\n    authority [erased]: Evidence;",
+        "    phantom [erased]: OtherEvidence;\n    authority [erased]: Evidence;",
         1,
     );
-    let main = write_program("depth-seventeen-fenced", &source);
-    let diagnostics =
-        compile_to_checked(&main, None).expect_err("seventeenth-level custody must remain fenced");
+    let main = write_program("depth-seventeen-zero-wrapper", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a zero-layout seventeenth wrapper must remain outside the custody cohort");
     assert_diagnostic(
         &diagnostics,
         &[
             "Native::plan",
             "Packet.frame",
-            "outside the exact sixteen-record",
+            "outside the exact seventeen-record",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_rejects_a_depth_seventeen_back_edge() {
+    let source = depth_seventeen_source_with(
+        "    authority: Evidence;",
+        "    chapel: ChapelCustody;",
+        "    frame: BasilicaCustody;",
+    )
+    .replacen(
+        "pub data Envelope {\n    header: Header;",
+        "pub data Envelope {\n    header: Basilica;",
+        1,
+    );
+    let main = write_program("depth-seventeen-back-edge", &source);
+    let diagnostics = compile_to_checked(&main, None)
+        .expect_err("a seventeenth-level back-edge must remain outside the custody cohort");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Placed<Native,Packet>",
+            "Packet",
+            "field `frame`",
+            "neither a supported primitive",
+        ],
+    );
+}
+
+#[test]
+fn source_placement_custody_keeps_an_eighteenth_record_level_fenced() {
+    let source = depth_seventeen_source_with(
+        "    authority: Evidence;",
+        "    chapel: ChapelCustody;",
+        "    frame: BasilicaCustody;",
+    )
+    .replacen(
+        "pub data Packet {\n    frame: Basilica;\n    sibling: Plain;\n}",
+        "pub data Cathedral {\n    basilica: Basilica;\n    marker: u32;\n}\npub data Packet {\n    frame: Cathedral;\n    sibling: Plain;\n}",
+        1,
+    )
+    .replacen("offset: 68", "offset: 72", 1)
+    .replacen("size_fixed: 72", "size_fixed: 76", 1)
+    .replacen(
+        "data PacketCustody {\n    frame: BasilicaCustody;\n}",
+        "data CathedralCustody {\n    basilica: BasilicaCustody;\n}\ndata PacketCustody {\n    frame: CathedralCustody;\n}",
+        1,
+    );
+    let main = write_program("depth-eighteen-fenced", &source);
+    let diagnostics =
+        compile_to_checked(&main, None).expect_err("eighteenth-level custody must remain fenced");
+    assert_diagnostic(
+        &diagnostics,
+        &[
+            "Native::plan",
+            "Packet.frame",
+            "outside the exact seventeen-record",
         ],
     );
 }
@@ -3584,7 +3750,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
         (
             "depth-three-array-fenced",
             baseline.replacen("    header: Header;", "    header: [Header; 1];", 1),
-            ["Native::plan", "outside the exact sixteen-record"],
+            ["Native::plan", "outside the exact seventeen-record"],
         ),
         (
             "depth-three-case-fenced",
@@ -3603,7 +3769,7 @@ fn source_placement_custody_keeps_array_and_case_spines_fenced_at_depth_three() 
             baseline
                 .replacen("pub data Header {", "pub data Header<T> {", 1)
                 .replacen("    header: Header;", "    header: Header<u32>;", 1),
-            ["Native::plan", "outside the exact sixteen-record"],
+            ["Native::plan", "outside the exact seventeen-record"],
         ),
     ];
     for (name, source, expected) in cases {
