@@ -356,6 +356,118 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
 }
 
 #[test]
+fn verified_changed_conformance_rebound_retains_both_applications() {
+    let source = r#"
+        trait Measure {
+            machine measure(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        Secondary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Secondary;
+            let result: i32 = erased.measure();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("changed-conformance rebound lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("verified changed-conformance rebound reaches target-neutral Omega");
+
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let dynamic = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallDynamicScalar {
+                dynamic_dispatch, ..
+            } => Some(dynamic_dispatch),
+            _ => None,
+        })
+        .expect("one changed-conformance rebound dispatch");
+
+    assert!(dynamic.has_complete_application_custody(caller.machine, dynamic.dispatch.operation));
+    assert_ne!(
+        dynamic.initial_application.commitment, dynamic.application.commitment,
+        "the initializer and rebound conformance must remain distinct"
+    );
+    assert_ne!(
+        dynamic.initial_application.declaration_identity,
+        dynamic.application.declaration_identity
+    );
+    assert_eq!(
+        dynamic.initial.conformance_application_commitment,
+        dynamic.initial_application.commitment
+    );
+    assert_eq!(
+        dynamic.rebound.conformance_application_commitment,
+        dynamic.application.commitment
+    );
+    assert!(dynamic.initial_application.realization_callables.is_empty());
+    assert_eq!(dynamic.application.realization_callables.len(), 1);
+
+    let optimization = reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).expect("nonzero test fuel schedule"),
+    )
+    .expect("changed-conformance custody reconstructs into the optimizer");
+    validate_psi_optimization_unit(&optimization)
+        .expect("changed-conformance optimizer custody validates independently");
+
+    let mut collapsed = optimization.clone();
+    let collapsed_dispatch = collapsed
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == collapsed.entry)
+        .expect("entry optimization function")
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::CallDynamicScalar {
+                dynamic_dispatch, ..
+            } => Some(dynamic_dispatch),
+            _ => None,
+        })
+        .expect("changed-conformance optimization dispatch");
+    collapsed_dispatch.initial_application = collapsed_dispatch.application.clone();
+    collapsed.identity = recompute_psi_optimization_unit_identity(&collapsed);
+    assert!(
+        validate_psi_optimization_unit(&collapsed).is_err(),
+        "collapsing the initializer into the latest application must invalidate custody"
+    );
+}
+
+#[test]
 fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatch() {
     let source = r#"
         trait Measure {
@@ -424,6 +536,7 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
         initial,
         rebound,
         descriptor,
+        initial_application,
         application,
     } = &argument.source
     else {
@@ -433,6 +546,7 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     assert_eq!(initial.owner, caller.machine);
     assert_eq!(rebound.owner, caller.machine);
     assert_eq!(application.owner, caller.machine);
+    assert_eq!(initial_application, application);
     assert_eq!(
         initial.conformance_application_commitment,
         application.commitment

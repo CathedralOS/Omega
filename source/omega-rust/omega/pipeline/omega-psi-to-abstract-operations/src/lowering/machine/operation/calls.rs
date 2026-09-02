@@ -338,19 +338,27 @@ fn lower_rebound_dynamic_dispatch(
     ) else {
         return Err(LoweringError::InvalidDynamicCall(operation.id));
     };
-    let applications = closed_conformance_applications
+    let initial_applications = closed_conformance_applications
         .iter()
         .filter(|application| {
             application.owner == machine.id
                 && application.report_fingerprint
                     == initial.conformance_application_report_fingerprint
                 && application.commitment == initial.conformance_application_commitment
+        })
+        .collect::<Vec<_>>();
+    let applications = closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            application.owner == machine.id
                 && application.report_fingerprint
                     == rebound.conformance_application_report_fingerprint
                 && application.commitment == rebound.conformance_application_commitment
         })
         .collect::<Vec<_>>();
-    let [application] = applications.as_slice() else {
+    let ([initial_application], [application]) =
+        (initial_applications.as_slice(), applications.as_slice())
+    else {
         return Err(LoweringError::InvalidDynamicCall(operation.id));
     };
     let rows = application
@@ -381,6 +389,7 @@ fn lower_rebound_dynamic_dispatch(
         initial: (*initial).clone(),
         rebound: (*rebound).clone(),
         descriptor: (*descriptor).clone(),
+        initial_application: (*initial_application).clone(),
         application: (*application).clone(),
         dispatch: (*dispatch).clone(),
     })
@@ -563,25 +572,34 @@ fn lower_rebound_argument_source(
     let ([initial], [rebound]) = (initial.as_slice(), rebound.as_slice()) else {
         return Err(LoweringError::InvalidDynamicCall(operation.id));
     };
-    let applications = closed_conformance_applications
+    let initial_applications = closed_conformance_applications
         .iter()
         .filter(|application| {
             application.owner == machine.id
                 && application.report_fingerprint
                     == initial.conformance_application_report_fingerprint
                 && application.commitment == initial.conformance_application_commitment
+        })
+        .collect::<Vec<_>>();
+    let applications = closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            application.owner == machine.id
                 && application.report_fingerprint
                     == rebound.conformance_application_report_fingerprint
                 && application.commitment == rebound.conformance_application_commitment
         })
         .collect::<Vec<_>>();
-    let [application] = applications.as_slice() else {
+    let ([initial_application], [application]) =
+        (initial_applications.as_slice(), applications.as_slice())
+    else {
         return Err(LoweringError::InvalidDynamicCall(operation.id));
     };
     Ok(AbstractDynamicDescriptorSource::Rebound {
         initial: (*initial).clone(),
         rebound: (*rebound).clone(),
         descriptor: (*descriptor).clone(),
+        initial_application: (*initial_application).clone(),
         application: (*application).clone(),
     })
 }

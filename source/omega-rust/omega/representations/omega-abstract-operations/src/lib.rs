@@ -259,15 +259,17 @@ pub struct AbstractResult {
 /// Exact target-neutral custody for one rebound dynamic invocation.
 ///
 /// The two selections retain the initializer and latest runtime source. The
-/// descriptor retains their version relation. `application` is the complete
-/// canonical private-table map, while `dispatch` identifies the sole row
-/// permitted at this call site. Realization machines are table content, not
-/// statically addressed call targets.
+/// descriptor retains their version relation. `initial_application` preserves
+/// the initializer's exact conformance even when the rebound changes it;
+/// `application` is the latest complete canonical private-table map, while
+/// `dispatch` identifies the sole row permitted at this call site. Realization
+/// machines are table content, not statically addressed call targets.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractReboundDynamicDispatch {
     pub initial: TerminalDynamicConformanceSelection,
     pub rebound: TerminalDynamicConformanceSelection,
     pub descriptor: TerminalReboundDynamicDescriptor,
+    pub initial_application: ClosedConformanceApplication,
     pub application: ClosedConformanceApplication,
     pub dispatch: TerminalIndirectDynamicDispatch,
 }
@@ -293,6 +295,7 @@ pub enum AbstractDynamicDescriptorSource {
         initial: TerminalDynamicConformanceSelection,
         rebound: TerminalDynamicConformanceSelection,
         descriptor: TerminalReboundDynamicDescriptor,
+        initial_application: ClosedConformanceApplication,
         application: ClosedConformanceApplication,
     },
     Parameter(TerminalDynamicDescriptorParameter),
@@ -371,6 +374,7 @@ impl AbstractDynamicDescriptorArgument {
                     initial,
                     rebound,
                     descriptor,
+                    initial_application,
                     application,
                 },
             ) => {
@@ -381,12 +385,23 @@ impl AbstractDynamicDescriptorArgument {
                     && descriptor.initial_selection_ordinal == initial.ordinal
                     && descriptor.rebound_selection_ordinal == rebound.ordinal
                     && initial.conformance_application_report_fingerprint
-                        == application.report_fingerprint
+                        == initial_application.report_fingerprint
                     && rebound.conformance_application_report_fingerprint
                         == application.report_fingerprint
-                    && initial.conformance_application_commitment == application.commitment
+                    && initial.conformance_application_commitment == initial_application.commitment
                     && rebound.conformance_application_commitment == application.commitment
+                    && initial_application.owner == caller
                     && application.owner == caller
+                    && initial_application.report_fingerprint != 0
+                    && !initial_application.commitment.is_zero()
+                    && initial_application.report_fingerprint
+                        == psi_terminal::closed_conformance_application_report_fingerprint(
+                            initial_application,
+                        )
+                    && initial_application.commitment
+                        == psi_terminal::closed_conformance_application_commitment(
+                            initial_application,
+                        )
                     && application.report_fingerprint != 0
                     && !application.commitment.is_zero()
                     && application.report_fingerprint
@@ -397,6 +412,20 @@ impl AbstractDynamicDescriptorArgument {
                         == psi_terminal::closed_conformance_application_commitment(application)
                     && initial.source.access == self.target.access
                     && rebound.source.access == self.target.access
+                    && initial_application.trait_identity == application.trait_identity
+                    && initial_application.trait_lifetime_arguments
+                        == application.trait_lifetime_arguments
+                    && initial_application.trait_arguments == application.trait_arguments
+                    && initial_application.telescope == application.telescope
+                    && initial_application.rows.len() == application.rows.len()
+                    && initial_application.rows.iter().zip(&application.rows).all(
+                        |(initial, rebound)| {
+                            initial.declaring_trait_identity == rebound.declaring_trait_identity
+                                && initial.public_requirement_identity
+                                    == rebound.public_requirement_identity
+                                && initial.requirement_identity == rebound.requirement_identity
+                        },
+                    )
                     && application.trait_identity == self.target.trait_identity
                     && application.rows.len() == self.target.requirements.len()
                     && application.rows.iter().zip(&self.target.requirements).all(
@@ -441,12 +470,23 @@ impl AbstractReboundDynamicDispatch {
         self.initial.owner == owner
             && self.rebound.owner == owner
             && self.descriptor.owner == owner
+            && self.initial_application.owner == owner
             && self.application.owner == owner
             && self.dispatch.owner == owner
             && self.descriptor.initial_selection_ordinal == self.initial.ordinal
             && self.descriptor.rebound_selection_ordinal == self.rebound.ordinal
             && self.dispatch.operation == operation
             && self.dispatch.descriptor_ordinal == self.descriptor.ordinal
+            && self.initial_application.report_fingerprint != 0
+            && !self.initial_application.commitment.is_zero()
+            && self.initial_application.report_fingerprint
+                == psi_terminal::closed_conformance_application_report_fingerprint(
+                    &self.initial_application,
+                )
+            && self.initial_application.commitment
+                == psi_terminal::closed_conformance_application_commitment(
+                    &self.initial_application,
+                )
             && self.application.report_fingerprint != 0
             && !self.application.commitment.is_zero()
             && self.application.report_fingerprint
@@ -455,11 +495,30 @@ impl AbstractReboundDynamicDispatch {
                 )
             && self.application.commitment
                 == psi_terminal::closed_conformance_application_commitment(&self.application)
-            && [&self.initial, &self.rebound].into_iter().all(|selection| {
-                selection.conformance_application_report_fingerprint
-                    == self.application.report_fingerprint
-                    && selection.conformance_application_commitment == self.application.commitment
-            })
+            && self.initial.conformance_application_report_fingerprint
+                == self.initial_application.report_fingerprint
+            && self.initial.conformance_application_commitment
+                == self.initial_application.commitment
+            && self.rebound.conformance_application_report_fingerprint
+                == self.application.report_fingerprint
+            && self.rebound.conformance_application_commitment == self.application.commitment
+            && self.initial_application.trait_identity == self.application.trait_identity
+            && self.initial_application.trait_lifetime_arguments
+                == self.application.trait_lifetime_arguments
+            && self.initial_application.trait_arguments == self.application.trait_arguments
+            && self.initial_application.telescope == self.application.telescope
+            && self.initial_application.rows.len() == self.application.rows.len()
+            && self
+                .initial_application
+                .rows
+                .iter()
+                .zip(&self.application.rows)
+                .all(|(initial, rebound)| {
+                    initial.declaring_trait_identity == rebound.declaring_trait_identity
+                        && initial.public_requirement_identity
+                            == rebound.public_requirement_identity
+                        && initial.requirement_identity == rebound.requirement_identity
+                })
             && self
                 .application
                 .rows

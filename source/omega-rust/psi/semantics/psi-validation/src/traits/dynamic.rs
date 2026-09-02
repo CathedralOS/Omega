@@ -236,7 +236,7 @@ pub fn collect_dynamic_conformance_selections(
         }
     }
 
-    collect_same_conformance_dynamic_rebindings(program, &mut selections, &mut diagnostics);
+    collect_named_conformance_dynamic_rebindings(program, &mut selections, &mut diagnostics);
 
     // Validate pass-through only after the complete local-selection catalog is
     // known. A call may use a selection authored earlier in its state; no
@@ -269,7 +269,7 @@ pub fn collect_dynamic_conformance_selections(
     }
 }
 
-fn collect_same_conformance_dynamic_rebindings(
+fn collect_named_conformance_dynamic_rebindings(
     program: &TypedTrees,
     selections: &mut Vec<DynamicConformanceSelection>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -354,9 +354,9 @@ fn collect_same_conformance_dynamic_rebindings(
                 else {
                     unreachable!("normalized_dynamic_coercion returns a dynamic-trait target")
                 };
-                if *target_trait != initial.target_trait || *conformance != initial.conformance {
+                if *target_trait != initial.target_trait || conformance.is_none() {
                     diagnostics.push(Diagnostic::error(format!(
-                        "dynamic local rebind `{}` must retain its exact trait and named conformance",
+                        "dynamic local rebind `{}` must retain its exact trait and a named conformance",
                         initial.binding_name
                     )));
                     continue;
@@ -420,7 +420,7 @@ fn collect_same_conformance_dynamic_rebindings(
                     source_path: source_place.path,
                     source_data,
                     target_trait: initial.target_trait,
-                    conformance: initial.conformance,
+                    conformance: *conformance,
                 });
             }
         }

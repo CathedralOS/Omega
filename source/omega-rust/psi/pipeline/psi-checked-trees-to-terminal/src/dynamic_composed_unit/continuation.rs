@@ -73,6 +73,20 @@ pub(super) fn lower(
     }
     let (application, selected_row) =
         lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let initial_application = match lane {
+        DynamicLoweringLane::Rebound(initial)
+            if initial.fact.conformance != plan.selection.conformance
+                || initial.fact.rows != plan.selection.rows =>
+        {
+            Some(lower_initial_rebound_application(
+                checked,
+                plan,
+                initial,
+                caller_machine,
+            )?)
+        }
+        _ => None,
+    };
     let guard = lower_checked_scalar_expression(&continuation.guard)?;
     validate_direct_parameter_types(&guard, &[call_result_type])?;
     let mut next_value = 2;
@@ -171,6 +185,7 @@ pub(super) fn lower(
         caller_machine,
         call_operation,
         source,
+        initial_application.as_ref(),
         &application,
         &selected_row,
         callable_identity,
@@ -234,7 +249,23 @@ pub(super) fn lower(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
-            closed_conformance_applications: vec![application],
+            closed_conformance_applications: {
+                let mut applications = vec![application];
+                applications.extend(initial_application);
+                applications.sort_by(|left, right| {
+                    (
+                        left.owner,
+                        left.declaration_identity.as_str(),
+                        left.report_fingerprint,
+                    )
+                        .cmp(&(
+                            right.owner,
+                            right.declaration_identity.as_str(),
+                            right.report_fingerprint,
+                        ))
+                });
+                applications
+            },
             dynamic_dispatch,
             quotient_correspondences: Vec::new(),
             machines: {

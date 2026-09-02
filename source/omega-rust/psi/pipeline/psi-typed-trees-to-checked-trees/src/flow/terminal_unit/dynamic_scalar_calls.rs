@@ -1055,8 +1055,8 @@ fn checked_rebound_dynamic_selection(
         || initial.state != rebound.state
         || initial.source_data != rebound.source_data
         || initial.target_trait != rebound.target_trait
-        || initial.conformance != rebound.conformance
-        || initial.rows != rebound.rows
+        || initial.conformance.is_none()
+        || rebound.conformance.is_none()
     {
         return None;
     }

@@ -38,6 +38,32 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     machine_plan_from_source(source, target)
 }
 
+fn changed_conformance_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    machine_plan_from_source(
+        r#"
+            trait Measure { machine measure(&self) -> i32; }
+            data Item { value: i32; }
+            Primary: Item satisfies Measure {
+                machine measure(&self) -> i32 { transition { _ -> self.value } }
+            }
+            Secondary: Item satisfies Measure {
+                machine measure(&self) -> i32 { transition { _ -> self.value } }
+            }
+            data Main { decoy: Item; selected: Item; }
+            machine Main::run(&mut self) {
+                let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+                erased = &self.selected as &dyn Item::Secondary;
+                let result: i32 = forward(erased);
+            }
+            machine forward(erased: &dyn Measure) -> i32 {
+                let result: i32 = erased.measure();
+                transition { _ -> result }
+            }
+        "#,
+        target,
+    )
+}
+
 fn direct_scalar_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     machine_plan_from_source(
         r#"
@@ -159,6 +185,55 @@ fn object_image_and_installation_replay_direct_selection_scalar_forwarding() {
         );
         validate_installation_record(&installation, &image)
             .expect("replay direct-selection scalar installed evidence");
+    }
+}
+
+#[test]
+fn object_image_and_installation_replay_changed_conformance_forwarding() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = changed_conformance_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one changed-conformance forwarded call expected")
+        };
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one changed-conformance descriptor argument expected")
+        };
+        let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+            initial_application,
+            application,
+            ..
+        } = &argument.custody.source
+        else {
+            panic!("changed-conformance forwarding must retain rebound custody")
+        };
+        assert_ne!(initial_application.commitment, application.commitment);
+        assert!(initial_application.realization_callables.is_empty());
+        assert_eq!(application.realization_callables.len(), 1);
+
+        let object = build_object_artifact(&plan)
+            .expect("replay changed-conformance forwarded object evidence");
+        assert!(object.dynamic_conformance_tables().is_empty());
+        let [table] = object.forwarded_dynamic_descriptor_tables() else {
+            panic!("only the live changed-conformance forwarded table should materialize")
+        };
+        assert_eq!(table.application.commitment, application.commitment);
+        assert_ne!(table.application.commitment, initial_application.commitment);
+        let image =
+            emit_executable_image(&object, 3).expect("link changed-conformance forwarded image");
+        validate_executable_image(&object, &image)
+            .expect("replay changed-conformance linked image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build changed-conformance installation");
+        validate_installation_record(&installation, &image)
+            .expect("replay changed-conformance installed evidence");
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
 }
 
