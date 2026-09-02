@@ -287,6 +287,16 @@ and optimized custody (160 cases each). The optimized fixture proves the
 canonical nonzero goal from the divisor constant's semantic equality and a
 closed integer relation. Immediate return, address, parameter, operand-order,
 obligation, and adjacent division/remainder-policy substitutions fail closed.
+Proof-bearing wrapping remainder over two constants is a separate exact catalog
+row with the same fixed-integer and nonzero-divisor boundary. Its receipt
+recomputes remainder semantics, but target replay still requires the authored
+wrapping-remainder expression, obligation, ordered immediate children,
+provenance, and return edge. Eight fixed types cross four ordered boundary
+pairs on all five targets at direct and optimized custody (160 cases each),
+including signed negative remainder and `MIN % -1`. The divide and remainder
+fixtures use one shared canonical nonzero certificate constructor behind tiny
+policy-specific wrappers; immediate proof erasure and all adjacent policies
+fail closed independently.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers

@@ -17,5 +17,6 @@ mod wrapping_divide_immediate_operands;
 mod wrapping_multiply;
 mod wrapping_multiply_immediate;
 mod wrapping_remainder;
+mod wrapping_remainder_immediate_operands;
 mod wrapping_subtract;
 mod wrapping_subtract_immediate;

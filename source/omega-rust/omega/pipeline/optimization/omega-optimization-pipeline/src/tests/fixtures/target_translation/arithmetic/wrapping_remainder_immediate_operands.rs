@@ -1,11 +1,11 @@
-//! Tiny policy wrapper for proof-bearing wrapping divide over constant operands.
+//! Tiny policy wrapper for proof-bearing wrapping remainder over constant operands.
 
 use super::super::*;
 use super::wrapping_nonzero_immediate_operands::{
     wrapping_nonzero_integer_immediate_operands_return_artifact, WrappingNonzeroIntegerOperation,
 };
 
-pub(crate) fn wrapping_integer_divide_immediate_operands_return_artifact(
+pub(crate) fn wrapping_integer_remainder_immediate_operands_return_artifact(
     scalar_type: IntegerType,
     left: IntegerValue,
     right: IntegerValue,
@@ -14,6 +14,6 @@ pub(crate) fn wrapping_integer_divide_immediate_operands_return_artifact(
         scalar_type,
         left,
         right,
-        WrappingNonzeroIntegerOperation::Divide,
+        WrappingNonzeroIntegerOperation::Remainder,
     )
 }

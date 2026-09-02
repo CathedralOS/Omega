@@ -477,7 +477,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Sixty-eight abstract-to-target families are covered,
+  machine-rule family. Sixty-nine abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -647,6 +647,16 @@ decision. Only true language-semantic questions belong in
   cross four ordered division boundaries on all five targets at direct and
   optimized custody (160 cases each); the optimized fixture derives canonical
   certificate evidence from the divisor constant's semantic equality.
+  The separate proof-bearing constant-operands wrapping-integer-remainder
+  family admits only
+  `[IntegerConstant, IntegerConstant, WrappingIntegerRemainder, Return]` over
+  the same native fixed-integer domain. Independent replay requires the exact
+  obligation and ordered immediate children in
+  `TargetIntegerExpression::WrappingRemainder`; immediate proof erasure and
+  every adjacent division/remainder policy fail closed. Its four boundary
+  pairs include signed negative remainder and `MIN % -1`, producing 160 direct
+  and 160 optimized cases. Divide and remainder share only the canonical
+  certificate test constructor behind tiny policy-specific wrappers.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -1325,6 +1335,17 @@ decision. Only true language-semantic questions belong in
     carriers, operand swaps, obligation drift, parameter division, and every
     adjacent division/remainder policy fail closed. This validates existing
     proof-preserving lowering without authorizing proof erasure.
+  - [x] Add proof-bearing wrapping-integer-remainder with two constant operands
+    as its own exact abstract-to-target family. Its four-operation grammar
+    admits native fixed integers only, independently rejects zero divisors,
+    and retains the authored nonzero-divisor obligation in a wrapping-remainder
+    target expression whose children are the exact ordered immediates. Direct
+    and optimized custody each cover 160 type/pair/target cases, including
+    signed negative remainder and `MIN % -1`, with canonical certificate-
+    derived proof evidence. The divide/remainder fixtures share one proof
+    constructor behind 20-line policy wrappers; immediate materialization,
+    address carriers, operand swaps, obligation drift, parameter remainder,
+    and every adjacent policy fail closed.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both
