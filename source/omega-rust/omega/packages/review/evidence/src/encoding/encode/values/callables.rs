@@ -114,17 +114,20 @@ pub(crate) fn encode_external_executable_supply_key(
             encoder.byte(0);
             encode_callable_conformance(encoder, conformance)
         }
-        PackageReviewExternalRequirement::Operator(operator) => {
+        PackageReviewExternalRequirement::Operator { coordinate, alias } => {
             encoder.byte(1);
-            encode_operator_coordinate(encoder, operator)
+            encode_operator_coordinate(encoder, coordinate)?;
+            encoder.option(alias.as_deref(), |encoder, alias| encoder.string(alias))
         }
         PackageReviewExternalRequirement::TopLevelRequirement {
             identity,
             signature,
+            alias,
         } => {
             encoder.byte(2);
             encode_nominal(encoder, identity)?;
-            encode_external_callable_signature(encoder, signature)
+            encode_external_callable_signature(encoder, signature)?;
+            encoder.option(alias.as_deref(), |encoder, alias| encoder.string(alias))
         }
     }
 }

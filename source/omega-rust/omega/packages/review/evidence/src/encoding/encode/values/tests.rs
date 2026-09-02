@@ -11,7 +11,7 @@ use crate::record::{
     PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
     PackageReviewExternalRequirement, PackageReviewExternalStaticParameter,
     PackageReviewMachineParameterContract, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
+    PackageReviewOperatorCoordinate, PackageReviewSyntheticSourceKind, PackageReviewTypeIdentity,
 };
 use omega_effects::provider_plan::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
@@ -49,6 +49,7 @@ fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
         requirement: PackageReviewExternalRequirement::TopLevelRequirement {
             identity: nominal(requirement_path),
             signature: unit_signature(),
+            alias: None,
         },
         binding: PackageReviewExternalBinding::Syscall { number: 60 },
     };
@@ -62,6 +63,71 @@ fn external_requirement_encoding_appends_the_top_level_requirement_tag() {
         .expect("encode callable signature prefix");
     let tag_offset = prefix.finish().expect("bounded prefix encoding").len();
     assert_eq!(encoded[tag_offset], 2);
+}
+
+#[test]
+fn external_supply_key_retains_authored_non_trait_conformance_aliases() {
+    let package = PackageKeyIdentity::from_digest([9; 32]).expect("package identity");
+    let nominal = |path: &str| PackageReviewNominalIdentity {
+        owner: PackageReviewNominalOwner::Package(package),
+        path: path.to_owned(),
+    };
+    let signature = || PackageReviewExternalCallableSignature {
+        lifetime_parameter_count: 0,
+        static_parameters: Vec::new(),
+        conformance_bounds: Vec::new(),
+        parameters: Vec::new(),
+        return_type: PackageReviewTypeIdentity {
+            canonical: "unit".to_owned(),
+        },
+    };
+    let encode_key = |supply: &PackageReviewExternalExecutableSupply| {
+        let mut encoder = Encoder::bounded(512);
+        encode_external_executable_supply_key(&mut encoder, supply)
+            .expect("encode external supply key");
+        encoder.finish().expect("bounded encoding")
+    };
+
+    let top_level = PackageReviewExternalExecutableSupply {
+        callable: nominal("Completion::complete"),
+        signature: signature(),
+        requirement: PackageReviewExternalRequirement::TopLevelRequirement {
+            identity: nominal("Acknowledgement::complete#exact"),
+            signature: signature(),
+            alias: Some("SelectedCompletion".to_owned()),
+        },
+        binding: PackageReviewExternalBinding::Syscall { number: 60 },
+    };
+    let mut changed_top_level_alias = top_level.clone();
+    let PackageReviewExternalRequirement::TopLevelRequirement { alias, .. } =
+        &mut changed_top_level_alias.requirement
+    else {
+        unreachable!("top-level requirement fixture")
+    };
+    *alias = Some("AlternateCompletion".to_owned());
+    assert_ne!(encode_key(&top_level), encode_key(&changed_top_level_alias));
+
+    let operator = PackageReviewExternalExecutableSupply {
+        callable: nominal("FloatProvider::minimum"),
+        signature: signature(),
+        requirement: PackageReviewExternalRequirement::Operator {
+            coordinate: PackageReviewOperatorCoordinate {
+                identity: nominal("F32::minimum"),
+                parameter_dispatch: "(f32,f32)".to_owned(),
+                result_dispatch: "f32".to_owned(),
+            },
+            alias: Some("SelectedMinimum".to_owned()),
+        },
+        binding: PackageReviewExternalBinding::CompilerIntrinsic,
+    };
+    let mut changed_operator_alias = operator.clone();
+    let PackageReviewExternalRequirement::Operator { alias, .. } =
+        &mut changed_operator_alias.requirement
+    else {
+        unreachable!("operator requirement fixture")
+    };
+    *alias = Some("AlternateMinimum".to_owned());
+    assert_ne!(encode_key(&operator), encode_key(&changed_operator_alias));
 }
 
 #[test]
@@ -86,6 +152,7 @@ fn external_supply_key_retains_exact_return_carrier_and_static_telescope() {
         requirement: PackageReviewExternalRequirement::TopLevelRequirement {
             identity: nominal("Read::read#exact"),
             signature: empty_signature(),
+            alias: None,
         },
         binding: PackageReviewExternalBinding::Syscall { number: 0 },
     };

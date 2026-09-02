@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 124 and row schema version 82. This file
+The canonical review schema is version 125 and row schema version 83. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -10,6 +10,18 @@ external executable supplies, and exact terminal-authority permissions open
 for root admission, and compiler-retained contract-entailment stand-downs open
 for later discharge. The outer ledger encoding remains version 2; no new
 persistence authority is introduced.
+
+Schema v125 / row v83 / recovery v20 makes external executable-supply review
+total for authored conformance aliases on the already-supported top-level
+boundary-requirement and boundary-operator realization shapes. Projection
+first reruns the existing exact realization checks, then copies the authored
+`as Name` beside the independently exact requirement identity or operator
+coordinate. The alias is separate review identity: it does not rename or
+replace either declaration. It enters the canonical external-supply key, so an
+alias change cannot compare as the same supplied realization. All existing
+visibility, telescope, binding, selected-plan, source-custody, and closed
+compiler-intrinsic gates remain in force. The row remains opaque blocking and
+grants no execution, provider admission, package admission, or audit claim.
 
 Schema v124 / row v82 / recovery v20 adds D45's first exact package permission
 row. A compiler-resolved, consumer-supplied semantic binding retains the exact
@@ -202,8 +214,9 @@ Review reruns the exact requirement-realization judgment from retained typed
 custody, and all retained carriers alpha-normalize binder spelling. This opaque
 blocking row grants no provider selection, installation, execution, or audit
 claim.
-Selected generic provider plans, richer static telescopes, aliases, and
-uncatalogued compiler-intrinsic execution remain fail-closed.
+Selected generic provider plans, richer static telescopes, and uncatalogued
+compiler-intrinsic execution remain fail-closed. Authored aliases for this
+already-admitted shape are represented by schema v125 / row v83.
 
 Schema v106 / row v64 makes every external executable-supply key
 self-contained for its callable shape. It retains lifetime and supported
@@ -329,7 +342,9 @@ Operator-bound external supply retains its requirement as the exact existing
 package-qualified operator coordinate in the opaque-blocking executable-supply
 row. Projection rejoins that coordinate with the retained overload symbol and,
 when selected, the exact provider plan; checked rederivation rejects post-check
-requirement drift before any trust row can be issued. The plan's compact FNV is
+requirement drift before any trust row can be issued. Schema v125 / row v83
+also retains an authored conformance alias beside, and never as part of, that
+coordinate. The plan's compact FNV is
 exposed only as `plan_report_fingerprint`; review and canonical encoding retain
 the exact plan name, package owners, schema, target, rows, and declaration
 coordinates, so the report value never admits a plan. Disclosure remains
@@ -429,10 +444,13 @@ bearing, and unsupported-shape neighbors remain outside this admission slice.
 External executable-supply rows may also bind a bodyless, nongeneric,
 lifetime-free external realization to one exact public top-level boundary
 requirement. The tagged requirement identity is the requirement's normalized
-machine-overload identity, not its source spelling. Projection rejoins the
-typed satisfies edge, structural binding, provider type, selected plan when
-present, exact requirement and realization declarations, and authored `via`
-custody. Unselected leaves remain disclosed without implying selection;
+machine-overload identity, not its source spelling. Schema v125 / row v83
+retains an authored conformance alias beside that identity and includes it in
+the external-supply key without treating it as declaration identity.
+Projection rejoins the typed satisfies edge, structural binding, provider
+type, selected plan when present, exact requirement and realization
+declarations, and authored `via` custody. Unselected leaves remain disclosed
+without implying selection;
 compiler-intrinsic execution remains fenced pending its closed catalog. The
 new requirement tag is schema v95 / row v53; canonical-row recovery remains
 v14.

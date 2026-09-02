@@ -284,12 +284,6 @@ pub(super) fn project_callable_conformances(
                         machine.name, conformance.name, requirement_name
                     ))]);
                 }
-                if conformance.alias.is_some() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes boundary operator `{}::{}` through an alias not yet represented by package review",
-                        machine.name, conformance.name, requirement_name
-                    ))]);
-                }
                 validate_selected_boundary_operator_external_supply(
                     compilation,
                     machine,
@@ -300,7 +294,10 @@ pub(super) fn project_callable_conformances(
                 if require_public_trait {
                     operator_realizations.push(PackageReviewOperatorRealization {
                         coordinate: coordinate.clone(),
-                        alias: None,
+                        alias: conformance
+                            .alias
+                            .as_ref()
+                            .map(|alias| alias.as_str().to_owned()),
                     });
                 }
                 external_executable_supply.push(project_external_executable_supply_with_source(
@@ -309,7 +306,13 @@ pub(super) fn project_callable_conformances(
                     PackageReviewExternalExecutableSupply {
                         callable: callable_identity.clone(),
                         signature: (*signature).clone(),
-                        requirement: PackageReviewExternalRequirement::Operator(coordinate),
+                        requirement: PackageReviewExternalRequirement::Operator {
+                            coordinate,
+                            alias: conformance
+                                .alias
+                                .as_ref()
+                                .map(|alias| alias.as_str().to_owned()),
+                        },
                         binding: binding.clone(),
                     },
                 )?);

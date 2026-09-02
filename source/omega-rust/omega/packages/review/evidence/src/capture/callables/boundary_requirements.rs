@@ -64,12 +64,6 @@ pub(super) fn project_top_level_requirement_external_supply(
         requirement,
         conformance,
     )?;
-    if conformance.alias.is_some() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` through an alias not yet represented by package review",
-            machine.name, requirement.name
-        ))]);
-    }
     if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) {
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{}` realizes top-level requirement `{}` through a compiler intrinsic whose closed execution is not yet represented by package review",
@@ -109,6 +103,10 @@ pub(super) fn project_top_level_requirement_external_supply(
             requirement: PackageReviewExternalRequirement::TopLevelRequirement {
                 identity: top_level_requirement_identity(compilation, requirement)?,
                 signature: requirement_signature,
+                alias: conformance
+                    .alias
+                    .as_ref()
+                    .map(|alias| alias.as_str().to_owned()),
             },
             binding: binding.clone(),
         },
