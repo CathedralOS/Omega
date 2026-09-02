@@ -12235,7 +12235,13 @@ checked-result arithmetic decision listed below.
     carrier parameters, mixed receiver requirements, composed control,
     scalar-bearing executable
     helpers, free-machine Terminal lowering, root establishment, and
-    Independent execution remain separately fenced;
+    Independent execution remain separately fenced. Multiple distinct
+    carriers are **DEPENDENCY-BLOCKED**, not language-design-blocked: Terminal
+    structural qualifications currently key one domain plan only by
+    `SemanticDomainId` while also binding one carrier identity, so the shared
+    `Bound` domain cannot honestly represent both `Service<A>` and
+    `Service<B>` in one machine. Land an exact domain-application identity
+    before removing that fence; do not collapse the carrier identities;
   - final Fused custody is split by source responsibility: the 304-line field
     owner rejoins routed record fields, while a private 438-line parameter
     owner independently rejoins direct machine parameters and rejects receipts
