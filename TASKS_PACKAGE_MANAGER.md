@@ -300,7 +300,10 @@ explicitly.
       requester-owned schema visibility under package-scoped compilation;
     - three arithmetic float-helper roots lacking a Terminal composed-Unit plan
       for scalar setup and control; and
-    - three call roots: transition-argument operator finalization; the inline
+    - three call roots: the guarded transition-argument root, whose copied
+      authored operators now retain exact source provenance through checked
+      selection finalization but which still lacks a Terminal composed-Unit
+      plan for its attached closure; the inline
       subslice-member root, whose checked and Terminal composed-Unit custody is
       now closed but whose ordinary-package native path still reaches the
       deliberately Linux-only sealed `Console::exit_process` physical catalog

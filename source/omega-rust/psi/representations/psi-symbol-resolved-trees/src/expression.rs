@@ -819,6 +819,10 @@ impl ExpressionTable {
     }
 
     pub fn copy_from_self(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
+        // A same-table rewrite may retain an authored expression before its
+        // declaration-selection occurrences are minted. Keep the exact source
+        // coordinate so finalization can reunite every retained copy.
+        let source_span = self.source_span(expression);
         let occurrences = self
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
@@ -978,6 +982,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::ZeroValue(type_reference))
             }
         };
+        self.set_source_span(copied, source_span);
         if let Some(exposure) = authored_exposure {
             self.set_authored_expression_exposure(copied, exposure);
         }
