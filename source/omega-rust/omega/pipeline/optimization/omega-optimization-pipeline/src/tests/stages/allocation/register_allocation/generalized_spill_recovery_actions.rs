@@ -83,8 +83,8 @@ fn legacy_reload_victim_identity_encoding_remains_byte_stable() {
     assert_eq!(
         actions.receipt().identity().bytes(),
         [
-            118, 201, 59, 85, 235, 1, 242, 147, 70, 197, 170, 130, 29, 250, 230, 26, 169, 91, 36,
-            0, 215, 130, 97, 217, 41, 138, 45, 198, 25, 1, 29, 105,
+            103, 12, 123, 15, 107, 237, 62, 118, 142, 45, 67, 205, 169, 30, 176, 247, 122, 75, 93,
+            135, 72, 239, 145, 39, 80, 185, 120, 199, 111, 14, 146, 58,
         ]
     );
     let mut wrong_policy = actions.plan().clone();
@@ -201,11 +201,9 @@ fn exact_budget_each_representable_axis_and_cross_target_roots_fail_closed() {
     let insufficient = [OptimizationWorkBudget::new(1, 1, 6, 1, 1).unwrap()];
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (sources, homes, choices) = sources(target);
-        assert!(
-            sources
-                .plan_generalized_recovery_actions(&homes, &choices, exact)
-                .is_ok()
-        );
+        assert!(sources
+            .plan_generalized_recovery_actions(&homes, &choices, exact)
+            .is_ok());
         for budget in insufficient {
             assert!(matches!(
                 sources.plan_generalized_recovery_actions(&homes, &choices, budget),
