@@ -56,7 +56,13 @@ stop the item on one precise owner question before adding machinery.
     lane with fixed-width integer scalar arguments/results and one direct
     compiler-private callback parameter to structural arguments/results,
     ranked control, and port-bearing artifacts. Preserve the exact
-    survivor/child bijection and reconstructible D29/D41 parents;
+    survivor/child bijection and reconstructible D29/D41 parents. For the
+    structural lane, start with one source-rooted canary whose owned,
+    unrestricted flat-record argument reaches a normalized import through a
+    checked Unit plan; current natural receiver/forwarding shapes stop before
+    Terminal construction. Extend that earliest checked custody first, then
+    carry the same argument through lowering and physical replay. Do not land
+    a backend-only structural carrier that no Omega source can exercise;
   - add external realization custody only when independently admitted concrete
     authority exists. Never substitute a self-issued commitment.
 
