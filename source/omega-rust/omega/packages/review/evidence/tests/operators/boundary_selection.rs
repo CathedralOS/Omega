@@ -681,6 +681,71 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_projects_application_closed_inside_specialized_generic_helper() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data GenericMath {}
+pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+pub data GenericProvider {}
+pub machine GenericProvider::identity<Value>(value: Value) -> Value
+satisfies GenericMath::identity
+{ value }
+
+machine apply_identity<Element>(value: Element) -> Element {
+    GenericMath::identity(value)
+}
+
+pub machine exercise(value: i32) -> i32 {
+    apply_identity(value)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("final local substitution should close the helper's boundary application");
+    let review = project_checked_package_review(&checked)
+        .expect("the finally closed application should project as checked review evidence");
+
+    let [application] = review.boundary_application_realizations() else {
+        panic!("one exact finally substituted application")
+    };
+    let PackageReviewBoundaryApplication::Exact(arguments) = application.application() else {
+        panic!("generic operator use retains a nonempty exact application")
+    };
+    let [
+        PackageReviewBoundaryApplicationArgument::Type {
+            binder_ordinal,
+            type_identity,
+        },
+    ] = arguments.as_slice()
+    else {
+        panic!("identity application retains one type argument")
+    };
+    assert_eq!(*binder_ordinal, 0);
+    assert!(type_identity.canonical().contains("i32"));
+    assert_eq!(
+        application.role(),
+        PackageReviewBoundaryApplicationRealizationRole::SpecializedCheckedBody
+    );
+}
+
+#[test]
 fn review_projects_distinct_specialized_generic_checked_body_applications() {
     let Some(target) = host_target_name() else {
         return;

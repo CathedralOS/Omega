@@ -735,3 +735,223 @@ fn specialized_generic_operator_provider_retains_exact_closed_realization() {
         "specialization replay rejects a retained binder substitution"
     );
 }
+
+#[test]
+fn selected_generic_operator_provider_closes_application_in_specialized_helper() {
+    let source = r#"
+        pub data GenericMath {}
+        pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+
+        pub data GenericProvider {}
+        pub machine GenericProvider::identity<Value>(value: Value) -> Value
+        satisfies GenericMath::identity
+        { value }
+
+        machine helper<Item>(value: Item) -> Item {
+            GenericMath::identity(value)
+        }
+
+        machine exercise(value: i32) -> i32 {
+            helper(value)
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let requirement_operator = typed
+        .operators()
+        .iter()
+        .find(|operator| {
+            typed
+                .operator_path_members(operator.name)
+                .iter()
+                .map(|member| member.as_str())
+                .eq(["GenericMath", "identity"])
+        })
+        .expect("generic identity requirement")
+        .symbol;
+    let realization_machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "GenericProvider::identity")
+        .expect("generic identity provider")
+        .symbol;
+    let checked = crate::lower_typed_trees_with_selected_generic_operator_providers(
+        typed,
+        &[crate::SelectedGenericOperatorProviderSpecialization {
+            requirement_operator,
+            realization_machine,
+        }],
+        &[],
+    )
+    .expect("final substitution closes the selected application");
+
+    let specializations = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| {
+            specialization.template == realization_machine
+                && specialization
+                    .operator_realizations
+                    .iter()
+                    .any(|realization| realization.requirement_symbol == requirement_operator)
+        })
+        .collect::<Vec<_>>();
+    let [specialization] = specializations.as_slice() else {
+        panic!("one exact selected provider specialization")
+    };
+    assert_eq!(specialization.type_argument_identities.len(), 1);
+    assert!(specialization.type_argument_identities[0].contains("i32"));
+    assert!(
+        checked
+            .facts
+            .operators
+            .boundary_applications
+            .iter()
+            .any(|application| {
+                application.requirement_symbol == requirement_operator
+                    && application.arguments.iter().any(|argument| {
+                        matches!(
+                            argument,
+                            psi_checked_trees::CheckedBoundaryOperatorApplicationArgument::Type {
+                                type_reference,
+                                ..
+                            } if checked.typed.primitive_type_reference(*type_reference)
+                                == Some(psi_typed_trees::types::PrimitiveType::I32)
+                        )
+                    })
+            })
+    );
+}
+
+#[test]
+fn selected_generic_operator_provider_discovers_nested_expression_application() {
+    let checked = checked_program_with_selected_generic_providers(
+        r#"
+        pub data GenericMath {}
+        pub boundary operator == GenericMath::equal<Element>(left: Element, right: Element) -> bool;
+
+        pub data GenericProvider {}
+        pub machine GenericProvider::equal<Value>(left: Value, right: Value) -> bool
+        satisfies GenericMath::equal
+        { true }
+
+        machine exercise(left: i32, right: i32) -> bool {
+            !(left == right)
+        }
+        "#,
+        &[("GenericMath", "equal", "GenericProvider::equal")],
+    );
+
+    let provider = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "GenericProvider::equal")
+        .expect("generic provider remains as the authored template");
+    assert_eq!(
+        checked
+            .machine_specializations
+            .iter()
+            .filter(|specialization| specialization.template == provider.symbol)
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn selected_generic_operator_providers_reach_nested_provider_fixed_point() {
+    let checked = checked_program_with_selected_generic_providers(
+        r#"
+        pub data GenericMath {}
+        pub boundary operator GenericMath::identity<Element>(value: Element) -> Element;
+
+        pub data GenericProvider {}
+        pub machine GenericProvider::identity<Value>(value: Value) -> Value
+        satisfies GenericMath::identity
+        { value }
+
+        pub data OuterMath {}
+        pub boundary operator OuterMath::apply<Element>(value: Element) -> Element;
+
+        pub data OuterProvider {}
+        pub machine OuterProvider::apply<Value>(value: Value) -> Value
+        satisfies OuterMath::apply
+        { GenericMath::identity(value) }
+
+        machine exercise(value: i32) -> i32 {
+            OuterMath::apply(value)
+        }
+        "#,
+        &[
+            ("GenericMath", "identity", "GenericProvider::identity"),
+            ("OuterMath", "apply", "OuterProvider::apply"),
+        ],
+    );
+
+    for provider_name in ["GenericProvider::identity", "OuterProvider::apply"] {
+        let provider = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == provider_name)
+            .expect("generic provider remains as the authored template");
+        let selected = checked
+            .machine_specializations
+            .iter()
+            .filter(|specialization| {
+                specialization.template == provider.symbol
+                    && !specialization.operator_realizations.is_empty()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            selected.len(),
+            1,
+            "{provider_name} materializes exactly once"
+        );
+        assert!(selected[0].type_argument_identities[0].contains("i32"));
+    }
+    assert_eq!(
+        checked.facts.operators.boundary_applications.len(),
+        2,
+        "both finally substituted applications reach checked demand custody"
+    );
+}
+
+fn checked_program_with_selected_generic_providers(
+    source: &str,
+    providers: &[(&str, &str, &str)],
+) -> psi_checked_trees::CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let selected = providers
+        .iter()
+        .map(|(namespace, requirement, provider)| {
+            let requirement_operator = typed
+                .operators()
+                .iter()
+                .find(|operator| {
+                    typed
+                        .operator_path_members(operator.name)
+                        .iter()
+                        .map(|member| member.as_str())
+                        .eq([*namespace, *requirement])
+                })
+                .expect("selected requirement exists")
+                .symbol;
+            let realization_machine = typed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == *provider)
+                .expect("selected provider exists")
+                .symbol;
+            crate::SelectedGenericOperatorProviderSpecialization {
+                requirement_operator,
+                realization_machine,
+            }
+        })
+        .collect::<Vec<_>>();
+    crate::lower_typed_trees_with_selected_generic_operator_providers(typed, &selected, &[])
+        .expect("selected generic providers reach final-substitution closure")
+}

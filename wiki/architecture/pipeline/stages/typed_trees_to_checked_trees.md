@@ -289,23 +289,30 @@ Must own:
   provider scaffold.
 
   Omega's selected-provider owner now supplies the exact generic checked-body
-  requirement/provider symbols before final checked lowering. For direct named
-  call roots, including normalized unit statements, Psi independently rederives
-  every closed type/const application from authored operands, keeps the authored
-  generic declaration unchanged, and clones one private authoritative
-  specialization per distinct application. Each specialization retains the
-  exact closed operator realization and commits it with its template,
-  substitutions, selected conformances, and machine contracts. Package review
-  rejoins that custody to the strong selected plan. Canonical-empty
+  requirement/provider symbols before final checked lowering. Psi alternates
+  ordinary generic-machine specialization and selected-provider specialization
+  to a fixed point while retaining an immutable authored provider template.
+  This closes type/const applications that become concrete only inside an
+  ordinary single-instantiation specialized helper, nested expression tree, or
+  newly specialized selected-provider body. Open applications on authored templates remain
+  symbolic non-coverage and are never used to mint a specialization. Psi
+  independently rederives every closed application from the concrete authored
+  operands and clones one private authoritative provider specialization per
+  distinct application. Each specialization retains the exact closed operator
+  realization and commits it with its template, substitutions, selected
+  conformances, and machine contracts. Package review rejoins that custody to
+  the strong selected plan. Canonical-empty
   checked-adapter applications use the same exact join for named and fixed-
   token uses in ordinary value machines; an attached-`Unit` plan supplies an
   independent consistency derivation when present. Nested machine applications
   remain rejected by language checking rather than becoming package-review
   work. Fixed-token generic type and const applications enter the same
   authoritative specialization and exact package-review join as their named
-  counterparts. External generic, symbolic cross-artifact, remaining
-  unsupported telescope categories, Terminal companion, and D32 physical-child
-  work remain fail-closed.
+  counterparts. The implemented local closure does not define an exported
+  symbolic-demand format or a universal generic provider proof. External
+  generic, symbolic cross-artifact, remaining unsupported telescope categories,
+  Terminal companions not supported by the concrete call form, and D32
+  physical-child work remain fail-closed.
 
 The package projector reads each fact from the earliest coherent compiler-owned
 representation in which that fact is semantically complete, then joins checked

@@ -1287,15 +1287,18 @@ Under D28, every emitted artifact retains this finite exact set even if a future
 checked generic body proves universal semantic selection coverage. No such
 universal checked generic operator realization exists today; provider
 assertions and one successful specialization grant nothing. The implemented
-cohort instead derives each local direct named or supported fixed-token
-call-root type/const application (including normalized unit statements),
-preserves the authored generic provider, clones one private specialization per
-distinct application, and replays its exact plan, specialization, and checked-
-body contract in package review. The Terminal product now carries the complete
-source-free demand/realization pair and publishes reconstructible coverage for
-the exact closed set. Nested calls, symbolic cross-artifact applications,
-unsupported fixed-token shapes, and external generic authority remain fail-
-closed.
+cohort derives each supported local named or fixed-token type/const application
+(including normalized unit statements), preserves an immutable authored
+generic provider, and alternates ordinary helper and selected-provider
+specialization to a fixed point. This includes applications that become
+concrete inside a single-instantiation specialized scalar helper, a nested
+expression tree, or a newly specialized selected-provider body. One private provider specialization
+is cloned per distinct application, and package review replays its exact plan,
+specialization, and checked-body contract. Supported Terminal products carry
+the complete source-free demand/realization pair and publish reconstructible
+coverage for their exact closed set. Symbolic cross-artifact applications,
+unproven local call or telescope forms, unsupported fixed-token shapes, and
+external generic authority remain fail-closed.
 
 D32 keeps semantic evidence separate from native physical realization. The
 immutable canonical Terminal artifact feeds a validated optimization

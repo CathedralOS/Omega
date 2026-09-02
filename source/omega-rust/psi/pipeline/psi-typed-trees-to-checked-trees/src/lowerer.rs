@@ -70,13 +70,30 @@ fn lower_typed_trees_with_policy(
     crate::authored_selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     crate::normalize_open_index_identities(&mut program)?;
-    crate::monomorphization::specialize_selected_generic_operator_providers(
-        &mut program,
-        selected_generic_operator_providers,
-    )?;
-    let nominal_machine_uses =
+    // Keep the authored generic provider templates immutable while ordinary
+    // machine specialization closes caller binders. Selected providers may be
+    // demanded only by applications copied into those newly concrete bodies,
+    // and a newly selected provider may itself expose another ordinary or
+    // selected generic application. Alternate the two existing elaborators to
+    // a fixed point; neither open applications nor template mutation may be
+    // mistaken for final D29 coverage.
+    let selected_provider_templates = program.clone();
+    let mut nominal_machine_uses =
         crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
     crate::normalize_open_index_identities(&mut program)?;
+    loop {
+        let materialized = crate::monomorphization::specialize_selected_generic_operator_providers(
+            &selected_provider_templates,
+            &mut program,
+            selected_generic_operator_providers,
+        )?;
+        if materialized == 0 {
+            break;
+        }
+        nominal_machine_uses =
+            crate::specialize_static_machine_calls_with_nominal_uses(&mut program)?;
+        crate::normalize_open_index_identities(&mut program)?;
+    }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
     // and before both engines fork off it -- every downstream read (native
