@@ -1,6 +1,8 @@
 use omega_compiler::{
-    CompileOptions, CompileRequest, RequestedCompileProduct, compile, compile_to_checked,
-    compile_to_checked_with_packages, compile_to_checked_with_packages_in_build_dir,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, ExplicitTargetSet,
+    MultiTargetCompileRequest, RequestedCompileProduct, compile, compile_targets,
+    compile_to_checked, compile_to_checked_with_packages,
+    compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
     retained_terminal_report_from_checked_package,
@@ -242,6 +244,93 @@ pub machine consume_generated_value() -> u64 {
             .iter()
             .any(|unit| unit.kind() == ConsumedSourceUnitKind::PackageGenerated),
         "final checked subject must classify retained generated source custody"
+    );
+}
+
+#[test]
+fn multi_target_generated_source_failure_is_child_local() {
+    let tree = TempTree::new();
+    let root = tree.package("multi-target-generated-consumer");
+    let dependency = tree.package("multi-target-generated-producer");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"target linux_x86_64 { }
+target windows_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("multi-target-generated-consumer");
+    builder.depend_as("dependency", Source::Path { location: "../multi-target-generated-producer" });
+}
+"#,
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        "use dependency::generated_api;\npub machine consume() -> u64 { generated_value() }\n",
+    );
+    let base_inputs = PackageCompilationInputs::new(
+        identity(71),
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(
+                identity(71),
+                "multi-target-generated-consumer",
+                root.clone(),
+            ),
+            PackageSourceBinding::new(identity(72), "multi-target-generated-producer", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(71),
+            "dependency",
+            identity(72),
+        )],
+    )
+    .expect("multi-target generated-source graph should close");
+    let child_inputs = |profile: omega_target::TargetProfile| {
+        let source = match profile {
+            omega_target::TargetProfile::LinuxX64 => {
+                b"pub machine generated_value() -> u64 { 17 }\n".as_slice()
+            }
+            omega_target::TargetProfile::WindowsX64 => {
+                b"pub machine generated_value( {\n".as_slice()
+            }
+            _ => unreachable!("fixture target set is exact"),
+        };
+        let bundle = PackageGeneratedSourceBundle::from_checked(
+            identity(72),
+            profile,
+            base_inputs.dependency_closure_for(identity(72)),
+            PackageSourceConsumptionCommitment::for_test([73; 32]),
+            vec![generated_source(b"generated_api.omg", source)],
+        );
+        base_inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![bundle])
+            .expect("exact child should retain its dependency-generated bundle")
+    };
+    let targets = ExplicitTargetSet::from_caller_names(["windows_x64", "linux_x64"])
+        .expect("explicit generated-source targets");
+    let request = MultiTargetCompileRequest::from_target_set(targets, |profile| {
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(tree.0.join("build").join(profile.target_name())),
+            target_name: None,
+        })
+        .with_package_inputs(child_inputs(profile))
+    })
+    .expect("target set remains the only target declaration");
+    let outcomes = compile_targets(request).expect("multi-target request should admit");
+    assert_eq!(outcomes.outcomes().len(), 2);
+    assert!(outcomes.outcomes()[0].succeeded());
+    assert_eq!(
+        outcomes.outcomes()[0].target_profile(),
+        omega_target::TargetProfile::LinuxX64,
+    );
+    assert!(!outcomes.outcomes()[1].succeeded());
+    assert!(
+        outcomes.outcomes()[1]
+            .diagnostics()
+            .expect("malformed Windows bundle should reject its child")
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("generated_api.omg")),
     );
 }
 
@@ -4193,6 +4282,91 @@ fn native_package_product_retains_one_canonical_production_manifest() {
             .require_package_native_physical_evidence()
             .expect_err("standalone production cannot issue package final evidence"),
         omega_compiler::FinalRealizationEvidenceError::PackageProductionManifestRequired,
+    );
+}
+
+#[test]
+fn failing_sibling_does_not_change_successful_package_artifact_identity() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(5)
+        .expect("repository root")
+        .join("tests/omega/pass/optimizer/no_selection_empty_entry");
+    let package = identity(74);
+    let output = TempTree::new();
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "multi-target-artifact-fixture",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("single-package artifact graph");
+    let mut request_for_target = |profile: omega_target::TargetProfile| {
+        CompileRequest::new(CompileOptions {
+            root_path: root.join("main.omg"),
+            build_dir: Some(output.0.join(profile.target_name())),
+            target_name: None,
+        })
+        .with_package_inputs(inputs.clone())
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+    };
+
+    let linux_only = MultiTargetCompileRequest::from_target_set(
+        ExplicitTargetSet::from_caller_names(["linux_x64"]).expect("one exact artifact target"),
+        &mut request_for_target,
+    )
+    .expect("one-target request should materialize");
+    let linux_only = compile_targets(linux_only).expect("one-target batch should admit");
+    let linux_only = linux_only.outcomes()[0]
+        .report()
+        .expect("Linux artifact should compile without siblings");
+    let linux_only_manifest = linux_only
+        .production_manifest()
+        .expect("package artifact should retain its exact manifest");
+
+    let with_failing_sibling = MultiTargetCompileRequest::from_target_set(
+        ExplicitTargetSet::from_caller_names(["uefi_x64", "linux_x64"])
+            .expect("explicit Linux and UEFI targets"),
+        &mut request_for_target,
+    )
+    .expect("two-target request should materialize");
+    let with_failing_sibling =
+        compile_targets(with_failing_sibling).expect("two-target batch should admit");
+    assert_eq!(with_failing_sibling.outcomes().len(), 2);
+    let linux_with_sibling = with_failing_sibling.outcomes()[0]
+        .report()
+        .expect("Linux artifact should survive the failing sibling");
+    assert_eq!(
+        linux_with_sibling
+            .production_manifest()
+            .expect("batched Linux package manifest")
+            .identity(),
+        linux_only_manifest.identity(),
+    );
+    assert_eq!(
+        linux_with_sibling
+            .retained_native_artifact()
+            .expect("batched Linux retained artifact")
+            .identity(),
+        linux_only
+            .retained_native_artifact()
+            .expect("one-target Linux retained artifact")
+            .identity(),
+    );
+    assert_eq!(
+        with_failing_sibling.outcomes()[1].target_profile(),
+        omega_target::TargetProfile::UefiX64,
+    );
+    assert!(
+        with_failing_sibling.outcomes()[1]
+            .diagnostics()
+            .expect("undeclared UEFI target should reject only its child")
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("uefi_x86_64")),
     );
 }
 
