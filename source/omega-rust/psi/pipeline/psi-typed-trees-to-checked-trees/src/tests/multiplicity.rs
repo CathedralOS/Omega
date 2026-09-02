@@ -44,6 +44,7 @@ fn retains_canonical_semantic_permission_events() {
             Kind::Transfer,
             Kind::Establish,
             Kind::Consume,
+            Kind::Establish,
             Kind::AffineDrop,
         ]
     );
@@ -57,9 +58,10 @@ fn retains_canonical_semantic_permission_events() {
             .iter()
             .all(|event| event.multiplicity == psi_language_semantics::Multiplicity::Linear)
     );
-    assert_eq!(
-        events[4].multiplicity,
-        psi_language_semantics::Multiplicity::Affine
+    assert!(
+        events[4..]
+            .iter()
+            .all(|event| event.multiplicity == psi_language_semantics::Multiplicity::Affine)
     );
     let origin = events[0].provenance;
     let claim_identity = events[0].claim_identity;
@@ -82,14 +84,12 @@ fn retains_canonical_semantic_permission_events() {
         "transfers preserve one claim identity rather than minting a new claim per binding"
     );
     assert_eq!(
-        events[4].provenance,
-        psi_language_semantics::PermissionProvenance::Unknown,
-        "affine cleanup without live debt must not invent establishment provenance"
+        events[5].provenance, events[4].provenance,
+        "affine cleanup must preserve its establishment provenance"
     );
     assert_eq!(
-        events[4].claim_identity,
-        psi_language_semantics::PermissionClaimIdentity::Unknown,
-        "no-debt affine cleanup must not invent a live claim identity"
+        events[5].claim_identity, events[4].claim_identity,
+        "affine cleanup must preserve its established claim identity"
     );
 }
 
