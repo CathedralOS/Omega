@@ -616,12 +616,13 @@ fn validate_dynamic_call_arguments(
                 selections,
             );
             if *source_trait == *target_trait
-                && passed.is_some_and(|selection| selection.target_trait == *target_trait)
+                && (passed.is_some_and(|selection| selection.target_trait == *target_trait)
+                    || is_direct_dynamic_parameter(program, caller_state, argument, *target_trait))
             {
                 continue;
             }
             diagnostics.push(Diagnostic::error(format!(
-                "call to `{target_name}` cannot pass dynamic value to bare parameter `{}` without one earlier exact compatible local conformance selection",
+                "call to `{target_name}` cannot pass dynamic value to bare parameter `{}` without one earlier exact compatible local conformance selection or dynamic parameter",
                 parameter.name
             )));
             continue;
@@ -666,6 +667,37 @@ fn validate_dynamic_call_arguments(
             ))),
         }
     }
+}
+
+fn is_direct_dynamic_parameter(
+    program: &TypedTrees,
+    caller_state: &State,
+    argument: ExpressionHandle,
+    target_trait: psi_symbols::SymbolHandle,
+) -> bool {
+    let Some(source) = dynamic_source_place(program, strip_mutable(program, argument)) else {
+        return false;
+    };
+    source.path.len() == 1
+        && program
+            .state_parameters(caller_state)
+            .iter()
+            .any(|parameter| {
+                !parameter.is_self
+                    && parameter.symbol == source.symbol
+                    && dynamic_trait_reference(program, parameter.type_reference).is_some_and(
+                        |node| {
+                            matches!(
+                                node,
+                                TypeReferenceNode::DynamicTrait {
+                                    symbol,
+                                    conformance: None,
+                                    ..
+                                } if *symbol == target_trait
+                            )
+                        },
+                    )
+            })
 }
 
 fn passed_dynamic_selection<'selections>(

@@ -1106,3 +1106,117 @@ fn structural_field_store_planning_rejects_tampered_checked_evidence() {
         "wrong-typed scalar custody must suppress the optional store plan"
     );
 }
+
+#[test]
+fn descriptor_transfer_retains_one_parameter_forwarding_hop() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { item: Item; }
+
+        machine Main::run(&self) {
+            let erased: &dyn Shape = &self.item as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+
+        machine forward(erased: &dyn Shape) -> i32 {
+            let result: i32 = finish(erased);
+            transition { _ -> result }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [selection_transfer, parameter_transfer] = dynamic.transfers.as_slice() else {
+        panic!("two ordered descriptor transfers expected, got {dynamic:#?}")
+    };
+    assert!(matches!(
+        selection_transfer.source,
+        psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+    ));
+    assert!(matches!(
+        parameter_transfer.source,
+        psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+            parameter_position: 0
+        }
+    ));
+    assert_eq!(
+        selection_transfer.target_machine,
+        parameter_transfer.caller_machine
+    );
+    assert_eq!(
+        selection_transfer.target_state,
+        parameter_transfer.caller_state
+    );
+    assert_eq!(
+        selection_transfer.parameter,
+        parameter_transfer.source_binding
+    );
+    assert_eq!(selection_transfer.selection, parameter_transfer.selection);
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+}
+
+#[test]
+fn descriptor_transfer_does_not_collapse_a_control_flow_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { first: Item; second: Item; }
+
+        machine Main::run(&self, choose_first: bool) {
+            let selected_first: &dyn Shape = &self.first as &dyn Item::Primary;
+            let selected_second: &dyn Shape = &self.second as &dyn Item::Primary;
+            transition choose_first {
+                true -> join(selected_first)
+                _ -> join(selected_second)
+            }
+
+            state join(&self, erased: &dyn Shape) {
+                let result: i32 = finish(erased);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert_eq!(dynamic.transfers.len(), 2);
+    assert!(dynamic.transfers.iter().all(|transfer| matches!(
+        transfer.source,
+        psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection
+    )));
+    assert!(
+        dynamic
+            .transfers
+            .iter()
+            .all(|transfer| transfer.target_state == dynamic.transfers[0].target_state)
+    );
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+}

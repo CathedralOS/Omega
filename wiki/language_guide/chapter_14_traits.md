@@ -800,7 +800,18 @@ operation, value, scalar type, shape, result placement, and emitted store
 bytes on x86-64 and AArch64. Installation format 63 retains the same semantic
 result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
-local result interval. A first mutation-bearing realization body is admitted
+local result interval.
+
+A bare dynamic parameter may also be passed onward unchanged to a bare
+parameter of the same trait. Checked custody distinguishes a descriptor made
+from an owner-local selection from one sourced from an incoming parameter and
+retains the original exact selection through an unambiguous call edge. This is
+not yet an executable multi-hop promise: Terminal lowering currently consumes
+one forwarding hop. A parameter state with multiple inbound call sites is a
+real descriptor join and does not acquire parameter-forwarding custody merely
+because the incoming interfaces have the same spelling.
+
+A first mutation-bearing realization body is admitted
 through checked and Terminal form when `&mut self` receives one, two, or three
 distinct ordered primitive-field literal stores, either directly or below exact finite
 paths of relevant named record fields, and then returns an exact scalar self
