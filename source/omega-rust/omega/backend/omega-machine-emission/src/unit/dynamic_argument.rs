@@ -4,8 +4,8 @@ use omega_assigned_target_operations::{
     AssignedDynamicDescriptorArgument, AssignedFunction, AssignedOperation, AssignedUnitOperation,
 };
 use omega_calling_conventions::{
-    evaluate_call_plan, CallSignature, CallingPolicy, IndirectPointerLocation, ValueLocation,
-    ValuePlacement, ValueShape,
+    CallSignature, CallingPolicy, IndirectPointerLocation, ValueLocation, ValuePlacement,
+    ValueShape, evaluate_call_plan,
 };
 use omega_machine_code::{
     DynamicTableAddressEncoding, DynamicTableAddressMaterialization,
@@ -16,14 +16,15 @@ use omega_machine_code::{
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{CallSiteOwner, TargetDynamicDescriptorInstanceArgument};
 
+use super::scalar_call::emit_unit_scalar_result;
 use super::{
-    emit_aarch64_unit_call, emit_x86_64_unit_call, Aarch64UnitParameterHome, X86UnitParameterHome,
+    Aarch64UnitParameterHome, X86UnitParameterHome, emit_aarch64_unit_call, emit_x86_64_unit_call,
 };
 use crate::{
-    aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access, aarch64_unit_register,
-    aarch64_unit_stack_access, append_aarch64_instructions, emit_aarch64_adjust_sp,
-    emit_aarch64_sp_address, emit_x86_64_adjust_sp, emit_x86_64_memory_load_width,
-    emit_x86_64_stack_load_width, x86_unit_register, EmissionError,
+    EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
+    aarch64_unit_register, aarch64_unit_stack_access, append_aarch64_instructions,
+    emit_aarch64_adjust_sp, emit_aarch64_sp_address, emit_x86_64_adjust_sp,
+    emit_x86_64_memory_load_width, emit_x86_64_stack_load_width, x86_unit_register,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -44,6 +45,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         result,
         callee,
         call_plan,
+        result_home,
         copies,
         dynamic_arguments,
         claim_transfers,
@@ -76,6 +78,10 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         || dynamic_arguments.len() != 1
         || *scalar_type != result.scalar_type
         || function_call_plan != call_plan
+        || result_home.defining_operation != *psi_operation
+        || result_home.source_value != result.value
+        || result_home.scalar_type != result_type
+        || result_home.shape != expected_result
         || call_plan.result.as_ref().map(|placement| placement.shape) != Some(expected_result)
         || call_plan.parameters.len() != 2
         || parameter_abi.parameter != dynamic_arguments[0].custody.target
@@ -181,9 +187,17 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         Architecture::X86_64 => (relocation.offset.checked_sub(1).ok_or_else(invalid)?, 5),
         Architecture::Aarch64 => (relocation.offset, 4),
     };
+    let result_record = emit_unit_scalar_result(
+        bytes,
+        target.architecture,
+        *psi_operation,
+        call_plan,
+        *result_home,
+    )?;
     Ok(ForwardedDynamicDescriptorCallRecord {
         psi_operation: *psi_operation,
-        result: *result,
+        semantic_result: *result,
+        result: result_record,
         callee: *callee,
         call_plan: call_plan.clone(),
         dynamic_arguments: emitted_arguments,
@@ -419,11 +433,13 @@ fn materialize_x86_adapter_argument(
     source_shape: ValueShape,
 ) -> Result<(), EmissionError> {
     match placement.locations.as_slice() {
-        [ValueLocation::Register {
-            register,
-            value_byte_offset: 0,
-            byte_size,
-        }] if *byte_size == source_shape.byte_size && *byte_size <= 8 => {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if *byte_size == source_shape.byte_size && *byte_size <= 8 => {
             emit_x86_64_memory_load_width(
                 bytes,
                 x86_unit_register(*register)?,
@@ -432,11 +448,13 @@ fn materialize_x86_adapter_argument(
                 *byte_size,
             )
         }
-        [ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register(register),
-            copy_stack_byte_offset: None,
-            ..
-        }] => emit_x86_register_move(bytes, x86_unit_register(*register)?, erased_register),
+        [
+            ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(register),
+                copy_stack_byte_offset: None,
+                ..
+            },
+        ] => emit_x86_register_move(bytes, x86_unit_register(*register)?, erased_register),
         _ => Err(EmissionError::UnitCallStackAreaNotEncodable),
     }
 }
@@ -507,11 +525,13 @@ fn materialize_aarch64_adapter_argument(
     source_shape: ValueShape,
 ) -> Result<(), EmissionError> {
     match placement.locations.as_slice() {
-        [ValueLocation::Register {
-            register,
-            value_byte_offset: 0,
-            byte_size,
-        }] if *byte_size == source_shape.byte_size && matches!(*byte_size, 1 | 2 | 4 | 8) => {
+        [
+            ValueLocation::Register {
+                register,
+                value_byte_offset: 0,
+                byte_size,
+            },
+        ] if *byte_size == source_shape.byte_size && matches!(*byte_size, 1 | 2 | 4 | 8) => {
             let destination = aarch64_unit_register(*register)?;
             instructions.push(aarch64_unit_memory_access(
                 aarch64_load_base(*byte_size)?,
@@ -522,11 +542,13 @@ fn materialize_aarch64_adapter_argument(
             )?);
             Ok(())
         }
-        [ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register(register),
-            copy_stack_byte_offset: None,
-            ..
-        }] => {
+        [
+            ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(register),
+                copy_stack_byte_offset: None,
+                ..
+            },
+        ] => {
             let destination = aarch64_unit_register(*register)?;
             if destination != erased_register {
                 instructions.push(
@@ -540,11 +562,13 @@ fn materialize_aarch64_adapter_argument(
 }
 
 fn exact_register(placement: &ValuePlacement) -> Option<omega_target_operations::MachineRegister> {
-    let [omega_calling_conventions::ValueLocation::Register {
-        register,
-        value_byte_offset: 0,
-        byte_size: _,
-    }] = placement.locations.as_slice()
+    let [
+        omega_calling_conventions::ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: _,
+        },
+    ] = placement.locations.as_slice()
     else {
         return None;
     };

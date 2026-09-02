@@ -11796,9 +11796,10 @@ checked-result arithmetic decision listed below.
 
   Remaining work:
 
-  - add a host-execution canary for the completed x86-64 forwarded-adapter
-    image and a relocation/result replay canary for AArch64; object, final-image,
-    and installation custody are already complete on both architectures;
+  - add an AArch64 result-execution replay canary; object, final-image, and
+    installation custody are complete on both architectures, and the existing
+    Linux x86-64 full-pipeline canary executes the forwarded adapter and checks
+    the selected instance through exit status;
   - extend the v1 shared-borrow/scalar-call surface when Unit results, mutable
     custody, or additional call forms have exact semantic and physical rules;
   - extend custody to changed-conformance, stored/joined/escaping,

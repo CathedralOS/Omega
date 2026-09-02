@@ -2,18 +2,40 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use omega_abstract_operations::{AbstractFunction, AbstractOperationPlan};
+use omega_abstract_operations::{
+    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractFunction,
+    AbstractOperationPlan, AbstractParameterDynamicScalarDispatch,
+};
 use omega_effects::{
-    provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
     SelectedProviderPlanFacts, TerminalMechanismIdentity,
+    provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
 };
 use psi_core::{BoundaryMachineId, MachineId};
+use psi_terminal::{ClosedConformanceApplication, ClosedConformanceApplicationCommitment};
 
-use super::operations::{authority_edge, AuthorityEdge};
+use super::operations::{AuthorityEdge, authority_edge};
 use crate::realization::{
-    providers::AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy,
-    TerminalAuthorityPolicy,
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
+    providers::AdmittedTerminalMechanism,
 };
+
+type DynamicBindings = BTreeMap<u32, ClosedConformanceApplication>;
+
+fn binding_identity(
+    machine: MachineId,
+    bindings: &DynamicBindings,
+) -> (
+    MachineId,
+    Vec<(u32, ClosedConformanceApplicationCommitment)>,
+) {
+    (
+        machine,
+        bindings
+            .iter()
+            .map(|(ordinal, application)| (*ordinal, application.commitment))
+            .collect(),
+    )
+}
 
 pub(super) struct ReviewContext<'a> {
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
@@ -151,11 +173,11 @@ impl<'a> ReviewContext<'a> {
         &self,
         entry: MachineId,
     ) -> Result<BTreeSet<BoundaryMachineId>, String> {
-        let mut pending = vec![entry];
+        let mut pending = vec![(entry, DynamicBindings::new())];
         let mut visited = BTreeSet::new();
         let mut boundaries = BTreeSet::new();
-        while let Some(machine) = pending.pop() {
-            if !visited.insert(machine) {
+        while let Some((machine, bindings)) = pending.pop() {
+            if !visited.insert(binding_identity(machine, &bindings)) {
                 continue;
             }
             let function = self.functions.get(&machine).ok_or_else(|| {
@@ -164,7 +186,21 @@ impl<'a> ReviewContext<'a> {
             for operation in &function.operations {
                 match authority_edge(operation) {
                     AuthorityEdge::None => {}
-                    AuthorityEdge::Internal(callee) => pending.push(callee),
+                    AuthorityEdge::Internal(callee) => {
+                        pending.push((callee, DynamicBindings::new()));
+                    }
+                    AuthorityEdge::InternalWithDynamicArguments { callee, arguments } => {
+                        pending.push((
+                            callee,
+                            self.bind_dynamic_arguments(machine, callee, &bindings, arguments)?,
+                        ));
+                    }
+                    AuthorityEdge::DynamicParameterDispatch(dispatch) => {
+                        pending.push((
+                            self.parameter_dispatch_realization(machine, &bindings, dispatch)?,
+                            DynamicBindings::new(),
+                        ));
+                    }
                     AuthorityEdge::Boundary(boundary) => {
                         boundaries.insert(boundary);
                     }
@@ -177,5 +213,114 @@ impl<'a> ReviewContext<'a> {
             }
         }
         Ok(boundaries)
+    }
+
+    fn bind_dynamic_arguments(
+        &self,
+        caller: MachineId,
+        callee: MachineId,
+        caller_bindings: &DynamicBindings,
+        arguments: &[AbstractDynamicDescriptorArgument],
+    ) -> Result<DynamicBindings, String> {
+        let mut callee_bindings = DynamicBindings::new();
+        for argument in arguments {
+            if argument.argument.owner != caller || argument.target.owner != callee {
+                return Err(format!(
+                    "reachable dynamic argument from {caller:?} does not bind callee {callee:?}"
+                ));
+            }
+            let application = match &argument.source {
+                AbstractDynamicDescriptorSource::Rebound { application, .. } => application.clone(),
+                AbstractDynamicDescriptorSource::Parameter(source) => caller_bindings
+                    .get(&source.ordinal)
+                    .cloned()
+                    .ok_or_else(|| {
+                        format!(
+                            "reachable machine {caller:?} forwards unbound dynamic parameter {}",
+                            source.ordinal
+                        )
+                    })?,
+            };
+            if callee_bindings
+                .insert(argument.target.ordinal, application)
+                .is_some()
+            {
+                return Err(format!(
+                    "reachable call from {caller:?} repeats dynamic parameter {} for {callee:?}",
+                    argument.target.ordinal
+                ));
+            }
+        }
+        Ok(callee_bindings)
+    }
+
+    fn parameter_dispatch_realization(
+        &self,
+        machine: MachineId,
+        bindings: &DynamicBindings,
+        dispatch: &AbstractParameterDynamicScalarDispatch,
+    ) -> Result<MachineId, String> {
+        let parameter = &dispatch.parameter;
+        if parameter.owner != machine
+            || dispatch.dispatch.owner != machine
+            || dispatch.dispatch.parameter_ordinal != parameter.ordinal
+        {
+            return Err(format!(
+                "reachable machine {machine:?} has inconsistent dynamic-parameter dispatch custody"
+            ));
+        }
+        let application = bindings.get(&parameter.ordinal).ok_or_else(|| {
+            format!(
+                "reachable machine {machine:?} dispatches unbound dynamic parameter {}",
+                parameter.ordinal
+            )
+        })?;
+        if application.trait_identity != parameter.trait_identity {
+            return Err(format!(
+                "reachable machine {machine:?} substituted the dynamic parameter trait application"
+            ));
+        }
+        let requirements = parameter
+            .requirements
+            .iter()
+            .filter(|requirement| requirement.slot == dispatch.dispatch.requirement_slot)
+            .collect::<Vec<_>>();
+        let [requirement] = requirements.as_slice() else {
+            return Err(format!(
+                "reachable machine {machine:?} dynamic parameter slot does not resolve exactly once"
+            ));
+        };
+        let rows = application
+            .rows
+            .iter()
+            .filter(|row| {
+                row.declaring_trait_identity == requirement.declaring_trait_identity
+                    && row.public_requirement_identity == requirement.public_requirement_identity
+            })
+            .collect::<Vec<_>>();
+        let [row] = rows.as_slice() else {
+            return Err(format!(
+                "reachable machine {machine:?} dynamic parameter requirement does not resolve exactly once"
+            ));
+        };
+        let callable_identity = row.realization_callable_identity.as_deref().ok_or_else(|| {
+            format!(
+                "reachable machine {machine:?} dynamic parameter requirement has no realization callable"
+            )
+        })?;
+        let callables = application
+            .realization_callables
+            .iter()
+            .filter(|callable| {
+                callable.source_callable_identity == callable_identity
+                    && callable.result == requirement.result
+            })
+            .collect::<Vec<_>>();
+        let [callable] = callables.as_slice() else {
+            return Err(format!(
+                "reachable machine {machine:?} dynamic parameter realization does not resolve exactly once"
+            ));
+        };
+        Ok(callable.machine)
     }
 }

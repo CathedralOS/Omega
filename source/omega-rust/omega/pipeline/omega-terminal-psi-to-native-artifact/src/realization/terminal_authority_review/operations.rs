@@ -1,18 +1,25 @@
 //! Exhaustive abstract-operation to terminal-authority edge classification.
 
-use omega_abstract_operations::AbstractOperation;
+use omega_abstract_operations::{
+    AbstractDynamicDescriptorArgument, AbstractOperation, AbstractParameterDynamicScalarDispatch,
+};
 use psi_core::{BoundaryMachineId, MachineId};
 
-pub(super) enum AuthorityEdge {
+pub(super) enum AuthorityEdge<'operation> {
     None,
     Internal(MachineId),
+    InternalWithDynamicArguments {
+        callee: MachineId,
+        arguments: &'operation [AbstractDynamicDescriptorArgument],
+    },
+    DynamicParameterDispatch(&'operation AbstractParameterDynamicScalarDispatch),
     Boundary(BoundaryMachineId),
     UnsupportedCheckedPhysical,
 }
 
 /// Exhaustive match: adding an abstract operation forces an explicit D45
 /// decision rather than silently treating a new call/physical role as pure.
-pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
+pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_> {
     match operation {
         AbstractOperation::CallUnit { callee, .. }
         | AbstractOperation::CallStructuralScalar { callee, .. }
@@ -21,12 +28,17 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         AbstractOperation::CallDynamicScalar {
             dynamic_dispatch, ..
         } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
-        AbstractOperation::CallDynamicParameterScalar { .. } => {
-            AuthorityEdge::UnsupportedCheckedPhysical
-        }
-        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
-            AuthorityEdge::UnsupportedCheckedPhysical
-        }
+        AbstractOperation::CallDynamicParameterScalar {
+            dynamic_dispatch, ..
+        } => AuthorityEdge::DynamicParameterDispatch(dynamic_dispatch),
+        AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            callee,
+            dynamic_arguments,
+            ..
+        } => AuthorityEdge::InternalWithDynamicArguments {
+            callee: *callee,
+            arguments: dynamic_arguments,
+        },
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { .. } => AuthorityEdge::UnsupportedCheckedPhysical,
         AbstractOperation::DynamicDescriptorParameter { .. }

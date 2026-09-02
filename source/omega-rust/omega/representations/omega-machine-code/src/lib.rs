@@ -403,7 +403,8 @@ pub struct ForwardedDynamicDescriptorAdapterRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForwardedDynamicDescriptorCallRecord {
     pub psi_operation: OperationId,
-    pub result: AbstractResult,
+    pub semantic_result: AbstractResult,
+    pub result: InternalUnitScalarCallResultRecord,
     pub callee: MachineId,
     pub call_plan: CallPlan,
     pub dynamic_arguments: Vec<ForwardedDynamicDescriptorArgumentRecord>,
