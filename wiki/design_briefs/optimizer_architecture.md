@@ -164,6 +164,13 @@ Selections remain exact even when rules share a phase. There are no broad
 profiles. Initially the physical pipeline admits only explicitly implemented
 compositions and rejects all others.
 
+That exactness also governs translation validation: constant saturating
+integer-add materialization is one named family with a tiny
+`grammar::reconstruct`/`replay::validate` entrance, not an arithmetic mode or
+an optimization level. Its typed receipt proves the precise source shape and
+materialized result while the catalog keeps exact, wrapping, parameterized,
+and runtime-expression siblings separately enableable and auditable.
+
 Mandatory lowering may expose a machine-rule candidate without authorizing the
 rewrite. The exact unsigned-`U64` parameter zero-comparison families, for
 example, lower their authored zero and equality to `CompareI64Zero` plus

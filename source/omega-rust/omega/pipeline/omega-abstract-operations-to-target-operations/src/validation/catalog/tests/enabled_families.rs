@@ -18,6 +18,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseAndImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseOrImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorImmediate,
+            AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyImmediate,

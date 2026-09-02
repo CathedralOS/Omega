@@ -190,6 +190,26 @@ pub enum StraightLineWrappingIntegerAddImmediateTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineSaturatingIntegerAddImmediateTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceIntegerType,
+    SourceConstantOutsideType,
+    SourceSaturatingAddOperands,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineWrappingIntegerSubtractImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,

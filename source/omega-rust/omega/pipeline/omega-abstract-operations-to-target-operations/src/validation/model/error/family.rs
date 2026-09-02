@@ -16,6 +16,7 @@ use super::immediate::{
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
+    StraightLineSaturatingIntegerAddImmediateTranslationError,
     StraightLineWrappingIntegerAddImmediateTranslationError,
     StraightLineWrappingIntegerMultiplyImmediateTranslationError,
     StraightLineWrappingIntegerSubtractImmediateTranslationError,
@@ -64,6 +65,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     StraightLineIntegerBitwiseAndImmediate(StraightLineIntegerBitwiseAndImmediateTranslationError),
     StraightLineIntegerBitwiseOrImmediate(StraightLineIntegerBitwiseOrImmediateTranslationError),
     StraightLineIntegerBitwiseXorImmediate(StraightLineIntegerBitwiseXorImmediateTranslationError),
+    StraightLineSaturatingIntegerAddImmediate(
+        StraightLineSaturatingIntegerAddImmediateTranslationError,
+    ),
     StraightLineWrappingIntegerAddImmediate(
         StraightLineWrappingIntegerAddImmediateTranslationError,
     ),

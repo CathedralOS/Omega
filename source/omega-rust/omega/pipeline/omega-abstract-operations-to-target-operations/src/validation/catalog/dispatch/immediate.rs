@@ -9,6 +9,7 @@ mod integer_bitwise_xor;
 mod integer_equal;
 mod integer_less_or_equal;
 mod integer_less_than;
+mod saturating_integer_add;
 mod wrapping_integer_add;
 mod wrapping_integer_multiply;
 mod wrapping_integer_subtract;
@@ -20,6 +21,7 @@ pub(in crate::validation::catalog) use integer_bitwise_xor::DESCRIPTOR as INTEGE
 pub(in crate::validation::catalog) use integer_equal::DESCRIPTOR as INTEGER_EQUAL;
 pub(in crate::validation::catalog) use integer_less_or_equal::DESCRIPTOR as INTEGER_LESS_OR_EQUAL;
 pub(in crate::validation::catalog) use integer_less_than::DESCRIPTOR as INTEGER_LESS_THAN;
+pub(in crate::validation::catalog) use saturating_integer_add::DESCRIPTOR as SATURATING_INTEGER_ADD;
 pub(in crate::validation::catalog) use wrapping_integer_add::DESCRIPTOR as WRAPPING_INTEGER_ADD;
 pub(in crate::validation::catalog) use wrapping_integer_multiply::DESCRIPTOR as WRAPPING_INTEGER_MULTIPLY;
 pub(in crate::validation::catalog) use wrapping_integer_subtract::DESCRIPTOR as WRAPPING_INTEGER_SUBTRACT;

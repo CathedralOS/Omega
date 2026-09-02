@@ -24,6 +24,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineIntegerBitwiseXorImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseXorImmediate
             }
+            Self::StraightLineSaturatingIntegerAddImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddImmediate
+            }
             Self::StraightLineWrappingIntegerAddImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate
             }
