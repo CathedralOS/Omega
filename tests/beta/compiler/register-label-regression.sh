@@ -77,7 +77,7 @@ printf '%s\n' \
   'r256x:' \
   '        jmp r0foo' \
   'r5x:' \
-  '        imm r0, 252' \
+  '        imm r0, 0xfc' \
   '        ret' \
   'r0foo:' \
   '        call r5x' \
@@ -86,9 +86,9 @@ expect_equal label-prefixes "$T/label-prefixes.beta"
 expect_exit label-prefixes 252
 
 printf '%s\n' \
-  '        imm r0, 7' \
-  '        imm r255, 245' \
-  '        add r0, r255' \
+  '        imm r0, 0x7' \
+  '        imm rff, 0xf5' \
+  '        add r0, rff' \
   '        halt r0' > "$T/register-bounds.beta"
 expect_equal register-bounds "$T/register-bounds.beta"
 expect_exit register-bounds 252
@@ -97,10 +97,10 @@ expect_exit register-bounds 252
 # emitted only their low byte. Pin every byte against the independent assembler
 # and observe the high byte after a word store.
 printf '%s\n' \
-  '        imm r0, 18446744073709551615' \
-  '        imm r1, 1048576' \
+  '        imm r0, 0xffffffffffffffff' \
+  '        imm r1, 0x100000' \
   '        store r1, r0' \
-  '        imm r2, 7' \
+  '        imm r2, 0x7' \
   '        add r1, r2' \
   '        loadb r0, r1' \
   '        halt r0' > "$T/full-word.beta"
@@ -118,23 +118,22 @@ expect_equal compare-width "$T/compare-width.beta"
 [ "$(wc -c < "$T/compare-width.tape" | tr -d ' ')" -eq 24 ]
 expect_exit compare-width 0
 
-# Exercise the complete accepted IDENT alphabet and every documented db escape.
+# Exercise the accepted identifier alphabet and every documented db escape.
 printf '%s\n' \
-  '        jmp $._A0' \
-  '$._A0:' \
+  '        jmp _az09' \
+  '_az09:' \
   '        jmp done' \
-  '        db "A B\n\t\r\0\\\""' \
-  "        db \"\\'\"" \
+  '        db "A B\0\\\""' \
   'done:' \
-  '        imm r1, 00018446744073709551615' \
-  '        imm r0, 0' \
+  '        imm r1, 0x00000000000000ff' \
+  '        imm r0, 0x0' \
   '        halt r0' > "$T/closed-valid.beta"
 expect_equal closed-valid "$T/closed-valid.beta"
 expect_exit closed-valid 0
 
-# Canonical assembler operand errors use the existing status 7. The reference
-# independently rejects the same out-of-range register grammar.
-printf '%s\n' 'imm r256, 0' > "$T/register-over.beta"
+# Canonical compiler operand errors use status 7. The reference independently
+# rejects the same closed hexadecimal register grammar.
+printf '%s\n' 'imm r100, 0x0' > "$T/register-over.beta"
 set +e
 "$ASM" < "$T/register-over.beta" > "$T/register-over.tape"
 ASM_STATUS=$?
@@ -147,12 +146,18 @@ set -e
 # Operand kinds and complete tokens are closed by the mnemonic width table.
 printf '%s\n' 'halt 0' > "$T/halt-immediate.beta"
 expect_assembly_reject halt-immediate 7 "$T/halt-immediate.beta"
-printf '%s\n' 'imm r0, 1x' > "$T/decimal-junk.beta"
-expect_assembly_reject decimal-junk 7 "$T/decimal-junk.beta"
-printf '%s\n' 'imm r0, 18446744073709551616' > "$T/u64-overflow.beta"
-expect_assembly_reject u64-overflow 7 "$T/u64-overflow.beta"
-printf '%s\n' 'imm r0, 184467440737095516150' > "$T/u64-overflow-extra-digit.beta"
-expect_assembly_reject u64-overflow-extra-digit 7 "$T/u64-overflow-extra-digit.beta"
+printf '%s\n' 'imm r0, 1' > "$T/decimal-word.beta"
+expect_assembly_reject decimal-word 7 "$T/decimal-word.beta"
+printf '%s\n' 'imm rA, 0x0' > "$T/uppercase-register.beta"
+expect_assembly_reject uppercase-register 7 "$T/uppercase-register.beta"
+printf '%s\n' 'imm r0, 0xA' > "$T/uppercase-word.beta"
+expect_assembly_reject uppercase-word 7 "$T/uppercase-word.beta"
+printf '%s\n' 'imm r0, 0x' > "$T/bare-hex-word.beta"
+expect_assembly_reject bare-hex-word 7 "$T/bare-hex-word.beta"
+printf '%s\n' 'imm r0, 0x10000000000000000' > "$T/word-too-wide.beta"
+expect_assembly_reject word-too-wide 7 "$T/word-too-wide.beta"
+printf '%s\n' 'imm r0, 0x000000000000000000' > "$T/word-too-wide-leading-zero.beta"
+expect_assembly_reject word-too-wide-leading-zero 7 "$T/word-too-wide-leading-zero.beta"
 printf '%s\n' 'halt' > "$T/missing-operand.beta"
 expect_assembly_reject missing-operand 7 "$T/missing-operand.beta"
 
@@ -161,6 +166,12 @@ printf '%s\n' ':' > "$T/empty-label.beta"
 expect_assembly_reject empty-label 7 "$T/empty-label.beta"
 printf '%s\n' '1bad:' > "$T/invalid-label.beta"
 expect_assembly_reject invalid-label 7 "$T/invalid-label.beta"
+printf '%s\n' 'Bad:' > "$T/uppercase-label.beta"
+expect_assembly_reject uppercase-label 7 "$T/uppercase-label.beta"
+printf '%s\n' '$bad:' > "$T/dollar-label.beta"
+expect_assembly_reject dollar-label 7 "$T/dollar-label.beta"
+printf '%s\n' '.bad:' > "$T/dot-label.beta"
+expect_assembly_reject dot-label 7 "$T/dot-label.beta"
 printf '%s\n' 'same:' 'same:' > "$T/duplicate-label.beta"
 expect_assembly_reject duplicate-label 7 "$T/duplicate-label.beta"
 
@@ -169,8 +180,14 @@ printf '%s\n' 'toolongxx r0' > "$T/long-mnemonic.beta"
 expect_assembly_reject long-mnemonic 8 "$T/long-mnemonic.beta"
 printf '%s\n' 'db junk "x"' > "$T/db-prefix.beta"
 expect_assembly_reject db-prefix 9 "$T/db-prefix.beta"
+printf '%s\n' 'db, "x"' > "$T/db-comma.beta"
+expect_assembly_reject db-comma 9 "$T/db-comma.beta"
+printf 'db ; comment\n"x"\n' > "$T/db-comment.beta"
+expect_assembly_reject db-comment 9 "$T/db-comment.beta"
 printf '%s\n' 'db "x\q"' > "$T/db-escape.beta"
 expect_assembly_reject db-escape 9 "$T/db-escape.beta"
+printf '%s\n' 'db "x\n"' > "$T/db-newline-escape.beta"
+expect_assembly_reject db-newline-escape 9 "$T/db-newline-escape.beta"
 printf 'db "a\001b"\n' > "$T/db-control.beta"
 expect_assembly_reject db-control 9 "$T/db-control.beta"
 
@@ -187,6 +204,19 @@ printf '; comment\177\nhalt r0\n' > "$T/comment-del.beta"
 expect_assembly_reject comment-del 9 "$T/comment-del.beta"
 printf '; comment\303\251\nhalt r0\n' > "$T/comment-high-byte.beta"
 expect_assembly_reject comment-high-byte 9 "$T/comment-high-byte.beta"
+
+# The source region ends exactly where label rows begin. Exact capacity is
+# admitted; one additional valid byte rejects before any overwrite.
+python3 -c 'import sys; sys.stdout.write(" " * 0x100000)' > "$T/source-full.beta"
+"$ASM" < "$T/source-full.beta" > "$T/source-full.tape"
+[ ! -s "$T/source-full.tape" ]
+python3 -c 'import sys; sys.stdout.write(" " * 0x100001)' > "$T/source-over.beta"
+expect_assembly_reject source-over 9 "$T/source-over.beta"
+
+# Each compact jump expands from six source bytes to nine tape bytes. Reject
+# the first instruction crossing AlphaBootstrapV2's raw-tape maximum in pass 1.
+python3 -c 'import sys; sys.stdout.write("jmp a\n" * 116509 + "a:\n")' > "$T/output-over.beta"
+expect_assembly_reject output-over 9 "$T/output-over.beta"
 
 ELAPSED=$(python3 - "$START" <<'PY'
 import sys, time

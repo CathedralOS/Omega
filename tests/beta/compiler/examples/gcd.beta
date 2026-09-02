@@ -3,13 +3,13 @@
 ; needs NO frame (nothing must survive the call, so it skips the frame entirely).
 ; See ../CALLING_CONVENTION.md.
 
-        imm   r0, 48
-        imm   r1, 36
+        imm   r0, 0x30
+        imm   r1, 0x24
         call  gcd
         halt  r0                ; exit code = 12
 
 gcd:                            ; gcd(a in r0, b in r1)
-        imm   r2, 0
+        imm   r2, 0x0
         jeq   r1, r2, gcd_done  ; b == 0  ->  return a
         ; r2 = a % b
         mov   r2, r0

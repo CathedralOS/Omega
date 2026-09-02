@@ -31,28 +31,31 @@ program     := item*
 item        := label-definition | instruction | data
 label-definition := IDENT ':'
 instruction := MNEMONIC operand*
-data        := 'db' STRING
+data        := 'db' WHITESPACE+ STRING
 
-IDENT       := [A-Za-z_.$][A-Za-z0-9_.$]*
-REGISTER    := 'r' DECIMAL
-DECIMAL     := [0-9]+
+IDENT       := [a-z_][a-z0-9_]*
+REGISTER    := 'r' HEXDIGIT | 'r' HEXDIGIT HEXDIGIT
+HEXWORD     := '0x' HEXDIGIT{1,16}
+HEXDIGIT    := [0-9a-f]
+WHITESPACE  := space | HT | LF | CR
 STRING      := '"' string-byte* '"'
 string-byte := printable-ASCII-except-'"'-and-'\\' | ESCAPE
-ESCAPE      := '\\n' | '\\t' | '\\r' | '\\0' | '\\\\' | '\\"' | "\\'"
+ESCAPE      := '\\0' | '\\\\' | '\\"'
 ```
 
-Leading zeroes in a decimal are permitted. A decimal operand denotes one
-unsigned word in `0..2^64-1`. A register is well formed only when its decimal
-value is in `0..255`. Identifiers are case-sensitive. Every label definition is
-unique and every label operand resolves to one definition. A label such as
-`r256x` is an identifier, not a register; only the complete form `r` followed
-solely by decimal digits can be a register.
+Leading zeroes are permitted. A `HEXWORD` denotes one unsigned word in
+`0..2^64-1`. A `REGISTER` denotes one register in `0..255`. Hexadecimal digits
+are lowercase only; uppercase `A..F`, decimal words without `0x`, bare `0x`,
+and words wider than sixteen digits reject. Every label definition is unique
+and every label operand resolves to one definition. A label such as `r100x` is
+an identifier, not a register; only a complete one- or two-digit hexadecimal
+form after `r` is a register. Only whitespace may occur between `db` and its
+opening quote; a comma or comment there rejects.
 
-The decoded string bytes for `\\n`, `\\t`, `\\r`, `\\0`, `\\\\`, `\\"`, and
-`\\'` are respectively `10`, `9`, `13`, `0`, `92`, `34`, and `39`. Every other
-permitted string byte is emitted unchanged. `db` bytes are data, not implicitly
-decoded instructions; ordinary Alpha control flow must jump around embedded
-data when it is reachable by address order.
+The decoded string bytes for `\\0`, `\\\\`, and `\\"` are respectively `0`,
+`92`, and `34`. Every other permitted string byte is emitted unchanged. `db`
+bytes are data, not implicitly decoded instructions; ordinary Alpha control
+flow must jump around embedded data when it is reachable by address order.
 
 The source envelope does not restrict assembled data. `db` may produce control
 bytes through its closed escapes, and instructions may compute or write any
@@ -61,8 +64,8 @@ audited assembly source.
 
 ## Instructions
 
-Operand kind `r` encodes a register. Operand kind `x` accepts either a decimal
-word or a label and encodes an eight-byte word/address.
+Operand kind `r` encodes a hexadecimal register. Operand kind `x` accepts
+either a `HEXWORD` or a label and encodes an eight-byte word/address.
 
 | Mnemonic | Opcode | Operands | Width |
 | --- | ---: | --- | ---: |
@@ -118,15 +121,19 @@ assembly programs and produce no `assemble(P) = T` judgment. Tool-level failure
 carriers and private resource profiles are specified separately; accepting a
 malformed input does not extend this language.
 
+The admitted compiler profile retains at most `0x100000` source bytes,
+`0x10000` label rows, and `0xffffc` output bytes. It checks each extent before
+advancing and returns nonzero without publishing an artifact on exhaustion.
+
 ## Canonical assembler reconstruction subject
 
 The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 29,747 |
-| Source lines | 1,089 |
-| Encoded payload bytes | 6,816 |
+| Source bytes | 17,019 |
+| Source lines | 602 |
+| Encoded payload bytes | 2,706 |
 
 An admission certificate must bind the raw source and tape outside the proof
 producer, partition every source item and output byte exactly once, reconstruct

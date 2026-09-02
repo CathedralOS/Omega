@@ -7,7 +7,7 @@ This ledger names only the selected chain. Missing artifacts remain explicit.
 | Subject | Implementation | Canonical output | Current state |
 | --- | --- | --- | --- |
 | Alpha VM | audited native source/listing per host | Alpha execution | macOS arm64 and Windows x86-64 seeds retained; conformance passes |
-| Beta compiler | admitted Alpha tape with Beta self-reconstruction source | `beta_compiler_bytecode.tape` | 6,816-byte tape retained; reconstruction and differential gates pass |
+| Beta compiler | admitted Alpha tape with Beta self-reconstruction source | `beta_compiler_bytecode.tape` | 2,706-byte tape retained; reconstruction and differential gates pass |
 | Gamma evaluator | Beta source | `gamma_evaluator_bytecode.tape` | 42-case development source at `source/gamma/evaluator/gamma_evaluator.beta`; tape not admitted |
 | Delta compiler | Gamma source | `delta_compiler_bytecode.tape` | source and tape absent |
 | Epsilon compiler | Delta source | `epsilon_compiler_bytecode.tape` | incomplete `source/epsilon/compiler/epsilon_compiler.delta`; tape absent |
@@ -25,8 +25,8 @@ relation, and disclosed admissions.
 | Darwin arm64 | `source/alpha/alpha_arm64_macos` | `5844f295e3ab843e1819aae0ca47d41ad99cef5e2193a5abee64e630b41c304c` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | `ccce78bbef7cb5a538d4fb0e350a1c646233d179074e65b4ac7cca98c4a4a6f7` |
 
-The trusted Beta compiler is a manifest row. Its 29,747-byte Beta source
-reconstructs its admitted 6,816-byte Alpha tape exactly. The Alpha VM and that
+The trusted Beta compiler is a manifest row. Its 17,019-byte Beta source
+reconstructs its admitted 2,706-byte Alpha tape exactly. The Alpha VM and that
 compiler tape form the current executable bootstrap floor.
 
 ## Retention rule
