@@ -184,6 +184,17 @@ const NESTED_AFFINE_OCTET_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_NONET_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 9]; 2]) {
+        Helper::take(values[1][8]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -638,6 +649,23 @@ fn nested_affine_octet_plan() -> omega_abstract_operations::AbstractOperationPla
         encode_proof_bundle(&terminal.proof_bundle).expect("encode nested affine octet proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified nested affine octet artifact enters Omega")
+}
+
+fn nested_affine_nonet_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(NESTED_AFFINE_NONET_SOURCE)
+        .tokenize()
+        .expect("tokenize nested affine nonet source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nested affine nonet source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve nested affine nonet source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type nested affine nonet source");
+    let checked = lower_typed_trees(typed).expect("check nested affine nonet source");
+    let terminal = lower_machine(&checked, "Root::enter").expect("lower nested affine nonet Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode nested affine nonet Psi");
+    let proof =
+        encode_proof_bundle(&terminal.proof_bundle).expect("encode nested affine nonet proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nested affine nonet artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -2493,8 +2521,8 @@ fn assert_wider_nested_affine_array_native_custody(
             decode_installation_record(&encoded),
             Ok(installation.clone())
         );
-        if inner_length == 8 {
-            assert_octet_image_installation_and_codec_tamper(
+        if inner_length == 9 {
+            assert_nonet_image_installation_and_codec_tamper(
                 target,
                 &object,
                 &installation,
@@ -2504,13 +2532,13 @@ fn assert_wider_nested_affine_array_native_custody(
     }
 }
 
-fn assert_octet_image_installation_and_codec_tamper(
+fn assert_nonet_image_installation_and_codec_tamper(
     target: NativeTarget,
     object: &omega_image_emission::ObjectArtifact,
     installation: &omega_image_emission::InstallationRecord,
     encoded: &[u8],
 ) {
-    let control_plan = nested_affine_septet_plan();
+    let control_plan = nested_affine_octet_plan();
     let control_target = lower_to_target_operations(&control_plan, target).unwrap();
     let control_assigned = assign_registers(&control_target).unwrap();
     let control_machine = emit_machine_code(&control_assigned).unwrap();
@@ -2530,18 +2558,18 @@ fn assert_octet_image_installation_and_codec_tamper(
     encoded_residual_path.extend_from_slice(&[2, 0, 0, 0]);
     encoded_residual_path.extend_from_slice(&1_u64.to_le_bytes());
     encoded_residual_path.extend_from_slice(&[2, 0, 0, 0]);
-    encoded_residual_path.extend_from_slice(&6_u64.to_le_bytes());
+    encoded_residual_path.extend_from_slice(&7_u64.to_le_bytes());
     let matches = encoded_path_tamper
         .windows(encoded_residual_path.len())
         .enumerate()
         .filter_map(|(offset, bytes)| (bytes == encoded_residual_path).then_some(offset))
         .collect::<Vec<_>>();
     let [path_offset] = matches.as_slice() else {
-        panic!("octet installation encodes one exact [1][6] residual path")
+        panic!("nonet installation encodes one exact [1][7] residual path")
     };
     let inner_index_offset = *path_offset + 16;
     encoded_path_tamper[inner_index_offset..inner_index_offset + 8]
-        .copy_from_slice(&7_u64.to_le_bytes());
+        .copy_from_slice(&8_u64.to_le_bytes());
     assert!(
         decode_installation_record(&encoded_path_tamper).is_err(),
         "installation codec rejects encoded residual-path drift on {target:?}",
@@ -2555,6 +2583,7 @@ fn wider_nested_affine_arrays_retain_exact_native_custody() {
     assert_wider_nested_affine_array_native_custody(nested_affine_sextet_plan(), 6);
     assert_wider_nested_affine_array_native_custody(nested_affine_septet_plan(), 7);
     assert_wider_nested_affine_array_native_custody(nested_affine_octet_plan(), 8);
+    assert_wider_nested_affine_array_native_custody(nested_affine_nonet_plan(), 9);
 }
 
 #[test]

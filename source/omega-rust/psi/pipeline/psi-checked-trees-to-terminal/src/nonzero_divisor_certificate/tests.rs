@@ -4882,15 +4882,15 @@ fn exact_division_goal_proves_two_definition_affine_safe_divisor() {
 }
 
 #[test]
-fn exact_division_goal_proves_three_through_twelve_definition_affine_safe_divisors() {
+fn exact_division_goal_proves_three_through_thirteen_definition_affine_safe_divisors() {
     let signed = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
-    let context = PropositionContext::from_value_types((1..=15).map(|id| {
+    let context = PropositionContext::from_value_types((1..=16).map(|id| {
         (
             ValueId::new(id).expect("value id"),
             ScalarType::Integer(signed),
         )
     }))
-    .expect("fifteen i8 values");
+    .expect("sixteen i8 values");
     let exact_division_goal = |divisor: ScalarTerm| {
         Proposition::Disjunction(vec![
             Proposition::LessOrEqual(divisor.clone(), integer(signed, -2)),
@@ -4912,6 +4912,7 @@ fn exact_division_goal_proves_three_through_twelve_definition_affine_safe_diviso
     let eleven_step_goal = exact_division_goal(value(13, signed));
     let twelve_step_goal = exact_division_goal(value(14, signed));
     let thirteen_step_goal = exact_division_goal(value(15, signed));
+    let fourteen_step_goal = exact_division_goal(value(16, signed));
     let three_step_root_bound = Proposition::LessOrEqual(integer(signed, -2), value(3, signed));
     let four_step_root_bound = Proposition::LessOrEqual(integer(signed, -3), value(3, signed));
     let five_step_root_bound = Proposition::LessOrEqual(integer(signed, -4), value(3, signed));
@@ -4923,6 +4924,7 @@ fn exact_division_goal_proves_three_through_twelve_definition_affine_safe_diviso
     let eleven_step_root_bound = Proposition::LessOrEqual(integer(signed, -10), value(3, signed));
     let twelve_step_root_bound = Proposition::LessOrEqual(integer(signed, -11), value(3, signed));
     let thirteen_step_root_bound = Proposition::LessOrEqual(integer(signed, -12), value(3, signed));
+    let fourteen_step_root_bound = Proposition::LessOrEqual(integer(signed, -13), value(3, signed));
     let definitions = [
         Proposition::Equal(
             value(4, signed),
@@ -4988,6 +4990,11 @@ fn exact_division_goal_proves_three_through_twelve_definition_affine_safe_diviso
             value(15, signed),
             ScalarTerm::exact_integer_add(signed, value(14, signed), integer(signed, 1))
                 .expect("thirteenth exact add"),
+        ),
+        Proposition::Equal(
+            value(16, signed),
+            ScalarTerm::exact_integer_add(signed, value(15, signed), integer(signed, 1))
+                .expect("fourteenth exact add"),
         ),
     ];
 
@@ -5670,15 +5677,107 @@ fn exact_division_goal_proves_three_through_twelve_definition_affine_safe_diviso
         "a twelve-definition certificate cannot replay against stale definition evidence",
     );
 
+    let thirteen_step_proof = prove_canonical_integer_proposition(
+        &context,
+        &thirteen_step_goal,
+        std::slice::from_ref(&thirteen_step_root_bound),
+        &definitions,
+    )
+    .expect("thirteen-definition affine word proves the positive divisor arm");
+    let ProofRule::DisjunctionIntroduction { disjunct, index } = &thirteen_step_proof.rule else {
+        panic!("thirteen-definition affine divisor selects one canonical arm")
+    };
+    assert_eq!(*index, 1);
+    let ProofRule::IntegerAffineBound { witness, .. } = &disjunct.rule else {
+        panic!("thirteen-definition affine divisor uses the affine-bound rule")
+    };
+    assert_eq!(witness.root, value(3, signed));
+    assert_eq!(witness.target, value(15, signed));
+    assert_eq!(
+        witness.definition_axioms,
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    );
+    accept_certificate(
+        &context,
+        &thirteen_step_goal,
+        std::slice::from_ref(&thirteen_step_root_bound),
+        &definitions,
+        &thirteen_step_proof,
+    )
+    .expect("the checker independently replays the thirteen-definition certificate");
+
     assert!(
         prove_canonical_integer_proposition(
             &context,
             &thirteen_step_goal,
             std::slice::from_ref(&thirteen_step_root_bound),
+            &definitions[..12],
+        )
+        .is_none(),
+        "an incomplete thirteen-definition word cannot prove divisor safety",
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &thirteen_step_goal,
+            std::slice::from_ref(&thirteen_step_root_bound),
+            &[
+                definitions[12].clone(),
+                definitions[11].clone(),
+                definitions[10].clone(),
+                definitions[9].clone(),
+                definitions[8].clone(),
+                definitions[7].clone(),
+                definitions[6].clone(),
+                definitions[5].clone(),
+                definitions[4].clone(),
+                definitions[3].clone(),
+                definitions[2].clone(),
+                definitions[1].clone(),
+                definitions[0].clone(),
+            ],
+        )
+        .is_none(),
+        "a reversed thirteen-definition word cannot claim canonical custody",
+    );
+
+    let mut redirected_definitions = definitions[..13].to_vec();
+    redirected_definitions[12] = Proposition::Equal(
+        value(16, signed),
+        ScalarTerm::exact_integer_add(signed, value(14, signed), integer(signed, 1))
+            .expect("redirected thirteenth exact add"),
+    );
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &thirteen_step_goal,
+            std::slice::from_ref(&thirteen_step_root_bound),
+            &redirected_definitions,
+        )
+        .is_none(),
+        "a redirected thirteenth definition cannot complete the target word",
+    );
+    assert!(
+        accept_certificate(
+            &context,
+            &thirteen_step_goal,
+            std::slice::from_ref(&thirteen_step_root_bound),
+            &redirected_definitions,
+            &thirteen_step_proof,
+        )
+        .is_err(),
+        "a thirteen-definition certificate cannot replay against stale definition evidence",
+    );
+
+    assert!(
+        prove_canonical_integer_proposition(
+            &context,
+            &fourteen_step_goal,
+            std::slice::from_ref(&fourteen_step_root_bound),
             &definitions,
         )
         .is_none(),
-        "a thirteen-definition word remains outside the bounded certificate frontier",
+        "a fourteen-definition word remains outside the bounded certificate frontier",
     );
 }
 
