@@ -1581,10 +1581,29 @@ decision. Only true language-semantic questions belong in
   identity. Cross-target/root/row/usage corruption and every representable
   first-under budget fail closed; early-clobber fixed definitions receive an
   explicit typed refusal rather than an under-modeled interval. The x86-64 and
-  AArch64 fixtures retain four exact rows. This is factual precoloring evidence
-  only: it chooses no home, copy, split, spill, instruction, memory operation,
-  frame coordinate, or publication. Coalescing, live-range splitting,
-  precolor-aware home decisions, and rematerialization costs remain open.
+  AArch64 fixtures retain four exact rows. The adjacent independently replayed
+  `FixedUseBoundaryRequirementsV1` analysis now partitions untied ranges
+  outside every early-clobber row when their topology is one block or an exact
+  single-entry fanout. Named function/topology/cut/partition/work leaves sit
+  below both the tiny positional-compute and keyed-replay coordinators. Each
+  source fragment is divided into maximal nonempty exact-view domains. Exactly
+  one authenticated incompatible fixed `Use` may open a new segment with an
+  `IncompatibleFixedUseDomainBoundaryV1` fact; because distinct views can
+  alias, this deliberately does not assert that a physical move is required or
+  choose exact-view qualification, copy, rematerialization, spill/reload, or
+  any other recovery strategy. Non-fixed breaks, fixed Def/UseDef transitions,
+  other CFG shapes, ties, ambiguous fixed cuts, and all early-clobber
+  participants fail closed. Roots, target, environment, availability,
+  optimization-unit/fuel custody, exact work, source fragments, segment
+  domains, connectors, and openings are identity-bound through independent
+  production and replay. The authentic dual-ISA forwarded-conditional fixture
+  retains four fragments and exposes both leaf fixed-use boundaries, with
+  pinned exact usage `{3, 7, 59, 6, 12}` on x86-64 and
+  `{3, 7, 104, 6, 12}` on AArch64. This remains source-topology evidence only:
+  it chooses no home, creates no VReg or instruction, and does not claim
+  transformed liveness. Segmented home assignment, recovery selection, full
+  analysis replay, coalescing, general CFG splitting, and rematerialization
+  costs remain open.
 - [>] Implement frame layout, alignment, red-zone/shadow-space, unwind,
   probing, stable-address loans, and dynamic-allocation constraints. The first
   non-authoritative requirements artifact now retains abstract spill geometry

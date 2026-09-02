@@ -294,6 +294,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn analyze_fixed_precolored_intervals",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_split_requirements/mod.rs",
+        coordination_marker: "pub fn analyze_fixed_precolored_split_requirements",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/allocator_availability/mod.rs",
         coordination_marker: "pub fn materialize_allocator_availability",
     },

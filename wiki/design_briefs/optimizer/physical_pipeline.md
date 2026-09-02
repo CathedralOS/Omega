@@ -560,6 +560,36 @@ definitions explicitly. The dual-target fixture has four exact intervals and
 usage `{1, 4, 6, 4, 2}`. This grants factual precoloring evidence only; home,
 copy, split, spill, memory, frame, and publication decisions remain separate.
 
+The adjacent fixed-driven split-requirement boundary consumes those intervals
+with the exact source live ranges and legality domains. Its 28-line entrance
+joins positional production to a separately keyed replay, and both sides
+descend through plainly named function, topology, cut, partition, and work
+leaves. Under `FixedUseBoundaryRequirementsV1`, an untied range outside every
+early-clobber row is accepted only when it is one block or an exact
+single-entry fanout: every later source fragment must have one direct connector
+from the first fragment. Each fragment is partitioned into maximal source-point
+segments whose exact physical-view intersection is nonempty. A boundary is
+admitted only when exactly one authenticated fixed `Use` makes that
+intersection empty; the new segment records
+`IncompatibleFixedUseDomainBoundaryV1 { incoming, site, destination_view }`.
+This is a domain-incompatibility fact, not a movement prescription: distinct
+exact views may alias, so a later decision may qualify an alias or choose copy,
+rematerialization, spill/reload, or another independently validated recovery.
+The artifact does not manufacture a second home, a `CopyI64`, a new VReg, or a
+transformed interval. Fixed Def/UseDef transitions, other CFG shapes, ties,
+every early-clobber participant, ambiguous fixed cuts, and non-fixed domain
+breaks fail closed.
+
+Exact work charges each function, register, tie row, early-clobber row and use,
+fixed row, connector, legality transition, source point, and point candidate
+once. For the authentic forwarded-conditional fixture, x86-64 usage is
+`{3, 7, 59, 6, 12}` and AArch64 usage is `{3, 7, 104, 6, 12}` in
+`{rules, candidates, validation, commits, iterations}` order. Both targets
+retain four source fragments and expose the two leaf fixed-use domain
+boundaries through independent replay. Segmented home assignment, recovery
+selection, and full post-transform liveness/range/legality replay remain the
+next authority boundaries.
+
 Fixed-view-copy validation descends from one small independent join through
 root and copy-constraint custody, work and budget replay, leaf-local or
 shared-entry policy reconstruction, and exact application/comparison. Its
