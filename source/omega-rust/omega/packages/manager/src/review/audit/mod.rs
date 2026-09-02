@@ -4,7 +4,7 @@ mod input;
 mod source_diff;
 mod triage;
 
-pub(crate) use input::assemble_update_source_review_records;
+pub(crate) use input::assemble_update_source_review_records_with_root_role_change;
 pub use input::{
     PackageSourceReviewCustodyRole, PackageSourceReviewError, PackageSourceReviewInput,
     PackageSourceReviewLimits, PackageSourceReviewRenderError, assemble_initial_source_review,

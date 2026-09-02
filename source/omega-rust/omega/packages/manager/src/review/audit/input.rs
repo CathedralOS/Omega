@@ -4,7 +4,7 @@ mod assembly;
 mod error;
 mod input;
 
-pub(crate) use assembly::assemble_update_source_review_records;
+pub(crate) use assembly::assemble_update_source_review_records_with_root_role_change;
 pub use assembly::{assemble_initial_source_review, assemble_update_source_review};
 pub use error::{
     PackageSourceReviewCustodyRole, PackageSourceReviewError, PackageSourceReviewRenderError,
