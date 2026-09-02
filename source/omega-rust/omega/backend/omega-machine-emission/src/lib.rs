@@ -212,6 +212,7 @@ fn emit_function(
     let mut internal_unit_scalar_calls = Vec::new();
     let mut dynamic_scalar_calls = Vec::new();
     let mut dynamic_parameter_scalar_calls = Vec::new();
+    let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
@@ -247,6 +248,7 @@ fn emit_function(
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             dynamic_scalar_calls = emitted.dynamic_scalar_calls;
+            forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
@@ -286,6 +288,7 @@ fn emit_function(
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             dynamic_scalar_calls = emitted.dynamic_scalar_calls;
+            forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
@@ -490,6 +493,7 @@ fn emit_function(
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             dynamic_scalar_calls = emitted.dynamic_scalar_calls;
+            forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
@@ -885,6 +889,7 @@ fn emit_function(
         internal_unit_scalar_calls,
         dynamic_scalar_calls,
         dynamic_parameter_scalar_calls,
+        forwarded_dynamic_descriptor_calls,
         unit_scalar_homes,
         unit_integer_constants,
         unit_structural_scalar_field_stores,

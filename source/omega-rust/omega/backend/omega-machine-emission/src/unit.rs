@@ -22,10 +22,12 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 
+mod dynamic_argument;
 mod dynamic_scalar;
 mod scalar_call;
 mod structural_scalar;
 
+use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
 use dynamic_scalar::emit_dynamic_scalar_call;
 use scalar_call::emit_unit_scalar_call;
 use structural_scalar::{emit_structural_scalar_call, emit_structural_scalar_field_store};
@@ -46,6 +48,8 @@ pub(super) struct UnitEmission {
     pub(super) internal_unit_calls: Vec<InternalUnitCallRecord>,
     pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
     pub(super) dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
+    pub(super) forwarded_dynamic_descriptor_calls:
+        Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
     pub(super) integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub(super) structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
@@ -679,6 +683,7 @@ pub(super) fn emit_unit_body(
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
     let mut dynamic_scalar_calls = Vec::new();
+    let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
@@ -1146,9 +1151,23 @@ pub(super) fn emit_unit_body(
                 psi_operation,
                 ..
             } => {
-                return Err(EmissionError::InvalidDynamicDescriptorCallCustody(
-                    *psi_operation,
-                ));
+                operation_site = Some(*psi_operation);
+                forwarded_dynamic_descriptor_calls.push(
+                    emit_forwarded_dynamic_descriptor_call(
+                        operation,
+                        owner.ok_or(EmissionError::InvalidDynamicDescriptorCallCustody(
+                            *psi_operation,
+                        ))?,
+                        target,
+                        functions,
+                        &x86_homes,
+                        &aarch64_homes,
+                        &mut bytes,
+                        &mut internal_calls,
+                        operation_ordinal,
+                        code_offset,
+                    )?,
+                );
             }
             AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
@@ -2031,6 +2050,7 @@ pub(super) fn emit_unit_body(
         internal_unit_calls,
         internal_unit_scalar_calls,
         dynamic_scalar_calls,
+        forwarded_dynamic_descriptor_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
         structural_scalar_field_stores: unit_structural_scalar_field_stores,

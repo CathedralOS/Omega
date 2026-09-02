@@ -9,7 +9,10 @@ mod x86_fma;
 pub use function_fragments::*;
 pub use x86_fma::*;
 
-use omega_abstract_operations::{AbstractReboundDynamicScalarDispatch, RankedU32CountdownCustody};
+use omega_abstract_operations::{
+    AbstractDynamicDescriptorArgument, AbstractReboundDynamicScalarDispatch, AbstractResult,
+    RankedU32CountdownCustody,
+};
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_target_operations::{
@@ -117,6 +120,9 @@ pub struct MachineCodeFunction {
     /// parameter. Unlike `dynamic_scalar_calls`, these rows do not materialize
     /// or relocate a table: the caller supplies both descriptor words.
     pub dynamic_parameter_scalar_calls: Vec<DynamicParameterScalarCallRecord>,
+    /// Complete caller-side materialization and direct-call custody for
+    /// existential descriptors passed to another Terminal machine.
+    pub forwarded_dynamic_descriptor_calls: Vec<ForwardedDynamicDescriptorCallRecord>,
     /// Complete ordered durable scalar homes in an attached Unit frame.
     pub unit_scalar_homes: Vec<UnitScalarHomeRecord>,
     /// Complete ordered zero-code integer definitions available to attached
@@ -335,6 +341,35 @@ pub struct DynamicParameterScalarCallRecord {
     pub indirect_call_offset: usize,
     pub indirect_call_byte_count: usize,
     pub call_stack: ScalarCallStackEvidence,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForwardedDynamicDescriptorArgumentRecord {
+    pub custody: AbstractDynamicDescriptorArgument,
+    pub instance: omega_target_operations::TargetDynamicDescriptorInstanceArgument,
+    pub instance_destination: omega_target_operations::MachineRegister,
+    pub table_destination: omega_target_operations::MachineRegister,
+    pub source_home_byte_offset: u32,
+    pub source_home_indirect: bool,
+    pub instance_code_offset: usize,
+    pub instance_byte_count: usize,
+    pub table_address: DynamicTableAddressMaterialization,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForwardedDynamicDescriptorCallRecord {
+    pub psi_operation: OperationId,
+    pub result: AbstractResult,
+    pub callee: MachineId,
+    pub call_plan: CallPlan,
+    pub dynamic_arguments: Vec<ForwardedDynamicDescriptorArgumentRecord>,
+    pub claim_transfers: Vec<ClaimTransfer>,
+    pub direct_call_offset: usize,
+    pub direct_call_byte_count: usize,
+    pub unit_stack: UnitCallStackEvidence,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,
