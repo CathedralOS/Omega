@@ -1,8 +1,9 @@
-//! Independent selection of ordered U64 equality replay.
+//! Independent selection of ordered U64 inclusive comparison replay.
 
 use super::integer_parameter_comparison::{self, Kind};
 use super::{LegalizationError, LegalizedCondition, ReplayedCondition, ValueId};
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn replay<'a>(
     function: usize,
     architecture: omega_target::Architecture,
@@ -13,7 +14,7 @@ pub(super) fn replay<'a>(
     proposed: &LegalizedCondition,
 ) -> Result<ReplayedCondition<'a>, LegalizationError> {
     integer_parameter_comparison::replay(
-        Kind::Equal,
+        Kind::LessOrEqual,
         function,
         architecture,
         target,

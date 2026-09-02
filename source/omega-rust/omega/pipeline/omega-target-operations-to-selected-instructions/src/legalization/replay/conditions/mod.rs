@@ -2,7 +2,9 @@
 
 mod direct_parameter;
 mod integer_equal_parameters;
+mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
+mod integer_parameter_comparison;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
@@ -61,6 +63,21 @@ pub(super) fn replay<'a>(
             },
             LegalizedCondition::IntegerLessThanParametersV1 { .. },
         ) => integer_less_than_parameters::replay(
+            function,
+            architecture,
+            target,
+            abstracted,
+            optimized,
+            proposed_source,
+            proposed,
+        ),
+        (
+            TargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition: TargetBooleanExpression::IntegerLessOrEqual { .. },
+                ..
+            },
+            LegalizedCondition::IntegerLessOrEqualParametersV1 { .. },
+        ) => integer_less_or_equal_parameters::replay(
             function,
             architecture,
             target,

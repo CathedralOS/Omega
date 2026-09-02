@@ -1,4 +1,4 @@
-//! Exact ordered U64 entry-parameter equality condition selection.
+//! Exact ordered U64 entry-parameter inclusive comparison selection.
 
 use super::integer_parameter_comparison::{self, Kind};
 use super::{DerivedCondition, LegalizationError};
@@ -9,5 +9,5 @@ pub(super) fn derive<'a>(
     abstracted: &omega_abstract_operations::AbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
 ) -> Result<DerivedCondition<'a>, LegalizationError> {
-    integer_parameter_comparison::derive(Kind::Equal, function, target, abstracted, optimized)
+    integer_parameter_comparison::derive(Kind::LessOrEqual, function, target, abstracted, optimized)
 }

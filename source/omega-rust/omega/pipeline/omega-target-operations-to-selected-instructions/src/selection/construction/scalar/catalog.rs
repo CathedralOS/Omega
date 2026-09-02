@@ -5,8 +5,8 @@ use crate::selection::shared::*;
 use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::{
     active_resident_exact_add_bridge_chain, active_resident_exact_add_chain,
-    active_resident_exact_add_original_victim_chain, exact_binary_pair, immediate_pair,
-    integer_equal_immediate_pair, integer_less_than_immediate_pair, parameter_pair,
+    active_resident_exact_add_original_victim_chain, comparison_immediate_pair, exact_binary_pair,
+    immediate_pair, parameter_pair,
 };
 
 type CandidateClassifier = fn(&SourceFunction) -> bool;
@@ -23,14 +23,9 @@ struct ScalarFamilyDescriptor {
 
 const SCALAR_FAMILIES: &[ScalarFamilyDescriptor] = &[
     ScalarFamilyDescriptor::new(
-        "integer-equal-immediate-pair",
-        integer_equal_immediate_pair::is_candidate,
-        integer_equal_immediate_pair::build,
-    ),
-    ScalarFamilyDescriptor::new(
-        "integer-less-than-immediate-pair",
-        integer_less_than_immediate_pair::is_candidate,
-        integer_less_than_immediate_pair::build,
+        "comparison-immediate-pair",
+        comparison_immediate_pair::is_candidate,
+        comparison_immediate_pair::build,
     ),
     ScalarFamilyDescriptor::new(
         "immediate-pair",

@@ -10,7 +10,7 @@ pub(super) use omega_legalized_operations::{
     LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan,
     LegalizedOperationPlanIdentity, LegalizedProjectedStructuralCallReturn,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
-    LegalizedUnitFunction as SourceUnitFunction, legalized_operation_plan_identity,
+    LegalizedUnitFunction as SourceUnitFunction,
 };
 pub(super) use omega_optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
 pub(super) use omega_register_model::{

@@ -51,7 +51,8 @@ pub(super) fn validate_initial_roots(
             let condition_inputs = match &source.condition {
                 LegalizedCondition::DirectParameter { .. } => 1,
                 LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
-                | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } => {
+                | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
+                | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } => {
                     1 + usize::from(
                         left.source_value != right.source_value
                             || left.parameter_index != right.parameter_index
