@@ -12052,6 +12052,19 @@ checked-result arithmetic decision listed below.
   home roster, normalization/store interval, and canonical format-60 scalar
   tag. Integer-result forwarding remains unchanged.
 
+  The first Unit-returning requirement rung now has checked custody without
+  pretending that Unit is a scalar result. One terminal argument-free call
+  through either a direct local descriptor or one exact same-conformance
+  reassignment retains the complete closed application, selected row,
+  operation-free checked callable roster, source borrow/access/path,
+  caller/realization contracts, and exact call service-reach rows in distinct
+  direct/rebound catalogs. There is no result binding, ABI home, or continuation
+  field to misuse. Nonempty realization bodies, arguments, discarded non-Unit
+  results, realization state contracts, service reach, and statements after
+  the call publish no Unit plan. This is checked-only custody; it does not yet
+  claim descriptor-parameter forwarding, Terminal encoding, tables/adapters,
+  or native execution.
+
   Remaining work:
 
   - add an AArch64 result-execution replay canary. The native assertion is
@@ -12069,9 +12082,10 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - extend the v1 borrowed surface to Unit-returning requirements and
-    additional call forms when their exact semantic and physical rules are
-    settled;
+  - carry the checked operation-free Unit-returning requirement lane through
+    descriptor-parameter forwarding, Terminal encoding and verification,
+    tables/adapters, and native execution before widening its bodies or call
+    forms;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

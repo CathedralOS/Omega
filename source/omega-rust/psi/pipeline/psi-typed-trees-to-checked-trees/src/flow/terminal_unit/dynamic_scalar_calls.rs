@@ -1,4 +1,8 @@
-//! Checked custody for scalar calls through local named dynamic values.
+//! Checked custody for calls through local named dynamic values.
+//!
+//! Scalar-result calls remain in this owner. Unit-returning statement calls
+//! use the focused `unit` child so they cannot acquire a fabricated result
+//! carrier by sharing the scalar path.
 //!
 //! This module is intentionally independent from Terminal Psi. It consumes
 //! typed coordinates once, joins them to checked conformance, contract, value,
@@ -7,6 +11,8 @@
 
 use super::*;
 use psi_typed_trees::name::Identifier;
+
+mod unit;
 
 pub(super) fn build_checked_dynamic_dispatch_plans(
     program: &TypedTrees,
@@ -52,24 +58,45 @@ fn build_checked_dynamic_scalar_call_transaction(
                     continue;
                 }
 
-                match build_checked_dynamic_scalar_call(
-                    program,
-                    facts,
-                    &binding_facts,
-                    machine,
-                    state,
-                    flow_call,
-                    call_site,
-                    shapes,
-                    boundaries,
-                    None,
-                )? {
-                    CheckedDynamicScalarCall::Direct(plan) => {
-                        plans.direct_scalar_calls.push(plan);
+                match &call_site {
+                    crate::CallSite::Statement(_) => {
+                        match unit::build_checked_dynamic_unit_call(
+                            program,
+                            facts,
+                            &binding_facts,
+                            machine,
+                            state,
+                            flow_call,
+                            call_site,
+                            shapes,
+                        )? {
+                            unit::CheckedDynamicUnitCall::Direct(plan) => {
+                                plans.direct_unit_calls.push(plan);
+                            }
+                            unit::CheckedDynamicUnitCall::Rebound(plan) => {
+                                plans.rebound_unit_calls.push(plan);
+                            }
+                        }
                     }
-                    CheckedDynamicScalarCall::Rebound(plan) => {
-                        plans.rebound_scalar_calls.push(plan);
-                    }
+                    _ => match build_checked_dynamic_scalar_call(
+                        program,
+                        facts,
+                        &binding_facts,
+                        machine,
+                        state,
+                        flow_call,
+                        call_site,
+                        shapes,
+                        boundaries,
+                        None,
+                    )? {
+                        CheckedDynamicScalarCall::Direct(plan) => {
+                            plans.direct_scalar_calls.push(plan);
+                        }
+                        CheckedDynamicScalarCall::Rebound(plan) => {
+                            plans.rebound_scalar_calls.push(plan);
+                        }
+                    },
                 }
             }
         }
