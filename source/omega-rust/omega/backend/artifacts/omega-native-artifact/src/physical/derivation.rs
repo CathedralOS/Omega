@@ -29,7 +29,8 @@ pub(crate) fn derive_physical_evidence(
     terminal_artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
     target: NativeTarget,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
+    final_image_symbol_digest: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
@@ -196,6 +197,7 @@ pub(crate) fn derive_physical_evidence(
                     &module,
                     object,
                     image,
+                    final_image_symbol_digest,
                     foreign,
                 )?
                 else {
@@ -464,7 +466,7 @@ fn derive_exit_group_child(
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
     installed: &omega_image_emission::ObjectBoundarySettlement,
 ) -> Result<NativePhysicalChild, &'static str> {
     let settlement = &installed.settlement;
@@ -510,7 +512,7 @@ fn derive_exit_group_child(
     let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.output().final_text_bytes, final_image_span)?;
+    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
     if machine_bytes != object_bytes || object_bytes != final_image_bytes {
         return Err("Linux exit-group physical child bytes changed across physical custody");
     }
@@ -596,7 +598,8 @@ fn derive_normalized_foreign_child(
     target: NativeTarget,
     module: &psi_terminal::TerminalModule,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
+    final_image_symbol_digest: [u8; 32],
     foreign: &omega_image_emission::ObjectForeignCall,
 ) -> Result<Option<NativePhysicalChild>, &'static str> {
     let matching_operations = module
@@ -830,7 +833,7 @@ fn derive_normalized_foreign_child(
     )
     .ok_or("normalized foreign D41 child has an invalid provider execution")?;
 
-    let matching_image_calls = image
+    let matching_image_calls = object
         .foreign_calls()
         .iter()
         .filter(|candidate| {
@@ -1020,7 +1023,7 @@ fn derive_normalized_foreign_child(
     let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.output().final_text_bytes, final_image_span)?;
+    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
     if machine_bytes != object_bytes {
         return Err("normalized foreign D41 child changed before object custody");
     }
@@ -1094,7 +1097,7 @@ fn derive_normalized_foreign_child(
             relocation.addend,
             relocation.kind,
             callback_relocations,
-            *image.final_image_symbol_digest().as_bytes(),
+            final_image_symbol_digest,
         ),
     );
     let machine_bytes_digest = sha256(machine_bytes);

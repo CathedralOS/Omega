@@ -1718,12 +1718,22 @@ call operation classes. The operation-result and call-result checked/source
 producers remain transitional until expression-to-Terminal-operation
 correspondences exist; block-parameter source production remains transitional
 until nested-state contract identity is proven to the emitted block coordinate.
+One Terminal-only structural-leaf source additionally retains the owner and the
+existing complete `IeeeFloatStructuralField` root/path coordinate plus format.
+Independent replay accepts the root only from that owner's direct structural
+parameter table with owned, shared-borrowed, or mutable-borrowed access;
+write-only custody cannot be observed. Replay walks relevant record/mixed
+fields, fixed-array indices, and sum-case payload fields through declared
+structural types, and requires the
+selected leaf to be the exact IEEE format. Checked production remains
+transitional until an exact checked-expression to Terminal owner/root/path join
+exists.
 There is no separate nested-state result source: authored states have arrival
 requirements but no exit guarantees, and state completion produces the owning
 machine's declared result. D40 therefore uses the existing direct-machine-
 result carrier for that value rather than adding a state- or exit-scoped term.
-Other landed source forms remain explicitly transitional until their artifact-
-relative carriers exist.
+Other arbitrary Terminal-value forms remain explicitly transitional until
+their artifact-relative carriers exist.
 
 Source admission now recognizes the projection declaration only when its
 resolved symbol has the exact toolchain-owned `Float::meaning32` or
@@ -1736,8 +1746,8 @@ projection rows now carry the rooted-checker tuple `(format, operation,
 declaration, catalog-version)` and a domain-separated commitment to the exact
 owners, hermetic identity, private contract-free ordinary signature, source
 carrier, and nominal result. Independent replay rejects component or
-commitment drift. Artifact-aware contract/result, remaining Terminal-value,
-and structural-leaf source coordinates remain separate engineering.
+commitment drift. Artifact-aware contract/result and remaining Terminal-value
+source coordinates remain separate engineering.
 
 The compiler canonicalizes equal tuples to one proof value before equality is
 formed. Multiple authored occurrences may therefore reference the same

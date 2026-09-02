@@ -10020,11 +10020,24 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-twenty-two root and exact twenty-one-operation/one-edge fuel ordinals.
   Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
-  artifact mutations reject; `[T; 23]` and wider prefixes remain fail closed
+  artifact mutations reject; other prefix drift remains fail closed
+  without runtime liveness state or a loop.
+
+  The following bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 23]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]`
+  and ordinary cleanup
+  `[21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-twenty-three root and exact twenty-two-operation/one-edge fuel
+  ordinals. Missing, reordered, redirected-root, wrong-length, index,
+  cleanup-order, and artifact mutations reject; `[T; 24]` and wider prefixes
+  remain fail closed
   without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 22]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 23]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
@@ -11043,8 +11056,20 @@ Remaining N6/N8 work:
   arrival `requires`, and completion of either the entry body or a nested state
   produces the owning machine's declared result. That float source is therefore
   the existing direct-machine-result carrier; no separate proof source or wire
-  tag is warranted. Still open are carriers for other arbitrary Terminal values
-  and structural float leaves, plus production proof-ledger discharge. The
+  tag is warranted. A Terminal-only structural-leaf carrier now retains exact
+  `(owner MachineId, IeeeFloatStructuralField(root, canonical path), format)`
+  identity. The root must be an observable direct structural parameter of the
+  named owner: owned, shared-borrowed, and mutable-borrowed roots qualify, while
+  a write-only borrow cannot supply an observed meaning term. Independent
+  replay walks the complete relevant field/case/fixed-index path
+  through the owner's declared structural types and requires the selected leaf
+  to be `IeeeFloat(format)`. Unknown owners or roots, erased/non-float leaves,
+  invalid or substituted paths, format drift, and duplicate tuples reject.
+  Terminal format 68 / vocabulary 71 encode this distinct source class; legacy
+  formats reject its tag. Checked/source production remains transitional
+  because no checked expression-to-Terminal structural-root/path correspondence
+  is retained. Still open are carriers for other arbitrary Terminal values,
+  plus production proof-ledger discharge. The
   ordinary exit checker now discharges the direct owning-result reflexivity
   form without a label shortcut: the current `ensures` expression must rejoin its exact
   checked `FloatMeaningEqual` row, both operands must be the same canonical
@@ -11447,8 +11472,20 @@ boundary without its corresponding checked law.
   dynamic-ELF result. That result retains the complete source `ObjectArtifact`,
   so PSI-only or other semantic/evidence substitution rejects even when object
   bytes and layout are unchanged. This image-bound router does not manufacture
-  loader policy or generalize the compiler's `NativeArtifact` admission owner. The
-  first production object-retention prerequisite is now live:
+  loader policy. The first general compiler/native-artifact continuation now
+  carries that authority-distinct request through ordinary Terminal-to-object
+  realization. Direct requests still return exactly the existing
+  `NativeArtifact`; an import-bearing Linux object plus an exact normalized
+  interpreter instead returns a separate non-installable
+  `DynamicElfNativeArtifact`. The dynamic candidate retains and replays the
+  complete canonical Terminal artifact, object, selected provider closure,
+  provider executions, Terminal authority policies/review, D29 coverage, D32
+  physical evidence, and requested dynamic image. Replay rederives the writer
+  route from the exact object and image, so PSI-only or outer-object
+  substitution rejects. Request failure returns the exact consumed request,
+  including the interpreter or direct subsystem. This carrier grants no
+  admission, installation, loader-policy, publication, or execution authority.
+  The first production object-retention prerequisite is now live:
   `MachineCodeFunction` owns ordered source-free `ForeignCallRelocation` rows
   containing the exact normalized locator, semantic call owner, and native
   relocation field. Ordinary `build_object_artifact` independently replays the
@@ -11538,8 +11575,8 @@ boundary without its corresponding checked law.
   retain the exact semantic call owner, locator, provider-execution record, and
   relocation offset. The local test evidence is an input assumption, not a
   deployment admission claim. Remaining work is the real external admission
-  owner and compiler/native-artifact integration beyond the image-bound
-  request router, the external-root
+  owner and later admission/publication integration beyond the authority-free
+  requested native candidate, the external-root
   `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment support,
   general runtime expressions, non-fixed-integer/float/aggregate/
   indirect result signatures, callback-native
@@ -11857,7 +11894,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 67 / vocabulary 70, these rows carry
+  and retained by current format 68 / vocabulary 71, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation

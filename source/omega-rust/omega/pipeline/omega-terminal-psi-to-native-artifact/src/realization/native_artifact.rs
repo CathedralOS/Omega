@@ -4,7 +4,8 @@ use omega_native_artifact::NativeArtifact;
 use psi_diagnostics::Diagnostic;
 
 use super::{
-    NativeRealizationRequest,
+    NativeRealizationRequest, RequestedNativeArtifact, RequestedNativeArtifactError,
+    RequestedNativeRealizationRequest,
     boundary_applications::retain_boundary_application_coverage,
     diagnostics::realization_error,
     input::{
@@ -12,7 +13,7 @@ use super::{
         reopen_prepared_native_realization_input,
     },
     machine_code::emit_realization_machine_code,
-    output::assemble_native_artifact,
+    output::assemble_requested_native_artifact,
     providers::{AdmittedNativeProviders, admit_native_providers},
 };
 
@@ -22,6 +23,51 @@ pub(super) fn realize(
     request: NativeRealizationRequest<'_>,
     prepared_input: Option<&PreparedNativeRealizationInput>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
+    let image_request =
+        omega_image_emission::ExecutableImageEmissionRequest::direct(request.subsystem);
+    match realize_core(
+        artifact,
+        checked_scope,
+        request.into_core(),
+        image_request,
+        prepared_input,
+    ) {
+        Ok(RequestedNativeArtifact::Direct(artifact)) => Ok(artifact),
+        Ok(RequestedNativeArtifact::DynamicElf(_)) => {
+            unreachable!("direct request cannot select dynamic ELF custody")
+        }
+        Err(diagnostics) => Err(diagnostics),
+    }
+}
+
+pub(super) fn realize_requested(
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
+    request: RequestedNativeRealizationRequest<'_>,
+    prepared_input: Option<&PreparedNativeRealizationInput>,
+) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
+    let (image_request, request) = request.into_parts();
+    let recoverable_image_request = image_request.clone();
+    realize_core(
+        artifact,
+        checked_scope,
+        request,
+        image_request,
+        prepared_input,
+    )
+    .map_err(|diagnostics| RequestedNativeArtifactError {
+        image_request: recoverable_image_request,
+        diagnostics,
+    })
+}
+
+fn realize_core(
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: Option<&psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope>,
+    request: super::model::NativeRealizationCoreRequest<'_>,
+    image_request: omega_image_emission::ExecutableImageEmissionRequest,
+    prepared_input: Option<&PreparedNativeRealizationInput>,
+) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     request
         .program_entry
         .validate_for_target(request.target)
@@ -75,7 +121,7 @@ pub(super) fn realize(
         initial_physical_evidence_scope,
         &request,
     )?;
-    assemble_native_artifact(
+    assemble_requested_native_artifact(
         artifact,
         &emitted.machine_code,
         executions,
@@ -84,6 +130,7 @@ pub(super) fn realize(
         terminal_authority_closure_review,
         boundary_application_coverage,
         emitted.physical_evidence_scope,
+        image_request,
         &request,
     )
 }

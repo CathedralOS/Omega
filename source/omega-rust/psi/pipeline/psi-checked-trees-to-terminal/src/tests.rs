@@ -2282,7 +2282,7 @@ fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() 
             .semantic_module
             .float_meaning_projections
             .iter()
-            .map(|projection| projection.source)
+            .map(|projection| projection.source.clone())
             .collect::<Vec<_>>(),
         vec![
             psi_terminal::FloatMeaningSource::ExactBinary32Literal(0x0000_0000),

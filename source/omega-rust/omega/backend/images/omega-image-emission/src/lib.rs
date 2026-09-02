@@ -56,7 +56,7 @@ pub use dynamic_elf::{
     ExecutableImageEmissionRequest, RequestedDynamicElfImage, RequestedExecutableImage,
     RequestedExecutableImageError, emit_admitted_dynamic_elf_image, emit_dynamic_elf_image,
     emit_requested_executable_image, validate_dynamic_elf_image_emission,
-    validate_requested_executable_image,
+    validate_requested_dynamic_elf_image, validate_requested_executable_image,
 };
 pub use image_output::{
     ExecutableImage, ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image,

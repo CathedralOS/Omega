@@ -1,10 +1,11 @@
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentConservation,
-    ContentDomainId, ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
-    ContentProjectionIdentity, ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    ContractId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId, ScalarTerm,
-    ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
+    BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
+    ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
+    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, ContractId, EdgeId,
+    IeeeFloatFormat, IeeeFloatStructuralField, IeeeFloatValue, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionId,
+    ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId, StructuralFieldId,
     StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
@@ -12,15 +13,16 @@ use psi_terminal::{
     CompletionReceipt, ContentEntryClaim, ContentIdentityReshuffle, ContentPartitionComposition,
     ContentPlaceSubstitution, ContractClause, CrashCause, CrashRouteBucket, CrashRouteGuard,
     DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
-    DirectMachineFloatResult, DirectOperationFloatResult, EntryClaim, EvidenceInterfaceIdentity,
-    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, InstallationReachDependency,
-    MachineContract, NominalAffineCleanup, Operation, OperationKind, OperationResult,
-    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard, ProofOnlyValueType,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
-    PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ServiceDeclaration,
-    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf, EntryClaim,
+    EvidenceInterfaceIdentity, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+    InstallationReachDependency, MachineContract, NominalAffineCleanup, Operation, OperationKind,
+    OperationResult, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
+    ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
+    PropositionDeclaration, PropositionEvidence, ServiceDeclaration, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
@@ -722,6 +724,114 @@ fn direct_call_float_result_round_trips_and_enters_semantic_identity() {
         semantic_fingerprint(&module).expect("changed direct call-result identity"),
         original,
         "direct call producer identity enters Terminal semantic identity"
+    );
+}
+
+#[test]
+fn direct_structural_float_leaf_round_trips_complete_path_and_identity() {
+    let mut module = unit_fixture();
+    let owner = module.entry;
+    let root = place_id(500);
+    let structural_type = structural_type_id(500);
+    let field = structural_field_id(500);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "Fixture::FloatRecord".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![
+                StructuralFieldDeclaration {
+                    id: field,
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+                },
+                StructuralFieldDeclaration {
+                    id: structural_field_id(501),
+                    identity: "alternate".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+                },
+            ],
+        },
+    });
+    module.machines[0]
+        .structural_parameters
+        .push(StructuralParameterDeclaration {
+            place: root,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    module.machines[0]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: root,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        });
+    let contract =
+        psi_numerics::float_projection::FloatProjectionOperation::Meaning32.contract_identity();
+    module.float_meaning_projections = vec![FloatMeaningProjection {
+        result: ProofValueDeclaration {
+            id: ProofValueId(0),
+            value_type: ProofOnlyValueType::FloatMeaning,
+        },
+        source: FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
+            owner,
+            field: IeeeFloatStructuralField::new(
+                root,
+                vec![CanonicalStructuralPathSegment::Field(field)],
+            )
+            .expect("nonempty structural path"),
+            format: IeeeFloatFormat::Binary32,
+        }),
+        operation: FloatMeaningProjectionOperation::Meaning32,
+        contract: psi_terminal::FloatProjectionContractIdentity {
+            format: contract.format,
+            operation: contract.operation,
+            declaration: contract.declaration,
+            catalog_version: contract.catalog_version,
+            commitment: contract.commitment,
+        },
+    }];
+
+    let bytes = encode_module(&module).expect("direct structural leaf should encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let source_prefix = [0, 0, 0, 0, 1, 9];
+    let source_offset = bytes
+        .windows(source_prefix.len())
+        .position(|window| window == source_prefix)
+        .expect("direct structural-leaf source encoding is unique");
+    let mut unknown_source = bytes.clone();
+    unknown_source[source_offset + 5] = 0xff;
+    assert_eq!(
+        decode_module(&unknown_source),
+        Err(CodecError::InvalidTag("FloatMeaningSource", 0xff))
+    );
+
+    let original = semantic_fingerprint(&module).expect("direct structural-leaf identity");
+    let FloatMeaningSource::DirectStructuralLeaf(source) =
+        &mut module.float_meaning_projections[0].source
+    else {
+        unreachable!()
+    };
+    source.field = IeeeFloatStructuralField::new(
+        root,
+        vec![CanonicalStructuralPathSegment::Field(structural_field_id(
+            501,
+        ))],
+    )
+    .expect("nonempty structural path");
+    assert_ne!(
+        semantic_fingerprint(&module).expect("changed direct structural-leaf identity"),
+        original,
+        "the complete canonical leaf path enters Terminal semantic identity"
     );
 }
 

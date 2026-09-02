@@ -93,117 +93,176 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
         omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
     imports: &[SourceEvaluatedImportSettlement<'_>],
 ) -> Result<omega_compilation_report::RetainedNativeArtifact, Vec<Diagnostic>> {
-    retained
-        .validate()
-        .map_err(|message| diagnostic("retained Terminal product", message))?;
-    let (artifact, callback_placements, proposal) = retained.into_parts();
-    let proposal = proposal.ok_or_else(|| {
-        diagnostic(
-            "retained Terminal product",
-            "source-evaluated import realization requires one native proposal",
+    let subsystem = retained
+        .native_realization_proposal()
+        .map(|proposal| proposal.subsystem())
+        .ok_or_else(|| {
+            diagnostic(
+                "retained Terminal product",
+                "source-evaluated import realization requires one native proposal",
+            )
+        })?;
+    let result =
+        realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
+            retained,
+            profile,
+            optimization_selections,
+            terminal_authority_policy,
+            accepted_package_terminal_authority_permission_policy,
+            terminal_authority_permission_policy,
+            omega_terminal_psi_to_native_artifact::ExecutableImageEmissionRequest::direct(
+                subsystem,
+            ),
+            imports,
         )
-    })?;
-    proposal
-        .validate_for_artifact(&artifact)
-        .map_err(|message| diagnostic("Terminal native proposal", message))?;
-    super::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
+        .map_err(|(_, diagnostics)| diagnostics)?;
+    match result {
+        omega_terminal_psi_to_native_artifact::RequestedNativeArtifact::Direct(artifact) => {
+            Ok(artifact)
+        }
+        omega_terminal_psi_to_native_artifact::RequestedNativeArtifact::DynamicElf(_) => {
+            unreachable!("a direct image request cannot produce dynamic ELF custody")
+        }
+    }
+}
+
+/// Realize a retained Terminal product into the non-installing native carrier
+/// selected by the exact object contents and explicit image-writer input.
+/// Rejection returns that complete input, including a consumed interpreter.
+#[allow(clippy::too_many_arguments)]
+pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
+    retained: omega_compilation_report::RetainedTerminalArtifact,
+    profile: &psi_proof_admission::AdmissionProfile,
+    optimization_selections: &omega_optimization_core::OptimizationSelections,
+    terminal_authority_policy: omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicy,
+    accepted_package_terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    terminal_authority_permission_policy:
+        omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicy,
+    image_request: omega_terminal_psi_to_native_artifact::ExecutableImageEmissionRequest,
+    imports: &[SourceEvaluatedImportSettlement<'_>],
+) -> Result<
+    omega_terminal_psi_to_native_artifact::RequestedNativeArtifact,
+    (
+        omega_terminal_psi_to_native_artifact::ExecutableImageEmissionRequest,
+        Vec<Diagnostic>,
+    ),
+> {
+    let recoverable_image_request = image_request.clone();
+    let result = (|| {
+        retained
+            .validate()
+            .map_err(|message| diagnostic("retained Terminal product", message))?;
+        let (artifact, callback_placements, proposal) = retained.into_parts();
+        let proposal = proposal.ok_or_else(|| {
+            diagnostic(
+                "retained Terminal product",
+                "source-evaluated import realization requires one native proposal",
+            )
+        })?;
+        proposal
+            .validate_for_artifact(&artifact)
+            .map_err(|message| diagnostic("Terminal native proposal", message))?;
+        super::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
         proposal.package_terminal_authority_permissions(),
         &accepted_package_terminal_authority_permission_policy,
     )?;
-    super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
-        accepted_package_terminal_authority_permission_policy
-            .rows()
-            .iter(),
-        &terminal_authority_permission_policy,
-    )?;
-    let native_callbacks =
-        admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
-    let callback_thunks =
-        admitted_native_callback_thunks(&callback_placements, proposal.callback_occurrences())?;
-    debug_assert_eq!(callback_placements.len(), native_callbacks.len());
-    debug_assert_eq!(callback_placements.len(), callback_thunks.len());
+        super::terminal_authority_permissions::validate_package_terminal_authority_permissions(
+            accepted_package_terminal_authority_permission_policy
+                .rows()
+                .iter(),
+            &terminal_authority_permission_policy,
+        )?;
+        let native_callbacks =
+            admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
+        let callback_thunks =
+            admitted_native_callback_thunks(&callback_placements, proposal.callback_occurrences())?;
+        debug_assert_eq!(callback_placements.len(), native_callbacks.len());
+        debug_assert_eq!(callback_placements.len(), callback_thunks.len());
 
-    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
-        diagnostic(
-            "Terminal native proposal",
-            format!("canonical semantics could not be decoded: {error}"),
-        )
-    })?;
-    let demanded = super::intrinsic_settlements::demanded_boundary_identities(&module)?;
-    let exact_import_plans = exact_demanded_import_plans(&proposal, &demanded)?;
-    let native_settlements = rejoin_external_import_settlements(&exact_import_plans, imports)?;
-
-    let selected_plans = proposal.selected_provider_plans().plans();
-    let compiler_builtins = proposal
-        .compiler_builtins()
-        .iter()
-        .map(|builtin| {
-            let provider_plan = selected_plans
-                .get(builtin.provider_plan_index())
-                .ok_or_else(|| {
-                    diagnostic(
-                        "Terminal native proposal",
-                        format!(
-                            "compiler builtin `{}` names an absent selected provider plan",
-                            builtin.requirement_identity()
-                        ),
-                    )
-                })?;
-            Ok(
-                omega_terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
-                    requirement_identity: builtin.requirement_identity(),
-                    provider_plan,
-                    execution: builtin.execution(),
-                },
-            )
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let ieee_float_fma = proposal
-        .ieee_float_fma_occurrences()
-        .iter()
-        .map(|occurrence| {
-            let provider_plan = proposal
-                .selected_provider_plans()
-                .plans()
-                .get(occurrence.provider_plan_index())
-                .ok_or_else(|| {
-                    diagnostic(
-                        "Terminal nearest-FMA proposal",
-                        "occurrence names an absent exact selected provider plan",
-                    )
-                })?;
-            let admission = occurrence.x86_admission().ok_or_else(|| {
+        let module =
+            psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
                 diagnostic(
-                    "Terminal nearest-FMA proposal",
-                    "ordinary native lowering currently requires admitted x86 FMA custody",
+                    "Terminal native proposal",
+                    format!("canonical semantics could not be decoded: {error}"),
                 )
             })?;
-            Ok(
-                omega_terminal_psi_to_native_artifact::AdmittedIeeeFloatFmaSettlement {
-                    terminal_operation: occurrence.terminal_operation(),
-                    provider_plan,
-                    format: occurrence.format(),
-                    slot: admission.slot(),
-                    provider: admission.provider(),
-                },
-            )
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let calling_plans = proposal
-        .program_entry()
-        .calling_plans()
-        .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
-    let program_entry = omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
-        proposal.program_entry().source_signature(),
-        calling_plans,
-        proposal.program_entry().fused_service_establishments(),
-    );
-    omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
+        let demanded = super::intrinsic_settlements::demanded_boundary_identities(&module)?;
+        let exact_import_plans = exact_demanded_import_plans(&proposal, &demanded)?;
+        let native_settlements = rejoin_external_import_settlements(&exact_import_plans, imports)?;
+
+        let selected_plans = proposal.selected_provider_plans().plans();
+        let compiler_builtins = proposal
+            .compiler_builtins()
+            .iter()
+            .map(|builtin| {
+                let provider_plan = selected_plans
+                    .get(builtin.provider_plan_index())
+                    .ok_or_else(|| {
+                        diagnostic(
+                            "Terminal native proposal",
+                            format!(
+                                "compiler builtin `{}` names an absent selected provider plan",
+                                builtin.requirement_identity()
+                            ),
+                        )
+                    })?;
+                Ok(
+                    omega_terminal_psi_to_native_artifact::NativeCompilerBuiltinSettlement {
+                        requirement_identity: builtin.requirement_identity(),
+                        provider_plan,
+                        execution: builtin.execution(),
+                    },
+                )
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let ieee_float_fma = proposal
+            .ieee_float_fma_occurrences()
+            .iter()
+            .map(|occurrence| {
+                let provider_plan = proposal
+                    .selected_provider_plans()
+                    .plans()
+                    .get(occurrence.provider_plan_index())
+                    .ok_or_else(|| {
+                        diagnostic(
+                            "Terminal nearest-FMA proposal",
+                            "occurrence names an absent exact selected provider plan",
+                        )
+                    })?;
+                let admission = occurrence.x86_admission().ok_or_else(|| {
+                    diagnostic(
+                        "Terminal nearest-FMA proposal",
+                        "ordinary native lowering currently requires admitted x86 FMA custody",
+                    )
+                })?;
+                Ok(
+                    omega_terminal_psi_to_native_artifact::AdmittedIeeeFloatFmaSettlement {
+                        terminal_operation: occurrence.terminal_operation(),
+                        provider_plan,
+                        format: occurrence.format(),
+                        slot: admission.slot(),
+                        provider: admission.provider(),
+                    },
+                )
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        let calling_plans = proposal
+            .program_entry()
+            .calling_plans()
+            .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry));
+        let program_entry =
+            omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
+                proposal.program_entry().source_signature(),
+                calling_plans,
+                proposal.program_entry().fused_service_establishments(),
+            );
+        omega_terminal_psi_to_native_artifact::realize_requested_native_artifact_with_checked_boundary_operator_scope(
         artifact,
         proposal.checked_boundary_operator_scope(),
-        omega_terminal_psi_to_native_artifact::NativeRealizationRequest {
+        omega_terminal_psi_to_native_artifact::RequestedNativeRealizationRequest {
             target: proposal.native_target(),
-            subsystem: proposal.subsystem(),
+            image_request,
             profile,
             terminal_authority_policy,
             terminal_authority_permission_policy,
@@ -219,6 +278,9 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
             callback_thunks: &callback_thunks,
         },
     )
+    .map_err(|error| error.into_parts().1)
+    })();
+    result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }
 
 fn admitted_native_callback_thunks<'artifact>(

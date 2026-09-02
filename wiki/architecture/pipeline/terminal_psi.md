@@ -1557,8 +1557,20 @@ discards them as
 and the verifier, codec, interpreter, Omega lowering, native emission,
 object/image replay, and installation encoding retain the common root plus
 exact twenty-two fuel units. Missing/reordered operations or cleanup, changed
-indices/root length, and length-twenty-three or wider prefixes reject; no
-runtime liveness bitmap or cleanup loop is introduced.
+indices/root length, and other prefix drift reject; no runtime liveness bitmap
+or cleanup loop is introduced.
+
+The following bounded carrier admits the same shape at length twenty-three
+with establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]`.
+Terminal publishes twenty-two ordered zero-ABI local places, the Unit return
+discards them as
+`[21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`,
+and the verifier, codec, interpreter, Omega lowering, native emission,
+object/image replay, and installation encoding retain the common root plus
+exact twenty-three fuel units. Missing/reordered operations or cleanup, changed
+indices/root length, and length-twenty-four or wider prefixes reject; no runtime
+liveness bitmap or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
 finite nonempty list of claim-free, unqualified affine parameters whose records
@@ -3195,6 +3207,19 @@ compilation assembles evidence but cannot mint runtime or publication
 authority. The deployment owner consumes the component candidate, joins
 real installation occurrences and receipts under the live registry, acquires
 installed-code custody, and only then produces a runnable carrier.
+
+An authority-distinct requested-native entrance now extends that same
+source-free owner without widening `NativeArtifact`. A direct request returns
+exactly `NativeArtifact`; an import-bearing Linux object with an exact
+normalized interpreter returns a separate, non-installable
+`DynamicElfNativeArtifact`. That carrier retains the complete canonical
+Terminal artifact, object, selected provider closure and executions, Terminal
+authority policies/review, D29 coverage, D32 physical evidence, and requested
+dynamic image. Replay rederives the image route from the exact object and
+rejects PSI-only or outer-object substitution. Rejection returns the exact
+image request. No admission, loader-policy, installation, publication, or
+execution authority is created.
+
 The source-free native carrier belongs to the neutral
 `omega-native-artifact` crate. The component-specific wrapper remains
 in `omega-component-candidate`; compiler and deployment depend on
@@ -3767,7 +3792,17 @@ transitional until an expression-to-Terminal-call-operation correspondence is
 retained. A nested state has no distinct result carrier: it admits arrival
 requirements only, and normal completion produces the owning machine's declared
 result. The existing direct-machine-result source covers that value without a
-state- or exit-scoped tag. Other arbitrary Terminal values, structural leaves,
+state- or exit-scoped tag. A Terminal-only structural-leaf source retains exact
+`(owner MachineId, IeeeFloatStructuralField(root, canonical path), format)`
+identity. The verifier resolves the root only in the owner's direct structural
+parameter table and rejects write-only borrow access; owned, shared-borrowed,
+and mutable-borrowed roots remain observable. It walks the complete relevant
+record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
+declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
+format substitution fail closed. Terminal format 68 / vocabulary 71 assign
+source tag 9 and reject it under legacy formats. Checked/source production
+remains transitional because the pipeline retains no exact checked expression
+to Terminal owner/root/path correspondence. Other arbitrary Terminal values
 and every other nonliteral source remain transitional engineering work.
 The source-side exit checker admits the owning direct-result reflexivity form
 only after the exact authored `ensures` expression rejoins the checked

@@ -25,7 +25,7 @@ pub(super) fn derive_operator_physical_span(
     module: &psi_terminal::TerminalModule,
     target: NativeTarget,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let operation = exact_terminal_operation(module, occurrence)?;
     match realization {
@@ -62,7 +62,7 @@ fn derive_checked_call_span(
     operation: &psi_terminal::Operation,
     target: NativeTarget,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     let expected_callee = match &operation.kind {
         OperationKind::Call { callee, .. }
@@ -197,7 +197,7 @@ fn derive_fma_span(
     occurrence: &OptimizedOperatorOccurrence,
     operation: &psi_terminal::Operation,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
 ) -> Result<Option<OperatorPhysicalSpan>, &'static str> {
     if !matches!(
         operation.kind,
@@ -246,7 +246,7 @@ fn derive_span(
     code_offset: usize,
     byte_count: usize,
     object: &omega_image_emission::ObjectArtifact,
-    image: &omega_image_emission::ExecutableImage,
+    image: &omega_image::EmittedImageOutput,
     disposition: PhysicalRelocationDisposition,
     relocation: Option<(usize, usize)>,
 ) -> Result<OperatorPhysicalSpan, &'static str> {
@@ -259,7 +259,7 @@ fn derive_span(
     let final_image = object_span;
     let machine_bytes = span(function.bytes(object), machine)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.output().final_text_bytes, final_image)?;
+    let final_image_bytes = span(&image.final_text_bytes, final_image)?;
     if machine_bytes != object_bytes {
         return Err("D29 physical child changed before object custody");
     }

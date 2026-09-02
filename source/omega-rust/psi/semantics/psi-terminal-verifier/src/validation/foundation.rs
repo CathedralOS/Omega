@@ -1,6 +1,89 @@
 use super::structural_qualification_rosters::validate_projected_qualification_roster;
 use super::*;
 
+pub(crate) fn structural_leaf_type<'module>(
+    module: &'module TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<&'module StructuralFieldType> {
+    let mut structural_type = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == root)?
+        .structural_type;
+    let mut selected_case_fields = None;
+    if path.is_empty() {
+        return None;
+    }
+    for (index, segment) in path.iter().enumerate() {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)?;
+        let is_last = index + 1 == path.len();
+        if let CanonicalStructuralPathSegment::Case(case_id) = segment {
+            if selected_case_fields.is_some() || is_last {
+                return None;
+            }
+            let cases = match &declaration.shape {
+                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+                    cases
+                }
+                _ => return None,
+            };
+            selected_case_fields = Some(
+                &cases
+                    .iter()
+                    .find(|candidate| candidate.id == *case_id)?
+                    .fields,
+            );
+            continue;
+        }
+        if let Some(fields) = selected_case_fields.take() {
+            let CanonicalStructuralPathSegment::Field(field_id) = segment else {
+                return None;
+            };
+            let field = fields
+                .iter()
+                .find(|candidate| candidate.id == *field_id)
+                .filter(|field| !field.relevance.is_erased())?;
+            if is_last {
+                return Some(&field.field_type);
+            }
+            let StructuralFieldType::Structural(next) = field.field_type else {
+                return None;
+            };
+            structural_type = next;
+            continue;
+        }
+        match (segment, &declaration.shape) {
+            (
+                CanonicalStructuralPathSegment::Field(field_id),
+                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            ) => {
+                let field = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field_id)
+                    .filter(|field| !field.relevance.is_erased())?;
+                if is_last {
+                    return Some(&field.field_type);
+                }
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                structural_type = next;
+            }
+            (
+                CanonicalStructuralPathSegment::FixedIndex(fixed_index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if !is_last && *fixed_index < *length => structural_type = *element,
+            _ => return None,
+        }
+    }
+    None
+}
+
 fn validate_structural_fields(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
@@ -584,6 +667,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 19 => 20,
                 20 => 21,
                 21 => 22,
+                22 => 23,
                 _ => 0,
             };
             let exact_prefix = expected_root_length != 0

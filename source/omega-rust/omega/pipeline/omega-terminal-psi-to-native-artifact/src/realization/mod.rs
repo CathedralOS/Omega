@@ -21,7 +21,8 @@ pub use callback_custody::{
 pub use input::{PreparedNativeRealizationInput, prepare_native_realization_input};
 pub use model::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
-    NativeProviderSettlement, NativeRealizationRequest, SettledNativeArtifact,
+    NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
+    RequestedNativeArtifactError, RequestedNativeRealizationRequest, SettledNativeArtifact,
 };
 pub use program_entry::realize_program_entry_native_artifact;
 pub use terminal_authority_permission_policy::{
@@ -51,6 +52,31 @@ pub fn realize_native_artifact(
     request: NativeRealizationRequest<'_>,
 ) -> Result<NativeArtifact, Vec<Diagnostic>> {
     native_artifact::realize(artifact, None, request, None)
+}
+
+/// Realize a canonical Terminal artifact through the writer selected by the
+/// exact object contents and the authority-distinct image request.
+pub fn realize_requested_native_artifact(
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    request: RequestedNativeRealizationRequest<'_>,
+) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
+    native_artifact::realize_requested(artifact, None, request, None)
+}
+
+/// Requested realization retaining the exact checked D29 scope produced with
+/// the same Terminal artifact.
+pub fn realize_requested_native_artifact_with_checked_boundary_operator_scope(
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: &psi_checked_trees_to_terminal::CheckedBoundaryOperatorApplicationScope,
+    request: RequestedNativeRealizationRequest<'_>,
+) -> Result<RequestedNativeArtifact, RequestedNativeArtifactError> {
+    if let Err(error) = checked_scope.validate_for_artifact(&artifact) {
+        return Err(RequestedNativeArtifactError {
+            image_request: request.image_request,
+            diagnostics: realization_error("checked boundary-operator scope", error),
+        });
+    }
+    native_artifact::realize_requested(artifact, Some(checked_scope), request, None)
 }
 /// Realize an artifact while retaining the exact checked D29 scope emitted by
 /// the same Terminal production; callers cannot substitute a count or flag.

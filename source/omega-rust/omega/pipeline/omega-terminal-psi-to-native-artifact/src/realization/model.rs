@@ -2,7 +2,7 @@ use crate::entry_settlement::{
     NativeProgramEntrySettlement, ValidatedNativeProgramEntrySettlement,
 };
 use omega_installation_evidence::ProviderExecutionEvidence;
-use omega_native_artifact::NativeArtifact;
+use omega_native_artifact::{DynamicElfNativeArtifact, NativeArtifact};
 use omega_target_operations::BoundaryRealization;
 
 #[derive(Debug, Clone, Copy)]
@@ -142,6 +142,134 @@ pub struct NativeRealizationRequest<'request> {
     /// Isolated executable bodies paired one-to-one with `native_callbacks`.
     /// Their Terminal machine identities live in separate artifact namespaces.
     pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
+}
+
+/// Complete native-realization inputs for authority-distinct image routing.
+/// Unlike the compatibility direct request, this carrier has no independent
+/// subsystem field that a dynamic route could silently ignore.
+pub struct RequestedNativeRealizationRequest<'request> {
+    pub target: omega_target::NativeTarget,
+    pub image_request: omega_image_emission::ExecutableImageEmissionRequest,
+    pub profile: &'request psi_proof_admission::AdmissionProfile,
+    pub terminal_authority_policy: crate::realization::TerminalAuthorityPolicy,
+    pub terminal_authority_permission_policy:
+        crate::realization::TerminalAuthorityPermissionPolicy,
+    pub program_entry: NativeProgramEntrySettlement<'request>,
+    pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
+    pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
+    pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
+    pub settlements: &'request [NativeProviderSettlement<'request>],
+    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    pub boundary_application_coverage:
+        Option<&'request omega_boundary_applications::TerminalBoundaryApplicationCoverage>,
+    pub ieee_float_fma:
+        &'request [omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<'request>],
+    pub native_callbacks:
+        &'request [omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
+    pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
+}
+
+pub(crate) struct NativeRealizationCoreRequest<'request> {
+    pub target: omega_target::NativeTarget,
+    pub profile: &'request psi_proof_admission::AdmissionProfile,
+    pub terminal_authority_policy: crate::realization::TerminalAuthorityPolicy,
+    pub terminal_authority_permission_policy:
+        crate::realization::TerminalAuthorityPermissionPolicy,
+    pub program_entry: NativeProgramEntrySettlement<'request>,
+    pub optimization_selections: &'request omega_optimization_core::OptimizationSelections,
+    pub selected_provider_plans: &'request omega_effects::SelectedProviderPlanFacts,
+    pub external_binding_rows: &'request [omega_calling_conventions::ExternalBindingRow],
+    pub settlements: &'request [NativeProviderSettlement<'request>],
+    pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
+    pub boundary_application_coverage:
+        Option<&'request omega_boundary_applications::TerminalBoundaryApplicationCoverage>,
+    pub ieee_float_fma:
+        &'request [omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement<'request>],
+    pub native_callbacks:
+        &'request [omega_abstract_operations_to_target_operations::AdmittedNativeCallbackArgument],
+    pub callback_thunks: &'request [NativeCallbackThunkSettlement<'request>],
+}
+
+impl<'request> NativeRealizationRequest<'request> {
+    pub(crate) fn into_core(self) -> NativeRealizationCoreRequest<'request> {
+        NativeRealizationCoreRequest {
+            target: self.target,
+            profile: self.profile,
+            terminal_authority_policy: self.terminal_authority_policy,
+            terminal_authority_permission_policy: self.terminal_authority_permission_policy,
+            program_entry: self.program_entry,
+            optimization_selections: self.optimization_selections,
+            selected_provider_plans: self.selected_provider_plans,
+            external_binding_rows: self.external_binding_rows,
+            settlements: self.settlements,
+            compiler_builtins: self.compiler_builtins,
+            boundary_application_coverage: self.boundary_application_coverage,
+            ieee_float_fma: self.ieee_float_fma,
+            native_callbacks: self.native_callbacks,
+            callback_thunks: self.callback_thunks,
+        }
+    }
+}
+
+impl<'request> RequestedNativeRealizationRequest<'request> {
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        omega_image_emission::ExecutableImageEmissionRequest,
+        NativeRealizationCoreRequest<'request>,
+    ) {
+        (
+            self.image_request,
+            NativeRealizationCoreRequest {
+                target: self.target,
+                profile: self.profile,
+                terminal_authority_policy: self.terminal_authority_policy,
+                terminal_authority_permission_policy: self.terminal_authority_permission_policy,
+                program_entry: self.program_entry,
+                optimization_selections: self.optimization_selections,
+                selected_provider_plans: self.selected_provider_plans,
+                external_binding_rows: self.external_binding_rows,
+                settlements: self.settlements,
+                compiler_builtins: self.compiler_builtins,
+                boundary_application_coverage: self.boundary_application_coverage,
+                ieee_float_fma: self.ieee_float_fma,
+                native_callbacks: self.native_callbacks,
+                callback_thunks: self.callback_thunks,
+            },
+        )
+    }
+}
+
+/// Source-free native result selected by the exact object-bound image request.
+/// Dynamic ELF remains a separate, non-installable authority class.
+#[derive(Debug)]
+#[must_use = "requested native realization retains its authority-distinct image custody"]
+pub enum RequestedNativeArtifact {
+    Direct(NativeArtifact),
+    DynamicElf(DynamicElfNativeArtifact),
+}
+
+/// Failed requested realization with the complete image input recoverable.
+#[derive(Debug)]
+#[must_use = "requested native realization failure retains the exact image request"]
+pub struct RequestedNativeArtifactError {
+    pub(crate) image_request: omega_image_emission::ExecutableImageEmissionRequest,
+    pub(crate) diagnostics: Vec<psi_diagnostics::Diagnostic>,
+}
+
+impl RequestedNativeArtifactError {
+    pub fn into_parts(
+        self,
+    ) -> (
+        omega_image_emission::ExecutableImageEmissionRequest,
+        Vec<psi_diagnostics::Diagnostic>,
+    ) {
+        (self.image_request, self.diagnostics)
+    }
+
+    pub fn diagnostics(&self) -> &[psi_diagnostics::Diagnostic] {
+        &self.diagnostics
+    }
 }
 
 /// Compatibility-preserving result for the receipt-requiring native path.

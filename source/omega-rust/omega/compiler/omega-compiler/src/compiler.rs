@@ -35,6 +35,7 @@ pub use terminal_native_realization::{
     SourceEvaluatedImportSettlement,
     realize_retained_terminal_artifact_with_source_evaluated_imports,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
 };
 
 /// The reusable production compiler coordinator.

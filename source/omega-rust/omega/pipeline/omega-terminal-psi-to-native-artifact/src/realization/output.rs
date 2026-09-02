@@ -1,14 +1,14 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::NativeRealizationRequest;
+use crate::realization::model::{NativeRealizationCoreRequest, RequestedNativeArtifact};
 use omega_machine_code::{MachineCodePlan, MachineCodePlanWithPrivateFunctions};
 use omega_native_artifact::{
-    NativeArtifact, NativeArtifactEmissionParts, NativeProviderExecution,
-    NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
-    NativeSelectedProviderPlanDigest,
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts, NativeArtifact,
+    NativeArtifactEmissionParts, NativeProviderExecution, NativeSelectedProviderClosureDigest,
+    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
 };
 use psi_diagnostics::Diagnostic;
 
-pub(crate) fn assemble_native_artifact(
+pub(crate) fn assemble_requested_native_artifact(
     psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     machine_code: &MachineCodePlanWithPrivateFunctions,
     provider_executions: Vec<NativeProviderExecution>,
@@ -20,8 +20,9 @@ pub(crate) fn assemble_native_artifact(
         omega_boundary_applications::TerminalBoundaryApplicationCoverage,
     >,
     physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
-    request: &NativeRealizationRequest<'_>,
-) -> Result<NativeArtifact, Vec<Diagnostic>> {
+    image_request: omega_image_emission::ExecutableImageEmissionRequest,
+    request: &NativeRealizationCoreRequest<'_>,
+) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     if !machine_code.private_functions.is_empty() && !request.ieee_float_fma.is_empty() {
         return Err(realization_error(
             "terminal object construction",
@@ -44,8 +45,8 @@ pub(crate) fn assemble_native_artifact(
         (false, Some(_)) => unreachable!("mixed callback/FMA cohort rejected above"),
     }
     .map_err(|error| realization_error("terminal object construction", error))?;
-    let image = omega_image_emission::emit_executable_image(&object, request.subsystem)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let image = omega_image_emission::emit_requested_executable_image(&object, image_request)
+        .map_err(|error| vec![error.diagnostic().clone()])?;
 
     let mut selected_provider_plans = request
         .selected_provider_plans
@@ -63,31 +64,57 @@ pub(crate) fn assemble_native_artifact(
         })
         .collect::<Vec<_>>();
     selected_provider_plans.sort_by_key(NativeSelectedProviderPlan::report_identity);
-    NativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
-        target: request.target,
-        psi_artifact,
-        object,
-        image,
-        selected_provider_closure_report_identity: request
-            .selected_provider_plans
-            .compatibility_report_identity(),
-        selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
-            *request.selected_provider_plans.identity_digest().as_bytes(),
-        ),
-        selected_provider_plans,
-        provider_executions,
-        terminal_authority_policy_identity,
-        terminal_authority_permission_policy_identity,
-        terminal_authority_closure_review,
-        boundary_application_coverage,
-        physical_evidence_scope,
-    })
-    .map_err(|error| realization_error("native artifact replay", error))
+    let selected_provider_closure_report_identity = request
+        .selected_provider_plans
+        .compatibility_report_identity();
+    let selected_provider_closure_digest = NativeSelectedProviderClosureDigest::from_digest(
+        *request.selected_provider_plans.identity_digest().as_bytes(),
+    );
+    match image {
+        omega_image_emission::RequestedExecutableImage::Direct(image) => {
+            NativeArtifact::from_emitted_parts(NativeArtifactEmissionParts {
+                target: request.target,
+                psi_artifact,
+                object,
+                image,
+                selected_provider_closure_report_identity,
+                selected_provider_closure_digest,
+                selected_provider_plans,
+                provider_executions,
+                terminal_authority_policy_identity,
+                terminal_authority_permission_policy_identity,
+                terminal_authority_closure_review,
+                boundary_application_coverage,
+                physical_evidence_scope,
+            })
+            .map(RequestedNativeArtifact::Direct)
+            .map_err(|error| realization_error("native artifact replay", error))
+        }
+        omega_image_emission::RequestedExecutableImage::DynamicElf(image) => {
+            DynamicElfNativeArtifact::from_emitted_parts(DynamicElfNativeArtifactEmissionParts {
+                target: request.target,
+                psi_artifact,
+                object,
+                image,
+                selected_provider_closure_report_identity,
+                selected_provider_closure_digest,
+                selected_provider_plans,
+                provider_executions,
+                terminal_authority_policy_identity,
+                terminal_authority_permission_policy_identity,
+                terminal_authority_closure_review,
+                boundary_application_coverage,
+                physical_evidence_scope,
+            })
+            .map(RequestedNativeArtifact::DynamicElf)
+            .map_err(|error| realization_error("dynamic ELF native artifact replay", error))
+        }
+    }
 }
 
 fn validate_ieee_float_fma_rejoin(
     machine_code: &MachineCodePlan,
-    request: &NativeRealizationRequest<'_>,
+    request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let occurrences = machine_code
         .functions

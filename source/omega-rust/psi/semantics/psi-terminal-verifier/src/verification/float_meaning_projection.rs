@@ -67,29 +67,86 @@ pub fn reconstruct_float_meaning_projection(
     {
         return Err(FloatMeaningProjectionVerificationError::IncompleteProjectionLaw);
     }
-    let literal_meaning = match projection.source {
+    let literal_meaning = match &projection.source {
         FloatMeaningSource::TransitionalInput(_)
         | FloatMeaningSource::DirectMachineParameter(_)
         | FloatMeaningSource::DirectMachineResult(_)
         | FloatMeaningSource::DirectBlockParameter(_)
         | FloatMeaningSource::DirectOperationResult(_)
         | FloatMeaningSource::DirectCallResult(_) => None,
+        FloatMeaningSource::DirectStructuralLeaf(_) => None,
         FloatMeaningSource::ExactBinary32Literal(bits) => {
-            Some(FloatMeaning::from_f32(f32::from_bits(bits)))
+            Some(FloatMeaning::from_f32(f32::from_bits(*bits)))
         }
         FloatMeaningSource::ExactBinary64Literal(bits) => {
-            Some(FloatMeaning::from_f64(f64::from_bits(bits)))
+            Some(FloatMeaning::from_f64(f64::from_bits(*bits)))
         }
     };
     Ok(ReconstructedFloatMeaningProjection {
         result_type: projection.result.value_type,
-        source: projection.source,
+        source: projection.source.clone(),
         source_format: projection.source.format(),
         literal_meaning,
         operation: projection.operation,
         contract: projection.contract,
         rule,
     })
+}
+
+/// Rejoin one structural IEEE source to an owner's direct structural
+/// parameter and complete canonical leaf path.
+pub(crate) fn verify_direct_structural_float_leaf(
+    module: &TerminalModule,
+    leaf: &psi_terminal::DirectStructuralFloatLeaf,
+) -> Result<(), FloatMeaningProjectionVerificationError> {
+    let mut owners = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == leaf.owner);
+    let owner = owners.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeafOwner(leaf.owner),
+    )?;
+    if owners.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeafOwner(leaf.owner),
+        );
+    }
+    let parameter = owner
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == leaf.field.root())
+        .ok_or(
+            FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeaf {
+                owner: leaf.owner,
+            },
+        )?;
+    if parameter.access == psi_terminal::StructuralAccess::WriteOnlyBorrow {
+        return Err(
+            FloatMeaningProjectionVerificationError::DirectStructuralLeafWriteOnlyRoot {
+                owner: leaf.owner,
+            },
+        );
+    }
+    let field_type = crate::validation::structural_leaf_type(
+        module,
+        owner,
+        leaf.field.root(),
+        leaf.field.path(),
+    )
+    .ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeaf { owner: leaf.owner },
+    )?;
+    let psi_terminal::StructuralFieldType::IeeeFloat(actual) = field_type else {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeaf {
+                owner: leaf.owner,
+            },
+        );
+    };
+    if *actual != leaf.format {
+        return Err(FloatMeaningProjectionVerificationError::DirectStructuralLeafFormatMismatch);
+    }
+    Ok(())
 }
 
 /// Rejoin one direct result source to the exact scalar result declaration of
@@ -456,6 +513,14 @@ pub enum FloatMeaningProjectionVerificationError {
         producer: psi_core::OperationId,
     },
     DirectCallResultFormatMismatch,
+    InvalidDirectStructuralLeafOwner(MachineId),
+    InvalidDirectStructuralLeaf {
+        owner: MachineId,
+    },
+    DirectStructuralLeafWriteOnlyRoot {
+        owner: MachineId,
+    },
+    DirectStructuralLeafFormatMismatch,
     EqualityCarrierMismatch,
 }
 

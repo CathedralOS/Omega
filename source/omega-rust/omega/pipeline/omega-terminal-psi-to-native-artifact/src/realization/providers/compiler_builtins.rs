@@ -1,4 +1,4 @@
-use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use crate::realization::providers::AdmittedTerminalMechanism;
 use omega_abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
@@ -11,7 +11,7 @@ use psi_diagnostics::Diagnostic;
 
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationRequest<'request>,
+    request: &NativeRealizationCoreRequest<'request>,
 ) -> Result<
     (
         Vec<AdmittedBoundarySettlement<'request>>,

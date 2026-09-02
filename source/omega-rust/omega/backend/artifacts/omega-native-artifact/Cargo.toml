@@ -15,6 +15,7 @@ omega-calling-conventions = { path = "../../../representations/omega-calling-con
 omega-effects = { path = "../../../representations/omega-effects" }
 omega-function-identity = { path = "../../../representations/omega-function-identity" }
 omega-target = { path = "../../../representations/omega-target" }
+omega-image = { path = "../../images/omega-image" }
 omega-image-emission = { path = "../../images/omega-image-emission" }
 omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
