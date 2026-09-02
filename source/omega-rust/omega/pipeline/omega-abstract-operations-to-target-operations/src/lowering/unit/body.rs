@@ -10,6 +10,7 @@ use super::scalar_definitions::{
     lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
 };
 use super::structural_call::{StructuralCallLocalSource, lower_structural_unit_call};
+use super::structural_result::lower_structural_result_call;
 use super::structural_scalar::lower_dynamic_argument_scalar_call;
 use super::structural_scalar::{lower_field_store, lower_structural_scalar_call};
 
@@ -224,6 +225,19 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
+            AbstractOperation::CallStructural { .. } => lower_structural_result_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &scalar_values,
+                &mut shape_cache,
+                &mut active,
+                &mut operations,
+                &mut provenance,
+            )?,
             AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
                 lower_dynamic_argument_scalar_call(
                     operation,
@@ -355,7 +369,6 @@ pub(super) fn lower_unit_body(
                 &mut provenance,
             )?,
             AbstractOperation::Crash { .. }
-            | AbstractOperation::CallStructural { .. }
             | AbstractOperation::IntegerConstant { .. }
             | AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. }

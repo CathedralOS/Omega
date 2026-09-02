@@ -67,7 +67,8 @@ fn derive_checked_call_span(
     let expected_callee = match &operation.kind {
         OperationKind::Call { callee, .. }
         | OperationKind::CallUnit { callee, .. }
-        | OperationKind::CallStructuralScalar { callee, .. } => *callee,
+        | OperationKind::CallStructuralScalar { callee, .. }
+        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => *callee,
         _ => return Ok(None),
     };
     let function = object

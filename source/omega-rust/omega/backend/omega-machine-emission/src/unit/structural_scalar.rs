@@ -8,9 +8,10 @@ use omega_assigned_target_operations::{
 };
 use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
 use omega_machine_code::{
-    InternalCallRelocation, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
-    InternalUnitScalarArgumentSourceRecord, InternalUnitScalarCallArgumentRecord,
-    UnitCallStackEvidence, UnitStructuralScalarFieldStoreRecord,
+    InternalCallRelocation, InternalStructuralCallResult, InternalUnitCallArgumentRecord,
+    InternalUnitCallRecord, InternalUnitScalarArgumentSourceRecord,
+    InternalUnitScalarCallArgumentRecord, UnitCallStackEvidence,
+    UnitStructuralScalarFieldStoreRecord,
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::CallSiteOwner;
@@ -308,6 +309,185 @@ pub(super) fn emit_structural_scalar_call(
             )
             .collect(),
         claim_transfers: claim_transfers.clone(),
+        operation_ordinal,
+        code_offset,
+        byte_count: bytes.len() - code_offset,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_structural_result_call(
+    operation: &AssignedUnitOperation,
+    target: NativeTarget,
+    functions: &[AssignedFunction],
+    preceding_operations: &[AssignedUnitOperation],
+    x86_homes: &[X86UnitParameterHome],
+    aarch64_homes: &[Aarch64UnitParameterHome],
+    bytes: &mut Vec<u8>,
+    internal_calls: &mut Vec<InternalCallRelocation>,
+    operation_ordinal: usize,
+    code_offset: usize,
+) -> Result<InternalUnitCallRecord, EmissionError> {
+    let AssignedUnitOperation::StructuralResultCall {
+        psi_operation,
+        result,
+        callee,
+        callee_result,
+        call_plan,
+        scalar_arguments,
+        copies,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = operation
+    else {
+        unreachable!("structural-result call router supplied another operation")
+    };
+    let invalid = || EmissionError::InvalidStructuralScalarCallCustody(*psi_operation);
+    let ([scalar_argument], [copy]) = (scalar_arguments.as_slice(), copies.as_slice()) else {
+        return Err(invalid());
+    };
+    let scalar_shape = unit_scalar_shape(
+        scalar_argument.source.source_value(),
+        scalar_argument.source.scalar_type(),
+    )
+    .map_err(|_| invalid())?;
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![scalar_shape, copy.shape],
+            result: Some(copy.shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    let matching_callees = functions
+        .iter()
+        .filter(|function| function.machine == *callee)
+        .collect::<Vec<_>>();
+    let [callee_function] = matching_callees.as_slice() else {
+        return Err(invalid());
+    };
+    let AssignedOperation::ReturnStructuralParameter {
+        call_plan: callee_call_plan,
+        scalar_parameters: callee_scalar_parameters,
+        parameters: callee_parameters,
+        source: callee_source,
+        result: retained_callee_result,
+        shape: callee_shape,
+        source_placement,
+        result_placement: callee_result_placement,
+        returned_claims,
+        trivial_affine_locals,
+        trivial_affine_discards,
+        ..
+    } = &callee_function.operation
+    else {
+        return Err(invalid());
+    };
+    let ([callee_scalar], [callee_parameter]) = (
+        callee_scalar_parameters.as_slice(),
+        callee_parameters.as_slice(),
+    ) else {
+        return Err(invalid());
+    };
+    let caller_result_placement = call_plan.result.clone().ok_or_else(invalid)?;
+    if expected_call_plan != *call_plan
+        || callee_call_plan != call_plan
+        || call_plan.parameters.as_slice()
+            != [callee_scalar.placement.clone(), source_placement.clone()]
+        || scalar_argument.parameter_index != 0
+        || scalar_argument.source.scalar_type() != callee_scalar.scalar_type
+        || assigned_scalar_destination(&callee_scalar.placement)
+            != Some(scalar_argument.destination)
+        || copy.destination != *source_placement
+        || copy.structural_type != callee_parameter.structural_type
+        || copy.shape != *callee_shape
+        || result.structural_type != callee_result.structural_type
+        || result.structural_type != retained_callee_result.structural_type
+        || result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || callee_result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || retained_callee_result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || callee_parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || callee_parameter.access != psi_terminal::StructuralAccess::Owned
+        || callee_source != callee_parameter
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || callee_result != retained_callee_result
+        || !claim_transfers.is_empty()
+        || !returned_claim_transfers.is_empty()
+        || !returned_claims.is_empty()
+        || !requirement_obligations.is_empty()
+        || !crash_continuations.is_empty()
+        || !trivial_affine_locals.is_empty()
+        || !trivial_affine_discards.is_empty()
+        || caller_result_placement != *callee_result_placement
+    {
+        return Err(invalid());
+    }
+    let (scalar_argument_records, argument_intervals) = match target.architecture {
+        Architecture::X86_64 => emit_x86_64_mixed_call(
+            bytes,
+            *psi_operation,
+            *callee,
+            call_plan,
+            scalar_arguments,
+            copies,
+            preceding_operations,
+            x86_homes,
+            internal_calls,
+        )?,
+        Architecture::Aarch64 => emit_aarch64_mixed_call(
+            bytes,
+            *psi_operation,
+            *callee,
+            call_plan,
+            scalar_arguments,
+            copies,
+            preceding_operations,
+            aarch64_homes,
+            internal_calls,
+        )?,
+    };
+    let [argument_interval] = argument_intervals.as_slice() else {
+        return Err(invalid());
+    };
+    let (argument_code_offset, argument_byte_count, source_home_byte_offset, call_stack_bytes) =
+        *argument_interval;
+    Ok(InternalUnitCallRecord {
+        owner: CallSiteOwner::Operation(*psi_operation),
+        target: *callee,
+        result: None,
+        semantic_result: None,
+        structural_result: Some(InternalStructuralCallResult {
+            operation_result: result.clone(),
+            function_result: callee_result.clone(),
+            returned_claim_transfers: Vec::new(),
+            returned_claims: Vec::new(),
+            caller_result_placement,
+            callee_result_placement: callee_result_placement.clone(),
+        }),
+        scalar_arguments: scalar_argument_records,
+        arguments: vec![InternalUnitCallArgumentRecord {
+            place: copy.place,
+            access: copy.access,
+            path: copy.path.clone(),
+            root_structural_type: copy.root_structural_type,
+            structural_type: copy.structural_type,
+            shape: copy.shape,
+            source_byte_offset: copy.source_byte_offset,
+            source_home_byte_offset,
+            call_stack_bytes,
+            fixed_array_length: copy.fixed_array_length,
+            element_stride: copy.element_stride,
+            source: copy.source.clone(),
+            destination: copy.destination.clone(),
+            code_offset: argument_code_offset,
+            byte_count: argument_byte_count,
+            bytes: bytes[argument_code_offset..argument_code_offset + argument_byte_count].to_vec(),
+        }],
+        claim_transfers: Vec::new(),
         operation_ordinal,
         code_offset,
         byte_count: bytes.len() - code_offset,

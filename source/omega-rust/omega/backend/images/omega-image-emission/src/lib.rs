@@ -92,8 +92,8 @@ use scalar_structural_scalar_field_store::validate_scalar_structural_scalar_fiel
 use structural_return::validate_structural_return_record;
 use unit_affine_cleanup::validate_unit_affine_cleanup;
 use unit_call_custody::{
-    expected_projected_copy_bytes, validate_internal_unit_call_custody,
-    validate_mixed_structural_scalar_abi,
+    expected_projected_copy_bytes, structural_result_matches_return,
+    validate_internal_unit_call_custody, validate_mixed_structural_scalar_abi,
 };
 use unit_scalar_call_custody::validate_internal_unit_scalar_calls;
 use unit_stack::{
@@ -1213,26 +1213,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 match (&custody.structural_result, target_structural_return) {
                     (None, None) => true,
                     (Some(result), Some(target)) => {
-                        custody.result.is_none()
-                            && result.operation_result.structural_type
-                                == target.result.structural_type
-                            && result.operation_result.multiplicity == target.result.multiplicity
-                            && result.operation_result.qualifications
-                                == target.result.qualifications
-                            && result.function_result.structural_type
-                                == target.result.structural_type
-                            && result.function_result.multiplicity == target.result.multiplicity
-                            && result.function_result.qualifications == target.result.qualifications
-                            && result.returned_claim_transfers.len() == 1
-                            && target.returned_claims.as_slice()
-                                == [result.returned_claim_transfers[0].callee_claim]
-                            && result.operation_result.claims.len() == 1
-                            && result.operation_result.claims[0].claim
-                                == result.returned_claim_transfers[0].caller_claim
-                            && result.returned_claims.as_slice()
-                                == [result.returned_claim_transfers[0].caller_claim]
-                            && result.caller_result_placement == target.result_placement
-                            && result.callee_result_placement == target.result_placement
+                        custody.result.is_none() && structural_result_matches_return(result, target)
                     }
                     _ => false,
                 };
@@ -1291,6 +1272,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 machine_functions
                     .get(&custody.target)
                     .and_then(|callee| callee.mixed_structural_scalar_abi.as_ref()),
+                target_structural_return,
                 custody,
                 affine_cleanup,
                 fully_consumed_affine_pair,

@@ -1,4 +1,4 @@
-//! Canonical format-56 codec for one installed internal Unit-call row.
+//! Canonical format-59 codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.
@@ -216,6 +216,42 @@ fn encode_structural_result(
         bytes.extend_from_slice(&[0; 4]);
         return Ok(());
     };
+    let claim_bearing_linear = result.operation_result.multiplicity
+        == StructuralMultiplicity::Linear
+        && result.function_result.multiplicity == StructuralMultiplicity::Linear
+        && result.operation_result.structural_type == result.function_result.structural_type
+        && result.operation_result.qualifications == result.function_result.qualifications
+        && result.operation_result.projected_qualifications.is_empty()
+        && result.function_result.projected_qualifications.is_empty()
+        && result.operation_result.claims.len() == 1
+        && result.operation_result.claims[0].path.is_empty()
+        && result.returned_claim_transfers.len() == 1
+        && result.returned_claims.len() == 1
+        && result.caller_result_placement == result.callee_result_placement;
+    let claim_free_affine = result.operation_result.multiplicity == StructuralMultiplicity::Affine
+        && result.function_result.multiplicity == StructuralMultiplicity::Affine
+        && result.operation_result.structural_type == result.function_result.structural_type
+        && result.operation_result.qualifications.is_empty()
+        && result.operation_result.projected_qualifications.is_empty()
+        && result.operation_result.claims.is_empty()
+        && result.function_result.qualifications.is_empty()
+        && result.function_result.projected_qualifications.is_empty()
+        && result.returned_claim_transfers.is_empty()
+        && result.returned_claims.is_empty()
+        && result.caller_result_placement == result.callee_result_placement;
+    if !claim_bearing_linear && !claim_free_affine {
+        return Err(InstallationError::InvalidInternalUnitCall(machine));
+    }
+    if claim_free_affine {
+        bytes.extend_from_slice(&[2, 0, 0, 0]);
+        push_u64(bytes, result.operation_result.place.get());
+        push_u64(bytes, result.operation_result.structural_type.get());
+        push_u64(bytes, result.function_result.place.get());
+        push_u64(bytes, result.function_result.structural_type.get());
+        encode_direct_placement(bytes, &result.caller_result_placement)?;
+        encode_direct_placement(bytes, &result.callee_result_placement)?;
+        return Ok(());
+    }
     if result.operation_result.multiplicity != StructuralMultiplicity::Linear
         || result.function_result.multiplicity != StructuralMultiplicity::Linear
         || result.operation_result.structural_type != result.function_result.structural_type
@@ -472,12 +508,52 @@ fn decode_structural_result(
     reader: &mut Reader<'_>,
     machine: MachineId,
 ) -> Result<Option<InternalStructuralCallResult>, InstallationError> {
-    let present = decode_boolean(reader.u8()?)?;
+    let tag = reader.u8()?;
     if reader.take(3)? != [0; 3] {
         return Err(InstallationError::NonzeroReservedField);
     }
-    if !present {
-        return Ok(None);
+    match tag {
+        0 => return Ok(None),
+        1 => {}
+        2 => {
+            let operation_place = PlaceId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let structural_type = StructuralTypeId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let function_place = PlaceId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let function_type = StructuralTypeId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            let caller_result_placement = decode_direct_placement(reader)?;
+            let callee_result_placement = decode_direct_placement(reader)?;
+            if structural_type != function_type
+                || caller_result_placement != callee_result_placement
+            {
+                return Err(InstallationError::InvalidInternalUnitCall(machine));
+            }
+            return Ok(Some(InternalStructuralCallResult {
+                operation_result: StructuralOperationResult {
+                    place: operation_place,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+                function_result: StructuralResultDeclaration {
+                    place: function_place,
+                    structural_type: function_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                },
+                returned_claim_transfers: Vec::new(),
+                returned_claims: Vec::new(),
+                caller_result_placement,
+                callee_result_placement,
+            }));
+        }
+        tag => return Err(InstallationError::InvalidPresenceFlag(tag)),
     }
     let operation_place =
         PlaceId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;

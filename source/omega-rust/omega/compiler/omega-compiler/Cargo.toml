@@ -82,6 +82,9 @@ sha2 = "0.10.9"
 omega-bounded-process = { path = "../../tooling/omega-bounded-process" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-machine-code = { path = "../../representations/omega-machine-code" }
+omega-machine-emission = { path = "../../backend/omega-machine-emission" }
+omega-psi-to-abstract-operations = { path = "../../pipeline/omega-psi-to-abstract-operations" }
+omega-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-target-operations-to-assigned-target-operations" }
 omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation" }
 omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
 omega-provider-planning = { path = "../../build/omega-provider-planning", features = ["installed-writer"] }

@@ -24,13 +24,34 @@ pub(super) fn validate_structural_return_record(
     returned: &StructuralReturnRecord,
 ) -> Result<(), ObjectError> {
     let architecture = target.architecture;
+    let scalar_shapes = returned
+        .scalar_parameters
+        .iter()
+        .map(|parameter| {
+            if parameter.scalar_type.is_address()
+                || !matches!(parameter.scalar_type.bits(), 8 | 16 | 32 | 64)
+            {
+                return None;
+            }
+            let bytes = parameter.scalar_type.bits() / 8;
+            Some(omega_calling_conventions::ValueShape::integer(bytes, bytes))
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(scalar_shapes) = scalar_shapes else {
+        return Err(ObjectError::InvalidStructuralReturnEvidence(machine));
+    };
     let expected_call_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &omega_calling_conventions::CallSignature {
-            parameters: returned
-                .parameter_placements
+            parameters: scalar_shapes
                 .iter()
-                .map(|placement| placement.shape)
+                .copied()
+                .chain(
+                    returned
+                        .parameter_placements
+                        .iter()
+                        .map(|placement| placement.shape),
+                )
                 .collect(),
             result: Some(returned.shape),
         },
@@ -41,6 +62,24 @@ pub(super) fn validate_structural_return_record(
         .code_offset
         .checked_add(returned.byte_count)
         .ok_or(ObjectError::InvalidStructuralReturnEvidence(machine))?;
+    let exact_claimful_linear = returned.scalar_parameters.is_empty()
+        && returned.source.multiplicity == psi_terminal::StructuralMultiplicity::Linear
+        && returned.result.multiplicity == psi_terminal::StructuralMultiplicity::Linear
+        && returned.returned_claims.len() == 1;
+    let exact_claim_free_affine_mixed = matches!(returned.scalar_parameters.as_slice(), [scalar]
+        if scalar.placement.shape == scalar_shapes[0])
+        && returned.parameters.len() == 1
+        && returned.source.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+        && returned.result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+        && returned.source.access == psi_terminal::StructuralAccess::Owned
+        && returned.source.qualifications.is_empty()
+        && returned.source.projected_qualifications.is_empty()
+        && returned.result.qualifications.is_empty()
+        && returned.result.projected_qualifications.is_empty()
+        && returned.returned_claims.is_empty()
+        && returned.trivial_affine_locals.is_empty()
+        && returned.trivial_affine_discards.is_empty()
+        && returned.shape == omega_calling_conventions::ValueShape::integer(8, 8);
     if returned.code_offset != 0
         || end != bytes.len()
         || returned.byte_count == 0
@@ -72,13 +111,14 @@ pub(super) fn validate_structural_return_record(
                 .collect::<Vec<_>>()
         || returned.source.structural_type != returned.result.structural_type
         || returned.source.multiplicity != returned.result.multiplicity
+        || (!exact_claimful_linear && !exact_claim_free_affine_mixed)
         || returned.source.qualifications != returned.result.qualifications
+        || returned.source.projected_qualifications != returned.result.projected_qualifications
         || returned.shape != returned.source_placement.shape
         || returned.shape != returned.result_placement.shape
         || returned.shape.class != omega_calling_conventions::ValueClass::Integer
         || !((returned.shape.byte_size == 8 && returned.shape.alignment == 8)
             || (9..=16).contains(&returned.shape.byte_size))
-        || returned.returned_claims.len() != 1
         || returned
             .parameters
             .iter()
@@ -145,7 +185,14 @@ pub(super) fn validate_structural_return_record(
             .skip(1)
             .any(|parameter| parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine)
         || returned.parameter_placements.len() != returned.parameters.len()
-        || expected_call_plan.parameters != returned.parameter_placements
+        || expected_call_plan.parameters.len()
+            != returned.scalar_parameters.len() + returned.parameter_placements.len()
+        || expected_call_plan.parameters[..returned.scalar_parameters.len()]
+            .iter()
+            .zip(&returned.scalar_parameters)
+            .any(|(placement, parameter)| placement != &parameter.placement)
+        || expected_call_plan.parameters[returned.scalar_parameters.len()..]
+            != returned.parameter_placements
         || expected_call_plan.result.as_ref() != Some(&returned.result_placement)
         || source_index.and_then(|index| returned.parameter_placements.get(index))
             != Some(&returned.source_placement)

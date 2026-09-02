@@ -37,6 +37,7 @@ pub(crate) fn validate(
         return Err(Error::SourceShape);
     };
     let TargetOperation::ReturnStructuralParameter {
+        scalar_parameters,
         parameters,
         source: target_source,
         result: target_result,
@@ -49,7 +50,8 @@ pub(crate) fn validate(
     else {
         return Err(Error::TargetShape);
     };
-    if target.machine != source.machine
+    if !scalar_parameters.is_empty()
+        || target.machine != source.machine
         || target.provenance.operations
             != trivial_affine_locals
                 .iter()

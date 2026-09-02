@@ -139,20 +139,38 @@ pub(super) fn validate_unit_affine_cleanup(
         })
         .map(|home| home.place)
         .collect::<Vec<_>>();
+    let structural_result_prefix = internal_unit_calls
+        .iter()
+        .rev()
+        .filter_map(|call| match call.structural_result.as_ref() {
+            Some(result)
+                if result.operation_result.multiplicity
+                    == psi_terminal::StructuralMultiplicity::Affine
+                    && result.operation_result.claims.is_empty()
+                    && result.returned_claim_transfers.is_empty()
+                    && result.returned_claims.is_empty() =>
+            {
+                Some(result.operation_result.place)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
     let local_operations = cleanup
         .locals
         .iter()
         .map(|(operation, _, _)| *operation)
         .collect::<std::collections::BTreeSet<_>>();
-    let expected_root_actions = expected_local_prefix
+    let expected_root_actions = structural_result_prefix
         .iter()
         .copied()
+        .chain(expected_local_prefix.iter().copied())
         .chain(expected_parameter_suffix.iter().copied())
         .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
         .collect::<Vec<_>>();
-    let expected_local_actions = expected_local_prefix
+    let expected_local_actions = structural_result_prefix
         .iter()
         .copied()
+        .chain(expected_local_prefix.iter().copied())
         .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
         .collect::<Vec<_>>();
     let exact_nominal_target = |nominal: &psi_terminal::NominalAffineCleanup| {

@@ -746,6 +746,23 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// One bounded mixed-input call whose whole affine structural result is
+    /// retained only until the immediately following Unit return discards it.
+    /// The result has no invented scalar home: its ABI placement and semantic
+    /// custody remain explicit until physical replay.
+    StructuralResultCall {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        callee: MachineId,
+        callee_result: StructuralResultDeclaration,
+        call_plan: CallPlan,
+        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
+        arguments: Vec<TargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// One direct scalar-result call whose authored parameter roster contains
     /// one or more existential descriptors. This role remains distinct from
     /// an ordinary structural call because each descriptor expands to an
@@ -990,6 +1007,9 @@ pub enum TargetOperation {
     /// native ABI while retaining its zero-runtime custody metadata.
     ReturnStructuralParameter {
         call_plan: CallPlan,
+        /// Ordered fixed-integer ABI prefix. The established structural-only
+        /// return lane retains an empty row.
+        scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
         /// Complete ordered structural input signature used to derive the ABI
         /// plan. Cleanup-only parameters remain semantic inputs even though
         /// disposing them emits no instruction.
