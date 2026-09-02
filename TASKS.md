@@ -12329,6 +12329,18 @@ checked-result arithmetic decision listed below.
   and x86-64/AArch64 installation replay rejoins that table for local and
   forwarded calls without inventing a scalar carrier for Unit.
 
+  The next within-artifact escape rung is checked-only. Source validation now
+  permits a bare dynamic parameter to pass unchanged to a bare parameter of
+  the same trait instead of demanding a new local conformance selection.
+  Checked descriptor transfers distinguish an owner-local `Selection` from an
+  incoming `Parameter`, and a fixed-point walk retains the original exact
+  selection through an unambiguous parameter-forwarding edge. The source
+  parameter position and both call coordinates remain explicit. A target
+  state with multiple syntactic inbound call sites publishes no propagated
+  transfer, so two predecessor selections cannot be mistaken for one proved
+  join. Terminal and native consumers remain fenced to the existing one-hop
+  lane until they consume this parameter-source custody explicitly.
+
   Remaining work:
 
   - add an AArch64 result-execution replay canary. The native assertion is
@@ -12347,11 +12359,12 @@ checked-result arithmetic decision listed below.
     rule; computed values, indexed/case projections, repeated destinations, and
     a fourth write still has no native carrier;
   - extend descriptors to within-artifact stored/joined/escaping and
-    aggregate-erased forms. Do not extend local descriptor tables across a
-    replaceable component boundary: that is a settled rejection, enforced by
-    type-reference validation. Component calls use the selected boundary
-    `CallPlan`/`StatePlan`; a consumer that needs a local dynamic interface
-    owns a local proxy.
+    aggregate-erased forms, beginning by carrying the checked parameter-source
+    forwarding hop through Terminal and native replay. Do not extend local
+    descriptor tables across a replaceable component boundary: that is a
+    settled rejection, enforced by type-reference validation. Component calls
+    use the selected boundary `CallPlan`/`StatePlan`; a consumer that needs a
+    local dynamic interface owns a local proxy.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

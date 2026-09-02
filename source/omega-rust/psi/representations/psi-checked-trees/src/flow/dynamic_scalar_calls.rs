@@ -115,7 +115,20 @@ pub struct CheckedDynamicDescriptorTransferPlan {
     pub parameter: SymbolHandle,
     pub target_trait: SymbolHandle,
     pub source_binding: SymbolHandle,
+    /// Whether this call materializes an owner-local selection or forwards an
+    /// already-received descriptor parameter. The retained concrete selection
+    /// remains the root authority in both cases.
+    pub source: CheckedDynamicDescriptorTransferSource,
     pub selection: DynamicConformanceBindingFact,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedDynamicDescriptorTransferSource {
+    Selection,
+    Parameter {
+        /// Dense among the source state's non-self runtime parameters.
+        parameter_position: u32,
+    },
 }
 
 /// Shared checked custody for the selected call version of one local named

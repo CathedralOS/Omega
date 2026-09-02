@@ -128,80 +128,48 @@ fn build_checked_dynamic_descriptor_transfers(
     binding_facts: &psi_checked_trees::DynamicConformanceBindingFacts,
 ) -> Vec<psi_checked_trees::CheckedDynamicDescriptorTransferPlan> {
     let mut transfers = Vec::new();
-    for caller in program.machines() {
-        for caller_state in program.machine_states(caller) {
-            let Some(flow) = state_flow(facts, caller.symbol, caller_state.symbol) else {
-                continue;
-            };
-            for call in facts.flow.control.calls.span_or_empty(flow.calls) {
-                let Some(call_site) = crate::find_call_site(
-                    program,
-                    caller.symbol,
-                    caller_state.symbol,
-                    call.statement_index,
-                    call.call_ordinal,
-                ) else {
+    let inbound_call_site_counts = inbound_call_site_counts(program, facts);
+    loop {
+        let mut changed = false;
+        for caller in program.machines() {
+            for caller_state in program.machine_states(caller) {
+                let Some(flow) = state_flow(facts, caller.symbol, caller_state.symbol) else {
                     continue;
                 };
-                let Some(target_state) = crate::find_state(program, call.target_symbol) else {
-                    continue;
-                };
-                let Some(target_machine) = program.machines().iter().find(|machine| {
-                    program
-                        .machine_states(machine)
+                for call in facts.flow.control.calls.span_or_empty(flow.calls) {
+                    let Some(call_site) = crate::find_call_site(
+                        program,
+                        caller.symbol,
+                        caller_state.symbol,
+                        call.statement_index,
+                        call.call_ordinal,
+                    ) else {
+                        continue;
+                    };
+                    let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+                        continue;
+                    };
+                    let Some(target_machine) = program.machines().iter().find(|machine| {
+                        program
+                            .machine_states(machine)
+                            .iter()
+                            .any(|state| state.symbol == target_state.symbol)
+                    }) else {
+                        continue;
+                    };
+                    let arguments = crate::call_site_argument_expressions(program, &call_site);
+                    let parameters = program
+                        .state_parameters(target_state)
                         .iter()
-                        .any(|state| state.symbol == target_state.symbol)
-                }) else {
-                    continue;
-                };
-                let arguments = crate::call_site_argument_expressions(program, &call_site);
-                let parameters = program
-                    .state_parameters(target_state)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .collect::<Vec<_>>();
-                if arguments.len() != parameters.len() {
-                    continue;
-                }
-                for (parameter_position, (parameter, argument)) in
-                    parameters.into_iter().zip(arguments).enumerate()
-                {
-                    let Some(target_trait) =
-                        bare_dynamic_parameter_trait(program, parameter.type_reference)
-                    else {
-                        continue;
-                    };
-                    let ExpressionNode::Name(source_path) =
-                        program.expression_table.expression(*argument)
-                    else {
-                        continue;
-                    };
-                    let [source_name] = program
-                        .expression_table
-                        .name_path_members(source_path.members)
-                    else {
-                        continue;
-                    };
-                    let mut selections = binding_facts
-                        .selections
-                        .iter()
-                        .filter(|selection| {
-                            selection.machine == caller.symbol
-                                && selection.state == caller_state.symbol
-                                && selection.binding == source_path.symbol
-                                && selection.binding_name == *source_name
-                                && selection.statement_index < call.statement_index
-                                && selection.target_trait == target_trait
-                        })
+                        .filter(|parameter| !parameter.is_self)
                         .collect::<Vec<_>>();
-                    selections.sort_by_key(|selection| selection.statement_index);
-                    let Some(selection) = selections.last() else {
+                    if arguments.len() != parameters.len() {
                         continue;
-                    };
-                    transfers.push(psi_checked_trees::CheckedDynamicDescriptorTransferPlan {
-                        caller_machine: caller.symbol,
-                        caller_state: caller_state.symbol,
-                        coordinate: CheckedUnitCallCoordinate {
+                    }
+                    for (parameter_position, (parameter, argument)) in
+                        parameters.into_iter().zip(arguments).enumerate()
+                    {
+                        let coordinate = CheckedUnitCallCoordinate {
                             statement_index: match u32::try_from(call.statement_index) {
                                 Ok(index) => index,
                                 Err(_) => continue,
@@ -210,20 +178,125 @@ fn build_checked_dynamic_descriptor_transfers(
                                 Ok(ordinal) => ordinal,
                                 Err(_) => continue,
                             },
-                        },
-                        target_machine: target_machine.symbol,
-                        target_state: target_state.symbol,
-                        parameter_position: match u32::try_from(parameter_position) {
-                            Ok(position) => position,
-                            Err(_) => continue,
-                        },
-                        parameter: parameter.symbol,
-                        target_trait,
-                        source_binding: source_path.symbol,
-                        selection: (*selection).clone(),
-                    });
+                        };
+                        let Ok(parameter_position) = u32::try_from(parameter_position) else {
+                            continue;
+                        };
+                        if transfers.iter().any(
+                            |transfer: &psi_checked_trees::CheckedDynamicDescriptorTransferPlan| {
+                                transfer.caller_machine == caller.symbol
+                                    && transfer.caller_state == caller_state.symbol
+                                    && transfer.coordinate == coordinate
+                                    && transfer.parameter_position == parameter_position
+                            },
+                        ) {
+                            continue;
+                        }
+                        let Some(target_trait) =
+                            bare_dynamic_parameter_trait(program, parameter.type_reference)
+                        else {
+                            continue;
+                        };
+                        let ExpressionNode::Name(source_path) =
+                            program.expression_table.expression(*argument)
+                        else {
+                            continue;
+                        };
+                        let [source_name] = program
+                            .expression_table
+                            .name_path_members(source_path.members)
+                        else {
+                            continue;
+                        };
+                        let mut local_selections = binding_facts
+                            .selections
+                            .iter()
+                            .filter(|selection| {
+                                selection.machine == caller.symbol
+                                    && selection.state == caller_state.symbol
+                                    && selection.binding == source_path.symbol
+                                    && selection.binding_name == *source_name
+                                    && selection.statement_index < call.statement_index
+                                    && selection.target_trait == target_trait
+                            })
+                            .collect::<Vec<_>>();
+                        local_selections.sort_by_key(|selection| selection.statement_index);
+                        let (selection, source) = if let Some(selection) = local_selections.last() {
+                            (
+                                (*selection).clone(),
+                                psi_checked_trees::CheckedDynamicDescriptorTransferSource::Selection,
+                            )
+                        } else {
+                            let source_parameters = program
+                                .state_parameters(caller_state)
+                                .iter()
+                                .filter(|parameter| !parameter.is_self)
+                                .collect::<Vec<_>>();
+                            let Some((source_parameter_position, source_parameter)) =
+                                source_parameters
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, parameter)| parameter.symbol == source_path.symbol)
+                            else {
+                                continue;
+                            };
+                            if bare_dynamic_parameter_trait(
+                                program,
+                                source_parameter.type_reference,
+                            ) != Some(target_trait)
+                                || inbound_call_site_counts.get(&(
+                                    caller_state.symbol.arena_index(),
+                                    caller_state.symbol.generation(),
+                                )) != Some(&1)
+                            {
+                                continue;
+                            }
+                            let incoming = transfers
+                                .iter()
+                                .filter(|transfer| {
+                                    transfer.target_machine == caller.symbol
+                                        && transfer.target_state == caller_state.symbol
+                                        && transfer.parameter == source_parameter.symbol
+                                        && transfer.target_trait == target_trait
+                                })
+                                .collect::<Vec<_>>();
+                            let [incoming] = incoming.as_slice() else {
+                                // Multiple incoming descriptors are a control-flow join and
+                                // remain fenced until the join itself has explicit custody.
+                                continue;
+                            };
+                            let Ok(source_parameter_position) =
+                                u32::try_from(source_parameter_position)
+                            else {
+                                continue;
+                            };
+                            (
+                                incoming.selection.clone(),
+                                psi_checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
+                                    parameter_position: source_parameter_position,
+                                },
+                            )
+                        };
+                        transfers.push(psi_checked_trees::CheckedDynamicDescriptorTransferPlan {
+                            caller_machine: caller.symbol,
+                            caller_state: caller_state.symbol,
+                            coordinate,
+                            target_machine: target_machine.symbol,
+                            target_state: target_state.symbol,
+                            parameter_position,
+                            parameter: parameter.symbol,
+                            target_trait,
+                            source_binding: source_path.symbol,
+                            source,
+                            selection,
+                        });
+                        changed = true;
+                    }
                 }
             }
+        }
+        if !changed {
+            break;
         }
     }
     transfers.sort_by_key(|transfer| {
@@ -238,6 +311,29 @@ fn build_checked_dynamic_descriptor_transfers(
         )
     });
     transfers
+}
+
+fn inbound_call_site_counts(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> BTreeMap<(u32, u32), usize> {
+    let mut counts = BTreeMap::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let Some(flow) = state_flow(facts, machine.symbol, state.symbol) else {
+                continue;
+            };
+            for call in facts.flow.control.calls.span_or_empty(flow.calls) {
+                *counts
+                    .entry((
+                        call.target_symbol.arena_index(),
+                        call.target_symbol.generation(),
+                    ))
+                    .or_default() += 1;
+            }
+        }
+    }
+    counts
 }
 
 fn bare_dynamic_parameter_trait(
