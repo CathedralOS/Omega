@@ -12532,20 +12532,25 @@ checked-result arithmetic decision listed below.
     rebuild switch, and nominal `(source_span, callable_identity)` build-machine
     rebind are deleted. Unsupported extension shapes reject transactionally;
     they never select a hidden reconstruction route;
+  - generated target-scoped machines run through the ordinary exact-target
+    filter after unit-local pre-resolution evaluation and before seeded
+    resolution. One retained base-plus-extension declaration roster rejects a
+    duplicate selected row or a portable cohort missing the selected target
+    even when its rows are split across source strata or generated units. The
+    selected generated row and any target-owned `provider_defaults` entry join
+    the base carrier and settle against the final typed continuation;
+    unselected siblings remain inert;
   - canaries pin generated overload/conformance non-interference, exact
     selected-build/configuration/evidence custody, generated-machine
     continuation, dependency-bundle no-rerun, unit-local normalization,
-    no-source-reread, target-scoped rejection, and structural absence of the
-    retired rebuild path.
+    no-source-reread, exact target selection and cross-unit cohort rejection,
+    and structural absence of the retired rebuild path.
 
   Remaining engineering work, not language design:
   - broaden the retained typed continuation beyond its current validated data
     and plain-monomorphic-machine cohorts, including generic machines,
     satisfactions/conformance bounds, additional root kinds, and the currently
     fenced data shapes;
-  - add extension-aware target-machine filtering and exact selected-origin/
-    provider-default custody, then replace the current explicit rejection of a
-    generated target-scoped machine;
   - keep every new cohort append-only and transactional, extending prefix and
     authority canaries before admitting it.
 - Harden resolution with content/revision checks, archive containment, limits,

@@ -320,13 +320,20 @@ compilation.
 There is no whole-program escape hatch. The raw combined-syntax carrier,
 rebuild flag, second `lower_checked_frontend` call, and nominal
 `(source_span, callable_identity)` build-machine rebind have been removed.
-Unsupported generated declarations reject transactionally. In particular,
-target-scoped generated machines reject until extension-aware target filtering
-can append exact selected-origin and provider-default custody; generic
-machines, satisfactions/conformance bounds, broader supply forms, additional
-root kinds, and the remaining fenced data shapes likewise require explicit
-append-only continuation cohorts. These are implementation tasks, not alternate
-language semantics.
+Unsupported generated declarations reject transactionally. Target-scoped
+generated machines now enter the ordinary target filter after each generated
+unit completes its independent pre-resolution evaluation and before the
+combined extension enters seeded resolution. The filter validates one complete
+base-plus-extension target-declaration roster, so duplicate selected rows and
+portable cohorts missing the selected target cannot hide across source strata
+or generated units. It mutates only the extension, consumes the exact retained
+base selection carrier into one combined carrier, and settles selected origins
+and target-owned `provider_defaults` against the final typed continuation.
+Unselected generated siblings remain inert. Generic machines,
+satisfactions/conformance bounds, broader supply forms, additional root kinds,
+and the remaining fenced data shapes still require explicit append-only
+continuation cohorts. These are implementation tasks, not alternate language
+semantics.
 
 Canaries cover exact configuration and build-evidence retention, one-way
 overload/conformance visibility, generated machine and attached-method
