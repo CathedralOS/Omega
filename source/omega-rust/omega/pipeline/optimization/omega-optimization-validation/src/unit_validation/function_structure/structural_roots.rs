@@ -88,6 +88,10 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             structural_arguments,
             ..
         }
+        | O::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            ..
+        }
         | O::CallStructural {
             structural_arguments,
             ..

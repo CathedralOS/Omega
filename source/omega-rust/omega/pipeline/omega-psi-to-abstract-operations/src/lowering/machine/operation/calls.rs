@@ -1,9 +1,11 @@
 use omega_abstract_operations::{
-    AbstractOperation, AbstractReboundDynamicScalarDispatch, AbstractResult, CompletionClaimSource,
+    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractOperation,
+    AbstractParameterDynamicScalarDispatch, AbstractReboundDynamicScalarDispatch, AbstractResult,
+    CompletionClaimSource,
 };
 use psi_terminal::{
-    ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDispatchCatalog,
-    TerminalMachine,
+    ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalMachine,
 };
 
 use crate::lowering::LoweringError;
@@ -37,17 +39,40 @@ pub(super) fn lower(
             crash_continuations,
         } => {
             let result = operation.result.expect_scalar();
-            AbstractOperation::CallStructuralScalar {
-                psi_operation: operation.id,
-                result: AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
+            let dynamic_arguments = lower_dynamic_arguments(
+                machine,
+                operation,
                 callee,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
+                dynamic_dispatch,
+                closed_conformance_applications,
+            )?;
+            if dynamic_arguments.is_empty() {
+                AbstractOperation::CallStructuralScalar {
+                    psi_operation: operation.id,
+                    result: AbstractResult {
+                        value: result.id,
+                        scalar_type: result.scalar_type,
+                    },
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                }
+            } else {
+                AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                    psi_operation: operation.id,
+                    result: AbstractResult {
+                        value: result.id,
+                        scalar_type: result.scalar_type,
+                    },
+                    callee,
+                    structural_arguments,
+                    dynamic_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                }
             }
         }
         OperationKind::CallDynamicScalar {
@@ -148,8 +173,69 @@ pub(super) fn lower(
                 crash_continuations,
             }
         }
-        OperationKind::CallDynamicParameterScalar { .. } => {
-            return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+        OperationKind::CallDynamicParameterScalar {
+            parameter_ordinal,
+            requirement_slot,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let parameters = dynamic_dispatch
+                .parameters
+                .iter()
+                .filter(|parameter| {
+                    parameter.owner == machine.id && parameter.ordinal == parameter_ordinal
+                })
+                .collect::<Vec<_>>();
+            let dispatches = dynamic_dispatch
+                .parameter_dispatches
+                .iter()
+                .filter(|dispatch| {
+                    dispatch.owner == machine.id
+                        && dispatch.operation == operation.id
+                        && dispatch.parameter_ordinal == parameter_ordinal
+                        && dispatch.requirement_slot == requirement_slot
+                })
+                .collect::<Vec<_>>();
+            let ([parameter], [dispatch]) = (parameters.as_slice(), dispatches.as_slice()) else {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            };
+            let requirements = parameter
+                .requirements
+                .iter()
+                .filter(|requirement| requirement.slot == requirement_slot)
+                .collect::<Vec<_>>();
+            let [requirement] = requirements.as_slice() else {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            };
+            let result = operation.result.expect_scalar();
+            let requirement_result = match requirement.result {
+                psi_terminal::ClosedConformanceCallableResult::Unit => None,
+                psi_terminal::ClosedConformanceCallableResult::I32 => {
+                    Some(psi_core::ScalarType::Integer(
+                        psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                            .expect("the closed i32 result is valid"),
+                    ))
+                }
+                psi_terminal::ClosedConformanceCallableResult::Bool => {
+                    Some(psi_core::ScalarType::Boolean)
+                }
+            };
+            if requirement_result != Some(result.scalar_type) {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            }
+            AbstractOperation::CallDynamicParameterScalar {
+                psi_operation: operation.id,
+                result: AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                dynamic_dispatch: AbstractParameterDynamicScalarDispatch {
+                    parameter: (*parameter).clone(),
+                    dispatch: (*dispatch).clone(),
+                },
+                requirement_obligations,
+                crash_continuations,
+            }
         }
         OperationKind::CallStructural {
             callee,
@@ -235,6 +321,121 @@ pub(super) fn lower(
             crash_continuations,
         },
         _ => unreachable!("call router is exhaustive"),
+    })
+}
+
+fn lower_dynamic_arguments(
+    machine: &TerminalMachine,
+    operation: &Operation,
+    callee: psi_core::MachineId,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[ClosedConformanceApplication],
+) -> Result<Vec<AbstractDynamicDescriptorArgument>, LoweringError> {
+    let mut parameters = dynamic_dispatch
+        .parameters
+        .iter()
+        .filter(|parameter| parameter.owner == callee)
+        .collect::<Vec<_>>();
+    parameters.sort_by_key(|parameter| parameter.ordinal);
+    let arguments = dynamic_dispatch
+        .arguments
+        .iter()
+        .filter(|argument| argument.owner == machine.id && argument.operation == operation.id)
+        .collect::<Vec<_>>();
+    if parameters.len() != arguments.len() {
+        return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+    }
+
+    parameters
+        .into_iter()
+        .map(|parameter| {
+            let matches = arguments
+                .iter()
+                .filter(|argument| argument.parameter_ordinal == parameter.ordinal)
+                .collect::<Vec<_>>();
+            let [argument] = matches.as_slice() else {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            };
+            let source = match argument.source {
+                TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+                    lower_rebound_argument_source(
+                        machine,
+                        operation,
+                        ordinal,
+                        dynamic_dispatch,
+                        closed_conformance_applications,
+                    )?
+                }
+                TerminalDynamicDescriptorSource::Parameter { ordinal } => {
+                    let sources = dynamic_dispatch
+                        .parameters
+                        .iter()
+                        .filter(|source| source.owner == machine.id && source.ordinal == ordinal)
+                        .collect::<Vec<_>>();
+                    let [source] = sources.as_slice() else {
+                        return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+                    };
+                    AbstractDynamicDescriptorSource::Parameter((*source).clone())
+                }
+            };
+            Ok(AbstractDynamicDescriptorArgument {
+                argument: (**argument).clone(),
+                target: parameter.clone(),
+                source,
+            })
+        })
+        .collect()
+}
+
+fn lower_rebound_argument_source(
+    machine: &TerminalMachine,
+    operation: &Operation,
+    descriptor_ordinal: u32,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[ClosedConformanceApplication],
+) -> Result<AbstractDynamicDescriptorSource, LoweringError> {
+    let descriptors = dynamic_dispatch
+        .rebound_descriptors
+        .iter()
+        .filter(|descriptor| {
+            descriptor.owner == machine.id && descriptor.ordinal == descriptor_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [descriptor] = descriptors.as_slice() else {
+        return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+    };
+    let selections = |ordinal| {
+        dynamic_dispatch
+            .selections
+            .iter()
+            .filter(|selection| selection.owner == machine.id && selection.ordinal == ordinal)
+            .collect::<Vec<_>>()
+    };
+    let initial = selections(descriptor.initial_selection_ordinal);
+    let rebound = selections(descriptor.rebound_selection_ordinal);
+    let ([initial], [rebound]) = (initial.as_slice(), rebound.as_slice()) else {
+        return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+    };
+    let applications = closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            application.owner == machine.id
+                && application.report_fingerprint
+                    == initial.conformance_application_report_fingerprint
+                && application.commitment == initial.conformance_application_commitment
+                && application.report_fingerprint
+                    == rebound.conformance_application_report_fingerprint
+                && application.commitment == rebound.conformance_application_commitment
+        })
+        .collect::<Vec<_>>();
+    let [application] = applications.as_slice() else {
+        return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+    };
+    Ok(AbstractDynamicDescriptorSource::Rebound {
+        initial: (*initial).clone(),
+        rebound: (*rebound).clone(),
+        descriptor: (*descriptor).clone(),
+        application: (*application).clone(),
     })
 }
 
@@ -350,6 +551,11 @@ mod tests {
                     ..
                 }
                 | AbstractOperation::CallStructuralScalar {
+                    requirement_obligations,
+                    crash_continuations,
+                    ..
+                }
+                | AbstractOperation::CallStructuralScalarWithDynamicArguments {
                     requirement_obligations,
                     crash_continuations,
                     ..

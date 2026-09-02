@@ -19,8 +19,9 @@ use psi_terminal::{
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
     StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicConformanceSelection,
-    TerminalIndirectDynamicDispatch, TerminalModule, TerminalPsiIdentity, TerminalRankedScc,
-    TerminalReboundDynamicDescriptor,
+    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
+    TerminalIndirectDynamicDispatch, TerminalModule, TerminalParameterDynamicDispatch,
+    TerminalPsiIdentity, TerminalRankedScc, TerminalReboundDynamicDescriptor,
 };
 
 /// Exact caller claim source needed to replay boundary-completion custody after
@@ -271,6 +272,119 @@ pub struct AbstractReboundDynamicScalarDispatch {
     pub dispatch: TerminalIndirectDynamicDispatch,
 }
 
+/// One target-neutral dynamic descriptor argument after the Terminal catalog
+/// has been independently rejoined. The target parameter is retained beside
+/// the exact source custody so later ABI selection never has to recover either
+/// side from owner-local ordinals alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractDynamicDescriptorArgument {
+    pub argument: TerminalDynamicDescriptorArgument,
+    pub target: TerminalDynamicDescriptorParameter,
+    pub source: AbstractDynamicDescriptorSource,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbstractDynamicDescriptorSource {
+    Rebound {
+        initial: TerminalDynamicConformanceSelection,
+        rebound: TerminalDynamicConformanceSelection,
+        descriptor: TerminalReboundDynamicDescriptor,
+        application: ClosedConformanceApplication,
+    },
+    Parameter(TerminalDynamicDescriptorParameter),
+}
+
+impl AbstractDynamicDescriptorArgument {
+    /// Replay one caller-to-callee existential interface join without treating
+    /// either repeated ordinal as authority.
+    pub fn has_complete_custody(
+        &self,
+        caller: MachineId,
+        operation: OperationId,
+        callee: MachineId,
+    ) -> bool {
+        if self.argument.owner != caller
+            || self.argument.operation != operation
+            || self.argument.parameter_ordinal != self.target.ordinal
+            || self.target.owner != callee
+        {
+            return false;
+        }
+        let interfaces_match = |source: &TerminalDynamicDescriptorParameter| {
+            source.trait_identity == self.target.trait_identity
+                && source.access == self.target.access
+                && source.requirements == self.target.requirements
+        };
+        match (&self.argument.source, &self.source) {
+            (
+                psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal },
+                AbstractDynamicDescriptorSource::Parameter(source),
+            ) => source.owner == caller && source.ordinal == *ordinal && interfaces_match(source),
+            (
+                psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal },
+                AbstractDynamicDescriptorSource::Rebound {
+                    initial,
+                    rebound,
+                    descriptor,
+                    application,
+                },
+            ) => {
+                descriptor.owner == caller
+                    && descriptor.ordinal == *ordinal
+                    && initial.owner == caller
+                    && rebound.owner == caller
+                    && descriptor.initial_selection_ordinal == initial.ordinal
+                    && descriptor.rebound_selection_ordinal == rebound.ordinal
+                    && initial.conformance_application_report_fingerprint
+                        == application.report_fingerprint
+                    && rebound.conformance_application_report_fingerprint
+                        == application.report_fingerprint
+                    && initial.conformance_application_commitment == application.commitment
+                    && rebound.conformance_application_commitment == application.commitment
+                    && application.owner == caller
+                    && application.report_fingerprint != 0
+                    && !application.commitment.is_zero()
+                    && application.report_fingerprint
+                        == psi_terminal::closed_conformance_application_report_fingerprint(
+                            application,
+                        )
+                    && application.commitment
+                        == psi_terminal::closed_conformance_application_commitment(application)
+                    && initial.source.access == self.target.access
+                    && rebound.source.access == self.target.access
+                    && application.trait_identity == self.target.trait_identity
+                    && application.rows.len() == self.target.requirements.len()
+                    && application.rows.iter().zip(&self.target.requirements).all(
+                        |(row, requirement)| {
+                            row.declaring_trait_identity == requirement.declaring_trait_identity
+                                && row.public_requirement_identity
+                                    == requirement.public_requirement_identity
+                                && row
+                                    .realization_callable_identity
+                                    .as_ref()
+                                    .and_then(|identity| {
+                                        application.realization_callables.iter().find(|callable| {
+                                            callable.source_callable_identity == *identity
+                                        })
+                                    })
+                                    .is_some_and(|callable| callable.result == requirement.result)
+                        },
+                    )
+            }
+            _ => false,
+        }
+    }
+}
+
+/// One scalar call through a descriptor received by the current function.
+/// The closed parameter interface supplies the public slot and result shape;
+/// the concrete table and instance remain runtime inputs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AbstractParameterDynamicScalarDispatch {
+    pub parameter: TerminalDynamicDescriptorParameter,
+    pub dispatch: TerminalParameterDynamicDispatch,
+}
+
 impl AbstractReboundDynamicScalarDispatch {
     /// Replay the complete selected-table join without trusting the repeated
     /// call-site row or compact report coordinate as authority.
@@ -416,6 +530,16 @@ pub enum AbstractOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    CallStructuralScalarWithDynamicArguments {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// Invoke one scalar-result requirement through an exact rebound dynamic
     /// descriptor. Target realization must materialize the two-word
     /// `{instance, table}` carrier and call through the selected private table;
@@ -424,6 +548,13 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: AbstractResult,
         dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    CallDynamicParameterScalar {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        dynamic_dispatch: AbstractParameterDynamicScalarDispatch,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

@@ -167,6 +167,14 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
+            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                psi_operation, ..
+            } => {
+                return Err(LoweringError::InvalidDynamicScalarDispatch {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             AbstractOperation::CallDynamicScalar { .. } => lower_dynamic_scalar_call(
                 operation,
                 function,
@@ -180,6 +188,12 @@ pub(super) fn lower_unit_body(
                 &mut operations,
                 &mut provenance,
             )?,
+            AbstractOperation::CallDynamicParameterScalar { psi_operation, .. } => {
+                return Err(LoweringError::InvalidDynamicScalarDispatch {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             AbstractOperation::PortWrite {
                 psi_operation,
                 service,

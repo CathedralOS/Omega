@@ -1316,6 +1316,7 @@ dependencies = [
  "omega-abstract-operations",
  "omega-installation-evidence",
  "omega-optimization-unit",
+ "omega-optimization-validation",
  "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-admission",

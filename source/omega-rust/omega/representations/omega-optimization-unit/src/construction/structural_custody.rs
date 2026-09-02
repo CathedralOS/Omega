@@ -26,6 +26,24 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(dynamic_dispatch.initial.source.place);
             places.insert(dynamic_dispatch.rebound.source.place);
         }
+        O::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            dynamic_arguments,
+            ..
+        } => {
+            places.extend(structural_arguments.iter().map(|argument| argument.place));
+            for argument in dynamic_arguments {
+                if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    initial,
+                    rebound,
+                    ..
+                } = &argument.source
+                {
+                    places.insert(initial.source.place);
+                    places.insert(rebound.source.place);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -75,6 +93,14 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
                     .collect(),
             )]
         }
+        O::CallStructuralScalarWithDynamicArguments {
+            claim_transfers, ..
+        } => vec![OwnershipEvent::ClaimTransfer(
+            claim_transfers
+                .iter()
+                .map(|transfer| transfer.claim)
+                .collect(),
+        )],
         O::CallStructural {
             claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(

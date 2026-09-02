@@ -80,6 +80,10 @@ pub(super) fn validate_current_ownership_cfg(
                     structural_arguments,
                     ..
                 }
+                | O::CallStructuralScalarWithDynamicArguments {
+                    structural_arguments,
+                    ..
+                }
                 | O::CallStructural {
                     structural_arguments,
                     ..
@@ -96,6 +100,7 @@ pub(super) fn validate_current_ownership_cfg(
             let parameter_multiplicities = match &node.operation {
                 O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
+                | O::CallStructuralScalarWithDynamicArguments { callee, .. }
                 | O::CallStructural { callee, .. } => functions[callee]
                     .structural_parameters
                     .iter()
@@ -143,6 +148,9 @@ pub(super) fn validate_current_ownership_cfg(
                     claim_transfers, ..
                 }
                 | O::CallStructuralScalar {
+                    claim_transfers, ..
+                }
+                | O::CallStructuralScalarWithDynamicArguments {
                     claim_transfers, ..
                 }
                 | O::CallStructural {

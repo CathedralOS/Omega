@@ -188,6 +188,27 @@ pub(crate) fn derive_root_service_reach(
                 | O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructural { callee, .. } => pending.push(*callee),
+                O::CallStructuralScalarWithDynamicArguments {
+                    callee,
+                    dynamic_arguments,
+                    ..
+                } => {
+                    pending.push(*callee);
+                    for argument in dynamic_arguments {
+                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } = &argument.source
+                        {
+                            pending.extend(
+                                application
+                                    .realization_callables
+                                    .iter()
+                                    .map(|callable| callable.machine),
+                            );
+                        }
+                    }
+                }
                 O::CallDynamicScalar {
                     dynamic_dispatch, ..
                 } => pending.push(dynamic_dispatch.dispatch.realization),

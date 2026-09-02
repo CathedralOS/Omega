@@ -25,6 +25,27 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                 | O::CallStructuralScalar { callee, .. }
                 | O::CallStructural { callee, .. }
                 | O::Call { callee, .. } => callees.push(*callee),
+                O::CallStructuralScalarWithDynamicArguments {
+                    callee,
+                    dynamic_arguments,
+                    ..
+                } => {
+                    callees.push(*callee);
+                    for argument in dynamic_arguments {
+                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } = &argument.source
+                        {
+                            callees.extend(
+                                application
+                                    .realization_callables
+                                    .iter()
+                                    .map(|callable| callable.machine),
+                            );
+                        }
+                    }
+                }
                 O::CallDynamicScalar {
                     dynamic_dispatch, ..
                 } => callees.push(dynamic_dispatch.dispatch.realization),

@@ -156,6 +156,37 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
+                O::CallStructuralScalarWithDynamicArguments {
+                    callee,
+                    dynamic_arguments,
+                    ..
+                } => {
+                    summary.callees.insert(*callee);
+                    for argument in dynamic_arguments {
+                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } = &argument.source
+                        {
+                            summary.callees.extend(
+                                application
+                                    .realization_callables
+                                    .iter()
+                                    .map(|callable| callable.machine),
+                            );
+                        }
+                    }
+                    if summary
+                        .callees
+                        .iter()
+                        .any(|callee| !machines.contains(callee))
+                    {
+                        summary.observable = EffectKnowledge::May;
+                        summary.structural_state = EffectKnowledge::May;
+                        summary.crash = EffectKnowledge::May;
+                        summary.suspension = EffectKnowledge::May;
+                    }
+                }
                 O::CallDynamicScalar {
                     dynamic_dispatch, ..
                 } => {
@@ -167,6 +198,16 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.crash = EffectKnowledge::May;
                         summary.suspension = EffectKnowledge::May;
                     }
+                }
+                O::CallDynamicParameterScalar { .. } => {
+                    // The concrete table row is an incoming runtime value.
+                    // Until target realization rejoins every caller-supplied
+                    // descriptor, retain the conservative internal-call
+                    // summary without inventing one static callee.
+                    summary.observable = EffectKnowledge::May;
+                    summary.structural_state = EffectKnowledge::May;
+                    summary.crash = EffectKnowledge::May;
+                    summary.suspension = EffectKnowledge::May;
                 }
                 O::PortWrite { service, .. } => {
                     summary.services.insert(*service);
@@ -317,7 +358,9 @@ fn operation_effect(
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallDynamicParameterScalar { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),

@@ -255,7 +255,9 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
         | AbstractOperation::CallUnit { psi_operation, .. }
         | AbstractOperation::CallStructuralScalar { psi_operation, .. }
+        | AbstractOperation::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
         | AbstractOperation::CallDynamicScalar { psi_operation, .. }
+        | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
         | AbstractOperation::CallStructural { psi_operation, .. }
         | AbstractOperation::BoundaryCall { psi_operation, .. }
         | AbstractOperation::PortWrite { psi_operation, .. }

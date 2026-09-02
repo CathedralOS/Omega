@@ -90,6 +90,26 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
         }
+        O::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            dynamic_arguments,
+            ..
+        } => {
+            for argument in structural_arguments {
+                require(argument.place, known)?;
+            }
+            for argument in dynamic_arguments {
+                if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    initial,
+                    rebound,
+                    ..
+                } = &argument.source
+                {
+                    require(initial.source.place, known)?;
+                    require(rebound.source.place, known)?;
+                }
+            }
+        }
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
             require(*source, known)?;
         }

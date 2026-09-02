@@ -45,6 +45,29 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
+        O::CallStructuralScalarWithDynamicArguments {
+            psi_operation,
+            result,
+            callee,
+            structural_arguments,
+            dynamic_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(54);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*callee);
+            bytes.slice(structural_arguments, encode_structural_argument);
+            bytes.slice(dynamic_arguments, encode_dynamic_descriptor_argument);
+            bytes.slice(claim_transfers, |bytes, transfer| {
+                bytes.id(transfer.claim);
+                bytes.u32(transfer.argument_index);
+            });
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
         O::CallDynamicScalar {
             psi_operation,
             result,
@@ -80,6 +103,24 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.string(&dynamic_dispatch.dispatch.realization_identity);
             bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
             bytes.id(dynamic_dispatch.dispatch.realization);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
+        O::CallDynamicParameterScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(53);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            encode_dynamic_descriptor_parameter(bytes, &dynamic_dispatch.parameter);
+            bytes.id(dynamic_dispatch.dispatch.owner);
+            bytes.id(dynamic_dispatch.dispatch.operation);
+            bytes.u32(dynamic_dispatch.dispatch.parameter_ordinal);
+            bytes.u32(dynamic_dispatch.dispatch.requirement_slot);
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
@@ -166,6 +207,79 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         }
         _ => unreachable!("operation family routing admitted a non-call operation"),
     }
+}
+
+fn encode_dynamic_descriptor_argument(
+    bytes: &mut CanonicalBytes,
+    argument: &omega_abstract_operations::AbstractDynamicDescriptorArgument,
+) {
+    bytes.id(argument.argument.owner);
+    bytes.id(argument.argument.operation);
+    bytes.u32(argument.argument.parameter_ordinal);
+    match argument.argument.source {
+        psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+            bytes.u8(1);
+            bytes.u32(ordinal);
+        }
+        psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal } => {
+            bytes.u8(2);
+            bytes.u32(ordinal);
+        }
+    }
+    encode_dynamic_descriptor_parameter(bytes, &argument.target);
+    match &argument.source {
+        omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+            initial,
+            rebound,
+            descriptor,
+            application,
+        } => {
+            bytes.u8(1);
+            encode_dynamic_selection(bytes, initial);
+            encode_dynamic_selection(bytes, rebound);
+            bytes.id(descriptor.owner);
+            bytes.u32(descriptor.ordinal);
+            bytes.u32(descriptor.initial_selection_ordinal);
+            bytes.u32(descriptor.rebound_selection_ordinal);
+            encode_closed_conformance_application(bytes, application);
+        }
+        omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(parameter) => {
+            bytes.u8(2);
+            encode_dynamic_descriptor_parameter(bytes, parameter);
+        }
+    }
+}
+
+fn encode_dynamic_descriptor_parameter(
+    bytes: &mut CanonicalBytes,
+    parameter: &psi_terminal::TerminalDynamicDescriptorParameter,
+) {
+    bytes.id(parameter.owner);
+    bytes.u32(parameter.ordinal);
+    bytes.u32(parameter.source_position);
+    bytes.string(&parameter.trait_identity);
+    encode_access(bytes, parameter.access);
+    bytes.slice(&parameter.requirements, |bytes, requirement| {
+        bytes.u32(requirement.slot);
+        bytes.string(&requirement.declaring_trait_identity);
+        bytes.string(&requirement.public_requirement_identity);
+        bytes.u8(match requirement.result {
+            psi_terminal::ClosedConformanceCallableResult::Unit => 1,
+            psi_terminal::ClosedConformanceCallableResult::I32 => 2,
+            psi_terminal::ClosedConformanceCallableResult::Bool => 3,
+        });
+    });
+}
+
+fn encode_dynamic_selection(
+    bytes: &mut CanonicalBytes,
+    selection: &psi_terminal::TerminalDynamicConformanceSelection,
+) {
+    bytes.id(selection.owner);
+    bytes.u32(selection.ordinal);
+    encode_structural_argument(bytes, &selection.source);
+    bytes.u64(selection.conformance_application_report_fingerprint);
+    bytes.bytes(&selection.conformance_application_commitment.as_bytes());
 }
 
 fn encode_closed_conformance_application(
