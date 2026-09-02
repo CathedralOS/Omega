@@ -245,11 +245,9 @@ explicitly.
 
 - [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
   semantics begin.**
-  - accept one nonempty caller-supplied set of exact target profiles; normalize
-    it to canonical profile order and reject `all`, `*`, empty, inferred, or
-    dependency-expanded target sets;
-  - acquire and retain one immutable source snapshot and reuse parsing, flat
-    build facts, and every other target-independent stage result;
+  - consume the landed compiler-owned `ExplicitTargetSet` at the orchestration
+    boundary, then acquire and retain one immutable source snapshot and reuse
+    parsing, flat build facts, and every other target-independent stage result;
   - project one independently valid exact-target child at the first
     target-sensitive stage, preserving the same child subject and identity as
     a standalone invocation;

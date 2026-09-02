@@ -205,6 +205,15 @@ creates no report/output directory. The product driver consumes only the
 validated request; it does not inspect rollback contents or own the policy
 diagnostic.
 
+D54's multi-target request boundary begins with the compiler-owned
+`ExplicitTargetSet`. It accepts one nonempty caller-supplied list, normalizes
+legacy CLI aliases, deduplicates and orders only those exact profiles by the
+trusted target catalog, and rejects `all`, `*`, empty, or unknown inputs. It
+does not infer targets or expand the catalog. This value does not itself fan
+out compilation: orchestration must first expose the shared immutable
+source/parse/build checkpoint, so wrapping the existing target-sensitive
+compiler invocation in a loop would violate the stage boundary.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.
