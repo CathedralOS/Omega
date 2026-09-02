@@ -928,6 +928,53 @@ fn retains_public_data_trait_and_wire_visibility() {
 }
 
 #[test]
+fn resolves_wire_owned_nested_field_type_identity() {
+    let source = r#"
+        data Header { #0 value: u32; }
+        data Message { #0 header: Header; }
+    "#;
+    let mut sources = SourceMap::default();
+    let source_id = sources
+        .add_with_metadata_and_resolution_stratum(
+            PathBuf::from("package/main.omg"),
+            source.to_owned(),
+            PathBuf::from("package"),
+            None,
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+        )
+        .source_id;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize wire data");
+    let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse wire data");
+    let program = lower_syntax_trees_with_sources(&syntax, Arc::new(sources))
+        .expect("resolve source-owned wire data");
+    let header_symbol = program
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Header")
+        .expect("wire-derived Header data")
+        .symbol;
+    let message = program
+        .wire_schemas
+        .iter()
+        .find(|schema| schema.name.as_str() == "Message")
+        .expect("Message wire schema");
+    let [psi_symbol_resolved_trees::wire::WireMember::Field(header)] =
+        program.wire_members(message.members)
+    else {
+        panic!("Message should retain one wire field")
+    };
+    let psi_symbol_resolved_trees::types::TypeReference::Named { symbol, name } =
+        &header.type_reference
+    else {
+        panic!("nested wire field should retain its named type")
+    };
+
+    assert_eq!(name.as_str(), "Header");
+    assert_eq!(*symbol, header_symbol);
+}
+
+#[test]
 fn retains_public_machine_visibility_in_symbol_resolved_trees() {
     let tokens = Lexer::new("pub machine Package::entry() { }")
         .tokenize()

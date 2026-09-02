@@ -211,6 +211,30 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             }
         });
 
+    // A numbered `data` declaration is represented both as an ordinary data
+    // definition and as a wire schema. The two views own separate copies of
+    // each field's outer type reference, so resolving the ordinary data copy
+    // above does not resolve the schema copy used by wire validation and
+    // planning. Bind every wire-owned copy through the same source-aware type
+    // lookup. Historical version fields live in this arena too, so one flat
+    // traversal covers both current and retained eras.
+    program
+        .tables
+        .declarations
+        .wire_members
+        .for_each_mut(|_, member| {
+            let psi_symbol_resolved_trees::wire::WireMember::Field(field) = member else {
+                return;
+            };
+            assign_type_reference_symbol_with_locals_and_constraints(
+                symbols,
+                child_type_references,
+                type_constraints,
+                &[],
+                &mut field.type_reference,
+            );
+        });
+
     program.roots.domain_definitions.for_each_mut(|domain| {
         let type_parameters = data_type_parameters
             .span_or_empty(domain.type_parameters)

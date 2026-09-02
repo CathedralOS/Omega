@@ -298,8 +298,13 @@ explicitly.
       survives early build-time selection and call-closure authority, but whose
       runtime entries still lack a Terminal composed-Unit plan for scalar
       setup, indexed assignment, and guarded Console leaves;
-    - six nested/repeated wire roots whose generated codec source loses
-      requester-owned schema visibility under package-scoped compilation;
+    - six nested/repeated wire roots still awaiting package-native migration.
+      Wire-owned nested field references now retain exact source-aware sibling
+      type identity instead of relying on the standalone name fallback; the
+      nested roundtrip root consequently reaches its remaining Terminal gap,
+      an attached Unit closure missing a checked transitive machine plan.
+      Re-probe the other five roots and close only their observed remaining
+      checked/Terminal lanes;
     - three arithmetic float-helper roots lacking a Terminal composed-Unit plan
       for scalar setup and control; and
     - three call roots: the guarded transition-argument root, whose copied
