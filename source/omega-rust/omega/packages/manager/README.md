@@ -40,6 +40,13 @@ package-owned semantic surfaces, then recompiles with exact consumer-scoped
 bindings. Only that final review may proceed to conflicts and admission; the
 discovery pass is neither policy nor evidence that an audit occurred.
 
+Production-bearing operations use
+`compile_resolved_package_candidate_for_production`. Its non-clonable result
+exposes the same final review rows while retaining the exact checked
+application root that produced them. Admission consumes that root directly
+into unpublished Terminal/native production after fresh evidence comparison;
+it does not rerun `build.omg` or recover generated source from staging.
+
 Install and update belong in `operations/` when their remaining acceptance and
 transaction gates are closed. The source and review crates remain subordinate
 and cannot admit packages independently.

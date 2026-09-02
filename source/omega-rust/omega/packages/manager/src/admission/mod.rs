@@ -10,5 +10,6 @@ pub use evidence::{
 };
 pub use terminal_authority::{
     AcceptedTerminalAuthorityPermissionPolicyError, accepted_terminal_authority_permission_policy,
+    realize_accepted_reviewed_package_candidate_with_source_evaluated_imports_and_policy,
     realize_accepted_terminal_artifact_with_source_evaluated_imports_and_policy,
 };

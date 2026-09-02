@@ -1,7 +1,9 @@
 use omega_compiler::{
     CompileOptions, CompileRequest, RequestedCompileProduct, compile, compile_to_checked,
     compile_to_checked_with_packages, compile_to_checked_with_packages_in_build_dir,
+    compile_to_checked_with_packages_in_sponsored_build_dir,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    retained_terminal_report_from_checked_package,
 };
 use omega_package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
@@ -4169,6 +4171,111 @@ fn native_package_product_retains_one_canonical_production_manifest() {
             .expect_err("standalone production cannot issue package final evidence"),
         omega_compiler::FinalRealizationEvidenceError::PackageProductionManifestRequired,
     );
+}
+
+#[test]
+fn reviewed_checked_package_continues_after_generated_source_staging_is_removed() {
+    let tree = TempTree::new();
+    let root = tree.package("reviewed-generated-root");
+    TempTree::write(
+        root.join("build.omg"),
+        r#"target linux_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("reviewed-generated-root");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    let generated: BuildPath = builder.output.resolve("marker.generated.omg");
+    let descriptor: i32 = builder.output.create(generated, 438);
+    let count: i64 = builder.output.write(descriptor, "pub data GeneratedMarker { value: u8; }\n");
+    let close: i32 = builder.output.close(descriptor);
+    builder.output.include_source(generated);
+}
+"#,
+    );
+    TempTree::write(
+        root.join("main.omg"),
+        "data Main { }\nmachine Main::main(&mut self) { }\n",
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(root.join("build.omg"), fs::Permissions::from_mode(0o444))
+            .expect("seal application build source");
+        fs::set_permissions(root.join("main.omg"), fs::Permissions::from_mode(0o444))
+            .expect("seal application source");
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o555))
+            .expect("seal application source root");
+    }
+    let inputs = PackageCompilationInputs::new(
+        identity(63),
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(identity(63), "reviewed-generated-root", root.clone())
+                .with_canonical_source_metadata()
+                .expect("canonical application Source metadata"),
+        ],
+        Vec::new(),
+    )
+    .expect("single application package graph");
+    let session_root = tree.0.join("review-session");
+    fs::create_dir(&session_root).expect("create sponsored review session");
+    let session_root = fs::canonicalize(session_root).expect("canonical sponsored review session");
+    let build_dir = session_root.join("reviewed-generated-root");
+    let filesystem_sponsor = psi_checked_interpreter::FilesystemSponsor::new(&session_root)
+        .expect("sponsor review session");
+    let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
+        &root.join("main.omg"),
+        &build_dir,
+        Some("linux_x86_64"),
+        inputs,
+        filesystem_sponsor,
+    )
+    .expect("package review retains its generated source in checked custody");
+    assert_eq!(
+        checked
+            .package_generated_source_bundle()
+            .expect("checked package generated-source bundle")
+            .sources()
+            .len(),
+        1
+    );
+    fs::remove_dir_all(&session_root).expect("remove package review staging before production");
+
+    let report = retained_terminal_report_from_checked_package(
+        root.join("main.omg"),
+        checked,
+        psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("retained checked package continues without reopening build staging");
+    assert_eq!(
+        report.output_kind(),
+        omega_compiler::CompileOutputKind::TerminalArtifact
+    );
+    assert!(report.production_manifest().is_some());
+
+    let standalone_root = tree.package("standalone-checked");
+    TempTree::write(
+        standalone_root.join("main.omg"),
+        "pub data Standalone { value: u8; }\n",
+    );
+    let standalone = compile_to_checked(&standalone_root.join("main.omg"), None)
+        .expect("standalone source checks without package custody");
+    let diagnostics = retained_terminal_report_from_checked_package(
+        standalone_root.join("main.omg"),
+        standalone,
+        psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect_err("package-only continuation rejects standalone checked custody");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires package-aware checked custody")
+    }));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o755))
+            .expect("restore temporary source root for cleanup");
+    }
 }
 
 #[test]

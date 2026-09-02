@@ -53,6 +53,18 @@ pub fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diagnostic>
     Compiler::new().compile(request)
 }
 
+/// Continue one package-manager-owned checked production to a retained
+/// Terminal report without rerunning its build machine or source discovery.
+pub fn retained_terminal_report_from_checked_package(
+    root_path: std::path::PathBuf,
+    checked: crate::CheckedCompilation,
+    profile: psi_proof_admission::AdmissionProfile,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    execution::run_on_compile_thread(move || {
+        driver::retained_terminal_report_from_checked_package(root_path, checked, &profile)
+    })
+}
+
 #[cfg(test)]
 #[path = "compiler/tests.rs"]
 mod tests;

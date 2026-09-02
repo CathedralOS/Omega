@@ -3,7 +3,10 @@ use omega_package_manager::resolution::graph::{
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::resolution::source::ResolvePackageSourceError;
-use omega_package_manager::review::compile_resolved_package_reviews;
+use omega_package_manager::review::{
+    CompileResolvedPackageReviewsError, compile_resolved_package_candidate_for_production,
+    compile_resolved_package_reviews,
+};
 use omega_package_source::{
     LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolverStorage,
 };
@@ -64,6 +67,20 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve generated producer and consumer");
+
+    assert!(matches!(
+        compile_resolved_package_candidate_for_production(
+            &closure,
+            "windows_x86_64",
+            &temporary.join("invalid-native-production"),
+        ),
+        Err(
+            CompileResolvedPackageReviewsError::InvalidProductionRootRole {
+                role: omega_package_compilation::BuildDeclarationKind::Package,
+                ..
+            }
+        )
+    ));
 
     let reviews = compile_resolved_package_reviews(
         &closure,
