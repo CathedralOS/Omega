@@ -37,7 +37,10 @@ pub(super) fn validate_internal_unit_scalar_calls(
         .iter()
         .filter(|call| call.scalar_result.is_some())
         .count();
-    if function.internal_unit_scalar_calls.is_empty() && foreign_result_count == 0 {
+    if function.internal_unit_scalar_calls.is_empty()
+        && function.dynamic_scalar_calls.is_empty()
+        && foreign_result_count == 0
+    {
         if !function.unit_scalar_homes.is_empty() {
             return Err(invalid());
         }
@@ -117,6 +120,13 @@ fn validate_home_roster(
                 .as_ref()
                 .map(|result| (call.operation_ordinal, call.owner, result))
         }))
+        .chain(function.dynamic_scalar_calls.iter().map(|call| {
+            (
+                call.operation_ordinal,
+                CallSiteOwner::Operation(call.psi_operation),
+                &call.result,
+            )
+        }))
         .collect::<Vec<_>>();
     producers.sort_by_key(|(ordinal, _, _)| *ordinal);
     if function.unit_scalar_homes.len() != producers.len()
@@ -162,6 +172,20 @@ fn validate_home_roster(
             .map(|constant| constant.source_value),
     );
     for (home, (_, owner, result)) in function.unit_scalar_homes.iter().zip(producers) {
+        if let Some(dynamic) = function
+            .dynamic_scalar_calls
+            .iter()
+            .find(|call| call.psi_operation == result.home.defining_operation)
+        {
+            cursor = align(cursor, 8).ok_or_else(invalid)?;
+            if dynamic.descriptor_home_byte_offset != cursor
+                || dynamic.descriptor_abi.total_byte_size != 16
+                || dynamic.descriptor_abi.byte_alignment != 8
+            {
+                return Err(invalid());
+            }
+            cursor = cursor.checked_add(16).ok_or_else(invalid)?;
+        }
         cursor = align(cursor, 8).ok_or_else(invalid)?;
         if home.byte_offset != cursor
             || result.home != *home

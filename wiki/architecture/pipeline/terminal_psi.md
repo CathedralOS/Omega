@@ -640,12 +640,19 @@ Optimizer identity binds the full telescope, row map, callable registry,
 report coordinate, and strong commitment; optimizer validation, target
 lowering, and assignment rejoin that application to the exact selected row and
 callable. Multi-row mutation tests reject removal or reordering of an
-unselected row. Identical applications may later be deduplicated by strong
-commitment when static artifact-private tables are materialized. Machine
-emission continues to reject the row as
-`DynamicScalarTableMaterializationPending` until static private table
-address/function materialization, indirect-call encoding, and relocations
-exist. This boundary is not permission to devirtualize the call.
+unselected row. For a service-free straight-line Unit body, machine emission
+now materializes the canonical `{ instance, table }` descriptor and an actual
+indirect call on x86-64 and AArch64. Object construction deduplicates
+semantically identical complete applications by strong commitment, emits one
+canonical data slot per row, and binds every row with an executable callable
+to its exact function symbol. A retained semantic row without a callable
+remains a zero trap; it is not deleted, collapsed, or assigned an invented
+function. Independent object and final-image replay validates descriptor
+bytes, table-address text relocations, the selected-slot load and call, exact
+function-slot relocations, and relocated final data. Runtime installation still
+rejects these tables until its record and loader can retain exact multi-section
+placement and relocation replay. Multi-block continuation remains independent
+unfinished work. None of these boundaries permit devirtualizing the call.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

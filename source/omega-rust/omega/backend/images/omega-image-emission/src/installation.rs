@@ -459,6 +459,9 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
+    if !image.dynamic_conformance_tables().is_empty() {
+        return Err(InstallationError::DynamicConformanceInstallationPending);
+    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -2833,6 +2836,7 @@ fn decode_structural_types(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallationError {
+    DynamicConformanceInstallationPending,
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),

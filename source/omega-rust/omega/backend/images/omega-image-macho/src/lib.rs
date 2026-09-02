@@ -123,6 +123,7 @@ pub fn emit_macho_aarch64_executable(
 
     Ok(ExecutableImageOutput {
         final_text_bytes: image.memory.text.clone(),
+        final_data_bytes: image.memory.data.clone(),
         bytes,
         file_name: "omega-program".to_owned(),
         format: "mach-o-arm64-executable".to_owned(),

@@ -155,8 +155,183 @@ fn validate_terminal_image_with_import_count(
     }
     let evidence =
         validate_final_text_relocation_envelope(text_bytes, &output.final_text_bytes, relocations)?;
+    if output.data_bytes != output.final_data_bytes.len() {
+        return Err(Diagnostic::error(
+            "terminal-Psi image initialized-data count does not match its exact final bytes",
+        ));
+    }
+    output
+        .validate_final_initialized_data_relocation_envelope(artifact.data_bytes(), relocations)?;
+    validate_dynamic_conformance_tables(artifact, object, relocations, output)?;
     validate_callback_relocation_targets(artifact, object, relocations, output)?;
     Ok(evidence)
+}
+
+fn validate_dynamic_conformance_tables(
+    artifact: &ObjectArtifact,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &omega_object_file::RelocationPlan,
+    output: &EmittedImageOutput,
+) -> Result<(), Diagnostic> {
+    let invalid = || Diagnostic::error("dynamic conformance table relocation custody drifted");
+    let mut expected_data_relocations = 0usize;
+    for table in artifact.dynamic_conformance_tables() {
+        let symbol = object.layout.symbols.get(table.symbol);
+        if symbol.section
+            != omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Data)
+            || symbol.kind != omega_object_file::SymbolKind::Object
+            || symbol.offset != table.data_offset
+            || symbol.size != table.byte_count
+            || table.byte_count != table.slots.len().saturating_mul(8)
+            || table.slots.len() != table.application.rows.len()
+        {
+            return Err(invalid());
+        }
+        for (row_index, (row, slot)) in table.application.rows.iter().zip(&table.slots).enumerate()
+        {
+            let expected_offset = table
+                .data_offset
+                .checked_add(row_index.checked_mul(8).ok_or_else(invalid)?)
+                .ok_or_else(invalid)?;
+            if usize::try_from(slot.row_index) != Ok(row_index)
+                || slot.data_offset != expected_offset
+                || slot.realization_callable_identity != row.realization_callable_identity
+            {
+                return Err(invalid());
+            }
+            match (
+                &row.realization_callable_identity,
+                slot.target,
+                slot.target_symbol,
+            ) {
+                (Some(callable_identity), Some(target), Some(target_symbol)) => {
+                    let callables = table
+                        .application
+                        .realization_callables
+                        .iter()
+                        .filter(|callable| {
+                            callable.source_callable_identity == *callable_identity
+                                && callable.machine == target
+                        })
+                        .count();
+                    let target_plan = object.layout.symbols.get(target_symbol);
+                    let target_is_exact = target_plan.kind
+                        == omega_object_file::SymbolKind::Function
+                        && artifact.functions().iter().any(|function| {
+                            function.machine == target && function.symbol == target_symbol
+                        });
+                    let matching = relocations
+                        .records()
+                        .filter(|(_, relocation)| {
+                            relocation.origin
+                                == omega_object_file::RelocationOrigin::Materialization {
+                                    object_symbol_handle: table.symbol,
+                                }
+                                && relocation.section == omega_object_file::SectionKind::Data
+                                && relocation.offset == slot.data_offset
+                                && relocation.byte_width == 8
+                                && relocation.symbol_handle == target_symbol
+                                && relocation.addend == 0
+                                && relocation.kind == omega_object_file::RelocationKind::Absolute64
+                        })
+                        .count();
+                    if callables != 1 || !target_is_exact || matching != 1 {
+                        return Err(invalid());
+                    }
+                    expected_data_relocations += 1;
+                }
+                (None, None, None) => {
+                    let end = slot.data_offset.checked_add(8).ok_or_else(invalid)?;
+                    if artifact.data_bytes().get(slot.data_offset..end) != Some(&[0; 8])
+                        || output.final_data_bytes.get(slot.data_offset..end) != Some(&[0; 8])
+                        || relocations.records().any(|(_, relocation)| {
+                            relocation.section == omega_object_file::SectionKind::Data
+                                && relocation.offset == slot.data_offset
+                        })
+                    {
+                        return Err(invalid());
+                    }
+                }
+                _ => return Err(invalid()),
+            }
+        }
+    }
+    if relocations
+        .records()
+        .filter(|(_, relocation)| relocation.section == omega_object_file::SectionKind::Data)
+        .count()
+        != expected_data_relocations
+    {
+        return Err(invalid());
+    }
+
+    for function in artifact.functions() {
+        for call in &function.dynamic_scalar_calls {
+            let table = artifact
+                .dynamic_conformance_tables()
+                .iter()
+                .find(|table| {
+                    super::same_dynamic_table_application(
+                        &table.application,
+                        &call.dynamic_dispatch.application,
+                    )
+                })
+                .ok_or_else(invalid)?;
+            let origin = omega_object_file::RelocationOrigin::SemanticOperation {
+                function_symbol_handle: function.symbol,
+                operation_identity: call.psi_operation.get(),
+            };
+            let expected = match call.table_address.encoding {
+                omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                    relocation_offset,
+                } => vec![(
+                    function
+                        .text_offset
+                        .checked_add(relocation_offset)
+                        .ok_or_else(invalid)?,
+                    omega_object_file::RelocationKind::X86_64Relative32,
+                )],
+                omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => vec![
+                    (
+                        function
+                            .text_offset
+                            .checked_add(page_relocation_offset)
+                            .ok_or_else(invalid)?,
+                        omega_object_file::RelocationKind::Aarch64Page21,
+                    ),
+                    (
+                        function
+                            .text_offset
+                            .checked_add(page_offset_relocation_offset)
+                            .ok_or_else(invalid)?,
+                        omega_object_file::RelocationKind::Aarch64PageOffset12,
+                    ),
+                ],
+            };
+            for (offset, kind) in expected {
+                if relocations
+                    .records()
+                    .filter(|(_, relocation)| {
+                        relocation.origin == origin
+                            && relocation.section == omega_object_file::SectionKind::Text
+                            && relocation.offset == offset
+                            && relocation.byte_width == 4
+                            && relocation.symbol_handle == table.symbol
+                            && relocation.addend == 0
+                            && relocation.kind == kind
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(invalid());
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_callback_relocation_targets(

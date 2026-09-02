@@ -308,6 +308,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
     function: UnitStackEvidence,
     calls: &[omega_machine_code::InternalCallRelocation],
     foreign_calls: &[ForeignCallRelocation],
+    dynamic_calls: &[omega_machine_code::DynamicScalarCallRecord],
     inline_data: &[std::ops::Range<usize>],
 ) -> Result<(), ObjectError> {
     let mut claimed = std::collections::BTreeMap::new();
@@ -336,6 +337,13 @@ pub(super) fn validate_complete_unit_stack_evidence(
             return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
         }
     }
+    for call in dynamic_calls {
+        if let Some(outbound) = call.unit_stack.outbound
+            && !claim_pair(outbound)
+        {
+            return Err(ObjectError::DuplicateUnitStackAdjustment(machine));
+        }
+    }
 
     match architecture {
         Architecture::X86_64 => {
@@ -348,6 +356,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
                         .iter()
                         .map(|call| call.offset.saturating_sub(1)),
                 )
+                .chain(dynamic_calls.iter().map(|call| call.indirect_call_offset))
                 .collect::<std::collections::BTreeSet<_>>();
             for code in code_ranges(bytes.len(), inline_data) {
                 let mut decoder = iced_x86::Decoder::with_ip(

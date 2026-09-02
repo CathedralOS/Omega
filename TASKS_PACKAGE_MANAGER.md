@@ -283,45 +283,24 @@ explicitly.
   - migrate remaining package-aware fixtures to explicit std dependency edges;
     freestanding UEFI package roots remain dependency-free, and standalone
     source fixtures stay on the compatibility path until they acquire real
-    package roots;
-    current trait-fixture compatibility seams are the two synthesized
-    trait-default roots that still need separate authored-requirement and
-    executable-realization custody plus a Terminal composed-Unit plan; the
-    direct named-`dyn` scalar-result control and Console-exit leaves now compose
-    through one canonical Terminal route, but its end-to-end ordinary-package
-    native canary still waits on accepted Console semantic-binding replay from
-    the lock; the rebound fixture now retains its initializer and reassignment
-    as a distinct checked call lane and crosses canonical Terminal format 62 /
-    vocabulary 65 through exact selection/descriptor/indirect-dispatch custody,
-    independent verification, codec replay, reference interpretation, and
-    transitive fixed-fuel accounting. The exact initializer, rebound source,
-    descriptor, selected realization, result ABI, and canonical two-word
-    runtime carrier now cross abstract operations, optimizer reconstruction and
-    validation, target legalization, and physical frame assignment.
-    Machine-emission preflight independently replays the non-overlapping
-    descriptor/result frame regions. Each dynamic carrier now also retains the
-    complete canonically ordered `ClosedConformanceApplication`, binds it into
-    optimizer identity, and rejoins its strong commitment, selected row, and
-    callable through target lowering and assignment. Multi-row tests reject
-    removal or reordering of an unselected table row; no fixture-shaped
-    one-slot table is synthesized. A service-free straight-line body stops at
-    `DynamicScalarTableMaterializationPending`; the Console canary first stops
-    at the independent multi-block target-control gap. The remaining work is
-    static table address/function materialization, indirect-call emission and
-    relocations, multi-block continuation control, and the end-to-end native
-    canary. The two
-    build/runtime float twins
-    retain compatibility because early named-operator calls have no exact
-    operational callable identity; six nested/repeated wire roots retain
-    compatibility because generated codec source loses requester-owned schema
-    type visibility under package-scoped compilation; exact visible requirement
-    identity now survives normalized float-builtin settlement, but three
-    arithmetic float helper roots retain compatibility because their scalar
-    setup and control roots have no Terminal composed-Unit plan;
-    three call roots retain compatibility: one for transition-argument operator
-    finalization, the now-exact inline subslice-member root because its
-    multi-state application has no Terminal composed-Unit plan, and one for
-    borrow-liveness across an owned receiver call;
+    package roots. The remaining compatibility seams are:
+    - two synthesized trait-default roots needing separate authored-requirement
+      and executable-realization custody plus a Terminal composed-Unit plan;
+    - the named-`dyn`/Console ordinary-package native canary, needing accepted
+      Console semantic-binding replay from the lock and multi-block target
+      continuation;
+    - the rebound-dynamic native path, needing exact installed-data placement
+      and relocation replay before runtime installation may accept its private
+      conformance table;
+    - two build/runtime float twins lacking exact early named-operator callable
+      identity;
+    - six nested/repeated wire roots whose generated codec source loses
+      requester-owned schema visibility under package-scoped compilation;
+    - three arithmetic float-helper roots lacking a Terminal composed-Unit plan
+      for scalar setup and control; and
+    - three call roots: transition-argument operator finalization, multi-state
+      inline subslice-member composition, and borrow liveness across an owned
+      receiver call;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

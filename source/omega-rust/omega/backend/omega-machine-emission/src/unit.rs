@@ -22,9 +22,11 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
 use psi_core::MachineId;
 
+mod dynamic_scalar;
 mod scalar_call;
 mod structural_scalar;
 
+use dynamic_scalar::emit_dynamic_scalar_call;
 use scalar_call::emit_unit_scalar_call;
 use structural_scalar::{emit_structural_scalar_call, emit_structural_scalar_field_store};
 
@@ -43,6 +45,7 @@ pub(super) struct UnitEmission {
     pub(super) foreign_calls: Vec<ForeignCallRelocation>,
     pub(super) internal_unit_calls: Vec<InternalUnitCallRecord>,
     pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
+    pub(super) dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
     pub(super) integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub(super) structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
@@ -664,6 +667,7 @@ fn foreign_scalar_source_record(
 
 pub(super) fn emit_unit_body(
     body: &AssignedUnitBody,
+    owner: Option<MachineId>,
     attachment: Option<psi_core::StructuralTypeId>,
     target: NativeTarget,
     functions: &[AssignedFunction],
@@ -674,6 +678,7 @@ pub(super) fn emit_unit_body(
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
+    let mut dynamic_scalar_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
@@ -1130,9 +1135,20 @@ pub(super) fn emit_unit_body(
                 )?);
             }
             AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
-                return Err(EmissionError::DynamicScalarTableMaterializationPending(
-                    *psi_operation,
-                ));
+                operation_site = Some(*psi_operation);
+                dynamic_scalar_calls.push(emit_dynamic_scalar_call(
+                    operation,
+                    owner.ok_or(EmissionError::InvalidDynamicScalarCallCustody(
+                        *psi_operation,
+                    ))?,
+                    target,
+                    functions,
+                    &x86_homes,
+                    &aarch64_homes,
+                    &mut bytes,
+                    operation_ordinal,
+                    code_offset,
+                )?);
             }
             AssignedUnitOperation::PortWrite {
                 psi_operation,
@@ -1687,6 +1703,7 @@ pub(super) fn emit_unit_body(
                             .filter(|parameter| {
                                 parameter.multiplicity
                                     == psi_terminal::StructuralMultiplicity::Affine
+                                    && parameter.access == psi_terminal::StructuralAccess::Owned
                                     && !transferred_roots.contains(&parameter.place)
                                     && Some(parameter.place) != fully_consumed_affine_pair
                             })
@@ -1953,6 +1970,7 @@ pub(super) fn emit_unit_body(
         foreign_calls,
         internal_unit_calls,
         internal_unit_scalar_calls,
+        dynamic_scalar_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
         structural_scalar_field_stores: unit_structural_scalar_field_stores,
