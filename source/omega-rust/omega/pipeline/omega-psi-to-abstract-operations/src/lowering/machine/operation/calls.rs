@@ -33,6 +33,7 @@ pub(super) fn lower(
         },
         OperationKind::CallStructuralScalar {
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -54,6 +55,7 @@ pub(super) fn lower(
                         scalar_type: result.scalar_type,
                     },
                     callee,
+                    arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -515,6 +517,7 @@ mod tests {
                 scalar_result(),
                 OperationKind::CallStructuralScalar {
                     callee,
+                    arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: call_rows().0,

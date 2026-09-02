@@ -104,6 +104,7 @@ fn direct_projected_integer_plan() -> AbstractOperationPlan {
                             scalar_type: ScalarType::Integer(integer_type),
                         },
                         callee: realization,
+                        arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
                             place: caller_place,
                             path: vec![StructuralPathSegment::Field("item".into())],

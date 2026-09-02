@@ -92,8 +92,30 @@ pub(super) fn validate_mixed_structural_scalar_abi(
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             != structural_count
-        || !function.scalar_structural_parameters.is_empty()
-        || !function.scalar_structural_parameter_homes.is_empty()
+        || function.scalar_structural_parameters.len() != structural_count
+        || function.scalar_structural_parameter_homes.len() != structural_count
+        || function
+            .scalar_structural_parameters
+            .iter()
+            .zip(&function.scalar_structural_parameter_homes)
+            .zip(&abi.structural_parameters)
+            .any(|((parameter, home), retained)| {
+                parameter.place != retained.place
+                    || parameter.structural_type != retained.structural_type
+                    || parameter.multiplicity != retained.multiplicity
+                    || parameter.shape != retained.shape
+                    || home.place != retained.place
+                    || home.structural_type != retained.structural_type
+                    || home.multiplicity != retained.multiplicity
+                    || home.shape != retained.shape
+                    || home.source != retained.placement
+                    || home.byte_offset != 0
+                    || home.indirect
+                        != matches!(
+                            retained.placement.locations.as_slice(),
+                            [omega_calling_conventions::ValueLocation::Indirect { .. }]
+                        )
+            })
     {
         return Err(invalid());
     }

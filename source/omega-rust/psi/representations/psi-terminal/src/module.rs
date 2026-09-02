@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        66
+        67
     }
 }
 
@@ -1806,12 +1806,13 @@ pub enum OperationKind {
         requirement_obligations: Vec<ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// Invoke one in-module scalar-result machine with positional structural
-    /// arguments. This is the scalar-result counterpart of `CallUnit`: exact
-    /// structural custody crosses the call while successful return binds the
-    /// operation result.
+    /// Invoke one in-module scalar-result machine with independently retained
+    /// positional scalar and structural arguments. This is the scalar-result
+    /// counterpart of `CallUnit`: exact structural custody crosses the call
+    /// while successful return binds the operation result.
     CallStructuralScalar {
         callee: MachineId,
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<ObligationId>,

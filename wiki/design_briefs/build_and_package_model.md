@@ -1083,17 +1083,19 @@ custody. A checked call in one straight-line block before an immediate Linux
 exit delegates to complete Unit lowering and validation; malformed or
 multi-block exit shapes still reject.
 
-One hosted all-affine fixed-token composition now also reaches final native
-custody on Linux x86-64 and AArch64. The entry constructs exact immutable
-empty-record affine locals and transfers them once into a Unit helper whose
-selected structural call returns a scalar. Local establishment, call transfer,
-zero-sized ABI placement, cleanup exclusion, and object/installation replay
-remain distinct evidence. Native function custody never infers a function
-result merely because a Unit body contains a scalar-producing call. The
-separate direct structural-call/scalar-return carrier retains its exact return
-edge, call operation, source value, scalar type, and callee. Mixed
-scalar/structural operands,
-structural results, and nontrivial local layouts remain fail-closed.
+One hosted fixed-token composition with mixed fixed-width integer scalar and
+whole affine structural operands now also reaches final native custody on Linux
+x86-64 and AArch64. The entry constructs exact immutable empty-record affine
+locals and transfers them once into a Unit helper whose selected structural
+call combines those roots with compiler-checked scalar values and returns a
+scalar. Scalar production and ABI placement, local establishment, structural
+call transfer, zero-sized structural placement, cleanup exclusion, and
+object/installation replay remain distinct evidence. Native function custody
+never infers a function result merely because a Unit body contains a
+scalar-producing call. The separate direct structural-call/scalar-return
+carrier retains its exact return edge, call operation, source value, scalar
+type, and callee. Structural results, projections, borrows, services, content
+evidence, and nontrivial structural layouts remain fail-closed.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not

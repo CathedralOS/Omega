@@ -2,6 +2,129 @@
 
 use super::*;
 
+pub(crate) fn rederive_selected_operator_structural_scalar_arguments(
+    checked: &psi_checked_trees::CheckedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    origin: psi_checked_trees::CheckedValueOrigin,
+    realization_machine: SymbolHandle,
+    realization_state: SymbolHandle,
+) -> Option<crate::RederivedSelectedOperatorStructuralScalarArguments> {
+    let psi_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
+    } = origin
+    else {
+        return None;
+    };
+    let source_machine = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let source_state = checked
+        .typed
+        .machine_states(source_machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    let realization = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .find(|plan| plan.machine == realization_machine && plan.state == realization_state)?;
+    let operands = match checked.typed.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+        ExpressionNode::Call(call) => checked
+            .typed
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec(),
+        ExpressionNode::Indexed(indexed) => {
+            let mut operands = vec![indexed.collection];
+            match checked.typed.expression_table.expression(indexed.index) {
+                ExpressionNode::Range(range) => {
+                    operands.push(range.start);
+                    operands.push(range.end);
+                }
+                _ => operands.push(indexed.index),
+            }
+            operands
+        }
+        _ => return None,
+    };
+    if realization.scalar_parameters.len() + realization.structural_parameters.len()
+        != operands.len()
+    {
+        return None;
+    }
+    let mut target_positions = realization
+        .scalar_parameters
+        .iter()
+        .map(|parameter| parameter.source_position)
+        .chain(
+            realization
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.position),
+        )
+        .collect::<Vec<_>>();
+    target_positions.sort_unstable();
+    if target_positions
+        != (0..operands.len())
+            .map(|position| u32::try_from(position).ok())
+            .collect::<Option<Vec<_>>>()?
+    {
+        return None;
+    }
+    let scalar_arguments = realization
+        .scalar_parameters
+        .iter()
+        .map(|target| {
+            let operand = *operands.get(usize::try_from(target.source_position).ok()?)?;
+            crate::values::lower_unit_scalar_argument(
+                &checked.typed,
+                &checked.facts.operators,
+                source_state,
+                statement_index,
+                operand,
+                target.primitive_type,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let source_parameters = checked.typed.state_parameters(source_state);
+    let structural_source_parameter_positions = realization
+        .structural_parameters
+        .iter()
+        .map(|target| {
+            let operand = *operands.get(usize::try_from(target.position).ok()?)?;
+            let ExpressionNode::Name(path) = checked.typed.expression_table.expression(operand)
+            else {
+                return None;
+            };
+            if checked
+                .typed
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+            {
+                return None;
+            }
+            source_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == path.symbol)
+                .and_then(|position| u32::try_from(position).ok())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(crate::RederivedSelectedOperatorStructuralScalarArguments {
+        scalar_arguments,
+        structural_source_parameter_positions,
+    })
+}
+
 pub(super) fn selected_operator_scalar_result_local<'applications>(
     program: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
@@ -229,8 +352,8 @@ pub(super) fn build_selected_operator_structural_scalar_call(
     let [realization] = realizations.as_slice() else {
         return None;
     };
-    if !realization.scalar_parameters.is_empty()
-        || realization.structural_parameters.len() != application.operands.len()
+    if realization.scalar_parameters.len() + realization.structural_parameters.len()
+        != application.operands.len()
         || realization.result_type != result.primitive_type
         || structural_parameters.len() != realization.structural_parameters.len()
     {
@@ -248,11 +371,33 @@ pub(super) fn build_selected_operator_structural_scalar_call(
         return None;
     }
     let source_parameters = program.state_parameters(source_state);
-    let argument_source_positions = application
-        .operands
+    let mut target_positions = realization
+        .structural_parameters
         .iter()
-        .map(|operand| {
-            let ExpressionNode::Name(path) = program.expression_table.expression(*operand) else {
+        .map(|parameter| parameter.position)
+        .chain(
+            realization
+                .scalar_parameters
+                .iter()
+                .map(|parameter| parameter.source_position),
+        )
+        .collect::<Vec<_>>();
+    target_positions.sort_unstable();
+    if target_positions
+        != (0..application.operands.len())
+            .map(|position| u32::try_from(position).ok())
+            .collect::<Option<Vec<_>>>()?
+    {
+        return None;
+    }
+    let argument_source_positions = realization
+        .structural_parameters
+        .iter()
+        .map(|target| {
+            let operand = *application
+                .operands
+                .get(usize::try_from(target.position).ok()?)?;
+            let ExpressionNode::Name(path) = program.expression_table.expression(operand) else {
                 return None;
             };
             if program
@@ -269,13 +414,12 @@ pub(super) fn build_selected_operator_structural_scalar_call(
                 .and_then(|position| u32::try_from(position).ok())
         })
         .collect::<Option<Vec<_>>>()?;
-    if argument_source_positions.len() != structural_parameters.len()
-        || argument_source_positions
-            .iter()
-            .copied()
-            .collect::<BTreeSet<_>>()
-            .len()
-            != structural_parameters.len()
+    if argument_source_positions
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .len()
+        != structural_parameters.len()
     {
         return None;
     }
@@ -330,6 +474,23 @@ pub(super) fn build_selected_operator_structural_scalar_call(
             access: CheckedStructuralAccess::Owned,
         });
     }
+    let scalar_arguments = realization
+        .scalar_parameters
+        .iter()
+        .map(|target| {
+            let operand = *application
+                .operands
+                .get(usize::try_from(target.source_position).ok()?)?;
+            crate::values::lower_unit_scalar_argument(
+                program,
+                &facts.operators,
+                source_state,
+                usize::try_from(result.statement_index).ok()?,
+                operand,
+                target.primitive_type,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
     let contract = facts
         .contract_plans
         .for_machine(application.realization_machine)?;
@@ -348,6 +509,7 @@ pub(super) fn build_selected_operator_structural_scalar_call(
             realization_contract_report_fingerprint: contract.report_fingerprint,
             realization_contract_commitment: contract.commitment,
             service_reach: realization_flow.service_reach,
+            scalar_arguments,
             structural_arguments,
         },
     )

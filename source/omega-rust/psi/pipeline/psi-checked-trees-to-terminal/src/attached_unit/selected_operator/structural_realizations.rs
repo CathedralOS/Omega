@@ -44,8 +44,7 @@ pub(in crate::attached_unit) fn lower_selected_structural_scalar_realizations(
                 "selected structural-scalar closure does not contain one exact checked machine",
             );
         };
-        if !realization.scalar_parameters.is_empty()
-            || !realization.caller_requirements.is_empty()
+        if !realization.caller_requirements.is_empty()
             || !realization.scalar_requirements.is_empty()
             || realization.structural_parameters.iter().any(|parameter| {
                 parameter.is_self
@@ -98,8 +97,18 @@ pub(in crate::attached_unit) fn lower_selected_structural_scalar_realizations(
                 "selected structural-scalar realization did not lower to one Terminal machine",
             );
         };
+        let expected_scalar_parameters = realization
+            .scalar_parameters
+            .iter()
+            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+            .collect::<Result<Vec<_>, _>>()?;
         if terminal_realization.id != terminal_machine
-            || !terminal_realization.parameters.is_empty()
+            || terminal_realization.parameters.len() != expected_scalar_parameters.len()
+            || terminal_realization
+                .parameters
+                .iter()
+                .zip(&expected_scalar_parameters)
+                .any(|(terminal, expected)| terminal.scalar_type != *expected)
             || terminal_realization.structural_parameters.len()
                 != realization.structural_parameters.len()
             || terminal_realization

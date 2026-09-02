@@ -1656,7 +1656,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         | BoundaryRealization::LinuxExitGroupI32(_)
                 )
         });
-        let has_scalar_custody = has_scalar_cleanup || has_scalar_boundary_custody;
+        let has_scalar_custody = has_scalar_cleanup
+            || has_scalar_boundary_custody
+            || function.mixed_structural_scalar_abi.is_some();
         let ranked_body_is_exclusive = !function.ranked_u32_countdown
             || (record.functions.len() == 1
                 && function.attachment.is_some()
@@ -1730,10 +1732,41 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             && cleanup.actions.is_empty()
                     )
             });
+        let mixed_structural_roster_is_exact = function
+            .mixed_structural_scalar_abi
+            .as_ref()
+            .is_none_or(|abi| {
+                function.scalar_structural_parameters.len() == abi.structural_parameters.len()
+                    && function.scalar_structural_parameter_homes.len()
+                        == abi.structural_parameters.len()
+                    && function
+                        .scalar_structural_parameters
+                        .iter()
+                        .zip(&function.scalar_structural_parameter_homes)
+                        .zip(&abi.structural_parameters)
+                        .all(|((parameter, home), retained)| {
+                            parameter.place == retained.place
+                                && parameter.structural_type == retained.structural_type
+                                && parameter.multiplicity == retained.multiplicity
+                                && parameter.shape == retained.shape
+                                && home.place == retained.place
+                                && home.structural_type == retained.structural_type
+                                && home.multiplicity == retained.multiplicity
+                                && home.shape == retained.shape
+                                && home.source == retained.placement
+                                && home.byte_offset == 0
+                                && home.indirect
+                                    == matches!(
+                                        retained.placement.locations.as_slice(),
+                                        [omega_calling_conventions::ValueLocation::Indirect { .. }]
+                                    )
+                        })
+            });
         if !installed_stack_facts_are_canonical(function, &attachments)
             || !installed_function_scalar_transport_is_canonical(function, record.target)
             || !ranked_body_is_exclusive
             || !structural_call_scalar_result_is_exact
+            || !mixed_structural_roster_is_exact
             || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (!function.unit_body

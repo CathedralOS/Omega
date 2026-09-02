@@ -63,6 +63,7 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
                             scalar_type: ScalarType::Boolean,
                         },
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
                             place: caller_place,
                             access: StructuralAccess::Owned,

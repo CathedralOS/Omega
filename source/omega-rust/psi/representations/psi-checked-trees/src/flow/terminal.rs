@@ -1300,9 +1300,9 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     /// Call the exact checked structural-scalar machine selected for one
     /// authored boundary-operator use and bind its primitive result. This
-    /// first Unit composition lane admits only claim-free owned affine roots;
-    /// mixed scalar/structural operands and projected paths remain outside the
-    /// checked vocabulary.
+    /// Unit composition admits claim-free owned affine roots together with
+    /// fixed-width scalar operands. Projected structural paths remain outside
+    /// the checked vocabulary.
     SelectedOperatorStructuralScalarCall {
         coordinate: CheckedUnitCallCoordinate,
         result: CheckedUnitScalarResultBindingPlan,
@@ -1314,6 +1314,7 @@ pub enum CheckedUnitEffectOperationPlan {
         realization_contract_report_fingerprint: u64,
         realization_contract_commitment: crate::MachineContractCommitment,
         service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedScalarExpression>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
     },
     /// Execute one exact nearest-even IEEE fused multiply-add selected from a

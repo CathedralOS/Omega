@@ -32,6 +32,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             psi_operation,
             result,
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -41,6 +42,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*callee);
+            encode_ids(bytes, arguments);
             bytes.slice(structural_arguments, encode_structural_argument);
             bytes.slice(claim_transfers, |bytes, transfer| {
                 bytes.id(transfer.claim);

@@ -699,6 +699,7 @@ pub enum TargetUnitOperation {
         result: AbstractResult,
         callee: MachineId,
         call_plan: CallPlan,
+        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,

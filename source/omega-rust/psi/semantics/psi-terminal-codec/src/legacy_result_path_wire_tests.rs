@@ -78,10 +78,10 @@ fn v56_v59_reconstructs_absent_result_path_rosters_as_current_empty_rows() {
     assert_eq!(decode_module(&legacy), Ok(module.clone()));
 
     let current = encode_module(&module).expect("current result-path bytes");
-    assert_eq!(&current[8..10], &63_u16.to_le_bytes());
-    assert_eq!(&current[10..12], &66_u16.to_le_bytes());
+    assert_eq!(&current[8..10], &64_u16.to_le_bytes());
+    assert_eq!(&current[10..12], &67_u16.to_le_bytes());
 
     let mut crossed_pair = legacy;
-    crossed_pair[10..12].copy_from_slice(&66_u16.to_le_bytes());
+    crossed_pair[10..12].copy_from_slice(&67_u16.to_le_bytes());
     assert!(decode_module(&crossed_pair).is_err());
 }

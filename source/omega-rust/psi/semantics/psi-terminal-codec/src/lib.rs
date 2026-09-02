@@ -106,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 63;
+const FORMAT_MARKER: u16 = 64;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -1134,6 +1134,7 @@ fn validate_operation_foundation(
         }
         OperationKind::CallStructuralScalar {
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             ..
@@ -1145,7 +1146,7 @@ fn validate_operation_foundation(
             else {
                 return malformed("structural scalar call references an unknown callee");
             };
-            if callee.parameters.len() != 0
+            if arguments.len() != callee.parameters.len()
                 || operation.result.scalar().map(|result| result.scalar_type)
                     != callee.result.scalar().map(|result| result.scalar_type)
                 || operation.result == OperationResult::Unit

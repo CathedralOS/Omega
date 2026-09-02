@@ -3,7 +3,9 @@
 
 use crate::assignment::shared::*;
 use omega_calling_conventions::{CallSignature, ValuePlacement, ValueShape};
-use omega_target_operations::{AbstractResult, TargetStructuralArgument, TargetUnitBody};
+use omega_target_operations::{
+    AbstractResult, TargetStructuralArgument, TargetUnitBody, TargetUnitScalarCallArgument,
+};
 use psi_core::{
     IeeeFloatFormat, MachineId, OperationId, ScalarType, StructuralFieldId, StructuralTypeId,
 };
@@ -107,10 +109,13 @@ pub(super) fn assign_call(
     result: AbstractResult,
     callee: MachineId,
     call_plan: &omega_calling_conventions::CallPlan,
+    scalar_arguments: &[TargetUnitScalarCallArgument],
     arguments: &[TargetStructuralArgument],
     claim_transfers: &[ClaimTransfer],
     requirement_obligations: &[psi_core::ObligationId],
     crash_continuations: &[CrashRouteBucket],
+    preceding_operations: &[TargetUnitOperation],
+    assigned_scalar_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::StructuralScalarCallCustodyMismatch {
         machine,
@@ -124,17 +129,60 @@ pub(super) fn assign_call(
     let expected_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: arguments.iter().map(|argument| argument.shape).collect(),
+            parameters: scalar_arguments
+                .iter()
+                .map(|argument| argument.placement.shape)
+                .chain(arguments.iter().map(|argument| argument.shape))
+                .collect(),
             result: Some(result_shape),
         },
     )
     .map_err(|_| invalid())?;
     if &expected_plan != call_plan
         || call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
-        || call_plan.parameters.len() != arguments.len()
+        || call_plan.parameters.len() != scalar_arguments.len() + arguments.len()
     {
         return Err(invalid());
     }
+    let assigned_scalar_arguments = scalar_arguments
+        .iter()
+        .enumerate()
+        .map(|(parameter_index, argument)| {
+            if usize::try_from(argument.parameter_index) != Ok(parameter_index)
+                || call_plan.parameters.get(parameter_index) != Some(&argument.placement)
+                || argument.placement.shape
+                    != super::scalar_call::fixed_integer_shape(
+                        argument.source.source_value(),
+                        argument.source.scalar_type(),
+                    )
+                    .map_err(|_| invalid())?
+            {
+                return Err(invalid());
+            }
+            super::scalar_call::validate_placement_registers(
+                argument.source.source_value(),
+                &argument.placement,
+                target,
+            )
+            .map_err(|_| invalid())?;
+            let source = super::scalar_call::assign_known_unit_scalar_source(
+                argument.source,
+                preceding_operations,
+                assigned_scalar_homes,
+            )
+            .ok_or_else(invalid)?;
+            Ok(AssignedUnitScalarCallArgument {
+                parameter_index: argument.parameter_index,
+                source,
+                destination: super::scalar_call::assigned_unit_scalar_destination(
+                    argument.source.source_value(),
+                    &argument.placement,
+                    target,
+                )
+                .map_err(|_| invalid())?,
+            })
+        })
+        .collect::<Result<Vec<_>, AssignmentError>>()?;
     let declarations = declaration_map(&body.structural_types).ok_or_else(invalid)?;
     let free_whole_affine = attachment.is_none()
         && arguments.len() == body.parameters.len()
@@ -176,7 +224,10 @@ pub(super) fn assign_call(
                 || argument.shape != projected_shape
                 || argument.source_byte_offset != projected_offset
                 || argument.source != root.placement
-                || call_plan.parameters.get(parameter_index) != Some(&argument.destination)
+                || call_plan
+                    .parameters
+                    .get(parameter_index + scalar_arguments.len())
+                    != Some(&argument.destination)
                 || argument.destination.shape != argument.shape
                 || argument.fixed_array_length.is_some()
                 || argument.element_stride.is_some()
@@ -206,6 +257,7 @@ pub(super) fn assign_call(
         result,
         callee,
         call_plan: call_plan.clone(),
+        scalar_arguments: assigned_scalar_arguments,
         copies,
         claim_transfers: claim_transfers.to_vec(),
         requirement_obligations: requirement_obligations.to_vec(),

@@ -152,6 +152,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             }),
                             kind: OperationKind::CallStructuralScalar {
                                 callee: realization,
+                                arguments: vec![id::<ValueId>(1)],
                                 structural_arguments: vec![StructuralArgument {
                                     place: caller_self,
                                     path: vec![StructuralPathSegment::Field("item".into())],
@@ -173,7 +174,10 @@ fn structural_scalar_field_module() -> TerminalModule {
             TerminalMachine {
                 id: realization,
                 attachment: Some(item_type),
-                parameters: Vec::new(),
+                parameters: vec![ValueDeclaration {
+                    id: id::<ValueId>(5),
+                    scalar_type: integer,
+                }],
                 structural_parameters: vec![StructuralParameterDeclaration {
                     place: realization_self,
                     position: 0,
@@ -225,7 +229,66 @@ fn structural_scalar_field_module() -> TerminalModule {
 #[test]
 fn admits_scalar_store_observed_through_projected_structural_call() {
     validate_module(&structural_scalar_field_module())
-        .expect("bounded scalar-field store/read module verifies");
+        .expect("mixed scalar/structural call module verifies");
+}
+
+#[test]
+fn rejects_mixed_structural_call_scalar_argument_corruption() {
+    let mut missing = structural_scalar_field_module();
+    let OperationKind::CallStructuralScalar { arguments, .. } =
+        &mut missing.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    arguments.clear();
+    assert_eq!(
+        validate_module(&missing).unwrap_err(),
+        ModuleError::CallArgumentArityMismatch {
+            operation: id::<OperationId>(3),
+            expected: 1,
+            actual: 0,
+        }
+    );
+
+    let mut wrong_type = structural_scalar_field_module();
+    wrong_type.machines[0].blocks[0].operations.insert(
+        2,
+        Operation {
+            id: id::<OperationId>(5),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id::<ValueId>(6),
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::BooleanConstant { value: true },
+        },
+    );
+    let OperationKind::CallStructuralScalar { arguments, .. } =
+        &mut wrong_type.machines[0].blocks[0].operations[3].kind
+    else {
+        unreachable!()
+    };
+    arguments[0] = id::<ValueId>(6);
+    assert_eq!(
+        validate_module(&wrong_type).unwrap_err(),
+        ModuleError::CallArgumentTypeMismatch {
+            operation: id::<OperationId>(3),
+            argument: id::<ValueId>(6),
+            expected: integer_type(),
+            actual: ScalarType::Boolean,
+        }
+    );
+
+    let mut use_before_definition = structural_scalar_field_module();
+    let OperationKind::CallStructuralScalar { arguments, .. } =
+        &mut use_before_definition.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    arguments[0] = id::<ValueId>(2);
+    assert_eq!(
+        validate_module(&use_before_definition).unwrap_err(),
+        ModuleError::ValueUsedBeforeDefinition(id::<ValueId>(2))
+    );
 }
 
 #[test]

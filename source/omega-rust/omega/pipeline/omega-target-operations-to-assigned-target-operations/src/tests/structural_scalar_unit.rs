@@ -142,6 +142,7 @@ fn direct_plan(target: NativeTarget) -> TargetOperationPlan {
                             },
                             callee,
                             call_plan: callee_plan.clone(),
+                            scalar_arguments: Vec::new(),
                             arguments: vec![TargetStructuralArgument {
                                 place: root,
                                 access: StructuralAccess::SharedBorrow,

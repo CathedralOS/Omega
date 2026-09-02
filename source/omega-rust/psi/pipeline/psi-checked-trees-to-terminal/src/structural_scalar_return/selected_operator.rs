@@ -226,6 +226,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
                 result: psi_terminal::OperationResult::Scalar(call_result),
                 kind: OperationKind::CallStructuralScalar {
                     callee: machine_id(2),
+                    arguments: Vec::new(),
                     structural_arguments,
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),

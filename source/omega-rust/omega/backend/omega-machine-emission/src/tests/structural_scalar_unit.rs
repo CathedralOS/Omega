@@ -650,15 +650,6 @@ fn mixed_call_rejects_source_partition_plan_and_callee_drift() {
             .structural_parameters[0]
             .structural_type = StructuralTypeId::new(999).unwrap();
         rejects(&structural_type_abi);
-
-        let mut result_owner_abi = assigned_mixed_call_plan(target);
-        result_owner_abi.functions[1]
-            .mixed_structural_scalar_abi
-            .as_mut()
-            .unwrap()
-            .result
-            .value = ValueId::new(999).unwrap();
-        rejects(&result_owner_abi);
     }
 }
 

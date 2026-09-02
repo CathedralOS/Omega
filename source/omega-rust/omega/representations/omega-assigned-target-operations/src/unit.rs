@@ -274,6 +274,7 @@ pub enum AssignedUnitOperation {
         result: AbstractResult,
         callee: MachineId,
         call_plan: CallPlan,
+        scalar_arguments: Vec<AssignedUnitScalarCallArgument>,
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,

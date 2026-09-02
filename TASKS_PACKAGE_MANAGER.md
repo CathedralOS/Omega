@@ -42,12 +42,12 @@ stop the item on one precise owner question before adding machinery.
   - finish D29 artifact-qualified symbolic demand/final substitution for
     separately compiled generic artifacts and nested authored operator
     applications beyond the proven transitive scalar-helper closure;
-  - extend the landed hosted D32 fixed-token lane beyond its exact whole,
-    claim-free, owned-affine structural operands and scalar result to mixed
-    structural/scalar operands and structural results. Keep projections,
-    borrows, services, content evidence, and unsupported cleanup shapes
-    fail-closed until each has independent checked, Terminal, and native
-    custody;
+  - extend the landed hosted D32 fixed-token lane beyond mixed fixed-width
+    integer scalar operands plus exact whole, claim-free, owned-affine
+    structural operands and one scalar result to structural results. Keep
+    projections, borrows, services, content evidence, nontrivial structural
+    layouts, and unsupported cleanup shapes fail-closed until each has
+    independent checked, Terminal, and native custody;
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed normalized-import

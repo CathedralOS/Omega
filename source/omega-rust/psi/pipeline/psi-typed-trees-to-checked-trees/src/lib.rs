@@ -114,6 +114,34 @@ pub struct SelectedOperatorApplication {
     pub operands: Vec<psi_typed_trees::expression::ExpressionHandle>,
 }
 
+/// Exact authored arguments independently rebuilt for one selected mixed
+/// structural-scalar Unit application. This is a compiler-internal phase seam:
+/// later lowering compares these values with the retained checked plan rather
+/// than trusting that plan as its own source authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RederivedSelectedOperatorStructuralScalarArguments {
+    pub scalar_arguments: Vec<psi_checked_trees::CheckedScalarExpression>,
+    pub structural_source_parameter_positions: Vec<u32>,
+}
+
+/// Rederive the scalar expressions and whole structural roots supplied by one
+/// authored selected operator use. Unsupported expression shapes fail closed.
+pub fn rederive_selected_operator_structural_scalar_arguments(
+    program: &CheckedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    origin: psi_checked_trees::CheckedValueOrigin,
+    realization_machine: psi_symbols::SymbolHandle,
+    realization_state: psi_symbols::SymbolHandle,
+) -> Option<RederivedSelectedOperatorStructuralScalarArguments> {
+    flow::rederive_selected_operator_structural_scalar_arguments(
+        program,
+        expression,
+        origin,
+        realization_machine,
+        realization_state,
+    )
+}
+
 /// One compiler-intrinsic nearest IEEE FMA selected for an attached Unit
 /// local initializer. This is intentionally disjoint from checked-body
 /// operator adapters: no bodyless call or fabricated realization machine is
