@@ -23,11 +23,112 @@ pub(super) fn assign(
         machine,
         operation: psi_operation,
     };
+    if result.value != result_requirement.source_value
+        || result.scalar_type != result_requirement.scalar_type
+        || result_requirement.defining_operation != psi_operation
+    {
+        return Err(invalid());
+    }
+    let assigned = assign_dynamic_call(
+        machine,
+        target,
+        psi_operation,
+        dynamic_dispatch,
+        call_plan,
+        Some(result_requirement.shape),
+        initial_argument,
+        rebound_argument,
+        next_scalar_home,
+        &invalid,
+    )?;
+    let result_home = allocate_unit_scalar_home(
+        result_requirement,
+        assigned_scalar_homes,
+        next_scalar_home,
+        invalid(),
+    )?;
+    Ok(AssignedUnitOperation::DynamicScalarCall {
+        psi_operation,
+        result,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: call_plan.clone(),
+        result_home,
+        descriptor_abi: assigned.descriptor_abi,
+        descriptor_home_byte_offset: assigned.descriptor_home_byte_offset,
+        initial_copy: assigned.initial_copy,
+        rebound_copy: assigned.rebound_copy,
+        requirement_obligations: requirement_obligations.to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assign_unit(
+    machine: MachineId,
+    target: NativeTarget,
+    psi_operation: OperationId,
+    dynamic_dispatch: &omega_target_operations::AbstractReboundDynamicDispatch,
+    call_plan: &omega_calling_conventions::CallPlan,
+    initial_argument: &omega_target_operations::TargetStructuralArgument,
+    rebound_argument: &omega_target_operations::TargetStructuralArgument,
+    requirement_obligations: &[psi_core::ObligationId],
+    crash_continuations: &[psi_terminal::CrashRouteBucket],
+    next_scalar_home: &mut u32,
+) -> Result<AssignedUnitOperation, AssignmentError> {
+    let invalid = || AssignmentError::DynamicUnitCallCustodyMismatch {
+        machine,
+        operation: psi_operation,
+    };
+    let assigned = assign_dynamic_call(
+        machine,
+        target,
+        psi_operation,
+        dynamic_dispatch,
+        call_plan,
+        None,
+        initial_argument,
+        rebound_argument,
+        next_scalar_home,
+        &invalid,
+    )?;
+    Ok(AssignedUnitOperation::DynamicUnitCall {
+        psi_operation,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: call_plan.clone(),
+        descriptor_abi: assigned.descriptor_abi,
+        descriptor_home_byte_offset: assigned.descriptor_home_byte_offset,
+        initial_copy: assigned.initial_copy,
+        rebound_copy: assigned.rebound_copy,
+        requirement_obligations: requirement_obligations.to_vec(),
+        crash_continuations: crash_continuations.to_vec(),
+    })
+}
+
+struct AssignedDynamicCall {
+    descriptor_abi: AssignedDynamicTraitDescriptorAbi,
+    descriptor_home_byte_offset: u32,
+    initial_copy: AssignedAggregateCopy,
+    rebound_copy: AssignedAggregateCopy,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assign_dynamic_call(
+    machine: MachineId,
+    target: NativeTarget,
+    psi_operation: OperationId,
+    dynamic_dispatch: &omega_target_operations::AbstractReboundDynamicDispatch,
+    call_plan: &omega_calling_conventions::CallPlan,
+    result_shape: Option<omega_calling_conventions::ValueShape>,
+    initial_argument: &omega_target_operations::TargetStructuralArgument,
+    rebound_argument: &omega_target_operations::TargetStructuralArgument,
+    next_home: &mut u32,
+    invalid: &impl Fn() -> AssignmentError,
+) -> Result<AssignedDynamicCall, AssignmentError> {
     let expected_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![initial_argument.shape],
-            result: Some(result_requirement.shape),
+            result: result_shape,
         },
     )
     .map_err(|_| invalid())?;
@@ -37,10 +138,8 @@ pub(super) fn assign(
             && argument.access == source.access
             && argument.path == source.path
     };
-    if result.value != result_requirement.source_value
-        || result.scalar_type != result_requirement.scalar_type
-        || result_requirement.defining_operation != psi_operation
-        || call_plan != &expected_call_plan
+    if call_plan != &expected_call_plan
+        || call_plan.result.as_ref().map(|placement| placement.shape) != result_shape
         || call_plan.parameters.as_slice() != std::slice::from_ref(&initial_argument.destination)
         || initial_argument.destination != rebound_argument.destination
         || initial_argument.shape != rebound_argument.shape
@@ -51,6 +150,21 @@ pub(super) fn assign(
     {
         return Err(invalid());
     }
+    let (descriptor_abi, descriptor_home_byte_offset) =
+        assign_descriptor(target, next_home, invalid)?;
+    Ok(AssignedDynamicCall {
+        descriptor_abi,
+        descriptor_home_byte_offset,
+        initial_copy: assigned_copy(initial_argument),
+        rebound_copy: assigned_copy(rebound_argument),
+    })
+}
+
+fn assign_descriptor(
+    target: NativeTarget,
+    next_home: &mut u32,
+    invalid: &impl Fn() -> AssignmentError,
+) -> Result<(AssignedDynamicTraitDescriptorAbi, u32), AssignmentError> {
     let runtime_descriptor =
         omega_runtime_abi::build_runtime_abi_plan(target).dynamic_trait_descriptor();
     let descriptor_abi = AssignedDynamicTraitDescriptorAbi::new(
@@ -61,44 +175,31 @@ pub(super) fn assign(
         u32::try_from(runtime_descriptor.align()).map_err(|_| invalid())?,
     );
     let alignment = descriptor_abi.align();
-    let size = descriptor_abi.total_size();
-    *next_scalar_home = next_scalar_home
+    *next_home = next_home
         .checked_add(alignment.saturating_sub(1))
         .map(|value| value / alignment * alignment)
         .ok_or_else(invalid)?;
-    let descriptor_home_byte_offset = *next_scalar_home;
-    *next_scalar_home = next_scalar_home.checked_add(size).ok_or_else(invalid)?;
-    let result_home = allocate_unit_scalar_home(
-        result_requirement,
-        assigned_scalar_homes,
-        next_scalar_home,
-        invalid(),
-    )?;
-    let copy =
-        |argument: &omega_target_operations::TargetStructuralArgument| AssignedAggregateCopy {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: argument.root_structural_type,
-            structural_type: argument.structural_type,
-            shape: argument.shape,
-            source_byte_offset: argument.source_byte_offset,
-            fixed_array_length: argument.fixed_array_length,
-            element_stride: argument.element_stride,
-            source: argument.source.clone(),
-            destination: argument.destination.clone(),
-        };
-    Ok(AssignedUnitOperation::DynamicScalarCall {
-        psi_operation,
-        result,
-        dynamic_dispatch: dynamic_dispatch.clone(),
-        call_plan: call_plan.clone(),
-        result_home,
-        descriptor_abi,
-        descriptor_home_byte_offset,
-        initial_copy: copy(initial_argument),
-        rebound_copy: copy(rebound_argument),
-        requirement_obligations: requirement_obligations.to_vec(),
-        crash_continuations: crash_continuations.to_vec(),
-    })
+    let descriptor_home_byte_offset = *next_home;
+    *next_home = next_home
+        .checked_add(descriptor_abi.total_size())
+        .ok_or_else(invalid)?;
+    Ok((descriptor_abi, descriptor_home_byte_offset))
+}
+
+fn assigned_copy(
+    argument: &omega_target_operations::TargetStructuralArgument,
+) -> AssignedAggregateCopy {
+    AssignedAggregateCopy {
+        place: argument.place,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: argument.root_structural_type,
+        structural_type: argument.structural_type,
+        shape: argument.shape,
+        source_byte_offset: argument.source_byte_offset,
+        fixed_array_length: argument.fixed_array_length,
+        element_stride: argument.element_stride,
+        source: argument.source.clone(),
+        destination: argument.destination.clone(),
+    }
 }

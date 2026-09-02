@@ -1404,6 +1404,7 @@ pub enum EmissionError {
     InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),
     InvalidDynamicScalarCallCustody(psi_core::OperationId),
+    UnsupportedDynamicUnitDispatch(psi_core::OperationId),
     InvalidDynamicParameterScalarCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,

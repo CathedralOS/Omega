@@ -5,6 +5,7 @@ use super::super::shared::*;
 use super::super::structural_layout::structural_shape;
 use super::projected_argument;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use omega_abstract_operations::AbstractReboundDynamicDispatch;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_dynamic_scalar_call(
@@ -30,28 +31,148 @@ pub(super) fn lower_dynamic_scalar_call(
     else {
         unreachable!("dynamic scalar lowering receives only dynamic calls")
     };
-    let dispatch = &dynamic_dispatch.dispatch;
-    if function.attachment.is_none()
-        || !dynamic_dispatch.has_complete_application_custody(function.machine, *psi_operation)
-    {
-        return Err(LoweringError::InvalidDynamicScalarDispatch {
-            machine: function.machine,
-            operation: *psi_operation,
-        });
+    if !matches!(
+        result.scalar_type,
+        ScalarType::Boolean | ScalarType::Integer(_)
+    ) {
+        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
+            result.value,
+        ));
     }
-    let callee = dispatch.realization;
+    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
+    let lowered = lower_dynamic_call(
+        function,
+        target,
+        functions,
+        structural_types,
+        parameters_by_place,
+        shape_cache,
+        active,
+        *psi_operation,
+        dynamic_dispatch,
+        Some(result.scalar_type),
+        Some(result_shape),
+    )?;
+    let result_home = TargetUnitScalarHomeRequirement {
+        defining_operation: *psi_operation,
+        source_value: result.value,
+        scalar_type: result.scalar_type,
+        shape: result_shape,
+    };
+    if matches!(result.scalar_type, ScalarType::Integer(_)) {
+        insert_known_unit_integer(
+            scalar_values,
+            result.value,
+            KnownUnitInteger::Home(result_home),
+        )?;
+    }
+    operations.push(TargetUnitOperation::DynamicScalarCall {
+        psi_operation: *psi_operation,
+        result: *result,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: lowered.call_plan,
+        result_home,
+        initial_argument: lowered.initial_argument,
+        rebound_argument: lowered.rebound_argument,
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(result_home)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_dynamic_unit_call(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let AbstractOperation::CallDynamicUnit {
+        psi_operation,
+        dynamic_dispatch,
+        requirement_obligations,
+        crash_continuations,
+    } = operation
+    else {
+        unreachable!("dynamic Unit lowering receives only dynamic Unit calls")
+    };
+    let lowered = lower_dynamic_call(
+        function,
+        target,
+        functions,
+        structural_types,
+        parameters_by_place,
+        shape_cache,
+        active,
+        *psi_operation,
+        dynamic_dispatch,
+        None,
+        None,
+    )?;
+    operations.push(TargetUnitOperation::DynamicUnitCall {
+        psi_operation: *psi_operation,
+        dynamic_dispatch: dynamic_dispatch.clone(),
+        call_plan: lowered.call_plan,
+        initial_argument: lowered.initial_argument,
+        rebound_argument: lowered.rebound_argument,
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
+
+struct LoweredDynamicCall {
+    call_plan: CallPlan,
+    initial_argument: TargetStructuralArgument,
+    rebound_argument: TargetStructuralArgument,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_dynamic_call(
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    psi_operation: OperationId,
+    dynamic_dispatch: &AbstractReboundDynamicDispatch,
+    expected_result: Option<ScalarType>,
+    result_shape: Option<ValueShape>,
+) -> Result<LoweredDynamicCall, LoweringError> {
+    let invalid = || LoweringError::InvalidDynamicScalarDispatch {
+        machine: function.machine,
+        operation: psi_operation,
+    };
+    if function.attachment.is_none()
+        || !dynamic_dispatch.has_complete_application_custody(function.machine, psi_operation)
+    {
+        return Err(invalid());
+    }
+    let callee = dynamic_dispatch.dispatch.realization;
     let callee_function = functions
         .get(&callee)
         .copied()
         .ok_or(LoweringError::UnknownCallTarget(callee))?;
-    let Some(callee_result) = callee_function.result.scalar() else {
-        return Err(LoweringError::UnitCallTargetKindMismatch(callee));
+    let result_matches = match (&callee_function.result, expected_result) {
+        (AbstractFunctionResult::Unit, None) => true,
+        (AbstractFunctionResult::Scalar(result), Some(expected)) => result.scalar_type == expected,
+        _ => false,
     };
     let [callee_parameter] = callee_function.structural_parameters.as_slice() else {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     };
     if !callee_function.parameters.is_empty()
-        || callee_result.scalar_type != result.scalar_type
+        || !result_matches
         || !callee_function.published_service_ceiling.is_empty()
     {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
@@ -62,27 +183,18 @@ pub(super) fn lower_dynamic_scalar_call(
         shape_cache,
         active,
     )?;
-    if !matches!(
-        result.scalar_type,
-        ScalarType::Boolean | ScalarType::Integer(_)
-    ) {
-        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
-            result.value,
-        ));
-    }
-    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![argument_shape],
-            result: Some(result_shape),
+            result: result_shape,
         },
     )
     .map_err(LoweringError::AbiPlan)?;
     let [destination] = call_plan.parameters.as_slice() else {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     };
-    if call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape) {
+    if call_plan.result.as_ref().map(|placement| placement.shape) != result_shape {
         return Err(LoweringError::UnitCallTargetKindMismatch(callee));
     }
     let initial_argument = projected_argument::lower(
@@ -107,30 +219,9 @@ pub(super) fn lower_dynamic_scalar_call(
         shape_cache,
         active,
     )?;
-    let result_home = TargetUnitScalarHomeRequirement {
-        defining_operation: *psi_operation,
-        source_value: result.value,
-        scalar_type: result.scalar_type,
-        shape: result_shape,
-    };
-    if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        insert_known_unit_integer(
-            scalar_values,
-            result.value,
-            KnownUnitInteger::Home(result_home),
-        )?;
-    }
-    operations.push(TargetUnitOperation::DynamicScalarCall {
-        psi_operation: *psi_operation,
-        result: *result,
-        dynamic_dispatch: dynamic_dispatch.clone(),
+    Ok(LoweredDynamicCall {
         call_plan,
-        result_home,
         initial_argument,
         rebound_argument,
-        requirement_obligations: requirement_obligations.clone(),
-        crash_continuations: crash_continuations.clone(),
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(result_home)
+    })
 }

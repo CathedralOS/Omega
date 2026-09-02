@@ -12116,9 +12116,16 @@ checked-result arithmetic decision listed below.
   result instead of duplicating Unit-only lookup logic. Optimizer identity,
   provenance, place/ownership custody, call-graph reachability, effect
   observation, and independent unit validation preserve all three operations
-  without inventing scalar definitions. Target lowering rejects them with an
-  explicit `UnsupportedDynamicUnitDispatch` fence until the table/adapter ABI
-  exists. No native support is claimed.
+  without inventing scalar definitions. Local rebound Unit dispatch now
+  crosses target lowering and physical assignment as a result-less
+  `DynamicUnitCall`: the selected Unit signature, exact source copies, native
+  call placement, and aligned two-word descriptor frame region are retained,
+  while no result or scalar home exists in either carrier. Scalar and Unit
+  assignment share descriptor allocation instead of duplicating it. Native
+  emission still rejects the assigned operation with an explicit
+  `UnsupportedDynamicUnitDispatch` fence until result-less machine evidence
+  and object replay exist. The forwarded outer call and parameter-slot helper
+  remain fenced at target lowering. No native support is claimed.
 
   Remaining work:
 
@@ -12137,10 +12144,11 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - carry the admitted Unit-returning abstract operations through target
-    tables/adapters and native execution; add an honest direct-selection
-    descriptor argument source before admitting direct forwarding, and do not
-    widen bodies or call forms first;
+  - carry local rebound Unit dispatch through result-less machine evidence,
+    object replay, and native execution; then carry the forwarded outer call
+    and parameter-slot helper through target tables/adapters. Add an honest
+    direct-selection descriptor argument source before admitting direct
+    forwarding, and do not widen bodies or call forms first;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

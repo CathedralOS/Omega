@@ -78,6 +78,10 @@ pub enum AssignmentError {
         machine: MachineId,
         operation: OperationId,
     },
+    DynamicUnitCallCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     IeeeFloatFmaCustodyMismatch {
         machine: MachineId,
         operation: OperationId,
