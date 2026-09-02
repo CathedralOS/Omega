@@ -1,16 +1,21 @@
 use super::LoweringError;
 use crate::shared::*;
 
-/// Lower only the first complete structural ABI requirement: one verified
-/// whole-root linear parameter is returned unchanged with its one live claim.
-/// Wider verified terminal programs remain fenced until their target-neutral
-/// carrier and Omega realization land together.
+/// Lower the exact admitted structural-return families: the established
+/// whole-root linear/claim-bearing return and one claim-free affine return with
+/// a fixed-integer scalar prefix. Wider verified Terminal programs remain
+/// fenced until their target-neutral carrier and Omega realization land
+/// together.
 pub(super) fn lower_structural_machine(
     machine: &TerminalMachine,
     result: &StructuralResultDeclaration,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
 ) -> Result<AbstractFunction, LoweringError> {
     let unsupported = || LoweringError::UnsupportedStructuralResult(machine.id);
+    if let Some(lowered) = lower_claim_free_affine_mixed_machine(machine, result, structural_types)?
+    {
+        return Ok(lowered);
+    }
     let Some(parameter) = machine.structural_parameters.first() else {
         return Err(unsupported());
     };
@@ -307,4 +312,123 @@ pub(super) fn lower_structural_machine(
             trivial_affine_discards: trivial_affine_discards.clone(),
         }],
     })
+}
+
+fn lower_claim_free_affine_mixed_machine(
+    machine: &TerminalMachine,
+    result: &StructuralResultDeclaration,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+) -> Result<Option<AbstractFunction>, LoweringError> {
+    let ([scalar_parameter], [structural_parameter], [block]) = (
+        machine.parameters.as_slice(),
+        machine.structural_parameters.as_slice(),
+        machine.blocks.as_slice(),
+    ) else {
+        return Ok(None);
+    };
+    let ScalarType::Integer(integer) = scalar_parameter.scalar_type else {
+        return Ok(None);
+    };
+    let Terminator::ReturnStructural {
+        edge,
+        source,
+        returned_claims,
+        trivial_affine_discards,
+    } = &block.terminator
+    else {
+        return Ok(None);
+    };
+    let exact_record = structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)
+        .is_some_and(|declaration| {
+            matches!(
+                &declaration.shape,
+                psi_terminal::StructuralTypeShape::Record { fields }
+                    if matches!(
+                        fields.as_slice(),
+                        [field]
+                            if matches!(
+                                field.field_type,
+                                psi_terminal::StructuralFieldType::Scalar(ScalarType::Integer(field_integer))
+                                    if field_integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                        && field_integer.bits() == 64
+                            )
+                    )
+            )
+        });
+    let parameter_place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == structural_parameter.place);
+    let result_place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == result.place);
+    if integer.is_address()
+        || !matches!(integer.bits(), 8 | 16 | 32 | 64)
+        || !exact_record
+        || !machine.entry_claims.is_empty()
+        || !machine.content_entry_claims.is_empty()
+        || !machine.published_service_ceiling.is_empty()
+        || !machine.contract.crash_routes.is_empty()
+        || !machine.contract.requires.is_empty()
+        || !machine.contract.ensures.is_empty()
+        || block.id != machine.entry
+        || !block.parameters.is_empty()
+        || !block.operations.is_empty()
+        || structural_parameter.position != 0
+        || structural_parameter.is_self
+        || structural_parameter.multiplicity != StructuralMultiplicity::Affine
+        || structural_parameter.access != psi_terminal::StructuralAccess::Owned
+        || !structural_parameter.qualifications.is_empty()
+        || !structural_parameter.projected_qualifications.is_empty()
+        || structural_parameter.structural_type != result.structural_type
+        || *source != structural_parameter.place
+        || result.place == structural_parameter.place
+        || result.multiplicity != StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !returned_claims.is_empty()
+        || !trivial_affine_discards.is_empty()
+        || machine.structural_places.len() != 2
+        || !parameter_place.is_some_and(|place| {
+            matches!(
+                place.kind,
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                }
+            )
+        })
+        || !result_place.is_some_and(|place| place.kind == StructuralPlaceKind::Result)
+    {
+        return Ok(None);
+    }
+    let parameter = AbstractParameter {
+        value: scalar_parameter.id,
+        scalar_type: scalar_parameter.scalar_type,
+    };
+    Ok(Some(AbstractFunction {
+        machine: machine.id,
+        attachment: machine.attachment,
+        entry: machine.entry,
+        parameters: vec![parameter],
+        structural_parameters: vec![structural_parameter.clone()],
+        result: AbstractFunctionResult::Structural(result.clone()),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![AbstractBlockEntry {
+            block: block.id,
+            parameters: vec![parameter],
+            operation_offset: 0,
+        }],
+        operations: vec![AbstractOperation::ReturnStructural {
+            psi_edge: *edge,
+            source: *source,
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        }],
+    }))
 }

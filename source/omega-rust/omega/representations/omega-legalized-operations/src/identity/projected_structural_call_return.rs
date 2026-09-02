@@ -88,6 +88,7 @@ fn encode_callee(bytes: &mut Vec<u8>, function: &omega_target_operations::Target
     encode_function_header(bytes, function);
     let omega_target_operations::TargetOperation::ReturnStructuralParameter {
         call_plan,
+        scalar_parameters: _,
         parameters,
         source,
         result,

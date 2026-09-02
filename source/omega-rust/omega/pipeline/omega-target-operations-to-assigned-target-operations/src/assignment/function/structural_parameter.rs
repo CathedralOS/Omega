@@ -11,6 +11,7 @@ pub(super) fn assign(
     Ok(match operation {
         TargetOperation::ReturnStructuralParameter {
             call_plan,
+            scalar_parameters,
             parameters,
             source,
             result,
@@ -22,12 +23,30 @@ pub(super) fn assign(
             trivial_affine_locals,
             trivial_affine_discards,
         } => {
-            let source_index = 0;
+            let source_index = scalar_parameters.len();
             if parameters.first() != Some(source) {
                 return Err(AssignmentError::UnsupportedStructuralPlacement(
                     source.place,
                 ));
             }
+            let exact_claimful_linear = scalar_parameters.is_empty()
+                && source.multiplicity == psi_terminal::StructuralMultiplicity::Linear
+                && result.multiplicity == psi_terminal::StructuralMultiplicity::Linear
+                && returned_claims.len() == 1
+                && trivial_affine_discards.len() + 1
+                    == parameters.len() + trivial_affine_locals.len();
+            let exact_claim_free_affine_mixed = scalar_parameters.len() == 1
+                && parameters.len() == 1
+                && source.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && source.access == psi_terminal::StructuralAccess::Owned
+                && source.qualifications.is_empty()
+                && source.projected_qualifications.is_empty()
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && returned_claims.is_empty()
+                && trivial_affine_locals.is_empty()
+                && trivial_affine_discards.is_empty();
             let expected_call_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
@@ -41,16 +60,26 @@ pub(super) fn assign(
             )
             .map_err(|_| AssignmentError::UnsupportedStructuralPlacement(source.place))?;
             if *call_plan != expected_call_plan
-                || call_plan.parameters.len() != parameters.len()
+                || call_plan.parameters.len() != scalar_parameters.len() + parameters.len()
+                || scalar_parameters
+                    .iter()
+                    .zip(&call_plan.parameters)
+                    .any(|(parameter, placement)| {
+                        parameter.placement != *placement
+                            || parameter.scalar_type.is_address()
+                            || !matches!(parameter.scalar_type.bits(), 8 | 16 | 32 | 64)
+                            || placement.shape
+                                != omega_calling_conventions::ValueShape::integer(
+                                    parameter.scalar_type.bits() / 8,
+                                    parameter.scalar_type.bits() / 8,
+                                )
+                    })
                 || call_plan.parameters.get(source_index) != Some(source_placement)
                 || call_plan.result.as_ref() != Some(result_placement)
                 || source.place == result.place
-                || source.multiplicity != psi_terminal::StructuralMultiplicity::Linear
-                || result.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                || (!exact_claimful_linear && !exact_claim_free_affine_mixed)
                 || source.structural_type != result.structural_type
                 || source.qualifications != result.qualifications
-                || trivial_affine_discards.len() + 1
-                    != parameters.len() + trivial_affine_locals.len()
                 || parameters.iter().enumerate().any(|(index, parameter)| {
                     usize::try_from(parameter.position) != Ok(index) || parameter.is_self
                 })
@@ -108,7 +137,10 @@ pub(super) fn assign(
                     source.place,
                 ));
             }
-            for (parameter, placement) in parameters.iter().zip(&call_plan.parameters) {
+            for (parameter, placement) in parameters
+                .iter()
+                .zip(call_plan.parameters.iter().skip(scalar_parameters.len()))
+            {
                 if parameter.place == source.place {
                     validate_direct_structural_return_placement(
                         parameter.place,
@@ -126,6 +158,7 @@ pub(super) fn assign(
             )?;
             AssignedOperation::ReturnStructuralParameter {
                 call_plan: call_plan.clone(),
+                scalar_parameters: scalar_parameters.clone(),
                 parameters: parameters.clone(),
                 source: source.clone(),
                 result: result.clone(),

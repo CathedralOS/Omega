@@ -45,19 +45,20 @@ stop the item on one precise owner question before adding machinery.
     single-instantiation scalar-helper, nested-expression, and
     selected-provider-chain cohort only as another concrete language form
     requires it;
-  - finish the hosted D32 fixed-token structural-result lane. The checked
-    front now retains one mixed fixed-width integer/whole owned-affine selected
-    call over one direct 8-byte integer record, its exact claim-free affine
-    provider return, and mandatory caller discard as distinct
-    source-handle-free carriers. Terminal now retains a distinct mixed-input
-    structural-result operation, exact claim-free affine realization, live
-    result frontier, mandatory caller discard, D29 occurrence, canonical wire
-    identity, verifier reconstruction, and reference execution. Carry that
-    exact occurrence through native ABI lowering and D32 physical custody.
-    Projections,
-    borrows, services, content evidence, nontrivial structural layouts, and
-    wider cleanup shapes remain fail-closed until each has independent
-    checked, Terminal, and native custody;
+  - finish the rooted/package D32 settlement for the fixed-token
+    structural-result lane. Exact native custody is now landed from Terminal
+    through Abstract, native ABI lowering, assignment, machine emission,
+    object/image replay, and installation encoding on Linux x86-64 and
+    AArch64. It binds one fixed-width scalar prefix, one whole owned-affine
+    direct 8-byte integer record, the claim-free affine result placement, and
+    mandatory caller discard; corruption tests reject slot substitution,
+    injected claims, and removed cleanup. D32 recognizes the distinct Terminal
+    operation as the emitted internal call. The remaining proof is a rooted
+    `NativeArtifact` canary with a supported source ingress for that nontrivial
+    affine operand. Do not broaden hosted `ProgramEntry` authority or call the
+    source-to-installation harness D32 merely to close the test. Projections,
+    borrows, services, content evidence, wider layouts, and wider cleanup
+    shapes remain fail-closed;
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed normalized-import

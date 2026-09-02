@@ -6,7 +6,9 @@
 //! emits relocations or executable bytes.
 
 use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-use omega_machine_code::{MachineCodeFunction, SemanticCodeAttribution, SemanticCodeSite};
+use omega_machine_code::{
+    MachineCodeFunction, SemanticCodeAttribution, SemanticCodeSite, StructuralReturnRecord,
+};
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{
     CallSiteOwner, MixedStructuralScalarFunctionAbi, TerminalPsiProvenance,
@@ -129,6 +131,50 @@ fn fixed_integer_shape(integer: psi_core::IntegerType) -> Option<ValueShape> {
     Some(ValueShape::integer(bytes, bytes))
 }
 
+pub(super) fn structural_result_matches_return(
+    result: &omega_machine_code::InternalStructuralCallResult,
+    returned: &StructuralReturnRecord,
+) -> bool {
+    let common = result.operation_result.structural_type == returned.result.structural_type
+        && result.operation_result.multiplicity == returned.result.multiplicity
+        && result.operation_result.qualifications == returned.result.qualifications
+        && result.operation_result.projected_qualifications
+            == returned.result.projected_qualifications
+        && result.function_result.structural_type == returned.result.structural_type
+        && result.function_result.multiplicity == returned.result.multiplicity
+        && result.function_result.qualifications == returned.result.qualifications
+        && result.function_result.projected_qualifications
+            == returned.result.projected_qualifications
+        && result.caller_result_placement == returned.result_placement
+        && result.callee_result_placement == returned.result_placement;
+    if !common {
+        return false;
+    }
+    match returned.result.multiplicity {
+        psi_terminal::StructuralMultiplicity::Linear => {
+            result.returned_claim_transfers.len() == 1
+                && returned.returned_claims.as_slice()
+                    == [result.returned_claim_transfers[0].callee_claim]
+                && result.operation_result.claims.len() == 1
+                && result.operation_result.claims[0].path.is_empty()
+                && result.operation_result.claims[0].claim
+                    == result.returned_claim_transfers[0].caller_claim
+                && result.returned_claims.as_slice()
+                    == [result.returned_claim_transfers[0].caller_claim]
+        }
+        psi_terminal::StructuralMultiplicity::Affine => {
+            returned.scalar_parameters.len() == 1
+                && returned.returned_claims.is_empty()
+                && returned.result.qualifications.is_empty()
+                && returned.result.projected_qualifications.is_empty()
+                && result.operation_result.claims.is_empty()
+                && result.returned_claim_transfers.is_empty()
+                && result.returned_claims.is_empty()
+        }
+        psi_terminal::StructuralMultiplicity::Unrestricted => false,
+    }
+}
+
 pub(super) fn validate_internal_unit_call_custody(
     target: NativeTarget,
     function: &MachineCodeFunction,
@@ -143,6 +189,7 @@ pub(super) fn validate_internal_unit_call_custody(
     validated_call_stack: Option<&ObjectUnitCallStack>,
     validated_scalar_call_stack: Option<&ObjectScalarCallStack>,
     callee_mixed_abi: Option<&MixedStructuralScalarFunctionAbi>,
+    callee_structural_return: Option<&StructuralReturnRecord>,
     custody: &omega_machine_code::InternalUnitCallRecord,
     affine_cleanup: Option<&omega_machine_code::UnitAffineCleanupRecord>,
     fully_consumed_affine_pair: bool,
@@ -255,7 +302,14 @@ pub(super) fn validate_internal_unit_call_custody(
         .iter()
         .position(|candidate| *candidate == operation)
         .ok_or_else(invalid)?;
-    if callee_mixed_abi.is_none() != custody.scalar_arguments.is_empty() {
+    let callee_mixed_structural_return =
+        callee_structural_return.filter(|returned| !returned.scalar_parameters.is_empty());
+    if callee_mixed_abi.is_some() && callee_mixed_structural_return.is_some() {
+        return Err(invalid());
+    }
+    if (callee_mixed_abi.is_some() || callee_mixed_structural_return.is_some())
+        == custody.scalar_arguments.is_empty()
+    {
         return Err(invalid());
     }
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
@@ -269,6 +323,18 @@ pub(super) fn validate_internal_unit_call_custody(
                         abi.structural_parameters
                             .iter()
                             .map(|parameter| Ok(parameter.shape)),
+                    )
+                    .collect::<Result<Vec<_>, _>>()?
+            } else if let Some(returned) = callee_mixed_structural_return {
+                returned
+                    .scalar_parameters
+                    .iter()
+                    .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
+                    .chain(
+                        returned
+                            .parameter_placements
+                            .iter()
+                            .map(|placement| Ok(placement.shape)),
                     )
                     .collect::<Result<Vec<_>, _>>()?
             } else {
@@ -295,7 +361,7 @@ pub(super) fn validate_internal_unit_call_custody(
                     ),
                 })
             } else if custody.structural_result.is_some() {
-                custody.arguments.first().map(|argument| argument.shape)
+                callee_structural_return.map(|returned| returned.shape)
             } else {
                 None
             },
@@ -328,6 +394,49 @@ pub(super) fn validate_internal_unit_call_custody(
                         || argument.structural_type != parameter.structural_type
                         || argument.shape != parameter.shape
                         || argument.destination != parameter.placement
+                })
+        {
+            return Err(invalid());
+        }
+        validate_mixed_argument_bytes_and_order(target, function, relocation, custody)?;
+    } else if let Some(returned) = callee_mixed_structural_return {
+        if custody.result.is_some()
+            || custody.structural_result.is_none()
+            || expected_plan.parameters.len()
+                != returned.scalar_parameters.len() + returned.parameters.len()
+            || expected_plan.parameters[..returned.scalar_parameters.len()]
+                != returned
+                    .scalar_parameters
+                    .iter()
+                    .map(|parameter| parameter.placement.clone())
+                    .collect::<Vec<_>>()
+            || expected_plan.parameters[returned.scalar_parameters.len()..]
+                != returned.parameter_placements
+            || expected_plan.result.as_ref() != Some(&returned.result_placement)
+            || custody.scalar_arguments.len() != returned.scalar_parameters.len()
+            || custody.arguments.len() != returned.parameters.len()
+            || custody
+                .scalar_arguments
+                .iter()
+                .zip(&returned.scalar_parameters)
+                .enumerate()
+                .any(|(index, (argument, parameter))| {
+                    usize::try_from(argument.parameter_index) != Ok(index)
+                        || argument.destination != parameter.placement
+                        || argument.source.scalar_type() != parameter.scalar_type
+                })
+            || custody
+                .arguments
+                .iter()
+                .zip(&returned.parameters)
+                .zip(&returned.parameter_placements)
+                .any(|((argument, parameter), placement)| {
+                    !argument.path.is_empty()
+                        || argument.root_structural_type != parameter.structural_type
+                        || argument.access != parameter.access
+                        || argument.structural_type != parameter.structural_type
+                        || argument.shape != placement.shape
+                        || argument.destination != *placement
                 })
         {
             return Err(invalid());

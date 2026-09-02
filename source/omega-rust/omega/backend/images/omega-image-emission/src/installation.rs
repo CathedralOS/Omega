@@ -1837,6 +1837,29 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .rev()
                 .map(|(_, place, _)| place.id)
                 .collect::<Vec<_>>();
+            let structural_result_prefix = record
+                .internal_unit_calls
+                .iter()
+                .filter(|call| call.machine == function.machine)
+                .rev()
+                .filter_map(|call| match call.custody.structural_result.as_ref() {
+                    Some(result)
+                        if result.operation_result.multiplicity
+                            == StructuralMultiplicity::Affine
+                            && result.operation_result.claims.is_empty()
+                            && result.returned_claim_transfers.is_empty()
+                            && result.returned_claims.is_empty() =>
+                    {
+                        Some(result.operation_result.place)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let expected_cleanup_prefix = structural_result_prefix
+                .iter()
+                .copied()
+                .chain(expected_local_prefix.iter().copied())
+                .collect::<Vec<_>>();
             let transferred_roots = record
                 .internal_unit_calls
                 .iter()
@@ -1966,7 +1989,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     }))
                 .then_some(!calls.is_empty())
             };
-            let Some(parameter_discards) = discards.get(expected_local_prefix.len()..) else {
+            let Some(parameter_discards) = discards.get(expected_cleanup_prefix.len()..) else {
                 return Err(InstallationError::InvalidUnitAffineCleanup(
                     function.machine,
                 ));
@@ -1995,8 +2018,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         )
                     },
                 )
-                || discards.get(..expected_local_prefix.len())
-                    != Some(expected_local_prefix.as_slice())
+                || discards.get(..expected_cleanup_prefix.len())
+                    != Some(expected_cleanup_prefix.as_slice())
                 || discards
                     .iter()
                     .copied()
@@ -2299,13 +2322,34 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             InstallationError::StructuralReturnMachineMissing(installed.machine),
         )?;
         let returned = &installed.returned;
+        let scalar_shapes = returned
+            .scalar_parameters
+            .iter()
+            .map(|parameter| {
+                if parameter.scalar_type.is_address()
+                    || !matches!(parameter.scalar_type.bits(), 8 | 16 | 32 | 64)
+                {
+                    return None;
+                }
+                let bytes = parameter.scalar_type.bits() / 8;
+                Some(ValueShape::integer(bytes, bytes))
+            })
+            .collect::<Option<Vec<_>>>()
+            .ok_or(InstallationError::InvalidStructuralReturn(
+                installed.machine,
+            ))?;
         let expected_plan = evaluate_call_plan(
             CallingPolicy::native_for_target(record.target),
             &CallSignature {
-                parameters: returned
-                    .parameter_placements
+                parameters: scalar_shapes
                     .iter()
-                    .map(|placement| placement.shape)
+                    .copied()
+                    .chain(
+                        returned
+                            .parameter_placements
+                            .iter()
+                            .map(|placement| placement.shape),
+                    )
                     .collect(),
                 result: Some(returned.shape),
             },
@@ -2317,15 +2361,34 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .iter()
             .filter(|attribution| attribution.machine == installed.machine)
             .collect::<Vec<_>>();
+        let exact_claimful_linear = returned.scalar_parameters.is_empty()
+            && returned.source.multiplicity == StructuralMultiplicity::Linear
+            && returned.result.multiplicity == StructuralMultiplicity::Linear
+            && returned.returned_claims.len() == 1;
+        let exact_claim_free_affine_mixed = matches!(returned.scalar_parameters.as_slice(), [scalar]
+            if scalar.placement.shape == scalar_shapes[0])
+            && returned.parameters.len() == 1
+            && returned.source.multiplicity == StructuralMultiplicity::Affine
+            && returned.result.multiplicity == StructuralMultiplicity::Affine
+            && returned.source.access == psi_terminal::StructuralAccess::Owned
+            && returned.source.qualifications.is_empty()
+            && returned.source.projected_qualifications.is_empty()
+            && returned.result.qualifications.is_empty()
+            && returned.result.projected_qualifications.is_empty()
+            && returned.returned_claims.is_empty()
+            && returned.trivial_affine_locals.is_empty()
+            && returned.trivial_affine_discards.is_empty()
+            && returned.shape == ValueShape::integer(8, 8);
         if previous_return.is_some_and(|previous| previous >= installed.machine)
             || returned.code_offset != 0
             || returned.byte_count != function.byte_count
             || returned.source.position != 0
             || returned.source.is_self
-            || returned.source.multiplicity != StructuralMultiplicity::Linear
-            || returned.result.multiplicity != StructuralMultiplicity::Linear
+            || (!exact_claimful_linear && !exact_claim_free_affine_mixed)
             || returned.source.structural_type != returned.result.structural_type
             || returned.source.qualifications != returned.result.qualifications
+            || returned.source.projected_qualifications
+                != returned.result.projected_qualifications
             || returned.source.place == returned.result.place
             || returned.shape.class != ValueClass::Integer
             || !((returned.shape.byte_size == 8 && returned.shape.alignment == 8)
@@ -2373,7 +2436,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .len()
                 != returned.trivial_affine_locals.len()
             || returned.parameter_placements.len() != returned.parameters.len()
-            || expected_plan.parameters != returned.parameter_placements
+            || expected_plan.parameters.len()
+                != returned.scalar_parameters.len() + returned.parameter_placements.len()
+            || expected_plan.parameters[..returned.scalar_parameters.len()]
+                .iter()
+                .zip(&returned.scalar_parameters)
+                .any(|(placement, parameter)| placement != &parameter.placement)
+            || expected_plan.parameters[returned.scalar_parameters.len()..]
+                != returned.parameter_placements
             || returned.parameter_placements.first() != Some(&returned.source_placement)
             || returned
                 .parameters
@@ -2403,7 +2473,6 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .skip(1)
                 .any(|parameter| parameter.multiplicity != StructuralMultiplicity::Affine)
             || expected_result != Some(&returned.result_placement)
-            || returned.returned_claims.len() != 1
             || structural_attribution.len() != returned.trivial_affine_locals.len() + 1
             || returned
                 .trivial_affine_locals
@@ -2457,25 +2526,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             (None, None) => true,
             (Some(result), Some(target)) => {
                 custody.result.is_none()
-                    && result.operation_result.structural_type == target.result.structural_type
-                    && result.operation_result.multiplicity == target.result.multiplicity
-                    && result.operation_result.qualifications == target.result.qualifications
-                    && result.function_result.structural_type == target.result.structural_type
-                    && result.function_result.multiplicity == target.result.multiplicity
-                    && result.function_result.qualifications == target.result.qualifications
-                    && result.returned_claim_transfers.len() == 1
-                    && target.returned_claims.as_slice()
-                        == [result.returned_claim_transfers[0].callee_claim]
-                    && result.operation_result.claims.len() == 1
-                    && result.operation_result.claims[0].claim
-                        == result.returned_claim_transfers[0].caller_claim
-                    && result.returned_claims.as_slice()
-                        == [result.returned_claim_transfers[0].caller_claim]
-                    && result.caller_result_placement == target.result_placement
-                    && result.callee_result_placement == target.result_placement
+                    && crate::unit_call_custody::structural_result_matches_return(result, target)
             }
             _ => false,
         };
+        let callee_mixed_structural_return =
+            target_structural_return.filter(|returned| !returned.scalar_parameters.is_empty());
         let expected_text_offset = function
             .text_offset
             .checked_add(custody.code_offset)
@@ -2506,6 +2562,27 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 .map(|parameter| Ok(parameter.shape)),
                         )
                         .collect::<Result<Vec<_>, _>>()?
+                } else if let Some(returned) = callee_mixed_structural_return {
+                    returned
+                        .scalar_parameters
+                        .iter()
+                        .map(|parameter| {
+                            let integer = parameter.scalar_type;
+                            if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
+                                return Err(InstallationError::InvalidInternalUnitCall(
+                                    installed.machine,
+                                ));
+                            }
+                            let bytes = integer.bits() / 8;
+                            Ok(ValueShape::integer(bytes, bytes))
+                        })
+                        .chain(
+                            returned
+                                .parameter_placements
+                                .iter()
+                                .map(|placement| Ok(placement.shape)),
+                        )
+                        .collect::<Result<Vec<_>, _>>()?
                 } else {
                     custody
                         .arguments
@@ -2525,7 +2602,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         _ => ValueShape::integer(bytes, bytes.next_power_of_two().min(8)),
                     })
                 } else if custody.structural_result.is_some() {
-                    custody.arguments.first().map(|argument| argument.shape)
+                    target_structural_return.map(|returned| returned.shape)
                 } else {
                     None
                 },
@@ -2630,9 +2707,10 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             }
         };
         let scalar_count = custody.scalar_arguments.len();
-        let mixed_roster_is_exact = match callee_mixed_abi {
-            None => custody.scalar_arguments.is_empty(),
-            Some(abi) => {
+        let mixed_roster_is_exact = match (callee_mixed_abi, callee_mixed_structural_return) {
+            (None, None) => custody.scalar_arguments.is_empty(),
+            (Some(_), Some(_)) => false,
+            (Some(abi), None) => {
                 custody.result == Some(psi_core::ScalarType::Integer(abi.result.scalar_type))
                     && plan == abi.call_plan
                     && scalar_count == abi.scalar_parameters.len()
@@ -2681,6 +2759,91 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 && argument.access == parameter.access
                                 && argument.shape == parameter.shape
                                 && argument.destination == parameter.placement
+                        })
+                    && custody.scalar_arguments.windows(2).all(|pair| {
+                        pair[0]
+                            .code_offset
+                            .checked_add(pair[0].byte_count)
+                            .is_some_and(|prior_end| prior_end == pair[1].code_offset)
+                    })
+                    && custody.scalar_arguments.last().is_none_or(|last| {
+                        last.code_offset
+                            .checked_add(last.byte_count)
+                            .is_some_and(|scalar_end| {
+                                custody
+                                    .arguments
+                                    .first()
+                                    .map_or(scalar_end <= end, |argument| {
+                                        scalar_end == argument.code_offset
+                                    })
+                            })
+                    })
+                    && custody.arguments.windows(2).all(|pair| {
+                        pair[0].code_offset.checked_add(pair[0].byte_count)
+                            == Some(pair[1].code_offset)
+                    })
+            }
+            (None, Some(returned)) => {
+                custody.result.is_none()
+                    && custody.structural_result.is_some()
+                    && scalar_count == returned.scalar_parameters.len()
+                    && custody.arguments.len() == returned.parameters.len()
+                    && plan.parameters.len()
+                        == returned.scalar_parameters.len() + returned.parameters.len()
+                    && plan.parameters[..returned.scalar_parameters.len()]
+                        == returned
+                            .scalar_parameters
+                            .iter()
+                            .map(|parameter| parameter.placement.clone())
+                            .collect::<Vec<_>>()
+                    && plan.parameters[returned.scalar_parameters.len()..]
+                        == returned.parameter_placements
+                    && plan.result.as_ref() == Some(&returned.result_placement)
+                    && custody
+                        .scalar_arguments
+                        .iter()
+                        .zip(&returned.scalar_parameters)
+                        .enumerate()
+                        .all(|(index, (argument, parameter))| {
+                            let expected_argument_bytes =
+                                custody.arguments.first().and_then(|structural| {
+                                    crate::unit_scalar_call_custody::expected_argument_bytes(
+                                        record.target,
+                                        argument,
+                                        structural.call_stack_bytes,
+                                    )
+                                });
+                            usize::try_from(argument.parameter_index) == Ok(index)
+                                && argument.destination == parameter.placement
+                                && argument.source.scalar_type() == parameter.scalar_type
+                                && installed_scalar_source_is_exact(
+                                    record,
+                                    function,
+                                    installed.machine,
+                                    custody,
+                                    argument.source,
+                                )
+                                && expected_argument_bytes
+                                    .as_ref()
+                                    .is_some_and(|bytes| bytes.len() == argument.byte_count)
+                                && argument.code_offset >= custody.code_offset
+                                && argument
+                                    .code_offset
+                                    .checked_add(argument.byte_count)
+                                    .is_some_and(|argument_end| argument_end <= end)
+                        })
+                    && custody
+                        .arguments
+                        .iter()
+                        .zip(&returned.parameters)
+                        .zip(&returned.parameter_placements)
+                        .all(|((argument, parameter), placement)| {
+                            argument.path.is_empty()
+                                && argument.root_structural_type == parameter.structural_type
+                                && argument.structural_type == parameter.structural_type
+                                && argument.access == parameter.access
+                                && argument.shape == placement.shape
+                                && argument.destination == *placement
                         })
                     && custody.scalar_arguments.windows(2).all(|pair| {
                         pair[0]

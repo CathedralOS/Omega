@@ -26,6 +26,7 @@ pub(super) fn project(
     };
     let TargetOperation::ReturnStructuralParameter {
         call_plan: callee_plan,
+        scalar_parameters,
         parameters,
         source: callee_source,
         result: callee_result,
@@ -36,6 +37,9 @@ pub(super) fn project(
     else {
         return Err(SelectedInstructionError::UnsupportedProjectedStructuralShape);
     };
+    if !scalar_parameters.is_empty() {
+        return Err(SelectedInstructionError::UnsupportedProjectedStructuralShape);
+    }
     let ([caller_parameter], [argument], [callee_parameter]) = (
         structural_parameters.as_slice(),
         arguments.as_slice(),

@@ -265,6 +265,150 @@ pub(super) fn assign_call(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn assign_result_call(
+    machine: MachineId,
+    attachment: Option<StructuralTypeId>,
+    body: &TargetUnitBody,
+    target: NativeTarget,
+    psi_operation: OperationId,
+    result: &psi_terminal::StructuralOperationResult,
+    callee: MachineId,
+    callee_result: &psi_terminal::StructuralResultDeclaration,
+    call_plan: &omega_calling_conventions::CallPlan,
+    scalar_arguments: &[TargetUnitScalarCallArgument],
+    arguments: &[TargetStructuralArgument],
+    claim_transfers: &[ClaimTransfer],
+    returned_claim_transfers: &[psi_terminal::StructuralResultClaimTransfer],
+    requirement_obligations: &[psi_core::ObligationId],
+    crash_continuations: &[CrashRouteBucket],
+    preceding_operations: &[TargetUnitOperation],
+    assigned_scalar_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
+) -> Result<AssignedUnitOperation, AssignmentError> {
+    let invalid = || AssignmentError::StructuralScalarCallCustodyMismatch {
+        machine,
+        operation: psi_operation,
+    };
+    let ([scalar_argument], [argument]) = (scalar_arguments, arguments) else {
+        return Err(invalid());
+    };
+    let declarations = declaration_map(&body.structural_types).ok_or_else(invalid)?;
+    let Some(declaration) = declarations.get(&result.structural_type).copied() else {
+        return Err(invalid());
+    };
+    let exact_record = matches!(
+        &declaration.shape,
+        StructuralTypeShape::Record { fields }
+            if matches!(
+                fields.as_slice(),
+                [field]
+                    if matches!(
+                        field.field_type,
+                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                            if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                && integer.bits() == 64
+                    )
+            )
+    );
+    let expected_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![scalar_argument.placement.shape, argument.shape],
+            result: Some(argument.shape),
+        },
+    )
+    .map_err(|_| invalid())?;
+    let root = body
+        .parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+        .ok_or_else(invalid)?;
+    if attachment.is_some()
+        || !exact_record
+        || expected_plan != *call_plan
+        || call_plan.parameters.as_slice()
+            != [
+                scalar_argument.placement.clone(),
+                argument.destination.clone(),
+            ]
+        || call_plan.result.as_ref().map(|placement| placement.shape) != Some(argument.shape)
+        || scalar_argument.parameter_index != 0
+        || result.structural_type != callee_result.structural_type
+        || result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || callee_result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || !callee_result.qualifications.is_empty()
+        || !callee_result.projected_qualifications.is_empty()
+        || root.structural_type != argument.root_structural_type
+        || root.structural_type != argument.structural_type
+        || root.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || root.access != psi_terminal::StructuralAccess::Owned
+        || !root.projected_qualifications.is_empty()
+        || !argument.path.is_empty()
+        || argument.access != psi_terminal::StructuralAccess::Owned
+        || argument.shape != ValueShape::integer(8, 8)
+        || argument.source_byte_offset != 0
+        || argument.fixed_array_length.is_some()
+        || argument.element_stride.is_some()
+        || argument.source != root.placement
+        || !claim_transfers.is_empty()
+        || !returned_claim_transfers.is_empty()
+        || !requirement_obligations.is_empty()
+        || !crash_continuations.is_empty()
+    {
+        return Err(invalid());
+    }
+    super::scalar_call::validate_placement_registers(
+        scalar_argument.source.source_value(),
+        &scalar_argument.placement,
+        target,
+    )
+    .map_err(|_| invalid())?;
+    let assigned_scalar_source = super::scalar_call::assign_known_unit_scalar_source(
+        scalar_argument.source,
+        preceding_operations,
+        assigned_scalar_homes,
+    )
+    .ok_or_else(invalid)?;
+    let assigned_scalar_argument = AssignedUnitScalarCallArgument {
+        parameter_index: 0,
+        source: assigned_scalar_source,
+        destination: super::scalar_call::assigned_unit_scalar_destination(
+            scalar_argument.source.source_value(),
+            &scalar_argument.placement,
+            target,
+        )
+        .map_err(|_| invalid())?,
+    };
+    Ok(AssignedUnitOperation::StructuralResultCall {
+        psi_operation,
+        result: result.clone(),
+        callee,
+        callee_result: callee_result.clone(),
+        call_plan: call_plan.clone(),
+        scalar_arguments: vec![assigned_scalar_argument],
+        copies: vec![AssignedAggregateCopy {
+            place: argument.place,
+            access: argument.access,
+            path: Vec::new(),
+            root_structural_type: argument.root_structural_type,
+            structural_type: argument.structural_type,
+            shape: argument.shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            source: argument.source.clone(),
+            destination: argument.destination.clone(),
+        }],
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    })
+}
+
 pub(in crate::assignment::function) fn declaration_map(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>> {

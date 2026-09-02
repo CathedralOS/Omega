@@ -948,6 +948,147 @@ fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
 }
 
 #[test]
+fn specialized_mixed_structural_result_operator_reaches_installed_native_custody() {
+    let canary =
+        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("hosted mixed structural-result selection should check");
+    let terminal =
+        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            &checked,
+            "consume",
+        )
+        .expect("mixed structural-result selection should reach Terminal");
+    let abstract_plan = omega_psi_to_abstract_operations::lower_artifact_sections(
+        terminal.artifact().semantic_bytes(),
+        terminal.artifact().proof_bytes(),
+        &psi_proof_admission::AdmissionProfile::default(),
+    )
+    .expect("mixed structural-result selection should reach target-neutral Omega");
+
+    for target in [
+        omega_target::NativeTarget::linux_x64(),
+        omega_target::NativeTarget::linux_arm64(),
+    ] {
+        let target_plan =
+            omega_abstract_operations_to_target_operations::lower_to_target_operations(
+                &abstract_plan,
+                target,
+            )
+            .expect("mixed structural-result selection should reach target operations");
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                .expect("mixed structural-result selection should retain physical assignment");
+        let emitted = omega_machine_emission::emit_machine_code(&assigned)
+            .expect("mixed structural-result selection should reach machine emission");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("entry caller");
+        let [call] = caller.internal_unit_calls.as_slice() else {
+            panic!("one mixed structural-result call must survive machine emission")
+        };
+        assert!(call.result.is_none());
+        assert!(call.semantic_result.is_none());
+        assert_eq!(call.scalar_arguments.len(), 1);
+        assert_eq!(call.arguments.len(), 1);
+        assert!(call.claim_transfers.is_empty());
+        let result = call
+            .structural_result
+            .as_ref()
+            .expect("call retains its affine structural result");
+        assert_eq!(
+            result.operation_result.multiplicity,
+            psi_terminal::StructuralMultiplicity::Affine
+        );
+        assert!(result.operation_result.claims.is_empty());
+        assert!(result.returned_claim_transfers.is_empty());
+        assert!(result.returned_claims.is_empty());
+        assert_eq!(
+            caller
+                .unit_affine_cleanup
+                .as_ref()
+                .expect("caller retains result cleanup")
+                .actions,
+            [psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+                result.operation_result.place,
+            )]
+        );
+        let returned = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.target)
+            .and_then(|function| function.structural_return.as_ref())
+            .expect("selected provider retains structural return ABI");
+        assert_eq!(returned.scalar_parameters.len(), 1);
+        assert_eq!(returned.parameters.len(), 1);
+        assert_eq!(returned.parameter_placements.len(), 1);
+        assert_eq!(
+            returned.result.multiplicity,
+            psi_terminal::StructuralMultiplicity::Affine
+        );
+        assert!(returned.returned_claims.is_empty());
+
+        let object = omega_image_emission::build_object_artifact(&emitted)
+            .expect("object validation should replay mixed structural-result custody");
+        let image = omega_image_emission::emit_executable_image(&object, 0)
+            .expect("image should retain mixed structural-result custody");
+        omega_image_emission::validate_executable_image(&object, &image)
+            .expect("image should independently validate mixed structural-result custody");
+        let installation = omega_image_emission::build_installation_record(
+            &image,
+            psi_core::ProfileDecisionId::new(1).expect("profile decision"),
+        )
+        .expect("mixed structural result should enter installation custody");
+        let bytes = omega_image_emission::encode_installation_record(&installation)
+            .expect("mixed structural-result installation should encode");
+        let decoded = omega_image_emission::decode_installation_record(&bytes)
+            .expect("mixed structural-result installation should decode");
+        omega_image_emission::validate_installation_record(&decoded, &image)
+            .expect("decoded installation should bind the mixed structural-result image");
+
+        let mut missing_discard = emitted.clone();
+        missing_discard
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == emitted.entry)
+            .and_then(|function| function.unit_affine_cleanup.as_mut())
+            .expect("caller cleanup")
+            .actions
+            .clear();
+        assert!(omega_image_emission::build_object_artifact(&missing_discard).is_err());
+
+        let mut injected_claim = emitted.clone();
+        injected_claim
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == emitted.entry)
+            .and_then(|function| function.internal_unit_calls.first_mut())
+            .and_then(|call| call.structural_result.as_mut())
+            .expect("caller structural result")
+            .operation_result
+            .claims
+            .push(psi_terminal::StructuralResultClaimBinding {
+                claim: psi_core::ClaimId::new(1).expect("claim"),
+                path: Vec::new(),
+            });
+        assert!(omega_image_emission::build_object_artifact(&injected_claim).is_err());
+
+        let mut swapped_slot = emitted.clone();
+        let drifted_call = swapped_slot
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == emitted.entry)
+            .and_then(|function| function.internal_unit_calls.first_mut())
+            .expect("caller call");
+        drifted_call.scalar_arguments[0].destination =
+            drifted_call.arguments[0].destination.clone();
+        assert!(omega_image_emission::build_object_artifact(&swapped_slot).is_err());
+    }
+}
+
+#[test]
 fn specialized_mixed_structural_result_operator_rejects_terminal_custody_drift() {
     #[derive(Clone, Copy, Debug)]
     enum Drift {

@@ -36,11 +36,19 @@ pub(super) fn lower_unit_return(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
+            let structural_result_places = operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    TargetUnitOperation::StructuralResultCall { result, .. } => Some(result.place),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
             let consumed_whole_roots = operations
                 .iter()
                 .flat_map(|operation| match operation {
                     TargetUnitOperation::Call { arguments, .. }
-                    | TargetUnitOperation::StructuralScalarCall { arguments, .. } => arguments
+                    | TargetUnitOperation::StructuralScalarCall { arguments, .. }
+                    | TargetUnitOperation::StructuralResultCall { arguments, .. } => arguments
                         .iter()
                         .filter(|argument| {
                             argument.path.is_empty()
@@ -58,11 +66,17 @@ pub(super) fn lower_unit_return(
                 structural_types,
                 functions,
             );
-            let expected_roots = local_places
+            let expected_roots = structural_result_places
                 .iter()
                 .rev()
-                .filter(|place| !consumed_whole_roots.contains(place))
                 .copied()
+                .chain(
+                    local_places
+                        .iter()
+                        .rev()
+                        .filter(|place| !consumed_whole_roots.contains(place))
+                        .copied(),
+                )
                 .chain(
                     function
                         .structural_parameters
@@ -113,6 +127,7 @@ pub(super) fn lower_unit_return(
                     || operations.iter().any(|operation| {
                         matches!(operation,
                         TargetUnitOperation::Call { arguments, .. }
+                            | TargetUnitOperation::StructuralResultCall { arguments, .. }
                             if arguments.iter().any(|argument| {
                                 !argument.path.is_empty()
                                     && root_discards.contains(&argument.place)

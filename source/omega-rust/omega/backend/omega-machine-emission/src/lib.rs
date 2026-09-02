@@ -693,6 +693,7 @@ fn emit_function(
         }
         AssignedOperation::ReturnStructuralParameter {
             call_plan,
+            scalar_parameters,
             parameters,
             source,
             result,
@@ -726,8 +727,14 @@ fn emit_function(
             });
             structural_return = Some(StructuralReturnRecord {
                 psi_edge: *psi_edge,
+                scalar_parameters: scalar_parameters.clone(),
                 parameters: parameters.clone(),
-                parameter_placements: call_plan.parameters.clone(),
+                parameter_placements: call_plan
+                    .parameters
+                    .iter()
+                    .skip(scalar_parameters.len())
+                    .cloned()
+                    .collect(),
                 source: source.clone(),
                 result: result.clone(),
                 shape: *shape,

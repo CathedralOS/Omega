@@ -98,6 +98,7 @@ pub(super) fn replay(
 
     let TargetOperation::ReturnStructuralParameter {
         call_plan,
+        scalar_parameters,
         parameters,
         source: target_source,
         result: target_result,
@@ -112,7 +113,8 @@ pub(super) fn replay(
     let [target_callee_parameter] = parameters.as_slice() else {
         return Err(Error::TargetShape);
     };
-    if call_plan != &expected_plan
+    if !scalar_parameters.is_empty()
+        || call_plan != &expected_plan
         || *shape != source.shape
         || source_placement != expected_parameter_placement
         || expected_plan.result.as_ref() != Some(result_placement)

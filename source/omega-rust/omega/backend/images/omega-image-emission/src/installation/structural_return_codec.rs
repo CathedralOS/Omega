@@ -7,7 +7,9 @@ use omega_machine_code::StructuralReturnRecord;
 use psi_core::{ClaimId, EdgeId, MachineId, OperationId, PlaceId};
 
 use super::{
-    InstallationError, InstalledStructuralReturn, Reader, push_u32, push_u64,
+    InstallationError, InstalledStructuralReturn, Reader,
+    fixed_integer_scalar_abi_codec::{decode_abi_value, encode_abi_value},
+    push_u32, push_u64,
     structural_signature_codec::{
         decode_structural_parameter, decode_structural_result, encode_structural_parameter,
         encode_structural_result,
@@ -40,6 +42,14 @@ fn encode_structural_return(
     let returned = &installed.returned;
     push_u64(bytes, installed.machine.get());
     push_u64(bytes, returned.psi_edge.get());
+    push_u32(
+        bytes,
+        u32::try_from(returned.scalar_parameters.len())
+            .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?,
+    );
+    for parameter in &returned.scalar_parameters {
+        encode_abi_value(bytes, parameter)?;
+    }
     push_u32(
         bytes,
         u32::try_from(returned.parameters.len())
@@ -118,6 +128,12 @@ fn decode_structural_return(
     let machine = MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroFunctionIdentity)?;
     let psi_edge = EdgeId::new(reader.u64()?)
         .ok_or(InstallationError::ZeroStructuralReturnIdentity("edge"))?;
+    let scalar_parameter_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
+    let mut scalar_parameters = Vec::with_capacity(scalar_parameter_count);
+    for _ in 0..scalar_parameter_count {
+        scalar_parameters.push(decode_abi_value(reader)?);
+    }
     let parameter_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyStructuralReturnParameters)?;
     let mut parameters = Vec::with_capacity(parameter_count);
@@ -169,6 +185,7 @@ fn decode_structural_return(
         machine,
         returned: StructuralReturnRecord {
             psi_edge,
+            scalar_parameters,
             parameters,
             parameter_placements,
             source,

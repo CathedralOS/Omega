@@ -537,11 +537,14 @@ pub struct UnitParameterRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructuralReturnRecord {
     pub psi_edge: EdgeId,
+    /// Ordered fixed-integer prefix preceding the structural input roster.
+    /// Empty for the established claim-bearing structural-only family.
+    pub scalar_parameters: Vec<omega_target_operations::FixedIntegerScalarAbiValue>,
     /// Complete ordered structural input signature. This binds the returned
     /// place and every zero-code cleanup place to its exact type/multiplicity.
     pub parameters: Vec<StructuralParameterDeclaration>,
-    /// Complete ABI input placement list corresponding one-for-one with
-    /// `parameters`, including cleanup-only inputs.
+    /// Structural ABI placements corresponding one-for-one with `parameters`;
+    /// scalar-prefix placements live in `scalar_parameters`.
     pub parameter_placements: Vec<ValuePlacement>,
     pub source: StructuralParameterDeclaration,
     pub result: StructuralResultDeclaration,

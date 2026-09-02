@@ -137,6 +137,7 @@ pub enum AssignedOperation {
     },
     ReturnStructuralParameter {
         call_plan: CallPlan,
+        scalar_parameters: Vec<omega_target_operations::FixedIntegerScalarAbiValue>,
         parameters: Vec<StructuralParameterDeclaration>,
         source: StructuralParameterDeclaration,
         result: StructuralResultDeclaration,

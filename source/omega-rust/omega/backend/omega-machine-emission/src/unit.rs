@@ -32,7 +32,9 @@ use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
 use dynamic_scalar::emit_dynamic_scalar_call;
 use installed_provider::emit_installed_provider_scalar_call;
 use scalar_call::emit_unit_scalar_call;
-use structural_scalar::{emit_structural_scalar_call, emit_structural_scalar_field_store};
+use structural_scalar::{
+    emit_structural_result_call, emit_structural_scalar_call, emit_structural_scalar_field_store,
+};
 
 use super::{
     EmissionError, aarch64_load_base, aarch64_store_base, aarch64_unit_memory_access,
@@ -1203,6 +1205,21 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
+            AssignedUnitOperation::StructuralResultCall { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+                internal_unit_calls.push(emit_structural_result_call(
+                    operation,
+                    target,
+                    functions,
+                    &body.operations[..operation_ordinal],
+                    &x86_homes,
+                    &aarch64_homes,
+                    &mut bytes,
+                    &mut internal_calls,
+                    operation_ordinal,
+                    code_offset,
+                )?);
+            }
             AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
                 psi_operation,
                 ..
@@ -1822,7 +1839,8 @@ pub(super) fn emit_unit_body(
                     .iter()
                     .filter_map(|operation| match operation {
                         AssignedUnitOperation::Call { copies, .. }
-                        | AssignedUnitOperation::StructuralScalarCall { copies, .. } => {
+                        | AssignedUnitOperation::StructuralScalarCall { copies, .. }
+                        | AssignedUnitOperation::StructuralResultCall { copies, .. } => {
                             Some(copies)
                         }
                         _ => None,
@@ -1831,15 +1849,26 @@ pub(super) fn emit_unit_body(
                     .filter(|copy| copy.path.is_empty())
                     .map(|copy| copy.place)
                     .collect::<std::collections::BTreeSet<_>>();
+                let structural_result_prefix = body.operations[..operation_ordinal]
+                    .iter()
+                    .rev()
+                    .filter_map(|operation| match operation {
+                        AssignedUnitOperation::StructuralResultCall { result, .. } => {
+                            Some(result.place)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
                 let expected_local_prefix = established_affine_locals
                     .iter()
                     .rev()
                     .filter(|(_, place, _)| !transferred_roots.contains(&place.id))
                     .map(|(_, place, _)| place.id)
                     .collect::<Vec<_>>();
-                let expected_discards = expected_local_prefix
+                let expected_discards = structural_result_prefix
                     .iter()
                     .copied()
+                    .chain(expected_local_prefix.iter().copied())
                     .chain(
                         body.parameters
                             .iter()
@@ -1859,9 +1888,10 @@ pub(super) fn emit_unit_body(
                     .copied()
                     .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
                     .collect::<Vec<_>>();
-                let expected_local_actions = expected_local_prefix
+                let expected_local_actions = structural_result_prefix
                     .iter()
                     .copied()
+                    .chain(expected_local_prefix.iter().copied())
                     .map(psi_terminal::TerminalAffineCleanupAction::DiscardRoot)
                     .collect::<Vec<_>>();
                 let nominal_cleanups = cleanup_actions
@@ -1970,7 +2000,8 @@ pub(super) fn emit_unit_body(
                                     &residuals,
                                 )
                             })
-                } || (expected_local_prefix.is_empty()
+                } || (structural_result_prefix.is_empty()
+                    && expected_local_prefix.is_empty()
                     && !nominal_cleanups.is_empty()
                     && nominal_cleanups.len() == cleanup_actions.len()
                     && nominal_cleanups.len() == body.parameters.len()

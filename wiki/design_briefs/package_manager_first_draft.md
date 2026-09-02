@@ -1345,6 +1345,22 @@ source value, scalar type, and callee. Structural results, projections, borrows,
 services, content evidence, and nontrivial structural layouts remain
 unsupported rather than receiving partial physical evidence.
 
+The separate fixed-token structural-result lane now has exact native custody
+on Linux x86-64 and AArch64 for one fixed-width integer scalar prefix and one
+whole owned-affine direct 8-byte integer record. Psi-to-Abstract retains the
+claim-free affine provider return; target assignment binds scalar slot zero,
+structural slot one, and the structural result placement without inventing a
+scalar home or claim. Machine, object, image, and installation replay retain
+the result and mandatory caller discard. Replay rejects a scalar/structural
+slot substitution, injected claim, or removed discard, and D32 classifies the
+distinct Terminal operation as the matching emitted internal call. This is
+not yet claimed as a rooted package D32 child: the current hosted
+`ProgramEntry` provisions an exclusive receiver and no arrival parameters, so
+it cannot supply the required nontrivial owned affine operand. That ingress
+must land as a real supported source form; `ProgramEntry` is not widened merely
+to manufacture a canary. Projections, borrows, services, content evidence,
+wider layouts, and wider cleanup shapes remain unsupported.
+
 Unoptimized normalized imports with only fixed-width 8-, 16-, 32-, or 64-bit
 integer scalar arguments and either Unit or one such scalar result now reach
 the admitted-provider D32 derivation lane. Their parent retains the exact

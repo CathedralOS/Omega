@@ -12,8 +12,9 @@ use psi_core::{
 };
 use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, ProviderCandidateConformance,
-    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 use crate::AssignedCallDestination;
@@ -277,6 +278,19 @@ pub enum AssignedUnitOperation {
         scalar_arguments: Vec<AssignedUnitScalarCallArgument>,
         copies: Vec<AssignedAggregateCopy>,
         claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    StructuralResultCall {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        callee: MachineId,
+        callee_result: StructuralResultDeclaration,
+        call_plan: CallPlan,
+        scalar_arguments: Vec<AssignedUnitScalarCallArgument>,
+        copies: Vec<AssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

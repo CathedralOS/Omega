@@ -7,6 +7,11 @@ pub(in crate::lowering) fn lower_structural_return_function(
     target: NativeTarget,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<TargetFunction, LoweringError> {
+    if let Some(lowered) =
+        lower_claim_free_affine_mixed_return(function, result, target, structural_types)?
+    {
+        return Ok(lowered);
+    }
     if function.structural_parameters.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReturn(function.machine));
     }
@@ -172,7 +177,7 @@ pub(in crate::lowering) fn lower_structural_return_function(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
-mixed_structural_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: trivial_affine_locals
                 .iter()
@@ -182,6 +187,7 @@ mixed_structural_scalar_abi: None,
         },
         operation: TargetOperation::ReturnStructuralParameter {
             call_plan: call_plan.clone(),
+            scalar_parameters: Vec::new(),
             parameters: function.structural_parameters.clone(),
             source: source.clone(),
             result: result.clone(),
@@ -194,6 +200,145 @@ mixed_structural_scalar_abi: None,
             trivial_affine_discards: trivial_affine_discards.clone(),
         },
     })
+}
+
+fn lower_claim_free_affine_mixed_return(
+    function: &AbstractFunction,
+    result: &psi_terminal::StructuralResultDeclaration,
+    target: NativeTarget,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Result<Option<TargetFunction>, LoweringError> {
+    let ([scalar_parameter], [structural_parameter], [block_entry], [operation]) = (
+        function.parameters.as_slice(),
+        function.structural_parameters.as_slice(),
+        function.block_entries.as_slice(),
+        function.operations.as_slice(),
+    ) else {
+        return Ok(None);
+    };
+    let AbstractOperation::ReturnStructural {
+        psi_edge,
+        source,
+        returned_claims,
+        trivial_affine_locals,
+        trivial_affine_discards,
+    } = operation
+    else {
+        return Ok(None);
+    };
+    let ScalarType::Integer(scalar_type) = scalar_parameter.scalar_type else {
+        return Ok(None);
+    };
+    let Some(scalar_shape) = super::super::scalar_abi::fixed_native_integer_shape(scalar_type)
+    else {
+        return Ok(None);
+    };
+    let Some(declaration) = structural_types.get(&result.structural_type).copied() else {
+        return Err(LoweringError::UnknownStructuralType(result.structural_type));
+    };
+    let exact_record = matches!(
+        &declaration.shape,
+        StructuralTypeShape::Record { fields }
+            if matches!(
+                fields.as_slice(),
+                [field]
+                    if matches!(
+                        field.field_type,
+                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                            if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                && integer.bits() == 64
+                    )
+            )
+    );
+    if !exact_record
+        || !function.entry_claims.is_empty()
+        || !function.published_service_ceiling.is_empty()
+        || block_entry.block != function.entry
+        || block_entry.operation_offset != 0
+        || block_entry.parameters.as_slice() != [*scalar_parameter]
+        || structural_parameter.position != 0
+        || structural_parameter.is_self
+        || structural_parameter.multiplicity != StructuralMultiplicity::Affine
+        || structural_parameter.access != StructuralAccess::Owned
+        || !structural_parameter.qualifications.is_empty()
+        || !structural_parameter.projected_qualifications.is_empty()
+        || structural_parameter.structural_type != result.structural_type
+        || *source != structural_parameter.place
+        || result.place == structural_parameter.place
+        || result.multiplicity != StructuralMultiplicity::Affine
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !returned_claims.is_empty()
+        || !trivial_affine_locals.is_empty()
+        || !trivial_affine_discards.is_empty()
+    {
+        return Ok(None);
+    }
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let structural_shape = structural_shape(
+        structural_parameter.structural_type,
+        structural_types,
+        &mut cache,
+        &mut active,
+    )?;
+    if structural_shape != ValueShape::integer(8, 8) {
+        return Ok(None);
+    }
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![scalar_shape, structural_shape],
+            result: Some(structural_shape),
+        },
+    )
+    .map_err(LoweringError::AbiPlan)?;
+    let Some(scalar_placement) = call_plan.parameters.first().cloned() else {
+        return Err(LoweringError::AbiParameterCountMismatch {
+            expected: 2,
+            actual: call_plan.parameters.len(),
+        });
+    };
+    let Some(source_placement) = call_plan.parameters.get(1).cloned() else {
+        return Err(LoweringError::AbiParameterCountMismatch {
+            expected: 2,
+            actual: call_plan.parameters.len(),
+        });
+    };
+    let result_placement = call_plan
+        .result
+        .clone()
+        .ok_or(LoweringError::UnsupportedStructuralReturn(function.machine))?;
+    require_direct_structural_fragments(function.machine, &source_placement)?;
+    require_direct_structural_fragments(function.machine, &result_placement)?;
+    Ok(Some(TargetFunction {
+        machine: function.machine,
+        attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
+        provenance: TerminalPsiProvenance {
+            operations: Vec::new(),
+            edges: vec![*psi_edge],
+        },
+        operation: TargetOperation::ReturnStructuralParameter {
+            call_plan,
+            scalar_parameters: vec![FixedIntegerScalarAbiValue {
+                value: scalar_parameter.value,
+                scalar_type,
+                placement: scalar_placement,
+            }],
+            parameters: vec![structural_parameter.clone()],
+            source: structural_parameter.clone(),
+            result: result.clone(),
+            shape: structural_shape,
+            source_placement,
+            result_placement,
+            psi_edge: *psi_edge,
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        },
+    }))
 }
 
 pub(in crate::lowering) fn require_direct_structural_fragments(
