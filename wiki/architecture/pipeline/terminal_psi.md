@@ -288,18 +288,22 @@ phases that actually select, allocate, rewrite, or lay out physical code remain
 fenced until their own complete custody reaches the native artifact.
 
 The unoptimized admitted-provider continuation currently admits normalized
-foreign calls containing only fixed-width 8-, 16-, 32-, or 64-bit integer
-scalar arguments and either Unit or one such scalar result. Its D41 parent
+foreign calls containing fixed-width 8-, 16-, 32-, or 64-bit integer scalar
+arguments, either Unit or one such scalar result, and at most the one direct
+compiler-private callback parameter already closed by the callback lane. Its D41 parent
 retains the complete provider-execution binding, selected-plan digest,
 normalized locator, boundary-entry plan, and same-stack admission. Its physical
 child independently rejoins exact Terminal values and types to object-retained
-scalar source, placement, home, and materialization rows. The child spans the
-complete semantic-code attribution interval and contains the exact unresolved
-import relocation while retaining machine/object/image bytes and final image-
-symbol identity. Structural values, callbacks, ranked control, port effects,
+scalar source, placement, home, and materialization rows. For a direct callback
+it also rejoins the exact Terminal registrar occurrence, callback context and
+private-function identity. The child spans the complete semantic-code
+attribution interval and contains the exact unresolved import relocation plus
+the closed x86 rel32 or AArch64 page-address callback relocation set while
+retaining machine/object/image bytes and final image-symbol identity.
+Structural values, ranked control, port effects, additional callback shapes,
 and optimized foreign calls remain fail-closed rather than publishing partial
-D32 evidence. Source-produced scalar-argument/Unit and scalar-result/Unit calls
-exercise both fixed-integer directions through this lane.
+D32 evidence. Source-produced scalar-argument/Unit, scalar-result/Unit, and
+direct-callback registrar calls exercise the supported lane.
 
 Mach-O image replay derives one aligned eight-byte lazy-binding pointer slot for
 each referenced unresolved import from the exact object import/relocation sets.

@@ -23,7 +23,8 @@ pub use omega_native_artifact::{
     NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
     NativePhysicalEvidenceParts, NativePhysicalEvidenceScope, NativePhysicalOccurrence,
     NativeProviderExecution, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
-    NormalizedForeignCallRelocation, PhysicalChildParent, PhysicalRelocationDisposition,
+    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
+    NormalizedForeignCallbackRelocations, PhysicalChildParent, PhysicalRelocationDisposition,
 };
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,

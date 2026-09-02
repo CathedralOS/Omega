@@ -48,9 +48,10 @@ stop the item on one precise owner question before adding machinery.
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed unoptimized
-    normalized-import lane with fixed-width integer scalar arguments and
-    results to structural arguments/results, callbacks, ranked control, and
-    port-bearing artifacts. Preserve the exact survivor/child bijection and
+    normalized-import lane with fixed-width integer scalar arguments/results
+    and one direct compiler-private callback parameter to structural
+    arguments/results, ranked control, and port-bearing artifacts. Preserve
+    the exact survivor/child bijection and
     reconstructible D29/D41 parents;
   - add external realization custody only when independently admitted concrete
     authority exists. Never substitute a self-issued commitment.

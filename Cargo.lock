@@ -897,6 +897,7 @@ dependencies = [
  "omega-boundary-applications",
  "omega-calling-conventions",
  "omega-effects",
+ "omega-function-identity",
  "omega-image-emission",
  "omega-installation-evidence",
  "omega-machine-code",
