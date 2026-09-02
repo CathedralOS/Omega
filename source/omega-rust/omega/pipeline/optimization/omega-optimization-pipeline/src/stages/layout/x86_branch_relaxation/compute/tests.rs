@@ -132,6 +132,7 @@ fn conditional_function(
                         decoded_register_reads: vec![],
                         decoded_effects: near.footprint().encoded.clone(),
                     })),
+                    internal_machine_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -147,6 +148,7 @@ fn conditional_function(
                     offset: fallthrough_offset,
                     bytes: vec![0x90; fallthrough_arm_bytes],
                     branch: None,
+                    internal_machine_fixup: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
@@ -162,6 +164,7 @@ fn conditional_function(
                     offset: taken_offset,
                     bytes: vec![0xc3],
                     branch: None,
+                    internal_machine_fixup: None,
                 }],
             },
         ],

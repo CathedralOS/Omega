@@ -74,6 +74,7 @@ pub(super) fn layout_structural_unit_function(
             offset: return_offset,
             bytes: bytes.clone(),
             branch: None,
+            internal_machine_fixup: None,
         },
     })
 }

@@ -35,6 +35,7 @@ pub(super) fn emit(
         offset: returned.offset,
         bytes: returned.bytes.clone(),
         branch: None,
+        internal_machine_fixup: None,
         provenance: selected_return.provenance.clone(),
         control: FunctionFragmentControlProvenance::Return {
             psi_return_edge: selected.terminator.psi_return_edge,

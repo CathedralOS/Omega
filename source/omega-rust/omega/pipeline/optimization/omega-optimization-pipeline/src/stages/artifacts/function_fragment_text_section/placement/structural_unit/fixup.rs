@@ -28,16 +28,16 @@ pub(super) fn matches_target(
                 .offset
                 .checked_add(u64::from(target.opcode_byte_offset))
                 .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
-        && neutral.field_function_offset
+        && neutral.patch_function_offset
             == call
                 .offset
                 .checked_add(u64::from(target.field_byte_offset))
                 .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
-        && neutral.next_instruction_function_offset
+        && neutral.reference_function_offset
             == call
                 .offset
                 .checked_add(u64::from(target.next_instruction_byte_offset))
                 .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
-        && neutral.field_byte_width == target.field_byte_width
+        && neutral.patch_byte_width == target.field_byte_width
         && neutral.addend == target.addend)
 }

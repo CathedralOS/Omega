@@ -44,6 +44,7 @@ fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both
         assert_eq!(staged.custody().deferred_count(), 1);
         assert!(staged.encoding().rows().iter().all(|row| match &row.state {
             SelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => false,
             SelectedFormEncodingState::DeferredControl { .. } => true,
         }));
         let fresh_row = staged

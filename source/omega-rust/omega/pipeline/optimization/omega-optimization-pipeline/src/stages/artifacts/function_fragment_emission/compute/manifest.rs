@@ -10,22 +10,29 @@ use super::super::{
 };
 use super::statistics;
 
-pub(super) fn seal_relocation_free(
+pub(super) fn seal_ordinary(
     fragments: FunctionFragmentEmissionPlan,
     source: &FunctionRelativeOptimizationRealizationManifest,
     source_kind: FunctionFragmentEmissionSourceKind,
 ) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
-    seal(
-        fragments,
-        source,
-        source_kind,
-        FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
-    )
+    seal_for_fixups(fragments, source, source_kind)
 }
 
 pub(super) fn seal_structural(
     fragments: FunctionFragmentEmissionPlan,
     source: &FunctionRelativeOptimizationRealizationManifest,
+) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
+    seal_for_fixups(
+        fragments,
+        source,
+        FunctionFragmentEmissionSourceKind::StructuralUnitV1,
+    )
+}
+
+fn seal_for_fixups(
+    fragments: FunctionFragmentEmissionPlan,
+    source: &FunctionRelativeOptimizationRealizationManifest,
+    source_kind: FunctionFragmentEmissionSourceKind,
 ) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
     let statistics = statistics::compute(&fragments)?;
     let stage = if statistics.unresolved_internal_machine_fixups == 0 {
@@ -33,22 +40,6 @@ pub(super) fn seal_structural(
     } else {
         FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
     };
-    Ok(seal_with_statistics(
-        fragments,
-        source,
-        FunctionFragmentEmissionSourceKind::StructuralUnitV1,
-        stage,
-        statistics,
-    ))
-}
-
-fn seal(
-    fragments: FunctionFragmentEmissionPlan,
-    source: &FunctionRelativeOptimizationRealizationManifest,
-    source_kind: FunctionFragmentEmissionSourceKind,
-    stage: FunctionFragmentEmissionStage,
-) -> Result<super::ordinary::Emission, FunctionFragmentEmissionError> {
-    let statistics = statistics::compute(&fragments)?;
     Ok(seal_with_statistics(
         fragments,
         source,

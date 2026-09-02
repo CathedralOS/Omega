@@ -70,7 +70,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         _ => return Err(WholeFunctionExitContractError::InvalidConvention),
     };
 
-    let encoding_rows = unique_encoding_rows(encoding)?;
+    let encoding_rows = unique_encoding_rows(selected_plan, encoding)?;
     let layout_rows = unique_layout_rows(layout)?;
     let machine_functions = machine
         .functions
@@ -229,10 +229,11 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                         instruction.id,
                     ));
                 }
-                let encoding_row = encoding_rows.get(&instruction.id).ok_or(
+                let instruction_key = (function.machine, instruction.id);
+                let encoding_row = encoding_rows.get(&instruction_key).ok_or(
                     WholeFunctionExitContractError::MissingInstruction(instruction.id),
                 )?;
-                let (resolved_block, resolved_row) = layout_rows.get(&instruction.id).ok_or(
+                let (resolved_block, resolved_row) = layout_rows.get(&instruction_key).ok_or(
                     WholeFunctionExitContractError::MissingInstruction(instruction.id),
                 )?;
                 let relaxed_less_than_alternative = matches!(

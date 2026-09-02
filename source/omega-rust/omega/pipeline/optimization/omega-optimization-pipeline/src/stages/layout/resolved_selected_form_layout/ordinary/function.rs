@@ -45,7 +45,7 @@ pub(in super::super) fn layout(
                     OptimizedResolvedSelectedFormLayoutError::AlternativeMismatch(instruction.id),
                 );
             }
-            let (bytes, branch) = row::resolve(
+            let (bytes, branch, internal_machine_fixup) = row::resolve(
                 architecture,
                 function.machine,
                 block,
@@ -66,6 +66,7 @@ pub(in super::super) fn layout(
                 offset: instruction_offset,
                 bytes,
                 branch,
+                internal_machine_fixup,
             });
             instruction_offset = instruction_offset
                 .checked_add(byte_count)

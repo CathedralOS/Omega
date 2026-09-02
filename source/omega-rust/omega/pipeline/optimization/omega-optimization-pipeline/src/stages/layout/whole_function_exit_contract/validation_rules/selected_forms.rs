@@ -22,19 +22,59 @@ use super::super::{
     },
 };
 
-pub(in crate::stages::layout::whole_function_exit_contract) fn unique_encoding_rows(
-    encoding: &StagedOptimizedSelectedFormEncoding,
+pub(in crate::stages::layout::whole_function_exit_contract) fn unique_encoding_rows<'a>(
+    selected: &omega_selected_instructions::SelectedInstructionPlan,
+    encoding: &'a StagedOptimizedSelectedFormEncoding,
 ) -> Result<
-    BTreeMap<SelectedInstructionId, &crate::SelectedFormEncodingRow>,
+    BTreeMap<(psi_core::MachineId, SelectedInstructionId), &'a crate::SelectedFormEncodingRow>,
     WholeFunctionExitContractError,
 > {
     let mut rows = BTreeMap::new();
-    for row in encoding.rows() {
-        if rows.insert(row.instruction, row).is_some() {
-            return Err(WholeFunctionExitContractError::DuplicateInstruction(
-                row.instruction,
-            ));
+    let mut encoded = encoding.rows().iter();
+    for function in &selected.functions {
+        for block in &function.blocks {
+            for instruction in block
+                .instructions
+                .iter()
+                .chain(std::iter::once(match &block.terminator {
+                omega_selected_instructions::SelectedTerminator::ConditionalBranch {
+                    instruction,
+                    ..
+                }
+                | omega_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+                    instruction,
+                    ..
+                }
+                | omega_selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+                    instruction,
+                    ..
+                }
+                | omega_selected_instructions::SelectedTerminator::Return { instruction, .. } => {
+                    instruction
+                }
+            })) {
+                let row =
+                    encoded
+                        .next()
+                        .ok_or(WholeFunctionExitContractError::MissingInstruction(
+                            instruction.id,
+                        ))?;
+                if row.instruction != instruction.id
+                    || rows
+                        .insert((function.machine, row.instruction), row)
+                        .is_some()
+                {
+                    return Err(WholeFunctionExitContractError::DuplicateInstruction(
+                        row.instruction,
+                    ));
+                }
+            }
         }
+    }
+    if let Some(row) = encoded.next() {
+        return Err(WholeFunctionExitContractError::DuplicateInstruction(
+            row.instruction,
+        ));
     }
     Ok(rows)
 }
@@ -43,7 +83,7 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn unique_layout_row
     layout: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<
     BTreeMap<
-        SelectedInstructionId,
+        (psi_core::MachineId, SelectedInstructionId),
         (
             &crate::ResolvedSelectedBlockLayout,
             &crate::ResolvedSelectedFormRow,
@@ -55,7 +95,10 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn unique_layout_row
     for function in layout.functions() {
         for block in &function.blocks {
             for row in &block.instructions {
-                if rows.insert(row.instruction, (block, row)).is_some() {
+                if rows
+                    .insert((function.machine, row.instruction), (block, row))
+                    .is_some()
+                {
                     return Err(WholeFunctionExitContractError::DuplicateInstruction(
                         row.instruction,
                     ));
@@ -94,8 +137,10 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn reject_transforme
     link_units: &BTreeSet<RegisterUnitId>,
     instruction: SelectedInstructionId,
 ) -> Result<(), WholeFunctionExitContractError> {
-    let SelectedFormEncodingState::Encoded { footprint, .. } = &encoding.state else {
-        return Ok(());
+    let footprint = match &encoding.state {
+        SelectedFormEncodingState::Encoded { footprint, .. }
+        | SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. } => footprint,
+        SelectedFormEncodingState::DeferredControl { .. } => return Ok(()),
     };
     reject_implicit_unit_writes(
         &footprint.implicit_defs,
@@ -139,6 +184,11 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn transformed_impli
             .iter()
             .chain(&footprint.implicit_clobbers)
             .any(|unit| units.contains(unit)),
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { footprint, .. } => footprint
+            .implicit_defs
+            .iter()
+            .chain(&footprint.implicit_clobbers)
+            .any(|unit| units.contains(unit)),
         SelectedFormEncodingState::DeferredControl { .. } => false,
     }
 }
@@ -150,7 +200,10 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_non_retu
     layout: &crate::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let effects = match &encoding.state {
-        SelectedFormEncodingState::Encoded { footprint, bytes } => {
+        SelectedFormEncodingState::Encoded { footprint, bytes }
+        | SelectedFormEncodingState::UnresolvedInternalMachineCall {
+            footprint, bytes, ..
+        } => {
             let disposition_matches = match encoding.machine_disposition {
                 SelectedFormMachineDisposition::RetainedV1 => bytes == &layout.bytes,
                 SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { .. }
@@ -264,6 +317,11 @@ pub(in crate::stages::layout::whole_function_exit_contract) fn validate_return(
     let (bytes, effects): (&[u8], &MachineEncodedEffects) = match &encoding.state {
         SelectedFormEncodingState::Encoded { bytes, footprint } => (bytes, &footprint.encoded),
         SelectedFormEncodingState::DeferredControl { .. } => {
+            return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
+                selected.id,
+            ));
+        }
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
             return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
                 selected.id,
             ));

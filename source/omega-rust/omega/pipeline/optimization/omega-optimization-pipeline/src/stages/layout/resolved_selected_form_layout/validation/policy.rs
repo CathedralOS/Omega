@@ -36,6 +36,8 @@ pub(super) fn derive(
         })
     {
         Ok(SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1)
+    } else if selected.functions.iter().all(is_admitted_canonical_shape) {
+        Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
     } else {
         Err(
             OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(
@@ -43,6 +45,19 @@ pub(super) fn derive(
             ),
         )
     }
+}
+
+fn is_admitted_canonical_shape(function: &SelectedFunction) -> bool {
+    is_single_entry(function)
+        || (function.blocks.len() == 3
+            && matches!(
+                function.blocks.first().map(|block| &block.terminator),
+                Some(
+                    SelectedTerminator::ConditionalBranch { .. }
+                        | SelectedTerminator::ConditionalBranchU64LessThan { .. }
+                        | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+                )
+            ))
 }
 
 fn is_single_entry(function: &SelectedFunction) -> bool {

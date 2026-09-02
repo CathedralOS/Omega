@@ -2,18 +2,23 @@ use omega_machine_code::{
     FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
     FunctionFragmentSuccessorProvenance,
 };
-use omega_selected_instructions::{SelectedBlock, SelectedInstructionId, SelectedTerminator};
+use omega_selected_instructions::{
+    SelectedBlock, SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
+};
 
 pub(super) fn provenance(
     block: &SelectedBlock,
-    instruction: SelectedInstructionId,
+    instruction: &SelectedInstruction,
 ) -> FunctionFragmentControlProvenance {
+    if let SelectedInstructionKind::CallI64 { callee } = instruction.kind {
+        return FunctionFragmentControlProvenance::DirectInternalCall { callee };
+    }
     match &block.terminator {
         SelectedTerminator::ConditionalBranch {
             instruction: branch,
             when_nonzero,
             when_zero,
-        } if branch.id == instruction => FunctionFragmentControlProvenance::ConditionalBranch {
+        } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
             when_taken: FunctionFragmentSuccessorProvenance {
                 psi_edge: when_nonzero.psi_edge,
@@ -34,7 +39,7 @@ pub(super) fn provenance(
             instruction: branch,
             when_less,
             when_not_less,
-        } if branch.id == instruction => FunctionFragmentControlProvenance::ConditionalBranch {
+        } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
             when_taken: FunctionFragmentSuccessorProvenance {
                 psi_edge: when_less.psi_edge,
@@ -55,7 +60,7 @@ pub(super) fn provenance(
             instruction: branch,
             when_less,
             when_not_less,
-        } if branch.id == instruction => FunctionFragmentControlProvenance::ConditionalBranch {
+        } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
             when_taken: FunctionFragmentSuccessorProvenance {
                 psi_edge: when_less.psi_edge,
@@ -75,7 +80,7 @@ pub(super) fn provenance(
         SelectedTerminator::Return {
             instruction: returned,
             psi_return_edge,
-        } if returned.id == instruction => FunctionFragmentControlProvenance::Return {
+        } if returned.id == instruction.id => FunctionFragmentControlProvenance::Return {
             psi_return_edge: *psi_return_edge,
         },
         _ => FunctionFragmentControlProvenance::None,

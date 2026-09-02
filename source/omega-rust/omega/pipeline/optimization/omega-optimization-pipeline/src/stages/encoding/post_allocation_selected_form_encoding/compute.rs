@@ -212,7 +212,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     }
                 };
                 rows.push(encode_row(
-                    selected_plan.target.architecture,
+                    selected_plan.target,
                     selected_instruction,
                     machine_instruction,
                     physical,
@@ -299,6 +299,17 @@ fn encoding_counts(
             SelectedFormEncodingState::Encoded { .. } => &mut counts.ordinary_encoded,
             SelectedFormEncodingState::DeferredControl { .. } => {
                 &mut counts.ordinary_deferred_control
+            }
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
+                counts.ordinary_encoded_call_templates = counts
+                    .ordinary_encoded_call_templates
+                    .checked_add(1)
+                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+                counts.ordinary_deferred_internal_control = counts
+                    .ordinary_deferred_internal_control
+                    .checked_add(1)
+                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+                &mut counts.ordinary_internal_fixups
             }
         };
         *count = count

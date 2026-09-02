@@ -133,14 +133,14 @@ pub(super) fn resolve(
         opcode_section_offset: function_section_offset
             .checked_add(neutral.opcode_function_offset)
             .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
-        field_function_offset: neutral.field_function_offset,
+        field_function_offset: neutral.patch_function_offset,
         field_section_offset: function_section_offset
-            .checked_add(neutral.field_function_offset)
+            .checked_add(neutral.patch_function_offset)
             .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
-        next_instruction_function_offset: neutral.next_instruction_function_offset,
+        next_instruction_function_offset: neutral.reference_function_offset,
         next_instruction_section_offset: resolution.next_instruction_section_offset,
         callee_section_offset: resolution.callee_section_offset,
-        field_byte_width: neutral.field_byte_width,
+        field_byte_width: neutral.patch_byte_width,
         addend: neutral.addend,
         displacement: resolution.displacement,
     })

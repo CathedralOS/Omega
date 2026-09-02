@@ -13,8 +13,9 @@ use psi_core::MachineId;
 
 use crate::{
     DeferredControlEncodingReason, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormMachineDisposition, StagedOptimizedAarch64CbnzFusion,
-    StagedOptimizedAarch64SameViewCopyElision,
+    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState, SelectedFormMachineDisposition,
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64SameViewCopyElision,
 };
 
 use super::super::{OptimizedResolvedSelectedFormLayoutError, ResolvedConditionalBranchEvidence};
@@ -34,14 +35,32 @@ pub(super) fn resolve(
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
     copy_elision: Option<&StagedOptimizedAarch64SameViewCopyElision>,
 ) -> Result<
-    (Vec<u8>, Option<Box<ResolvedConditionalBranchEvidence>>),
+    (
+        Vec<u8>,
+        Option<Box<ResolvedConditionalBranchEvidence>>,
+        Option<SelectedFormInternalMachineFixup>,
+    ),
     OptimizedResolvedSelectedFormLayoutError,
 > {
     match (&pre.machine_disposition, &pre.state) {
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
-        ) => Ok((bytes.clone(), None)),
+        ) => Ok((bytes.clone(), None, None)),
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
+        ) => Ok((
+            bytes.clone(),
+            None,
+            Some(validate_internal_fixup(
+                architecture,
+                instruction,
+                instruction_offset,
+                bytes,
+                *fixup,
+            )?),
+        )),
         (
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::DeferredControl {
@@ -56,7 +75,8 @@ pub(super) fn resolve(
             machine,
             physical,
             None,
-        ),
+        )
+        .map(|(bytes, branch)| (bytes, branch, None)),
         (
             SelectedFormMachineDisposition::Aarch64ElidedCompareI64ZeroV1 { consumer },
             SelectedFormEncodingState::Encoded { .. },
@@ -69,7 +89,7 @@ pub(super) fn resolve(
             {
                 return unexpected(instruction.id);
             }
-            Ok((Vec::new(), None))
+            Ok((Vec::new(), None, None))
         }
         (
             SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 {
@@ -94,6 +114,7 @@ pub(super) fn resolve(
                 physical,
                 Some((source_read, action)),
             )
+            .map(|(bytes, branch)| (bytes, branch, None))
         }
         (
             SelectedFormMachineDisposition::Aarch64ElidedSameViewCopyI64V1 { consumer },
@@ -107,10 +128,69 @@ pub(super) fn resolve(
             {
                 return unexpected(instruction.id);
             }
-            Ok((Vec::new(), None))
+            Ok((Vec::new(), None, None))
         }
         _ => unexpected(instruction.id),
     }
+}
+
+fn validate_internal_fixup(
+    architecture: Architecture,
+    instruction: &SelectedInstruction,
+    instruction_offset: u64,
+    bytes: &[u8],
+    fixup: SelectedFormInternalMachineFixup,
+) -> Result<SelectedFormInternalMachineFixup, OptimizedResolvedSelectedFormLayoutError> {
+    let SelectedInstructionKind::CallI64 { callee } = instruction.kind else {
+        return unexpected(instruction.id);
+    };
+    match (architecture, fixup.kind) {
+        (
+            Architecture::X86_64,
+            SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
+        ) => {}
+        (
+            Architecture::Aarch64,
+            SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
+        ) => {}
+        _ => return unexpected(instruction.id),
+    }
+    if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
+        || fixup.callee != callee
+        || fixup.addend != 0
+    {
+        return unexpected(instruction.id);
+    }
+    let patch_start = usize::from(fixup.patch_row_offset);
+    let patch_end = patch_start
+        .checked_add(usize::from(fixup.patch_byte_width))
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let canonical_placeholder = match fixup.kind {
+        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => {
+            bytes.get(patch_start..patch_end) == Some(&[0, 0, 0, 0])
+        }
+        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => {
+            bytes.get(patch_start..patch_end) == Some(&0x9400_0000_u32.to_le_bytes())
+        }
+    };
+    if !canonical_placeholder {
+        return unexpected(instruction.id);
+    }
+    let row_len = u64::try_from(bytes.len())
+        .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    let row_end = instruction_offset
+        .checked_add(row_len)
+        .ok_or(OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)?;
+    if instruction_offset
+        .checked_add(u64::from(fixup.opcode_row_offset))
+        .is_none_or(|offset| offset >= row_end)
+        || instruction_offset
+            .checked_add(u64::from(fixup.reference_row_offset))
+            .is_none_or(|offset| offset > row_end)
+    {
+        return unexpected(instruction.id);
+    }
+    Ok(fixup)
 }
 
 fn copy_action<'a>(

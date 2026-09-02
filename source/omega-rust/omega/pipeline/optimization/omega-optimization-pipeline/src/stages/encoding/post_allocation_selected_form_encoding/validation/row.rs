@@ -6,7 +6,7 @@ use omega_selected_instructions::{
     MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction, SelectedInstructionId,
     SelectedInstructionKind,
 };
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget};
 
 use super::super::{
     DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
@@ -15,12 +15,13 @@ use super::super::{
 };
 
 mod aarch64_movn;
+mod scalar_call;
 mod x86_mov_r32_imm32;
 mod x86_mov_r64_imm32_sign_extended;
 mod x86_xor_zero;
 
 pub(super) fn validate(
-    architecture: Architecture,
+    target: NativeTarget,
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
@@ -28,6 +29,7 @@ pub(super) fn validate(
     materialization: Option<MaterializationDisposition<'_>>,
     row: &SelectedFormEncodingRow,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let architecture = target.architecture;
     validate_machine_disposition(
         architecture,
         selected,
@@ -42,6 +44,9 @@ pub(super) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     match (selected.kind, materialization) {
+        (kind @ SelectedInstructionKind::CallI64 { .. }, None) => {
+            scalar_call::validate(target, selected.id, kind, machine, physical, &row.state)
+        }
         (
             kind @ SelectedInstructionKind::MaterializeI64 { .. },
             Some(MaterializationDisposition::Aarch64Movn(disposition)),

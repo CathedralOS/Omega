@@ -45,13 +45,13 @@ pub(super) fn emit(
             opcode_function_offset: base
                 .checked_add(u64::from(fixup.opcode_byte_offset))
                 .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
-            field_function_offset: base
+            patch_function_offset: base
                 .checked_add(u64::from(fixup.field_byte_offset))
                 .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
-            next_instruction_function_offset: base
+            reference_function_offset: base
                 .checked_add(u64::from(fixup.next_instruction_byte_offset))
                 .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
-            field_byte_width: fixup.field_byte_width,
+            patch_byte_width: fixup.field_byte_width,
             addend: fixup.addend,
         },
     })

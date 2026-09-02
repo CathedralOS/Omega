@@ -60,6 +60,8 @@ pub(super) fn decode_manifest_content(
         1 => SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
         2 => SelectedFunctionLayoutPolicy::SingleEntryBlockV1,
         3 => SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1,
+        4 => SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1,
+        5 => SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
         tag => return Err(Error::UnknownLayoutPolicy(tag)),
     };
     let scope = match cursor.byte()? {

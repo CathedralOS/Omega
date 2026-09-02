@@ -83,7 +83,7 @@ pub(super) fn encode_structural_function(
         );
     }
     let return_instruction = encode_row(
-        target.architecture,
+        target,
         selected_return,
         &machine.return_instruction,
         physical,

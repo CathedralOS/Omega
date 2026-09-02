@@ -158,6 +158,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
         );
         assert!(encodings.rows().iter().all(|row| match &row.state {
             SelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => false,
             SelectedFormEncodingState::DeferredControl { .. } => true,
         }));
         let returns = encodings

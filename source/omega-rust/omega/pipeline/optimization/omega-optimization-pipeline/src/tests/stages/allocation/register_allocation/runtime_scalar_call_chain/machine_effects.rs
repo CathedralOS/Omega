@@ -148,15 +148,17 @@ fn scalar_calls_retain_exact_effects_through_post_allocation_persistence() {
             .live_range_stage()
             .liveness_stage()
             .selected_stage();
-        assert!(
-            stage_optimized_layout_independent_selected_form_encoding(
-                selected_stage.selected(),
-                &post,
-                selected_stage.register_environment().physical(),
-            )
-            .is_err(),
-            "machine effects do not imply call encoding or fixup authority"
-        );
+        let encoding = stage_optimized_layout_independent_selected_form_encoding(
+            selected_stage.selected(),
+            &post,
+            selected_stage.register_environment().physical(),
+        )
+        .expect("target-owned call templates must now reach selected-form encoding");
+        assert_eq!(encoding.counts().ordinary_encoded_call_templates, 3);
+        assert_eq!(encoding.counts().ordinary_deferred_internal_control, 3);
+        assert_eq!(encoding.counts().ordinary_internal_fixups, 3);
+        assert_eq!(encoding.counts().ordinary_encoded, 17);
+        assert_eq!(encoding.counts().ordinary_deferred_control, 1);
     }
 }
 

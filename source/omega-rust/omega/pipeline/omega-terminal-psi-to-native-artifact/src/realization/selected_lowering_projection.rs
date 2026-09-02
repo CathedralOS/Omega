@@ -267,6 +267,7 @@ mod tests {
                     offset: 0,
                     bytes: vec![0xc3],
                     branch: None,
+                    internal_machine_fixup: None,
                     provenance: SelectedInstructionProvenance {
                         operations: Vec::new(),
                         values: Vec::new(),

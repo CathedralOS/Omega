@@ -128,9 +128,9 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         .expect("caller fragment owns the unresolved internal call");
     assert_eq!(fragment_call.offset, 0);
     assert_eq!(fragment_call.fixup.opcode_function_offset, 80);
-    assert_eq!(fragment_call.fixup.field_function_offset, 81);
-    assert_eq!(fragment_call.fixup.next_instruction_function_offset, 85);
-    assert_eq!(fragment_call.fixup.field_byte_width, 4);
+    assert_eq!(fragment_call.fixup.patch_function_offset, 81);
+    assert_eq!(fragment_call.fixup.reference_function_offset, 85);
+    assert_eq!(fragment_call.fixup.patch_byte_width, 4);
     assert_eq!(fragment_call.fixup.addend, 0);
     let fragment_manifest = fragments.manifest().record();
     assert_eq!(
@@ -176,14 +176,14 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         .as_ref()
         .unwrap()
         .fixup
-        .field_function_offset;
+        .patch_function_offset;
     fragments.fragments_mut().structural_unit_functions[0]
         .block
         .call
         .as_mut()
         .unwrap()
         .fixup
-        .field_function_offset += 1;
+        .patch_function_offset += 1;
     assert!(matches!(
         validate_optimized_function_fragment_emission(&fragments),
         Err(FunctionFragmentEmissionError::ArtifactMismatch)
@@ -198,7 +198,7 @@ pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegister
         .as_mut()
         .unwrap()
         .fixup
-        .field_function_offset = original_field_offset;
+        .patch_function_offset = original_field_offset;
     validate_optimized_function_fragment_emission(&fragments).unwrap();
 
     let original_template_byte = fragments.fragments().structural_unit_functions[0]
