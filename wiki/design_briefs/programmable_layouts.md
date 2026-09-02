@@ -584,12 +584,12 @@ One further represented acyclic, non-generic, case-free record may now occur on
 that spine when its canonical fixed representation is nonzero. Its authored
 projection preserves both enclosing field identities before the direct erased
 leaves and reuses the exact root plan entry for represented-sibling diagnostics.
-Third through seventeenth represented record levels are also live under the same
+Third through eighteenth represented record levels are also live under the same
 restrictions. Their projections preserve every enclosing identity, and
 bounded, memoized descendant replay fails closed when an unsupported deeper
 shape could hide erased custody. One bounded recursive classifier and validator
 owns every admitted depth rather than duplicating the agreement algorithm per
-level. This is ordinary conformance checking only; an eighteenth represented record
+level. This is ordinary conformance checking only; a nineteenth represented record
 level, zero-layout wrappers, arrays, generic,
 case-dependent, planless,
 and establishment-operation custody remain open.

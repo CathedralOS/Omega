@@ -3927,7 +3927,7 @@ fn split_affine_frontier_at_projection(
         }
         StructuralTypeShape::FixedArray {
             element,
-            length: length @ (2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12),
+            length: length @ (2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13),
         } if matches!(next_segment, StructuralPathSegment::FixedIndex(index) if index < length) => {
             let StructuralPathSegment::FixedIndex(selected_index) = next_segment else {
                 unreachable!()
