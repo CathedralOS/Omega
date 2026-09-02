@@ -302,13 +302,26 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         compact_driver
             .matches("compile_checked_with_observations(&request)?")
             .count(),
+        0,
+        "the common checked-Psi frontend now receives the optional prepared source checkpoint explicitly"
+    );
+    assert_eq!(
+        compact_driver
+            .matches("compile_checked_with_observations(&request,prepared)?")
+            .count(),
         1,
-        "every requested product must share one checked-Psi frontend execution"
+        "every single or batched child product must share one checked-Psi frontend continuation"
+    );
+    assert!(
+        compact_driver.contains(
+            "letrequest=request.validate_for_execution()?;compile_validated(request,None)"
+        ),
+        "the single-request entrance must admit once before the common product continuation"
     );
     let mut ordered_driver = compact_driver.as_str();
     for stage in [
-        "letrequest=request.validate_for_execution()?;",
-        "compile_checked_with_observations(&request)?;",
+        "fncompile_validated(",
+        "compile_checked_with_observations(&request,prepared)?;",
         "matchrequest.requested_product(){",
     ] {
         let offset = ordered_driver.find(stage).unwrap_or_else(|| {

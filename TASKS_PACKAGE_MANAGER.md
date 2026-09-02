@@ -254,18 +254,15 @@ explicitly.
 
 - [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
   semantics begin.**
-  - consume `ExplicitTargetSet` at the orchestration boundary, drive the landed
-    `PreparedCheckedSource` continuation across every canonical exact child,
-    and share flat build facts plus any later target-independent stage result;
+  - lift flat build facts and any later target-independent immutable result
+    above the landed exact-child orchestration boundary;
   - reuse an identical checked/Terminal Psi or PCC product across target
     children only after exact strong-identity equality, then supply each native
     branch with its own target and lowering-authority inputs;
-  - retain one batch manifest over the explicit request set and child outcomes,
-    without publishing application-support, tested-target, audit, or deployment
-    coverage; and
-  - add one-target/many-target equivalence, sibling-identity stability, shared-
-    Psi/different-lowerer, target-specific-Psi, continue-after-child-failure,
-    and forbidden-discovery controls.
+  - add package generated-source child isolation, successful-child artifact
+    identity stability when siblings change, shared-Psi/different-lowerer, and
+    target-specific-Psi controls. Add the optional non-authoritative batch
+    manifest only if a concrete operational consumer emerges.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
   authority-bearing outputs.**
