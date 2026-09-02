@@ -20,6 +20,10 @@ use crate::{
     x86_64_register_constraint_catalog,
 };
 
+mod scalar_call;
+
+pub use scalar_call::*;
+
 pub const X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT: usize = 89;
 pub const X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET: u16 = 80;
 pub const X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET: u16 = 81;

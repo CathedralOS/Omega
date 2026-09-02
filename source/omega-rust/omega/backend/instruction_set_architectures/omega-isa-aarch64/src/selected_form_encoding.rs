@@ -8,6 +8,10 @@ use psi_core::IntegerValue;
 
 use crate::aarch64_physical_register_model;
 
+mod scalar_call;
+
+pub use scalar_call::*;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Aarch64SelectedFormFootprint {
     pub register_reads: Vec<RegisterViewId>,
