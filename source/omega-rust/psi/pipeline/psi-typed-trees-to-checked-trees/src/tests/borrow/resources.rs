@@ -1137,6 +1137,24 @@ fn mutable_parent_two_shared_children_restored_use() -> psi_checked_trees::Check
     )
 }
 
+fn mutable_parent_three_shared_children_restored_use() -> psi_checked_trees::CheckedTrees {
+    lower(
+        r#"
+        data Main { value: i32; }
+        machine observe(left: &i32, middle: &i32, right: &i32) {}
+        machine mutate(value: &mut i32) { value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut i32 = &mut self.value;
+            let left: &i32 = &parent;
+            let middle: &i32 = &parent;
+            let right: &i32 = &parent;
+            observe(left, middle, right);
+            mutate(parent);
+        }
+        "#,
+    )
+}
+
 #[test]
 fn sole_shared_child_restores_the_exact_mutable_parent_at_the_next_mutating_call() {
     let mut checked = mutable_parent_sole_shared_child_restored_use();
@@ -1280,6 +1298,140 @@ fn two_shared_children_reject_incomplete_duplicate_and_mismatched_restoration() 
             "two-member restoration mutation {mutation} must reject"
         );
     }
+}
+
+#[test]
+fn three_shared_children_restore_one_exact_complete_cohort_transactionally() {
+    let baseline = mutable_parent_three_shared_children_restored_use();
+    let certificates = baseline
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .collect::<Vec<_>>();
+    let [(_, certificate)] = certificates.as_slice() else {
+        panic!("one three-member shared-cohort restored-use certificate")
+    };
+    let disposition = baseline
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get(certificate.disposition);
+    let [left, middle, right] = disposition.shared_cohort.as_slice() else {
+        panic!("the exact three-member shared cohort")
+    };
+    assert_eq!(
+        disposition.disposition,
+        psi_checked_trees::CheckedReborrowResourceDisposition::RestoreSharedCohort
+    );
+    assert!(disposition.retired_parent_path.is_empty());
+    let primary = baseline
+        .facts
+        .borrow
+        .reborrow_loan_resources
+        .get(certificate.child_resource);
+    assert_eq!(
+        disposition.final_target,
+        psi_checked_trees::CheckedBorrowResourceDispositionTarget::ParentResource(
+            primary.parent_resource.clone()
+        )
+    );
+    assert_ne!(left, middle);
+    assert_ne!(left, right);
+    assert_ne!(middle, right);
+    for (offset, member) in [left, middle, right].into_iter().enumerate() {
+        let child = baseline.facts.borrow.reborrow_loan_resources.get(*member);
+        assert_eq!(child.parent_loan, certificate.parent_loan);
+        assert_eq!(child.access, psi_checked_trees::BorrowAccessKind::Read);
+        assert_eq!(
+            child.access_effect,
+            psi_checked_trees::CheckedReborrowAccessEffect::SharedFreeze
+        );
+        assert_eq!(child.weakening_source, disposition.boundary_source);
+        assert_eq!(
+            child.weakening_reason,
+            psi_checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+        );
+        assert_eq!(
+            child.activation_source,
+            psi_checked_trees::FlowInvalidationSource::Statement {
+                statement_index: offset + 1
+            }
+        );
+        let containments = baseline
+            .facts
+            .borrow
+            .reborrow_containment_certificates
+            .iter()
+            .filter(|(_, row)| row.child_resource == *member)
+            .map(|(_, row)| row)
+            .collect::<Vec<_>>();
+        let [containment] = containments.as_slice() else {
+            panic!("one exact SharedFreeze row per cohort member")
+        };
+        assert_eq!(
+            containment.containment,
+            psi_checked_trees::CheckedReborrowContainmentKind::SharedFreeze
+        );
+    }
+    let mut replayed = baseline.clone();
+    crate::checks::check_checked_facts_recording(&replayed.typed, &mut replayed.facts)
+        .expect("three-member shared restored call use independently replays");
+
+    for mutation in 0..3 {
+        let mut checked = baseline.clone();
+        let disposition = checked
+            .facts
+            .borrow
+            .reborrow_disposition_events
+            .get_mut(certificate.disposition);
+        match mutation {
+            0 => {
+                disposition.shared_cohort.pop();
+            }
+            1 => {
+                disposition.shared_cohort[2] = disposition.shared_cohort[0];
+            }
+            2 => disposition.shared_cohort.swap(1, 2),
+            _ => unreachable!(),
+        }
+        assert!(
+            crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+                .is_err(),
+            "three-member restoration mutation {mutation} must reject"
+        );
+        let mut replayed = baseline.clone();
+        crate::checks::check_checked_facts_recording(&replayed.typed, &mut replayed.facts)
+            .expect("failed replay does not poison the original three-member facts");
+    }
+}
+
+#[test]
+fn four_shared_children_remain_outside_restored_call_authority() {
+    let checked = lower(
+        r#"
+        data Main { value: i32; }
+        machine observe(a: &i32, b: &i32, c: &i32, d: &i32) {}
+        machine mutate(value: &mut i32) { value = 1; }
+        machine Main::exercise(&mut self) {
+            let parent: &mut i32 = &mut self.value;
+            let a: &i32 = &parent;
+            let b: &i32 = &parent;
+            let c: &i32 = &parent;
+            let d: &i32 = &parent;
+            observe(a, b, c, d);
+            mutate(parent);
+        }
+        "#,
+    );
+    assert!(
+        checked
+            .facts
+            .borrow
+            .reborrow_restored_call_use_certificates
+            .is_empty(),
+        "a fourth shared member must remain unclassified"
+    );
 }
 
 #[test]

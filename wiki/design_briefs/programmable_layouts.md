@@ -104,11 +104,11 @@ tag placement.
 
 Subsequent independent fixed-depth reports extend that same composition through
 the complete plural depth-three, depth-four, depth-five, depth-six,
-depth-seven, depth-eight, depth-nine, depth-ten, depth-eleven, and depth-twelve
-cohorts.
+depth-seven, depth-eight, depth-nine, depth-ten, depth-eleven, depth-twelve,
+and depth-thirteen cohorts.
 The deepest live form is
-`Outer -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
-each outer occurrence owns the unchanged depth-eleven report and non-clone
+`Outer -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`:
+each outer occurrence owns the unchanged depth-twelve report and non-clone
 carrier, repeated nominal occurrences remain distinct, and projection plus
 replay share one memoized bounded walk and one global leaf ceiling. Every nested
 image is rebuilt from zero padding before one atomic outer copy. Deeper, recursive,
@@ -584,12 +584,12 @@ One further represented acyclic, non-generic, case-free record may now occur on
 that spine when its canonical fixed representation is nonzero. Its authored
 projection preserves both enclosing field identities before the direct erased
 leaves and reuses the exact root plan entry for represented-sibling diagnostics.
-Third through eighteenth represented record levels are also live under the same
+Third through nineteenth represented record levels are also live under the same
 restrictions. Their projections preserve every enclosing identity, and
 bounded, memoized descendant replay fails closed when an unsupported deeper
 shape could hide erased custody. One bounded recursive classifier and validator
 owns every admitted depth rather than duplicating the agreement algorithm per
-level. This is ordinary conformance checking only; a nineteenth represented record
+level. This is ordinary conformance checking only; a twentieth represented record
 level, zero-layout wrappers, arrays, generic,
 case-dependent, planless,
 and establishment-operation custody remain open.

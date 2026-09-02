@@ -676,7 +676,7 @@ fn plan_reborrow_containment_certificates(
     Ok(certificates)
 }
 
-fn exact_two_shared_cohort_observation(
+fn exact_shared_cohort_observation(
     program: &psi_typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     flow: &FlowFacts,
@@ -727,7 +727,7 @@ fn exact_two_shared_cohort_observation(
             .statement_table
             .statements(target_state.statement_nodes)
             .is_empty()
-        || program.state_parameters(target_state).len() != 2
+        || program.state_parameters(target_state).len() != cohort.len()
         || program
             .state_parameters(target_state)
             .iter()
@@ -765,8 +765,8 @@ fn exact_two_shared_cohort_observation(
         return false;
     };
     let accesses = borrow.argument_accesses.span_or_empty(borrow_call.accesses);
-    accesses.len() == 2
-        && cohort.len() == 2
+    matches!(cohort.len(), 2 | 3)
+        && accesses.len() == cohort.len()
         && accesses.iter().zip(cohort).all(|(access, (_, member))| {
             access.root_symbol == member.owner_symbol
                 && borrow.access_segments(access).is_empty()
@@ -776,7 +776,7 @@ fn exact_two_shared_cohort_observation(
 
 /// Retain the first deliberately narrow post-restoration use shapes: one direct
 /// exclusive child, or every member of one complete shared-freeze cohort of at
-/// most two children, ends by last use immediately before one receiver-free
+/// most three children, ends by last use immediately before one receiver-free
 /// call mutates the whole restored mutable parent carrier. Earlier fully ended
 /// sequential exclusive siblings do not invalidate that exact per-child event;
 /// the shared form requires the restoration event's exact complete roster.
@@ -817,7 +817,7 @@ fn plan_reborrow_restored_call_uses(
             .enumerate()
             .filter(|(_, candidate)| candidate.parent_loan == parent.loan)
             .collect::<Vec<_>>();
-        let bounded_shared_freeze = matches!(shared_cohort.len(), 1 | 2)
+        let bounded_shared_freeze = matches!(shared_cohort.len(), 1 | 2 | 3)
             && shared_cohort.iter().all(|(_, member)| {
                 member.access == psi_checked_trees::BorrowAccessKind::Read
                     && member.access_effect == CheckedReborrowAccessEffect::SharedFreeze
@@ -974,8 +974,8 @@ fn plan_reborrow_restored_call_uses(
             continue;
         };
         if bounded_shared_freeze
-            && shared_cohort.len() == 2
-            && !exact_two_shared_cohort_observation(
+            && shared_cohort.len() > 1
+            && !exact_shared_cohort_observation(
                 program,
                 borrow,
                 flow,

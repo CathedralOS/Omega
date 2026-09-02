@@ -95,6 +95,25 @@ pub(super) fn depth_twelve_paths_reports_match_for_replay(
         })
 }
 
+pub(super) fn depth_thirteen_paths_reports_match_for_replay(
+    left: &ConventionalDepthThirteenRecordSumPathsLayoutReport,
+    right: &ConventionalDepthThirteenRecordSumPathsLayoutReport,
+) -> bool {
+    layout_plan_reports_match_for_replay(&left.outer_layout, &right.outer_layout)
+        && left.paths.len() == right.paths.len()
+        && left.paths.iter().zip(&right.paths).all(|(left, right)| {
+            field_occurrence_matches(
+                &left.outer_field,
+                left.outer_member_identity,
+                &right.outer_field,
+                right.outer_member_identity,
+            ) && depth_twelve_paths_reports_match_for_replay(
+                &left.depth_twelve_paths,
+                &right.depth_twelve_paths,
+            )
+        })
+}
+
 pub(super) fn depth_eleven_paths_reports_match_for_replay(
     left: &ConventionalDepthElevenRecordSumPathsLayoutReport,
     right: &ConventionalDepthElevenRecordSumPathsLayoutReport,
@@ -328,6 +347,60 @@ pub(super) fn depth_twelve_nested_sums_materialization_report_fingerprint(
         hash_u64(
             &mut hash,
             normalized_layout_plan_report_fingerprint(&path.depth_eleven_paths.outer_layout),
+        );
+        hash_u64(
+            &mut hash,
+            occurrence
+                .inner
+                .non_authoritative_materialization_report_fingerprint(),
+        );
+    }
+    hash_byte(
+        &mut hash,
+        match byte_order {
+            ByteOrder::LittleEndian => 0,
+            ByteOrder::BigEndian => 1,
+        },
+    );
+    hash_value(&mut hash, value);
+    hash_u64(&mut hash, bytes.len() as u64);
+    hash_bytes(&mut hash, bytes);
+    if hash == 0 { 1 } else { hash }
+}
+
+pub(super) fn depth_thirteen_nested_sums_materialization_report_fingerprint(
+    schema_name: &str,
+    schema_report_fingerprint: u64,
+    outer_layout_report_fingerprint: u64,
+    path_layout: &ConventionalDepthThirteenRecordSumPathsLayoutReport,
+    occurrences: &[ValidatedConstDepthThirteenNestedSumOccurrenceMaterialization],
+    byte_order: ByteOrder,
+    value: &BuildTimeValue,
+    bytes: &[u8],
+) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    hash_bytes(
+        &mut hash,
+        b"omega.const-materializable-plural-depth-thirteen-record-sum-paths.v1",
+    );
+    hash_text(&mut hash, schema_name);
+    hash_u64(&mut hash, schema_report_fingerprint);
+    hash_u64(&mut hash, outer_layout_report_fingerprint);
+    hash_u64(&mut hash, occurrences.len() as u64);
+    for (path, occurrence) in path_layout.paths.iter().zip(occurrences) {
+        match path.outer_member_identity {
+            Some(identity) => {
+                hash_byte(&mut hash, 1);
+                hash_u64(&mut hash, identity);
+            }
+            None => {
+                hash_byte(&mut hash, 0);
+                hash_text(&mut hash, &path.outer_field);
+            }
+        }
+        hash_u64(
+            &mut hash,
+            normalized_layout_plan_report_fingerprint(&path.depth_twelve_paths.outer_layout),
         );
         hash_u64(
             &mut hash,

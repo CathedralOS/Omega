@@ -2179,17 +2179,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through eighteenth bounded represented-record levels are now live under
+  Third through nineteenth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of sixteen
+  recursive classifier and validator owns every admitted depth instead of seventeen
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A nineteenth
+  storage, content, domain, provider, or establishment authority. A twentieth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -6744,16 +6744,17 @@ Owners:
 
   The first checked post-restoration use certificate is now live for one
   direct-root `Mutable` parent and either an exact `Mutable`/`WriteOnly`
-  exclusive child, one exact `Read` child, or one exact two-member concurrent
-  `Read` cohort for the parent. Other non-overlapping sequential exclusive
-  siblings may occur. The exclusive form requires exact `Reactivate` and
-  `ExclusiveSuspension`; the
-  shared form requires `RestoreSharedCohort`, exact roster `[child]` or
-  `[left, right]`, and independently replayed `SharedFreeze` evidence for every
-  member. A two-member cohort must make its last uses together in one exact
-  empty, receiver-free, two-shared-parameter observation call; that call's two
-  borrow-only aliases erase to the same checked parent place, and the whole-
-  parent mutation must be the immediately following statement. All forms end
+  exclusive child, one exact `Read` child, or one exact two- or three-member
+  concurrent `Read` cohort for the parent. Other non-overlapping sequential
+  exclusive siblings may occur. The exclusive form requires exact `Reactivate`
+  and `ExclusiveSuspension`; the
+  shared form requires `RestoreSharedCohort`, exact roster `[child]`,
+  `[left, right]`, or `[left, middle, right]`, and independently replayed
+  `SharedFreeze` evidence for every member. A multi-member cohort must make its
+  last uses together in one exact empty, receiver-free observation call with
+  one shared parameter per member; that call's borrow-only aliases erase to the
+  same checked parent place, and the whole-parent mutation must be the
+  immediately following statement. All forms end
   by `LastUseExpired` before one runtime-receiver-free call with one exact
   mutable-reference parameter takes the bare parent carrier and mutates the
   complete restored referent. Nominal static
@@ -6761,7 +6762,7 @@ Owners:
   as a runtime receiver. The certificate rejoins the exact child and parent
   resources, weakening, disposition, containment, flow and borrow call rows,
   carrier-read access, parent-loan entry constraint, captured places, restored
-  access, and target. Independent replay is transactional. Three-member or
+  access, and target. Independent replay is transactional. Four-member or
   sequential shared cohorts, multihop children, other concurrent siblings,
   state-exit closure, projected
   arguments, direct assignment, receiver calls, extra parameters, and
@@ -6793,7 +6794,7 @@ Owners:
 
   Extend the settled reborrow-restoration model beyond the now-published
   one-hop whole-parent call and linear state-exit root custody only after
-  independent replay. Three-member or sequential shared-freeze cohorts,
+  independent replay. Four-member or sequential shared-freeze cohorts,
   multihop or branching restored use, projected/direct-assignment use, and
   non-state-exit root custody remain
   outside the current Terminal rung.
@@ -9403,9 +9404,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to thirty-one unary, binary, primitive-cast,
+  call producers in up to thirty-two unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  thirty-second direct scalar shell remains fenced; aggregate fields and
+  thirty-third direct scalar shell remains fenced; aggregate fields and
   projected concrete record, selected-case, or fixed-array literals retain
   their separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9449,7 +9450,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a thirty-second direct scalar computed
+  aggregate/literal computed shell, a thirty-third direct scalar computed
   shell, other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
@@ -9923,7 +9924,18 @@ reach or trust, and private proof improvements do not change public identity.
   208-byte outer layout, 104-byte outer stride, exact offsets, and five fuel
   units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
   wrong-length/layout/stride/offset, codec, object, image, and installation
-  mutations reject. `[[T; 14]; 2]` and wider forms remain fenced without
+  mutations reject.
+
+  The next exact nested successor is now closed. The same carrier admits
+  `[[T; 14]; 2]` with one distinct literal leaf move from each outer element
+  and twenty-six live residual leaves in decreasing outer-then-inner order.
+  Checked production through Terminal codec/interpreter replay, Omega
+  lowering, optimization validation, five-target layout and machine emission,
+  object, image, and installation replay retain the authored two-call order,
+  224-byte outer layout, 112-byte outer stride, exact offsets, and five fuel
+  units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
+  wrong-length/layout/stride/offset, codec, object, image, and installation
+  mutations reject. `[[T; 15]; 2]` and wider forms remain fenced without
   runtime liveness state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
@@ -12530,22 +12542,36 @@ checked-result arithmetic decision listed below.
   records, recursive or array-mediated paths, direct-sum coexistence, and
   target-dependent placement remain rejected; every shallower API retains its
   exact boundary.
-  The `omega-layout` materialization owner's 6,224-line regression corpus now
-  lives in a 4,306-line private test root over a focused 1,885-line
-  depth-eight-through-twelve child. The 3,864-line production owner retains all
-  43 production functions, all 19 public projection entry points, exact module
-  paths, diagnostics, and the complete 27-test crate behavior unchanged.
-  The matching 10,497-line Psi materialization owner is now a 4,109-line public
-  carrier/replay facade over private byte-derivation (4,940 lines), report-
-  identity (1,091 lines), and bounded sum-reachability (374 lines) owners. All
-  27 public carrier types, all 15 public validation entry points, all 48
+  The complete plural depth-thirteen fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-twelve report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-twelve carriers, preserves repeated nominal
+  occurrences, rebuilds every nested zero-padded image in authored order,
+  replays every layout and occurrence identity hash-free, and performs one
+  final atomic copy. Projection and replay share one memoized bounded walk and
+  global leaf ceiling across the complete cohort. Paths deeper than thirteen
+  records, recursive or array-mediated paths, direct-sum coexistence, and
+  target-dependent placement remain rejected; every shallower API retains its
+  exact boundary.
+  The `omega-layout` materialization owner's 6,626-line regression corpus now
+  lives in a 4,305-line private test root over a focused 2,287-line
+  depth-eight-through-thirteen child. The 4,108-line production owner retains
+  all 45 production functions, all 20 public projection entry points, exact
+  module paths, diagnostics, and the complete 28-test crate behavior unchanged.
+  The matching 11,254-line Psi materialization owner is now a 4,404-line public
+  carrier/replay facade over private byte-derivation (5,329 lines), report-
+  identity (1,164 lines), and bounded sum-reachability (374 lines) owners. All
+  29 public carrier types, all 16 public validation entry points, all 51
   production types, the complete function/method inventory, sibling
   `SumReachability` import path, diagnostics, and the 31-test crate behavior are
   unchanged. This is module ownership only; the fixed-depth reports and their
   exact shallower/deeper rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  twelve records, plural paths deeper than twelve records, mixed common-field/case
-  shapes,
+  thirteen records, plural paths deeper than thirteen records, mixed
+  common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,
   Text, dynamic values, atomics, non-copy data, and malformed shapes remain

@@ -496,33 +496,41 @@ fn validate_reborrow_restored_call_uses(
                 ) && row.shared_cohort.is_empty()
             }
             psi_terminal::TerminalReborrowRestorationClass::SharedFreezeRestoration => {
-                if !matches!(row.shared_cohort.len(), 1 | 2) {
+                if !matches!(row.shared_cohort.len(), 1 | 2 | 3) {
                     return Err(ModuleError::InvalidReborrowRestoredCallUse {
                         machine: row.machine,
                         operation: row.operation,
                     });
                 }
-                let cohort_is_unique =
-                    row.shared_cohort.len() == 1 || row.shared_cohort[0] != row.shared_cohort[1];
-                let cohort_owner_order = match row.shared_cohort.as_slice() {
-                    [_] => true,
-                    [left, right] => {
-                        (left.child_owner_identity.as_str(), &left.child_owner_path)
-                            != (right.child_owner_identity.as_str(), &right.child_owner_path)
-                            && matches!(
-                                (&left.child_activation, &right.child_activation),
+                let cohort_is_unique = row
+                    .shared_cohort
+                    .iter()
+                    .enumerate()
+                    .all(|(index, member)| !row.shared_cohort[..index].contains(member));
+                let cohort_owner_order =
+                    row.shared_cohort.iter().enumerate().all(|(index, member)| {
+                        !row.shared_cohort[..index].iter().any(|prior| {
+                            (prior.child_owner_identity.as_str(), &prior.child_owner_path)
+                                == (
+                                    member.child_owner_identity.as_str(),
+                                    &member.child_owner_path,
+                                )
+                        }) && (index == 0
+                            || matches!(
+                                (
+                                    &row.shared_cohort[index - 1].child_activation,
+                                    &member.child_activation,
+                                ),
                                 (
                                     psi_terminal::TerminalBorrowBoundarySource::Statement {
-                                        statement_index: left_start,
+                                        statement_index: previous_start,
                                     },
                                     psi_terminal::TerminalBorrowBoundarySource::Statement {
-                                        statement_index: right_start,
+                                        statement_index: member_start,
                                     },
-                                ) if left_start < right_start
-                            )
-                    }
-                    _ => false,
-                };
+                                ) if previous_start < member_start
+                            ))
+                    });
                 let primary_count = row
                     .shared_cohort
                     .iter()
@@ -580,7 +588,7 @@ fn validate_reborrow_restored_call_uses(
                     && cohort_is_exact
                     && (row.shared_cohort.len() == 1
                         || machine.is_some_and(|caller| {
-                            exact_two_shared_cohort_observation(caller, machines, row.operation)
+                            exact_shared_cohort_observation(caller, machines, row.operation)
                         }))
             }
         };
@@ -627,7 +635,7 @@ fn validate_reborrow_restored_call_uses(
     Ok(())
 }
 
-fn exact_two_shared_cohort_observation(
+fn exact_shared_cohort_observation(
     caller: &TerminalMachine,
     machines: &BTreeMap<psi_core::MachineId, &TerminalMachine>,
     mutation: psi_core::OperationId,
@@ -671,9 +679,9 @@ fn exact_two_shared_cohort_observation(
     else {
         return false;
     };
-    let [left, right] = structural_arguments.as_slice() else {
+    if !matches!(structural_arguments.len(), 2 | 3) {
         return false;
-    };
+    }
     let Some(observer) = machines.get(callee) else {
         return false;
     };
@@ -684,32 +692,31 @@ fn exact_two_shared_cohort_observation(
     else {
         return false;
     };
-    let [observer_left, observer_right] = observer.structural_parameters.as_slice() else {
+    if observer.structural_parameters.len() != structural_arguments.len() {
         return false;
-    };
+    }
     let [observer_block] = observer.blocks.as_slice() else {
         return false;
     };
     observation.result == OperationResult::Unit
-        && left.place == mutation_argument.place
-        && right.place == mutation_argument.place
-        && left.path.is_empty()
-        && right.path.is_empty()
-        && left.access == StructuralAccess::SharedBorrow
-        && right.access == StructuralAccess::SharedBorrow
+        && structural_arguments
+            .iter()
+            .zip(&observer.structural_parameters)
+            .enumerate()
+            .all(|(position, (argument, parameter))| {
+                argument.place == mutation_argument.place
+                    && argument.path.is_empty()
+                    && argument.access == StructuralAccess::SharedBorrow
+                    && u32::try_from(position).ok() == Some(parameter.position)
+                    && !parameter.is_self
+                    && parameter.access == StructuralAccess::SharedBorrow
+                    && parameter.structural_type == caller_parameter.structural_type
+            })
         && claim_transfers.is_empty()
         && requirement_obligations.is_empty()
         && crash_continuations.is_empty()
         && observer.parameters.is_empty()
         && observer.result == TerminalMachineResult::Unit
-        && observer_left.position == 0
-        && observer_right.position == 1
-        && !observer_left.is_self
-        && !observer_right.is_self
-        && observer_left.access == StructuralAccess::SharedBorrow
-        && observer_right.access == StructuralAccess::SharedBorrow
-        && observer_left.structural_type == caller_parameter.structural_type
-        && observer_right.structural_type == caller_parameter.structural_type
         && observer_block.operations.is_empty()
         && matches!(
             &observer_block.terminator,

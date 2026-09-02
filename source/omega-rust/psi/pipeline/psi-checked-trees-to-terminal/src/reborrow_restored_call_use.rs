@@ -140,7 +140,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             == CheckedReborrowAccessEffect::ExclusiveSuspension;
         let shared_freeze_cohort = child.access == BorrowAccessKind::Read
             && child.access_effect == CheckedReborrowAccessEffect::SharedFreeze
-            && matches!(disposition.shared_cohort.len(), 1 | 2);
+            && matches!(disposition.shared_cohort.len(), 1 | 2 | 3);
 
         let mut shared_cohort = Vec::new();
         let exact_shared_cohort = if shared_freeze_cohort {
@@ -150,8 +150,11 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 .filter(|(_, candidate)| candidate.parent_loan == parent.loan)
                 .count()
                 == disposition.shared_cohort.len();
-            let roster_is_unique = disposition.shared_cohort.len() == 1
-                || disposition.shared_cohort[0] != disposition.shared_cohort[1];
+            let roster_is_unique = disposition
+                .shared_cohort
+                .iter()
+                .enumerate()
+                .all(|(index, member)| !disposition.shared_cohort[..index].contains(member));
             let primary_occurs_once = disposition
                 .shared_cohort
                 .iter()

@@ -345,17 +345,18 @@ fields of element 2 before element 1 and element 0, while `[[T; 2]; 3]` applies
 decreasing-index order at both levels.
 
 The implemented nested multiple-residual slice accepts `[[T; N]; 2]` for
-`N = 3`, `N = 4`, `N = 5`, `N = 6`, `N = 7`, `N = 8`, `N = 9`, `N = 10`, `N = 11`, `N = 12`, or `N = 13` when `T` is the exact claim-free,
+`N = 3`, `N = 4`, `N = 5`, `N = 6`, `N = 7`, `N = 8`, `N = 9`, `N = 10`, `N = 11`, `N = 12`, `N = 13`, or `N = 14` when `T` is the exact claim-free,
 unqualified affine record leaf without nominal cleanup. It permits exactly one
 literal leaf
 move from each outer element. The length-nine form cleans the sixteen-leaf
 complement, the length-ten form cleans the eighteen-leaf complement, and the
 length-eleven form cleans the twenty-leaf complement, and the length-twelve
 form cleans the twenty-two-leaf complement, and the length-thirteen form cleans
-the twenty-four-leaf complement in decreasing outer-then-inner order. All
-eleven forms retain authored
+the twenty-four-leaf complement, and the length-fourteen form cleans the
+twenty-six-leaf complement in decreasing outer-then-inner order. All twelve
+forms retain authored
 call order and charge five closure fuel units; the extra residuals are static
-no-code cleanup metadata. Inner length fourteen, another outer length, dynamic or
+no-code cleanup metadata. Inner length fifteen, another outer length, dynamic or
 deeper paths, and the existing type and ownership fences remain unsupported.
 
 A type with a nominal whole-value `drop` body may not be partially moved:

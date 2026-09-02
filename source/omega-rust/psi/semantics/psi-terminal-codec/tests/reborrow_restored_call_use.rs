@@ -356,6 +356,50 @@ fn restored_call_use_round_trips_and_commits_every_variable_axis() {
         original
     );
 
+    let mut three_member_shared = two_member_shared;
+    let third_place = id(5, PlaceId::new);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut three_member_shared.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument {
+        place: caller_place,
+        path: Vec::new(),
+        access: StructuralAccess::SharedBorrow,
+    });
+    three_member_shared.machines[2]
+        .structural_parameters
+        .push(shared_parameter(third_place, 2));
+    three_member_shared.machines[2]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: third_place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 2,
+                is_self: false,
+            },
+        });
+    let mut third = three_member_shared.reborrow_restored_call_uses[0].shared_cohort[1].clone();
+    third.child_owner_identity = borrow_identity('7');
+    third.child_activation = statement(3);
+    three_member_shared.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .push(third);
+    let encoded_three_member =
+        encode_module(&three_member_shared).expect("three-member shared freeze should encode");
+    assert_eq!(
+        decode_module(&encoded_three_member),
+        Ok(three_member_shared.clone())
+    );
+    assert_ne!(
+        semantic_fingerprint(&three_member_shared)
+            .expect("three-member shared restoration fingerprints"),
+        original
+    );
+
     let mut different_target = restored_call_use_module();
     let TerminalBorrowBoundarySource::Call {
         target_identity, ..
