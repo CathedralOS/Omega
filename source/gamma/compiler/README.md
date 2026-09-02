@@ -4,6 +4,11 @@
 tape. It uses two source passes: the first assigns one native address per word;
 the second emits a fixed runtime prefix and direct code.
 
+The runtime prefix is emitted as readable mnemonic-level Alpha operations with
+explicit output-position assertions; it is not a packed byte blob. Compiler
+state uses named cell accessors. Syntax, `main`, builtins, and user words resolve
+by exact length and source bytes rather than hash identity.
+
 Lowering is intentionally simple:
 
 - hexadecimal literal: `imm` plus shared stack push;
