@@ -291,6 +291,40 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     compile_source(source, target)
 }
 
+fn changed_conformance_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    let source = r#"
+        trait Measure {
+            machine measure(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        Secondary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Secondary;
+            let result: i32 = erased.measure();
+        }
+    "#;
+    compile_source(source, target)
+}
+
 fn dynamic_unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     let source = r#"
         trait Touch {
@@ -497,6 +531,66 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             )),
             "a different valid function cannot replace the selected table realization"
         );
+    }
+}
+
+#[test]
+fn changed_conformance_rebound_materializes_only_the_latest_private_table() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = changed_conformance_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let [call] = caller.dynamic_calls.as_slice() else {
+            panic!("one changed-conformance rebound call expected: {caller:#?}")
+        };
+        assert_ne!(
+            call.dynamic_dispatch.initial_application.commitment,
+            call.dynamic_dispatch.application.commitment
+        );
+        assert!(
+            call.dynamic_dispatch
+                .initial_application
+                .realization_callables
+                .is_empty()
+        );
+        assert_eq!(
+            call.dynamic_dispatch
+                .application
+                .realization_callables
+                .len(),
+            1
+        );
+
+        let artifact = build_object_artifact(&plan)
+            .expect("materialize the latest changed-conformance private table");
+        let [table] = artifact.dynamic_conformance_tables() else {
+            panic!("only the live rebound conformance table should materialize")
+        };
+        assert_eq!(table.application, call.dynamic_dispatch.application);
+        assert_ne!(
+            table.application.commitment,
+            call.dynamic_dispatch.initial_application.commitment
+        );
+
+        let image = emit_executable_image(&artifact, 3)
+            .expect("link the changed-conformance rebound table");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("retain changed-conformance installation custody");
+        assert_eq!(installation.dynamic_conformance_tables().len(), 1);
+        assert_eq!(installation.dynamic_calls().len(), 1);
+        assert_eq!(
+            installation.dynamic_calls()[0].application_commitment,
+            call.dynamic_dispatch.application.commitment
+        );
+        validate_installation_record(&installation, &image)
+            .expect("installation replay retains the live changed conformance");
+        let encoded = encode_installation_record(&installation)
+            .expect("encode changed-conformance installation");
+        assert_eq!(decode_installation_record(&encoded), Ok(installation));
     }
 }
 

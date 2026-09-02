@@ -1360,7 +1360,6 @@ pub fn lower_machine(
     if matches!(
         route,
         SelectedMachineRoute::DirectDynamicComposedUnit { .. }
-            | SelectedMachineRoute::ReboundDynamicComposedUnit { .. }
     ) {
         if lowered
             .semantic_module
@@ -1369,7 +1368,21 @@ pub fn lower_machine(
             != 1
         {
             return unsupported(
-                "dynamic dispatch must publish exactly one closed conformance application",
+                "direct dynamic dispatch must publish exactly one closed conformance application",
+            );
+        }
+    } else if matches!(
+        route,
+        SelectedMachineRoute::ReboundDynamicComposedUnit { .. }
+    ) {
+        if !(1..=2).contains(
+            &lowered
+                .semantic_module
+                .closed_conformance_applications
+                .len(),
+        ) {
+            return unsupported(
+                "rebound dynamic dispatch must publish one or two closed conformance applications",
             );
         }
     } else {

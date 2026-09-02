@@ -269,12 +269,52 @@ pub(super) fn validate_dynamic_dispatches(
         let ([initial], [rebound]) = (initial.as_slice(), rebound.as_slice()) else {
             return Err(invalid_descriptor(descriptor.owner, descriptor.ordinal));
         };
+        let initial_applications = module
+            .closed_conformance_applications
+            .iter()
+            .filter(|application| {
+                application.owner == initial.owner
+                    && application.report_fingerprint
+                        == initial.conformance_application_report_fingerprint
+                    && application.commitment == initial.conformance_application_commitment
+            })
+            .collect::<Vec<_>>();
+        let rebound_applications = module
+            .closed_conformance_applications
+            .iter()
+            .filter(|application| {
+                application.owner == rebound.owner
+                    && application.report_fingerprint
+                        == rebound.conformance_application_report_fingerprint
+                    && application.commitment == rebound.conformance_application_commitment
+            })
+            .collect::<Vec<_>>();
+        let ([initial_application], [rebound_application]) = (
+            initial_applications.as_slice(),
+            rebound_applications.as_slice(),
+        ) else {
+            return Err(invalid_descriptor(descriptor.owner, descriptor.ordinal));
+        };
+        let interfaces_match = initial_application.trait_identity
+            == rebound_application.trait_identity
+            && initial_application.trait_lifetime_arguments
+                == rebound_application.trait_lifetime_arguments
+            && initial_application.trait_arguments == rebound_application.trait_arguments
+            && initial_application.telescope == rebound_application.telescope
+            && initial_application.rows.len() == rebound_application.rows.len()
+            && initial_application
+                .rows
+                .iter()
+                .zip(&rebound_application.rows)
+                .all(|(initial, rebound)| {
+                    initial.declaring_trait_identity == rebound.declaring_trait_identity
+                        && initial.public_requirement_identity
+                            == rebound.public_requirement_identity
+                        && initial.requirement_identity == rebound.requirement_identity
+                });
         if descriptor.initial_selection_ordinal.checked_add(1)
             != Some(descriptor.rebound_selection_ordinal)
-            || initial.conformance_application_report_fingerprint
-                != rebound.conformance_application_report_fingerprint
-            || initial.conformance_application_commitment
-                != rebound.conformance_application_commitment
+            || !interfaces_match
             || dynamic_source_type_identity(module, machines, initial)
                 != dynamic_source_type_identity(module, machines, rebound)
             || initial.source.access != rebound.source.access

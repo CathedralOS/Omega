@@ -1065,8 +1065,11 @@ Current ownership is:
   admits one attached Unit caller, one exact closed conformance row, one
   borrowed field source, and an exact `bool` or `i32` result. It retains either
   one never-rebound selection or an initializer plus one reassignment and
-  latest call as distinct direct/rebound checked catalogs; it grants no
-  implementation-private witness or authored contract lane. Package review
+  latest call as distinct direct/rebound checked catalogs. A scalar
+  reassignment may name a different closed conformance when both selections
+  retain the same carrier, trait interface, borrow access, and normalized
+  requirement roster; each version keeps its own conformance and row identity.
+  It grants no implementation-private witness or authored contract lane. Package review
   already owns the declaration-level lane
   compatibility surface; this private call-site carrier adds no package
   schema. For a mutable receiver, the first mutation-bearing callable shape
@@ -1076,7 +1079,8 @@ Current ownership is:
   field/type identity, and source statement; other body shapes publish no
   callable row. A separate checked-only Unit catalog admits one terminal,
   argument-free requirement call through either a direct local descriptor or
-  one exact same-conformance reassignment. It retains the complete application
+  one exact same-conformance reassignment. Changed-conformance Unit rebinding
+  remains fail-closed. It retains the complete application
   and operation-free callable roster, source borrow/path, contracts, and exact
   call reach while carrying no scalar result binding or home. Nonempty bodies,
   arguments, service reach, realization state contracts, result discards, or a

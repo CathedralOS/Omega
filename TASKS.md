@@ -12010,10 +12010,13 @@ checked-result arithmetic decision listed below.
   name the exact complete conformance.
 
   Current canonical status: exact one-selection local calls have a checked and
-  verified Terminal direct-devirtualization lane. Exact same-conformance local
-  reassignment now retains ordered initializer/latest selections, both
-  normalized structural sources, the common complete row map, and the selected
-  call/continuation in a distinct checked rebound lane. That lane crosses
+  verified Terminal direct-devirtualization lane. Exact local scalar
+  reassignment retains ordered initializer/latest selections, both normalized
+  structural sources, each selected conformance's complete row map, and the
+  selected call/continuation in a distinct checked rebound lane. The two
+  conformances may differ when their carrier, trait interface, access, and
+  normalized requirement roster remain exact. Unit reassignment remains the
+  narrower same-conformance lane. The scalar lane crosses
   canonical Terminal, abstract operations, identity-bound optimizer
   reconstruction and validation, target lowering, and physical assignment.
   Each dynamic carrier retains its complete canonically ordered
@@ -12039,8 +12042,8 @@ checked-result arithmetic decision listed below.
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
   and retained by current format 71 / vocabulary 74, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
-  arguments sourced from either a rebound local descriptor or an inbound
-  descriptor parameter, and parameter-slot dispatches. Canonical validation
+  arguments sourced from a direct selection, a rebound local descriptor, or an
+  inbound descriptor parameter, and parameter-slot dispatches. Canonical validation
   rejoins every interface, source, argument, slot, and scalar result and
   rejects missing, substituted, orphaned, or mismatched custody. Terminal call
   semantics import only the declared interface at that point, never a concrete
@@ -12231,6 +12234,18 @@ checked-result arithmetic decision listed below.
   call roles on x86-64 and AArch64; the installed codec carries an explicit
   result-presence tag and rejects mismatched semantic/physical result pairs.
 
+  Changed-conformance scalar rebinding is now live for both a caller-local
+  dispatch and the existing transparent descriptor-parameter hop. Checking
+  requires two exact named conformances over one carrier and dynamic-trait
+  interface. Terminal Psi retains two independently committed applications;
+  verifier and abstract/optimizer custody reject either application being
+  collapsed into the other or any trait/requirement interface substitution.
+  The initializer is overwritten before dispatch, so its application remains
+  semantic custody without a fabricated callable table. Native/object/image
+  construction materializes only the latest application's live private table,
+  and x86-64/AArch64 installation replay rejoins that table for both local and
+  forwarded scalar calls.
+
   Remaining work:
 
   - add an AArch64 result-execution replay canary. The native assertion is
@@ -12248,8 +12263,9 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - extend custody to changed-conformance, stored/joined/escaping,
-    aggregate-erased, and component-crossing descriptors.
+  - extend changed-conformance custody to the result-less Unit lane, and extend
+    descriptors generally to stored/joined/escaping, aggregate-erased, and
+    component-crossing forms.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and

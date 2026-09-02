@@ -226,6 +226,27 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const CHANGED_CONFORMANCE_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Measure { machine measure(&self) -> i32; }
+    data Item { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 { transition { _ -> self.value } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> i32 { transition { _ -> self.value } }
+    }
+
+    data Main { decoy: Item; selected: Item; }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Secondary;
+        let result: i32 = erased.measure();
+    }
+"#;
+
 const FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE: &str = r#"
     trait Measure {
         machine measure(&self) -> i32;
@@ -462,6 +483,45 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
     assert_eq!(
         unsupported_message(&checked),
         "rebound dynamic dispatch plan is duplicated for one caller"
+    );
+}
+
+#[test]
+fn retains_distinct_applications_when_rebinding_to_another_conformance() {
+    let checked = checked_source(CHANGED_CONFORMANCE_DYNAMIC_INTEGER_SOURCE);
+    let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(catalog.direct_scalar_calls.is_empty());
+    let [plan] = catalog.rebound_scalar_calls.as_slice() else {
+        panic!("one changed-conformance rebound plan expected: {catalog:#?}")
+    };
+    assert_ne!(
+        plan.initial.fact.conformance,
+        plan.latest.selection.conformance
+    );
+    assert_ne!(plan.initial.fact.rows, plan.latest.selection.rows);
+
+    let lowered =
+        lower_machine(&checked, "Main::run").expect("changed-conformance rebound should lower");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("changed-conformance rebound should verify");
+    let [initial, rebound] = lowered
+        .semantic_module
+        .dynamic_dispatch
+        .selections
+        .as_slice()
+    else {
+        panic!("two exact conformance selections expected")
+    };
+    assert_ne!(
+        initial.conformance_application_commitment,
+        rebound.conformance_application_commitment
+    );
+    assert_eq!(
+        lowered
+            .semantic_module
+            .closed_conformance_applications
+            .len(),
+        2
     );
 }
 

@@ -121,10 +121,10 @@ pub struct TerminalDirectDynamicDispatch {
 
 /// One descriptor whose source was replaced exactly once before dispatch.
 ///
-/// Both selections must name the same closed conformance application. The
-/// latest selection supplies the runtime instance while the common application
-/// supplies the table identity; neither source may be discarded or rewritten
-/// as direct devirtualization.
+/// Both selections must name the same exact dynamic-trait interface. Their
+/// closed conformance applications may differ. The latest selection supplies
+/// the runtime instance and table identity; neither source may be discarded or
+/// rewritten as direct devirtualization.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalReboundDynamicDescriptor {
     pub owner: MachineId,

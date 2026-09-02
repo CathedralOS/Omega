@@ -770,20 +770,21 @@ control save/restore envelope. Private function spans still contribute their
 complete prologue, body, result, and return mechanics to the one root footprint
 certificate. A distinct-instance native canary proves that the relocated table
 slot, rather than a static fallback or a same-type decoy, executes under ASLR.
-One mutable local may now be rebound before that pass-through when both its
-initializer and assignment are exact direct-place casts naming the same
-carrier, trait, conformance, and normalized row map. The compiler retains one
-selection per statement, independently replays the assignment against its
-earlier version, selects the latest version at the forwarding call, and
-overwrites both the instance and table words in the existing local slot. That
-same exact local may now call one requirement directly after rebinding. The
-compiler retains the unanimous binding and latest selection statement, refuses
-a malformed or colliding version without devirtualizing it, rejoins the
-existing two-word local slot and sole selected table, and performs the same
-private indirect slot call used by a bare dynamic parameter. Different-
-conformance or non-cast assignments, aggregate erased calls, storage, joins,
-escaping, and component crossing remain open. Those consumers use the same
-complete normalized maps.
+One mutable local may now be rebound before scalar dispatch or pass-through
+when both its initializer and assignment are exact direct-place casts naming
+the same carrier and dynamic-trait interface. The named conformances may
+differ, but their telescope, borrow access, and normalized ordered requirement
+roster must remain exact. The compiler retains one selection and independently
+committed application per statement, replays the assignment against its
+earlier version, selects the latest version at the call, and overwrites both
+the instance and table words in the existing local slot. The initializer's
+application remains semantic evidence but does not cause an unused runtime
+table to be emitted. The compiler refuses malformed, colliding, or
+interface-changing versions without devirtualizing them; the latest application
+alone supplies the private indirect slot call. Result-less Unit rebinding still
+requires the same conformance. Non-cast assignments, aggregate erased calls,
+storage, joins, escaping, and component crossing remain open. Those consumers
+use the same complete normalized maps.
 
 The bounded pass-through lane accepts either `&dyn Trait` or `&mut dyn Trait`
 when the initializer, rebound source, descriptor parameter, and requirement

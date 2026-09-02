@@ -301,6 +301,37 @@ fn rebound_dynamic_dispatch_module() -> TerminalModule {
     module
 }
 
+fn changed_conformance_rebound_dynamic_dispatch_module() -> TerminalModule {
+    let mut module = rebound_dynamic_dispatch_module();
+    let latest = module.closed_conformance_applications[0].clone();
+    let mut initial = latest.clone();
+    initial.declaration_identity = "package::CarrierImplementsPrimaryMeasure".into();
+    initial.realization_callables.clear();
+    for row in &mut initial.rows {
+        row.realization_callable_identity = None;
+    }
+    refresh_application_identity(&mut initial);
+    module.dynamic_dispatch.selections[0].conformance_application_report_fingerprint =
+        initial.report_fingerprint;
+    module.dynamic_dispatch.selections[0].conformance_application_commitment = initial.commitment;
+    module.closed_conformance_applications.push(initial);
+    module
+        .closed_conformance_applications
+        .sort_by(|left, right| {
+            (
+                left.owner,
+                &left.declaration_identity,
+                left.report_fingerprint,
+            )
+                .cmp(&(
+                    right.owner,
+                    &right.declaration_identity,
+                    right.report_fingerprint,
+                ))
+        });
+    module
+}
+
 fn parameter_dynamic_dispatch_module() -> TerminalModule {
     let mut module = rebound_dynamic_dispatch_module();
     let caller = id::<MachineId>(1);
@@ -402,6 +433,49 @@ fn admits_exact_source_free_direct_dynamic_dispatch() {
 fn admits_exact_rebound_descriptor_and_indirect_dispatch() {
     validate_module(&rebound_dynamic_dispatch_module())
         .expect("exact rebound descriptor and indirect call are valid");
+}
+
+#[test]
+fn admits_changed_conformance_rebound_and_rejects_interface_substitution() {
+    let module = changed_conformance_rebound_dynamic_dispatch_module();
+    validate_module(&module).expect("distinct conformances for one exact interface are valid");
+
+    let mut changed_trait = module.clone();
+    let initial = changed_trait
+        .closed_conformance_applications
+        .iter_mut()
+        .find(|application| {
+            application.declaration_identity == "package::CarrierImplementsPrimaryMeasure"
+        })
+        .expect("initial changed conformance application");
+    initial.trait_identity = "package::DifferentTrait".into();
+    refresh_application_identity(initial);
+    changed_trait.dynamic_dispatch.selections[0].conformance_application_report_fingerprint =
+        initial.report_fingerprint;
+    changed_trait.dynamic_dispatch.selections[0].conformance_application_commitment =
+        initial.commitment;
+    changed_trait
+        .closed_conformance_applications
+        .sort_by(|left, right| {
+            (
+                left.owner,
+                &left.declaration_identity,
+                left.report_fingerprint,
+            )
+                .cmp(&(
+                    right.owner,
+                    &right.declaration_identity,
+                    right.report_fingerprint,
+                ))
+        });
+    assert_eq!(
+        validation_error(&changed_trait),
+        ModuleError::InvalidReboundDynamicDescriptor {
+            owner: id::<MachineId>(1),
+            ordinal: 0,
+        },
+        "a rebound may change conformance, but not its existential interface"
+    );
 }
 
 #[test]

@@ -788,6 +788,18 @@ now cross target lowering, assignment, native emission, object/image replay,
 and installation. The forwarded form remains two explicit roles: a result-less
 outer descriptor call and a result-less helper parameter-slot call.
 
+Scalar-result rebound descriptors may select a different named conformance at
+the reassignment while preserving the exact carrier, dynamic-trait interface,
+borrow access, telescope, and ordered requirement roster. Terminal Psi retains
+the initializer and latest selections against two independently committed
+closed applications. Only the latest application owns executable callable rows
+and supplies the runtime table; the already-overwritten initializer application
+is retained without inventing an unused table. Verification rejects interface
+drift, missing applications, or collapsing either selection onto the other's
+commitment. This works for both caller-local scalar dispatch and the existing
+transparent descriptor-parameter hop; result-less Unit rebinding remains the
+same-conformance subset.
+
 The same closed application now admits one exact mutation-bearing callable in
 Terminal form. Its checked row carries a primitive-field literal store through
 `&mut self` separately from the scalar return expression. The field may be

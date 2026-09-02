@@ -158,6 +158,20 @@ fn lower_dynamic_composed_unit_machine(
 
     let (application, selected_row) =
         lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let initial_application = match lane {
+        DynamicLoweringLane::Rebound(initial)
+            if initial.fact.conformance != plan.selection.conformance
+                || initial.fact.rows != plan.selection.rows =>
+        {
+            Some(lower_initial_rebound_application(
+                checked,
+                plan,
+                initial,
+                caller_machine,
+            )?)
+        }
+        _ => None,
+    };
     let mut next_block = 2_u64;
     let mut next_place = 2_u64;
     let mut next_operation = if has_caller_store { 4 } else { 2 };
@@ -180,6 +194,7 @@ fn lower_dynamic_composed_unit_machine(
         caller_machine,
         call_operation,
         source,
+        initial_application.as_ref(),
         &application,
         &selected_row,
         callable_identity,
@@ -249,7 +264,23 @@ fn lower_dynamic_composed_unit_machine(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             proof_recursive_components: Vec::new(),
-            closed_conformance_applications: vec![application],
+            closed_conformance_applications: {
+                let mut applications = vec![application];
+                applications.extend(initial_application);
+                applications.sort_by(|left, right| {
+                    (
+                        left.owner,
+                        left.declaration_identity.as_str(),
+                        left.report_fingerprint,
+                    )
+                        .cmp(&(
+                            right.owner,
+                            right.declaration_identity.as_str(),
+                            right.report_fingerprint,
+                        ))
+                });
+                applications
+            },
             dynamic_dispatch,
             quotient_correspondences: Vec::new(),
             machines: {
@@ -340,10 +371,9 @@ fn validate_exact_rebound_plan(
         || initial.fact.state != plan.caller_state
         || initial.fact.binding != plan.receiver_binding
         || initial.fact.target_trait != plan.target_trait
-        || initial.fact.conformance != Some(plan.selected_conformance)
+        || initial.fact.conformance.is_none()
         || initial.fact.source_symbol != initial.field
         || initial.fact.source_data != plan.selection.source_data
-        || initial.fact.rows != plan.selection.rows
         || initial.type_identity != plan.source_type_identity
         || initial.path.len() != 1
         || checked
@@ -811,6 +841,7 @@ fn lower_dynamic_call_custody(
     caller_machine: psi_core::MachineId,
     call_operation: psi_core::OperationId,
     latest_source: StructuralArgument,
+    initial_application: Option<&ClosedConformanceApplication>,
     application: &ClosedConformanceApplication,
     selected_row: &ClosedConformanceRow,
     callable_identity: String,
@@ -837,6 +868,9 @@ fn lower_dynamic_call_custody(
     };
     Ok(match lane {
         DynamicLoweringLane::Direct => {
+            if initial_application.is_some() {
+                return unsupported("direct dynamic dispatch retained a rebound application");
+            }
             let mut catalog = TerminalDynamicDispatchCatalog {
                 parameters: Vec::new(),
                 arguments: Vec::new(),
@@ -923,8 +957,12 @@ fn lower_dynamic_call_custody(
                         owner: caller_machine,
                         ordinal: 0,
                         source: initial_source,
-                        conformance_application_report_fingerprint: application.report_fingerprint,
-                        conformance_application_commitment: application.commitment,
+                        conformance_application_report_fingerprint: initial_application
+                            .unwrap_or(application)
+                            .report_fingerprint,
+                        conformance_application_commitment: initial_application
+                            .unwrap_or(application)
+                            .commitment,
                     },
                     latest_selection,
                 ],
@@ -1486,6 +1524,114 @@ fn materialize_dynamic_realizations(
             })
         })
         .collect()
+}
+
+fn lower_initial_rebound_application(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    initial: &CheckedDynamicSelectionPlan,
+    owner: psi_core::MachineId,
+) -> Result<ClosedConformanceApplication, LoweringError> {
+    let conformance_symbol = initial.fact.conformance.ok_or(LoweringError::Unsupported(
+        "initial dynamic selection has no named conformance",
+    ))?;
+    let conformances = checked
+        .typed
+        .conformances()
+        .iter()
+        .filter(|conformance| conformance.symbol == conformance_symbol)
+        .collect::<Vec<_>>();
+    let [conformance] = conformances.as_slice() else {
+        return unsupported("initial dynamic selection lost its exact conformance declaration");
+    };
+    let traits = checked
+        .typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.symbol == plan.target_trait)
+        .collect::<Vec<_>>();
+    let [target_trait] = traits.as_slice() else {
+        return unsupported("initial dynamic selection lost its exact target trait");
+    };
+    if initial.fact.target_trait != plan.target_trait
+        || conformance.carrier_symbol != initial.fact.source_data
+        || conformance.trait_symbol != initial.fact.target_trait
+        || !conformance.lifetime_parameters.is_empty()
+        || !checked
+            .typed
+            .conformance_type_parameters(conformance)
+            .is_empty()
+        || !checked
+            .typed
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .is_empty()
+        || !conformance.trait_lifetime_arguments.is_empty()
+        || !target_trait.lifetime_parameters.is_empty()
+        || !checked.typed.trait_type_parameters(target_trait).is_empty()
+    {
+        return unsupported("generic initial dynamic conformance requires a later producer");
+    }
+    let closed_rows =
+        checked
+            .typed
+            .closed_conformance_rows(conformance)
+            .ok_or(LoweringError::Unsupported(
+                "initial dynamic selection is not a closed conformance",
+            ))?;
+    if closed_rows.len() != initial.fact.rows.len() {
+        return unsupported("initial dynamic selection row map is incomplete");
+    }
+    let rows = closed_rows
+        .iter()
+        .zip(&initial.fact.rows)
+        .map(|(closed, retained)| {
+            let requirement_identity = evidence_lowering::checked_evidence_requirement_identity(
+                checked,
+                closed.declaring_trait,
+                closed.requirement,
+            )?;
+            let realization_identity = evidence_lowering::checked_evidence_machine_identity(
+                checked,
+                closed.realization_machine,
+            )?;
+            if closed.declaring_trait != retained.declaring_trait
+                || closed.requirement != retained.requirement
+                || closed.realization_machine != retained.realization_machine
+                || closed.realization_state != retained.realization_state
+                || requirement_identity != retained.requirement_identity
+                || realization_identity != retained.realization_identity
+            {
+                return unsupported("initial dynamic selection row map drifted from checking");
+            }
+            Ok(ClosedConformanceRow {
+                declaring_trait_identity: checked
+                    .symbols
+                    .display_path(closed.declaring_trait, "::"),
+                public_requirement_identity: requirement_identity,
+                requirement_identity: checked.symbols.display_path(closed.requirement, "::"),
+                realization_identity: checked.symbols.display_path(closed.realization_state, "::"),
+                realization_callable_identity: None,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut application = ClosedConformanceApplication {
+        owner,
+        declaration_identity: checked.symbols.display_path(conformance_symbol, "::"),
+        telescope: Vec::new(),
+        subject_identity: Some(initial.type_identity.clone()),
+        trait_identity: checked.symbols.display_path(plan.target_trait, "::"),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: Vec::new(),
+        rows,
+        report_fingerprint: 0,
+        commitment: Default::default(),
+    };
+    application.report_fingerprint =
+        closed_conformance_application_report_fingerprint(&application);
+    application.commitment = closed_conformance_application_commitment(&application);
+    Ok(application)
 }
 
 #[allow(clippy::too_many_arguments)]

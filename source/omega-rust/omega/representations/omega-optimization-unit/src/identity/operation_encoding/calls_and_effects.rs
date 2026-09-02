@@ -245,6 +245,10 @@ fn encode_rebound_dynamic_dispatch(
     bytes.u32(dynamic_dispatch.descriptor.initial_selection_ordinal);
     bytes.u32(dynamic_dispatch.descriptor.rebound_selection_ordinal);
     encode_closed_conformance_application(bytes, &dynamic_dispatch.application);
+    if dynamic_dispatch.initial_application != dynamic_dispatch.application {
+        bytes.u8(1);
+        encode_closed_conformance_application(bytes, &dynamic_dispatch.initial_application);
+    }
     bytes.id(dynamic_dispatch.dispatch.owner);
     bytes.id(dynamic_dispatch.dispatch.operation);
     bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
@@ -302,6 +306,7 @@ fn encode_dynamic_descriptor_argument(
             initial,
             rebound,
             descriptor,
+            initial_application,
             application,
         } => {
             bytes.u8(1);
@@ -312,6 +317,10 @@ fn encode_dynamic_descriptor_argument(
             bytes.u32(descriptor.initial_selection_ordinal);
             bytes.u32(descriptor.rebound_selection_ordinal);
             encode_closed_conformance_application(bytes, application);
+            if initial_application != application {
+                bytes.u8(1);
+                encode_closed_conformance_application(bytes, initial_application);
+            }
         }
         omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(parameter) => {
             bytes.u8(2);
