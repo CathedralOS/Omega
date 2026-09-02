@@ -206,6 +206,17 @@ const NESTED_AFFINE_DECET_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_AFFINE_ELEVEN_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [[Token; 11]; 2]) {
+        Helper::take(values[1][10]);
+        Helper::take(values[0][1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -694,6 +705,25 @@ fn nested_affine_decet_plan() -> omega_abstract_operations::AbstractOperationPla
         encode_proof_bundle(&terminal.proof_bundle).expect("encode nested affine decet proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified nested affine decet artifact enters Omega")
+}
+
+fn nested_affine_eleven_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(NESTED_AFFINE_ELEVEN_SOURCE)
+        .tokenize()
+        .expect("tokenize nested affine length-eleven source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse nested affine length-eleven source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve nested affine length-eleven source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type nested affine length-eleven source");
+    let checked = lower_typed_trees(typed).expect("check nested affine length-eleven source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower nested affine length-eleven Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode nested affine length-eleven Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode nested affine length-eleven proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified nested affine length-eleven artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan() -> omega_abstract_operations::AbstractOperationPlan {
@@ -2549,7 +2579,7 @@ fn assert_wider_nested_affine_array_native_custody(
             decode_installation_record(&encoded),
             Ok(installation.clone())
         );
-        if matches!(inner_length, 9 | 10) {
+        if matches!(inner_length, 9 | 10 | 11) {
             assert_widest_image_installation_and_codec_tamper(
                 target,
                 &object,
@@ -2571,7 +2601,8 @@ fn assert_widest_image_installation_and_codec_tamper(
     let control_plan = match inner_length {
         9 => nested_affine_octet_plan(),
         10 => nested_affine_nonet_plan(),
-        _ => unreachable!("only the two widest nested rungs request width tampering"),
+        11 => nested_affine_decet_plan(),
+        _ => unreachable!("only the three widest nested rungs request width tampering"),
     };
     let control_target = lower_to_target_operations(&control_plan, target).unwrap();
     let control_assigned = assign_registers(&control_target).unwrap();
@@ -2619,6 +2650,7 @@ fn wider_nested_affine_arrays_retain_exact_native_custody() {
     assert_wider_nested_affine_array_native_custody(nested_affine_octet_plan(), 8);
     assert_wider_nested_affine_array_native_custody(nested_affine_nonet_plan(), 9);
     assert_wider_nested_affine_array_native_custody(nested_affine_decet_plan(), 10);
+    assert_wider_nested_affine_array_native_custody(nested_affine_eleven_plan(), 11);
 }
 
 #[test]

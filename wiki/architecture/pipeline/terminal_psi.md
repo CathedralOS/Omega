@@ -1379,14 +1379,15 @@ Partial construction follows the same rule on its established prefix, while
 trap and nuclear-abort terminators carry no cleanup.
 
 The exact nested replay carrier accepts `[[T; N]; 2]` for inner length three,
-four, five, six, seven, eight, nine, or ten, with the same claim-free affine-record leaf restrictions. Two Unit
+four, five, six, seven, eight, nine, ten, or eleven, with the same claim-free affine-record leaf restrictions. Two Unit
 calls must move one literal leaf from each distinct outer element in authored
 order. Terminal verification reconstructs the full complement directly from
 the nested type graph and requires decreasing outer-then-inner cleanup order;
-the length-ten form therefore names eighteen no-code residual leaves. Codec,
+the length-ten form therefore names eighteen no-code residual leaves and the
+length-eleven form names twenty. Codec,
 interpreter, Omega, machine, object/image, and installation replay must retain
-the same paths and layout. All eight lengths charge exactly five call/return
-fuel units, and inner length eleven or runtime liveness state grants no authority.
+the same paths and layout. All nine lengths charge exactly five call/return
+fuel units, and inner length twelve or runtime liveness state grants no authority.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

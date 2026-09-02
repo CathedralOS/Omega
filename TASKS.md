@@ -9403,9 +9403,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to twenty-eight unary, binary, primitive-cast,
+  call producers in up to twenty-nine unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  twenty-ninth direct scalar shell remains fenced; aggregate fields and
+  thirtieth direct scalar shell remains fenced; aggregate fields and
   projected concrete record, selected-case, or fixed-array literals retain
   their separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
@@ -9449,7 +9449,7 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a twenty-ninth direct scalar computed
+  aggregate/literal computed shell, a thirtieth direct scalar computed
   shell, other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
@@ -9890,7 +9890,18 @@ reach or trust, and private proof improvements do not change public identity.
   160-byte outer layout, 80-byte outer stride, exact offsets, and five fuel
   units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
   wrong-length/layout/stride/offset, codec, object, image, and installation
-  mutations reject. `[[T; 11]; 2]` and wider forms remain fenced without
+  mutations reject.
+
+  The following exact nested successor is now closed. The same carrier admits
+  `[[T; 11]; 2]` with one distinct literal leaf move from each outer element
+  and twenty live residual leaves in decreasing outer-then-inner order.
+  Checked production through Terminal codec/interpreter replay, Omega
+  lowering, optimization validation, five-target layout and machine emission,
+  object, image, and installation replay retain the authored two-call order,
+  176-byte outer layout, 88-byte outer stride, exact offsets, and five fuel
+  units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
+  wrong-length/layout/stride/offset, codec, object, image, and installation
+  mutations reject. `[[T; 12]; 2]` and wider forms remain fenced without
   runtime liveness state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An

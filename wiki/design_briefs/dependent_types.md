@@ -394,8 +394,8 @@ independently, and every nested-call write remains published. One deeper,
 binding-reborrow, recursive, or opaque branch fences the whole right-hand side;
 reference-valued roots retain their existing relational handling. A direct
 primitive scalar value may wrap complete caller-isolated call producers in up
-to twenty-eight unary, binary, primitive-cast, member-projection, or indexing shells
-under that same call budget. A twenty-ninth shell or a generic, reference-valued,
+to twenty-nine unary, binary, primitive-cast, member-projection, or indexing shells
+under that same call budget. A thirtieth shell or a generic, reference-valued,
 or unknown call result remains a fence. Aggregate fields and projected concrete
 record, selected-case, and fixed-array literals retain their separate two-shell
 computation budget. One
