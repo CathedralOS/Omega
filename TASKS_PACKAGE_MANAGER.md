@@ -203,6 +203,9 @@ after the complete current-version lock payload exists.
   capability change, blocked missing baseline, and blocked provenance
   replacement—through lock and command transactions. Initial install is
   complete-graph fresh admission, not an unchanged update.
+  Recovered-baseline source-review assembly now preserves the same directional
+  package/application root-role blocker as standalone baseline triage; the
+  remaining work is lock and command transaction propagation.
 
 ## P5 — Commands
 

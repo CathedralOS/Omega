@@ -2310,6 +2310,8 @@ It validates every recovered baseline custody against its row and
 derives unavailable-old-source state from absence. Initial and newly transitive
 source packets follow compiler-recommended audit policy; changed or unavailable
 existing update sources receive an exact diff or standalone candidate packet.
+Recovered-baseline packet assembly retains directional package/application
+root-role blockers from the same comparison used by standalone baseline triage.
 The aggregate byte ceiling retains
 separate compiler-only and hostile-source frames. No output can construct
 accepted lock evidence or attest that review happened.

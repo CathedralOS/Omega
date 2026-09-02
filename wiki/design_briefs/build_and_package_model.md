@@ -140,7 +140,9 @@ closure commitment v4 binds it independently. Baseline comparison reports the
 directional broken contract: package to application loses dependency
 compatibility, while application to package loses activation compatibility.
 Baseline-backed deterministic triage v2 binds the fixed directional reason to
-the exact root decision and blocks the update.
+the exact root decision and blocks the update. Recovered-baseline source-review
+assembly consumes that same directional comparison, so packet rendering cannot
+drop a root-role blocker that standalone triage reports.
 
 `PackageInstance` additionally binds exact source content, produced artifact
 identity, each closure subject's obligation-semantics identity, locally

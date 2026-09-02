@@ -11,7 +11,9 @@ use omega_package_evidence::record::{
     PackageReviewSourceLocationRole,
 };
 use omega_package_manager::resolution::graph::{
-    PackageSourceClosureLimits, ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
+    PackageSourceClosureLimits, ResolveExternalLocalPackageClosureError,
+    ResolveWorkspacePackageClosureError, ResolvedPackageSourceClosure,
+    resolve_external_local_project_closure_with_storage,
     resolve_workspace_package_closure_with_storage,
 };
 use omega_package_manager::resolution::source::ResolvePackageSourceError;
@@ -28,7 +30,8 @@ use omega_package_manager::review::{
     triage_update_without_admission_baseline,
 };
 use omega_package_source::{
-    LocalSourceLimits, SourceLineage, SourceRelativePath, SourceResolveError, SourceResolverStorage,
+    ExternalSourceContext, LocalSourceLimits, SourceLineage, SourceRelativePath,
+    SourceResolveError, SourceResolverStorage,
 };
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -36,6 +39,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[path = "package_evidence_fixtures/compiler_review_evidence.rs"]
 mod compiler_review_evidence;
+#[path = "package_evidence_fixtures/root_role_review_packet.rs"]
+mod root_role_review_packet;
 #[path = "package_evidence_fixtures/snapshot_tampering.rs"]
 mod snapshot_tampering;
 #[path = "package_evidence_fixtures/support.rs"]

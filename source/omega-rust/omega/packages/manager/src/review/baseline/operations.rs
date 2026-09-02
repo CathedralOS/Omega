@@ -5,7 +5,8 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
 use crate::review::audit::{
-    apply_root_role_change, assemble_update_source_review_records, triage_review_update_records,
+    apply_root_role_change, assemble_update_source_review_records_with_root_role_change,
+    triage_review_update_records,
 };
 use crate::review::compare::{
     compare_review_only_capability_records, compare_review_only_root_role_graphs,
@@ -47,15 +48,21 @@ pub fn triage_review_update_from_baseline(
 ) -> CompilerReviewTriage {
     let mut triage =
         triage_review_update_records(baseline.packages(), candidate, unavailable_baseline_sources);
-    if baseline.graph().root() == candidate_sources.graph().root() {
-        if let Some(change) =
-            compare_review_only_root_role_graphs(baseline.graph(), candidate_sources.graph())
-                .expect("equal root identities are valid for role comparison")
-        {
-            apply_root_role_change(&mut triage, &change);
-        }
+    if let Some(change) = root_role_change_from_baseline(baseline, candidate_sources) {
+        apply_root_role_change(&mut triage, &change);
     }
     triage
+}
+
+fn root_role_change_from_baseline(
+    baseline: &ReviewOnlyBaselineCapsule,
+    candidate_sources: &ResolvedPackageSourceClosure,
+) -> Option<ReviewOnlyRootRoleChange> {
+    if baseline.graph().root() != candidate_sources.graph().root() {
+        return None;
+    }
+    compare_review_only_root_role_graphs(baseline.graph(), candidate_sources.graph())
+        .expect("equal root identities are valid for role comparison")
 }
 
 pub fn assemble_update_source_review_from_baseline(
@@ -65,11 +72,13 @@ pub fn assemble_update_source_review_from_baseline(
     candidate_sources: &ResolvedPackageSourceClosure,
     limits: PackageSourceReviewLimits,
 ) -> Result<PackageSourceReviewInput, PackageSourceReviewError> {
-    assemble_update_source_review_records(
+    let root_role_change = root_role_change_from_baseline(baseline, candidate_sources);
+    assemble_update_source_review_records_with_root_role_change(
         baseline.packages(),
         candidate,
         recovered_baseline_sources,
         candidate_sources,
         limits,
+        root_role_change.as_ref(),
     )
 }
