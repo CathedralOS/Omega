@@ -16,6 +16,7 @@ trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 COMPILER="$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.gamma"
 SAMPLE="$GATE_DIR/sample.delta"
 PARSER="$GATE_DIR/nested_parser.delta"
+TRANSFORM="$GATE_DIR/ast_transform.delta"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
 "$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
@@ -23,7 +24,7 @@ stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator
 stamp_seed "$OMEGA_PATH_GAMMA/compiler/gamma_compiler_bytecode.tape" \
     "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/gamma-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM EVALUATOR="$TMP/evaluator" \
     NATIVE_GAMMA="$TMP/gamma-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -54,7 +55,7 @@ if native_delta.returncode != 0:
     raise SystemExit(f"native Gamma compilation exited {native_delta.returncode}")
 if len(native_delta.stdout) != 22339:
     raise SystemExit(f"native Delta compiler is {len(native_delta.stdout)} bytes")
-if hashlib.sha256(native_delta.stdout).hexdigest() != "ad81791af359259b2039f93b82807e539d0b3e2f2ca5771a3b966b3d3eee46fa":
+if hashlib.sha256(native_delta.stdout).hexdigest() != "abaeead18c5523515ee0a975bed7fcf88052cedb413f6a2a633e4cd5a7afff24":
     raise SystemExit("native Delta compiler identity changed")
 (temporary / "delta-compiler.tape").write_bytes(native_delta.stdout)
 '
@@ -62,7 +63,7 @@ if hashlib.sha256(native_delta.stdout).hexdigest() != "ad81791af359259b2039f93b8
 stamp_seed "$TMP/delta-compiler.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/delta-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM EVALUATOR="$TMP/evaluator" \
     NATIVE_DELTA="$TMP/delta-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -73,6 +74,7 @@ from pathlib import Path
 compiler = Path(os.environ["COMPILER"]).read_bytes()
 sample = Path(os.environ["SAMPLE"]).read_text()
 parser = Path(os.environ["PARSER"]).read_text()
+transform = Path(os.environ["TRANSFORM"]).read_text()
 temporary = Path(os.environ["TMP"])
 
 def interpreted(subject: str):
@@ -110,6 +112,7 @@ cases = {
     "array-index-bounds": sample.replace(
         "index-set slots 0 count", "index-set slots 4 count", 1
     ),
+    "multiword-array-element": sample.replace("array Slots word 4", "array Slots Pair 4"),
     "nonexhaustive-switch": sample.replace(
         "switch mode Mode stop done go loop endswitch",
         "switch mode Mode stop done endswitch",
@@ -138,6 +141,26 @@ if len(left.stdout) != 1919:
 if hashlib.sha256(left.stdout).hexdigest() != "e5fa32384acdf04a5e956500142a92088229ba8f65e88e0596d90606bdaa9343":
     raise SystemExit("nested parser tape identity changed")
 (temporary / "parser.tape").write_bytes(left.stdout)
+
+left = interpreted(transform)
+right = native(transform)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("AST transform interpreted/native compilation disagrees")
+if len(left.stdout) != 9563:
+    raise SystemExit(f"AST transform tape is {len(left.stdout)} bytes")
+if hashlib.sha256(left.stdout).hexdigest() != "20ee64218fb14140b1a88bd50191175beab76c4ffaff05e157f43c41f3b3ba27":
+    raise SystemExit("AST transform tape identity changed")
+(temporary / "transform.tape").write_bytes(left.stdout)
+
+ill_typed_transform = transform.replace(
+    "index-set-dyn tags new_node pending_tag",
+    "index-set-dyn tags new_node pending_value",
+    1,
+)
+left = interpreted(ill_typed_transform)
+right = native(ill_typed_transform)
+if left.returncode != 2 or right.returncode != 2 or left.stdout != right.stdout:
+    raise SystemExit("nominal array mismatch was not rejected identically")
 '
 
 stamp_seed "$TMP/sample.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/sample" >/dev/null
@@ -169,4 +192,32 @@ for name, data, expected_status, expected_hex in cases:
         )
 '
 
-echo "Delta state-machine experiment: 636-line Gamma compiler produced identical 22,339-byte native compiler; 523-byte state and 1,919-byte parser customers pass with 8 rejection twins"
+stamp_seed "$TMP/transform.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+    "$TMP/transform" >/dev/null
+TRANSFORM="$TMP/transform" python3 -c '
+import os
+import subprocess
+
+cases = [
+    ("mixed", b"(+ 1 (- 2) (? 0 (+ 3 x) 1))", 0, "0303010101fe0302010302"),
+    ("fully-folded", b"(+ 1 (- 2) (? 1 3 2))", 0, "0101"),
+    ("surviving-choice", b"(? x (+ 1 2) (- 3))", 0, "050302010301fd"),
+    ("bad-negate-arity", b"(- 1 2)", 1, "0106"),
+    ("bad-choice-arity", b"(? 0 1)", 1, "0106"),
+    ("unclosed", b"(+ 1", 1, "0104"),
+    ("unmatched-close", b")", 1, "0100"),
+    ("unknown-token", b"z", 1, "0100"),
+    ("multiple-roots", b"1 2", 1, "0103"),
+    ("node-overflow", b"(+" + b" 1" * 49 + b")", 2, ""),
+    ("depth-overflow", b"(-" * 17, 2, ""),
+]
+for name, data, expected_status, expected_hex in cases:
+    result = subprocess.run([os.environ["TRANSFORM"]], input=data, stdout=subprocess.PIPE)
+    if result.returncode != expected_status or result.stdout.hex() != expected_hex:
+        raise SystemExit(
+            f"{name}: {result.returncode}/{result.stdout.hex()}, "
+            f"expected {expected_status}/{expected_hex}"
+        )
+'
+
+echo "Delta state-machine experiment: 636-line Gamma compiler produced identical 22,339-byte native compiler; 9,563-byte recursive AST customer passes with 10 rejection twins"

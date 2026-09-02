@@ -1,0 +1,428 @@
+# Bounded recursive syntax transformation over parallel indexed arenas.
+# Grammar: EXPR = 0 | 1 | 2 | 3 | x | (+ EXPR...) | (- EXPR) | (? EXPR EXPR EXPR)
+# Output is a compact preorder tree after bottom-up folding and branch selection.
+
+sum NodeKind literal symbol add negate choose end
+array Tags NodeKind 48
+array Values word 48
+array Firsts word 48
+array Lasts word 48
+array Nexts word 48
+array Counts word 48
+array Opens word 16
+array FrameNodes word 48
+array FrameNexts word 48
+
+machine main ignored word result word
+local current word
+local offset word
+local node_count word
+local depth word
+local root word
+local root_set word
+local pending_tag NodeKind
+local pending_value word
+local pending_open word
+local new_node word
+local parent word
+local last word
+local frame_count word
+local frame_top word
+local node word
+local child word
+local scan word
+local accumulator word
+local all_literals word
+local tag NodeKind
+local count word
+local temp word
+local temp_two word
+local one word
+local three word
+local eof word
+local open_char word
+local close_char word
+local plus_char word
+local minus_char word
+local choose_char word
+local space_char word
+local zero_char word
+local one_char word
+local two_char word
+local three_char word
+local symbol_char word
+local tags Tags
+local values Values
+local firsts Firsts
+local lasts Lasts
+local nexts Nexts
+local counts Counts
+local opens Opens
+local frame_nodes FrameNodes
+local frame_nexts FrameNexts
+state start
+const result 0
+const offset 0
+const node_count 0
+const depth 0
+const root_set 0
+const one 1
+const three 3
+const eof 18446744073709551615
+const open_char 40
+const close_char 41
+const plus_char 43
+const minus_char 45
+const choose_char 63
+const space_char 32
+const zero_char 48
+const one_char 49
+const two_char 50
+const three_char 51
+const symbol_char 120
+goto parse_read
+
+state parse_read
+read current
+copy temp current
+sub temp temp eof
+brzero temp parse_end parse_space_test
+state parse_space_test
+copy temp current
+sub temp temp space_char
+brzero temp parse_consume parse_open_test
+state parse_open_test
+copy temp current
+sub temp temp open_char
+brzero temp operator_begin parse_close_test
+state parse_close_test
+copy temp current
+sub temp temp close_char
+brzero temp close_node parse_zero_test
+state parse_zero_test
+copy temp current
+sub temp temp zero_char
+brzero temp leaf_zero parse_one_test
+state parse_one_test
+copy temp current
+sub temp temp one_char
+brzero temp leaf_one parse_two_test
+state parse_two_test
+copy temp current
+sub temp temp two_char
+brzero temp leaf_two parse_three_test
+state parse_three_test
+copy temp current
+sub temp temp three_char
+brzero temp leaf_three parse_symbol_test
+state parse_symbol_test
+copy temp current
+sub temp temp symbol_char
+brzero temp leaf_symbol malformed
+
+state parse_consume
+add offset offset one
+goto parse_read
+state operator_begin
+add offset offset one
+goto operator_read
+state operator_read
+read current
+copy temp current
+sub temp temp eof
+brzero temp malformed operator_space_test
+state operator_space_test
+copy temp current
+sub temp temp space_char
+brzero temp operator_consume operator_add_test
+state operator_add_test
+copy temp current
+sub temp temp plus_char
+brzero temp operator_add operator_negate_test
+state operator_negate_test
+copy temp current
+sub temp temp minus_char
+brzero temp operator_negate operator_choose_test
+state operator_choose_test
+copy temp current
+sub temp temp choose_char
+brzero temp operator_choose malformed
+state operator_consume
+add offset offset one
+goto operator_read
+state operator_add
+construct pending_tag NodeKind add
+goto operator_ready
+state operator_negate
+construct pending_tag NodeKind negate
+goto operator_ready
+state operator_choose
+construct pending_tag NodeKind choose
+goto operator_ready
+state operator_ready
+copy pending_open one
+const pending_value 0
+add offset offset one
+goto insert_node
+
+state leaf_zero
+const pending_value 0
+goto leaf_ready
+state leaf_one
+const pending_value 1
+goto leaf_ready
+state leaf_two
+const pending_value 2
+goto leaf_ready
+state leaf_three
+const pending_value 3
+goto leaf_ready
+state leaf_symbol
+construct pending_tag NodeKind symbol
+const pending_value 0
+const pending_open 0
+goto leaf_insert
+state leaf_ready
+construct pending_tag NodeKind literal
+const pending_open 0
+state leaf_insert
+add offset offset one
+goto insert_node
+
+state insert_node
+copy new_node node_count
+index-set-dyn tags new_node pending_tag
+index-set-dyn values new_node pending_value
+index-set-dyn firsts new_node eof
+index-set-dyn lasts new_node eof
+index-set-dyn nexts new_node eof
+const count 0
+index-set-dyn counts new_node count
+add node_count node_count one
+brzero depth insert_root insert_child
+state insert_root
+brzero root_set set_root malformed
+state set_root
+copy root new_node
+copy root_set one
+goto insert_open_test
+state insert_child
+copy temp depth
+sub temp temp one
+index-get-dyn parent opens temp
+index-get-dyn last lasts parent
+copy temp_two last
+sub temp_two temp_two eof
+brzero temp_two insert_first insert_next
+state insert_first
+index-set-dyn firsts parent new_node
+goto insert_last
+state insert_next
+index-set-dyn nexts last new_node
+state insert_last
+index-set-dyn lasts parent new_node
+index-get-dyn count counts parent
+add count count one
+index-set-dyn counts parent count
+state insert_open_test
+brzero pending_open parse_read insert_open
+state insert_open
+index-set-dyn opens depth new_node
+add depth depth one
+goto parse_read
+
+state close_node
+brzero depth malformed close_ready
+state close_ready
+sub depth depth one
+index-get-dyn node opens depth
+index-get-dyn tag tags node
+index-get-dyn count counts node
+switch tag NodeKind literal malformed symbol malformed add close_add negate close_negate choose close_choose endswitch
+state close_add
+brzero count malformed close_done
+state close_negate
+copy temp count
+sub temp temp one
+brzero temp close_done malformed
+state close_choose
+copy temp count
+sub temp temp three
+brzero temp close_done malformed
+state close_done
+add offset offset one
+goto parse_read
+
+state parse_end
+brzero depth parse_root_test malformed
+state parse_root_test
+brzero root_set malformed transform_start
+
+state transform_start
+const frame_count 0
+copy node root
+goto transform_push
+state transform_push
+index-set-dyn frame_nodes frame_count node
+index-get-dyn child firsts node
+index-set-dyn frame_nexts frame_count child
+add frame_count frame_count one
+goto transform_loop
+state transform_loop
+copy frame_top frame_count
+sub frame_top frame_top one
+index-get-dyn child frame_nexts frame_top
+copy temp child
+sub temp temp eof
+brzero temp rewrite_node transform_child
+state transform_child
+index-get-dyn temp nexts child
+index-set-dyn frame_nexts frame_top temp
+copy node child
+goto transform_push
+
+state rewrite_node
+index-get-dyn node frame_nodes frame_top
+index-get-dyn tag tags node
+switch tag NodeKind literal rewrite_done symbol rewrite_done add rewrite_add negate rewrite_negate choose rewrite_choose endswitch
+
+state rewrite_add
+const accumulator 0
+copy all_literals one
+index-get-dyn scan firsts node
+goto rewrite_add_scan
+state rewrite_add_scan
+copy temp scan
+sub temp temp eof
+brzero temp rewrite_add_finish rewrite_add_child
+state rewrite_add_child
+index-get-dyn tag tags scan
+switch tag NodeKind literal rewrite_add_literal symbol rewrite_add_nonliteral add rewrite_add_nonliteral negate rewrite_add_nonliteral choose rewrite_add_nonliteral endswitch
+state rewrite_add_literal
+index-get-dyn temp values scan
+add accumulator accumulator temp
+goto rewrite_add_next
+state rewrite_add_nonliteral
+const all_literals 0
+state rewrite_add_next
+index-get-dyn scan nexts scan
+goto rewrite_add_scan
+state rewrite_add_finish
+brzero all_literals rewrite_done rewrite_add_fold
+state rewrite_add_fold
+construct tag NodeKind literal
+index-set-dyn tags node tag
+index-set-dyn values node accumulator
+index-set-dyn firsts node eof
+const count 0
+index-set-dyn counts node count
+goto rewrite_done
+
+state rewrite_negate
+index-get-dyn child firsts node
+index-get-dyn tag tags child
+switch tag NodeKind literal rewrite_negate_fold symbol rewrite_done add rewrite_done negate rewrite_done choose rewrite_done endswitch
+state rewrite_negate_fold
+index-get-dyn temp values child
+const temp_two 0
+sub temp_two temp_two temp
+construct tag NodeKind literal
+index-set-dyn tags node tag
+index-set-dyn values node temp_two
+index-set-dyn firsts node eof
+const count 0
+index-set-dyn counts node count
+goto rewrite_done
+
+state rewrite_choose
+index-get-dyn child firsts node
+index-get-dyn tag tags child
+switch tag NodeKind literal rewrite_choose_literal symbol rewrite_done add rewrite_done negate rewrite_done choose rewrite_done endswitch
+state rewrite_choose_literal
+index-get-dyn temp values child
+brzero temp rewrite_choose_then rewrite_choose_else
+state rewrite_choose_then
+index-get-dyn child nexts child
+goto rewrite_choose_copy
+state rewrite_choose_else
+index-get-dyn child nexts child
+index-get-dyn child nexts child
+state rewrite_choose_copy
+index-get-dyn tag tags child
+index-set-dyn tags node tag
+index-get-dyn temp values child
+index-set-dyn values node temp
+index-get-dyn temp firsts child
+index-set-dyn firsts node temp
+index-get-dyn temp lasts child
+index-set-dyn lasts node temp
+index-get-dyn temp counts child
+index-set-dyn counts node temp
+
+state rewrite_done
+sub frame_count frame_count one
+brzero frame_count serialize_start transform_loop
+
+state serialize_start
+const frame_count 0
+copy node root
+goto serialize_push
+state serialize_push
+index-set-dyn frame_nodes frame_count node
+index-get-dyn child firsts node
+index-set-dyn frame_nexts frame_count child
+add frame_count frame_count one
+index-get-dyn tag tags node
+switch tag NodeKind literal serialize_literal symbol serialize_symbol add serialize_add negate serialize_negate choose serialize_choose endswitch
+state serialize_literal
+const temp 1
+write temp
+index-get-dyn temp values node
+write temp
+goto serialize_loop
+state serialize_symbol
+const temp 2
+write temp
+goto serialize_loop
+state serialize_add
+const temp 3
+write temp
+goto serialize_count
+state serialize_negate
+const temp 4
+write temp
+goto serialize_count
+state serialize_choose
+const temp 5
+write temp
+goto serialize_count
+state serialize_count
+index-get-dyn temp counts node
+write temp
+goto serialize_loop
+state serialize_loop
+copy frame_top frame_count
+sub frame_top frame_top one
+index-get-dyn child frame_nexts frame_top
+copy temp child
+sub temp temp eof
+brzero temp serialize_pop serialize_child
+state serialize_child
+index-get-dyn temp nexts child
+index-set-dyn frame_nexts frame_top temp
+copy node child
+goto serialize_push
+state serialize_pop
+sub frame_count frame_count one
+brzero frame_count success serialize_loop
+
+state success
+halt result
+state malformed
+const result 1
+write result
+write offset
+halt result
+end
+
+entry main start

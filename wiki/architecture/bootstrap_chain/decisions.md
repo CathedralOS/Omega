@@ -3250,3 +3250,32 @@ namespace, one-word sum values, static machine storage, restricted call recursio
 and a small statement vocabulary. Those restrictions must either become selected
 Delta semantics or be expanded against the Epsilon compiler customer before the
 functional Delta contract is replaced.
+
+## D74 — Bounded arenas carry recursive syntax transformation
+
+The unchanged 636-line state-machine compiler now admits arrays whose element
+type has exactly one word of storage. Multiword records and arrays remain
+rejected. This one-token checker change leaves the native compiler at 22,339
+bytes while allowing arena tags to use a nominal sum rather than raw numeric
+conventions. A negative twin proves that storing a word in the nominal tag arena
+is rejected identically by interpreted and native compilation.
+
+A new 427-line Delta customer parses a five-variant expression tree into parallel
+fixed arenas with variable-arity child chains. It validates operator arity,
+traverses the arena in explicit postorder, folds literal addition and negation,
+selects literal conditional branches in place, and emits canonical preorder
+output. The customer has 80 named states and divides into 260 lines of declarations
+and parsing, 105 lines of transformation, and 53 lines of serialization. Its
+exact Alpha tape is 9,563 bytes. Runtime cases cover mixed and complete folds,
+a surviving conditional, malformed arity/framing/tokens, multiple roots, exact
+source offsets, and node/depth exhaustion.
+
+This closes D73's remaining implementation-necessity challenge. Rich recursive
+syntax transformation does not require a functional intermediate language:
+bounded indexed arenas and explicit traversal frames remain sufficient,
+deterministic, and locally auditable. The cost is visible rather than absent:
+even this small tree language needs 427 lines and 80 states. A functional design
+may reduce customer source while increasing the trusted compiler with recursive
+values, allocation, and implicit control. Selection should therefore compare
+whole-edge cost against the actual Epsilon compiler customer; it should not add
+a functional rung merely because recursive syntax exists.

@@ -8,6 +8,11 @@ dynamic array reads/writes. Its nested-parser customer builds indexed declaratio
 and scope arenas, permits nested shadowing, rejects same-scope duplicates with
 source offsets, and reports fixed-capacity exhaustion.
 
+The latest experiment admits arrays of any exactly one-word type. A recursive
+syntax customer uses a nominal node-kind sum over parallel indexed arenas,
+performs an explicit postorder fold and branch-selection rewrite, and serializes
+the transformed tree without recursion or heap allocation.
+
 The source is intentionally retained near the future canonical edge, but remains
 noncanonical. Its executable customer, rejection twins, exact measurements, and
 native/interpreted agreement gate live under

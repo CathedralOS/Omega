@@ -56,9 +56,12 @@ Delta, and the former Delta is Epsilon.
 - [x] A noncanonical typed state-machine Delta experiment covers nominal sums,
   records, fixed arrays, typed machine variables, states, exhaustive
   transitions, calls, dynamic indexed arenas, nested scopes, deterministic
-  source-offset diagnostics, and direct Alpha emission in 636 Gamma lines. It
-  does not justify inserting another functional rung for parsing or storage;
-  rich recursive syntax transformation remains the revisit trigger. Its latest implementation is retained
+  source-offset diagnostics, one-word nominal arrays, recursive AST rewrites,
+  and direct Alpha emission in 636 Gamma lines. A 427-line customer performs a
+  five-variant postorder fold and subtree-selection transform over bounded
+  arenas. It does not justify inserting another functional rung on implementation
+  necessity alone; whole-edge cost against the actual Epsilon compiler is now
+  the remaining language-choice question. Its latest implementation is retained
   at `source/delta/compiler/experiments/state_machine/delta_compiler.gamma`.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
   absent.
