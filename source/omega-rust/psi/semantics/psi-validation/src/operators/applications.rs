@@ -246,6 +246,14 @@ pub enum ValidatedBoundaryOperatorApplicationArgument {
         declared_carrier: TypeReferenceHandle,
         value: CanonicalConstIdentity,
     },
+    TypeBinder {
+        binder_owner: SymbolHandle,
+        binder_ordinal: u32,
+        binder_symbol: SymbolHandle,
+        machine_owner: SymbolHandle,
+        machine_binder_ordinal: u32,
+        machine_binder_symbol: SymbolHandle,
+    },
 }
 
 /// Validate and close the currently supported named-operator static
@@ -412,6 +420,44 @@ pub fn validated_boundary_operator_application(
         requirement: operator.symbol,
         arguments,
     }
+}
+
+/// Validate and retain the first symbolic D29 demand shape. The mapping is
+/// deliberately direct: an operator type binder may name one enclosing
+/// machine type binder, while nested symbolic type construction and symbolic
+/// const arguments remain unsupported.
+pub fn validated_symbolic_boundary_operator_application(
+    program: &TypedTrees,
+    machine: &psi_typed_trees::machine::Machine,
+    site: ValidatedBoundaryOperatorApplicationUseSite,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<ValidatedBoundaryOperatorApplication> {
+    let bindings = psi_typed_trees::operator::symbolic_operator_type_application_for_operands(
+        program,
+        machine,
+        operator,
+        operand_types,
+    )?;
+    let arguments = bindings
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, binding)| {
+            Some(ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
+                binder_owner: operator.symbol,
+                binder_ordinal: u32::try_from(ordinal).ok()?,
+                binder_symbol: binding.operator_binder_symbol,
+                machine_owner: machine.symbol,
+                machine_binder_ordinal: binding.machine_binder_ordinal,
+                machine_binder_symbol: binding.machine_binder_symbol,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(ValidatedBoundaryOperatorApplication {
+        site,
+        requirement: operator.symbol,
+        arguments,
+    })
 }
 
 pub(crate) fn retain_validated_boundary_operator_application(

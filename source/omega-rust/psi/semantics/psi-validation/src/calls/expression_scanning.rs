@@ -208,6 +208,23 @@ fn validate_expression_call_bounds(
                     diagnostics,
                 );
             }
+            Ok(None) if operator.is_boundary && call.machine_arguments.is_empty() => {
+                if let Some(application) =
+                    crate::operators::validated_symbolic_boundary_operator_application(
+                        program,
+                        current_machine,
+                        crate::ValidatedBoundaryOperatorApplicationUseSite::Expression(expression),
+                        operator,
+                        &operand_types,
+                    )
+                {
+                    crate::operators::retain_validated_boundary_operator_application(
+                        boundary_operator_applications,
+                        application,
+                        diagnostics,
+                    );
+                }
+            }
             Ok(_) => {}
             Err(diagnostic) => diagnostics.push(diagnostic),
         }

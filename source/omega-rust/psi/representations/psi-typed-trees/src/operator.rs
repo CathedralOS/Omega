@@ -12,7 +12,9 @@ mod applications;
 
 pub use applications::{
     ClosedOperatorApplicationArgument, ClosedOperatorRealizationApplication,
+    SymbolicOperatorTypeApplicationArgument,
     closed_operator_application_for_operands, closed_operator_realization_application,
+    symbolic_operator_type_application_for_operands,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
