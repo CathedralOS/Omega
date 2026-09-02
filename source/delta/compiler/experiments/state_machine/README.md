@@ -20,6 +20,12 @@ maximum. It resolves forward labels, rejects malformed or incomplete programs
 before output, and emits exact target bytes. Supporting its label arithmetic
 adds typed multiplication, division, and signed less-than branching to the compiler.
 
+The experiment still has one global namespace, one parameter/result per machine,
+and nonrecursive static call storage. The retained Epsilon compiler has 505
+definitions, 410 with multiple parameters, maximum arity 13, 144 reused parameter
+spellings, and 152 direct-recursive definitions. Those facts now define the next
+language experiment; they prevent promoting this slice as normative Delta.
+
 The source is intentionally retained near the future canonical edge, but remains
 noncanonical. Its executable customer, rejection twins, exact measurements, and
 native/interpreted agreement gate live under
