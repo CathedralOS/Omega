@@ -28,9 +28,23 @@ pub(super) fn admit_composed_unit_control<'a>(
     else {
         return unsupported("composed Unit entry is not the exact Boolean conditional");
     };
-    validate_guard(guard, &entry.scalar_parameters)?;
-    if true_edge.statement_ordinal != 0
-        || false_edge.statement_ordinal != 1
+    let transition_ordinal = validate_bindings(checked, entry)?;
+    validate_guard(guard, &entry.scalar_parameters, &entry.bindings)?;
+    if checked.facts.values.scalar_expressions.expression_at(
+        entry.state,
+        transition_ordinal,
+        CheckedScalarExpressionRole::Guard,
+    ) != Some(guard)
+    {
+        return unsupported("composed Unit guard drifted from checked scalar facts");
+    }
+    if true_edge.statement_ordinal != transition_ordinal
+        || false_edge.statement_ordinal
+            != transition_ordinal
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "composed Unit transition coordinate overflowed",
+                ))?
         || true_edge.target_state != when_true.state
         || false_edge.target_state != when_false.state
     {
@@ -70,6 +84,59 @@ pub(super) fn admit_composed_unit_control<'a>(
         internal_targets,
         custody,
     })
+}
+
+fn validate_bindings(
+    checked: &CheckedTrees,
+    entry: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
+) -> Result<u32, LoweringError> {
+    match (
+        entry.bindings.as_slice(),
+        entry.binding_initializers.as_slice(),
+    ) {
+        ([], []) => Ok(0),
+        ([binding], [retained_initializer])
+            if entry.scalar_parameters.is_empty()
+                && binding.statement_ordinal == 0
+                && binding.primitive_type == PrimitiveType::U64
+                && binding.value == CheckedScalarBindingValue::Expression =>
+        {
+            let fact_initializer = checked
+                .facts
+                .values
+                .scalar_expressions
+                .expression_at(
+                    entry.state,
+                    0,
+                    CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "composed Unit local initializer lost its checked scalar fact",
+                ))?;
+            if retained_initializer != fact_initializer {
+                return unsupported(
+                    "composed Unit local initializer drifted between checked carriers",
+                );
+            }
+            let initializer = lower_checked_scalar_expression(retained_initializer)?;
+            if !matches!(
+                initializer,
+                LoweredDirectExpression::IntegerLiteral {
+                    scalar_type: ScalarType::Integer(integer),
+                    value: IntegerValue::Unsigned(_),
+                } if integer == psi_core::IntegerType::new(
+                    psi_core::IntegerSign::Unsigned,
+                    64,
+                ).expect("u64 is valid")
+            ) {
+                return unsupported(
+                    "composed Unit local initializer escaped the exact closed u64 lane",
+                );
+            }
+            Ok(1)
+        }
+        _ => unsupported("composed Unit local bindings escaped the exact one-binding lane"),
+    }
 }
 
 pub(crate) fn admit_dynamic_continuation<'a>(
@@ -271,16 +338,17 @@ pub(super) fn admit_call_targets<'a>(
 pub(super) fn validate_guard(
     guard: &CheckedScalarExpression,
     parameters: &[psi_checked_trees::CheckedStructuralScalarParameterPlan],
+    bindings: &[psi_checked_trees::CheckedScalarBinding],
 ) -> Result<(), LoweringError> {
     let CheckedScalarExpression::Boolean(boolean) = guard else {
         return unsupported("composed Unit guard is not Boolean");
     };
-    let admitted = match (parameters, boolean.as_ref()) {
-        ([parameter], CheckedBooleanExpression::Parameter { position: 0 }) => {
+    let admitted = match (parameters, bindings, boolean.as_ref()) {
+        ([parameter], [], CheckedBooleanExpression::Parameter { position: 0 }) => {
             parameter.source_position == 0 && parameter.primitive_type == PrimitiveType::Bool
         }
-        ([], CheckedBooleanExpression::Constant(_)) => true,
-        ([], CheckedBooleanExpression::IntegerComparison { left, right, .. }) => {
+        ([], [], CheckedBooleanExpression::Constant(_)) => true,
+        ([], [], CheckedBooleanExpression::IntegerComparison { left, right, .. }) => {
             matches!(
                 left.as_ref(),
                 CheckedScalarExpression::IntegerLiteral { .. }
@@ -289,12 +357,29 @@ pub(super) fn validate_guard(
                 CheckedScalarExpression::IntegerLiteral { .. }
             )
         }
+        ([], [binding], CheckedBooleanExpression::IntegerComparison { left, right, .. })
+            if binding.statement_ordinal == 0
+                && binding.primitive_type == PrimitiveType::U64
+                && binding.value == CheckedScalarBindingValue::Expression =>
+        {
+            local_and_literal(left, right) || local_and_literal(right, left)
+        }
         _ => false,
     };
     if !admitted {
         return unsupported("composed Unit guard escaped the exact admitted expression family");
     }
     Ok(())
+}
+
+fn local_and_literal(local: &CheckedScalarExpression, literal: &CheckedScalarExpression) -> bool {
+    matches!(
+        local,
+        CheckedScalarExpression::Local {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        }
+    ) && matches!(literal, CheckedScalarExpression::IntegerLiteral { .. })
 }
 
 pub(super) fn validate_contract(
@@ -353,6 +438,8 @@ pub(super) fn validate_leaf(
     state: &psi_checked_trees::CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
     if !state.scalar_parameters.is_empty()
+        || !state.bindings.is_empty()
+        || !state.binding_initializers.is_empty()
         || !matches!(
             state.operations.as_slice(),
             [CheckedUnitEffectOperationPlan::BoundaryCall { .. }

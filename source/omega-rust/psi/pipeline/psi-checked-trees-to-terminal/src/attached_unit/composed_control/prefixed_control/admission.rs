@@ -26,6 +26,8 @@ pub(super) fn admit<'a>(
         || controls.iter().any(|state| {
             !state.structural_parameters.is_empty()
                 || !state.entry_claims.is_empty()
+                || !state.bindings.is_empty()
+                || !state.binding_initializers.is_empty()
                 || !state.operations.is_empty()
         })
     {
@@ -39,7 +41,11 @@ pub(super) fn admit<'a>(
     else {
         return unsupported("prefixed composed Unit dispatch is not one conditional");
     };
-    super::super::admission::validate_guard(guard, &dispatch.scalar_parameters)?;
+    super::super::admission::validate_guard(
+        guard,
+        &dispatch.scalar_parameters,
+        &dispatch.bindings,
+    )?;
     for states in controls.windows(2) {
         let CheckedComposedUnitControlTerminatorPlan::Jump { successor } = &states[0].terminator
         else {

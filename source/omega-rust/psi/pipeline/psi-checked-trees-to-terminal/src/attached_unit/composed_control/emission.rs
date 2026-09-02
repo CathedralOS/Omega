@@ -20,7 +20,8 @@ pub(super) fn emit_composed_unit_control(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let parameter_types = entry_parameters
+    let mut scalar_values = entry_parameters.clone();
+    let mut scalar_value_types = entry_parameters
         .iter()
         .map(|parameter| parameter.scalar_type)
         .collect::<Vec<_>>();
@@ -62,17 +63,50 @@ pub(super) fn emit_composed_unit_control(
     else {
         unreachable!("admission retained one conditional entry")
     };
-    let guard = lower_checked_scalar_expression(guard)?;
-    validate_direct_parameter_types(&guard, &parameter_types)?;
     let state_ids = [block_id(1), block_id(2), block_id(3)];
     let mut next_value = u64::try_from(entry_parameters.len())
         .map_err(|_| LoweringError::Unsupported("composed Unit scalar arity exceeds u64"))?
         + 1;
     let mut next_edge = 1_u64;
     let mut entry_operations = OperationBuffer::new(0);
+    for (binding_index, binding) in entry.bindings.iter().enumerate() {
+        let ordinal = u32::try_from(binding_index)
+            .map_err(|_| LoweringError::Unsupported("composed Unit binding index exceeds u32"))?;
+        if binding.statement_ordinal != ordinal
+            || binding.value != CheckedScalarBindingValue::Expression
+        {
+            return unsupported("composed Unit binding order drifted after admission");
+        }
+        let expected_type = terminal_scalar_type(binding.primitive_type)?;
+        let initializer = lower_checked_scalar_expression_at(
+            checked,
+            entry.state,
+            ordinal,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: ordinal,
+            },
+        )?;
+        validate_direct_parameter_types(&initializer, &scalar_value_types)?;
+        if initializer.scalar_type() != expected_type {
+            return unsupported("composed Unit initializer type drifted from its checked binding");
+        }
+        let id = emit_direct_expression(
+            &initializer,
+            &scalar_values,
+            &mut next_value,
+            &mut entry_operations,
+        );
+        scalar_values.push(ValueDeclaration {
+            id,
+            scalar_type: expected_type,
+        });
+        scalar_value_types.push(expected_type);
+    }
+    let guard = lower_checked_scalar_expression(guard)?;
+    validate_direct_parameter_types(&guard, &scalar_value_types)?;
     let guard = emit_direct_expression(
         &guard,
-        &entry_parameters,
+        &scalar_values,
         &mut next_value,
         &mut entry_operations,
     );

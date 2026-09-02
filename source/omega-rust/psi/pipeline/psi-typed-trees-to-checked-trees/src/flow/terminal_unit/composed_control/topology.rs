@@ -9,6 +9,8 @@ pub(super) struct Topology<'a> {
     pub(super) entry_structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub(super) entry_scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub(super) entry_claims: Vec<CheckedUnitEntryClaimPlan>,
+    pub(super) entry_bindings: Vec<CheckedScalarBinding>,
+    pub(super) entry_binding_initializers: Vec<CheckedScalarExpression>,
     pub(super) leaf_structural_parameters: [Vec<CheckedUnitStructuralParameterPlan>; 2],
     pub(super) leaf_entry_claims: [Vec<CheckedUnitEntryClaimPlan>; 2],
     pub(super) guard: CheckedScalarExpression,
@@ -81,17 +83,47 @@ pub(super) fn admit<'a>(
         return None;
     }
 
-    let [
-        StatementNode::Transition(when_true),
-        StatementNode::Transition(when_false),
-    ] = program.statement_table.statements(entry.statement_nodes)
-    else {
-        return None;
-    };
+    let statements = program.statement_table.statements(entry.statement_nodes);
+    let (entry_bindings, entry_binding_initializers, transition_ordinal, when_true, when_false) =
+        match statements {
+            [
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] => (Vec::new(), Vec::new(), 0, when_true, when_false),
+            [
+                StatementNode::LocalData(local),
+                StatementNode::Transition(when_true),
+                StatementNode::Transition(when_false),
+            ] if !local.is_mutable && local.initial_value.is_valid() => {
+                let primitive_type = program.primitive_type_reference(local.type_reference)?;
+                let initializer = facts.values.scalar_expressions.expression_at(
+                    entry.symbol,
+                    0,
+                    CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+                )?;
+                if primitive_type != PrimitiveType::U64
+                    || !matches!(initializer, CheckedScalarExpression::IntegerLiteral { .. })
+                {
+                    return None;
+                }
+                (
+                    vec![CheckedScalarBinding {
+                        statement_ordinal: 0,
+                        primitive_type,
+                        value: CheckedScalarBindingValue::Expression,
+                    }],
+                    vec![initializer.clone()],
+                    1,
+                    when_true,
+                    when_false,
+                )
+            }
+            _ => return None,
+        };
     if when_true.exit != TransitionExit::Ordinary
         || !matches!(when_true.guard, TransitionGuardNode::When(_))
         || when_false.exit != TransitionExit::Ordinary
-        || when_false.guard != TransitionGuardNode::Always
+        || !exact_false_fallback(program, when_true, when_false)
         || when_true.continuation.is_valid()
         || when_false.continuation.is_valid()
     {
@@ -100,10 +132,11 @@ pub(super) fn admit<'a>(
     let guard = super::guards::exact_guard(
         facts.values.scalar_expressions.expression_at(
             entry.symbol,
-            0,
+            transition_ordinal,
             CheckedScalarExpressionRole::Guard,
         )?,
         entry_scalar_parameters,
+        &entry_bindings,
     )?;
     let successors = [
         successor(
@@ -115,7 +148,7 @@ pub(super) fn admit<'a>(
             true_structural_parameters,
             &entry_claims,
             &true_claims,
-            0,
+            transition_ordinal,
             when_true,
             when_true_state.symbol,
         )?,
@@ -128,7 +161,7 @@ pub(super) fn admit<'a>(
             false_structural_parameters,
             &entry_claims,
             &false_claims,
-            1,
+            transition_ordinal.checked_add(1)?,
             when_false,
             when_false_state.symbol,
         )?,
@@ -140,6 +173,8 @@ pub(super) fn admit<'a>(
         entry_structural_parameters: entry_structural_parameters.clone(),
         entry_scalar_parameters: entry_scalar_parameters.clone(),
         entry_claims,
+        entry_bindings,
+        entry_binding_initializers,
         leaf_structural_parameters: [
             true_structural_parameters.clone(),
             false_structural_parameters.clone(),
@@ -148,6 +183,46 @@ pub(super) fn admit<'a>(
         guard,
         successors,
     })
+}
+
+fn exact_false_fallback(
+    program: &TypedTrees,
+    when_true: &psi_typed_trees::statement::TableTransition,
+    when_false: &psi_typed_trees::statement::TableTransition,
+) -> bool {
+    match when_false.guard {
+        TransitionGuardNode::Always => true,
+        TransitionGuardNode::When(expression) => {
+            let TransitionGuardNode::When(true_expression) = when_true.guard else {
+                return false;
+            };
+            let Some(true_subject) = labeled_boolean_guard(program, true_expression, true) else {
+                return false;
+            };
+            let Some(false_subject) = labeled_boolean_guard(program, expression, false) else {
+                return false;
+            };
+            program
+                .expression_table
+                .expressions_structurally_equal(true_subject, false_subject)
+        }
+    }
+}
+
+fn labeled_boolean_guard(
+    program: &TypedTrees,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    expected: bool,
+) -> Option<psi_typed_trees::expression::ExpressionHandle> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    (binary.operator == psi_typed_trees::expression::BinaryOperator::Equal
+        && matches!(
+            program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(value) if *value == expected
+        ))
+    .then_some(binary.left)
 }
 
 pub(super) fn only_implicit_reference_self_is_omitted(

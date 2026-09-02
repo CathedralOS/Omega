@@ -71,6 +71,8 @@ pub(super) fn finish(
                 structural_parameters: Vec::new(),
                 scalar_parameters: parameters,
                 entry_claims: Vec::new(),
+                bindings: Vec::new(),
+                binding_initializers: Vec::new(),
                 operations,
                 terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
                     guard,

@@ -33,6 +33,8 @@ pub(super) fn admit<'a>(
         || controls.iter().any(|state| {
             !state.structural_parameters.is_empty()
                 || !state.entry_claims.is_empty()
+                || !state.bindings.is_empty()
+                || !state.binding_initializers.is_empty()
                 || !exact_parameters(state)
                 || !super::operations::validate(state)
                 || !matches!(

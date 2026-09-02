@@ -1,6 +1,9 @@
 //! Structural Unit call-closure and custody tests.
 
 use super::*;
+use psi_checked_trees::{
+    CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+};
 
 #[test]
 fn retains_exact_byte_literal_for_static_bodyless_boundary() {
@@ -175,6 +178,63 @@ fn composes_closed_guard_with_one_provider_backed_attachment() {
         machine.states[0].terminator,
         psi_checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
     ));
+}
+
+#[test]
+fn composes_one_compile_known_u64_binding_with_exact_boundary_leaves() {
+    let checked = checked(
+        r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root { values: [i32; 5]; }
+        machine Root::enter(&mut self) {
+            let length: u64 = (self.values[1..4]).len;
+            transition length == 3 {
+                true -> yes()
+                false -> no()
+            }
+            state yes(&mut self) { Host::exit(1); }
+            state no(&mut self) { Host::exit(2); }
+        }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "enter"))
+        .expect("one compile-known scalar local should compose with the exact control graph");
+    let [entry, when_true, when_false] = plan.states.as_slice() else {
+        panic!("one-local composed Unit plan retains three states")
+    };
+    assert!(matches!(
+        entry.bindings.as_slice(),
+        [CheckedScalarBinding {
+            statement_ordinal: 0,
+            primitive_type: PrimitiveType::U64,
+            value: CheckedScalarBindingValue::Expression,
+        }]
+    ));
+    assert!(matches!(
+        entry.binding_initializers.as_slice(),
+        [CheckedScalarExpression::IntegerLiteral { literal }] if literal.value_u64() == Some(3)
+    ));
+    let CheckedComposedUnitControlTerminatorPlan::Conditional {
+        when_true: true_edge,
+        when_false: false_edge,
+        ..
+    } = &entry.terminator
+    else {
+        panic!("one-local entry remains conditional")
+    };
+    assert_eq!(true_edge.statement_ordinal, 1);
+    assert_eq!(false_edge.statement_ordinal, 2);
+    for leaf in [when_true, when_false] {
+        assert!(leaf.binding_initializers.is_empty());
+        assert!(matches!(
+            leaf.operations.as_slice(),
+            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+        ));
+    }
 }
 
 #[test]

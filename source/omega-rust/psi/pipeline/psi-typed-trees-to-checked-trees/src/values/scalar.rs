@@ -2224,6 +2224,9 @@ fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[psi_validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    if let Some(length) = exact_inline_literal_subslice_length(program, expression) {
+        return Some((length, ArithmeticDomain::Exact));
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if let Some(position) = parameter_position(program, path, parameters) {
@@ -2420,6 +2423,51 @@ fn lower_scalar_expression(
         }
         _ => None,
     }
+}
+
+/// Reclose the one source-level slice view whose length is already fixed by
+/// two literal bounds. This is a value fact, not a backend fold: retaining the
+/// landed `u64` here lets later checked control replay the exact initializer
+/// without consulting a target representation.
+fn exact_inline_literal_subslice_length(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<CheckedScalarExpression> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.member.as_str() != "len"
+        || member.member_symbol.is_valid()
+        || member.case_variant.is_some()
+    {
+        return None;
+    }
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(member.receiver)
+    else {
+        return None;
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+        return None;
+    };
+    if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
+        return None;
+    }
+    let ExpressionNode::Integer(start) = program.expression_table.expression(range.start) else {
+        return None;
+    };
+    let ExpressionNode::Integer(end) = program.expression_table.expression(range.end) else {
+        return None;
+    };
+    let length = end.value_u64()?.checked_sub(start.value_u64()?)?;
+    let length = i64::try_from(length).ok()?;
+    Some(CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(length).with_landing(
+            IntegerLanding {
+                landed_type: LandedIntegerType::U64,
+                domain: ArithmeticDomain::Exact,
+            },
+        ),
+    })
 }
 
 fn land_anonymous_zero(
