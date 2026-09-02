@@ -255,6 +255,10 @@ fn direct_dynamic_unit_plan_retains_the_complete_operation_free_callable_roster(
         "#,
     );
     let plan = sole_direct_dynamic_unit_plan(&checked);
+    assert_eq!(
+        plan.origin,
+        psi_checked_trees::CheckedDynamicUnitCallOrigin::Local
+    );
     assert_eq!(plan.coordinate.statement_index, 1);
     assert_eq!(plan.coordinate.call_ordinal, 0);
     assert_eq!(plan.selection.rows.len(), 2);
@@ -313,6 +317,10 @@ fn rebound_dynamic_unit_plan_retains_exact_operation_free_callable_without_a_res
         "#,
     );
     let plan = sole_rebound_dynamic_unit_plan(&checked);
+    assert_eq!(
+        plan.latest.origin,
+        psi_checked_trees::CheckedDynamicUnitCallOrigin::Local
+    );
     assert_eq!(plan.initial.fact.statement_index, 0);
     assert_eq!(plan.latest.selection.statement_index, 1);
     assert_eq!(plan.latest.coordinate.statement_index, 2);
@@ -408,6 +416,132 @@ fn dynamic_unit_plan_rejects_a_call_before_the_end_of_the_state() {
     assert!(dynamic.rebound_scalar_calls.is_empty());
     assert!(dynamic.direct_unit_calls.is_empty());
     assert!(dynamic.rebound_unit_calls.is_empty());
+}
+
+#[test]
+fn forwarded_dynamic_unit_plan_rejoins_outer_transfer_and_inner_parameter_call() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {
+            }
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            forward(erased);
+        }
+
+        machine forward(erased: &dyn Touch) {
+            erased.touch();
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(dynamic.direct_unit_calls.is_empty());
+    let [transfer] = dynamic.transfers.as_slice() else {
+        panic!("one exact descriptor transfer expected, got {dynamic:#?}")
+    };
+    let [plan] = dynamic.rebound_unit_calls.as_slice() else {
+        panic!("one forwarded rebound Unit plan expected, got {dynamic:#?}")
+    };
+    let psi_checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+        machine,
+        state,
+        coordinate,
+        parameter,
+    } = plan.latest.origin
+    else {
+        panic!("forwarded Unit origin expected")
+    };
+    assert_eq!(plan.latest.coordinate.statement_index, 2);
+    assert_eq!(coordinate.statement_index, 0);
+    assert_eq!(coordinate.call_ordinal, 0);
+    assert_eq!(transfer.caller_machine, plan.latest.caller_machine);
+    assert_eq!(transfer.caller_state, plan.latest.caller_state);
+    assert_eq!(transfer.coordinate, plan.latest.coordinate);
+    assert_eq!(transfer.target_machine, machine);
+    assert_eq!(transfer.target_state, state);
+    assert_eq!(transfer.parameter, parameter);
+    assert_eq!(transfer.parameter_position, 0);
+    assert_eq!(transfer.source_binding, plan.latest.receiver_binding);
+    assert_eq!(transfer.selection, plan.latest.selection);
+}
+
+#[test]
+fn forwarded_direct_dynamic_unit_plan_retains_the_same_two_machine_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {
+            }
+        }
+
+        data Main {
+            item: Item;
+        }
+
+        machine Main::run(&self) {
+            let erased: &dyn Touch = &self.item as &dyn Item::Primary;
+            forward(erased);
+        }
+
+        machine forward(erased: &dyn Touch) {
+            erased.touch();
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.direct_scalar_calls.is_empty());
+    assert!(dynamic.rebound_scalar_calls.is_empty());
+    assert!(dynamic.rebound_unit_calls.is_empty());
+    let [transfer] = dynamic.transfers.as_slice() else {
+        panic!("one exact descriptor transfer expected, got {dynamic:#?}")
+    };
+    let [plan] = dynamic.direct_unit_calls.as_slice() else {
+        panic!("one forwarded direct Unit plan expected, got {dynamic:#?}")
+    };
+    let psi_checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
+        machine,
+        state,
+        coordinate,
+        parameter,
+    } = plan.origin
+    else {
+        panic!("forwarded Unit origin expected")
+    };
+    assert_eq!(plan.coordinate.statement_index, 1);
+    assert_eq!(coordinate.statement_index, 0);
+    assert_eq!(transfer.coordinate, plan.coordinate);
+    assert_eq!(transfer.target_machine, machine);
+    assert_eq!(transfer.target_state, state);
+    assert_eq!(transfer.parameter, parameter);
+    assert_eq!(transfer.source_binding, plan.receiver_binding);
+    assert_eq!(transfer.selection, plan.selection);
 }
 
 #[test]

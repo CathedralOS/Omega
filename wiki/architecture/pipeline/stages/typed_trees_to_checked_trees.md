@@ -1074,8 +1074,11 @@ Current ownership is:
   and operation-free callable roster, source borrow/path, contracts, and exact
   call reach while carrying no scalar result binding or home. Nonempty bodies,
   arguments, service reach, realization state contracts, result discards, or a
-  later statement fail closed. Descriptor-parameter forwarding and every
-  Terminal/native carrier remain later boundaries. A
+  later statement fail closed. One transparent descriptor-parameter hop is
+  also retained when the outer transfer rejoins one bare parameter of
+  identical access and the helper's sole statement is that Unit requirement
+  call. The plan keeps both call coordinates and the parameter identity.
+  Every Terminal/native carrier remains a later boundary. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized

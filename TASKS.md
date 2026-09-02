@@ -12061,9 +12061,12 @@ checked-result arithmetic decision listed below.
   direct/rebound catalogs. There is no result binding, ABI home, or continuation
   field to misuse. Nonempty realization bodies, arguments, discarded non-Unit
   results, realization state contracts, service reach, and statements after
-  the call publish no Unit plan. This is checked-only custody; it does not yet
-  claim descriptor-parameter forwarding, Terminal encoding, tables/adapters,
-  or native execution.
+  the call publish no Unit plan. The same checked-only lane now preserves one
+  transparent descriptor-parameter hop: the outer transfer and source
+  selection must rejoin one bare parameter of identical access, whose
+  operation-free Unit call is the helper's sole statement. Direct and
+  once-rebound sources retain both outer and inner coordinates. This does not
+  yet claim Terminal encoding, tables/adapters, or native execution.
 
   Remaining work:
 
@@ -12083,9 +12086,8 @@ checked-result arithmetic decision listed below.
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
   - carry the checked operation-free Unit-returning requirement lane through
-    descriptor-parameter forwarding, Terminal encoding and verification,
-    tables/adapters, and native execution before widening its bodies or call
-    forms;
+    Terminal encoding and verification, tables/adapters, and native execution
+    before widening its bodies or call forms;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

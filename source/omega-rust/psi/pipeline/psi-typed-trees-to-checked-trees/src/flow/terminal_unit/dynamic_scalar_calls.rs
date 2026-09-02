@@ -69,6 +69,7 @@ fn build_checked_dynamic_scalar_call_transaction(
                             flow_call,
                             call_site,
                             shapes,
+                            None,
                         )? {
                             unit::CheckedDynamicUnitCall::Direct(plan) => {
                                 plans.direct_unit_calls.push(plan);
@@ -107,6 +108,13 @@ fn build_checked_dynamic_scalar_call_transaction(
         facts,
         shapes,
         boundaries,
+        &binding_facts,
+        &mut plans,
+    )?;
+    unit::build_checked_forwarded_dynamic_unit_calls(
+        program,
+        facts,
+        shapes,
         &binding_facts,
         &mut plans,
     )?;
