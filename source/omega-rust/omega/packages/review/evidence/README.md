@@ -58,14 +58,21 @@ selected local compiler reconstructs the complete row set and requires exact
 equality.
 
 The supported result lanes do not pretend to prove a bodyless accepted claim,
-grant dangerous authority, validate externally supplied executable code,
-exercise or admit a terminal-authority permission, or discharge a compiler-
-retained contract-entailment stand-down.
-`ledger/results.rs` rejoins each typed compiler fact to its canonical row and
-assigns either `OpenRootAdmission` or `OpenLaterDischarge`. The manager may
-propagate those open obligations to a consuming root, but root policy cannot
-admit a later-discharge obligation. This crate provides no certificate,
-persistence codec, accepted lock, or `PackageInstance` route.
+grant dangerous authority, validate externally supplied executable code, or
+exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins
+each typed compiler fact to its canonical row and assigns `OpenRootAdmission`,
+`OpenLaterDischarge`, or one concrete `Discharged` result. The first discharge
+class matches an exact compiler-owned assumption certificate to the reviewed
+callable, contract/fact coordinates, and strong contract commitment, then
+independently reconstructs and checks it through the proof kernel. Missing,
+unsupported, malformed, duplicated, or nonjoining certificates leave the
+obligation open or reject. The manager may propagate remaining open obligations
+to a consuming root, but root policy cannot admit a later-discharge obligation.
+
+The discharge result is in-memory and source-handle-free; it has no persistence
+codec and is not an accepted lock or `PackageInstance`. The review row remains
+blocking because review records the compiler stand-down, while authority to
+close it comes only from the separate locally rechecked result.
 
 The crate root exports `project_checked_package_review` for ordinary checked
 review and the separately non-executable

@@ -19,3 +19,4 @@ mod terminal_authority_permissions;
 
 pub use package::project_checked_package_review;
 pub use quotients::project_non_executable_quotient_package_review;
+pub(crate) use semantics::declarations::nominal_identity;

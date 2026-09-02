@@ -898,6 +898,144 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+fn dependency_contract_assumption_certificate_closes_the_later_discharge() {
+    let temporary = temporary_root("contract-assumption-discharge-composition");
+    let dependency = temporary.join("dependency");
+    let root = temporary.join("root");
+    std::fs::create_dir_all(&dependency).expect("create contract dependency");
+    std::fs::create_dir_all(&root).expect("create contract consumer");
+    std::fs::write(
+        dependency.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("contract-surface");
+}
+"#,
+    )
+    .expect("write contract dependency build");
+    std::fs::write(
+        dependency.join("main.omg"),
+        r#"pub machine retain(value: u64) -> u64
+requires
+    value >= 1
+ensures
+    value >= 1
+{
+    let retained: u64 = value;
+    retained
+}
+"#,
+    )
+    .expect("write assumption-discharged contract");
+    std::fs::write(
+        root.join("build.omg"),
+        r#"target windows_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("contract-consumer");
+    builder.depend(Source::Path {
+        location: "../dependency"
+    });
+}
+"#,
+    )
+    .expect("write contract consumer build");
+    std::fs::write(root.join("main.omg"), "pub machine value() -> u64 { 1 }\n")
+        .expect("write contract consumer source");
+
+    let target = omega_target::TargetProfile::WindowsX64;
+    let closure = resolve_external_closure(&root, temporary.join("cache"));
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(target),
+        &temporary.join("build"),
+    )
+    .expect("compile assumption-discharged contract closure");
+    let reconstruction_limits = CanonicalPackageReconstructionQuestionLimits::default();
+    let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
+    let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
+        &closure.for_exact_target(target),
+        &reviews,
+        reconstruction_limits,
+    )
+    .expect("compose locally discharged contract obligation");
+
+    let dependency_entry = composed
+        .entries()
+        .iter()
+        .find(|entry| entry.package().name().as_str() == "contract-surface")
+        .expect("dependency result");
+    assert!(
+        dependency_entry
+            .results()
+            .open_contract_entailment_obligations()
+            .is_empty()
+    );
+    assert_eq!(
+        dependency_entry
+            .results()
+            .contract_entailment_assumption_discharges()
+            .len(),
+        1
+    );
+    assert_eq!(
+        dependency_entry
+            .results()
+            .contract_entailment_assumption_discharges()[0]
+            .status(),
+        OrdinaryPackageObligationStatus::Discharged
+    );
+    assert_eq!(
+        composed.root_open_contract_entailment_obligations().count(),
+        0
+    );
+
+    let conflicts = compare_review_only_initial_capabilities(
+        &reviews,
+        &closure.for_exact_target(target),
+        conflict_limits,
+    )
+    .expect("derive exact fresh contract conflicts");
+    assert!(conflicts.packages().iter().any(|package| {
+        package.conflicts().iter().any(|conflict| {
+            conflict.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
+                && conflict.risk() == PackageReviewCanonicalRowRisk::Blocking
+        })
+    }));
+    let accepted_decisions = conflicts
+        .packages()
+        .iter()
+        .flat_map(|package| {
+            package
+                .conflicts()
+                .iter()
+                .filter(|conflict| conflict.is_blocking())
+                .map(|conflict| {
+                    package
+                        .root_policy_decision(
+                            conflict,
+                            ReviewOnlyRootPolicyDisposition::AcceptCandidateChange,
+                        )
+                        .expect("bind exact fresh contract blocker")
+                })
+        })
+        .collect::<Vec<_>>();
+    let accepted_policy =
+        resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
+            .expect("resolve complete contract policy");
+    accept_ordinary_closure_evidence(
+        &closure.for_exact_target(target),
+        &reviews,
+        reconstruction_limits,
+        conflict_limits,
+        Some(&accepted_policy),
+    )
+    .expect("locally rechecked discharge permits in-memory acceptance");
+
+    remove_temporary_tree(&temporary);
+}
+
+#[test]
 fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh_match_rejects() {
     let (temporary, _closure, reviews, question) = graph_workbench_question();
     let limits = CanonicalPackageReconstructionQuestionLimits::default();
