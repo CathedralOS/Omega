@@ -1,7 +1,7 @@
 use psi_diagnostics::Diagnostic;
 
-pub(super) struct NativeOptimizationAdmission<'checked> {
-    pub(super) program_entry: &'checked omega_build_evaluation::SelectedCompilerProgramEntry,
+pub(super) struct NativeOptimizationAdmission {
+    pub(super) program_entry: omega_build_evaluation::SelectedCompilerProgramEntry,
     pub(super) target: omega_target::NativeTarget,
 }
 
@@ -25,7 +25,7 @@ pub(super) fn reject_unconsumed_callbacks(
 
 pub(super) fn admit(
     checked: &crate::pipeline::CheckedCompilation,
-) -> Result<NativeOptimizationAdmission<'_>, Vec<Diagnostic>> {
+) -> Result<NativeOptimizationAdmission, Vec<Diagnostic>> {
     let program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
             "native-artifact production requires one exact selected program entry",
@@ -48,7 +48,7 @@ pub(super) fn admit(
         checked.selected_provider_provenance(),
     )?;
     Ok(NativeOptimizationAdmission {
-        program_entry,
+        program_entry: program_entry.clone(),
         target,
     })
 }

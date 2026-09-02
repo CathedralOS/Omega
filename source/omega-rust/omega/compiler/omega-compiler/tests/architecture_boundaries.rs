@@ -285,11 +285,16 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs");
     let request_path =
         repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/request.rs");
+    let optimization_path = repo_root
+        .join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/mod.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let request = fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
+    let optimization = fs::read_to_string(&optimization_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", optimization_path.display()));
     let compact_driver = without_ascii_whitespace(&driver);
+    let compact_optimization = without_ascii_whitespace(&optimization);
 
     assert_eq!(
         compact_driver
@@ -343,15 +348,22 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         .split_once("RequestedCompileProduct::NativeArtifact=>")
         .map(|(_, native_arm)| native_arm)
         .expect("the common product stop must contain its native arm");
-    let native_report = native_arm
-        .find("optimization::native_report(request,&checked)?")
+    native_arm
+        .find("optimization::native_report(request,checked).map(finalize_report)")
         .expect("the native product arm must invoke its report owner");
-    let checked_receipt = native_arm
+    let checked_receipt = compact_optimization
         .find("NativeCompilationWithCheckedReceipt::new(checked,report)")
-        .expect("the native product arm must retain checked/report custody validation");
+        .expect("the native report owner must retain checked/report custody validation");
+    let report_assembly = compact_optimization
+        .find("letreport=CompileReport::from_retained_native_artifact(")
+        .expect("the native report owner must assemble the report");
     assert!(
-        native_report < checked_receipt,
+        report_assembly < checked_receipt,
         "native report assembly must precede checked/report custody validation"
+    );
+    assert!(
+        compact_driver.contains("optimization::prepare_native_report(request,checked)?"),
+        "the native batch route must delegate each child's Terminal preparation to the same owner"
     );
     assert!(
         !request.contains("validate_for_native_execution"),

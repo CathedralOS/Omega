@@ -2467,6 +2467,18 @@ admission profile, provider plans, external bindings, and consuming-lowerer
 authority and may independently accept or reject the Psi proposal. No
 unresolved target branch is encoded inside Psi.
 
+The maintained native batch route prepares each child's canonical Terminal
+artifact independently, then shares only the target-neutral decode,
+proof-admission, and abstract-input lowering keyed by the complete
+`TerminalArtifactIdentity`, exact `AdmissionProfile`, and the
+optimized/unoptimized entrance. The selected target, entry and calling plans,
+provider and external settlements, authority policies, callbacks, physical
+evidence, and machine/image lowering remain exact-child inputs. A prepared
+input rechecks its key when consumed. Controls pin both one identical Terminal
+artifact entering distinct x64/AArch64 lowerers and target-selected roots with
+different Terminal identities remaining separate. This reuse is an internal
+compiler optimization, not proof, review, or audit evidence.
+
 The optional batch manifest commits to the exact explicit request set and each
 child commitment/outcome. It claims only that those requested compilations were
 performed. It does not assert that the set is complete, supported, tested,
