@@ -54,10 +54,11 @@ fn active_resident_composes_with_sign_extended_mov_through_publication() {
         .fresh_materialize;
     let plan = materialization.materialization().plan();
     let custody = realization.optimization().custody().unwrap();
-    assert!(plan
-        .actions
-        .iter()
-        .any(|action| action.instruction == fresh_materialize));
+    assert!(
+        plan.actions
+            .iter()
+            .any(|action| action.instruction == fresh_materialize)
+    );
     assert_eq!(staged.selections(), selections.identity());
     assert_eq!(rematerialization.custody().applied_count(), 1);
     assert_eq!(rematerialization.custody().rewritten_use_count(), 2);

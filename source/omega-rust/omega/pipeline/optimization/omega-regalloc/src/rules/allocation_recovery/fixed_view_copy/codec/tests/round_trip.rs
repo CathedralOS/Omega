@@ -1,8 +1,9 @@
 use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
 use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
+use psi_core::MachineId;
 
 use super::{
-    super::{encode_v4, encode_v6, encode_v7},
+    super::{encode_v4, encode_v6, encode_v7, encode_v8},
     plan,
 };
 
@@ -65,6 +66,16 @@ fn artifact_v8_round_trips_u64_less_than_terminator_vocabulary() {
             when_less: when_nonzero,
             when_not_less: when_zero,
         };
+
+    assert_eq!(FixedViewCopyPlan::decode(&encode_v8(&plan)).unwrap(), plan);
+}
+
+#[test]
+fn artifact_v9_round_trips_scalar_call_callee_vocabulary() {
+    let mut plan = plan(FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1);
+    let callee = MachineId::new(901).unwrap();
+    plan.transformed.functions[0].blocks[0].instructions[0].kind =
+        SelectedInstructionKind::CallI64 { callee };
 
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
 }

@@ -5,6 +5,7 @@
 
 mod projected_structural_call_return;
 mod scalar;
+mod scalar_call_unit;
 mod structural_unit;
 mod unit;
 
@@ -30,6 +31,21 @@ pub(super) fn build_plan(
             .unit_functions
             .iter()
             .map(|source| unit::build(source, constraints.keys, catalog))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    functions.extend(
+        target
+            .scalar_call_unit_functions
+            .iter()
+            .enumerate()
+            .map(|(index, source)| {
+                scalar_call_unit::build(
+                    index + target.functions.len() + target.unit_functions.len(),
+                    source,
+                    constraints,
+                    catalog,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?,
     );
     functions.sort_by_key(|function| function.machine);

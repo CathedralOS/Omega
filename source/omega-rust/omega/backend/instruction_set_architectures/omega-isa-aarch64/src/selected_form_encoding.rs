@@ -496,6 +496,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchU64LessThan => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
+        SelectedInstructionKind::CallI64 { .. } => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
+        }
     })
 }
 
@@ -612,6 +615,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
+        }
+        SelectedInstructionKind::CallI64 { .. } => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -895,7 +901,8 @@ fn validate_decoded(
             decoded == [DecodedWord::Return]
         }
         SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan => false,
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
         Ok(())
@@ -1014,7 +1021,8 @@ fn footprint(
             (vec![], vec![], false)
         }
         SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan => (vec![], vec![], false),
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
@@ -1097,12 +1105,28 @@ fn footprint(
 mod tests {
     use omega_register_model::validate_physical_register_model;
     use omega_selected_instructions::MachineAlternativeFamily;
-    use psi_core::{IntegerValue, ObligationId};
+    use psi_core::{IntegerValue, MachineId, ObligationId};
 
     use super::*;
 
     fn alternative(family: MachineAlternativeFamily) -> MachineAlternativeKey {
         MachineAlternativeKey { family, variant: 0 }
+    }
+
+    #[test]
+    fn scalar_call_is_explicitly_refused_before_encoding() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        assert_eq!(
+            encode_aarch64_selected_form(
+                &physical,
+                SelectedInstructionKind::CallI64 {
+                    callee: MachineId::new(1).unwrap(),
+                },
+                alternative(MachineAlternativeFamily::ReturnUnit),
+                &[],
+            ),
+            Err(Aarch64SelectedFormEncodingError::LayoutDependentForm),
+        );
     }
 
     fn movn(register: u8, halfword: u8, immediate: u16) -> [u8; 4] {

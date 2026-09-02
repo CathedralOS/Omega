@@ -1105,8 +1105,20 @@ x64, Linux Arm64, and macOS Arm64. It checks argument/result views, implicit
 control and stack facts, every individual call clobber, preserved-unit
 injection, platform ABI substitution, preservation-convention drift, and the
 Microsoft structural-Unit call row. This does not claim general call-crossing
-allocation coverage: general scalar calls are not yet represented in the
-selected CFG.
+allocation coverage. One exact attached-Unit U64 fork/join chain is now
+represented in the selected CFG on Linux System V AMD64 and AAPCS64: two
+constants feed two independent calls, and their results feed a third call.
+Selection uses explicit copies around fixed argument/result views rather than
+precoloring the durable values themselves. The first result is live through
+the unrelated second call; liveness retains that call's complete clobber set,
+legality removes every aliasing caller-saved home, and deterministic
+allocation selects a preserved home without spilling on both ISAs. The legal
+and selected representations independently bind the exact three-call grammar,
+callee identities, ABI rows, values, provenance, fuel, and target identity.
+This stops before machine-effect analysis because the current effect
+vocabulary cannot honestly describe x86 call stack/memory behavior. It grants
+no callee-save prologue/epilogue, relocation, encoding, emission, publication,
+or general scalar-call authority.
 
 Applied selected-lowering publication coverage crosses both exact incoming-u12
 rules with every hosted target: Linux x64, Windows x64, Linux Arm64, and macOS

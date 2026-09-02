@@ -1482,8 +1482,22 @@ decision. Only true language-semantic questions belong in
   and exact ABI alignment/preservation/capacity facts. Actual frame layout,
   placement choices, executable accesses, probing, unwind, stable-address
   loans, and dynamic-allocation integration remain open.
-- [ ] Extend call-clobber validation through general scalar calls and
-  live-across-call allocation after calls enter the selected CFG.
+- [>] Extend call-clobber validation through general scalar calls and
+  live-across-call allocation after calls enter the selected CFG. The first
+  exact vertical now retains an attached-Unit two-constant, three-call U64
+  fork/join chain in a separate legalized roster and selects it on Linux
+  System V AMD64 and AAPCS64. Explicit copies bridge durable values to the
+  fixed argument/result views. The first call result remains live across the
+  unrelated second call; selected-CFG liveness retains the complete clobber
+  row, allocation legality removes every aliasing caller-saved view, and
+  deterministic allocation chooses a preserved home without spilling on both
+  ISAs. Independent legalization/selection replay, target substitution,
+  fixed-view, clobber, and home corruption tests fail closed. Custody advances
+  append-only legalized V17 and selected V16 identities; fixed-view-copy V9
+  persists the call kind and callee while retaining V4-V8 decode compatibility.
+  This is allocation evidence only: general call shapes and ABIs, callee-save
+  prologue/epilogue realization, call memory/stack/trap effects, relocation,
+  encoding, emission, and publication remain unsupported.
 
 ## P6 — Machine optimizer
 

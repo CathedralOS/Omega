@@ -1,6 +1,7 @@
 //! Canonical legalized-plan roster encoding shared by current and legacy identities.
 
 use super::projected_structural_call_return::encode_projected_structural_call_return;
+use super::scalar_call_unit::encode_scalar_call_unit_function;
 use super::{
     plan::encode_structural_unit_function,
     scalar::{encode_bindings, encode_definition_site, encode_leaf, encode_register},
@@ -11,6 +12,7 @@ pub(super) fn identity(
     plan: &LegalizedOperationPlan,
     domain: &[u8],
     retain_call_contract: bool,
+    retain_scalar_call_unit_roster: bool,
 ) -> LegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
@@ -197,6 +199,12 @@ pub(super) fn identity(
     encode_len(&mut bytes, plan.projected_structural_call_returns.len());
     for closure in &plan.projected_structural_call_returns {
         encode_projected_structural_call_return(&mut bytes, closure);
+    }
+    if retain_scalar_call_unit_roster {
+        encode_len(&mut bytes, plan.scalar_call_unit_functions.len());
+        for function in &plan.scalar_call_unit_functions {
+            encode_scalar_call_unit_function(&mut bytes, function);
+        }
     }
     LegalizedOperationPlanIdentity::from_canonical_bytes(&bytes)
 }

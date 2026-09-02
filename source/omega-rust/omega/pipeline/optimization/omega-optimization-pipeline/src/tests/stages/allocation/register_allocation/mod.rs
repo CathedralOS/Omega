@@ -25,6 +25,7 @@ mod recursive_spill_insertion;
 mod recursive_reload_value_homes;
 mod register_homes;
 mod reload_value_homes;
+mod runtime_scalar_call_chain;
 mod selected_input;
 mod spill_pseudo_instructions;
 mod spill_recovery_actions;

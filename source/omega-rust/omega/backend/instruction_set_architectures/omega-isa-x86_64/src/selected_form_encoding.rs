@@ -567,6 +567,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchU64LessThan => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
+        SelectedInstructionKind::CallI64 { .. } => {
+            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
+        }
     })
 }
 
@@ -764,6 +767,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan => {
+            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
+        }
+        SelectedInstructionKind::CallI64 { .. } => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -1589,7 +1595,8 @@ fn validate_decoded(
             decoded == [DecodedInstruction::Return]
         }
         SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan => false,
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
         Ok(())
@@ -1625,7 +1632,8 @@ fn footprint(
             (vec![], vec![], false)
         }
         SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan => (vec![], vec![], false),
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = x86_64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
@@ -1730,7 +1738,7 @@ mod tests {
     use omega_register_model::{
         ValidatedRegisterConstraintCatalog, validate_physical_register_model,
     };
-    use psi_core::{ObligationId, OperationId};
+    use psi_core::{MachineId, ObligationId, OperationId};
 
     use super::*;
 
@@ -1743,6 +1751,22 @@ mod tests {
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
         }
+    }
+
+    #[test]
+    fn scalar_call_is_explicitly_refused_before_encoding() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        assert_eq!(
+            encode_x86_64_selected_form(
+                &physical,
+                SelectedInstructionKind::CallI64 {
+                    callee: MachineId::new(1).unwrap(),
+                },
+                alternative(MachineAlternativeFamily::ReturnUnit, 0),
+                &[],
+            ),
+            Err(X86_64SelectedFormEncodingError::LayoutDependentForm),
+        );
     }
 
     fn structural_call_plan() -> CallPlan {

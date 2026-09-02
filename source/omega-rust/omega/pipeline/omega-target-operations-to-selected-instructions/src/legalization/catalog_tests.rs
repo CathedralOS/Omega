@@ -1,9 +1,10 @@
 use super::catalog::*;
 use omega_legalized_operations::{
-    LegalizationRecipe, StructuralUnitLegalizationRecipe, UnitLegalizationRecipe,
+    LegalizationRecipe, ScalarCallUnitLegalizationRecipe, StructuralUnitLegalizationRecipe,
+    UnitLegalizationRecipe,
 };
 
-const EXPECTED_RECIPES: [LegalizationFormRecipe; 18] = [
+const EXPECTED_RECIPES: [LegalizationFormRecipe; 19] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ImmediateConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EntryParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1),
@@ -36,6 +37,9 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 18] = [
     ),
     LegalizationFormRecipe::Scalar(
         LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1,
+    ),
+    LegalizationFormRecipe::ScalarCallUnit(
+        ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
     ),
     LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
     LegalizationFormRecipe::StructuralUnit(StructuralUnitLegalizationRecipe::ReturnUnitV1),
@@ -135,4 +139,31 @@ fn not_equal_catalog_row_freezes_the_exact_nested_source_grammar() {
     assert_eq!(constraints.operation_count, 7);
     assert_eq!(constraints.leaf_node_counts, [2, 2]);
     assert_eq!(constraints.parameter_count, 2);
+}
+
+#[test]
+fn scalar_call_unit_catalog_row_freezes_the_exact_chain_grammar() {
+    let row = legalization_form_for_recipe(LegalizationFormRecipe::ScalarCallUnit(
+        ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
+    ))
+    .expect("scalar-call Unit catalog row");
+    assert_eq!(
+        row.producer_matcher,
+        LegalizationProducerMatcherKind::ScalarCallUnit(
+            ScalarCallUnitLegalizationMatcherKind::U64EqualityConditionalThreeCallChain,
+        )
+    );
+    assert_eq!(
+        row.validator,
+        LegalizationValidatorKind::ScalarCallUnit(
+            ScalarCallUnitLegalizationValidatorKind::U64EqualityConditionalThreeCallChain,
+        )
+    );
+    let LegalizationShapeConstraints::ScalarCallUnit(constraints) = row.constraints else {
+        panic!("scalar-call Unit constraints")
+    };
+    assert_eq!(constraints.block_count, 1);
+    assert_eq!(constraints.operation_count, 6);
+    assert_eq!(constraints.node_count, 6);
+    assert_eq!(constraints.scalar_parameter_count, 0);
 }

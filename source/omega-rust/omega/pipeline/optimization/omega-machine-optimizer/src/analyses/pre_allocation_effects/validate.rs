@@ -266,6 +266,11 @@ fn replay_declaration<'a>(
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
+    if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+        return Err(MachineEffectError::ScalarCallMachineEffectsUnsupported {
+            instruction: instruction.id,
+        });
+    }
     let semantic = match instruction.kind {
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
         SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
@@ -287,6 +292,9 @@ fn replay_declaration<'a>(
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
+        SelectedInstructionKind::CallI64 { .. } => {
+            unreachable!("scalar calls are refused before semantic replay")
+        }
     };
     let declarations = catalog
         .catalog()
@@ -310,6 +318,7 @@ fn replay_declaration<'a>(
 fn copied_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         structural_unit_call: keys.structural_unit_call,
+        call_i64_2_u64_to_u64: keys.call_i64_2_u64_to_u64,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,

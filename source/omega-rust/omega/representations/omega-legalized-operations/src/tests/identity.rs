@@ -8,6 +8,66 @@ fn assert_identity_drift(
 }
 
 #[test]
+fn scalar_call_unit_identity_binds_chain_custody_append_only() {
+    let plan = scalar_call_unit_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    assert_eq!(identity, legalized_operation_plan_identity(&plan));
+
+    let mut without_roster = plan.clone();
+    without_roster.scalar_call_unit_functions.clear();
+    assert_eq!(
+        legalized_operation_plan_identity_v16_legacy(&without_roster),
+        legalized_operation_plan_identity_v16_legacy(&plan),
+        "V16 predates the append-only scalar-call Unit roster"
+    );
+    assert_ne!(legalized_operation_plan_identity(&without_roster), identity);
+
+    let mut corruptions = Vec::new();
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].attachment = id(999);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].constants[0].value = IntegerValue::Unsigned(8);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].constants.swap(0, 1);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].calls[0].callee = id(999);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].calls[0]
+        .arguments
+        .swap(0, 1);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].calls[2]
+        .result_home
+        .source_value = id(999);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].calls[1].fuel[0].units += 1;
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].calls[1]
+        .effect
+        .output += 1;
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0].return_edge = id(999);
+    corruptions.push(corrupted);
+    let mut corrupted = plan.clone();
+    corrupted.scalar_call_unit_functions[0]
+        .return_ownership
+        .clear();
+    corruptions.push(corrupted);
+
+    for corrupted in corruptions {
+        assert_identity_drift(identity, &corrupted);
+    }
+}
+
+#[test]
 fn call_aware_unit_identity_binds_semantic_and_target_custody() {
     let plan = call_aware_plan();
     let identity = legalized_operation_plan_identity(&plan);

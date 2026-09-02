@@ -164,6 +164,7 @@ fn validate_catalog_roots(
 fn terminal_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
         structural_unit_call: keys.structural_unit_call,
+        call_i64_2_u64_to_u64: keys.call_i64_2_u64_to_u64,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,
@@ -221,6 +222,11 @@ fn exact_declaration<'a>(
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
+    if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+        return Err(MachineEffectError::ScalarCallMachineEffectsUnsupported {
+            instruction: instruction.id,
+        });
+    }
     let semantic = semantic(instruction.kind);
     let mut matches = catalog
         .catalog()
@@ -262,5 +268,8 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
+        SelectedInstructionKind::CallI64 { .. } => {
+            unreachable!("scalar calls are refused before semantic lookup")
+        }
     }
 }

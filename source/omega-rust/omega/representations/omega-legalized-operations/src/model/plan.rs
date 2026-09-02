@@ -132,6 +132,10 @@ pub struct LegalizedOperationPlan {
     /// scalar conditional recipe inventory. Keeping this roster distinct
     /// prevents a value-less return from acquiring a fabricated scalar leaf.
     pub unit_functions: Vec<LegalizedUnitFunction>,
+    /// Exact attached-Unit scalar-call bodies. This roster remains separate
+    /// from plain Unit so calls, result homes, and ABI placement cannot be
+    /// projected away by the value-less baseline.
+    pub scalar_call_unit_functions: Vec<super::scalar_call_unit::LegalizedScalarCallUnitFunction>,
     /// Exact structural-call Unit functions. This roster is deliberately
     /// distinct from `unit_functions`: accepting a structural signature in
     /// the value-less baseline would erase its ABI and ownership transfer.

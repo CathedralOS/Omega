@@ -2,8 +2,8 @@
 //!
 //! V4 owns the historical scalar roster. V5 introduced the authenticated
 //! structural taxonomy; V6 extends its call leaf with proof/crash custody.
-//! The V8 envelope appends predicate-aware instruction and terminator tags to
-//! that byte-stable payload taxonomy.
+//! V8 appended predicate-aware instruction and terminator tags. V9 appends the
+//! direct scalar-call tag and callee payload to that byte-stable taxonomy.
 
 mod block;
 mod function;

@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v6\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v7\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     let selected_keys = catalog.selected_keys.in_identity_order();
@@ -328,6 +328,10 @@ mod tests {
             structural_unit_call: Some(RegisterConstraintKey {
                 family: RegisterConstraintFamily::Call,
                 variant: 2,
+            }),
+            call_i64_2_u64_to_u64: Some(RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 3,
             }),
             materialize_i64: instruction(0),
             copy_i64: instruction(1),

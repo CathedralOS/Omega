@@ -5,6 +5,7 @@ mod functions;
 mod integrity;
 mod projected_structural_call_return;
 mod roots;
+mod scalar_call_unit;
 mod structural_unit;
 mod virtual_registers;
 
@@ -32,8 +33,17 @@ pub fn validate_selected_instructions(
             .iter()
             .filter(|source| source.machine == selected.machine)
             .collect::<Vec<_>>();
-        match (scalar.as_slice(), unit.as_slice()) {
-            ([source], []) => validate_function(
+        let scalar_call_unit = target
+            .scalar_call_unit_functions
+            .iter()
+            .filter(|source| source.machine == selected.machine)
+            .collect::<Vec<_>>();
+        match (
+            scalar.as_slice(),
+            unit.as_slice(),
+            scalar_call_unit.as_slice(),
+        ) {
+            ([source], [], []) => validate_function(
                 function_index,
                 source,
                 selected,
@@ -41,8 +51,11 @@ pub fn validate_selected_instructions(
                 physical,
                 catalog,
             )?,
-            ([], [source]) => {
+            ([], [source], []) => {
                 validate_unit_function(function_index, source, selected, constraints.keys, catalog)?
+            }
+            ([], [], [source]) => {
+                scalar_call_unit::validate(function_index, source, selected, constraints, catalog)?
             }
             _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
         }

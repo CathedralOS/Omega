@@ -9,6 +9,7 @@ pub(super) use omega_legalized_operations::{
     LegalizedCondition, LegalizedFunction as SourceFunction, LegalizedImmediate as SourceImmediate,
     LegalizedLeaf as SourceLeaf, LegalizedLeafValue as SourceLeafValue, LegalizedOperationPlan,
     LegalizedOperationPlanIdentity, LegalizedProjectedStructuralCallReturn,
+    LegalizedScalarCallUnitFunction as SourceScalarCallUnitFunction,
     LegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
     LegalizedUnitFunction as SourceUnitFunction,
 };
@@ -33,7 +34,7 @@ pub(super) use omega_selected_instructions::{
     SelectedStructuralUnitReturn, SelectedSuccessor, SelectedTerminator, VirtualRegister,
     VirtualRegisterId, VirtualRegisterOrigin,
 };
-pub(super) use psi_core::{IntegerCarrier, IntegerSign, ScalarType};
+pub(super) use psi_core::{IntegerCarrier, IntegerSign, ScalarType, ValueId};
 pub(super) use psi_terminal::{
     BindingRelevance, StructuralAccess, StructuralFieldType, StructuralTypeShape,
 };
