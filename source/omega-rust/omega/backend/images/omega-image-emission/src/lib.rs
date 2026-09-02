@@ -86,7 +86,10 @@ use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_
 use scalar_stack::validate_scalar_stack;
 use structural_return::validate_structural_return_record;
 use unit_affine_cleanup::validate_unit_affine_cleanup;
-use unit_call_custody::{expected_projected_copy_bytes, validate_internal_unit_call_custody};
+use unit_call_custody::{
+    expected_projected_copy_bytes, validate_internal_unit_call_custody,
+    validate_mixed_structural_scalar_abi,
+};
 use unit_scalar_call_custody::validate_internal_unit_scalar_calls;
 use unit_stack::{
     validate_complete_unit_stack_evidence, validate_foreign_unit_call_stack,
@@ -247,6 +250,8 @@ pub struct ObjectFunction {
     pub machine: MachineId,
     pub attachment: Option<psi_core::StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    pub mixed_structural_scalar_abi:
+        Option<omega_target_operations::MixedStructuralScalarFunctionAbi>,
     pub structural_call_scalar_return:
         Option<omega_machine_code::StructuralCallScalarReturnEvidence>,
     pub unit_scalar_abi: Option<omega_machine_code::UnitScalarFunctionAbiRecord>,
@@ -722,6 +727,7 @@ fn build_object_artifact_with_x86_feature_profile(
         .map(|function| (function.machine, function))
         .collect::<std::collections::BTreeMap<_, _>>();
     for function in &plan.functions {
+        validate_mixed_structural_scalar_abi(plan.target, function)?;
         if let Some(previous) = previous
             && previous >= function.machine
         {
@@ -1262,6 +1268,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     .or(default_affine_cleanup);
             validate_internal_unit_call_custody(
                 plan.target,
+                function,
                 function.machine,
                 &function.provenance,
                 &function.bytes,
@@ -1272,6 +1279,9 @@ fn build_object_artifact_with_x86_feature_profile(
                 validated_function_stack.as_ref(),
                 unit_call_stack,
                 scalar_call_stack,
+                machine_functions
+                    .get(&custody.target)
+                    .and_then(|callee| callee.mixed_structural_scalar_abi.as_ref()),
                 custody,
                 affine_cleanup,
                 fully_consumed_affine_pair,
@@ -2048,6 +2058,7 @@ fn build_object_artifact_with_x86_feature_profile(
             machine: function.machine,
             attachment: function.attachment,
             fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+            mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
             structural_call_scalar_return: function.structural_call_scalar_return,
             unit_scalar_abi: function.unit_scalar_abi.clone(),
             provenance: function.provenance.clone(),

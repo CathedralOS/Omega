@@ -337,7 +337,12 @@ fn validate_call(
         {
             return Err(invalid());
         }
-        validate_source(function, call, argument.source)?;
+        validate_source(
+            function,
+            call.operation_ordinal,
+            call.code_offset,
+            argument.source,
+        )?;
         let expected =
             expected_argument_bytes(target, argument, outbound_bytes).ok_or_else(invalid)?;
         if argument.byte_count != expected.len()
@@ -384,9 +389,10 @@ fn validate_call(
     Ok(())
 }
 
-fn validate_source(
+pub(super) fn validate_source(
     function: &MachineCodeFunction,
-    call: &InternalUnitScalarCallRecord,
+    consumer_operation_ordinal: usize,
+    consumer_code_offset: usize,
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
@@ -410,7 +416,7 @@ fn validate_source(
                             value,
                             operation_ordinal: constant.operation_ordinal,
                         })
-                        && constant.operation_ordinal < call.operation_ordinal
+                        && constant.operation_ordinal < consumer_operation_ordinal
                 })
                 .count();
             if matches != 1 {
@@ -421,8 +427,8 @@ fn validate_source(
             let matches = exact_preceding_unit_scalar_home_producer_count(
                 function,
                 home,
-                call.operation_ordinal,
-                call.code_offset,
+                consumer_operation_ordinal,
+                consumer_code_offset,
             );
             if matches != 1 || !function.unit_scalar_homes.contains(&home) {
                 return Err(invalid());
@@ -497,7 +503,7 @@ pub(super) fn exact_preceding_unit_scalar_home_producer_count(
     internal + foreign + dynamic + forwarded
 }
 
-fn expected_argument_bytes(
+pub(super) fn expected_argument_bytes(
     target: NativeTarget,
     argument: &omega_machine_code::InternalUnitScalarCallArgumentRecord,
     outbound_bytes: u32,
