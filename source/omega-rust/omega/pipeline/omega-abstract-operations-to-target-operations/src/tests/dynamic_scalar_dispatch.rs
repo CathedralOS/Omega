@@ -53,6 +53,104 @@ fn abstract_plan() -> omega_abstract_operations::AbstractOperationPlan {
         .expect("lower verified Terminal artifact")
 }
 
+fn forwarded_parameter_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let source = r#"
+        trait Measure {
+            machine measure(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+
+        machine forward(erased: &dyn Measure) -> i32 {
+            let result: i32 = erased.measure();
+            transition { _ -> result }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower forwarded dynamic source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified Terminal artifact")
+}
+
+#[test]
+fn lowers_forwarded_descriptor_to_two_word_entry_and_erased_slot_call() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = forwarded_parameter_plan();
+        let helper = source
+            .functions
+            .iter()
+            .find(|function| {
+                function.operations.iter().any(|operation| {
+                    matches!(
+                        operation,
+                        AbstractOperation::CallDynamicParameterScalar { .. }
+                    )
+                })
+            })
+            .expect("forward helper");
+        let functions = source
+            .functions
+            .iter()
+            .map(|function| (function.machine, function))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let structural_types = source
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let function = crate::lowering::lower_scalar_function_for_tests(
+            helper,
+            helper.result.scalar().expect("scalar helper result"),
+            target,
+            &functions,
+            &structural_types,
+            &std::collections::BTreeMap::new(),
+        )
+        .expect("target lowering selects the forwarded descriptor ABI");
+        let TargetOperation::ReturnDynamicParameterScalarCall {
+            parameter_abi,
+            function_call_plan,
+            dispatch_call_plan,
+            table_slot_byte_offset,
+            ..
+        } = &function.operation
+        else {
+            panic!("forward helper must keep its role-specific target carrier")
+        };
+        assert_eq!(parameter_abi.parameter.owner, function.machine);
+        assert_eq!(function_call_plan.parameters.len(), 2);
+        assert_eq!(dispatch_call_plan.parameters.len(), 1);
+        assert_eq!(*table_slot_byte_offset, 0);
+        assert_eq!(parameter_abi.instance, function_call_plan.parameters[0]);
+        assert_eq!(parameter_abi.table, function_call_plan.parameters[1]);
+        assert_ne!(parameter_abi.instance, parameter_abi.table);
+    }
+}
+
 #[test]
 fn lowers_rebound_dynamic_versions_to_one_target_indirect_call() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {

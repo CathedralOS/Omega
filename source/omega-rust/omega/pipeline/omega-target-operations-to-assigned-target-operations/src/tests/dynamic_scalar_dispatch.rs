@@ -1,12 +1,23 @@
 use crate::assign_registers;
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_assigned_target_operations::{AssignedOperation, AssignedUnitOperation};
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use omega_target::NativeTarget;
+use omega_target_operations::{
+    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetOperation, TargetOperationPlan,
+    TerminalPsiProvenance,
+};
+use psi_core::{EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId};
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_terminal::{
+    ClosedConformanceCallableResult, SemanticFingerprint, StructuralAccess,
+    TerminalDynamicDescriptorParameter, TerminalDynamicRequirement, TerminalPsiIdentity,
+    VocabularyMarker,
+};
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
@@ -54,6 +65,82 @@ fn target_plan(target: NativeTarget) -> omega_target_operations::TargetOperation
         .expect("lower verified Terminal artifact");
     lower_to_target_operations(&abstract_plan, target)
         .expect("lower rebound dynamic call to target operations")
+}
+
+#[test]
+fn forwarded_descriptor_target_role_fails_closed_at_assignment() {
+    let target = NativeTarget::linux_x64();
+    let pointer = ValueShape::integer(8, 8);
+    let result = ValueShape::integer(4, 4);
+    let function_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer, pointer],
+            result: Some(result),
+        },
+    )
+    .unwrap();
+    let dispatch_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer],
+            result: Some(result),
+        },
+    )
+    .unwrap();
+    let machine = MachineId::new(1).unwrap();
+    let requirement = TerminalDynamicRequirement {
+        slot: 0,
+        declaring_trait_identity: "Measure".into(),
+        public_requirement_identity: "Measure::measure".into(),
+        result: ClosedConformanceCallableResult::I32,
+    };
+    let parameter = TerminalDynamicDescriptorParameter {
+        owner: machine,
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "Measure".into(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![requirement.clone()],
+    };
+    let plan = TargetOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([9; 32]),
+        },
+        target,
+        entry: machine,
+        functions: vec![TargetFunction {
+            machine,
+            attachment: None,
+            fixed_integer_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![OperationId::new(1).unwrap()],
+                edges: vec![EdgeId::new(1).unwrap()],
+            },
+            operation: TargetOperation::ReturnDynamicParameterScalarCall {
+                psi_edge: EdgeId::new(1).unwrap(),
+                psi_operation: OperationId::new(1).unwrap(),
+                source_value: ValueId::new(1).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                ),
+                parameter_abi: TargetDynamicDescriptorParameterAbi {
+                    parameter,
+                    instance: function_call_plan.parameters[0].clone(),
+                    table: function_call_plan.parameters[1].clone(),
+                },
+                requirement,
+                function_call_plan,
+                dispatch_call_plan,
+                table_slot_byte_offset: 0,
+            },
+        }],
+    };
+    assert_eq!(
+        assign_registers(&plan),
+        Err(crate::AssignmentError::DynamicDescriptorAssignmentUnsupported(machine))
+    );
 }
 
 #[test]

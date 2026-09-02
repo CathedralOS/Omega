@@ -15,6 +15,9 @@ pub(super) fn assign_operation(
         operation @ TargetOperation::ReturnStructuralScalarCall { .. } => {
             structural::scalar_call_result::assign(function.machine, operation, target)
         }
+        TargetOperation::ReturnDynamicParameterScalarCall { .. } => Err(
+            AssignmentError::DynamicDescriptorAssignmentUnsupported(function.machine),
+        ),
         operation @ TargetOperation::ReturnStructuralCall { .. } => {
             structural::direct_call_result::assign(function.machine, operation, target)
         }

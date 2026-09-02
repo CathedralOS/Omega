@@ -11767,10 +11767,14 @@ checked-result arithmetic decision listed below.
   exact declaration roster and rejects missing, duplicated, reordered,
   substituted, or misplaced custody. Call/effect replay retains every table
   realization, and the ordinary-call identity remains a separate stable
-  encoding. Native target realization deliberately remains the next boundary:
-  descriptor-bearing calls and
-  `CallDynamicParameterScalar` both fail closed before physical planning, so
-  no target pretends to implement a descriptor-parameter ABI yet. The older
+  encoding. The first target-owned physical plan is now explicit for the
+  forwarded helper: x86-64 and AArch64 independently select a two-word
+  `{data, table}` function-entry ABI, a one-word erased slot-call ABI, and the
+  checked byte offset of the required table slot. This role-specific target
+  carrier cannot be mistaken for the helper's formerly inferred zero-argument
+  integer ABI, and assignment rejects it until physical homes and emitted
+  indirect-call mechanics land. Descriptor-bearing caller calls still fail
+  closed before target planning. The older
   direct and caller-local rebound lanes still cross target lowering,
   assignment, object replay, and x86-64/AArch64 execution unchanged.
 
