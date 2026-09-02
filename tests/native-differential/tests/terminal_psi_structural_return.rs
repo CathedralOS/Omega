@@ -5369,6 +5369,7 @@ fn assert_source_structural_return(
         };
         let TargetOperation::ReturnStructuralParameter {
             call_plan,
+            scalar_parameters,
             parameters,
             source,
             result,
@@ -5384,6 +5385,7 @@ fn assert_source_structural_return(
             panic!("structural passthrough must remain distinct from scalar and Unit returns")
         };
         assert_eq!(call_plan.policy, case.policy);
+        assert!(scalar_parameters.is_empty());
         assert_eq!(parameters, &machine.structural_parameters);
         assert_eq!(source, &structural_parameter);
         assert_eq!(result, &structural_result);
@@ -5410,6 +5412,7 @@ fn assert_source_structural_return(
         });
         let AssignedOperation::ReturnStructuralParameter {
             call_plan: assigned_call_plan,
+            scalar_parameters: assigned_scalar_parameters,
             parameters: assigned_parameters,
             source: assigned_source,
             result: assigned_result,
@@ -5425,6 +5428,7 @@ fn assert_source_structural_return(
             panic!("assignment must retain the typed structural return")
         };
         assert_eq!(assigned_call_plan, call_plan);
+        assert_eq!(assigned_scalar_parameters, scalar_parameters);
         assert_eq!(assigned_parameters, parameters);
         assert_eq!(assigned_source, source);
         assert_eq!(assigned_result, result);
