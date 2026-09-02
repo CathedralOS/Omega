@@ -397,6 +397,7 @@ mod tests {
                     machine,
                     attachment: None,
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     provenance: omega_target_operations::TerminalPsiProvenance {
                         operations: vec![OperationId::new(1).unwrap()],
                         edges: vec![EdgeId::new(1).unwrap()],

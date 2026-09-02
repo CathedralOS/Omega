@@ -112,6 +112,7 @@ pub(super) fn lower_linux_exit_group_i32(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
+mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: vec![*constant_operation, *psi_operation],
             edges: vec![*nominal_return_edge],

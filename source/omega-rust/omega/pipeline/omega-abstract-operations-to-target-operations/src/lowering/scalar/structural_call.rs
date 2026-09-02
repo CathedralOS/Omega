@@ -142,6 +142,7 @@ pub(super) fn lower_direct_return(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: vec![*psi_operation],
             edges: vec![*psi_edge],

@@ -76,6 +76,7 @@ pub(super) fn lower_unit_function(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
+mixed_structural_scalar_abi: None,
         provenance: lowered.provenance,
         operation: TargetOperation::UnitBody(TargetUnitBody {
             structural_types: structural_types

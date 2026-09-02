@@ -186,6 +186,7 @@ fn malformed_type_error(
         machine: source.functions[0].machine,
         attachment: source.functions[0].attachment,
         fixed_integer_scalar_abi: None,
+mixed_structural_scalar_abi: None,
         provenance: omega_target_operations::TerminalPsiProvenance::default(),
         operation: omega_target_operations::TargetOperation::ReturnIntegerImmediate {
             psi_edge: psi_core::EdgeId::new(54_503).unwrap(),

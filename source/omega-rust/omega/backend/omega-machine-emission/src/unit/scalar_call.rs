@@ -261,7 +261,7 @@ fn emit_aarch64_unit_scalar_call(
     Ok((argument_records, result_record))
 }
 
-fn validate_unit_scalar_argument(
+pub(super) fn validate_unit_scalar_argument(
     operation: psi_core::OperationId,
     parameter_index: usize,
     argument: &AssignedUnitScalarCallArgument,
@@ -352,7 +352,7 @@ fn assigned_destination_for_placement(
     }
 }
 
-const fn unit_scalar_argument_source_record(
+pub(super) const fn unit_scalar_argument_source_record(
     source: AssignedUnitScalarArgumentSource,
 ) -> InternalUnitScalarArgumentSourceRecord {
     match source {
@@ -469,7 +469,7 @@ pub(super) fn emit_unit_scalar_result(
     })
 }
 
-fn emit_x86_64_unit_scalar_argument(
+pub(super) fn emit_x86_64_unit_scalar_argument(
     bytes: &mut Vec<u8>,
     argument: &AssignedUnitScalarCallArgument,
     call_stack_bytes: u32,
@@ -509,7 +509,7 @@ fn emit_x86_64_unit_scalar_argument(
     Ok(())
 }
 
-fn emit_aarch64_unit_scalar_argument(
+pub(super) fn emit_aarch64_unit_scalar_argument(
     bytes: &mut Vec<u8>,
     argument: &AssignedUnitScalarCallArgument,
     call_stack_bytes: u32,

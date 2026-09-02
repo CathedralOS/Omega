@@ -1108,6 +1108,7 @@ pub(super) fn emit_unit_body(
                     result: *result,
                     semantic_result: None,
                     structural_result: None,
+                    scalar_arguments: Vec::new(),
                     arguments: copies
                         .iter()
                         .zip(argument_intervals)
@@ -1187,6 +1188,7 @@ pub(super) fn emit_unit_body(
                     operation,
                     target,
                     functions,
+                    &body.operations[..operation_ordinal],
                     &x86_homes,
                     &aarch64_homes,
                     &mut bytes,
@@ -2028,6 +2030,7 @@ pub(super) fn emit_unit_body(
                             result: None,
                             semantic_result: None,
                             structural_result: None,
+                            scalar_arguments: Vec::new(),
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
                             operation_ordinal,
@@ -2676,7 +2679,7 @@ mod dynamic_scalar_frame_tests {
     }
 }
 
-fn unit_scalar_shape(
+pub(super) fn unit_scalar_shape(
     value: psi_core::ValueId,
     scalar_type: psi_core::IntegerType,
 ) -> Result<ValueShape, EmissionError> {

@@ -96,6 +96,7 @@ fn assigned_x86_fma_emits_raw_bits_exact_plan_custody_and_canonical_mxcsr() {
                 machine,
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: operations.to_vec(),
                     edges: vec![edge],
@@ -260,6 +261,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
             entry: machine,
             functions: vec![TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -445,6 +447,7 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
             entry: machine,
             functions: vec![TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine,
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -736,6 +739,7 @@ fn linux_exit_group_consumes_i32_and_traps_on_both_linux_architectures() {
         entry: machine,
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -856,6 +860,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
         entry: machine,
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine,
             attachment: None,
             provenance: TerminalPsiProvenance {
@@ -1314,6 +1319,7 @@ fn executable_nominal_cleanup_plan(
             functions: vec![
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: root,
                     attachment: None,
                     provenance: TerminalPsiProvenance {
@@ -1335,6 +1341,7 @@ fn executable_nominal_cleanup_plan(
                 },
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: cleanup_machine,
                     attachment: Some(receiver_type),
                     provenance: TerminalPsiProvenance {
@@ -1364,6 +1371,7 @@ fn executable_nominal_cleanup_plan(
                 },
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: helper,
                     attachment: Some(helper_type),
                     provenance: TerminalPsiProvenance {
@@ -2337,6 +2345,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
         functions: vec![
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: MachineId::new(1).expect("root"),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2366,6 +2375,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
             },
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: MachineId::new(2).expect("leaf"),
                 attachment: None,
                 provenance: TerminalPsiProvenance {
@@ -2488,6 +2498,7 @@ fn aarch64_rejects_port_write_before_emitting_a_partial_body() {
         entry: MachineId::new(1).unwrap(),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).unwrap(),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -2566,6 +2577,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
             functions: vec![
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
@@ -2592,6 +2604,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
                 },
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: MachineId::new(2).unwrap(),
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
@@ -2661,6 +2674,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
         functions: vec![
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -2693,6 +2707,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
             },
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: MachineId::new(2).unwrap(),
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -2768,6 +2783,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
         functions: vec![
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -2794,6 +2810,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
             },
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: MachineId::new(2).unwrap(),
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -2908,6 +2925,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
             functions: vec![
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: MachineId::new(1).unwrap(),
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
@@ -2934,6 +2952,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                 },
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: MachineId::new(2).unwrap(),
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
@@ -3016,6 +3035,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                 functions: vec![
                     TargetFunction {
                         fixed_integer_scalar_abi: None,
+                        mixed_structural_scalar_abi: None,
                         machine: MachineId::new(1).unwrap(),
                         attachment: None,
                         provenance: TerminalPsiProvenance::default(),
@@ -3042,6 +3062,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                     },
                     TargetFunction {
                         fixed_integer_scalar_abi: None,
+                        mixed_structural_scalar_abi: None,
                         machine: MachineId::new(2).unwrap(),
                         attachment: None,
                         provenance: TerminalPsiProvenance::default(),
@@ -3073,6 +3094,7 @@ fn plan(target: NativeTarget) -> TargetOperationPlan {
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -3118,6 +3140,7 @@ fn conditional_plan(target: NativeTarget) -> TargetOperationPlan {
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -3163,6 +3186,7 @@ fn integer_structural_field_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -3250,6 +3274,7 @@ fn emits_canonical_boolean_returns_for_both_architectures() {
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -5513,6 +5538,7 @@ fn emits_typed_direct_call_relocations_for_native_targets() {
             functions: vec![
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: caller,
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
@@ -5567,6 +5593,7 @@ fn emits_typed_direct_call_relocations_for_native_targets() {
                 },
                 TargetFunction {
                     fixed_integer_scalar_abi: None,
+                    mixed_structural_scalar_abi: None,
                     machine: callee,
                     attachment: None,
                     provenance: TerminalPsiProvenance::default(),
@@ -5819,6 +5846,7 @@ fn parameter_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -5844,6 +5872,7 @@ fn expression_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -5868,6 +5897,7 @@ fn boolean_equality_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -5904,6 +5934,7 @@ fn integer_equality_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -5967,6 +5998,7 @@ fn integer_ordering_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -5998,6 +6030,7 @@ fn boolean_expression_conditional_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),
@@ -6061,6 +6094,7 @@ fn calling_conditional_plan(
         functions: vec![
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: caller,
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -6073,6 +6107,7 @@ fn calling_conditional_plan(
             },
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: callee,
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -6113,6 +6148,7 @@ fn calling_expression_condition_plan(
         functions: vec![
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: caller,
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -6143,6 +6179,7 @@ fn calling_expression_condition_plan(
             },
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: callee,
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -6216,6 +6253,7 @@ fn calling_arm_conditional_plan(
         functions: vec![
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: caller,
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),
@@ -6230,6 +6268,7 @@ fn calling_arm_conditional_plan(
             },
             TargetFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 machine: callee,
                 attachment: None,
                 provenance: TerminalPsiProvenance::default(),

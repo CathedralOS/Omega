@@ -1,14 +1,14 @@
 use super::*;
 
-pub(super) struct PreparedScalarLowering {
+pub(in crate::lowering) struct PreparedScalarLowering {
     pub(super) values: BTreeMap<ValueId, KnownScalar>,
-    pub(super) call_plan: CallPlan,
-    pub(super) target_structural_parameters: Vec<TargetStructuralParameter>,
+    pub(in crate::lowering) call_plan: CallPlan,
+    pub(in crate::lowering) target_structural_parameters: Vec<TargetStructuralParameter>,
     pub(super) shape_cache: BTreeMap<StructuralTypeId, ValueShape>,
     pub(super) active_shapes: BTreeSet<StructuralTypeId>,
 }
 
-pub(super) fn prepare_scalar_lowering(
+pub(in crate::lowering) fn prepare_scalar_lowering(
     function: &AbstractFunction,
     function_result: AbstractResult,
     target: NativeTarget,

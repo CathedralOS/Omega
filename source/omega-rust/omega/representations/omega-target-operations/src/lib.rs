@@ -72,6 +72,9 @@ pub struct TargetFunction {
     /// fixed-integer scalar function family. Other function shapes carry no
     /// scalar ABI claim.
     pub fixed_integer_scalar_abi: Option<FixedIntegerScalarFunctionAbi>,
+    /// Canonical ABI for the bounded fixed-integer-result family whose
+    /// ordered inputs have a scalar prefix and structural suffix.
+    pub mixed_structural_scalar_abi: Option<MixedStructuralScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub operation: TargetOperation,
 }
@@ -97,6 +100,16 @@ pub struct FixedIntegerScalarAbiValue {
 pub struct FixedIntegerScalarFunctionAbi {
     pub call_plan: CallPlan,
     pub parameters: Vec<FixedIntegerScalarAbiValue>,
+    pub result: FixedIntegerScalarAbiValue,
+}
+
+/// Function-owned mixed ABI derived while Abstract scalar and structural
+/// parameter declarations are both still available.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MixedStructuralScalarFunctionAbi {
+    pub call_plan: CallPlan,
+    pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
+    pub structural_parameters: Vec<TargetStructuralParameter>,
     pub result: FixedIntegerScalarAbiValue,
 }
 

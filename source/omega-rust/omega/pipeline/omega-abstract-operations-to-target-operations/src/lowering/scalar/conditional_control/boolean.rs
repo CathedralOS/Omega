@@ -23,6 +23,7 @@ pub(in crate::lowering::scalar) fn lower_boolean_conditional(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
         provenance: conditional_provenance(function, lowered.operations, lowered.edges),
         operation: target_operation_from_boolean_control(lowered.control),
     })

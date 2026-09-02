@@ -98,6 +98,7 @@ fn direct_plan(target: NativeTarget) -> TargetOperationPlan {
                 machine: caller,
                 attachment: Some(root_type),
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: declarations,
@@ -169,6 +170,7 @@ fn direct_plan(target: NativeTarget) -> TargetOperationPlan {
                 machine: callee,
                 attachment: Some(carrier_type),
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: TargetOperation::ReturnIntegerExpression {
                     psi_edge: EdgeId::new(951).unwrap(),

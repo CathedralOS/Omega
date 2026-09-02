@@ -455,6 +455,7 @@ fn expression_plan(
         entry: MachineId::new(1).expect("machine"),
         functions: vec![TargetFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             machine: MachineId::new(1).expect("machine"),
             attachment: None,
             provenance: TerminalPsiProvenance::default(),

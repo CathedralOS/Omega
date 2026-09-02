@@ -75,6 +75,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
                 machine: caller,
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: body(
                     source_value,
@@ -110,6 +111,7 @@ fn fixture(target: NativeTarget) -> TargetOperationPlan {
                 machine: candidate,
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance::default(),
                 operation: body(
                     candidate_value,
