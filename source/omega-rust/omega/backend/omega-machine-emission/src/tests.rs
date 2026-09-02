@@ -3242,19 +3242,27 @@ fn emits_signed_i32_structural_field_reads_for_native_targets() {
     );
 }
 
-fn mutable_integer_store_return_plan(target: NativeTarget) -> TargetOperationPlan {
+fn mutable_scalar_store_return_plan(
+    target: NativeTarget,
+    boolean_store: bool,
+) -> TargetOperationPlan {
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let machine = MachineId::new(20).unwrap();
     let structural_type = StructuralTypeId::new(20).unwrap();
     let place = PlaceId::new(20).unwrap();
     let field = StructuralFieldId::new(20).unwrap();
+    let return_field = if boolean_store {
+        StructuralFieldId::new(21).unwrap()
+    } else {
+        field
+    };
     let defining_operation = OperationId::new(20).unwrap();
     let store_operation = OperationId::new(21).unwrap();
     let read_operation = OperationId::new(22).unwrap();
     let edge = EdgeId::new(20).unwrap();
     let literal = ValueId::new(20).unwrap();
     let result = ValueId::new(21).unwrap();
-    let shape = ValueShape::borrowed_reference(4, 4);
+    let shape = ValueShape::borrowed_reference(if boolean_store { 8 } else { 4 }, 4);
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -3291,8 +3299,14 @@ fn mutable_integer_store_return_plan(target: NativeTarget) -> TargetOperationPla
         field_byte_offset: 0,
         defining_operation,
         source_value: literal,
-        scalar_type: integer_type,
-        value: IntegerValue::Signed(23),
+        immediate: if boolean_store {
+            omega_target_operations::TargetScalarImmediate::Boolean(true)
+        } else {
+            omega_target_operations::TargetScalarImmediate::Integer {
+                scalar_type: integer_type,
+                value: IntegerValue::Signed(23),
+            }
+        },
     };
     TargetOperationPlan {
         psi: identity(),
@@ -3317,9 +3331,9 @@ fn mutable_integer_store_return_plan(target: NativeTarget) -> TargetOperationPla
                         psi_operation: read_operation,
                         source_value: result,
                         source: place,
-                        field,
+                        field: return_field,
                         source_placement: parameter.placement.clone(),
-                        field_byte_offset: 0,
+                        field_byte_offset: if boolean_store { 4 } else { 0 },
                         integer_type,
                     },
                 }),
@@ -3327,14 +3341,35 @@ fn mutable_integer_store_return_plan(target: NativeTarget) -> TargetOperationPla
                     id: structural_type,
                     identity: "MutableCarrier".into(),
                     shape: StructuralTypeShape::Record {
-                        fields: vec![psi_terminal::StructuralFieldDeclaration {
-                            id: field,
-                            identity: "value".into(),
-                            relevance: psi_terminal::BindingRelevance::Relevant,
-                            field_type: psi_terminal::StructuralFieldType::Scalar(
-                                psi_core::ScalarType::Integer(integer_type),
-                            ),
-                        }],
+                        fields: if boolean_store {
+                            vec![
+                                psi_terminal::StructuralFieldDeclaration {
+                                    id: field,
+                                    identity: "enabled".into(),
+                                    relevance: psi_terminal::BindingRelevance::Relevant,
+                                    field_type: psi_terminal::StructuralFieldType::Scalar(
+                                        psi_core::ScalarType::Boolean,
+                                    ),
+                                },
+                                psi_terminal::StructuralFieldDeclaration {
+                                    id: return_field,
+                                    identity: "code".into(),
+                                    relevance: psi_terminal::BindingRelevance::Relevant,
+                                    field_type: psi_terminal::StructuralFieldType::Scalar(
+                                        psi_core::ScalarType::Integer(integer_type),
+                                    ),
+                                },
+                            ]
+                        } else {
+                            vec![psi_terminal::StructuralFieldDeclaration {
+                                id: field,
+                                identity: "value".into(),
+                                relevance: psi_terminal::BindingRelevance::Relevant,
+                                field_type: psi_terminal::StructuralFieldType::Scalar(
+                                    psi_core::ScalarType::Integer(integer_type),
+                                ),
+                            }]
+                        },
                     },
                 }],
                 call_plan,
@@ -3346,8 +3381,11 @@ fn mutable_integer_store_return_plan(target: NativeTarget) -> TargetOperationPla
 
 #[test]
 fn emits_mutable_self_store_through_the_original_reference_before_return_read() {
-    let x86 = emit_machine_code(&mutable_integer_store_return_plan(NativeTarget::linux_x64()))
-        .expect("emit x86 mutable store");
+    let x86 = emit_machine_code(&mutable_scalar_store_return_plan(
+        NativeTarget::linux_x64(),
+        false,
+    ))
+    .expect("emit x86 mutable store");
     assert_eq!(
         x86.functions[0].bytes,
         [
@@ -3368,8 +3406,9 @@ fn emits_mutable_self_store_through_the_original_reference_before_return_read() 
         }]
     ));
 
-    let arm = emit_machine_code(&mutable_integer_store_return_plan(
+    let arm = emit_machine_code(&mutable_scalar_store_return_plan(
         NativeTarget::linux_arm64(),
+        false,
     ))
     .expect("emit AArch64 mutable store");
     assert_eq!(
@@ -3386,6 +3425,54 @@ fn emits_mutable_self_store_through_the_original_reference_before_return_read() 
         arm.functions[0]
             .scalar_structural_scalar_field_store
             .is_some()
+    );
+}
+
+#[test]
+fn emits_boolean_store_before_independent_integer_self_field_return() {
+    let x86 = emit_machine_code(&mutable_scalar_store_return_plan(
+        NativeTarget::linux_x64(),
+        true,
+    ))
+    .expect("emit x86 Boolean store with integer return");
+    assert_eq!(
+        x86.functions[0].bytes,
+        [
+            0x49, 0xbb, 1, 0, 0, 0, 0, 0, 0, 0, 0x44, 0x88, 0x1f, 0x40, 0x8b, 0x47, 0x04, 0x48,
+            0x63, 0xc0, 0xc3,
+        ]
+    );
+    let store = x86.functions[0]
+        .scalar_structural_scalar_field_store
+        .as_ref()
+        .expect("Boolean store evidence");
+    assert!(matches!(
+        store.immediate,
+        omega_target_operations::TargetScalarImmediate::Boolean(true)
+    ));
+    assert_eq!(store.return_operation, OperationId::new(22).unwrap());
+    assert_eq!(store.return_source_value, ValueId::new(21).unwrap());
+    assert_eq!(store.return_field, StructuralFieldId::new(21).unwrap());
+    assert_eq!(store.return_field_byte_offset, 4);
+    assert_eq!(
+        store.return_scalar_type,
+        psi_core::ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    );
+
+    let arm = emit_machine_code(&mutable_scalar_store_return_plan(
+        NativeTarget::linux_arm64(),
+        true,
+    ))
+    .expect("emit AArch64 Boolean store with integer return");
+    assert_eq!(
+        aarch64_instructions(&arm.functions[0].bytes),
+        [
+            0xd280_0030,
+            0x3900_0010,
+            0xb940_0400,
+            0x9340_7c00,
+            0xd65f_03c0,
+        ]
     );
 }
 

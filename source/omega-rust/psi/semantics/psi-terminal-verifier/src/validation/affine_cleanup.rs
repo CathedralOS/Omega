@@ -502,38 +502,6 @@ pub(super) fn bounded_nominal_cleanup_receiver_shape(shape: &StructuralTypeShape
     })
 }
 
-pub(super) fn every_scalar_return_nominally_cleans(
-    machine: &TerminalMachine,
-    source: PlaceId,
-) -> bool {
-    let mut saw_return = false;
-    for block in &machine.blocks {
-        match &block.terminator {
-            Terminator::Return {
-                cleanup_actions, ..
-            } => {
-                saw_return = true;
-                if !cleanup_actions.iter().any(|action| {
-                    matches!(
-                        action,
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                            if cleanup.place == source
-                    )
-                }) {
-                    return false;
-                }
-            }
-            Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
-            | Terminator::ReturnStructural { .. } => return false,
-            Terminator::Jump { .. } | Terminator::Conditional { .. } | Terminator::Crash { .. } => {
-            }
-        }
-    }
-    saw_return
-}
-
 pub(super) fn valid_nominal_cleanup_requirements(
     module: &TerminalModule,
     target: &TerminalMachine,

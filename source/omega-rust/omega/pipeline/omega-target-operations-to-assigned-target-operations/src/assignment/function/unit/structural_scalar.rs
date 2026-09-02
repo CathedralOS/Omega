@@ -329,6 +329,20 @@ pub(in crate::assignment::function) fn direct_integer_field_offset(
     scalar_type: psi_core::IntegerType,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<u32> {
+    direct_scalar_field_offset(
+        structural_type,
+        field,
+        ScalarType::Integer(scalar_type),
+        declarations,
+    )
+}
+
+pub(in crate::assignment::function) fn direct_scalar_field_offset(
+    structural_type: StructuralTypeId,
+    field: StructuralFieldId,
+    scalar_type: ScalarType,
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<u32> {
     let StructuralTypeShape::Record { fields } = &declarations.get(&structural_type)?.shape else {
         return None;
     };
@@ -348,9 +362,8 @@ pub(in crate::assignment::function) fn direct_integer_field_offset(
         )?;
         offset = align(offset, u32::from(shape.alignment))?;
         if candidate.id == field {
-            return (candidate.field_type
-                == StructuralFieldType::Scalar(ScalarType::Integer(scalar_type)))
-            .then_some(offset);
+            return (candidate.field_type == StructuralFieldType::Scalar(scalar_type))
+                .then_some(offset);
         }
         offset = offset.checked_add(u32::from(shape.byte_size))?;
     }

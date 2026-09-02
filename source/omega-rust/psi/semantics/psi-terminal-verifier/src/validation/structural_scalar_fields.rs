@@ -145,3 +145,47 @@ pub(super) fn validate_integer_structural_field(
     }
     Ok(())
 }
+
+pub(super) fn validate_boolean_structural_field(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: OperationId,
+    source: PlaceId,
+    field: StructuralFieldId,
+) -> Result<(), ModuleError> {
+    let invalid = || ModuleError::InvalidBooleanStructuralField {
+        operation,
+        source,
+        field,
+    };
+    let parameter = parameter_for(machine, source).ok_or_else(invalid)?;
+    if parameter.access == StructuralAccess::WriteOnlyBorrow {
+        return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
+    }
+    if !matches!(
+        parameter.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || !has_empty_structural_custody(machine, source)
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|candidate| {
+                matches!(
+                    candidate.kind,
+                    OperationKind::BooleanStructuralField {
+                        source: other_source,
+                        field: other_field,
+                    } if (other_source, other_field) != (source, field)
+                )
+            })
+        || direct_relevant_scalar_field(module, parameter.structural_type, field)
+            != Some(ScalarType::Boolean)
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}

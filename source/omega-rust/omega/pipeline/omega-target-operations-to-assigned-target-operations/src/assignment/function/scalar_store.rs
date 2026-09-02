@@ -1,9 +1,11 @@
 //! Physical assignment for one direct mutable-self scalar store prefix.
 
 use super::assign_function;
-use super::unit::structural_scalar::{declaration_map, direct_integer_field_offset};
+use super::unit::structural_scalar::{declaration_map, direct_scalar_field_offset};
 use crate::assignment::placement::validate_structural_placement;
 use crate::assignment::shared::*;
+use omega_target_operations::TargetScalarImmediate;
+use psi_core::ScalarType;
 
 pub(super) fn assign(
     function: &TargetFunction,
@@ -49,11 +51,34 @@ pub(super) fn assign(
         },
     )
     .map_err(|_| invalid())?;
-    let exact_return = matches!(
-        scalar.as_ref(),
+    let exact_return = match scalar.as_ref() {
+        TargetOperation::ReturnBooleanExpression {
+            source_value,
+            expression:
+                TargetBooleanExpression::StructuralField {
+                    psi_operation,
+                    source_value: expression_value,
+                    source,
+                    field,
+                    source_placement,
+                    field_byte_offset,
+                },
+            ..
+        } => {
+            source_value == expression_value
+                && source == &store.destination.place
+                && source_placement == &store.destination_placement
+                && direct_scalar_field_offset(
+                    store.destination.structural_type,
+                    *field,
+                    ScalarType::Boolean,
+                    &declarations,
+                ) == Some(*field_byte_offset)
+                && *psi_operation != store.psi_operation
+        }
         TargetOperation::ReturnIntegerExpression {
             source_value,
-            scalar_type,
+            scalar_type: return_type,
             expression:
                 TargetIntegerExpression::StructuralField {
                     psi_operation,
@@ -65,15 +90,25 @@ pub(super) fn assign(
                     integer_type,
                 },
             ..
-        } if source_value == expression_value
-            && scalar_type == &store.scalar_type
-            && source == &store.destination.place
-            && field == &store.field
-            && source_placement == &store.destination_placement
-            && field_byte_offset == &store.field_byte_offset
-            && integer_type == &store.scalar_type
-            && *psi_operation != store.psi_operation
-    );
+        } => {
+            source_value == expression_value
+                && return_type == integer_type
+                && source == &store.destination.place
+                && source_placement == &store.destination_placement
+                && direct_scalar_field_offset(
+                    store.destination.structural_type,
+                    *field,
+                    ScalarType::Integer(*integer_type),
+                    &declarations,
+                ) == Some(*field_byte_offset)
+                && *psi_operation != store.psi_operation
+        }
+        _ => false,
+    };
+    let valid_immediate = match store.immediate {
+        TargetScalarImmediate::Boolean(_) => true,
+        TargetScalarImmediate::Integer { scalar_type, value } => scalar_type.admits(value),
+    };
     if !store.destination.is_self
         || function.attachment != Some(store.destination.structural_type)
         || !matches!(
@@ -85,11 +120,11 @@ pub(super) fn assign(
         || !store.destination.qualifications.is_empty()
         || !store.destination.projected_qualifications.is_empty()
         || !store.path.is_empty()
-        || !store.scalar_type.admits(store.value)
-        || direct_integer_field_offset(
+        || !valid_immediate
+        || direct_scalar_field_offset(
             store.destination.structural_type,
             store.field,
-            store.scalar_type,
+            store.immediate.scalar_type(),
             &declarations,
         ) != Some(store.field_byte_offset)
         || expected_call_plan != *call_plan

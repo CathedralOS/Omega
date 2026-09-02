@@ -21,12 +21,7 @@ pub(super) fn lower_store(
     else {
         unreachable!("scalar field-store route accepts only its declared operation")
     };
-    let Some(AbstractOperation::IntegerConstant {
-        psi_operation: defining_operation,
-        result: source_value,
-        scalar_type: source_type,
-        value: immediate,
-    }) = operation_index
+    let Some(defining) = operation_index
         .checked_sub(1)
         .and_then(|index| function.operations.get(index))
     else {
@@ -34,10 +29,34 @@ pub(super) fn lower_store(
             function.machine,
         ));
     };
-    let ScalarType::Integer(integer_type) = value.scalar_type else {
-        return Err(LoweringError::UnsupportedOperationInScalarFunction(
-            function.machine,
-        ));
+    let (defining_operation, source_value, immediate) = match defining {
+        AbstractOperation::BooleanConstant {
+            psi_operation,
+            result,
+            value,
+        } => (
+            *psi_operation,
+            *result,
+            TargetScalarImmediate::Boolean(*value),
+        ),
+        AbstractOperation::IntegerConstant {
+            psi_operation,
+            result,
+            scalar_type: ScalarType::Integer(scalar_type),
+            value,
+        } => (
+            *psi_operation,
+            *result,
+            TargetScalarImmediate::Integer {
+                scalar_type: *scalar_type,
+                value: *value,
+            },
+        ),
+        _ => {
+            return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                function.machine,
+            ));
+        }
     };
     let target_parameter = target_structural_parameters
         .iter()
@@ -51,15 +70,24 @@ pub(super) fn lower_store(
         .ok_or(LoweringError::UnsupportedOperationInScalarFunction(
             function.machine,
         ))?;
-    if value.value != *source_value
-        || value.scalar_type != *source_type
-        || !matches!(
-            values.get(source_value),
+    let exact_immediate = match immediate {
+        TargetScalarImmediate::Boolean(expected) => {
+            matches!(values.get(&source_value), Some(KnownScalar::Boolean(actual)) if *actual == expected)
+        }
+        TargetScalarImmediate::Integer {
+            scalar_type,
+            value: expected,
+        } => matches!(
+            values.get(&source_value),
             Some(KnownScalar::Integer {
-                scalar_type,
-                value: KnownInteger::Immediate(value),
-            }) if scalar_type == &integer_type && value == immediate
-        )
+                scalar_type: actual_type,
+                value: KnownInteger::Immediate(actual),
+            }) if *actual_type == scalar_type && *actual == expected
+        ),
+    };
+    if value.value != source_value
+        || value.scalar_type != immediate.scalar_type()
+        || !exact_immediate
         || !destination.is_self
         || function.attachment != Some(destination.structural_type)
         || !matches!(
@@ -75,12 +103,17 @@ pub(super) fn lower_store(
             function.machine,
         ));
     }
-    let field_byte_offset = direct_integer_field_offset(
-        destination.structural_type,
-        *field,
-        integer_type,
-        structural_types,
-    )?;
+    let field_byte_offset = match immediate {
+        TargetScalarImmediate::Boolean(_) => {
+            direct_boolean_field_offset(destination.structural_type, *field, structural_types)?
+        }
+        TargetScalarImmediate::Integer { scalar_type, .. } => direct_integer_field_offset(
+            destination.structural_type,
+            *field,
+            scalar_type,
+            structural_types,
+        )?,
+    };
     provenance.operations.push(*psi_operation);
     Ok(TargetScalarStructuralFieldStore {
         psi_operation: *psi_operation,
@@ -89,10 +122,9 @@ pub(super) fn lower_store(
         field: *field,
         destination_placement: target_parameter.placement.clone(),
         field_byte_offset,
-        defining_operation: *defining_operation,
-        source_value: *source_value,
-        scalar_type: integer_type,
-        value: *immediate,
+        defining_operation,
+        source_value,
+        immediate,
     })
 }
 
