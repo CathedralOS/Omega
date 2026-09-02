@@ -169,6 +169,36 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> i32;
+    }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> i32 {
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        let result: i32 = forward(erased);
+    }
+
+    machine forward(erased: &dyn Measure) -> i32 {
+        let result: i32 = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
 }
@@ -305,8 +335,19 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
             .dynamic_dispatch
             .indirect_dispatches
             .len(),
+        0
+    );
+    assert_eq!(lowered.semantic_module.dynamic_dispatch.parameters.len(), 1);
+    assert_eq!(lowered.semantic_module.dynamic_dispatch.arguments.len(), 1);
+    assert_eq!(
+        lowered
+            .semantic_module
+            .dynamic_dispatch
+            .parameter_dispatches
+            .len(),
         1
     );
+    assert_eq!(lowered.source_call_occurrences.len(), 4);
 
     let [plan] = checked
         .facts
@@ -328,6 +369,80 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
         unsupported_message(&checked),
         "direct dynamic call drifted from checked flow custody"
     );
+}
+
+#[test]
+fn preserves_forwarded_dynamic_parameter_abi_from_checked_source() {
+    let checked = checked_source(FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE);
+    let lowered =
+        lower_machine(&checked, "Main::run").expect("forwarded dynamic parameter source lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("forwarded dynamic parameter module verifies");
+
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    let [parameter] = catalog.parameters.as_slice() else {
+        panic!("one forwarded dynamic parameter expected, got {catalog:#?}")
+    };
+    let [argument] = catalog.arguments.as_slice() else {
+        panic!("one forwarded dynamic argument expected, got {catalog:#?}")
+    };
+    let [dispatch] = catalog.parameter_dispatches.as_slice() else {
+        panic!("one forwarded parameter dispatch expected, got {catalog:#?}")
+    };
+    assert_eq!(parameter.owner, dispatch.owner);
+    assert_eq!(parameter.ordinal, 0);
+    assert_eq!(parameter.source_position, 0);
+    assert_eq!(parameter.requirements.len(), 1);
+    assert_eq!(argument.parameter_ordinal, parameter.ordinal);
+    assert_eq!(
+        argument.source,
+        psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 }
+    );
+    assert!(catalog.indirect_dispatches.is_empty());
+
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == argument.owner)
+        .expect("forwarded caller machine");
+    let caller_operation = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == argument.operation)
+        .expect("forwarded caller operation");
+    assert!(matches!(
+        caller_operation.kind,
+        OperationKind::CallStructuralScalar { callee, .. } if callee == parameter.owner
+    ));
+    let helper = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == parameter.owner)
+        .expect("forwarded helper machine");
+    let helper_operation = helper
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == dispatch.operation)
+        .expect("forwarded helper dispatch operation");
+    assert!(matches!(
+        helper_operation.kind,
+        OperationKind::CallDynamicParameterScalar {
+            parameter_ordinal: 0,
+            requirement_slot: 0,
+            ..
+        }
+    ));
+    assert_eq!(lowered.source_call_occurrences.len(), 2);
+
+    let produced = produce_terminal_artifact(&checked, "Main::run")
+        .expect("source-produced dynamic parameter module encodes");
+    let decoded = psi_terminal_codec::decode_module(produced.semantic_bytes())
+        .expect("source-produced dynamic parameter module decodes");
+    assert_eq!(decoded, lowered.semantic_module);
 }
 
 fn direct_plan_mut(

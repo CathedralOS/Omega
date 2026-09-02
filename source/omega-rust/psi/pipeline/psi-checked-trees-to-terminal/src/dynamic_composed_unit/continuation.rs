@@ -73,26 +73,6 @@ pub(super) fn lower(
     }
     let (application, selected_row) =
         lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
-    let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
-        lane,
-        &caller_self,
-        plan,
-        &catalogs.structural_types,
-        &catalogs.type_ids,
-        caller_machine,
-        call_operation,
-        source,
-        &application,
-        &selected_row,
-        callable_identity,
-        realization_machine,
-    )?;
-
-    let mut caller_operations = vec![Operation {
-        id: call_operation,
-        result: OperationResult::Scalar(call_result),
-        kind: call_kind,
-    }];
     let guard = lower_checked_scalar_expression(&continuation.guard)?;
     validate_direct_parameter_types(&guard, &[call_result_type])?;
     let mut next_value = 2;
@@ -104,32 +84,15 @@ pub(super) fn lower(
         &mut guard_operations,
     );
     let mut next_operation = guard_operations.next_identity;
-    caller_operations.extend(guard_operations.operations);
+    let guard_operations = guard_operations.operations;
 
     let caller_block = block_id(1);
     let leaf_blocks = [block_id(2), block_id(3)];
     let mut next_edge = 1_u64;
-    let mut caller_blocks = vec![Block {
-        id: caller_block,
-        parameters: Vec::new(),
-        operations: caller_operations,
-        terminator: Terminator::Conditional {
-            condition,
-            when_true: empty_successor(leaf_blocks[0], &mut next_edge)?,
-            when_false: empty_successor(leaf_blocks[1], &mut next_edge)?,
-        },
-    }];
-    let mut source_call_occurrences = vec![LoweredSourceCallOccurrence {
-        source_site: None,
-        source_state: plan.caller_state,
-        statement_index: usize::try_from(plan.coordinate.statement_index).map_err(|_| {
-            LoweringError::Unsupported("direct dynamic statement coordinate exceeds usize")
-        })?,
-        call_ordinal: usize::try_from(plan.coordinate.call_ordinal)
-            .map_err(|_| LoweringError::Unsupported("direct dynamic call ordinal exceeds usize"))?,
-        terminal_operation: call_operation,
-        source_target: plan.requirement,
-    }];
+    let when_true = empty_successor(leaf_blocks[0], &mut next_edge)?;
+    let when_false = empty_successor(leaf_blocks[1], &mut next_edge)?;
+    let mut emitted_leaf_blocks = Vec::new();
+    let mut leaf_source_call_occurrences = Vec::new();
     for (state, block) in continuation.leaves.iter().zip(leaf_blocks) {
         let (leaf, mut occurrences) = crate::attached_unit::emit_direct_dynamic_boundary_leaf(
             state,
@@ -143,8 +106,8 @@ pub(super) fn lower(
             &mut next_operation,
             &mut next_edge,
         )?;
-        caller_blocks.push(leaf);
-        source_call_occurrences.append(&mut occurrences);
+        emitted_leaf_blocks.push(leaf);
+        leaf_source_call_occurrences.append(&mut occurrences);
     }
 
     let caller_contract_service_reach = checked
@@ -191,6 +154,49 @@ pub(super) fn lower(
     .chain(provider_places)
     .collect();
     let mut next_block = 4_u64;
+    let forwarded_helper = forwarded_helper_ids(
+        plan,
+        &lowered_realizations,
+        &mut next_block,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+    )?;
+    let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
+        lane,
+        &caller_self,
+        plan,
+        &catalogs.structural_types,
+        &catalogs.type_ids,
+        caller_machine,
+        call_operation,
+        source,
+        &application,
+        &selected_row,
+        callable_identity,
+        realization_machine,
+        forwarded_helper,
+    )?;
+    let mut caller_operations = vec![Operation {
+        id: call_operation,
+        result: OperationResult::Scalar(call_result),
+        kind: call_kind,
+    }];
+    caller_operations.extend(guard_operations);
+    let mut caller_blocks = vec![Block {
+        id: caller_block,
+        parameters: Vec::new(),
+        operations: caller_operations,
+        terminator: Terminator::Conditional {
+            condition,
+            when_true,
+            when_false,
+        },
+    }];
+    caller_blocks.extend(emitted_leaf_blocks);
+    let mut source_call_occurrences =
+        dynamic_source_call_occurrences(plan, call_operation, forwarded_helper)?;
+    source_call_occurrences.append(&mut leaf_source_call_occurrences);
     let realization_machines = materialize_dynamic_realizations(
         checked,
         plan,
@@ -203,6 +209,9 @@ pub(super) fn lower(
         &mut next_value,
         &mut next_edge,
     )?;
+    let forwarded_helper_machine = forwarded_helper
+        .map(|ids| materialize_forwarded_helper(checked, plan, &application, &selected_row, ids))
+        .transpose()?;
 
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -247,6 +256,7 @@ pub(super) fn lower(
                     contract: empty_terminal_contract(caller_machine.get()),
                 }];
                 machines.extend(realization_machines);
+                machines.extend(forwarded_helper_machine);
                 machines
             },
         },

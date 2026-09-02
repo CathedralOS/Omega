@@ -1,7 +1,9 @@
 //! Source-free lowering for bounded local dynamic scalar calls.
 //!
 //! A never-rebound value lowers to a direct call. A value rebound exactly once
-//! retains two selections and an indirect descriptor call. Both lanes preserve
+//! retains two selections and an indirect descriptor call. A checked forwarded
+//! call additionally preserves its dynamic parameter, caller argument, and
+//! parameter dispatch instead of composing the helper away. Every lane retains
 //! the exact conformance application, source field subloan, requirement row,
 //! and realization callable in Terminal custody.
 
@@ -18,8 +20,10 @@ use psi_terminal::{
     ClosedConformanceRealizationCallable, ClosedConformanceRow, MachineContract, Operation,
     OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalDirectDynamicDispatch,
-    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
-    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
     TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
@@ -39,6 +43,16 @@ struct LoweredDynamicRealization {
     callable_identity: String,
     machine: psi_core::MachineId,
     result: ClosedConformanceCallableResult,
+}
+
+#[derive(Clone, Copy)]
+struct ForwardedHelperIds {
+    machine: psi_core::MachineId,
+    block: psi_core::BlockId,
+    operation: psi_core::OperationId,
+    operation_value: psi_core::ValueId,
+    result_value: psi_core::ValueId,
+    edge: psi_core::EdgeId,
 }
 
 #[derive(Clone, Copy)]
@@ -129,6 +143,19 @@ fn lower_dynamic_composed_unit_machine(
 
     let (application, selected_row) =
         lower_exact_application(checked, plan, caller_machine, &lowered_realizations)?;
+    let mut next_block = 2_u64;
+    let mut next_place = 2_u64;
+    let mut next_operation = if has_caller_store { 4 } else { 2 };
+    let mut next_value = if has_caller_store { 3 } else { 2 };
+    let mut next_edge = 2_u64;
+    let forwarded_helper = forwarded_helper_ids(
+        plan,
+        &lowered_realizations,
+        &mut next_block,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+    )?;
     let (dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
         lane,
         &caller_self,
@@ -142,6 +169,7 @@ fn lower_dynamic_composed_unit_machine(
         &selected_row,
         callable_identity,
         realization_machine,
+        forwarded_helper,
     )?;
 
     let caller_block = block_id(1);
@@ -169,11 +197,6 @@ fn lower_dynamic_composed_unit_machine(
         }),
         kind: call_kind,
     });
-    let mut next_block = 2_u64;
-    let mut next_place = 2_u64;
-    let mut next_operation = if has_caller_store { 4 } else { 2 };
-    let mut next_value = if has_caller_store { 3 } else { 2 };
-    let mut next_edge = 2_u64;
     let realization_machines = materialize_dynamic_realizations(
         checked,
         plan,
@@ -186,6 +209,9 @@ fn lower_dynamic_composed_unit_machine(
         &mut next_value,
         &mut next_edge,
     )?;
+    let forwarded_helper_machine = forwarded_helper
+        .map(|ids| materialize_forwarded_helper(checked, plan, &application, &selected_row, ids))
+        .transpose()?;
 
     Ok(LoweredTerminalPsi {
         semantic_module: TerminalModule {
@@ -247,6 +273,7 @@ fn lower_dynamic_composed_unit_machine(
                     contract: empty_terminal_contract(caller_machine.get()),
                 }];
                 machines.extend(realization_machines);
+                machines.extend(forwarded_helper_machine);
                 machines
             },
         },
@@ -256,18 +283,11 @@ fn lower_dynamic_composed_unit_machine(
             evidence: Vec::new(),
         },
         debug_map: None,
-        source_call_occurrences: vec![LoweredSourceCallOccurrence {
-            source_site: None,
-            source_state: plan.caller_state,
-            statement_index: usize::try_from(plan.coordinate.statement_index).map_err(|_| {
-                LoweringError::Unsupported("direct dynamic statement coordinate exceeds usize")
-            })?,
-            call_ordinal: usize::try_from(plan.coordinate.call_ordinal).map_err(|_| {
-                LoweringError::Unsupported("direct dynamic call ordinal exceeds usize")
-            })?,
-            terminal_operation: call_operation,
-            source_target: plan.requirement,
-        }],
+        source_call_occurrences: dynamic_source_call_occurrences(
+            plan,
+            call_operation,
+            forwarded_helper,
+        )?,
         selected_ieee_float_fma_occurrences: Vec::new(),
     })
 }
@@ -697,6 +717,7 @@ fn lower_dynamic_call_custody(
     selected_row: &ClosedConformanceRow,
     callable_identity: String,
     realization_machine: psi_core::MachineId,
+    forwarded_helper: Option<ForwardedHelperIds>,
 ) -> Result<(TerminalDynamicDispatchCatalog, OperationKind), LoweringError> {
     let latest_selection = TerminalDynamicConformanceSelection {
         owner: caller_machine,
@@ -717,34 +738,41 @@ fn lower_dynamic_call_custody(
         realization: realization_machine,
     };
     Ok(match lane {
-        DynamicLoweringLane::Direct => (
-            TerminalDynamicDispatchCatalog {
-                parameters: Vec::new(),
-                arguments: Vec::new(),
-                selections: vec![latest_selection],
-                rebound_descriptors: Vec::new(),
-                direct_dispatches: vec![TerminalDirectDynamicDispatch {
-                    owner: caller_machine,
-                    operation: call_operation,
-                    selection_ordinal: 0,
-                    declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-                    public_requirement_identity: selected_row.public_requirement_identity.clone(),
-                    requirement_identity: selected_row.requirement_identity.clone(),
-                    realization_identity: selected_row.realization_identity.clone(),
-                    realization_callable_identity: callable_identity,
-                    realization: realization_machine,
-                }],
-                indirect_dispatches: Vec::new(),
-                parameter_dispatches: Vec::new(),
-            },
-            OperationKind::CallStructuralScalar {
-                callee: realization_machine,
-                structural_arguments: vec![latest_source],
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        ),
+        DynamicLoweringLane::Direct => {
+            if forwarded_helper.is_some() {
+                return unsupported("forwarded dynamic dispatch must retain rebound custody");
+            }
+            (
+                TerminalDynamicDispatchCatalog {
+                    parameters: Vec::new(),
+                    arguments: Vec::new(),
+                    selections: vec![latest_selection],
+                    rebound_descriptors: Vec::new(),
+                    direct_dispatches: vec![TerminalDirectDynamicDispatch {
+                        owner: caller_machine,
+                        operation: call_operation,
+                        selection_ordinal: 0,
+                        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+                        public_requirement_identity: selected_row
+                            .public_requirement_identity
+                            .clone(),
+                        requirement_identity: selected_row.requirement_identity.clone(),
+                        realization_identity: selected_row.realization_identity.clone(),
+                        realization_callable_identity: callable_identity,
+                        realization: realization_machine,
+                    }],
+                    indirect_dispatches: Vec::new(),
+                    parameter_dispatches: Vec::new(),
+                },
+                OperationKind::CallStructuralScalar {
+                    callee: realization_machine,
+                    structural_arguments: vec![latest_source],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            )
+        }
         DynamicLoweringLane::Rebound(initial) => {
             let initial_source = validate_and_lower_selection_source(
                 caller_self,
@@ -754,39 +782,287 @@ fn lower_dynamic_call_custody(
                 structural_types,
                 type_ids,
             )?;
-            (
-                TerminalDynamicDispatchCatalog {
-                    parameters: Vec::new(),
-                    arguments: Vec::new(),
-                    selections: vec![
-                        TerminalDynamicConformanceSelection {
-                            owner: caller_machine,
-                            ordinal: 0,
-                            source: initial_source,
-                            conformance_application_report_fingerprint: application
-                                .report_fingerprint,
-                            conformance_application_commitment: application.commitment,
-                        },
-                        latest_selection,
-                    ],
-                    rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
+            let mut catalog = TerminalDynamicDispatchCatalog {
+                parameters: Vec::new(),
+                arguments: Vec::new(),
+                selections: vec![
+                    TerminalDynamicConformanceSelection {
                         owner: caller_machine,
                         ordinal: 0,
-                        initial_selection_ordinal: 0,
-                        rebound_selection_ordinal: 1,
-                    }],
-                    direct_dispatches: Vec::new(),
-                    indirect_dispatches: vec![row_dispatch(0)],
-                    parameter_dispatches: Vec::new(),
-                },
+                        source: initial_source,
+                        conformance_application_report_fingerprint: application.report_fingerprint,
+                        conformance_application_commitment: application.commitment,
+                    },
+                    latest_selection,
+                ],
+                rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
+                    owner: caller_machine,
+                    ordinal: 0,
+                    initial_selection_ordinal: 0,
+                    rebound_selection_ordinal: 1,
+                }],
+                direct_dispatches: Vec::new(),
+                indirect_dispatches: Vec::new(),
+                parameter_dispatches: Vec::new(),
+            };
+            let call_kind = if let Some(helper) = forwarded_helper {
+                let (requirements, requirement_slot) =
+                    dynamic_parameter_interface(application, selected_row)?;
+                catalog.parameters.push(TerminalDynamicDescriptorParameter {
+                    owner: helper.machine,
+                    ordinal: 0,
+                    source_position: 0,
+                    trait_identity: application.trait_identity.clone(),
+                    access: StructuralAccess::SharedBorrow,
+                    requirements,
+                });
+                catalog.arguments.push(TerminalDynamicDescriptorArgument {
+                    owner: caller_machine,
+                    operation: call_operation,
+                    parameter_ordinal: 0,
+                    source: TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 },
+                });
+                catalog
+                    .parameter_dispatches
+                    .push(TerminalParameterDynamicDispatch {
+                        owner: helper.machine,
+                        operation: helper.operation,
+                        parameter_ordinal: 0,
+                        requirement_slot,
+                    });
+                OperationKind::CallStructuralScalar {
+                    callee: helper.machine,
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                }
+            } else {
+                catalog.indirect_dispatches.push(row_dispatch(0));
                 OperationKind::CallDynamicScalar {
                     descriptor_ordinal: 0,
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                },
-            )
+                }
+            };
+            (catalog, call_kind)
         }
     })
+}
+
+fn dynamic_parameter_interface(
+    application: &ClosedConformanceApplication,
+    selected_row: &ClosedConformanceRow,
+) -> Result<(Vec<TerminalDynamicRequirement>, u32), LoweringError> {
+    let mut selected_slot = None;
+    let requirements = application
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(ordinal, row)| {
+            let slot = u32::try_from(ordinal).map_err(|_| {
+                LoweringError::Unsupported("dynamic parameter requirement ordinal exceeds u32")
+            })?;
+            if row == selected_row {
+                if selected_slot.replace(slot).is_some() {
+                    return unsupported("dynamic parameter selected requirement is duplicated");
+                }
+            }
+            let callable_identity =
+                row.realization_callable_identity
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "dynamic parameter application row has no realization callable",
+                    ))?;
+            let matching = application
+                .realization_callables
+                .iter()
+                .filter(|callable| callable.source_callable_identity == *callable_identity)
+                .collect::<Vec<_>>();
+            let [callable] = matching.as_slice() else {
+                return unsupported(
+                    "dynamic parameter application row callable is absent or ambiguous",
+                );
+            };
+            Ok(TerminalDynamicRequirement {
+                slot,
+                declaring_trait_identity: row.declaring_trait_identity.clone(),
+                public_requirement_identity: row.public_requirement_identity.clone(),
+                result: callable.result,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let selected_slot = selected_slot.ok_or(LoweringError::Unsupported(
+        "dynamic parameter selected requirement is absent",
+    ))?;
+    Ok((requirements, selected_slot))
+}
+
+fn forwarded_helper_ids(
+    plan: &CheckedDynamicScalarCallPlan,
+    realizations: &[LoweredDynamicRealization],
+    next_block: &mut u64,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    next_edge: &mut u64,
+) -> Result<Option<ForwardedHelperIds>, LoweringError> {
+    if !matches!(
+        plan.origin,
+        psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
+    ) {
+        return Ok(None);
+    }
+    let machine = realizations
+        .iter()
+        .map(|realization| realization.machine.get())
+        .max()
+        .ok_or(LoweringError::Unsupported(
+            "forwarded dynamic dispatch has no realization machine",
+        ))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "forwarded dynamic helper machine identity overflowed",
+        ))?;
+    Ok(Some(ForwardedHelperIds {
+        machine: machine_id(machine),
+        block: block_id(allocate_dense(next_block)?),
+        operation: operation_id(allocate_dense(next_operation)?),
+        operation_value: value_id(allocate_dense(next_value)?),
+        result_value: value_id(allocate_dense(next_value)?),
+        edge: edge_id(allocate_dense(next_edge)?),
+    }))
+}
+
+fn materialize_forwarded_helper(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    application: &ClosedConformanceApplication,
+    selected_row: &ClosedConformanceRow,
+    ids: ForwardedHelperIds,
+) -> Result<TerminalMachine, LoweringError> {
+    let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+        machine: source_machine,
+        ..
+    } = plan.origin
+    else {
+        return unsupported("forwarded helper identities require a forwarded checked origin");
+    };
+    let checked_contract = checked
+        .facts
+        .contract_plans
+        .for_machine(source_machine)
+        .ok_or(LoweringError::Unsupported(
+            "forwarded dynamic helper has no checked contract",
+        ))?;
+    validate_empty_contract(
+        checked,
+        source_machine,
+        checked_contract.report_fingerprint,
+        checked_contract.commitment,
+    )?;
+    let service_summary = exact_machine_service_summary(checked, source_machine)?;
+    validate_empty_service_summary(checked, service_summary)?;
+    let service_contract = checked
+        .facts
+        .service_reaches
+        .plan_for_machine(source_machine)
+        .ok_or(LoweringError::Unsupported(
+            "forwarded dynamic helper has no checked service contract",
+        ))?;
+    let published_service_ceiling = lower_installation_machine_service_ceiling(
+        checked,
+        source_machine,
+        service_contract,
+        service_summary,
+        &[],
+    )?;
+    let (_, requirement_slot) = dynamic_parameter_interface(application, selected_row)?;
+    let scalar_type = terminal_scalar_type(plan.result.primitive_type)?;
+    Ok(TerminalMachine {
+        id: ids.machine,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: ids.result_value,
+            scalar_type,
+        }),
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling,
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: ids.block,
+        blocks: vec![Block {
+            id: ids.block,
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: ids.operation,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: ids.operation_value,
+                    scalar_type,
+                }),
+                kind: OperationKind::CallDynamicParameterScalar {
+                    parameter_ordinal: 0,
+                    requirement_slot,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: ids.edge,
+                value: ids.operation_value,
+                cleanup_actions: Vec::new(),
+            },
+        }],
+        contract: empty_terminal_contract(ids.machine.get()),
+    })
+}
+
+fn dynamic_source_call_occurrences(
+    plan: &CheckedDynamicScalarCallPlan,
+    caller_operation: psi_core::OperationId,
+    forwarded_helper: Option<ForwardedHelperIds>,
+) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
+    let statement_index = usize::try_from(plan.coordinate.statement_index).map_err(|_| {
+        LoweringError::Unsupported("direct dynamic statement coordinate exceeds usize")
+    })?;
+    let call_ordinal = usize::try_from(plan.coordinate.call_ordinal)
+        .map_err(|_| LoweringError::Unsupported("direct dynamic call ordinal exceeds usize"))?;
+    let mut occurrences = vec![LoweredSourceCallOccurrence {
+        source_site: None,
+        source_state: plan.caller_state,
+        statement_index,
+        call_ordinal,
+        terminal_operation: caller_operation,
+        source_target: match plan.origin {
+            psi_checked_trees::CheckedDynamicScalarCallOrigin::Local => plan.requirement,
+            psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { state, .. } => state,
+        },
+    }];
+    if let (
+        Some(helper),
+        psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+            state, coordinate, ..
+        },
+    ) = (forwarded_helper, plan.origin)
+    {
+        occurrences.push(LoweredSourceCallOccurrence {
+            source_site: None,
+            source_state: state,
+            statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
+                LoweringError::Unsupported("forwarded dynamic statement coordinate exceeds usize")
+            })?,
+            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
+                LoweringError::Unsupported("forwarded dynamic call ordinal exceeds usize")
+            })?,
+            terminal_operation: helper.operation,
+            source_target: plan.requirement,
+        });
+    }
+    Ok(occurrences)
 }
 
 fn terminal_structural_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
