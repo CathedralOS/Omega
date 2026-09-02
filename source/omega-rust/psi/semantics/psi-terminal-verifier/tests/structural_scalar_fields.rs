@@ -1,7 +1,7 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, PsiSemanticId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId,
-    ValueId,
+    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
+    OperationId, PlaceId, Proposition, PsiSemanticId, ScalarTerm, ScalarType, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
@@ -10,7 +10,7 @@ use psi_terminal::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
 };
-use psi_terminal_verifier::{ModuleError, validate_module};
+use psi_terminal_verifier::{ModuleError, reconstruct_operation_obligations, validate_module};
 
 fn id<Identity: PsiSemanticId>(raw: u64) -> Identity {
     Identity::new(raw).expect("test identity is nonzero")
@@ -288,6 +288,47 @@ fn rejects_mixed_structural_call_scalar_argument_corruption() {
     assert_eq!(
         validate_module(&use_before_definition).unwrap_err(),
         ModuleError::ValueUsedBeforeDefinition(id::<ValueId>(2))
+    );
+}
+
+#[test]
+fn mixed_structural_call_contracts_substitute_scalar_parameters() {
+    let mut module = structural_scalar_field_module();
+    let integer = integer_type();
+    let OperationKind::CallStructuralScalar {
+        requirement_obligations,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    requirement_obligations.push(id::<ObligationId>(1));
+    module.machines[1]
+        .contract
+        .requires
+        .push(Proposition::Equal(
+            ScalarTerm::value(id::<ValueId>(5), integer),
+            ScalarTerm::integer(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                IntegerValue::Signed(99),
+            )
+            .unwrap(),
+        ));
+    let obligations =
+        reconstruct_operation_obligations(&module).expect("mixed call obligation reconstructs");
+    let [obligation] = obligations.as_slice() else {
+        panic!("one mixed call requirement")
+    };
+    assert_eq!(
+        obligation.obligation.proposition,
+        Proposition::Equal(
+            ScalarTerm::value(id::<ValueId>(1), integer),
+            ScalarTerm::integer(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                IntegerValue::Signed(99),
+            )
+            .unwrap(),
+        )
     );
 }
 

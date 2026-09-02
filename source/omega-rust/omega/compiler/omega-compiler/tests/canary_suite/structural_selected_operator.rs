@@ -756,6 +756,7 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
 fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
     #[derive(Clone, Copy, Debug)]
     enum Drift {
+        CoordinatedParameterPartition,
         RemovedScalar,
         SubstitutedScalar,
         StructuralSource,
@@ -772,11 +773,57 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
         .expect("mixed structural/fixed-integer Unit helper");
 
     for drift in [
+        Drift::CoordinatedParameterPartition,
         Drift::RemovedScalar,
         Drift::SubstitutedScalar,
         Drift::StructuralSource,
     ] {
         let mut drifted = checked.clone();
+        if matches!(drift, Drift::CoordinatedParameterPartition) {
+            let (realization_machine, realization_state) = {
+                let plan = drifted
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .machines
+                    .iter()
+                    .find(|plan| plan.machine == consume.symbol)
+                    .expect("checked mixed structural/fixed-integer helper plan");
+                let Some(
+                    psi_checked_trees::CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                        realization_machine,
+                        realization_state,
+                        ..
+                    },
+                ) = plan.operations.first()
+                else {
+                    panic!("checked mixed structural/fixed-integer selected call")
+                };
+                (*realization_machine, *realization_state)
+            };
+            let realization = drifted
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .machines
+                .iter_mut()
+                .find(|realization| {
+                    realization.machine == realization_machine
+                        && realization.state == realization_state
+                })
+                .expect("checked mixed structural/fixed-integer realization plan");
+            realization.scalar_parameters[0].source_position = 0;
+            realization.structural_parameters[0].position = 1;
+            assert!(
+                psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+                    &drifted,
+                    "consume",
+                )
+                .is_err(),
+                "{drift:?} must reject before Terminal publication"
+            );
+            continue;
+        }
         let plan = drifted
             .facts
             .flow
@@ -796,6 +843,7 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
             panic!("checked mixed structural/fixed-integer selected call")
         };
         match drift {
+            Drift::CoordinatedParameterPartition => unreachable!("handled above"),
             Drift::RemovedScalar => scalar_arguments.clear(),
             Drift::SubstitutedScalar => {
                 let [psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }] =

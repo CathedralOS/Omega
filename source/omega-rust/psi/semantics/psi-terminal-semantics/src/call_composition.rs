@@ -350,6 +350,7 @@ mod tests {
     fn structural_scalar_call() -> OperationKind {
         OperationKind::CallStructuralScalar {
             callee: MachineId::new(2).unwrap(),
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),

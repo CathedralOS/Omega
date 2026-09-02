@@ -19,6 +19,7 @@ use omega_installation_evidence::ProviderExecutionEvidence;
 use sha2::{Digest, Sha256};
 
 mod boundary_applications;
+mod mixed_structural_scalar;
 mod physical;
 
 use boundary_applications::{
@@ -514,6 +515,7 @@ impl NativeArtifact {
             .map_err(|_| "native artifact image failed object-to-image replay")?;
         let module = psi_terminal_codec::decode_module(self.psi_artifact.semantic_bytes())
             .map_err(|_| "native artifact canonical semantics failed to decode")?;
+        mixed_structural_scalar::validate(&module, &self.object)?;
         validate_boundary_application_coverage(
             &module,
             self.psi_artifact.manifest().semantic(),

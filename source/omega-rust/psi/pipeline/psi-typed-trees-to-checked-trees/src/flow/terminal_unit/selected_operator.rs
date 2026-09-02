@@ -35,6 +35,26 @@ pub(crate) fn rederive_selected_operator_structural_scalar_arguments(
         .machines
         .iter()
         .find(|plan| plan.machine == realization_machine && plan.state == realization_state)?;
+    let authored_partition = crate::rederive_selected_operator_parameter_partition(
+        &checked.typed,
+        realization_machine,
+        realization_state,
+    )?;
+    if realization
+        .scalar_parameters
+        .iter()
+        .map(|parameter| (parameter.source_position, parameter.primitive_type))
+        .collect::<Vec<_>>()
+        != authored_partition.scalar_parameters
+        || realization
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.position)
+            .collect::<Vec<_>>()
+            != authored_partition.structural_parameter_positions
+    {
+        return None;
+    }
     let operands = match checked.typed.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
         ExpressionNode::Call(call) => checked

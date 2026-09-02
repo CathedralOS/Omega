@@ -329,6 +329,55 @@ fn structural_scalar_field_store_is_visible_through_a_projected_call_without_rep
 }
 
 #[test]
+fn structural_scalar_call_binds_scalar_and_structural_arguments_together() {
+    let mut module = structural_scalar_field_call_module();
+    let OperationKind::CallStructuralScalar { arguments, .. } =
+        &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    arguments.push(value_id(1));
+    let callee = &mut module.machines[1];
+    callee.parameters.push(ValueDeclaration {
+        id: value_id(6),
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+    });
+    callee.blocks[0].operations.clear();
+    callee.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(96),
+        value: value_id(6),
+        cleanup_actions: Vec::new(),
+    };
+
+    let semantic = encode_module(&module).expect("mixed structural-scalar semantics encode");
+    let proof = encode_proof_bundle(&ProofBundle::default()).expect("empty proof encodes");
+    let structural = TerminalStructuralValue {
+        opaque_identity: 95,
+        structural_type: structural_type_id(95),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural],
+    )
+    .expect("verified mixed structural-scalar call starts");
+    let mut meter = TerminalFuelMeter::with_allowance(8);
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(99),
+            }
+        ))
+    );
+}
+
+#[test]
 fn rebound_dynamic_scalar_call_executes_and_composes_its_fixed_fuel_callee() {
     let module = rebound_dynamic_scalar_call_module();
     let proof_bundle = ProofBundle::default();

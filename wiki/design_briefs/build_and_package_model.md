@@ -1094,8 +1094,12 @@ object/installation replay remain distinct evidence. Native function custody
 never infers a function result merely because a Unit body contains a
 scalar-producing call. The separate direct structural-call/scalar-return
 carrier retains its exact return edge, call operation, source value, scalar
-type, and callee. Structural results, projections, borrows, services, content
-evidence, and nontrivial structural layouts remain fail-closed.
+type, and callee. Object, image, and installation owners check the mixed ABI's
+physical consistency; the final native artifact, which owns both artifacts,
+independently rejoins its scalar value IDs and structural place IDs to the
+canonical Terminal machine. No sibling copy of those IDs is treated as
+authority. Structural results, projections, borrows, services, content evidence,
+and nontrivial structural layouts remain fail-closed.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not
