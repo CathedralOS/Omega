@@ -11,10 +11,22 @@ use psi_typed_trees::expression::ExpressionNode;
 /// owns the diagnostic policy; this pass only publishes deterministic
 /// identities so no checked consumer re-resolves a user spelling.
 pub(crate) fn normalize_qualification_casts(program: &mut TypedTrees) -> Result<(), Diagnostic> {
+    normalize_qualification_casts_from(program, 0)
+}
+
+/// Bind only semantic casts appended after a retained checkpoint.
+pub(crate) fn normalize_qualification_casts_from(
+    program: &mut TypedTrees,
+    expression_frontier: usize,
+) -> Result<(), Diagnostic> {
     let sites = program
         .expression_table
         .expression_entries()
         .filter_map(|(handle, expression)| {
+            if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
+            {
+                return None;
+            }
             let ExpressionNode::Cast(cast) = expression else {
                 return None;
             };

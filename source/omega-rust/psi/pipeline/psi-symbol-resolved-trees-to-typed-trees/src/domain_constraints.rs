@@ -11,9 +11,25 @@ pub(crate) fn normalize_domain_constraints(
     source: &SymbolResolvedTrees,
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
+    normalize_domain_constraints_from(source, program, 0)
+}
+
+/// Normalize only type-reference nodes appended after a retained checkpoint.
+/// Existing constrained nodes have already published their exact domain and
+/// authored-selection identities and are immutable continuation input.
+pub(crate) fn normalize_domain_constraints_from(
+    source: &SymbolResolvedTrees,
+    program: &mut TypedTrees,
+    type_reference_frontier: usize,
+) -> Result<(), Diagnostic> {
     let sites = program
         .type_reference_table
-        .constrained_type_reference_sites();
+        .constrained_type_reference_sites()
+        .into_iter()
+        .filter(|(site, _, _)| {
+            usize::try_from(site.arena_index()).is_ok_and(|index| index > type_reference_frontier)
+        })
+        .collect::<Vec<_>>();
 
     for (site, carrier, constraints) in sites {
         normalize_constraint_span(source, program, site, carrier, constraints)?;

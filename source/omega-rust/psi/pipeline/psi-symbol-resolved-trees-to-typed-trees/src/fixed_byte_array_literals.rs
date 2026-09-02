@@ -18,11 +18,25 @@ use psi_typed_trees::types::{
 pub(crate) fn land_exact_fixed_byte_array_literals(
     program: &mut TypedTrees,
 ) -> Result<(), Diagnostic> {
+    land_exact_fixed_byte_array_literals_from(program, 0, 0)
+}
+
+/// Land only destinations owned by expressions or machines appended after a
+/// retained checkpoint. Base literals have already been contextualized and
+/// must not be rewritten by extension finalization.
+pub(crate) fn land_exact_fixed_byte_array_literals_from(
+    program: &mut TypedTrees,
+    expression_frontier: usize,
+    machine_frontier: usize,
+) -> Result<(), Diagnostic> {
     let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
 
     // Aggregate fields and value-call arguments carry their destination types
     // in the typed expression graph itself.
-    for (_, expression) in program.expression_table.expression_entries() {
+    for (handle, expression) in program.expression_table.expression_entries() {
+        if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier) {
+            continue;
+        }
         match expression {
             ExpressionNode::StructLiteral(literal) => {
                 let Some(definition) = program.data_definitions().iter().find(|definition| {
@@ -58,7 +72,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
     }
 
     // Machine/state declarations own the remaining result positions.
-    for machine in program.machines() {
+    for machine in program.machines().iter().skip(machine_frontier) {
         for owned in program.machine_owned_data(machine) {
             if owned.initial_value.is_valid() && owned.type_reference.is_valid() {
                 destinations.push((owned.initial_value, owned.type_reference));

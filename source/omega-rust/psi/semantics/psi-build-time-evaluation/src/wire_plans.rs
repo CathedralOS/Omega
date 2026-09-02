@@ -73,10 +73,24 @@ pub fn compute_wire_plans_with_authority(
     typed: &mut TypedTrees,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
+    compute_wire_plans_with_authority_from(typed, selection_authority, 0)
+}
+
+/// Compute plans only for wire schemas appended after a retained checkpoint.
+pub fn compute_wire_plans_with_authority_from(
+    typed: &mut TypedTrees,
+    selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    wire_schema_frontier: usize,
+) -> Result<(), Vec<Diagnostic>> {
     // Classify first (immutable walk), then record (mutable): the placement
     // arena and the schema tables cannot be borrowed simultaneously.
-    let mut classified = Vec::with_capacity(typed.wire_schemas().len());
-    for schema in typed.wire_schemas() {
+    let mut classified = Vec::with_capacity(
+        typed
+            .wire_schemas()
+            .len()
+            .saturating_sub(wire_schema_frontier),
+    );
+    for schema in typed.wire_schemas().iter().skip(wire_schema_frontier) {
         let mut fields: Vec<(u64, FieldShape)> = Vec::new();
         let mut classifiable = true;
         for member in typed.wire_members(schema.members) {

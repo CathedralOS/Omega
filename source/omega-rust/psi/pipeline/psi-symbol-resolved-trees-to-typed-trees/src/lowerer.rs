@@ -1,9 +1,11 @@
 use crate::data::lower_data_definition;
 use crate::domain::lower_domain_definition;
-use crate::domain_constraints::normalize_domain_constraints;
+use crate::domain_constraints::{normalize_domain_constraints, normalize_domain_constraints_from};
 use crate::machine::lower_machine;
 use crate::operator::lower_operator_definition;
-use crate::qualification_casts::normalize_qualification_casts;
+use crate::qualification_casts::{
+    normalize_qualification_casts, normalize_qualification_casts_from,
+};
 use crate::trait_definition::lower_trait_definition;
 use psi_diagnostics::Diagnostic;
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
@@ -13,7 +15,7 @@ mod seeded_local_instances;
 mod seeded_type_application;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SeededPlainDataContinuationError {
+pub enum SeededContinuationError {
     UnsupportedExtensionShape,
     CrossPairedResolvedBase,
     RetainedTypedBaseChanged,
@@ -23,25 +25,16 @@ pub enum SeededPlainDataContinuationError {
     Lowering(Diagnostic),
 }
 
-impl SeededPlainDataContinuationError {
-    pub fn is_rebuild_fallback(&self) -> bool {
-        matches!(
-            self,
-            Self::UnsupportedExtensionShape | Self::RetainedTypedBaseChanged
-        )
-    }
-}
-
 /// Opaque ownership of one exact resolved/typed base pair. Capturing fails
 /// when typing has minted symbols or lost the resolved selection prefix; those
 /// bases require a future, broader continuation cohort.
 #[derive(Debug, PartialEq, Eq)]
-pub struct SeededPlainDataTypingBase {
+pub struct SeededTypingBase {
     resolved: Box<SymbolResolvedTrees>,
     typed: TypedTrees,
 }
 
-impl SeededPlainDataTypingBase {
+impl SeededTypingBase {
     /// Clone the exact retained predecessor for the append-only seeded
     /// resolver. The continuation later compares the resolver carrier's
     /// retained snapshot back to this owned snapshot before any mutation.
@@ -64,31 +57,27 @@ impl SeededPlainDataTypingBase {
 
 /// Run the ordinary complete resolved-to-typed lowering while retaining the
 /// exact resolved predecessor inside an opaque continuation carrier.
-pub fn lower_symbol_resolved_trees_to_seeded_plain_data_base(
+pub fn lower_symbol_resolved_trees_to_seeded_base(
     resolved: SymbolResolvedTrees,
-) -> Result<SeededPlainDataTypingBase, Diagnostic> {
+) -> Result<SeededTypingBase, Diagnostic> {
     let mut typed = lower_symbol_resolved_trees(&resolved)?;
     typed.symbols = resolved.symbols.clone();
-    Ok(SeededPlainDataTypingBase {
+    Ok(SeededTypingBase {
         resolved: Box::new(resolved),
         typed,
     })
 }
 
-/// Append the first bounded generated-source data cohort, including its
-/// private structured-literal const provenance, to one exact retained typed
+/// Append one supported generated-source cohort to an exact retained typed
 /// base. Mutation occurs on a clone, so every error returns the input base
-/// byte-for-byte for either rejection or the explicit rebuild fallback.
-pub fn lower_seeded_plain_data_extension(
+/// byte-for-byte; no caller is licensed to reconstruct a second frontend.
+pub fn lower_seeded_extension(
     source: psi_syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
-    retained: SeededPlainDataTypingBase,
-) -> Result<TypedTrees, (SeededPlainDataTypingBase, SeededPlainDataContinuationError)> {
+    retained: SeededTypingBase,
+) -> Result<TypedTrees, (SeededTypingBase, SeededContinuationError)> {
     let (source, resolved_base) = source.into_typing_continuation_parts();
     if resolved_base != *retained.resolved {
-        return Err((
-            retained,
-            SeededPlainDataContinuationError::CrossPairedResolvedBase,
-        ));
+        return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
     }
     if retained.typed.symbols != retained.resolved.symbols
         || !retained
@@ -102,20 +91,18 @@ pub fn lower_seeded_plain_data_extension(
                     .as_slice(),
             )
     {
-        return Err((
-            retained,
-            SeededPlainDataContinuationError::RetainedTypedBaseChanged,
-        ));
+        return Err((retained, SeededContinuationError::RetainedTypedBaseChanged));
     }
     let data_frontier = resolved_base.data_definitions.len();
     let const_frontier = resolved_base.const_declarations.len();
+    let machine_frontier = resolved_base.machines.len();
+    let typed_machine_frontier = retained.typed.machines().len();
+    let type_reference_frontier = retained.typed.type_reference_table.type_reference_count();
+    let expression_frontier = retained.typed.expression_table.expression_count();
     if !resolved_root_shape_is_supported(&source, &resolved_base)
-        || !plain_data_extension_shape_is_supported(&source, data_frontier)
+        || !seeded_extension_shape_is_supported(&source, data_frontier, machine_frontier)
     {
-        return Err((
-            retained,
-            SeededPlainDataContinuationError::UnsupportedExtensionShape,
-        ));
+        return Err((retained, SeededContinuationError::UnsupportedExtensionShape));
     }
     if source.service_reaches != resolved_base.service_reaches
         || source.service_reach_rows != resolved_base.service_reach_rows
@@ -126,7 +113,7 @@ pub fn lower_seeded_plain_data_extension(
     {
         return Err((
             retained,
-            SeededPlainDataContinuationError::ResolvedSemanticTablesChanged,
+            SeededContinuationError::ResolvedSemanticTablesChanged,
         ));
     }
     let destination_ledger = retained.typed.authored_declaration_selections();
@@ -137,7 +124,7 @@ pub fn lower_seeded_plain_data_extension(
     {
         return Err((
             retained,
-            SeededPlainDataContinuationError::AuthoredSelectionPrefixChanged,
+            SeededContinuationError::AuthoredSelectionPrefixChanged,
         ));
     }
 
@@ -164,7 +151,7 @@ pub fn lower_seeded_plain_data_extension(
         ) {
             Ok(declared_type) => declared_type,
             Err(error) => {
-                return Err((retained, SeededPlainDataContinuationError::Lowering(error)));
+                return Err((retained, SeededContinuationError::Lowering(error)));
             }
         };
         lowerer
@@ -184,13 +171,53 @@ pub fn lower_seeded_plain_data_extension(
         ) {
             Ok(lowered) => lowered,
             Err(error) => {
-                return Err((retained, SeededPlainDataContinuationError::Lowering(error)));
+                return Err((retained, SeededContinuationError::Lowering(error)));
             }
         };
         lowerer.typed_trees.push_data_definition(lowered);
     }
-    if let Err(error) = normalize_domain_constraints(&source, &mut lowerer.typed_trees) {
-        return Err((retained, SeededPlainDataContinuationError::Lowering(error)));
+    for machine in source.machines.iter().skip(machine_frontier) {
+        let lowered = match lowerer
+            .with_type_reference_exposure(machine_interface_exposure(machine), |lowerer| {
+                lower_machine(lowerer, machine)
+            }) {
+            Ok(lowered) => lowered,
+            Err(error) => {
+                return Err((retained, SeededContinuationError::Lowering(error)));
+            }
+        };
+        lowerer.typed_trees.push_machine(lowered);
+    }
+    if let Err(error) = crate::machine::settle_satisfied_declarations_from(
+        &mut lowerer.typed_trees,
+        typed_machine_frontier,
+    ) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
+    if let Err(error) = crate::progress::normalize_progress_premises_from(
+        &mut lowerer.typed_trees,
+        typed_machine_frontier,
+    ) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
+    if let Err(error) = normalize_domain_constraints_from(
+        &source,
+        &mut lowerer.typed_trees,
+        type_reference_frontier,
+    ) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
+    if let Err(error) =
+        normalize_qualification_casts_from(&mut lowerer.typed_trees, expression_frontier)
+    {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
+    if let Err(error) = crate::fixed_byte_array_literals::land_exact_fixed_byte_array_literals_from(
+        &mut lowerer.typed_trees,
+        expression_frontier,
+        typed_machine_frontier,
+    ) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
     }
     if !lowerer
         .typed_trees
@@ -200,10 +227,143 @@ pub fn lower_seeded_plain_data_extension(
     {
         return Err((
             retained,
-            SeededPlainDataContinuationError::AuthoredSelectionPrefixChangedDuringLowering,
+            SeededContinuationError::AuthoredSelectionPrefixChangedDuringLowering,
         ));
     }
+    if !retained_typed_base_is_exact_prefix(&retained.typed, &lowerer.typed_trees) {
+        return Err((retained, SeededContinuationError::RetainedTypedBaseChanged));
+    }
     Ok(lowerer.typed_trees)
+}
+
+/// Verify the semantic and custody-bearing base prefix after every extension
+/// phase, including compiler-owned pre-check evaluation performed by Omega.
+pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedTrees) -> bool {
+    let base_snapshot = base.snapshot();
+    let candidate_snapshot = candidate.snapshot();
+    let roots_are_prefixes = candidate_snapshot
+        .roots
+        .const_declarations
+        .starts_with(&base_snapshot.roots.const_declarations)
+        && candidate_snapshot
+            .roots
+            .data_definitions
+            .starts_with(&base_snapshot.roots.data_definitions)
+        && candidate_snapshot
+            .roots
+            .domain_definitions
+            .starts_with(&base_snapshot.roots.domain_definitions)
+        && candidate_snapshot
+            .roots
+            .machines
+            .starts_with(&base_snapshot.roots.machines)
+        && candidate_snapshot
+            .roots
+            .operators
+            .starts_with(&base_snapshot.roots.operators)
+        && candidate_snapshot
+            .roots
+            .propositions
+            .starts_with(&base_snapshot.roots.propositions)
+        && candidate_snapshot
+            .roots
+            .traits
+            .starts_with(&base_snapshot.roots.traits)
+        && candidate_snapshot
+            .roots
+            .conformances
+            .starts_with(&base_snapshot.roots.conformances)
+        && candidate_snapshot
+            .roots
+            .wire_schemas
+            .starts_with(&base_snapshot.roots.wire_schemas)
+        && candidate.measures().starts_with(base.measures());
+    let symbol_prefix_is_exact = candidate.symbols.symbols().nodes().len()
+        >= base.symbols.symbols().nodes().len()
+        && candidate
+            .symbols
+            .symbols()
+            .nodes()
+            .iter()
+            .take(base.symbols.symbols().nodes().len())
+            .eq(base.symbols.symbols().nodes().iter())
+        && candidate.symbols.names().len() >= base.symbols.names().len()
+        && candidate
+            .symbols
+            .names()
+            .iter()
+            .take(base.symbols.names().len())
+            .map(|(_, name)| name)
+            .eq(base.symbols.names().iter().map(|(_, name)| name))
+        && candidate.symbols.path_member_arena().len() >= base.symbols.path_member_arena().len()
+        && candidate
+            .symbols
+            .path_member_arena()
+            .iter()
+            .take(base.symbols.path_member_arena().len())
+            .map(|(_, member)| member)
+            .eq(base
+                .symbols
+                .path_member_arena()
+                .iter()
+                .map(|(_, member)| member));
+    roots_are_prefixes
+        && symbol_prefix_is_exact
+        && candidate
+            .authored_declaration_selections()
+            .as_slice()
+            .starts_with(base.authored_declaration_selections().as_slice())
+        && candidate.service_reaches == base.service_reaches
+        && candidate.service_reach_rows == base.service_reach_rows
+        && candidate
+            .authored_service_reach_rows
+            .starts_with(&base.authored_service_reach_rows)
+        && candidate.semantic_domains == base.semantic_domains
+        && candidate.external_bindings == base.external_bindings
+        && candidate
+            .plan_laid_layouts
+            .starts_with(&base.plan_laid_layouts)
+        && candidate
+            .placed_view_plans
+            .starts_with(&base.placed_view_plans)
+        && arena_is_exact_prefix(&base.wire_placements, &candidate.wire_placements)
+        && arena_is_exact_prefix(
+            &base.wire_encode_obligations,
+            &candidate.wire_encode_obligations,
+        )
+        && candidate
+            .wire_schema_plans
+            .starts_with(&base.wire_schema_plans)
+        && candidate
+            .machine_specializations
+            .starts_with(&base.machine_specializations)
+        && candidate
+            .boundary_calling_plans
+            .starts_with(&base.boundary_calling_plans)
+        && candidate
+            .open_index_normalizations
+            .starts_with(&base.open_index_normalizations)
+        && candidate
+            .evidence_forwardings
+            .starts_with(&base.evidence_forwardings)
+        && candidate
+            .proof_output_calls
+            .starts_with(&base.proof_output_calls)
+        && candidate
+            .ranking_expression_custody
+            .starts_with(&base.ranking_expression_custody)
+}
+
+fn arena_is_exact_prefix<T: Default + PartialEq>(
+    base: &psi_arena::Arena<T>,
+    candidate: &psi_arena::Arena<T>,
+) -> bool {
+    candidate.len() >= base.len()
+        && candidate
+            .iter()
+            .take(base.len())
+            .map(|(_, value)| value)
+            .eq(base.iter().map(|(_, value)| value))
 }
 
 fn resolved_root_shape_is_supported(
@@ -230,7 +390,12 @@ fn resolved_root_shape_is_supported(
             .eq(base.data_definitions.iter())
         && source.data_definitions.len() >= base.data_definitions.len()
         && source.domain_definitions == base.domain_definitions
-        && source.machines == base.machines
+        && source
+            .machines
+            .iter()
+            .take(base.machines.len())
+            .eq(base.machines.iter())
+        && source.machines.len() >= base.machines.len()
         && source.measures == base.measures
         && source.operators == base.operators
         && source.propositions == base.propositions
@@ -239,60 +404,109 @@ fn resolved_root_shape_is_supported(
         && source.wire_schemas == base.wire_schemas
 }
 
-fn plain_data_extension_shape_is_supported(
+fn seeded_extension_shape_is_supported(
     source: &SymbolResolvedTrees,
     data_frontier: usize,
+    machine_frontier: usize,
 ) -> bool {
     let Some(local_instances) = seeded_local_instances::validated_symbols(source, data_frontier)
     else {
         return false;
     };
-    source.data_definitions.len() > data_frontier
-        && source
-            .data_definitions
-            .iter()
-            .skip(data_frontier)
-            .all(|definition| {
-                if definition.generic_instance.is_some() {
-                    return local_instances.contains(&definition.symbol);
-                }
-                let type_parameters = source.data_type_parameters(definition.type_parameters);
-                exact_top_level_data_symbol(source, definition)
-                    && type_parameters.iter().all(|parameter| {
-                        seeded_local_instances::parameter_is_supported(
-                            source,
-                            definition.symbol,
-                            parameter,
-                        )
-                    })
-                    && definition.quotient.is_none()
-                    && definition.where_facts.is_empty()
-                    && !definition.zero_gated
-                    && source
-                        .data_members(definition.members)
-                        .iter()
-                        .all(|member| {
-                            let fields = match member {
-                                psi_symbol_resolved_trees::data::DataMember::Field(field) => {
-                                    std::slice::from_ref(field)
-                                }
-                                psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
-                                    source.data_payload_fields(variant.payload)
-                                }
-                            };
-                            fields.iter().all(|field| {
-                                plain_type_is_supported(
-                                    source,
-                                    data_frontier,
-                                    &local_instances,
-                                    definition.symbol,
-                                    &definition.lifetime_parameters,
-                                    type_parameters,
-                                    &field.type_reference,
-                                )
-                            })
+    source
+        .data_definitions
+        .iter()
+        .skip(data_frontier)
+        .all(|definition| {
+            if definition.generic_instance.is_some() {
+                return local_instances.contains(&definition.symbol);
+            }
+            let type_parameters = source.data_type_parameters(definition.type_parameters);
+            exact_top_level_data_symbol(source, definition)
+                && type_parameters.iter().all(|parameter| {
+                    seeded_local_instances::parameter_is_supported(
+                        source,
+                        definition.symbol,
+                        parameter,
+                    )
+                })
+                && definition.quotient.is_none()
+                && definition.where_facts.is_empty()
+                && !definition.zero_gated
+                && source
+                    .data_members(definition.members)
+                    .iter()
+                    .all(|member| {
+                        let fields = match member {
+                            psi_symbol_resolved_trees::data::DataMember::Field(field) => {
+                                std::slice::from_ref(field)
+                            }
+                            psi_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                                source.data_payload_fields(variant.payload)
+                            }
+                        };
+                        fields.iter().all(|field| {
+                            plain_type_is_supported(
+                                source,
+                                data_frontier,
+                                &local_instances,
+                                definition.symbol,
+                                &definition.lifetime_parameters,
+                                type_parameters,
+                                &field.type_reference,
+                            )
                         })
-            })
+                    })
+        })
+        && source
+            .machines
+            .iter()
+            .skip(machine_frontier)
+            .all(|machine| exact_extension_machine_symbol(source, machine))
+}
+
+#[cfg(test)]
+fn plain_data_extension_shape_is_supported(
+    source: &SymbolResolvedTrees,
+    data_frontier: usize,
+) -> bool {
+    seeded_extension_shape_is_supported(source, data_frontier, source.machines.len())
+}
+
+fn exact_extension_machine_symbol(
+    source: &SymbolResolvedTrees,
+    machine: &psi_symbol_resolved_trees::machine::Machine,
+) -> bool {
+    if !machine.symbol.is_valid()
+        || source.symbols.get(machine.symbol).kind != psi_symbols::SymbolKind::Machine
+        || source.symbols.name(machine.symbol) != machine.name.as_str()
+        || !machine.lifetime_parameters.is_empty()
+        || !machine.type_parameters.is_empty()
+        || !machine.satisfies.is_empty()
+        || !machine.conformance_bounds.is_empty()
+        || !machine.ranking_subjects.is_empty()
+        || !machine.ranking_view.is_empty()
+        || !machine.ranking_view_arguments.is_empty()
+        || machine.ranking_range.is_valid()
+        || !machine.invokes.is_empty()
+        || machine.suspends
+        || machine.blocks
+        || machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+        || !machine.body_is_present
+    {
+        return false;
+    }
+    let parent = source.symbols.get(machine.symbol).parent;
+    match (&machine.attached_data, machine.attached_data_symbol) {
+        (None, attached) => parent == source.symbols.root() && !attached.is_valid(),
+        (Some(name), attached) => {
+            parent == source.symbols.root()
+                && attached.is_valid()
+                && source.data_definitions.iter().any(|definition| {
+                    definition.symbol == attached && definition.name.as_str() == name.as_str()
+                })
+        }
+    }
 }
 
 fn exact_top_level_data_symbol(

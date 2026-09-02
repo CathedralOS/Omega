@@ -44,9 +44,27 @@ pub(crate) fn normalize_progress_premises(
             }
         });
 
+    normalize_machine_progress_premises_from(program, 0)
+}
+
+/// Normalize only the machine suffix appended after a retained checkpoint.
+/// Trait requirements cannot be introduced by this continuation cohort, so
+/// their already-normalized guarantees remain exact base state.
+pub(crate) fn normalize_progress_premises_from(
+    program: &mut typed::TypedTrees,
+    machine_frontier: usize,
+) -> Result<(), Diagnostic> {
+    normalize_machine_progress_premises_from(program, machine_frontier)
+}
+
+fn normalize_machine_progress_premises_from(
+    program: &mut typed::TypedTrees,
+    machine_frontier: usize,
+) -> Result<(), Diagnostic> {
     let machine_updates = program
         .machines()
         .iter()
+        .skip(machine_frontier)
         .map(|machine| {
             let authored = matches!(
                 machine.termination_plan.interface,
@@ -82,7 +100,7 @@ pub(crate) fn normalize_progress_premises(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-    for machine in program.machines_mut() {
+    for machine in program.machines_mut().iter_mut().skip(machine_frontier) {
         if let Some((_, interface)) = machine_updates
             .iter()
             .find(|(symbol, _)| *symbol == machine.symbol)

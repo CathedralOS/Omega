@@ -154,6 +154,24 @@ impl PreCheckEvaluation {
             &self.plan_laid_records,
             &self.placed_view_records,
             self.selection_authority,
+            0,
+        )
+    }
+
+    /// Consume the continuation for syntax appended to an already evaluated
+    /// typed checkpoint. Global pending const work remains detectable, while
+    /// wire-plan publication is restricted to extension-owned schemas.
+    pub fn evaluate_extension(
+        self,
+        typed: &mut psi_typed_trees::TypedTrees,
+        wire_schema_frontier: usize,
+    ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
+        evaluate_pre_check_with_optional_authority(
+            typed,
+            &self.plan_laid_records,
+            &self.placed_view_records,
+            self.selection_authority,
+            wire_schema_frontier,
         )
     }
 }
@@ -237,6 +255,7 @@ fn evaluate_pre_check_with_optional_authority(
     plan_laid_records: &[PlanLaidRecord],
     placed_view_records: &[PlacedViewRecord],
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    wire_schema_frontier: usize,
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     evaluate_const_array_lengths_with_authority(typed, selection_authority.clone())?;
     evaluate_const_domain_facts_with_authority(typed, selection_authority.clone())?;
@@ -250,7 +269,11 @@ fn evaluate_pre_check_with_optional_authority(
         placed_view_records,
         selection_authority.clone(),
     )?;
-    compute_wire_plans_with_authority(typed, selection_authority)
+    wire_plans::compute_wire_plans_with_authority_from(
+        typed,
+        selection_authority,
+        wire_schema_frontier,
+    )
 }
 
 #[cfg(test)]
