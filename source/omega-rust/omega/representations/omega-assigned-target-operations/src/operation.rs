@@ -1,7 +1,8 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
     BoundaryExecutionBinding, BoundaryScalarArgument, CompletionClaimSource,
-    DirectPortReadU8Realization, LinuxExitGroupI32Realization, TargetStructuralParameter,
+    DirectPortReadU8Realization, LinuxExitGroupI32Realization, MachineRegister,
+    TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
@@ -11,7 +12,8 @@ use psi_terminal::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, CrashRouteBucket,
     StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter,
+    TerminalDynamicRequirement,
 };
 
 use crate::{
@@ -19,6 +21,24 @@ use crate::{
     AssignedConditionalBooleanArm, AssignedConditionalIntegerArm, AssignedIntegerExpression,
     AssignedRankedU32Countdown, AssignedScalarLocation, AssignedUnitBody, ExpressionFrame,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedDynamicDescriptorParameterAbi {
+    pub parameter: TerminalDynamicDescriptorParameter,
+    pub instance: MachineRegister,
+    pub table: MachineRegister,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignedDynamicParameterCallMechanism {
+    X86MemoryIndirect {
+        table: MachineRegister,
+    },
+    Aarch64LoadedIndirect {
+        table: MachineRegister,
+        target: MachineRegister,
+    },
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AssignedOperation {
@@ -37,6 +57,18 @@ pub enum AssignedOperation {
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+    },
+    ReturnDynamicParameterScalarCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        parameter_abi: AssignedDynamicDescriptorParameterAbi,
+        requirement: TerminalDynamicRequirement,
+        function_call_plan: CallPlan,
+        dispatch_call_plan: CallPlan,
+        table_slot_byte_offset: u32,
+        mechanism: AssignedDynamicParameterCallMechanism,
     },
     ReturnStructuralCall {
         psi_edge: EdgeId,

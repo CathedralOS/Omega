@@ -1,4 +1,7 @@
-use super::{boundary, cleanup, ranked_countdown, scalar, structural, structural_parameter, unit};
+use super::{
+    boundary, cleanup, dynamic_parameter, ranked_countdown, scalar, structural,
+    structural_parameter, unit,
+};
 use crate::assignment::shared::*;
 
 /// Exhaustive target-carrier classification. Each arm names the lower semantic
@@ -15,9 +18,9 @@ pub(super) fn assign_operation(
         operation @ TargetOperation::ReturnStructuralScalarCall { .. } => {
             structural::scalar_call_result::assign(function.machine, operation, target)
         }
-        TargetOperation::ReturnDynamicParameterScalarCall { .. } => Err(
-            AssignmentError::DynamicDescriptorAssignmentUnsupported(function.machine),
-        ),
+        operation @ TargetOperation::ReturnDynamicParameterScalarCall { .. } => {
+            dynamic_parameter::assign(function, operation, target)
+        }
         operation @ TargetOperation::ReturnStructuralCall { .. } => {
             structural::direct_call_result::assign(function.machine, operation, target)
         }

@@ -3,6 +3,7 @@
 
 mod boundary;
 mod cleanup;
+mod dynamic_parameter;
 mod operation_routes;
 mod ranked_countdown;
 mod scalar;

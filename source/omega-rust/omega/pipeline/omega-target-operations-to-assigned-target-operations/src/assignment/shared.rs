@@ -3,6 +3,7 @@ pub(crate) use std::collections::BTreeMap;
 pub(crate) use omega_assigned_target_operations::{
     AssignedAggregateCopy, AssignedBooleanControl, AssignedBooleanExpression, AssignedCallArgument,
     AssignedCallDestination, AssignedConditionalBooleanArm, AssignedConditionalIntegerArm,
+    AssignedDynamicDescriptorParameterAbi, AssignedDynamicParameterCallMechanism,
     AssignedDynamicTraitDescriptorAbi, AssignedFunction, AssignedIeeeFloatFmaOperand,
     AssignedIntegerControl, AssignedIntegerExpression, AssignedNormalizedForeignScalarArgument,
     AssignedOperation, AssignedOperationPlan, AssignedRankedU32Countdown, AssignedScalarExpression,
@@ -11,7 +12,7 @@ pub(crate) use omega_assigned_target_operations::{
     EntryRegisterSpill, ExpressionFrame,
 };
 pub(crate) use omega_calling_conventions::{
-    CallSignature, CallingPolicy, ValueClass, ValueLocation, ValueShape, evaluate_call_plan,
+    evaluate_call_plan, CallSignature, CallingPolicy, ValueClass, ValueLocation, ValueShape,
 };
 pub(crate) use omega_target::{Architecture, NativeTarget};
 pub(crate) use omega_target_operations::{
