@@ -589,6 +589,7 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
             }],
         },
         callee,
+        arguments: Vec::new(),
         structural_arguments: vec![psi_terminal::StructuralArgument {
             place: caller_input,
             path: Vec::new(),

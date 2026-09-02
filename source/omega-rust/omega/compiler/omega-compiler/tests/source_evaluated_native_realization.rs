@@ -170,6 +170,7 @@ windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
             export: "FlushProcessWriteBuffers",
         },
     }
+}
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
