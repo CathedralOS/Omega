@@ -1,7 +1,5 @@
-# Gamma-to-Alpha direct compiler fixed-point experiment.
-# Cells 0 cursor, 1 token start, 2 token length, 3 native pc, 4 row end,
-# 7/8/9 numeric index/end/value; 0xe..0x12 exact-token comparison state.
-# Definition rows start at cell 0x100: name start, name length, native address.
+# Experimental Gamma-to-Beta source elaborator.
+# This program emits textual Beta mnemonics and owns no Alpha opcode encoding.
 
 : cursor 0x0 cell-get ;
 : set_cursor 0x0 cell-set ;
@@ -10,7 +8,6 @@
 : set_token_start 0x1 cell-set ;
 : token_length 0x2 cell-get ;
 : set_token_length 0x2 cell-set ;
-: token_char token_start + input-get ;
 : pc 0x3 cell-get ;
 : set_pc 0x3 cell-set ;
 : row_count 0x4 cell-get ;
@@ -65,14 +62,13 @@
   set_expected_length set_expected_high set_expected_low
   token_length expected_length = branch exact_begin exact_false
 ;
-: exact_begin
-  0x0 set_exact_index expected_low set_exact_remaining jump exact_loop
-;
+: exact_begin 0x0 set_exact_index expected_low set_exact_remaining jump exact_loop ;
 : exact_loop exact_index expected_length = branch exact_true exact_switch ;
 : exact_switch exact_index 0x8 = branch exact_use_high exact_byte ;
 : exact_use_high expected_high set_exact_remaining jump exact_byte ;
 : exact_byte
-  exact_remaining 0x100 % exact_index token_char = branch exact_next exact_false
+  exact_remaining 0x100 % token_start exact_index + input-get =
+  branch exact_next exact_false
 ;
 : exact_next
   exact_remaining 0x100 / set_exact_remaining
@@ -90,13 +86,11 @@
 : nibble dup 0x3a < branch nibble_decimal nibble_alpha ;
 : nibble_decimal 0x30 - ;
 : nibble_alpha 0x57 - ;
-: parse_hex
-  token_length 0x3 < branch parse_fail parse_width
-;
+: parse_hex token_length 0x3 < branch parse_fail parse_width ;
 : parse_width token_length 0x13 < branch parse_prefix parse_fail ;
 : parse_prefix
-  0x0 token_char 0x30 =
-  0x1 token_char 0x78 = *
+  token_start input-get 0x30 =
+  token_start 0x1 + input-get 0x78 = *
   0x0 = branch parse_fail parse_begin
 ;
 : parse_begin
@@ -105,28 +99,24 @@
 ;
 : parse_loop number_index number_end = branch parse_done parse_digit ;
 : parse_digit
-  number_value 0x10 * number_index token_char nibble + set_number_value
+  number_value 0x10 * token_start number_index + input-get nibble + set_number_value
   number_index 0x1 + set_number_index jump parse_loop
 ;
 : parse_done number_value 0x1 ;
 : parse_fail 0x0 0x0 ;
 
 : row_address 0x3 * 0x100 + ;
-: find_word
-  0x0 set_row_index jump find_loop
-;
+: find_word 0x0 set_row_index jump find_loop ;
 : find_loop row_index row_count = branch find_absent find_row ;
 : find_row
   row_index row_address dup cell-get set_candidate_start
   0x1 + cell-get token_length = branch find_compare_begin find_next
 ;
 : find_compare_begin 0x0 set_compare_index jump find_compare ;
-: find_compare
-  compare_index token_length = branch find_present find_compare_byte
-;
+: find_compare compare_index token_length = branch find_present find_compare_byte ;
 : find_compare_byte
   candidate_start compare_index + input-get
-  compare_index token_char = branch find_compare_next find_next
+  token_start compare_index + input-get = branch find_compare_next find_next
 ;
 : find_compare_next compare_index 0x1 + set_compare_index jump find_compare ;
 : find_next row_index 0x1 + set_row_index jump find_loop ;
@@ -149,10 +139,7 @@
   is_main branch census_main census_next
 ;
 : census_main pc set_main_address jump census_next ;
-: census_next
-  row_count 0x1 + set_row_count
-  jump count_body
-;
+: census_next row_count 0x1 + set_row_count jump count_body ;
 : count_body need_token is_semicolon branch count_end count_jump ;
 : count_jump is_jump branch count_jump_item count_branch ;
 : count_jump_item need_token 0x9 add_pc jump count_body ;
@@ -164,271 +151,9 @@
 : count_literal drop 0x13 add_pc jump count_body ;
 : count_name drop 0x9 add_pc jump count_body ;
 : count_end 0x1 add_pc jump census ;
-: census_done
-  main_address 0x0 = branch bad census_ready
-;
-: census_ready 0x0 set_cursor ;
-
-: alpha_halt 0x0 output-byte output-byte ;
-: alpha_imm 0x1 output-byte output-byte output-word ;
-: alpha_mov 0x2 output-byte output-byte output-byte ;
-: alpha_add 0x3 output-byte output-byte output-byte ;
-: alpha_sub 0x4 output-byte output-byte output-byte ;
-: alpha_mul 0x5 output-byte output-byte output-byte ;
-: alpha_div 0x6 output-byte output-byte output-byte ;
-: alpha_mod 0x7 output-byte output-byte output-byte ;
-: alpha_loadb 0x8 output-byte output-byte output-byte ;
-: alpha_storeb 0x9 output-byte output-byte output-byte ;
-: alpha_load 0xa output-byte output-byte output-byte ;
-: alpha_store 0xb output-byte output-byte output-byte ;
-: alpha_jmp 0xc output-byte output-word ;
-: alpha_jz 0xd output-byte output-byte output-word ;
-: alpha_jnz 0xe output-byte output-byte output-word ;
-: alpha_jlt 0xf output-byte output-byte output-byte output-word ;
-: alpha_jeq 0x10 output-byte output-byte output-byte output-word ;
-: alpha_read 0x11 output-byte output-byte ;
-: alpha_write 0x12 output-byte output-byte ;
-: alpha_call 0x13 output-byte output-word ;
-: alpha_ret 0x14 output-byte ;
-
-: emit_runtime
-  0x0 0x90 alpha_imm # imm r90, 0x0
-  0x1 0x91 alpha_imm # imm r91, 0x1
-  0x100000 0x80 alpha_imm # imm r80, 0x100000
-  0x80 0x81 alpha_mov # mov r81, r80
-  output-position 0x21 assert-equal
-  0x900000 0x0 alpha_imm # imm r0, 0x900000
-  0x52 0x0 0x81 alpha_jeq # jeq r81, r0, 0x52
-  0x1 alpha_read # read r1
-  0x68 0x90 0x1 alpha_jlt # jlt r1, r90, 0x68
-  0x1 0x81 alpha_storeb # storeb r81, r1
-  0x91 0x81 alpha_add # add r81, r91
-  0x21 alpha_jmp # jmp 0x21
-  output-position 0x52 assert-equal
-  0x1 alpha_read # read r1
-  0x68 0x90 0x1 alpha_jlt # jlt r1, r90, 0x68
-  0x44a alpha_jmp # jmp 0x44a
-  output-position 0x68 assert-equal
-  0x1100000 0x87 alpha_imm # imm r87, 0x1100000
-  0x90 0x83 alpha_mov # mov r83, r90
-  main_address alpha_call # call 0x0
-  0x90 0x0 alpha_mov # mov r0, r90
-  0x0 alpha_halt # halt r0
-  output-position 0x83 assert-equal
-  0x2100000 0x1 alpha_imm # imm r1, 0x2100000
-  0x44a 0x1 0x87 alpha_jeq # jeq r87, r1, 0x44a
-  0x0 0x87 alpha_store # store r87, r0
-  0x8 0x1 alpha_imm # imm r1, 0x8
-  0x1 0x87 alpha_add # add r87, r1
-   alpha_ret # ret
-  output-position 0xa9 assert-equal
-  0x1100000 0x1 alpha_imm # imm r1, 0x1100000
-  0x43e 0x1 0x87 alpha_jeq # jeq r87, r1, 0x43e
-  0x8 0x1 alpha_imm # imm r1, 0x8
-  0x1 0x87 alpha_sub # sub r87, r1
-  0x87 0x0 alpha_load # load r0, r87
-   alpha_ret # ret
-  output-position 0xcf assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x0 0x9 alpha_mov # mov r9, r0
-  0xa9 alpha_call # call 0xa9
-  0x0 0x8 alpha_mov # mov r8, r0
-   alpha_ret # ret
-  output-position 0xe8 assert-equal
-  0x43e 0x9 alpha_jz # jz r9, 0x43e
-  0x8000000000000000 0x0 alpha_imm # imm r0, 0x8000000000000000
-  0x108 0x0 0x8 alpha_jeq # jeq r8, r0, 0x108
-   alpha_ret # ret
-  output-position 0x108 assert-equal
-  0xffffffffffffffff 0x0 alpha_imm # imm r0, 0xffffffffffffffff
-  0x43e 0x0 0x9 alpha_jeq # jeq r9, r0, 0x43e
-   alpha_ret # ret
-  output-position 0x11e assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x43e 0x90 0x0 alpha_jlt # jlt r0, r90, 0x43e
-  0x13e0000 0x1 alpha_imm # imm r1, 0x13e0000
-  0x150 0x1 0x0 alpha_jlt # jlt r0, r1, 0x150
-  0x43e alpha_jmp # jmp 0x43e
-  output-position 0x150 assert-equal
-  0x8 0x1 alpha_imm # imm r1, 0x8
-  0x1 0x0 alpha_mul # mul r0, r1
-  0x2100000 0x1 alpha_imm # imm r1, 0x2100000
-  0x1 0x0 alpha_add # add r0, r1
-   alpha_ret # ret
-  output-position 0x16b assert-equal
-  0x81 0x0 alpha_mov # mov r0, r81
-  0x80 0x0 alpha_sub # sub r0, r80
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x17b assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x43e 0x90 0x0 alpha_jlt # jlt r0, r90, 0x43e
-  0x0 0x4 alpha_mov # mov r4, r0
-  0x80 0x4 alpha_add # add r4, r80
-  0x1a9 0x81 0x4 alpha_jlt # jlt r4, r81, 0x1a9
-  0x43e alpha_jmp # jmp 0x43e
-  output-position 0x1a9 assert-equal
-  0x4 0x0 alpha_loadb # loadb r0, r4
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x1b6 assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x43e 0x90 0x0 alpha_jlt # jlt r0, r90, 0x43e
-  0x100 0x1 alpha_imm # imm r1, 0x100
-  0x1e8 0x1 0x0 alpha_jlt # jlt r0, r1, 0x1e8
-  0x43e alpha_jmp # jmp 0x43e
-  output-position 0x1e8 assert-equal
-  0xffffc 0x1 alpha_imm # imm r1, 0xffffc
-  0x44a 0x1 0x83 alpha_jeq # jeq r83, r1, 0x44a
-  0x0 alpha_write # write r0
-  0x91 0x83 alpha_add # add r83, r91
-   alpha_ret # ret
-  output-position 0x203 assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x83 0x5 alpha_mov # mov r5, r83
-  0x8 0x6 alpha_imm # imm r6, 0x8
-  0x6 0x5 alpha_add # add r5, r6
-  0xffffc 0x7 alpha_imm # imm r7, 0xffffc
-  0x44a 0x5 0x7 alpha_jlt # jlt r7, r5, 0x44a
-  0xd000000 0x4 alpha_imm # imm r4, 0xd000000
-  0x0 0x4 alpha_store # store r4, r0
-  output-position 0x23e assert-equal
-  0x4 0x0 alpha_loadb # loadb r0, r4
-  0x0 alpha_write # write r0
-  0x91 0x4 alpha_add # add r4, r91
-  0x91 0x83 alpha_add # add r83, r91
-  0x91 0x6 alpha_sub # sub r6, r91
-  0x23e 0x6 alpha_jnz # jnz r6, 0x23e
-   alpha_ret # ret
-  output-position 0x257 assert-equal
-  0x83 0x0 alpha_mov # mov r0, r83
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x264 assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x0 0x4 alpha_mov # mov r4, r0
-  0xa9 alpha_call # call 0xa9
-  0x28d 0x4 0x0 alpha_jeq # jeq r0, r4, 0x28d
-  0x43e alpha_jmp # jmp 0x43e
-  output-position 0x28d assert-equal
-   alpha_ret # ret
-  output-position 0x28e assert-equal
-  0x11e alpha_call # call 0x11e
-  0x0 0x0 alpha_load # load r0, r0
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x2a4 assert-equal
-  0x11e alpha_call # call 0x11e
-  0x0 0x4 alpha_mov # mov r4, r0
-  0xa9 alpha_call # call 0xa9
-  0x0 0x4 alpha_store # store r4, r0
-   alpha_ret # ret
-  output-position 0x2bd assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x0 0x4 alpha_mov # mov r4, r0
-  0x83 alpha_call # call 0x83
-  0x4 0x0 alpha_mov # mov r0, r4
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x2df assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x0 0x4 alpha_mov # mov r4, r0
-  0xa9 alpha_call # call 0xa9
-  0x0 0x5 alpha_mov # mov r5, r0
-  0x4 0x0 alpha_mov # mov r0, r4
-  0x83 alpha_call # call 0x83
-  0x5 0x0 alpha_mov # mov r0, r5
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x310 assert-equal
-  0xa9 alpha_call # call 0xa9
-  0x0 0x4 alpha_mov # mov r4, r0
-  0xa9 alpha_call # call 0xa9
-  0x0 0x5 alpha_mov # mov r5, r0
-  0x83 alpha_call # call 0x83
-  0x4 0x0 alpha_mov # mov r0, r4
-  0x83 alpha_call # call 0x83
-  0x5 0x0 alpha_mov # mov r0, r5
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x34a assert-equal
-  0xa9 alpha_call # call 0xa9
-   alpha_ret # ret
-  output-position 0x354 assert-equal
-  0xcf alpha_call # call 0xcf
-  0x9 0x8 alpha_add # add r8, r9
-  0x8 0x0 alpha_mov # mov r0, r8
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x36d assert-equal
-  0xcf alpha_call # call 0xcf
-  0x9 0x8 alpha_sub # sub r8, r9
-  0x8 0x0 alpha_mov # mov r0, r8
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x386 assert-equal
-  0xcf alpha_call # call 0xcf
-  0x9 0x8 alpha_mul # mul r8, r9
-  0x8 0x0 alpha_mov # mov r0, r8
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x39f assert-equal
-  0xcf alpha_call # call 0xcf
-  0xe8 alpha_call # call 0xe8
-  0x9 0x8 alpha_div # div r8, r9
-  0x8 0x0 alpha_mov # mov r0, r8
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x3c1 assert-equal
-  0xcf alpha_call # call 0xcf
-  0xe8 alpha_call # call 0xe8
-  0x9 0x8 alpha_mod # mod r8, r9
-  0x8 0x0 alpha_mov # mov r0, r8
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x3e3 assert-equal
-  0xcf alpha_call # call 0xcf
-  0x425 0x9 0x8 alpha_jlt # jlt r8, r9, 0x425
-  0x90 0x0 alpha_mov # mov r0, r90
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x404 assert-equal
-  0xcf alpha_call # call 0xcf
-  0x425 0x9 0x8 alpha_jeq # jeq r8, r9, 0x425
-  0x90 0x0 alpha_mov # mov r0, r90
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x425 assert-equal
-  0x91 0x0 alpha_mov # mov r0, r91
-  0x83 alpha_call # call 0x83
-   alpha_ret # ret
-  output-position 0x432 assert-equal
-  0x1 0x0 alpha_imm # imm r0, 0x1
-  0x0 alpha_halt # halt r0
-  output-position 0x43e assert-equal
-  0x2 0x0 alpha_imm # imm r0, 0x2
-  0x0 alpha_halt # halt r0
-  output-position 0x44a assert-equal
-  0x3 0x0 alpha_imm # imm r0, 0x3
-  0x0 alpha_halt # halt r0
-  output-position 0x456 assert-equal
-  0x4 0x0 alpha_imm # imm r0, 0x4
-  0x0 alpha_halt # halt r0
-  output-position 0x462 assert-equal
-;
-
-: emit_call 0x13 output-byte output-word ;
-: emit_jump 0xc output-byte output-word ;
-: emit_literal
-  0x1 output-byte 0x0 output-byte output-word
-  0x83 emit_call
-;
-: emit_branch
-  0xa9 emit_call
-  swap
-  0xe output-byte 0x0 output-byte output-word
-  emit_jump
-;
+: census_done main_address 0x0 = branch bad census_output_bound ;
+: census_output_bound pc 0xffffd < 0x1 assert-equal jump census_ready ;
+: census_ready ;
 
 : builtin_address is_input_length branch b_input_length b_input_get ;
 : is_input_length 0x656c2d7475706e69 0x6874676e 0xc token_exact ;
@@ -489,20 +214,494 @@
 : b_equal_yes 0x404 0x1 ;
 : b_absent 0x0 0x0 ;
 
-: pass_two
-  0x0 set_cursor jump emit_definitions
+: validate_source 0x0 set_cursor 0x462 set_pc jump validate_definitions ;
+: validate_definitions next 0x0 = branch validate_done validate_colon ;
+: validate_colon is_colon branch validate_name bad ;
+: validate_name
+  need_token find_word 0x1 assert-equal pc assert-equal jump validate_body
 ;
-: emit_definitions next 0x0 = branch emit_done emit_colon ;
+: validate_body need_token is_semicolon branch validate_ret validate_jump_test ;
+: validate_jump_test is_jump branch validate_jump_item validate_branch_test ;
+: validate_jump_item
+  need_token find_word 0x1 assert-equal drop 0x9 add_pc jump validate_body
+;
+: validate_branch_test is_branch branch validate_branch_item validate_normal ;
+: validate_branch_item
+  need_token find_word 0x1 assert-equal drop
+  need_token find_word 0x1 assert-equal drop
+  0x1c add_pc jump validate_body
+;
+: validate_normal
+  token_start token_length parse_hex 0x1 = branch validate_literal validate_word
+;
+: validate_literal drop 0x13 add_pc jump validate_body ;
+: validate_word drop builtin_address 0x1 = branch validate_builtin validate_user ;
+: validate_builtin drop 0x9 add_pc jump validate_body ;
+: validate_user drop find_word 0x1 assert-equal drop 0x9 add_pc jump validate_body ;
+: validate_ret 0x1 add_pc jump validate_definitions ;
+: validate_done ;
+
+: emit_word_value 0x20 cell-get ;
+: set_emit_word_value 0x20 cell-set ;
+: emit_divisor 0x21 cell-get ;
+: set_emit_divisor 0x21 cell-set ;
+: emit_count 0x22 cell-get ;
+: set_emit_count 0x22 cell-set ;
+: emit_digit 0x23 cell-get ;
+: set_emit_digit 0x23 cell-set ;
+: emit_reg0 0x24 cell-get ;
+: set_emit_reg0 0x24 cell-set ;
+: emit_reg1 0x25 cell-get ;
+: set_emit_reg1 0x25 cell-set ;
+: emit_reg2 0x26 cell-get ;
+: set_emit_reg2 0x26 cell-set ;
+
+: space 0x20 output-byte ;
+: newline 0xa output-byte ;
+: emit_0x 0x30 output-byte 0x78 output-byte ;
+: emit_r 0x72 output-byte ;
+
+: emit_hex_digit
+  emit_digit 0xa < branch emit_hex_decimal emit_hex_alpha
+;
+: emit_hex_decimal emit_digit 0x30 + output-byte jump emit_hex_digit_done ;
+: emit_hex_alpha emit_digit 0x57 + output-byte jump emit_hex_digit_done ;
+: emit_hex_digit_done ;
+
+: emit_hex_word
+  set_emit_word_value emit_0x
+  0x1000000000000000 set_emit_divisor
+  emit_word_value 0x0 < branch emit_hex_word_negative emit_hex_word_positive
+;
+: emit_hex_word_negative
+  emit_word_value 0x8000000000000000 - set_emit_word_value
+  emit_word_value emit_divisor / 0x8 + set_emit_digit emit_hex_digit
+  jump emit_hex_word_remainder
+;
+: emit_hex_word_positive
+  emit_word_value emit_divisor / set_emit_digit emit_hex_digit
+  jump emit_hex_word_remainder
+;
+: emit_hex_word_remainder
+  emit_word_value emit_divisor % set_emit_word_value
+  emit_divisor 0x10 / set_emit_divisor
+  0xf set_emit_count jump emit_hex_word_loop
+;
+: emit_hex_word_loop emit_count 0x0 = branch emit_hex_word_done emit_hex_word_body ;
+: emit_hex_word_body
+  emit_word_value emit_divisor / set_emit_digit emit_hex_digit
+  emit_word_value emit_divisor % set_emit_word_value
+  emit_divisor 0x10 / set_emit_divisor
+  emit_count 0x1 - set_emit_count jump emit_hex_word_loop
+;
+: emit_hex_word_done ;
+
+: emit_register
+  emit_r dup 0x10 < branch emit_register_one emit_register_two
+;
+: emit_register_one set_emit_digit emit_hex_digit ;
+: emit_register_two
+  dup 0x10 / set_emit_digit emit_hex_digit
+  0x10 % set_emit_digit emit_hex_digit
+;
+: emit_register_space emit_register space ;
+: emit_word_newline emit_hex_word newline ;
+
+: beta_halt
+  0x68 output-byte 0x61 output-byte 0x6c output-byte 0x74 output-byte space
+  emit_register newline
+;
+: beta_imm
+  set_emit_reg0 set_emit_word_value
+  0x69 output-byte 0x6d output-byte 0x6d output-byte space
+  emit_reg0 emit_register_space emit_word_value emit_word_newline
+;
+: beta_mov
+  set_emit_reg0 set_emit_reg1
+  0x6d output-byte 0x6f output-byte 0x76 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_add
+  set_emit_reg0 set_emit_reg1
+  0x61 output-byte 0x64 output-byte 0x64 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_sub
+  set_emit_reg0 set_emit_reg1
+  0x73 output-byte 0x75 output-byte 0x62 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_mul
+  set_emit_reg0 set_emit_reg1
+  0x6d output-byte 0x75 output-byte 0x6c output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_div
+  set_emit_reg0 set_emit_reg1
+  0x64 output-byte 0x69 output-byte 0x76 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_mod
+  set_emit_reg0 set_emit_reg1
+  0x6d output-byte 0x6f output-byte 0x64 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_loadb
+  set_emit_reg0 set_emit_reg1
+  0x6c output-byte 0x6f output-byte 0x61 output-byte 0x64 output-byte
+  0x62 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_storeb
+  set_emit_reg0 set_emit_reg1
+  0x73 output-byte 0x74 output-byte 0x6f output-byte 0x72 output-byte
+  0x65 output-byte 0x62 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_load
+  set_emit_reg0 set_emit_reg1
+  0x6c output-byte 0x6f output-byte 0x61 output-byte 0x64 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_store
+  set_emit_reg0 set_emit_reg1
+  0x73 output-byte 0x74 output-byte 0x6f output-byte 0x72 output-byte
+  0x65 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register newline
+;
+: beta_jmp
+  0x6a output-byte 0x6d output-byte 0x70 output-byte space emit_word_newline
+;
+: beta_jz
+  set_emit_reg0 set_emit_word_value
+  0x6a output-byte 0x7a output-byte space
+  emit_reg0 emit_register_space emit_word_value emit_word_newline
+;
+: beta_jnz
+  set_emit_reg0 set_emit_word_value
+  0x6a output-byte 0x6e output-byte 0x7a output-byte space
+  emit_reg0 emit_register_space emit_word_value emit_word_newline
+;
+: beta_jlt
+  set_emit_reg0 set_emit_reg1 set_emit_word_value
+  0x6a output-byte 0x6c output-byte 0x74 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register_space
+  emit_word_value emit_word_newline
+;
+: beta_jeq
+  set_emit_reg0 set_emit_reg1 set_emit_word_value
+  0x6a output-byte 0x65 output-byte 0x71 output-byte space
+  emit_reg0 emit_register_space emit_reg1 emit_register_space
+  emit_word_value emit_word_newline
+;
+: beta_read
+  0x72 output-byte 0x65 output-byte 0x61 output-byte 0x64 output-byte space
+  emit_register newline
+;
+: beta_write
+  0x77 output-byte 0x72 output-byte 0x69 output-byte 0x74 output-byte
+  0x65 output-byte space emit_register newline
+;
+: beta_call
+  0x63 output-byte 0x61 output-byte 0x6c output-byte 0x6c output-byte space
+  emit_word_newline
+;
+: beta_ret
+  0x72 output-byte 0x65 output-byte 0x74 output-byte newline
+;
+
+: emit_expected_text
+  0x0 set_exact_index expected_low set_exact_remaining jump emit_expected_loop
+;
+: emit_expected_loop exact_index expected_length = branch emit_expected_done emit_expected_switch ;
+: emit_expected_switch exact_index 0x8 = branch emit_expected_high emit_expected_byte ;
+: emit_expected_high expected_high set_exact_remaining jump emit_expected_byte ;
+: emit_expected_next
+  exact_remaining 0x100 / set_exact_remaining
+  exact_index 0x1 + set_exact_index jump emit_expected_loop
+;
+: emit_expected_done ;
+: emit_expected_byte
+  exact_remaining 0x100 % output-byte
+  jump emit_expected_next
+;
+
+: emit_assertion emit_hex_word 0x3a output-byte space ;
+: emit_runtime_assertion
+  emit_assertion
+  0x3b output-byte space
+  0x72 output-byte 0x75 output-byte 0x6e output-byte 0x74 output-byte
+  0x69 output-byte 0x6d output-byte 0x65 output-byte newline
+;
+: emit_named_assertion
+  set_expected_length set_expected_high set_expected_low
+  emit_assertion 0x3b output-byte space emit_expected_text newline
+;
+: emit_definition_assertion
+  emit_assertion 0x3b output-byte space
+  0x64 output-byte 0x65 output-byte 0x66 output-byte 0x69 output-byte
+  0x6e output-byte 0x69 output-byte 0x74 output-byte 0x69 output-byte
+  0x6f output-byte 0x6e output-byte space
+  0x0 set_compare_index jump emit_definition_name
+;
+: emit_definition_name
+  compare_index token_length = branch emit_definition_done emit_definition_byte
+;
+: emit_definition_byte
+  token_start compare_index + input-get output-byte
+  compare_index 0x1 + set_compare_index jump emit_definition_name
+;
+: emit_definition_done newline ;
+
+: emit_runtime
+  0x0 emit_runtime_assertion
+  0x0 0x90 beta_imm
+  0x1 0x91 beta_imm
+  0x100000 0x80 beta_imm
+  0x80 0x81 beta_mov
+  0x21 emit_runtime_assertion
+  0x900000 0x0 beta_imm
+  0x52 0x0 0x81 beta_jeq
+  0x1 beta_read
+  0x68 0x90 0x1 beta_jlt
+  0x1 0x81 beta_storeb
+  0x91 0x81 beta_add
+  0x21 beta_jmp
+  0x52 emit_runtime_assertion
+  0x1 beta_read
+  0x68 0x90 0x1 beta_jlt
+  0x44a beta_jmp
+  0x68 emit_runtime_assertion
+  0x1100000 0x87 beta_imm
+  0x90 0x83 beta_mov
+  main_address beta_call
+  0x90 0x0 beta_mov
+  0x0 beta_halt
+  0x83 emit_runtime_assertion
+  0x2100000 0x1 beta_imm
+  0x44a 0x1 0x87 beta_jeq
+  0x0 0x87 beta_store
+  0x8 0x1 beta_imm
+  0x1 0x87 beta_add
+  beta_ret
+  0xa9 emit_runtime_assertion
+  0x1100000 0x1 beta_imm
+  0x43e 0x1 0x87 beta_jeq
+  0x8 0x1 beta_imm
+  0x1 0x87 beta_sub
+  0x87 0x0 beta_load
+  beta_ret
+  0xcf emit_runtime_assertion
+  0xa9 beta_call
+  0x0 0x9 beta_mov
+  0xa9 beta_call
+  0x0 0x8 beta_mov
+  beta_ret
+  0xe8 emit_runtime_assertion
+  0x43e 0x9 beta_jz
+  0x8000000000000000 0x0 beta_imm
+  0x108 0x0 0x8 beta_jeq
+  beta_ret
+  0x108 emit_runtime_assertion
+  0xffffffffffffffff 0x0 beta_imm
+  0x43e 0x0 0x9 beta_jeq
+  beta_ret
+  0x11e emit_runtime_assertion
+  0xa9 beta_call
+  0x43e 0x90 0x0 beta_jlt
+  0x13e0000 0x1 beta_imm
+  0x150 0x1 0x0 beta_jlt
+  0x43e beta_jmp
+  0x150 emit_runtime_assertion
+  0x8 0x1 beta_imm
+  0x1 0x0 beta_mul
+  0x2100000 0x1 beta_imm
+  0x1 0x0 beta_add
+  beta_ret
+  0x16b 0x656c2d7475706e69 0x6874676e 0xc emit_named_assertion
+  0x81 0x0 beta_mov
+  0x80 0x0 beta_sub
+  0x83 beta_call
+  beta_ret
+  0x17b 0x65672d7475706e69 0x74 0x9 emit_named_assertion
+  0xa9 beta_call
+  0x43e 0x90 0x0 beta_jlt
+  0x0 0x4 beta_mov
+  0x80 0x4 beta_add
+  0x1a9 0x81 0x4 beta_jlt
+  0x43e beta_jmp
+  0x1a9 emit_runtime_assertion
+  0x4 0x0 beta_loadb
+  0x83 beta_call
+  beta_ret
+  0x1b6 0x622d74757074756f 0x657479 0xb emit_named_assertion
+  0xa9 beta_call
+  0x43e 0x90 0x0 beta_jlt
+  0x100 0x1 beta_imm
+  0x1e8 0x1 0x0 beta_jlt
+  0x43e beta_jmp
+  0x1e8 emit_runtime_assertion
+  0x1000000 0x1 beta_imm
+  0x44a 0x1 0x83 beta_jeq
+  0x0 beta_write
+  0x91 0x83 beta_add
+  beta_ret
+  0x203 0x772d74757074756f 0x64726f 0xb emit_named_assertion
+  0xa9 beta_call
+  0x83 0x5 beta_mov
+  0x8 0x6 beta_imm
+  0x6 0x5 beta_add
+  0x1000000 0x7 beta_imm
+  0x44a 0x5 0x7 beta_jlt
+  0xd000000 0x4 beta_imm
+  0x0 0x4 beta_store
+  0x23e emit_runtime_assertion
+  0x4 0x0 beta_loadb
+  0x0 beta_write
+  0x91 0x4 beta_add
+  0x91 0x83 beta_add
+  0x91 0x6 beta_sub
+  0x23e 0x6 beta_jnz
+  beta_ret
+  0x257 0x702d74757074756f 0x6e6f697469736f 0xf emit_named_assertion
+  0x83 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x264 0x652d747265737361 0x6c617571 0xc emit_named_assertion
+  0xa9 beta_call
+  0x0 0x4 beta_mov
+  0xa9 beta_call
+  0x28d 0x4 0x0 beta_jeq
+  0x43e beta_jmp
+  0x28d emit_runtime_assertion
+  beta_ret
+  0x28e 0x7465672d6c6c6563 0x0 0x8 emit_named_assertion
+  0x11e beta_call
+  0x0 0x0 beta_load
+  0x83 beta_call
+  beta_ret
+  0x2a4 0x7465732d6c6c6563 0x0 0x8 emit_named_assertion
+  0x11e beta_call
+  0x0 0x4 beta_mov
+  0xa9 beta_call
+  0x0 0x4 beta_store
+  beta_ret
+  0x2bd 0x707564 0x0 0x3 emit_named_assertion
+  0xa9 beta_call
+  0x0 0x4 beta_mov
+  0x83 beta_call
+  0x4 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x2df 0x70617773 0x0 0x4 emit_named_assertion
+  0xa9 beta_call
+  0x0 0x4 beta_mov
+  0xa9 beta_call
+  0x0 0x5 beta_mov
+  0x4 0x0 beta_mov
+  0x83 beta_call
+  0x5 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x310 0x7265766f 0x0 0x4 emit_named_assertion
+  0xa9 beta_call
+  0x0 0x4 beta_mov
+  0xa9 beta_call
+  0x0 0x5 beta_mov
+  0x83 beta_call
+  0x4 0x0 beta_mov
+  0x83 beta_call
+  0x5 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x34a 0x706f7264 0x0 0x4 emit_named_assertion
+  0xa9 beta_call
+  beta_ret
+  0x354 0x2b 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0x9 0x8 beta_add
+  0x8 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x36d 0x2d 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0x9 0x8 beta_sub
+  0x8 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x386 0x2a 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0x9 0x8 beta_mul
+  0x8 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x39f 0x2f 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0xe8 beta_call
+  0x9 0x8 beta_div
+  0x8 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x3c1 0x25 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0xe8 beta_call
+  0x9 0x8 beta_mod
+  0x8 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x3e3 0x3c 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0x425 0x9 0x8 beta_jlt
+  0x90 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x404 0x3d 0x0 0x1 emit_named_assertion
+  0xcf beta_call
+  0x425 0x9 0x8 beta_jeq
+  0x90 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x425 emit_runtime_assertion
+  0x91 0x0 beta_mov
+  0x83 beta_call
+  beta_ret
+  0x432 emit_runtime_assertion
+  0x1 0x0 beta_imm
+  0x0 beta_halt
+  0x43e emit_runtime_assertion
+  0x2 0x0 beta_imm
+  0x0 beta_halt
+  0x44a emit_runtime_assertion
+  0x3 0x0 beta_imm
+  0x0 beta_halt
+  0x456 emit_runtime_assertion
+  0x4 0x0 beta_imm
+  0x0 beta_halt
+  0x462 emit_runtime_assertion
+;
+
+: emit_literal
+  0x0 beta_imm
+  0x83 beta_call
+;
+: emit_branch
+  0xa9 beta_call
+  swap
+  0x0 beta_jnz
+  beta_jmp
+;
+
+: emit_definitions 0x0 set_cursor jump emit_definition_loop ;
+: emit_definition_loop next 0x0 = branch emit_done emit_colon ;
 : emit_colon is_colon branch emit_name bad ;
 : emit_name
-  need_token find_word 0x1 assert-equal
-  output-position assert-equal
+  need_token find_word 0x1 assert-equal dup emit_definition_assertion
   jump emit_body
 ;
 : emit_body need_token is_semicolon branch emit_ret emit_jump_test ;
 : emit_jump_test is_jump branch emit_jump_item emit_branch_test ;
 : emit_jump_item
-  need_token find_word 0x1 assert-equal emit_jump jump emit_body
+  need_token find_word 0x1 assert-equal beta_jmp jump emit_body
 ;
 : emit_branch_test is_branch branch emit_branch_item emit_normal ;
 : emit_branch_item
@@ -511,22 +710,16 @@
   emit_branch jump emit_body
 ;
 : emit_normal
-  token_start token_length parse_hex
-  0x1 = branch emit_literal_item emit_name_item
+  token_start token_length parse_hex 0x1 = branch emit_literal_item emit_name_item
 ;
 : emit_literal_item emit_literal jump emit_body ;
 : emit_name_item
   builtin_address 0x1 = branch emit_builtin emit_user
 ;
-: emit_builtin emit_call jump emit_body ;
-: emit_user find_word 0x1 assert-equal emit_call jump emit_body ;
-: emit_ret 0x14 output-byte jump emit_definitions ;
+: emit_builtin beta_call jump emit_body ;
+: emit_user find_word 0x1 assert-equal beta_call jump emit_body ;
+: emit_ret beta_ret jump emit_definition_loop ;
 : emit_done ;
 
 : bad input-length input-get ;
-: main
-  pass_one
-  # Runtime call operand begins at 0x76; runtime emission inserts main address.
-  emit_runtime
-  pass_two
-;
+: main pass_one validate_source emit_runtime emit_definitions ;

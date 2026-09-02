@@ -3,21 +3,22 @@
 [Chain overview](bootstrap_chain.md) · [Decisions](decisions.md) ·
 [Proof kernel](proof_kernel.md)
 
-Hosting does not establish correctness. Every compiler source is checked
-directly against the exact Alpha tape that executes it:
+Hosting does not establish correctness. Every compiler source is checked against
+its canonical prior-rung receipt and the composed Alpha tape that executes it:
 
 ```text
 Beta self-reconstruction       -> beta_compiler_bytecode.tape
 Beta-written Gamma evaluator   -> gamma_evaluator_bytecode.tape
-Gamma-written Delta compiler   -> delta_compiler_bytecode.tape
-Delta-written Epsilon compiler -> epsilon_compiler_bytecode.tape
-Epsilon-written Omega D        -> omega0_compiler_bytecode.tape
-Omega-written Omega C          -> omega_compiler_bytecode.tape
+Gamma compiler                 -> canonical Beta -> gamma_compiler_bytecode.tape
+Gamma-written Delta compiler   -> canonical Gamma -> ... -> delta_compiler_bytecode.tape
+Delta-written Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
+Epsilon-written Omega D        -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
+Omega-written Omega C          -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
-Each arrow means “the tape refines the exact source semantics under the
-reconstructed observation and resource profiles,” not merely “the compiler on
-the left emitted these bytes.”
+Each chain means the adjacent elaboration relations compose to an Alpha tape
+that refines the exact source semantics under reconstructed observation and
+resource profiles, not merely that one compiler emitted some bytes.
 
 ## Uniform artifact-side proof
 
@@ -41,7 +42,8 @@ executables or permanent build dependencies.
 
 Every accepted edge records:
 
-- exact source closure and exact Alpha tape;
+- exact source closure, every canonical adjacent-language receipt, and exact
+	Alpha tape;
 - canonical source semantics and Alpha semantics;
 - exact input, observation, and resource profiles;
 - reconstructed obligations and checked certificates;

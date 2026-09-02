@@ -1,0 +1,566 @@
+# Experimental direct compiler for the scalar Functional Delta core.
+# Rows: kind start length owner aux0 aux1 aux2 aux3.
+
+: cursor 0x0 cell-get ;
+: set_cursor 0x0 cell-set ;
+: token_start 0x1 cell-get ;
+: set_token_start 0x1 cell-set ;
+: token_length 0x2 cell-get ;
+: set_token_length 0x2 cell-set ;
+: row_count 0x3 cell-get ;
+: set_row_count 0x3 cell-set ;
+: pc 0x4 cell-get ;
+: set_pc 0x4 cell-set ;
+: add_pc pc + set_pc ;
+: current_function 0x5 cell-get ;
+: set_current_function 0x5 cell-set ;
+: variable_next 0x6 cell-get ;
+: set_variable_next 0x6 cell-set ;
+: main_function 0x7 cell-get ;
+: set_main_function 0x7 cell-set ;
+: scan_index 0x8 cell-get ;
+: set_scan_index 0x8 cell-set ;
+: compare_index 0x9 cell-get ;
+: set_compare_index 0x9 cell-set ;
+: lookup_owner 0xa cell-get ;
+: set_lookup_owner 0xa cell-set ;
+: saved_start 0xb cell-get ;
+: set_saved_start 0xb cell-set ;
+: saved_length 0xc cell-get ;
+: set_saved_length 0xc cell-set ;
+: pending_kind 0xd cell-get ;
+: set_pending_kind 0xd cell-set ;
+: pending_owner 0xe cell-get ;
+: set_pending_owner 0xe cell-set ;
+: pending_aux0 0xf cell-get ;
+: set_pending_aux0 0xf cell-set ;
+: pending_aux1 0x10 cell-get ;
+: set_pending_aux1 0x10 cell-set ;
+: pending_aux2 0x11 cell-get ;
+: set_pending_aux2 0x11 cell-set ;
+: pending_aux3 0x12 cell-get ;
+: set_pending_aux3 0x12 cell-set ;
+: new_row 0x13 cell-get ;
+: set_new_row 0x13 cell-set ;
+: temp_one 0x14 cell-get ;
+: set_temp_one 0x14 cell-set ;
+: temp_two 0x15 cell-get ;
+: set_temp_two 0x15 cell-set ;
+: temp_three 0x16 cell-get ;
+: set_temp_three 0x16 cell-set ;
+: call_index 0x17 cell-get ;
+: set_call_index 0x17 cell-set ;
+: call_start 0x18 cell-get ;
+: set_call_start 0x18 cell-set ;
+: call_function 0x19 cell-get ;
+: set_call_function 0x19 cell-set ;
+: number_index 0x1a cell-get ;
+: set_number_index 0x1a cell-set ;
+: number_value 0x1b cell-get ;
+: set_number_value 0x1b cell-set ;
+: number_negative 0x1c cell-get ;
+: set_number_negative 0x1c cell-set ;
+: operator_kind 0x1d cell-get ;
+: set_operator_kind 0x1d cell-set ;
+: argument_owner 0x1e cell-get ;
+: set_argument_owner 0x1e cell-set ;
+: argument_index 0x1f cell-get ;
+: set_argument_index 0x1f cell-set ;
+: argument_offset 0x20 cell-get ;
+: set_argument_offset 0x20 cell-set ;
+: call_depth 0x21 cell-get ;
+: set_call_depth 0x21 cell-set ;
+: expression_depth 0x22 cell-get ;
+: set_expression_depth 0x22 cell-set ;
+: expression_context expression_depth 0x4 * 0x80 + ;
+: expression_context_start expression_context cell-get ;
+: expression_condition_size expression_context 0x1 + cell-get ;
+: set_expression_condition_size expression_context 0x1 + cell-set ;
+: expression_true_size expression_context 0x2 + cell-get ;
+: set_expression_true_size expression_context 0x2 + cell-set ;
+: expression_false_size expression_context 0x3 + cell-get ;
+: set_expression_false_size expression_context 0x3 + cell-set ;
+: binary_depth 0x23 cell-get ;
+: set_binary_depth 0x23 cell-set ;
+: binary_context binary_depth 0x4 * 0xc0 + ;
+: binary_context_start binary_context cell-get ;
+: binary_context_temp binary_context 0x1 + cell-get ;
+: set_binary_context_temp binary_context 0x1 + cell-set ;
+: binary_left_size binary_context 0x2 + cell-get ;
+: set_binary_left_size binary_context 0x2 + cell-set ;
+: binary_operator binary_context 0x3 + cell-get ;
+: set_binary_operator binary_context 0x3 + cell-set ;
+: call_context call_depth 0x3 * 0x40 + ;
+: call_context_start call_context cell-get ;
+: call_context_width call_context 0x1 + cell-get ;
+: set_call_context_width call_context 0x1 + cell-set ;
+: call_context_function call_context 0x1 + cell-get ;
+: set_call_context_function call_context 0x1 + cell-set ;
+: call_context_count call_context 0x2 + cell-get ;
+: set_call_context_count call_context 0x2 + cell-set ;
+
+: advance cursor + set_cursor ;
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_byte ;
+: no_token 0x0 ;
+: skip_byte cursor input-get dup 0x3b = branch skip_comment skip_space_test ;
+: skip_space_test dup 0x21 < branch skip_space token_begin ;
+: skip_space drop 0x1 advance jump skip ;
+: skip_comment drop 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_byte ;
+: comment_byte cursor input-get dup 0xa = branch comment_end comment_cr ;
+: comment_cr 0xd = branch comment_end comment_advance ;
+: comment_end 0x1 advance jump skip ;
+: comment_advance 0x1 advance jump comment_loop ;
+: token_begin
+  cursor set_token_start cursor input-get dup 0x28 = branch punctuation punctuation_close
+;
+: punctuation_close 0x29 = branch punctuation token_loop_begin ;
+: punctuation drop 0x1 advance 0x1 set_token_length 0x1 ;
+: token_loop_begin drop jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body ;
+: token_body cursor input-get dup 0x21 < branch token_done_drop token_semicolon ;
+: token_semicolon dup 0x3b = branch token_done_drop token_open ;
+: token_open dup 0x28 = branch token_done_drop token_close ;
+: token_close 0x29 = branch token_done token_advance ;
+: token_done_drop drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done cursor token_start - set_token_length 0x1 ;
+: need_token next 0x1 assert-equal ;
+
+: token_exact set_saved_length set_saved_start
+  token_length saved_length = branch exact_begin exact_false
+;
+: exact_begin 0x0 set_compare_index jump exact_loop ;
+: exact_loop compare_index token_length = branch exact_true exact_byte ;
+: exact_byte
+  saved_start 0x100 % compare_index token_start + input-get =
+  branch exact_next exact_false
+;
+: exact_next saved_start 0x100 / set_saved_start
+  compare_index 0x1 + set_compare_index jump exact_loop
+;
+: exact_true 0x1 ;
+: exact_false 0x0 ;
+
+: is_open 0x28 0x1 token_exact ;
+: is_close 0x29 0x1 token_exact ;
+: is_def 0x666564 0x3 token_exact ;
+: is_int_type 0x746e49 0x3 token_exact ;
+: is_if 0x6669 0x2 token_exact ;
+: is_let 0x74656c 0x3 token_exact ;
+: is_add 0x2b 0x1 token_exact ;
+: is_sub 0x2d 0x1 token_exact ;
+: is_mul 0x2a 0x1 token_exact ;
+: is_div 0x2f 0x1 token_exact ;
+: is_mod 0x25 0x1 token_exact ;
+: is_eq 0x7165 0x2 token_exact ;
+: is_lt 0x746c 0x2 token_exact ;
+: is_main 0x6e69616d 0x4 token_exact ;
+: expect_open need_token is_open 0x1 assert-equal ;
+: expect_close need_token is_close 0x1 assert-equal ;
+: expect_int need_token is_int_type 0x1 assert-equal ;
+
+: token_is_integer
+  token_length 0x0 = branch integer_false integer_first
+;
+: integer_first token_start input-get dup 0x2d = branch integer_minus integer_digit ;
+: integer_minus drop token_length 0x1 = branch integer_false integer_true ;
+: integer_digit dup 0x30 < branch integer_false_drop integer_digit_high ;
+: integer_digit_high 0x3a < branch integer_true integer_false ;
+: integer_false_drop drop ;
+: integer_false 0x0 ;
+: integer_true 0x1 ;
+
+: parse_integer
+  0x0 set_number_negative 0x0 set_number_value 0x0 set_number_index
+  token_start input-get 0x2d = branch integer_mark_negative integer_loop
+;
+: integer_mark_negative 0x1 set_number_negative 0x1 set_number_index jump integer_loop ;
+: integer_loop number_index token_length = branch integer_done integer_parse_digit ;
+: integer_parse_digit
+  number_index token_start + input-get dup 0x30 < branch bad integer_digit_upper
+;
+: integer_digit_upper dup 0x3a < branch integer_accumulate bad ;
+: integer_accumulate 0x30 - number_value 0xa * + set_number_value
+  number_index 0x1 + set_number_index jump integer_loop
+;
+: integer_done number_negative 0x1 = branch integer_negate integer_positive ;
+: integer_negate 0x0 number_value - ;
+: integer_positive number_value ;
+
+: row_address 0x1 - 0x8 * 0x100 + ;
+: row_get swap row_address + cell-get ;
+: row_set swap row_address + cell-set ;
+: row_kind 0x0 row_get ;
+: row_owner 0x3 row_get ;
+: row_aux0 0x4 row_get ;
+: row_aux1 0x5 row_get ;
+: row_aux2 0x6 row_get ;
+
+: begin_row row_count 0x1 + dup 0x1000 < 0x1 assert-equal
+  dup set_new_row set_row_count
+;
+: add_saved_row
+  begin_row
+  pending_kind new_row 0x0 row_set
+  saved_start new_row 0x1 row_set
+  saved_length new_row 0x2 row_set
+  pending_owner new_row 0x3 row_set
+  pending_aux0 new_row 0x4 row_set
+  pending_aux1 new_row 0x5 row_set
+  pending_aux2 new_row 0x6 row_set
+  pending_aux3 new_row 0x7 row_set
+  new_row
+;
+: clear_pending
+  0x0 set_pending_aux0 0x0 set_pending_aux1
+  0x0 set_pending_aux2 0x0 set_pending_aux3
+;
+: save_token token_start set_saved_start token_length set_saved_length ;
+
+: find_name set_lookup_owner 0x1 set_scan_index jump find_name_loop ;
+: find_name_loop row_count scan_index < branch find_absent find_name_row ;
+: find_name_row scan_index row_owner lookup_owner = branch find_name_length find_name_next ;
+: find_name_length scan_index 0x2 row_get token_length = branch find_name_compare_begin find_name_next ;
+: find_name_compare_begin 0x0 set_compare_index jump find_name_compare ;
+: find_name_compare compare_index token_length = branch find_present find_name_byte ;
+: find_name_byte
+  scan_index 0x1 row_get compare_index + input-get
+  token_start compare_index + input-get = branch find_name_compare_next find_name_next
+;
+: find_name_compare_next compare_index 0x1 + set_compare_index jump find_name_compare ;
+: find_name_next scan_index 0x1 + set_scan_index jump find_name_loop ;
+: find_present scan_index 0x1 ;
+: find_absent 0x0 0x0 ;
+: require_absent pending_owner find_name 0x0 assert-equal drop ;
+: require_named find_name 0x1 assert-equal ;
+: require_function 0x0 require_named dup row_kind 0x1 assert-equal ;
+: require_variable current_function require_named dup row_kind 0x2 assert-equal ;
+
+: add_function
+  0x0 set_pending_owner require_absent save_token clear_pending
+  0x1 set_pending_kind add_saved_row
+;
+: add_variable
+  current_function set_pending_owner require_absent save_token clear_pending
+  0x2 set_pending_kind variable_next set_pending_aux0 add_saved_row
+  variable_next 0x8 + set_variable_next
+;
+: add_parameter
+  add_variable dup call_index swap 0x5 row_set
+;
+: add_expression
+  set_temp_one set_saved_start 0x0 set_saved_length clear_pending
+  0x3 set_pending_kind current_function set_pending_owner
+  temp_one set_pending_aux0 add_saved_row drop temp_one
+;
+: add_expression_extra
+  set_temp_one set_temp_two set_saved_start 0x0 set_saved_length clear_pending
+  0x3 set_pending_kind current_function set_pending_owner
+  temp_one set_pending_aux0 temp_two set_pending_aux1
+  add_saved_row drop temp_one
+;
+: add_call_argument
+  0x0 set_saved_start 0x0 set_saved_length clear_pending
+  0x4 set_pending_kind
+  argument_owner set_pending_owner argument_index set_pending_aux0
+  argument_offset set_pending_aux1
+  add_saved_row drop
+;
+
+: find_expression set_saved_start 0x1 set_scan_index jump find_expression_loop ;
+: find_expression_loop row_count scan_index < branch bad find_expression_row ;
+: find_expression_row scan_index row_kind 0x3 = branch find_expression_start find_expression_next ;
+: find_expression_start scan_index 0x1 row_get saved_start = branch find_expression_done find_expression_next ;
+: find_expression_next scan_index 0x1 + set_scan_index jump find_expression_loop ;
+: find_expression_done scan_index ;
+
+: find_call_argument
+  set_pending_aux0 set_pending_owner 0x1 set_scan_index jump find_call_argument_loop
+;
+: find_call_argument_loop row_count scan_index < branch bad find_call_argument_row ;
+: find_call_argument_row scan_index row_kind 0x4 = branch find_call_argument_owner find_call_argument_next ;
+: find_call_argument_owner scan_index row_owner pending_owner = branch find_call_argument_index find_call_argument_next ;
+: find_call_argument_index scan_index row_aux0 pending_aux0 = branch find_call_argument_done find_call_argument_next ;
+: find_call_argument_next scan_index 0x1 + set_scan_index jump find_call_argument_loop ;
+: find_call_argument_done scan_index ;
+
+: find_parameter
+  set_pending_aux0 set_pending_owner 0x1 set_scan_index jump find_parameter_loop
+;
+: find_parameter_loop row_count scan_index < branch bad find_parameter_row ;
+: find_parameter_row scan_index row_kind 0x2 = branch find_parameter_owner find_parameter_next ;
+: find_parameter_owner scan_index row_owner pending_owner = branch find_parameter_index find_parameter_next ;
+: find_parameter_index scan_index row_aux1 pending_aux0 = branch find_parameter_done find_parameter_next ;
+: find_parameter_next scan_index 0x1 + set_scan_index jump find_parameter_loop ;
+: find_parameter_done scan_index ;
+
+: initialize
+  0x0 set_cursor 0x0 set_row_count 0x38 set_pc 0x0 set_current_function
+  0x0 set_main_function 0x0 set_call_depth
+  0x0 set_expression_depth 0x0 set_binary_depth
+;
+
+: pass_one initialize jump p1_program ;
+: p1_program next 0x0 = branch p1_done p1_declaration ;
+: p1_declaration is_open 0x1 assert-equal need_token is_def 0x1 assert-equal
+  need_token add_function set_current_function
+  is_main branch p1_mark_main p1_parameters_begin
+;
+: p1_mark_main current_function set_main_function jump p1_parameters_begin ;
+: p1_parameters_begin 0x8 set_variable_next 0x0 set_call_index expect_open jump p1_parameter_loop ;
+: p1_parameter_loop need_token is_close branch p1_parameters_done p1_parameter ;
+: p1_parameter is_open 0x1 assert-equal need_token add_parameter drop
+  expect_int expect_close call_index 0x1 + set_call_index jump p1_parameter_loop
+;
+: p1_parameters_done
+  call_index 0xe < 0x1 assert-equal
+  call_index current_function 0x4 row_set
+  expect_int pc current_function 0x5 row_set
+  p1_expression dup current_function 0x7 row_set add_pc 0x11 add_pc
+  variable_next current_function 0x6 row_set
+  expect_close 0x0 set_current_function jump p1_program
+;
+: p1_done main_function 0x0 = branch bad p1_validate_main ;
+: p1_validate_main main_function row_aux0 0x0 assert-equal ;
+
+: p1_expression need_token token_start is_open branch p1_list p1_atom ;
+: p1_atom token_is_integer branch p1_integer p1_variable ;
+: p1_integer parse_integer drop 0xa add_expression ;
+: p1_variable 0x10 add_expression ;
+: p1_list need_token is_if branch p1_if p1_let_test ;
+: p1_let_test is_let branch p1_let p1_add_test ;
+: p1_add_test is_add branch p1_add p1_sub_test ;
+: p1_sub_test is_sub branch p1_sub p1_mul_test ;
+: p1_mul_test is_mul branch p1_mul p1_div_test ;
+: p1_div_test is_div branch p1_div p1_mod_test ;
+: p1_mod_test is_mod branch p1_mod p1_eq_test ;
+: p1_eq_test is_eq branch p1_eq p1_lt_test ;
+: p1_lt_test is_lt branch p1_lt p1_call ;
+: p1_if
+  expression_depth 0x1 + dup 0x10 < 0x1 assert-equal
+  dup set_expression_depth drop expression_context cell-set
+  p1_expression set_expression_condition_size
+  p1_expression set_expression_true_size
+  p1_expression set_expression_false_size
+  expression_condition_size expression_true_size + 0x13 + set_temp_two
+  temp_two expression_false_size + set_temp_one
+  expression_context_start expression_depth 0x1 - set_expression_depth
+  temp_two temp_one expect_close add_expression_extra
+;
+: p1_let
+  need_token add_variable drop
+  p1_expression p1_expression + 0x10 + expect_close add_expression
+;
+: allocate_binary_temp variable_next dup 0x8 + set_variable_next ;
+: p1_add 0x0 set_operator_kind jump p1_binary ;
+: p1_sub 0x1 set_operator_kind jump p1_binary ;
+: p1_mul 0x2 set_operator_kind jump p1_binary ;
+: p1_div 0x3 set_operator_kind jump p1_binary ;
+: p1_mod 0x4 set_operator_kind jump p1_binary ;
+: p1_eq 0x5 set_operator_kind jump p1_binary ;
+: p1_lt 0x6 set_operator_kind jump p1_binary ;
+: p1_binary
+  binary_depth 0x1 + dup 0x10 < 0x1 assert-equal
+  dup set_binary_depth drop binary_context cell-set
+  allocate_binary_temp set_binary_context_temp
+  operator_kind set_binary_operator
+  p1_expression set_binary_left_size p1_expression set_temp_one
+  binary_operator 0x5 < branch p1_binary_width p1_comparison_width
+;
+: p1_binary_width 0x26 jump p1_binary_finish ;
+: p1_comparison_width 0x4b jump p1_binary_finish ;
+: p1_binary_finish
+  temp_one + binary_left_size + set_temp_two
+  binary_context_start set_saved_start
+  binary_context_temp set_argument_offset
+  binary_depth 0x1 - set_binary_depth
+  saved_start argument_offset temp_two expect_close add_expression_extra
+;
+: p1_call
+  call_depth 0x1 + dup 0x10 < 0x1 assert-equal dup set_call_depth
+  drop call_context cell-set
+  0x0 set_call_context_width 0x0 set_call_context_count jump p1_call_loop
+;
+: p1_call_loop next 0x1 assert-equal is_close branch p1_call_done p1_call_argument ;
+: p1_call_argument
+  call_context_start set_argument_owner call_context_count set_argument_index
+  variable_next set_argument_offset add_call_argument
+  variable_next 0x8 + set_variable_next
+  token_start set_cursor p1_expression
+  call_context_width + set_call_context_width
+  call_context_count 0x1 + set_call_context_count jump p1_call_loop
+;
+: p1_call_done
+  call_context_count set_call_index
+  call_index 0xe < 0x1 assert-equal
+  call_index 0x3d * 0x5d + call_context_width +
+  dup set_argument_offset set_temp_one
+  call_context_start call_depth 0x1 - set_call_depth temp_one add_expression
+  argument_offset new_row 0x4 row_set
+;
+
+# Alpha emitters consume operands in reverse encoding order.
+: alpha_halt 0x0 output-byte output-byte ;
+: alpha_imm 0x1 output-byte output-byte output-word ;
+: alpha_mov 0x2 output-byte output-byte output-byte ;
+: alpha_add 0x3 output-byte output-byte output-byte ;
+: alpha_sub 0x4 output-byte output-byte output-byte ;
+: alpha_mul 0x5 output-byte output-byte output-byte ;
+: alpha_div 0x6 output-byte output-byte output-byte ;
+: alpha_mod 0x7 output-byte output-byte output-byte ;
+: alpha_load 0xa output-byte output-byte output-byte ;
+: alpha_store 0xb output-byte output-byte output-byte ;
+: alpha_jmp 0xc output-byte output-word ;
+: alpha_jz 0xd output-byte output-byte output-word ;
+: alpha_jlt 0xf output-byte output-byte output-byte output-word ;
+: alpha_jeq 0x10 output-byte output-byte output-byte output-word ;
+: alpha_call 0x13 output-byte output-word ;
+: alpha_ret 0x14 output-byte ;
+
+: emit_load_offset_r0 0x1 alpha_imm 0x5 0x1 alpha_add 0x1 0x0 alpha_load ;
+: emit_store_offset_r0 0x1 alpha_imm 0x5 0x1 alpha_add 0x0 0x1 alpha_store ;
+: emit_callee_base current_function row_aux2 0x8 alpha_imm 0x5 0x8 alpha_add ;
+: emit_return
+  0x5 0x5 alpha_load 0x8 0x1 alpha_imm 0x1 0x7 alpha_add alpha_ret
+;
+
+: pass_two
+  0x0 set_cursor 0x0 set_current_function
+  0x0 set_call_depth 0x0 set_expression_depth 0x0 set_binary_depth
+  0x100000 0x5 alpha_imm 0x10000000 0x7 alpha_imm
+  0x8 0x1 alpha_imm 0x1 0x7 alpha_sub
+  main_function row_aux1 alpha_call 0x0 alpha_halt
+  0x2 0x0 alpha_imm 0x0 alpha_halt
+  jump p2_program
+;
+: p2_program next 0x0 = branch p2_done p2_declaration ;
+: p2_declaration is_open 0x1 assert-equal need_token is_def 0x1 assert-equal
+  need_token require_function set_current_function
+  output-position current_function row_aux1 assert-equal
+  expect_open jump p2_parameter_loop
+;
+: p2_parameter_loop need_token is_close branch p2_parameters_done p2_parameter ;
+: p2_parameter is_open 0x1 assert-equal need_token expect_int expect_close jump p2_parameter_loop ;
+: p2_parameters_done expect_int p2_expression emit_return expect_close
+  0x0 set_current_function jump p2_program
+;
+: p2_done cursor input-length assert-equal ;
+
+: p2_expression need_token token_start is_open branch p2_list p2_atom ;
+: p2_atom token_is_integer branch p2_integer p2_variable ;
+: p2_integer parse_integer 0x0 alpha_imm drop ;
+: p2_variable require_variable row_aux0 emit_load_offset_r0 drop ;
+: p2_list need_token is_if branch p2_if p2_let_test ;
+: p2_let_test is_let branch p2_let p2_add_test ;
+: p2_add_test is_add branch p2_add p2_sub_test ;
+: p2_sub_test is_sub branch p2_sub p2_mul_test ;
+: p2_mul_test is_mul branch p2_mul p2_div_test ;
+: p2_div_test is_div branch p2_div p2_mod_test ;
+: p2_mod_test is_mod branch p2_mod p2_eq_test ;
+: p2_eq_test is_eq branch p2_eq p2_lt_test ;
+: p2_lt_test is_lt branch p2_lt p2_call ;
+
+: peek_expression_size need_token token_start find_expression row_aux0
+  token_start set_cursor
+;
+: p2_if
+  find_expression set_temp_one
+  expression_depth 0x1 + dup 0x10 < 0x1 assert-equal
+  dup set_expression_depth drop
+  output-position dup expression_context cell-set
+  temp_one row_aux1 + set_expression_condition_size
+  expression_context_start temp_one row_aux0 + set_expression_true_size
+  p2_expression expression_condition_size 0x0 alpha_jz
+  p2_expression expression_true_size alpha_jmp
+  p2_expression expression_depth 0x1 - set_expression_depth expect_close
+;
+: p2_let
+  drop need_token require_variable p2_expression
+  row_aux0 emit_store_offset_r0
+  p2_expression expect_close
+;
+: p2_add 0x0 set_operator_kind jump p2_binary ;
+: p2_sub 0x1 set_operator_kind jump p2_binary ;
+: p2_mul 0x2 set_operator_kind jump p2_binary ;
+: p2_div 0x3 set_operator_kind jump p2_binary ;
+: p2_mod 0x4 set_operator_kind jump p2_binary ;
+: p2_eq 0x5 set_operator_kind jump p2_binary ;
+: p2_lt 0x6 set_operator_kind jump p2_binary ;
+: p2_binary
+  binary_depth 0x1 + dup 0x10 < 0x1 assert-equal
+  dup set_binary_depth drop
+  find_expression row_aux1 set_binary_context_temp
+  operator_kind set_binary_operator
+  p2_expression binary_context_temp emit_store_offset_r0
+  p2_expression 0x0 0x2 alpha_mov binary_context_temp emit_load_offset_r0
+  binary_operator set_operator_kind binary_depth 0x1 - set_binary_depth
+  operator_kind 0x0 = branch emit_add emit_sub_test
+;
+: emit_add 0x2 0x0 alpha_add jump p2_binary_done ;
+: emit_sub_test operator_kind 0x1 = branch emit_sub emit_mul_test ;
+: emit_sub 0x2 0x0 alpha_sub jump p2_binary_done ;
+: emit_mul_test operator_kind 0x2 = branch emit_mul emit_div_test ;
+: emit_mul 0x2 0x0 alpha_mul jump p2_binary_done ;
+: emit_div_test operator_kind 0x3 = branch emit_div emit_mod_test ;
+: emit_div 0x2 0x0 alpha_div jump p2_binary_done ;
+: emit_mod_test operator_kind 0x4 = branch emit_mod emit_eq_test ;
+: emit_mod 0x2 0x0 alpha_mod jump p2_binary_done ;
+: emit_eq_test operator_kind 0x5 = branch emit_eq emit_lt ;
+: emit_eq
+  output-position 0x1e + 0x2 0x0 alpha_jeq
+  0x0 0x0 alpha_imm output-position 0x13 + alpha_jmp
+  0x1 0x0 alpha_imm jump p2_binary_done
+;
+: emit_lt
+  output-position 0x1e + 0x2 0x0 alpha_jlt
+  0x0 0x0 alpha_imm output-position 0x13 + alpha_jmp
+  0x1 0x0 alpha_imm jump p2_binary_done
+;
+: p2_binary_done expect_close ;
+
+: p2_call
+  require_function set_temp_one set_temp_two
+  call_depth 0x1 + dup 0x10 < 0x1 assert-equal dup set_call_depth
+  temp_two swap 0x3 * 0x40 + cell-set
+  temp_one set_call_context_function 0x0 set_call_context_count
+  jump p2_call_loop
+;
+: p2_call_loop next 0x1 assert-equal is_close branch p2_call_done p2_call_argument ;
+: p2_call_argument
+  token_start set_cursor p2_expression
+  call_context_start call_context_count find_call_argument row_aux1
+  emit_store_offset_r0
+  call_context_count 0x1 + set_call_context_count jump p2_call_loop
+;
+: p2_call_done
+  call_context_count set_temp_one
+  call_context_function set_call_function call_context_start set_call_start
+  call_depth 0x1 - set_call_depth
+  call_function row_aux0 temp_one assert-equal
+  emit_function_call
+;
+: emit_function_call
+  emit_callee_base
+  call_function row_aux2 0x9 alpha_imm 0x8 0x9 alpha_add
+  0x7 0x1 alpha_mov 0x8 0x2 alpha_imm 0x2 0x1 alpha_sub
+  output-position 0x14 + 0x1 0x9 alpha_jlt 0x2c alpha_jmp
+  0x1 0x7 alpha_mov
+  0x0 set_call_index jump emit_copy_argument
+;
+: emit_copy_argument call_index temp_one = branch emit_call_ready emit_one_argument ;
+: emit_one_argument
+  call_start call_index find_call_argument row_aux1 emit_load_offset_r0
+  emit_callee_base
+  call_function call_index find_parameter row_aux0
+  0x1 alpha_imm 0x8 0x1 alpha_add 0x0 0x1 alpha_store
+  call_index 0x1 + set_call_index jump emit_copy_argument
+;
+: emit_call_ready
+  emit_callee_base 0x5 0x8 alpha_store
+  0x8 0x5 alpha_mov call_function row_aux1 alpha_call
+;
+
+: main pass_one pass_two ;
+: bad input-length input-get ;

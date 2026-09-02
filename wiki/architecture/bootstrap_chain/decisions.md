@@ -3233,7 +3233,7 @@ call recursion. Reopen the functional-rung comparison when a representative
 larger slice requires recursive syntax values, variable-length collections,
 nested scopes, or rich deterministic diagnostics. Those costs are absent here
 and could reverse the result. Its latest Gamma implementation is retained under
-`source/delta/compiler/experiments/state_machine/`; the test owner retains the
+`tests/delta/state-machine-experiment/`; the test owner retains the
 customer and interpreted/native agreement gate.
 
 ## D72 — Address target comments use compact spacing
@@ -3438,3 +3438,261 @@ helpers. General recursion, closures, heap allocation, and ambient stack growth
 remain out of scope. Promotion waits until one model preserves deterministic
 bounds and improves whole-customer readability without erasing the 709-line
 compiler advantage established by D71 through D77.
+
+## D79 — Scoped bounded calls do not rescue State Delta helper readability
+
+The State Delta challenger now has exact owner-scoped lookup. Top-level types
+and machines remain global; fields and cases use their nominal owner; parameters,
+the result, locals, and states use their machine owner. Repeated names across
+owners are accepted, while same-owner duplicates reject. Calls declare and
+repeat an arity from zero through thirteen, resolve each ordered parameter row,
+and check every one-word argument and result type. Aggregate parameters and
+results reject rather than being partially copied.
+
+Every machine has a fixed software-frame extent. Frames grow upward from the
+one-MiB static base, Alpha return addresses grow downward in eight-byte steps,
+and each call preflights the two prospective extents before publication. A
+three-argument recursive sum executes and unwinds correctly. A separate
+80,000,024-byte recursive frame admits three live entries and halts with status
+2 before the fourth can overlap the return stack. Arities zero and thirteen execute;
+arity fourteen, mismatched call arity, aggregate parameters, oversized frames,
+and same-owner duplicate names reject identically under interpreted and native
+Gamma execution.
+
+The trusted compiler grows from 709 to 815 Gamma lines, from 28,913 to 32,916
+source bytes, and from 25,104 to 29,105 native bytes. Owner scoping accounts for
+8 lines and 362 native bytes; arity, frames, recursion, and exact one-word checks
+account for the remaining 98 lines and 3,639 native bytes. Existing frame-relative
+customers grow to 2,278 parser bytes, 11,038 transform bytes, and 14,505 encoder
+bytes. The full-profile encoder's 118,488,640-byte upper extent remains below
+Alpha's 256-MiB memory bound.
+
+The actual Epsilon helper shape is the stronger discriminator. The closest
+representable parser kernel ports `ascii_between`, `is_digit`, and recursive
+decimal accumulation with repeated names and four arguments. Its helper code is
+48 State Delta lines and ten named states; the corresponding retained
+Functional Delta definitions occupy nine lines. The State version must consume
+sealed input instead of carrying the original immutable `Bytes`, index, and end
+because this challenger still lacks first-class byte views and recursive values.
+Bounded calls therefore solve the scoped storage problem without producing an
+auditable translation route for the real 505-helper Epsilon compiler.
+
+Normative Functional Delta remains unchanged. State-machine Delta remains useful
+evidence for bounded arenas and direct Alpha lowering, but this call-frame model
+does not win the whole-edge readability comparison and is not promoted.
+
+## D80 — Scalar Functional Delta reaches an executable tape-density milestone
+
+A noncanonical current-Gamma compiler now accepts the scalar recursive core of
+normative Functional Delta and emits Alpha directly. The subset has `Int`
+functions, zero through thirteen parameters, mutually visible declarations,
+lexical `let`, `if`, arithmetic, equality and less-than, nested calls, and direct
+recursion. Bounded named compiler contexts retain nested call, conditional, and
+binary-expression state rather than hiding it below recursive Gamma calls.
+Interpreted Gamma and Gamma's native fixed point produce byte-identical results.
+
+The experiment compiler is 565 Gamma lines and 23,693 source bytes; its native
+Alpha tape is 22,214 bytes. A nine-line, 198-byte Functional Delta accumulator
+recursion compiles to 842 Alpha bytes and exits 15. Its exact State Delta
+counterpart is 29 lines, 522 source bytes, and 771 Alpha bytes and also exits 15.
+Functional Delta therefore expresses this workload in one third the physical
+lines, while State Delta emits 71 fewer bytes. Their source-line-to-tape ratios
+are respectively 93.56 and 26.59 bytes per line; bytes per line measure density,
+not total quality.
+
+The Functional compiler is currently 250 Gamma lines and 6,891 native bytes
+smaller than D79's State compiler, but that is not a complete compiler comparison.
+The State challenger already covers nominal data, fixed arrays, typed rows,
+direct I/O, and a full-profile symbolic Alpha encoder. The Functional experiment
+still lacks algebraic data, constructors, exhaustive `match`, immutable `Bytes`,
+complete static checking and diagnostics, checked integer overflow, arbitrary
+arity, proper tail calls, application profiles, transactional publication, and
+exact resource outcomes. It cannot compile `epsilon_compiler.delta` and does not
+produce the canonical `delta_compiler_bytecode.tape`.
+
+D80 therefore establishes direction, not selection closure: Functional Delta's
+source compactness now has executable Alpha evidence, while the decisive
+whole-compiler ratio waits for the missing language and profile surface.
+
+## D81 — Typed source elaboration works for one Delta schema
+
+A 239-line, 9,616-byte Gamma program now validates the complete scalar
+accumulator-recursion schema used by D80 and emits one canonical Gamma source
+artifact. Its 9,526-byte native tape agrees with interpreted Gamma. The
+elaborator owns no Alpha opcode, instruction width, address, fixup, or tape
+publication rule. Fixed output chunks carry their decoded ASCII beside them,
+and the gate requires byte equality with the retained five-line, 223-byte Gamma
+artifact before invoking the existing Gamma compiler.
+
+The expansion represents `n` and `acc` on Gamma's visible value stack, selects
+base and step words with `branch`, and performs recursion with tail `jump`.
+The resulting 1,366-byte Alpha tape emits byte 15. A renamed source with start
+1,000 normalizes to the same private words plus one changed canonical literal,
+executes 1,000 tail steps, and emits byte 20. Binder, callee, local, and literal-
+bound mutations reject before output. No Gamma or Alpha primitive was added.
+
+This is a successful mechanics proof under the relevant criteria: the
+intermediate artifact is readable and independently compilable, semantic state
+is visible in the lower language, expansion is deterministic and bounded, and
+backend authority is reused rather than interleaved with higher-language logic.
+Final Alpha size is recorded but is not the success criterion.
+
+D81 does not yet select a macro-extension topology. The elaborator recognizes
+one useful schema, whereas D80's 565-line direct compiler accepts a broader
+scalar language. The next discriminator must cover that same scalar surface,
+including nested expressions, calls, lexical bindings, and diagnostics. If it
+remains favorable, Gamma must then elaborate to canonical Beta before the
+selected chain changes. Only those two gates justify replacing direct
+higher-rung Alpha backends repository-wide.
+
+## D82 — General scalar Delta elaboration removes one direct backend
+
+A separate 548-line, 21,180-byte Gamma elaborator now covers the same scalar
+Functional Delta constructs as D80's direct compiler: signed literals,
+variables, lexical `let`, `if`, all seven scalar operators, mutually visible
+functions, forward and nested calls, direct recursion, and arities zero through
+thirteen. Its 19,238-byte native tape agrees under interpreted and native Gamma.
+It contains no Alpha opcode, layout, address-fixup, or tape-publication logic.
+
+The elaborator emits source-order private function and expression words plus a
+visible two-cell frame convention. The retained recursive receipt is 25 Gamma
+lines and 1,267 bytes; the full-surface receipt is 77 lines and 4,324 bytes.
+The existing Gamma compiler turns those receipts into 2,498-byte and 5,884-byte
+Alpha tapes, which execute with observed result bytes 15 and 21. Negative
+literal normalization emits 255. Malformed declarations, references, arities,
+types, and truncated expressions reject before publication.
+
+This route is 17 Gamma lines and 2,976 native bytes smaller than D80's direct
+scalar compiler while moving all Alpha authority into the existing Gamma
+compiler. The receipts are independently compilable and expose frame, call,
+branch, and expression structure, though source-order numeric word names make
+the full receipt closer to readable compiler IR than hand-authored Gamma.
+One profile difference remains: all list expressions share one 15-level nesting
+bound, whereas D80 has separate 15-level call, binary, and conditional bounds.
+D82 is positive evidence for selective typed elaboration, subject to resolving
+or accepting that aggregate bound.
+
+## D83 — Universal prior-rung output fails at Gamma-to-Beta capacity
+
+A 724-line, 23,050-byte Gamma elaborator emits canonical mnemonic Beta for the
+complete current Gamma source surface. Its 26,599-byte native tape validates all
+reached words and transfer targets before output. Interpreted and native
+elaboration agree. Beta assembly is byte-identical to direct Gamma compilation
+for five retained subjects: the full builtin/control fixture, both generalized
+Delta receipts, the Delta0 compiler fixture, and the 532-line Gamma compiler
+itself. The latter expands to 2,618 Beta lines and 63,144 bytes and assembles to
+the exact 19,681-byte Gamma compiler tape.
+
+The Beta receipts improve local auditability over Alpha bytes: instructions are
+mnemonic, runtime and authored definitions are named, and every block carries an
+address assertion. They remain partly disassembly-like because Beta has numeric
+targets, repeats the complete Gamma runtime, and prints every word in full-width
+hexadecimal. The elaborator is 192 lines and 6,918 native bytes larger than the
+direct Gamma compiler, so it does not improve compressiveness at this boundary.
+
+More importantly, the current profiles are not domain-equivalent. A valid
+135,009-byte Gamma program with 15,000 literal/drop pairs compiles directly to a
+421,123-byte Alpha tape. Its readable Beta expansion reaches Gamma's 1,048,572-
+byte output ceiling and exits `Incomplete`; Beta independently admits only
+1,048,576 source bytes. Any textual representation of near-limit Alpha output
+has an inherent expansion factor, so cosmetic hexadecimal compaction cannot
+restore the complete direct domain under those bounds.
+
+The selected bootstrap spine therefore does not change. D82 permits source
+elaboration to compete at individual boundaries, but D83 rejects the universal
+rule that every rung must emit the immediately previous language. A future
+proposal must either revise and re-audit the Gamma-output and Beta-input
+profiles, define a compact readable lower representation, or accept a smaller
+Gamma source domain; none occurs implicitly.
+
+## D84 — Textual transport grows; Alpha artifact capacity does not
+
+D84 takes D83's first explicit option. Generic Gamma output and Beta source
+input each rise to 16 MiB. The change is transport-only: AlphaBootstrapV2 keeps
+its exact 1,048,572-byte raw-tape maximum and one-MiB stamped hole. The direct
+Gamma compiler and Gamma-to-Beta elaborator independently preflight their
+predicted Alpha output against that unchanged maximum before emitting anything.
+Beta likewise retains its `0xffffc` assembled-output ceiling.
+
+The Beta source buffer grows from `0x100000..0x200000` to
+`0x100000..0x1100000`; it does not overlap compiler code or scratch state. The
+Gamma evaluator and compiler-generated Gamma runtime permit `0x1000000` generic
+output bytes. Beta remains a 458-line compiler with a 2,135-byte tape; its source
+grows from 14,696 to 14,698 bytes and reconstructs the new tape byte-identically.
+The Gamma evaluator remains 738 lines and 4,289 tape bytes. The explicit Alpha
+preflight grows the Gamma compiler from 532 to 533 lines and its fixed point
+from 19,681 to 19,756 bytes.
+
+The strengthened boundary witness contains 37,408 `0x0 drop` pairs. Its
+336,681-byte Gamma source elaborates to 2,772,595 bytes of readable Beta, which
+assembles to the same 1,048,547-byte Alpha tape as direct Gamma compilation.
+One additional pair predicts 1,048,575 Alpha bytes; both routes reject with no
+published prefix. Thus D83's observed capacity blocker was a profile choice,
+not an inherent failure of prior-rung source output under Alpha's domain.
+
+D84 supersedes D83's capacity-based rejection of the macro-extension topology.
+It does not by itself select that topology. Gamma-to-Beta still costs 725 Gamma
+lines and a 26,674-byte tape versus the direct compiler's 533 lines and 19,756
+bytes, while producing a more inspectable Beta receipt. Full promotion also
+still requires Delta-to-Gamma elaboration for algebraic data, exhaustive
+`match`, immutable `Bytes`, proper tail calls, application profiles, and exact
+resource outcomes. The remaining decision is whole-chain auditability and
+compressiveness, not transport feasibility.
+
+## D85 — Gamma emits canonical Beta; Beta alone encodes Alpha
+
+D85 selects the Gamma-to-Beta architecture proven by D83 and made
+profile-equivalent by D84. The canonical compiler source is the 725-line
+`source/gamma/compiler/gamma_compiler.gamma`. It validates Gamma, assigns final
+addresses, enforces the Alpha artifact bound, and emits mnemonic addressed Beta.
+It contains no Alpha opcode-byte encoder. The trusted Beta compiler remains the
+only selected source-language implementation that encodes Alpha instructions.
+
+The compiler's own canonical expansion is retained as the 3,490-line,
+84,796-byte `gamma_compiler.beta`. Running `gamma_compiler.gamma` under the
+Beta-authored Gamma evaluator reproduces that receipt; Beta assembles it to the
+exact 26,674-byte `gamma_compiler_bytecode.tape`. Running the native tape on the
+same Gamma source reproduces the same receipt and tape. Thus the selected
+compiler reconstructs without the former direct Gamma-to-Alpha compiler.
+
+The former 533-line direct compiler moves to
+`tests/gamma/gamma-to-beta-experiment/direct_compiler.gamma`. It remains only as a differential
+comparator. The promoted compiler compiles that comparator through Beta into a
+disposable tape; promoted and direct routes then agree on Delta0, the complete
+retained Gamma corpus, and D84's 1,048,547-byte near-limit witness. The direct
+source supplies no selected bootstrap premise and is deletion-bounded by
+stronger checked source-to-source correspondence.
+
+Future selected compiler edges follow the same default ownership rule: Delta
+emits canonical Gamma, Epsilon emits canonical Delta, and Omega emits canonical
+Epsilon. Their final executable artifacts are obtained by composing the selected
+lower compilers. This ruling does not pretend those missing full elaborators
+exist: current Delta-to-Gamma evidence covers the scalar Functional Delta
+surface only. A higher compiler may depart from prior-rung source output only
+after a concrete auditability or profile discriminator defeats elaboration.
+
+## D86 — Beta data is one fixed Alpha word
+
+D86 removes Beta's quoted `db` strings and their independent quote, escape,
+separator, and byte-publication scanner. `dw HEXWORD` now emits exactly one
+eight-byte little-endian Alpha word through Beta's existing token, hexadecimal,
+and word-emission paths. The width is Alpha's fixed 64-bit word, never a host
+property.
+
+Bootstrap tables are packed explicitly into these words. The Beta mnemonic
+table remains one dense NUL-terminated byte stream at address `0x660`, with one
+trailing zero byte. Gamma's short `main`, colon, and semicolon tokens each occupy
+one padded word at independently asserted addresses and are compared using
+explicit lengths; its builtin names remain one dense NUL-terminated table over
+the exact logical range `0x1048..0x10d3`, with padded storage ending at the
+asserted address `0x10d8`. Padding is therefore inert and no unrelated string is
+admitted into either scan range.
+
+The trusted Beta implementation falls from 458 lines / 14,698 bytes / 2,135
+tape bytes to 388 lines / 12,639 bytes / 1,792 tape bytes. The Beta-authored
+Gamma evaluator grows from 738 to 753 lines and from 4,289 to 4,312 tape bytes
+because three short tokens receive explicit padding. Its complete 29-case gate
+passes. The test-owned Gamma reconstructor simultaneously falls from 213 to 186
+lines and reproduces the exact 4,312-byte evaluator tape. This accepts trivial
+table verbosity and 23 inert bytes in exchange for deleting a distinct trusted
+string language and parser.

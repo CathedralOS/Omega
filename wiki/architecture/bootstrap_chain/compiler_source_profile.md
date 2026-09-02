@@ -32,21 +32,29 @@ requirement are fixed by [D15](decisions.md#d15--bootstrap-implementation-source
 ## Required artifacts
 
 ```text
+Gamma compiler source
+  + Gamma evaluator -> canonical Beta receipt
+  + Beta compiler -> gamma_compiler_bytecode.tape
+
 Gamma-written Delta compiler source
-  + Gamma evaluator -> delta_compiler_bytecode.tape
+  + Gamma compiler -> canonical Gamma receipt
+  + selected lower compilers -> delta_compiler_bytecode.tape
 
 Delta-written Epsilon compiler source
-  + Delta compiler + sealed EpsilonCompilerV1 -> epsilon_compiler_bytecode.tape
+  + Delta compiler + sealed EpsilonCompilerV1 -> canonical Delta receipt
+  + selected lower compilers -> epsilon_compiler_bytecode.tape
 
 Epsilon-written Omega source D
-  └─ epsilon_compiler_bytecode.tape ─▶ omega0_compiler_bytecode.tape
+  └─ epsilon_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega0_compiler_bytecode.tape
 
 Omega-written Omega source C
-  └─ omega0_compiler_bytecode.tape ─▶ omega_compiler_bytecode.tape
+  └─ omega0_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega_compiler_bytecode.tape
 ```
 
-Every output above is canonical Alpha tape. A host-specific VM seed may execute
-or package it, but native container bytes do not replace the tape identity.
+Every final bytecode output above is canonical Alpha tape, and every intermediate
+source output is a retained canonical receipt in its named language. A
+host-specific VM seed may execute or package the tape, but native container
+bytes do not replace either identity.
 The Epsilon edge includes D19's sealed profile ID in its exact compilation
 question and checks the source-owned outcome/reason schema before emitting the
 `ECOUT` adapter; source names do not select that boundary. D30 gives that

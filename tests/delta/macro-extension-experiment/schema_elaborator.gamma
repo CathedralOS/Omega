@@ -1,0 +1,239 @@
+# Typed bounded elaborator for one scalar accumulator-recursion Delta schema.
+# It emits canonical Gamma source and owns no Alpha encoding.
+
+: cursor 0x0 cell-get ;
+: set_cursor 0x0 cell-set ;
+: token_start 0x1 cell-get ;
+: set_token_start 0x1 cell-set ;
+: token_length 0x2 cell-get ;
+: set_token_length 0x2 cell-set ;
+: compare_index 0x3 cell-get ;
+: set_compare_index 0x3 cell-set ;
+: expected_word 0x4 cell-get ;
+: set_expected_word 0x4 cell-set ;
+: expected_length 0x5 cell-get ;
+: set_expected_length 0x5 cell-set ;
+: function_start 0x6 cell-get ;
+: set_function_start 0x6 cell-set ;
+: function_length 0x7 cell-get ;
+: set_function_length 0x7 cell-set ;
+: n_start 0x8 cell-get ;
+: set_n_start 0x8 cell-set ;
+: n_length 0x9 cell-get ;
+: set_n_length 0x9 cell-set ;
+: acc_start 0xa cell-get ;
+: set_acc_start 0xa cell-set ;
+: acc_length 0xb cell-get ;
+: set_acc_length 0xb cell-set ;
+: local_start 0xc cell-get ;
+: set_local_start 0xc cell-set ;
+: local_length 0xd cell-get ;
+: set_local_length 0xd cell-set ;
+: span_start 0xe cell-get ;
+: set_span_start 0xe cell-set ;
+: span_length 0xf cell-get ;
+: set_span_length 0xf cell-set ;
+: number_index 0x10 cell-get ;
+: set_number_index 0x10 cell-set ;
+: number_value 0x11 cell-get ;
+: set_number_value 0x11 cell-set ;
+: hex_value 0x12 cell-get ;
+: set_hex_value 0x12 cell-set ;
+: hex_divisor 0x13 cell-get ;
+: set_hex_divisor 0x13 cell-set ;
+: hex_count 0x14 cell-get ;
+: set_hex_count 0x14 cell-set ;
+: hex_digit 0x15 cell-get ;
+: set_hex_digit 0x15 cell-set ;
+
+: advance cursor + set_cursor ;
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_byte ;
+: no_token 0x0 ;
+: skip_byte cursor input-get dup 0x3b = branch skip_comment skip_space_test ;
+: skip_space_test dup 0x21 < branch skip_space token_begin ;
+: skip_space drop 0x1 advance jump skip ;
+: skip_comment drop 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_byte ;
+: comment_byte cursor input-get dup 0xa = branch comment_end comment_cr ;
+: comment_cr 0xd = branch comment_end comment_advance ;
+: comment_end 0x1 advance jump skip ;
+: comment_advance 0x1 advance jump comment_loop ;
+: token_begin
+  cursor set_token_start cursor input-get dup 0x28 = branch punctuation punctuation_close
+;
+: punctuation_close 0x29 = branch punctuation token_loop_begin ;
+: punctuation drop 0x1 advance 0x1 set_token_length 0x1 ;
+: token_loop_begin drop jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body ;
+: token_body cursor input-get dup 0x21 < branch token_done_drop token_semicolon ;
+: token_semicolon dup 0x3b = branch token_done_drop token_open ;
+: token_open dup 0x28 = branch token_done_drop token_close ;
+: token_close 0x29 = branch token_done token_advance ;
+: token_done_drop drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done cursor token_start - set_token_length 0x1 ;
+: need_token next 0x1 assert-equal ;
+
+: token_exact set_expected_length set_expected_word
+  token_length expected_length = branch exact_begin exact_false
+;
+: exact_begin 0x0 set_compare_index jump exact_loop ;
+: exact_loop compare_index token_length = branch exact_true exact_byte ;
+: exact_byte
+  expected_word 0x100 % compare_index token_start + input-get =
+  branch exact_next exact_false
+;
+: exact_next expected_word 0x100 / set_expected_word
+  compare_index 0x1 + set_compare_index jump exact_loop
+;
+: exact_true 0x1 ;
+: exact_false 0x0 ;
+
+: is_open 0x28 0x1 token_exact ;
+: is_close 0x29 0x1 token_exact ;
+: is_def 0x666564 0x3 token_exact ;
+: is_int 0x746e49 0x3 token_exact ;
+: is_if 0x6669 0x2 token_exact ;
+: is_eq 0x7165 0x2 token_exact ;
+: is_let 0x74656c 0x3 token_exact ;
+: is_sub 0x2d 0x1 token_exact ;
+: is_add 0x2b 0x1 token_exact ;
+: is_main 0x6e69616d 0x4 token_exact ;
+: is_zero 0x30 0x1 token_exact ;
+: is_one 0x31 0x1 token_exact ;
+: expect_open need_token is_open 0x1 assert-equal ;
+: expect_close need_token is_close 0x1 assert-equal ;
+: expect_def need_token is_def 0x1 assert-equal ;
+: expect_int need_token is_int 0x1 assert-equal ;
+: expect_if need_token is_if 0x1 assert-equal ;
+: expect_eq need_token is_eq 0x1 assert-equal ;
+: expect_let need_token is_let 0x1 assert-equal ;
+: expect_sub need_token is_sub 0x1 assert-equal ;
+: expect_add need_token is_add 0x1 assert-equal ;
+: expect_zero need_token is_zero 0x1 assert-equal ;
+: expect_one need_token is_one 0x1 assert-equal ;
+
+: require_name token_length 0x0 = branch bad name_first ;
+: name_first token_start input-get dup 0x5f = branch name_rest name_lower ;
+: name_lower dup 0x61 < branch bad name_upper ;
+: name_upper dup 0x7b < branch name_rest bad ;
+: name_rest drop 0x1 set_compare_index jump name_loop ;
+: name_loop compare_index token_length = branch name_done name_byte ;
+: name_byte compare_index token_start + input-get dup 0x5f = branch name_next name_digit ;
+: name_digit dup 0x30 < branch bad name_digit_high ;
+: name_digit_high dup 0x3a < branch name_next name_lower_rest ;
+: name_lower_rest dup 0x61 < branch bad name_lower_high ;
+: name_lower_high 0x7b < branch name_next bad ;
+: name_next compare_index 0x1 + set_compare_index jump name_loop ;
+: name_done ;
+
+: save_function require_name token_start set_function_start token_length set_function_length ;
+: save_n require_name token_start set_n_start token_length set_n_length ;
+: save_acc require_name token_start set_acc_start token_length set_acc_length ;
+: save_local require_name token_start set_local_start token_length set_local_length ;
+
+: span_equal set_span_length set_span_start
+  token_length span_length = branch span_begin span_false
+;
+: span_begin 0x0 set_compare_index jump span_loop ;
+: span_loop compare_index token_length = branch span_true span_byte ;
+: span_byte
+  span_start compare_index + input-get token_start compare_index + input-get =
+  branch span_next span_false
+;
+: span_next compare_index 0x1 + set_compare_index jump span_loop ;
+: span_true 0x1 ;
+: span_false 0x0 ;
+: expect_function need_token function_start function_length span_equal 0x1 assert-equal ;
+: expect_n need_token n_start n_length span_equal 0x1 assert-equal ;
+: expect_acc need_token acc_start acc_length span_equal 0x1 assert-equal ;
+: expect_local need_token local_start local_length span_equal 0x1 assert-equal ;
+
+: parse_start
+  0x0 set_number_index 0x0 set_number_value jump number_loop
+;
+: number_loop number_index token_length = branch number_done number_byte ;
+: number_byte number_index token_start + input-get dup 0x30 < branch bad number_high ;
+: number_high dup 0x3a < branch number_accumulate bad ;
+: number_accumulate 0x30 - number_value 0xa * + set_number_value
+  number_index 0x1 + set_number_index jump number_loop
+;
+: number_done number_value 0x10000 < 0x1 assert-equal ;
+
+: validate
+  0x0 set_cursor
+  expect_open expect_def need_token save_function
+  expect_open
+  expect_open need_token save_n expect_int expect_close
+  expect_open need_token save_acc expect_int expect_close
+  expect_close expect_int
+  expect_open expect_if
+  expect_open expect_eq expect_n expect_zero expect_close
+  expect_acc
+  expect_open expect_function
+  expect_open expect_sub expect_n expect_one expect_close
+  expect_open expect_add expect_acc expect_n expect_close
+  expect_close expect_close expect_close
+  expect_open expect_def need_token is_main 0x1 assert-equal
+  expect_open expect_close expect_int
+  expect_open expect_let need_token save_local
+  need_token parse_start
+  expect_open expect_function expect_local expect_zero expect_close
+  expect_close expect_close
+  next 0x0 assert-equal cursor input-length assert-equal
+;
+
+: emit_prefix
+  0x696e6f6e61632023 output-word # '# canoni'
+  0x6c616373206c6163 output-word # 'cal scal'
+  0x74636e7546207261 output-word # 'ar Funct'
+  0x6544206c616e6f69 output-word # 'ional De'
+  0x617078652061746c output-word # 'lta expa'
+  0x203a0a6e6f69736e output-word # 'nsion\n: '
+  0x6f206f745f6d7573 output-word # 'sum_to o'
+  0x2030783020726576 output-word # 'ver 0x0 '
+  0x68636e617262203d output-word # '= branch'
+  0x6e6f645f6d757320 output-word # ' sum_don'
+  0x74735f6d75732065 output-word # 'e sum_st'
+  0x73203a0a3b207065 output-word # 'ep ;\n: s'
+  0x20656e6f645f6d75 output-word # 'um_done '
+  0x6f72642070617773 output-word # 'swap dro'
+  0x7573203a0a3b2070 output-word # 'p ;\n: su'
+  0x6f20706574735f6d output-word # 'm_step o'
+  0x7773202b20726576 output-word # 'ver + sw'
+  0x2d20317830207061 output-word # 'ap 0x1 -'
+  0x756a207061777320 output-word # ' swap ju'
+  0x745f6d757320706d output-word # 'mp sum_t'
+  0x616d203a0a3b206f output-word # 'o ;\n: ma'
+  0x69 output-byte 0x6e output-byte 0x20 output-byte
+;
+: emit_suffix
+  0x6d75732030783020 output-word # ' 0x0 sum'
+  0x30317830206f745f output-word # '_to 0x10'
+  0x7074756f20252030 output-word # '0 % outp'
+  0x20657479622d7475 output-word # 'ut-byte '
+  0x3b output-byte 0xa output-byte
+;
+
+: emit_hex_digit
+  hex_digit 0xa < branch emit_hex_decimal emit_hex_alpha
+;
+: emit_hex_decimal hex_digit 0x30 + output-byte jump emit_hex_next ;
+: emit_hex_alpha hex_digit 0x57 + output-byte jump emit_hex_next ;
+: emit_hex_next
+  hex_value hex_divisor % set_hex_value
+  hex_divisor 0x10 / set_hex_divisor
+  hex_count 0x1 - set_hex_count jump emit_hex_loop
+;
+: emit_hex_loop hex_count 0x0 = branch emit_hex_done emit_hex_body ;
+: emit_hex_body hex_value hex_divisor / set_hex_digit jump emit_hex_digit ;
+: emit_hex_done ;
+: emit_start
+  0x30 output-byte 0x78 output-byte
+  number_value set_hex_value 0x1000000000000000 set_hex_divisor
+  0x10 set_hex_count jump emit_hex_loop
+;
+
+: main validate emit_prefix emit_start emit_suffix ;
+: bad input-length input-get ;

@@ -1,0 +1,5 @@
+# canonical scalar Functional Delta expansion
+: sum_to over 0x0 = branch sum_done sum_step ;
+: sum_done swap drop ;
+: sum_step over + swap 0x1 - swap jump sum_to ;
+: main 0x0000000000000005 0x0 sum_to 0x100 % output-byte ;

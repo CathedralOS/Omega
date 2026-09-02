@@ -140,21 +140,21 @@ expect_reject missing-operand 7 "$T/missing-operand.beta"
 printf '%s\n' 'toolongxx r0' > "$T/unknown-mnemonic.beta"
 expect_reject unknown-mnemonic 8 "$T/unknown-mnemonic.beta"
 
-# Data bytes participate in the same output cursor and retain the narrow escapes.
-printf '%s\n' 'db "A B\0\\\""' '0x6:' 'halt r0' > "$T/data-address.beta"
+# Data words participate in the same output cursor and use Alpha little-endian order.
+printf '%s\n' 'dw 0x1122334455667788' '0x8:' 'halt r0' > "$T/data-address.beta"
 expect_equal data-address "$T/data-address.beta"
-printf '%s\n' 'db, "x"' > "$T/db-comma.beta"
-expect_reject db-comma 9 "$T/db-comma.beta"
-printf '%s\n' 'db "x\n"' > "$T/db-newline-escape.beta"
-expect_reject db-newline-escape 9 "$T/db-newline-escape.beta"
-printf 'db "a\001b"\n' > "$T/db-control.beta"
-expect_reject db-control 9 "$T/db-control.beta"
+printf '%s\n' 'dw' > "$T/dw-missing.beta"
+expect_reject dw-missing 7 "$T/dw-missing.beta"
+printf '%s\n' 'dw nope' > "$T/dw-malformed.beta"
+expect_reject dw-malformed 7 "$T/dw-malformed.beta"
+printf '%s\n' 'dw 0x10000000000000000' > "$T/dw-wide.beta"
+expect_reject dw-wide 7 "$T/dw-wide.beta"
 
 # The source and output regions are half-open and checked before advancement.
-python3 -c 'import sys; sys.stdout.write(" " * 0x100000)' > "$T/source-full.beta"
+python3 -c 'import sys; sys.stdout.write(" " * 0x1000000)' > "$T/source-full.beta"
 "$T/compiler" < "$T/source-full.beta" > "$T/source-full.tape"
 [ ! -s "$T/source-full.tape" ]
-python3 -c 'import sys; sys.stdout.write(" " * 0x100001)' > "$T/source-over.beta"
+python3 -c 'import sys; sys.stdout.write(" " * 0x1000001)' > "$T/source-over.beta"
 expect_reject source-over 9 "$T/source-over.beta"
 python3 -c 'import sys; sys.stdout.write("jmp 0x0\n" * 116509)' > "$T/output-over.beta"
 expect_reject output-over 9 "$T/output-over.beta"

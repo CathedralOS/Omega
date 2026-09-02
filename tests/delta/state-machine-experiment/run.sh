@@ -5,6 +5,7 @@ GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../../.." && pwd -P)
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
+. "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/artifact_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
     echo "Delta state-machine experiment: skipped (python3 absent)"
@@ -13,58 +14,40 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-COMPILER="$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.gamma"
+COMPILER="$GATE_DIR/compiler.gamma"
 SAMPLE="$GATE_DIR/sample.delta"
 PARSER="$GATE_DIR/nested_parser.delta"
 TRANSFORM="$GATE_DIR/ast_transform.delta"
 ENCODER="$GATE_DIR/alpha_encoder.delta"
+EPSILON_SLICE="$GATE_DIR/epsilon_parser_slice.delta"
+CALL_OVERFLOW="$GATE_DIR/call_overflow.delta"
+SCALAR_RECURSIVE="$GATE_DIR/scalar_recursive.delta"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
 "$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
 stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator" >/dev/null
-stamp_seed "$OMEGA_PATH_GAMMA/compiler/gamma_compiler_bytecode.tape" \
-    "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/gamma-compiler" >/dev/null
+materialize_gamma_compiler "$TMP/gamma-compiler" >/dev/null
+compile_gamma_source_to_tape "$TMP/gamma-compiler" "$TMP/beta-compiler" \
+    "$COMPILER" "$TMP/delta-compiler.tape"
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM ENCODER=$ENCODER EVALUATOR="$TMP/evaluator" \
-    NATIVE_GAMMA="$TMP/gamma-compiler" TMP=$TMP python3 -c '
+DELTA_COMPILER_TAPE="$TMP/delta-compiler.tape" python3 -c '
 import hashlib
 import os
-import struct
-import subprocess
 from pathlib import Path
 
-compiler = Path(os.environ["COMPILER"]).read_bytes()
-sample_path = Path(os.environ["SAMPLE"])
-sample = sample_path.read_bytes()
-temporary = Path(os.environ["TMP"])
-
-def interpreted_compile(subject: bytes):
-    request = struct.pack("<I", len(compiler)) + compiler + subject
-    return subprocess.run(
-        [os.environ["EVALUATOR"]], input=request, stdout=subprocess.PIPE
-    )
-
-def native_compile(subject: bytes):
-    return subprocess.run(
-        [str(temporary / "delta-compiler")], input=subject, stdout=subprocess.PIPE
-    )
-
-native_delta = subprocess.run(
-    [os.environ["NATIVE_GAMMA"]], input=compiler, stdout=subprocess.PIPE
-)
-if native_delta.returncode != 0:
-    raise SystemExit(f"native Gamma compilation exited {native_delta.returncode}")
-if len(native_delta.stdout) != 25104:
-    raise SystemExit(f"native Delta compiler is {len(native_delta.stdout)} bytes")
-if hashlib.sha256(native_delta.stdout).hexdigest() != "43fb7bb6700f8a16899995d1e7d62b903d440b077744b7b66dcd58b2efc1bdad":
+tape = Path(os.environ["DELTA_COMPILER_TAPE"]).read_bytes()
+if len(tape) != 29105:
+    raise SystemExit(f"native Delta compiler is {len(tape)} bytes")
+if hashlib.sha256(tape).hexdigest() != "bd63b8f628fac9e1fbe874342a44108336d7940f75ece8bebcfeee6ff8680dd4":
     raise SystemExit("native Delta compiler identity changed")
-(temporary / "delta-compiler.tape").write_bytes(native_delta.stdout)
 '
 
 stamp_seed "$TMP/delta-compiler.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/delta-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM ENCODER=$ENCODER EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER TRANSFORM=$TRANSFORM ENCODER=$ENCODER \
+    EPSILON_SLICE=$EPSILON_SLICE CALL_OVERFLOW=$CALL_OVERFLOW \
+    SCALAR_RECURSIVE=$SCALAR_RECURSIVE EVALUATOR="$TMP/evaluator" \
     NATIVE_DELTA="$TMP/delta-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -77,6 +60,9 @@ sample = Path(os.environ["SAMPLE"]).read_text()
 parser = Path(os.environ["PARSER"]).read_text()
 transform = Path(os.environ["TRANSFORM"]).read_text()
 encoder = Path(os.environ["ENCODER"]).read_text()
+epsilon_slice = Path(os.environ["EPSILON_SLICE"]).read_text()
+call_overflow = Path(os.environ["CALL_OVERFLOW"]).read_text()
+scalar_recursive = Path(os.environ["SCALAR_RECURSIVE"]).read_text()
 temporary = Path(os.environ["TMP"])
 
 def interpreted(subject: str):
@@ -93,17 +79,33 @@ def native(subject: str):
         stdout=subprocess.PIPE,
     )
 
-expected_hash = "2c632c1a7e4094d3935b92c322b855bf41c3b93fcd0fc57a97ddd82d23487131"
+expected_hash = "13c46ed23793ee614abb012a836433f648b8972c02d83660f5915490719402dd"
 left = interpreted(sample)
 right = native(sample)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
-    raise SystemExit("interpreted/native successful compilation disagrees")
-if len(left.stdout) != 533 or hashlib.sha256(left.stdout).hexdigest() != expected_hash:
-    raise SystemExit("representative output identity changed")
+    raise SystemExit(
+        "interpreted/native successful compilation disagrees: "
+        f"statuses {left.returncode}/{right.returncode}, "
+        f"sizes {len(left.stdout)}/{len(right.stdout)}, "
+        f"hashes {hashlib.sha256(left.stdout).hexdigest()}/"
+        f"{hashlib.sha256(right.stdout).hexdigest()}"
+    )
+if len(left.stdout) != 1357 or hashlib.sha256(left.stdout).hexdigest() != expected_hash:
+    raise SystemExit(
+        f"representative output identity changed: {len(left.stdout)} bytes, "
+        f"{hashlib.sha256(left.stdout).hexdigest()}"
+    )
 (temporary / "sample.tape").write_bytes(left.stdout)
 
 cases = {
     "duplicate-name": sample.replace("local count word", "local one word"),
+    "duplicate-owned-field": sample.replace(
+        "record Pair left word right word end",
+        "record Pair left word left word end",
+    ),
+    "duplicate-parameter-local": sample.replace(
+        "local next word", "local value word", 1
+    ),
     "unknown-type": sample.replace("local count word", "local count Missing"),
     "cross-machine-variable": sample.replace(
         "sub result value result", "sub result value one"
@@ -122,6 +124,10 @@ cases = {
     "cross-machine-state": sample.replace(
         "brzero count done loop", "brzero count decrement_entry loop"
     ),
+    "call-argument-type": sample.replace(
+        "call result sum_down 3 next step next_accumulator",
+        "call result sum_down 3 mode step next_accumulator",
+    ),
     "unknown-statement": sample.replace("const one 1", "nonsense one 1"),
 }
 for name, source in cases.items():
@@ -138,20 +144,22 @@ left = interpreted(parser)
 right = native(parser)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("nested parser interpreted/native compilation disagrees")
-if len(left.stdout) != 1929:
-    raise SystemExit(f"nested parser tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "9b8b21a6cd886fc5ac21a85c545b73781e5ebe5fa4195c1082ffe6b9dff9e326":
-    raise SystemExit("nested parser tape identity changed")
+if len(left.stdout) != 2278 or hashlib.sha256(left.stdout).hexdigest() != "d523d1f0b2e812cffda5c2a87f13367aebdad888579ba2c3d91a23420ff725b7":
+    raise SystemExit(
+        f"nested parser tape identity changed: {len(left.stdout)} bytes, "
+        f"{hashlib.sha256(left.stdout).hexdigest()}"
+    )
 (temporary / "parser.tape").write_bytes(left.stdout)
 
 left = interpreted(transform)
 right = native(transform)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("AST transform interpreted/native compilation disagrees")
-if len(left.stdout) != 9573:
-    raise SystemExit(f"AST transform tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "1195b249b010341176565d60ab2d44036fac02163032e5842733400e71e6722c":
-    raise SystemExit("AST transform tape identity changed")
+if len(left.stdout) != 11038 or hashlib.sha256(left.stdout).hexdigest() != "c4e9ec9547f1471012564d12edcead7d318a4d179d8bd07423fb82da7da8299c":
+    raise SystemExit(
+        f"AST transform tape identity changed: {len(left.stdout)} bytes, "
+        f"{hashlib.sha256(left.stdout).hexdigest()}"
+    )
 (temporary / "transform.tape").write_bytes(left.stdout)
 
 ill_typed_transform = transform.replace(
@@ -167,11 +175,18 @@ if left.returncode != 2 or right.returncode != 2 or left.stdout != right.stdout:
 left = interpreted(encoder)
 right = native(encoder)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
-    raise SystemExit("Alpha encoder interpreted/native compilation disagrees")
-if len(left.stdout) != 12610:
-    raise SystemExit(f"Alpha encoder tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "0faeaec52f877cf6da1904b92ec63aae1ac0ef955c1c648633811c458af1a0c0":
-    raise SystemExit("Alpha encoder tape identity changed")
+    raise SystemExit(
+        "Alpha encoder interpreted/native compilation disagrees: "
+        f"statuses {left.returncode}/{right.returncode}, "
+        f"sizes {len(left.stdout)}/{len(right.stdout)}, "
+        f"hashes {hashlib.sha256(left.stdout).hexdigest()}/"
+        f"{hashlib.sha256(right.stdout).hexdigest()}"
+    )
+if len(left.stdout) != 14505 or hashlib.sha256(left.stdout).hexdigest() != "317c23ebfe65d85c1a0a42201e45c54a30e62f0ed287b18bb99e94990c80e939":
+    raise SystemExit(
+        f"Alpha encoder tape identity changed: {len(left.stdout)} bytes, "
+        f"{hashlib.sha256(left.stdout).hexdigest()}"
+    )
 (temporary / "encoder.tape").write_bytes(left.stdout)
 
 ill_typed_encoder = encoder.replace(
@@ -183,11 +198,132 @@ left = interpreted(ill_typed_encoder)
 right = native(ill_typed_encoder)
 if left.returncode != 2 or right.returncode != 2 or left.stdout != right.stdout:
     raise SystemExit("row field mismatch was not rejected identically")
+
+left = interpreted(epsilon_slice)
+right = native(epsilon_slice)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("Epsilon parser slice interpreted/native compilation disagrees")
+if len(left.stdout) != 1802 or hashlib.sha256(left.stdout).hexdigest() != "3cb92cba02e73ce0776c769531d63a17bbd4afd1d20281282d3c51e1f6bf8702":
+    raise SystemExit("Epsilon parser slice tape identity changed")
+(temporary / "epsilon-slice.tape").write_bytes(left.stdout)
+
+left = interpreted(call_overflow)
+right = native(call_overflow)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("call-overflow interpreted/native compilation disagrees")
+if len(left.stdout) != 288 or hashlib.sha256(left.stdout).hexdigest() != "9b9e8be59daf2891da1c30ff91d513e4faf8715e14e83e058807cb799728a3d2":
+    raise SystemExit("call-overflow tape identity changed")
+(temporary / "call-overflow.tape").write_bytes(left.stdout)
+
+left = interpreted(scalar_recursive)
+right = native(scalar_recursive)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("scalar recursion interpreted/native compilation disagrees")
+if len(left.stdout) != 771 or hashlib.sha256(left.stdout).hexdigest() != "a9f47331b19c5f17b0a01637e685bf6d24dd575cbea1da83dbc7a60746892f24":
+    raise SystemExit("scalar recursion tape identity changed")
+(temporary / "scalar-recursive.tape").write_bytes(left.stdout)
+
+parameters = " ".join(f"p{index} word" for index in range(13))
+arguments = " ".join("thirteen" for _ in range(13))
+max_arity = (
+    "machine zero 0 result word\nstate zero_start\n"
+    "const result 0\nreturn result\nend\n"
+    f"machine select 13 {parameters} result word\n"
+    "state select_start\ncopy result p12\nreturn result\nend\n"
+    "machine main 1 ignored word result word\nlocal thirteen word\n"
+    "local zero_result word\nstate start\nconst thirteen 13\n"
+    "call zero_result zero 0\n"
+    f"call result select 13 {arguments}\nhalt result\nend\n"
+    "entry main start\n"
+)
+left = interpreted(max_arity)
+right = native(max_arity)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("maximum-arity interpreted/native compilation disagrees")
+if len(left.stdout) != 896 or hashlib.sha256(left.stdout).hexdigest() != "07af65013a62d3fb80ac39849ca07fcd40171ce97ff1b4e8eaef17782cc83a9f":
+    raise SystemExit("maximum-arity tape identity changed")
+(temporary / "max-arity.tape").write_bytes(left.stdout)
+
+too_many_parameters = max_arity.replace(
+    f"machine select 13 {parameters}",
+    f"machine select 14 {parameters} extra word",
+)
+wrong_call_arity = max_arity.replace(
+    f"call result select 13 {arguments}",
+    "call result select 12 " + " ".join("thirteen" for _ in range(12)),
+)
+wide_parameter = call_overflow.replace("value word", "value Huge", 1)
+wide_result = call_overflow.replace("result word", "result Huge", 1)
+oversized_frame = call_overflow.replace("10000000", "40000000", 1)
+for name, source in {
+    "arity-above-thirteen": too_many_parameters,
+    "call-arity-mismatch": wrong_call_arity,
+    "multiword-parameter": wide_parameter,
+    "multiword-result": wide_result,
+    "oversized-frame": oversized_frame,
+}.items():
+    left = interpreted(source)
+    right = native(source)
+    if left.returncode != 2 or right.returncode != 2 or left.stdout != right.stdout:
+        raise SystemExit(f"{name} was not rejected identically")
 '
 
 stamp_seed "$TMP/sample.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/sample" >/dev/null
-"$TMP/sample" < /dev/null > "$TMP/sample.out"
-[ ! -s "$TMP/sample.out" ]
+SAMPLE="$TMP/sample" python3 -c '
+import os
+import subprocess
+
+result = subprocess.run([os.environ["SAMPLE"]], stdout=subprocess.PIPE)
+if result.returncode != 0 or result.stdout != b"\x07":
+    raise SystemExit(f"recursive sample: {result.returncode}/{result.stdout.hex()}")
+'
+
+stamp_seed "$TMP/epsilon-slice.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+    "$TMP/epsilon-slice" >/dev/null
+EPSILON_SLICE="$TMP/epsilon-slice" python3 -c '
+import os
+import subprocess
+
+for name, data, expected in [
+    ("decimal", b"123", b"\x7b"),
+    ("invalid digit", b"12x", b"\xff"),
+]:
+    result = subprocess.run(
+        [os.environ["EPSILON_SLICE"]], input=data, stdout=subprocess.PIPE
+    )
+    if result.returncode != 0 or result.stdout != expected:
+        raise SystemExit(f"{name}: {result.returncode}/{result.stdout.hex()}")
+'
+
+stamp_seed "$TMP/max-arity.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+    "$TMP/max-arity" >/dev/null
+MAX_ARITY="$TMP/max-arity" python3 -c '
+import os
+import subprocess
+
+result = subprocess.run([os.environ["MAX_ARITY"]], stdout=subprocess.PIPE)
+if result.returncode != 13 or result.stdout:
+    raise SystemExit(f"maximum arity: {result.returncode}/{result.stdout.hex()}")
+'
+
+stamp_seed "$TMP/call-overflow.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+    "$TMP/call-overflow" >/dev/null
+CALL_OVERFLOW="$TMP/call-overflow" python3 -c '
+import os
+import subprocess
+
+result = subprocess.run([os.environ["CALL_OVERFLOW"]], stdout=subprocess.PIPE)
+if result.returncode != 2 or result.stdout:
+    raise SystemExit(f"call overflow: {result.returncode}/{result.stdout.hex()}")
+'
+
+stamp_seed "$TMP/scalar-recursive.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
+    "$TMP/scalar-recursive" >/dev/null
+set +e
+"$TMP/scalar-recursive"
+SCALAR_RECURSIVE_STATUS=$?
+set -e
+[ "$SCALAR_RECURSIVE_STATUS" -eq 15 ]
 
 stamp_seed "$TMP/parser.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/parser" >/dev/null
 PARSER="$TMP/parser" python3 -c '
@@ -305,4 +441,4 @@ for name, data, expected_status, expected_output in cases:
         )
 '
 
-echo "Delta state-machine experiment: 709-line Gamma compiler produced identical 25,104-byte native compiler; recursive AST and full-profile Alpha encoder customers pass"
+echo "Delta state-machine experiment: 815-line scoped/call-frame Gamma compiler produced identical 29,105-byte native compiler; recursive Epsilon parser slice, AST, and full-profile Alpha encoder customers pass"

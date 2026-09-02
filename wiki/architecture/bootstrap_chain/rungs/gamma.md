@@ -16,8 +16,13 @@ Its exact contract is
 are the Delta compiler and explicitly justified small bootstrap tools. The
 Beta-authored evaluator covers the core in a 29-case focused gate. An 81-line
 Gamma compiler emits and runs an exact 35-byte addressed-CFG customer.
-A 213-line Gamma reconstructor independently reproduces the evaluator's exact
-4,289-byte tape from its addressed Beta source. Tape admission and complete
-conformance closure remain open. Separately, a 532-line experimental
-Gamma-written compiler reproduces its own 19,681-byte native tape exactly; this
-fixed point is capability evidence, not a selected chain edge.
+A 186-line Gamma reconstructor independently reproduces the evaluator's exact
+4,312-byte tape from its addressed Beta source. Tape admission and complete
+conformance closure remain open.
+
+The selected 725-line Gamma compiler emits canonical addressed Beta. Its
+3,490-line Beta self-receipt assembles to the exact 26,674-byte native compiler
+tape, and both evaluator and native executions reproduce that receipt. A
+near-limit 336,681-byte Gamma program expands to 2,772,595 Beta bytes and the
+same 1,048,547-byte Alpha tape as the retained direct comparator. The adjacent
+oversized Alpha candidate rejects before publication in both routes.

@@ -12,6 +12,10 @@ source/
   gamma/                         bounded concatenative compiler machine
     evaluator/
       gamma_evaluator.beta       in-progress Beta-written evaluator
+    compiler/
+      gamma_compiler.gamma       selected Gamma-to-Beta compiler
+      gamma_compiler.beta        canonical self-expansion receipt
+      gamma_compiler_bytecode.tape composed native compiler
   delta/                         typed pure functional language
   epsilon/                       fixed-storage compiler-host language
     compiler/

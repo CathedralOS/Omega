@@ -1,0 +1,33 @@
+; Complete scalar Functional Delta surface for generalized elaboration.
+
+(def empty_value () Int 0)
+
+(def increment ((amber Int)) Int
+  (+ amber 1))
+
+(def difference ((left_side Int) (right_side Int)) Int
+  (- left_side right_side))
+
+(def thirteenth ((p0 Int) (p1 Int) (p2 Int) (p3 Int) (p4 Int)
+                 (p5 Int) (p6 Int) (p7 Int) (p8 Int) (p9 Int)
+                 (p10 Int) (p11 Int) (p12 Int)) Int
+  p12)
+
+(def forward_user ((value Int)) Int
+  (forward_target value 2))
+
+(def forward_target ((first Int) (second Int)) Int
+  (+ first second))
+
+(def accumulate ((remaining Int) (total Int)) Int
+  (if (eq remaining 0)
+    total
+    (accumulate (- remaining 1) (+ total remaining))))
+
+(def main () Int
+  (let seed 6
+    (if (lt (% (/ (* (increment seed) 5) 4) 4) 4)
+      (+ (difference (thirteenth 1 2 3 4 5 6 7 8 9 10 11 12 13)
+                     (empty_value))
+         (+ (forward_user (empty_value)) (accumulate 3 0)))
+      255)))

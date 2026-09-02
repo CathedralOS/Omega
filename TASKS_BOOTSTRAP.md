@@ -9,10 +9,11 @@ self-host milestone is required for an intermediate rung.
 ```text
 audited Alpha VM + admitted Beta compiler tape
   -> Beta-written Gamma evaluator -> gamma_evaluator_bytecode.tape
-  -> Gamma-written Delta compiler -> delta_compiler_bytecode.tape
-  -> Delta-written Epsilon compiler -> epsilon_compiler_bytecode.tape
-  -> Epsilon-written Omega compiler D -> omega0_compiler_bytecode.tape
-  -> Omega-written Omega compiler C -> omega_compiler_bytecode.tape
+  -> Gamma compiler -> canonical Beta -> gamma_compiler_bytecode.tape
+  -> Delta compiler -> canonical Gamma -> canonical Beta -> delta_compiler_bytecode.tape
+  -> Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
+  -> Omega compiler D -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
+  -> Omega compiler C -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
 Alpha is unchanged. The imperative tape-assembly language is trusted Beta.
@@ -22,7 +23,8 @@ Delta, and the former Delta is Epsilon.
 ## Rules
 
 - A language exists only to deliver the next rung and named small tools.
-- A compiler accepts one language and emits exact Alpha tape directly.
+- Beta alone encodes Alpha. Every higher compiler emits canonical source in the
+  immediately prior rung; selected lower compilers compose the final tape.
 - Intermediate self-hosting, general-purpose completeness, compatibility, and
   hypothetical reuse are not acceptance conditions.
 - Host scripts invoke, stamp, compare, and report. They do not parse, lower,
@@ -35,24 +37,43 @@ Delta, and the former Delta is Epsilon.
 ## Current inventory
 
 - [x] Alpha conformance passes all 26 cases.
-- [x] Trusted Beta's 14,696-byte addressed source reconstructs its admitted 2,135-byte
+- [x] Trusted Beta's 12,639-byte addressed source reconstructs its admitted 1,792-byte
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
 - [x] Gamma's concatenative compiler-machine contract is fixed at
   `source/gamma/LANGUAGE.md`; an 81-line Gamma compiler emits and runs an exact
   35-byte addressed-CFG customer tape.
-- [ ] A 738-line Beta-authored Gamma evaluator source and 29-case focused gate
+- [ ] A 753-line Beta-authored Gamma evaluator source and 29-case focused gate
   cover words, stacks, cells, sealed input, append-only output, ordinary calls,
-  and explicit tail CFG transfers. A 213-line Gamma reconstructor emits the
-  exact 4,289-byte evaluator tape from canonical Beta source. Tape admission and
+  and explicit tail CFG transfers. A 186-line Gamma reconstructor emits the
+  exact 4,312-byte evaluator tape from canonical Beta source. Tape admission and
   the complete conformance suite remain absent.
-- [x] A 532-line experimental Gamma-written native compiler reaches an exact
-  19,681-byte fixed point and agrees across seeded/native Delta0 compilation.
-  Its runtime emission is mnemonic-level, fixed cells are named, and reserved
-  names use exact byte comparison rather than hash identity.
-  It remains a diagnostic side artifact, not an admitted bootstrap edge.
+- [x] The selected 725-line Gamma compiler emits canonical addressed Beta.
+  Its retained 3,490-line, 84,796-byte self-receipt assembles to the exact
+  26,674-byte native compiler tape. Evaluator and native executions reproduce
+  that receipt; Beta reconstructs the tape. The former 533-line, 19,756-byte
+  direct Gamma-to-Alpha compiler remains comparator-only and agrees on Delta0,
+  the retained corpus, and a 1,048,547-byte near-limit Alpha witness.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
+- [x] A noncanonical 565-line current-Gamma compiler now emits Alpha directly
+  for scalar Functional Delta: `Int` functions, parameters, lexical `let`,
+  conditionals, arithmetic/comparison, nested calls, and direct recursion. Its
+  native compiler tape is 22,214 bytes. One exact recursive workload is nine
+  Functional Delta lines and an 842-byte tape versus 29 State Delta lines and a
+  771-byte tape; both exit 15. Functional Delta wins authored compactness while
+  State Delta wins this generated tape by 71 bytes. This is not the canonical
+  edge: algebraic data, exhaustive `match`, `Bytes`, complete checking, proper
+  tail calls, application profiles, transactional publication, and exact
+  resource outcomes remain absent.
+- [x] Functional-Delta-to-Gamma elaboration is executable without an Alpha
+  backend. The 239-line schema proof emits an exact five-line Gamma program
+  with visible tail `jump`. A separate 548-line general scalar elaborator covers
+  the direct scalar compiler's literals, bindings, conditionals, seven scalar
+  operators, forward/nested calls, recursion, and arities through 13. Its
+  19,238-byte tape is 2,976 bytes smaller than the 22,214-byte direct scalar
+  compiler while retaining canonical Gamma receipts. One aggregate 15-level
+  nesting bound is stricter than the direct experiment's separate bounds.
 - [x] A noncanonical typed state-machine Delta experiment covers nominal sums,
   records, fixed arrays, typed machine variables, states, exhaustive
   transitions, calls, dynamic indexed arenas, nested scopes, deterministic
@@ -66,13 +87,16 @@ Delta, and the former Delta is Epsilon.
   1,048,572-item/label and payload bounds in 118,488,640 bytes including the
   static base. State-machine Delta does not justify inserting another
   functional rung on implementation necessity or full-profile backend source cost;
-  actual Epsilon semantic lowering remains blocked on a concrete call/storage
-  choice. The retained customer has 505 definitions, 410 with multiple parameters,
-  maximum arity 13, and 152 direct-recursive definitions, while the experiment
-  has one global namespace and nonrecursive one-argument machines. Owner-scoped
-  names and either bounded call frames or explicit typed traversal frames must be
-  compared before normative Delta changes. Its latest implementation is retained
-  at `source/delta/compiler/experiments/state_machine/delta_compiler.gamma`.
+  an additional experiment adds owner-scoped names and bounded typed call frames
+  through the retained customer's maximum arity 13. Direct recursion uses
+  fixed-size software frames and rejects collision with Alpha's descending
+  return stack. This grows the compiler to 815 Gamma lines and 29,105 native
+  bytes. A representable Epsilon parser-helper kernel needs 48 state-machine
+  code lines and 10 states versus nine Functional Delta lines; its exact
+  immutable-`Bytes` recursion remains inexpressible. Bounded calls therefore do
+  not justify changing normative Functional Delta. Actual Epsilon semantic
+  lowering remains incomplete. The latest implementation is retained with its
+  gate at `tests/delta/state-machine-experiment/compiler.gamma`.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
   absent.
 - [ ] `source/omega/omega_compiler.epsilon` (`D`) is incomplete; `omega0` is
@@ -121,8 +145,8 @@ Delta, and the former Delta is Epsilon.
   Its derived Alpha tape is bound through the admitted Beta compiler rather
   than separately admitted as opaque bytecode.
 
-  The current source is a 29-case-passing, 738-line evaluator core producing a
-  4,289-byte tape. An 81-line Gamma-written Delta0 compiler exercises cells,
+  The current source is a 29-case-passing, 753-line evaluator core producing a
+  4,312-byte tape. An 81-line Gamma-written Delta0 compiler exercises cells,
   stack effects, source traversal, exact address assertions, byte emission, and
   direct CFG execution.
 
@@ -156,17 +180,18 @@ Delta, and the former Delta is Epsilon.
 
 - **DELTA-COMPILER.** Author
   `source/delta/compiler/delta_compiler.gamma`. It accepts the complete Delta
-  contract, type-checks it, and emits direct Alpha tape.
+  contract, type-checks it, and emits canonical Gamma source.
 
   Reuse Gamma's immutable values and compact bytes; do not add compiler-shaped
   evaluator primitives. The compiler owns Delta names, nominal types,
   exhaustiveness, checked arithmetic, proper-tail-call lowering, sealed
-  application profiles, exact failure selection, and Alpha emission. It may
+  application profiles, exact failure selection, and Gamma elaboration. It may
   know the exact Epsilon-compiler customer profile but may not parse Epsilon.
 
   Acceptance: Delta language conformance and malformed-source suites pass; the
   compiler compiles representative and complete `epsilon_compiler.delta` source;
-  exact tape reconstruction and source-to-Alpha refinement are checked; no host
+  exact Gamma receipts, composed tape reconstruction, and source-to-Alpha
+  refinement are checked; no host
   parser, old imperative compiler, serialized interpreter, or alternate tape
   participates.
 
@@ -179,14 +204,14 @@ Delta, and the former Delta is Epsilon.
   First audit every retained declaration and helper against the exact Epsilon
   compiler customer. Remove structures inherited only from the retired
   baseline. Finish body/control checking, fixed-storage realization, complete
-  deterministic diagnostics, direct Alpha lowering, entry adapter, and atomic
-  publication.
+  deterministic diagnostics, canonical Delta elaboration, entry adapter, and
+  atomic publication.
 
   Acceptance: the compiler consumes arbitrary valid Epsilon within its published
   bounds, rejects every malformed contract case deterministically, emits the
-  exact Alpha tape for `source/omega/omega_compiler.epsilon`, and passes direct
-  source-to-tape refinement. No Delta interpreter or host translation stage is
-  retained.
+  exact canonical Delta receipt for `source/omega/omega_compiler.epsilon`, and
+  composes through selected lower compilers to the exact Alpha tape. No Delta
+  interpreter or host translation stage is retained.
 
 ## P4 - Epsilon to Omega
 
@@ -199,8 +224,9 @@ Delta, and the former Delta is Epsilon.
   viewers, REPLs, debuggers, proof explorers, package services, or target tools
   unless `D` imports them to compile Omega.
 
-  Acceptance: the Delta-built Epsilon compiler produces
-  `omega0_compiler_bytecode.tape` from the exact `D` closure; `omega0` accepts
+  Acceptance: the Delta-built Epsilon compiler produces canonical Epsilon from
+  the exact `D` closure and selected lower compilers produce
+  `omega0_compiler_bytecode.tape`; `omega0` accepts
   the complete Omega language, emits required target artifacts, and passes the
   product language suites and direct refinement checks.
 

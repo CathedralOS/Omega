@@ -6,7 +6,7 @@ array Names word 16
 array Depths word 16
 array ScopeStarts word 8
 
-machine main ignored word result word
+machine main 1 ignored word result word
 local current word
 local offset word
 local node_count word

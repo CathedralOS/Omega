@@ -21,14 +21,18 @@ The selected compiler spine is:
 ```text
 Alpha VM seed + beta_compiler_bytecode.tape
   -> gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
-  -> delta_compiler.gamma -> delta_compiler_bytecode.tape
-  -> epsilon_compiler.delta -> epsilon_compiler_bytecode.tape
-  -> omega_compiler.epsilon -> omega0_compiler_bytecode.tape
-  -> build.omg/main.omg -> omega_compiler_bytecode.tape
+  -> gamma_compiler.gamma -> canonical Beta -> gamma_compiler_bytecode.tape
+  -> delta_compiler.gamma -> canonical Gamma -> canonical Beta -> delta_compiler_bytecode.tape
+  -> epsilon_compiler.delta -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
+  -> omega_compiler.epsilon -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
+  -> build.omg/main.omg -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
-Every compiler artifact above the native Alpha VM is platform-independent Alpha
-tape. Missing compilers remain explicit
+Beta is the only source language that encodes Alpha instructions. Every higher
+rung validates its own language and emits canonical source in the immediately
+lower rung; retained receipts make each elaboration independently inspectable.
+The final compiler artifacts remain platform-independent Alpha tapes. Missing
+full elaborators remain explicit
 gaps—an interpreter, host script, bridge, transpiler, or native publication
 route does not stand in for one.
 

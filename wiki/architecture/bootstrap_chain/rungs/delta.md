@@ -9,6 +9,7 @@ calls. It exists to implement the Epsilon compiler.
 
 The normative contract is
 [`source/delta/LANGUAGE.md`](../../../../source/delta/LANGUAGE.md). The canonical
-compiler must be written in Gamma and emit Alpha tape directly. Its source and
-tape are currently absent; the older imperative Gamma language and compiler
-remain retired rather than preserved as an alternate route.
+compiler must be written in Gamma and emit canonical Gamma source. The selected
+Gamma and Beta compilers compose that receipt into Alpha. The full source and
+tape are currently absent; scalar elaboration experiments pass, while algebraic
+data, `match`, `Bytes`, and profile closure remain open.

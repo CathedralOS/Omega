@@ -89,7 +89,8 @@ suite will be derived from D17 and owned by the real compiler edge.
 ## Boundaries
 
 - Epsilon is independent of Omega even when spelling overlaps.
-- The Epsilon compiler is written in Delta and emits exact Alpha tape directly.
+- The Epsilon compiler is written in Delta and emits canonical Delta source;
+  selected lower compilers compose that receipt into the exact Alpha tape.
 - Epsilon-written `D` implements full Omega and may generate a slow,
   conservatively lowered `omega₀` tape.
 - All fixed capacities are source-visible bounds, explicit profile parameters,

@@ -2,8 +2,9 @@
 
 Delta is the small, typed, pure definitional language used to implement the
 Epsilon compiler. A canonical Gamma-written compiler accepts this language and
-emits Alpha tape directly. The older interpreter and type checker are bounded
-oracles and implementation material; neither defines a second Delta language.
+emits canonical Gamma source for the selected lower compilers. The older
+interpreter and type checker are bounded oracles and implementation material;
+neither defines a second Delta language.
 
 ## Source envelope
 
@@ -337,12 +338,14 @@ runtime input or semantic authority. Generated-program statuses 248 through
 
 ## Compilation requirements
 
-The Gamma-written Delta compiler must type-check before emission, erase types into a
-defined runtime representation, and emit Alpha tape directly. Its private
-frame ABI must support arbitrary function and constructor arity and preserve
-proper tail calls. It may not publish an interpreter plus serialized syntax,
-invoke an external evaluator, add Delta operations to Gamma or Alpha, or make a
-private capacity into Delta semantics.
+The Gamma-written Delta compiler must type-check before emission, erase types
+into a defined runtime representation, and emit canonical Gamma source. The
+selected Gamma compiler lowers that receipt to canonical Beta, and Beta alone
+encodes the final Alpha tape. Generated Gamma must support arbitrary function
+and constructor arity and preserve proper tail calls. The Delta compiler may
+not publish an interpreter plus serialized syntax, invoke an external evaluator,
+add Delta operations to Gamma or Alpha, interleave direct Alpha emission with
+Delta checking, or make a private capacity into Delta semantics.
 
 The compiler source and tape are currently absent. The former imperative-Gamma
 implementation and its oracles were deleted rather than retained as a second

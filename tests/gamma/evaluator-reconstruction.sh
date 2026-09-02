@@ -13,7 +13,7 @@ command -v python3 >/dev/null 2>&1 || {
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-RECONSTRUCTOR="$OMEGA_PATH_GAMMA/reconstruction/gamma_evaluator_reconstructor.gamma"
+RECONSTRUCTOR="$GATE_DIR/evaluator_reconstructor.gamma"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
 "$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/expected.tape"

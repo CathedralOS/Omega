@@ -1,0 +1,11 @@
+# Three recursive entries fit; the fourth collides with Alpha's return stack.
+array Huge word 10000000
+
+machine recurse 1 value word result word
+local storage Huge
+state again
+call result recurse 1 value
+return result
+end
+
+entry recurse again

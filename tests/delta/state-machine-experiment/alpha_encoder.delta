@@ -10,7 +10,7 @@ record AlphaLabelRow label_target word label_defined word end
 array Items AlphaItemRow 1048572
 array Labels AlphaLabelRow 1048572
 
-machine write_target target_value word target_result word
+machine write_target 1 target_value word target_result word
 local target_divisor word
 local target_count word
 local target_one word
@@ -30,7 +30,7 @@ state target_done
 return target_zero
 end
 
-machine main ignored word result word
+machine main 1 ignored word result word
 local current word
 local label_count word
 local item_count word
@@ -508,7 +508,7 @@ copy target a
 goto emit_target
 state emit_target
 index-field-get target labels target label_target
-call temp write_target target
+call temp write_target 1 target
 goto emit_next
 
 state emit_jump_zero
@@ -520,7 +520,7 @@ state emit_rt
 write current
 write a
 index-field-get target labels b label_target
-call temp write_target target
+call temp write_target 1 target
 goto emit_next
 
 state emit_jump_less
@@ -533,7 +533,7 @@ write current
 write a
 write b
 index-field-get target labels c label_target
-call temp write_target target
+call temp write_target 1 target
 goto emit_next
 
 state emit_return

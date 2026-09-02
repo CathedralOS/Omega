@@ -1,0 +1,30 @@
+# Exact state-machine counterpart to the Functional Delta scalar customer.
+
+machine sum_to 2 n word acc word result word
+local one word
+local next word
+local next_acc word
+state check
+brzero n done recurse
+state recurse
+const one 1
+sub next n one
+add next_acc acc n
+call result sum_to 2 next next_acc
+return result
+state done
+copy result acc
+return result
+end
+
+machine main 0 result word
+local five word
+local zero word
+state start
+const five 5
+const zero 0
+call result sum_to 2 five zero
+halt result
+end
+
+entry main start

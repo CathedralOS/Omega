@@ -39,6 +39,7 @@ remain under `source/<language>/compiler/`.
 | `check-chain-hygiene.sh` | Repository checks for direct-chain ownership, source purity, and retention | Replace it only with one canonical gate enforcing the same positive inventory and immediate-successor boundary more economically. |
 | `alpha/` | Alpha seed selection and tape stamping used by current tests and tools. | Delete only when every caller has an equally direct canonical invocation. |
 | `beta/` | Trusted Beta compiler materialization and disposable program builds. | Delete only when every caller has an equally direct canonical invocation. |
+| `gamma/` | Selected Gamma-to-Beta compiler materialization and Gamma→Beta→Alpha composition used by downstream gates. | Delete only when every caller has an equally direct canonical invocation. |
 
 The retired `verify-lattice.sh`, `test-paths.sh`, historical bootstrap-role facade,
 future-artifact locators, root compiler cache, and receipt profiles had no

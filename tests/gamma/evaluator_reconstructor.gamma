@@ -156,8 +156,8 @@
 : check_read dup 0xf61339a = branch op_read check_write ;
 : check_write dup 0x83842091f = branch op_write check_call ;
 : check_call dup 0xd5da10a = branch op_call check_ret ;
-: check_ret dup 0x1e0e25 = branch op_ret check_db ;
-: check_db 0x338e = branch op_db bad ;
+: check_ret dup 0x1e0e25 = branch op_ret check_dw ;
+: check_dw 0x33a3 = branch op_dw bad ;
 
 : op_halt drop 0x0 output-byte emit_register jump compile ;
 : op_imm drop 0x1 output-byte emit_register emit_word jump compile ;
@@ -180,34 +180,7 @@
 : op_write drop 0x12 output-byte emit_register jump compile ;
 : op_call drop 0x13 output-byte emit_word jump compile ;
 : op_ret drop 0x14 output-byte jump compile ;
-
-: op_db jump db_skip ;
-: db_skip
-  cursor input-length = branch bad db_skip_char
-;
-: db_skip_char
-  cursor input-get dup 0x21 < branch db_skip_space db_open_test
-;
-: db_skip_space drop 0x1 advance jump db_skip ;
-: db_open_test 0x22 = branch db_open bad ;
-: db_open 0x1 advance jump db_loop ;
-: db_loop cursor input-length = branch bad db_char ;
-: db_char
-  cursor input-get dup 0x22 = branch db_close db_escape_test
-;
-: db_escape_test dup 0x5c = branch db_escape db_emit ;
-: db_emit output-byte 0x1 advance jump db_loop ;
-: db_escape
-  drop 0x1 advance
-  cursor input-length = branch bad db_escape_char
-;
-: db_escape_char
-  cursor input-get 0x30 assert-equal
-  0x0 output-byte
-  0x1 advance
-  jump db_loop
-;
-: db_close drop 0x1 advance jump compile ;
+: op_dw emit_word jump compile ;
 
 : bad input-length input-get ;
 : main 0x0 0x0 cell-set jump compile ;

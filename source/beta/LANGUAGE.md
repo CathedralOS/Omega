@@ -18,7 +18,7 @@ only admitted source bytes are horizontal tab (`0x09`), line feed (`0x0A`),
 carriage return (`0x0D`), and printable ASCII (`0x20..0x7E`). NUL, DEL, bytes
 above `0x7F`, and every other control byte reject before tokenization at their
 byte offset. There is no source decoding, BOM, Unicode classification, or
-locale-dependent character rule. Outside a quoted `db` string:
+locale-dependent character rule:
 
 - space, tab, CR, LF, and comma separate tokens;
 - `;` begins a comment through the next CR, LF, or end of source; and
@@ -31,15 +31,11 @@ program     := item*
 item        := address-assertion | instruction | data
 address-assertion := HEXWORD ':'
 instruction := MNEMONIC operand*
-data        := 'db' WHITESPACE+ STRING
+data        := 'dw' HEXWORD
 
 REGISTER    := 'r' HEXDIGIT | 'r' HEXDIGIT HEXDIGIT
 HEXWORD     := '0x' HEXDIGIT{1,16}
 HEXDIGIT    := [0-9a-f]
-WHITESPACE  := space | HT | LF | CR
-STRING      := '"' string-byte* '"'
-string-byte := printable-ASCII-except-'"'-and-'\\' | ESCAPE
-ESCAPE      := '\\0' | '\\\\' | '\\"'
 ```
 
 Leading zeroes are permitted. A `HEXWORD` denotes one unsigned word in
@@ -49,18 +45,13 @@ and words wider than sixteen digits reject. Only a complete one- or two-digit
 hexadecimal form after `r` is a register. An address assertion emits nothing
 and requires its word to equal the current output length exactly. Human block
 names belong in comments beside assertions and numeric control operands; Beta
-has no symbolic identifiers or resolution. Only whitespace may occur between
-`db` and its opening quote; a comma or comment there rejects.
+has no symbolic identifiers or resolution.
 
-The decoded string bytes for `\\0`, `\\\\`, and `\\"` are respectively `0`,
-`92`, and `34`. Every other permitted string byte is emitted unchanged. `db`
-bytes are data, not implicitly decoded instructions; ordinary Alpha control
-flow must jump around embedded data when it is reachable by address order.
-
-The source envelope does not restrict assembled data. `db` may produce control
-bytes through its closed escapes, and instructions may compute or write any
-byte. It only forbids embedding non-ASCII or invisible control bytes raw in the
-audited assembly source.
+`dw` appends its word as exactly eight little-endian bytes. The word width is
+Alpha's fixed 64-bit width and never depends on the host. Data is not implicitly
+decoded as instructions; ordinary Alpha control flow must jump around embedded
+data when it is reachable by address order. Short strings and tables are packed
+into words explicitly, with any trailing zero padding visible in source.
 
 ## Instructions
 
@@ -102,7 +93,7 @@ order:
 
 1. `a:` requires `a` to equal the current output length and emits nothing;
 2. an instruction appends its opcode and encoded operands; and
-3. `db s` appends the decoded string bytes.
+3. `dw w` appends the eight-byte little-endian encoding of `w`.
 
 Every control target is therefore visible directly in source, and each asserted
 block address is checked against the bytes that precede it. Consequently a
@@ -116,7 +107,7 @@ have written a stdout prefix before discovering a late failure; invocation
 plumbing publishes stdout as an artifact if and only if the compiler returns
 status zero. Accepting a malformed input does not extend this language.
 
-The admitted compiler profile retains at most `0x100000` source bytes,
+The admitted compiler profile retains at most `0x1000000` source bytes,
 and emits at most `0xffffc` output bytes. It checks each extent before advancing
 and returns nonzero without publishing an artifact on exhaustion.
 
@@ -126,9 +117,9 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 14,696 |
-| Source lines | 458 |
-| Encoded payload bytes | 2,135 |
+| Source bytes | 12,639 |
+| Source lines | 388 |
+| Encoded payload bytes | 1,792 |
 
 An admission certificate must bind the raw source and tape outside the proof
 producer, partition every source item and output byte exactly once, check every

@@ -1,0 +1,23 @@
+# Compact full-surface customer for the Gamma-to-Beta elaboration experiment.
+: yes 0x59 output-byte ;
+: no 0x4e output-byte ;
+: count dup 0x0 = branch count_done count_step ;
+: count_step 0x1 - jump count ;
+: count_done drop ;
+: nested_a 0x1 + ;
+: nested_b nested_a nested_a ;
+: main
+  input-length 0x1 assert-equal
+  0x0 input-get 0x41 assert-equal
+  0x41 0x0 cell-set 0x0 cell-get output-byte
+  0x102030405060708 output-word
+  output-position 0x9 assert-equal
+  0x3 count
+  0xffffffffffffffff 0x0 < output-byte
+  0x6 0x2 / 0x3 = output-byte
+  0x7 0x4 % output-byte
+  0x2 0x3 * 0x1 - output-byte
+  0x40 0x1 over drop swap swap + dup drop output-byte
+  0x3f nested_b output-byte
+  0x1 branch yes no
+;

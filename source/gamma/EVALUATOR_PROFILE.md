@@ -67,7 +67,10 @@ observation but is never an artifact.
 Invocation plumbing publishes stdout if and only if the evaluator returns
 status zero. It writes to a temporary destination, atomically publishes after
 success, and removes the temporary destination after every other status. The
-successful output ceiling is Alpha's 1,048,572-byte raw-tape maximum.
+successful generic output ceiling is 16 MiB (`0x1000000`). Gamma customers may
+emit readable lower-language source as well as Alpha candidates. A compiler
+that claims an Alpha artifact must independently enforce Alpha's exact
+1,048,572-byte raw-tape maximum before publication.
 
 ## Private representation
 

@@ -16,13 +16,13 @@
 ; Constants: r99 = 0 from Alpha initialization,
 ;   r9a = 1, r9b = 8-byte Alpha word width, r9c = 9 failure status,
 ;   r9d = ASCII '0'.
-; Buffer: 0x100000..0x200000 source.
-; Mnemonic table: 21 Alpha instructions plus db at mnemonic_table.
+; Buffer: 0x100000..0x1100000 source.
+; Mnemonic table: 21 Alpha instructions plus dw at mnemonic_table.
 
 ; ---------------- main ----------------
         imm   r8c, 0x80060
         imm   r91, 0x100000
-        imm   r92, 0x200000
+        imm   r92, 0x1100000
         imm   r95, 0xffffc
         imm   r9a, 0x1
         imm   r9b, 0x8
@@ -77,7 +77,7 @@
         jnz   r0, 0x1a8 ; -> scan_address:
         call  0x46f ; -> parse_op:
         imm   r1, 0x15
-        jeq   r0, r1, 0x1d1 ; db pseudo-opcode -> scan_db:
+        jeq   r0, r1, 0x1d1 ; dw pseudo-opcode -> scan_dw:
         write r0
         add   r85, r9a
         jlt   r95, r85, 0x107 ; -> source_reject:
@@ -101,8 +101,8 @@
         jeq   r0, r85, 0x123 ; -> scan_loop:
         jmp   0x107 ; -> source_reject:
 
-0x1d1: ; scan_db:
-        call  0x645 ; -> db_scan:
+0x1d1: ; scan_dw:
+        call  0x645 ; -> dw_scan:
         jmp   0x123 ; -> scan_loop:
 0x1e3: ; scan_done:
         ret
@@ -249,7 +249,7 @@
         mov   rb, r9b
         jlt   rb, r5, 0x53b ; -> unknown_mnemonic:
         mov   r0, r99            ; op = 0
-        imm   r1, 0x7b8
+        imm   r1, 0x660
 0x490: ; po_mloop:
         loadb rb, r1
         jz    rb, 0x53b ; -> unknown_mnemonic:
@@ -354,105 +354,35 @@
         imm   r0, 0x7
         halt  r0
 
-; ---------------- db_scan ----------------
-; Handle a `db "..."` data directive. Only whitespace may occur before the
-; opening quote. Raw string bytes must be printable ASCII; escapes are exactly
-; \0, \\, and \". Leaves CUR past the closing quote.
-0x645: ; db_scan:
-        mov   r1, r81           ; r1 = CUR
-        mov   r3, r80           ; r3 = source end
-0x64b: ; ds_findq:
-        jlt   r1, r3, 0x65b ; -> ds_fq_in:
-        mov   r0, r9c
-        halt  r0               ; malformed db: no opening quote
-0x65b: ; ds_fq_in:
-        loadb r2, r1
-        imm   r6, 0x22           ; '"'
-        jeq   r2, r6, 0x6a0 ; -> ds_open:
-        imm   r6, 0x21
-        jlt   r2, r6, 0x691 ; -> ds_fq_adv:
-        jmp   0x107 ; -> source_reject:
-0x691: ; ds_fq_adv:
-        mov   r6, r9a
-        add   r1, r6
-        jmp   0x64b ; -> ds_findq:
-0x6a0: ; ds_open:
-        mov   r6, r9a
-        add   r1, r6           ; past the opening quote
-0x6a6: ; ds_loop:
-        jlt   r1, r3, 0x6b6 ; -> ds_loop_in:
-        mov   r0, r9c
-        halt  r0               ; unterminated db string
-0x6b6: ; ds_loop_in:
-        loadb r2, r1           ; c
-        imm   r6, 0x22           ; '"'
-        jeq   r2, r6, 0x7ae ; -> ds_close:
-        imm   r6, 0x5c           ; '\'
-        jeq   r2, r6, 0x716 ; -> ds_esc:
-        imm   r6, 0x20
-        jlt   r2, r6, 0x107 ; -> source_reject:
-        imm   r6, 0x7f
-        jlt   r2, r6, 0x780 ; -> ds_emit:
-        jmp   0x107 ; -> source_reject:
-0x716: ; ds_esc:
-        mov   r6, r9a
-        add   r1, r6           ; skip the backslash
-        jlt   r1, r3, 0x730 ; -> ds_esc_in:
-        jmp   0x107 ; -> source_reject:
-0x730: ; ds_esc_in:
-        loadb r2, r1           ; escaped char
-        mov   r6, r9d           ; '0'
-        jeq   r2, r6, 0x774 ; -> ds_e_0:
-        imm   r6, 0x5c           ; '\\'
-        jeq   r2, r6, 0x780 ; -> ds_emit:
-        imm   r6, 0x22           ; '\"'
-        jeq   r2, r6, 0x780 ; -> ds_emit:
-        jmp   0x107 ; -> source_reject:
-0x774: ; ds_e_0:
-        mov   r2, r99
-        jmp   0x780 ; -> ds_emit:
-0x780: ; ds_emit:
-        mov   r8, r85           ; OUT
-        mov   r6, r95
-        jeq   r8, r6, 0x107 ; -> source_reject:
-        mov   r6, r9a
-        add   r8, r6
-        mov   r85, r8           ; OUT += 1
-        write r2
-0x79c: ; ds_next:
-        mov   r6, r9a
-        add   r1, r6           ; past this source char
-        mov   r3, r80           ; reload source end
-        jmp   0x6a6 ; -> ds_loop:
-0x7ae: ; ds_close:
-        mov   r6, r9a
-        add   r1, r6           ; past the closing quote
-        mov   r81, r1           ; CUR = r1
+; ---------------- dw_scan ----------------
+; Emit one parsed Alpha word through the ordinary operand path.
+0x645: ; dw_scan:
+        mov   r98, r9b
+        add   r85, r98
+        jlt   r95, r85, 0x107 ; -> source_reject:
+        call  0x540 ; -> emit_operand:
         ret
 
 ; NUL-terminated names in opcode order. Each name is followed by a
 ; NUL-terminated list of ASCII widths: 1 register byte or 8 word bytes.
-0x7b8: ; mnemonic_table:
-        db "halt\01\0"
-        db "imm\018\0"
-        db "mov\011\0"
-        db "add\011\0"
-        db "sub\011\0"
-        db "mul\011\0"
-        db "div\011\0"
-        db "mod\011\0"
-        db "loadb\011\0"
-        db "storeb\011\0"
-        db "load\011\0"
-        db "store\011\0"
-        db "jmp\08\0"
-        db "jz\018\0"
-        db "jnz\018\0"
-        db "jlt\0118\0"
-        db "jeq\0118\0"
-        db "read\01\0"
-        db "write\01\0"
-        db "call\08\0"
-        db "ret\0\0"
-        db "db\0\0"
-        db "\0"
+0x660: ; mnemonic_table:
+        dw 0x69003100746c6168 ; halt.1.i
+        dw 0x6f6d003831006d6d ; mm.18.mo
+        dw 0x6464610031310076 ; v.11.add
+        dw 0x0062757300313100 ; .11.sub.
+        dw 0x31006c756d003131 ; 11.mul.1
+        dw 0x3131007669640031 ; 1.div.11
+        dw 0x00313100646f6d00 ; .mod.11.
+        dw 0x3131006264616f6c ; loadb.11
+        dw 0x006265726f747300 ; .storeb.
+        dw 0x0064616f6c003131 ; 11.load.
+        dw 0x65726f7473003131 ; 11.store
+        dw 0x00706d6a00313100 ; .11.jmp.
+        dw 0x003831007a6a0038 ; 8.jz.18.
+        dw 0x6a003831007a6e6a ; jnz.18.j
+        dw 0x6a0038313100746c ; lt.118.j
+        dw 0x7200383131007165 ; eq.118.r
+        dw 0x7277003100646165 ; ead.1.wr
+        dw 0x6163003100657469 ; ite.1.ca
+        dw 0x7465720038006c6c ; ll.8.ret
+        dw 0x0000000077640000 ; ..dw....
