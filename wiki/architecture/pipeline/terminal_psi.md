@@ -143,11 +143,14 @@ and remains in Terminal's independent scalar namespace, including direct use as
 Unit-boundary arguments. Ordinary scalar-bearing attached Unit provider bodies
 use the same representation. Provider-candidate validation compares the
 boundary declaration's scalar types directly with the candidate machine's
-scalar parameters, avoiding another encoded signature copy. Transfers,
-projections, borrows, multiple carriers, mixed receiver requirements, composed
-control, free helpers, native installed-provider scalar ABI realization,
-initial root establishment, and Independent execution remain absent from
-Terminal rather than being guessed.
+scalar parameters, avoiding another encoded signature copy. The same exact
+lane also admits a free Unit helper. It lowers with no attachment and no
+provider-attachment roots while preserving the Service structural parameter,
+ordinary scalar parameters, and their exact boundary-call use; no synthetic
+empty record stands in for a receiver. Transfers, projections, borrows,
+multiple carriers, mixed receiver requirements, composed control, native
+installed-provider scalar ABI realization, initial root establishment, and
+Independent execution remain absent from Terminal rather than being guessed.
 
 Preservation is not realization. Omega target lowering currently accepts the
 one exact Linux `exit_process(i32) -> Unit` migration shape through import-free
