@@ -261,7 +261,10 @@ pub(super) fn validate_dynamic_dispatches(
             || dynamic_source_type_identity(module, machines, initial)
                 != dynamic_source_type_identity(module, machines, rebound)
             || initial.source.access != rebound.source.access
-            || initial.source.access != StructuralAccess::SharedBorrow
+            || !matches!(
+                initial.source.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
         {
             return Err(invalid_descriptor(descriptor.owner, descriptor.ordinal));
         }
@@ -547,7 +550,10 @@ fn validate_dynamic_descriptor_parameters(
         if !machines.contains_key(&parameter.owner)
             || !source_positions.insert((parameter.owner, parameter.source_position))
             || parameter.trait_identity.is_empty()
-            || parameter.access != StructuralAccess::SharedBorrow
+            || !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
             || !requirements_are_canonical
             || requirement_identities.len() != parameter.requirements.len()
         {

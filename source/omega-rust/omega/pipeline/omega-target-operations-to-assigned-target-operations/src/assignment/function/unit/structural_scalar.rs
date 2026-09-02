@@ -296,6 +296,9 @@ pub(super) fn resolve_field_path(
             .iter()
             .filter(|candidate| physically_retained_field(candidate))
         {
+            if matches!(candidate.field_type, StructuralFieldType::Erased { .. }) {
+                continue;
+            }
             let shape = field_shape(
                 &candidate.field_type,
                 declarations,
@@ -334,6 +337,9 @@ fn direct_integer_field_offset(
         .iter()
         .filter(|candidate| physically_retained_field(candidate))
     {
+        if matches!(candidate.field_type, StructuralFieldType::Erased { .. }) {
+            continue;
+        }
         let shape = field_shape(
             &candidate.field_type,
             declarations,
@@ -372,6 +378,9 @@ fn structural_shape(
                 .iter()
                 .filter(|field| physically_retained_field(field))
             {
+                if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
+                    continue;
+                }
                 let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
                 alignment = alignment.max(field_shape.alignment);
                 size = align(size, u32::from(field_shape.alignment))?;

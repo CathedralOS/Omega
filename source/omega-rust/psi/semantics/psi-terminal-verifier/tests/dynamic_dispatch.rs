@@ -411,6 +411,23 @@ fn admits_exact_dynamic_descriptor_parameter_argument_and_dispatch() {
 }
 
 #[test]
+fn admits_exact_mutable_descriptor_flow_and_rejects_access_substitution() {
+    let mut module = parameter_dynamic_dispatch_module();
+    module.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    for selection in &mut module.dynamic_dispatch.selections {
+        selection.source.access = StructuralAccess::MutableBorrow;
+    }
+    module.dynamic_dispatch.parameters[0].access = StructuralAccess::MutableBorrow;
+    validate_module(&module).expect("exact mutable descriptor flow is valid");
+
+    module.dynamic_dispatch.selections[1].source.access = StructuralAccess::SharedBorrow;
+    assert!(
+        validate_module(&module).is_err(),
+        "a mutable descriptor cannot silently substitute a shared rebound source"
+    );
+}
+
+#[test]
 fn rejects_missing_or_substituted_dynamic_descriptor_parameter_custody() {
     let mut missing_argument = parameter_dynamic_dispatch_module();
     missing_argument.dynamic_dispatch.arguments.clear();

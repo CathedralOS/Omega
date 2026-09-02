@@ -114,8 +114,10 @@ pub(super) fn validate_integer_structural_field(
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || parameter.access != StructuralAccess::SharedBorrow
-        || !has_empty_structural_custody(machine, source)
+    ) || !matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || !has_empty_structural_custody(machine, source)
         || machine
             .blocks
             .iter()
