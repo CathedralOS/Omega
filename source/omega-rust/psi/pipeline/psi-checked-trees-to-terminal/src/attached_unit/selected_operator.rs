@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod structural_realizations;
+pub(super) use structural_realizations::lower_selected_structural_scalar_realizations;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_selected_operator_scalar_call(
     checked: &CheckedTrees,
@@ -133,6 +136,102 @@ pub(super) fn validate_selected_operator_scalar_call(
     {
         return unsupported(
             "selected scalar realization with services requires terminal scalar service lowering",
+        );
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn validate_selected_operator_structural_scalar_call(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    coordinate: psi_checked_trees::CheckedUnitCallCoordinate,
+    result: psi_checked_trees::CheckedUnitScalarResultBindingPlan,
+    requirement_operator: psi_symbols::SymbolHandle,
+    provider_plan_report_fingerprint: u64,
+    provider_plan_commitment: psi_checked_trees::CheckedProviderPlanCommitment,
+    realization_machine: psi_symbols::SymbolHandle,
+    realization_state: psi_symbols::SymbolHandle,
+    realization_contract_report_fingerprint: u64,
+    realization_contract_commitment: psi_checked_trees::MachineContractCommitment,
+    service_reach: psi_language_semantics::ServiceReachSummary,
+    structural_arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
+) -> Result<(), LoweringError> {
+    validate_selected_operator_scalar_call(
+        checked,
+        machine,
+        coordinate,
+        result,
+        requirement_operator,
+        provider_plan_report_fingerprint,
+        provider_plan_commitment,
+        realization_machine,
+        realization_state,
+        realization_contract_report_fingerprint,
+        realization_contract_commitment,
+        service_reach,
+        structural_arguments.len(),
+    )?;
+    let realizations = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == realization_machine && plan.state == realization_state)
+        .collect::<Vec<_>>();
+    let [realization] = realizations.as_slice() else {
+        return unsupported(
+            "selected structural Unit operator does not rejoin one checked realization",
+        );
+    };
+    if !realization.scalar_parameters.is_empty()
+        || realization.result_type != result.primitive_type
+        || realization.structural_parameters.len() != structural_arguments.len()
+        || !machine.entry_claims.is_empty()
+        || machine.structural_parameters.len() != structural_arguments.len()
+        || machine.structural_parameters.iter().any(|parameter| {
+            parameter.is_self
+                || parameter.multiplicity != Multiplicity::Affine
+                || parameter.access != psi_checked_trees::CheckedStructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || parameter.fused_service_erasure.is_some()
+        })
+    {
+        return unsupported(
+            "selected structural Unit operator exceeds claim-free owned affine custody",
+        );
+    }
+    let mut sources = BTreeSet::new();
+    for (argument, target) in structural_arguments
+        .iter()
+        .zip(&realization.structural_parameters)
+    {
+        if argument.byte_sequence_literal.is_some()
+            || !argument.path.is_empty()
+            || argument.access != psi_checked_trees::CheckedStructuralAccess::Owned
+            || argument.type_identity != target.type_identity
+            || target.is_self
+            || target.multiplicity != Multiplicity::Affine
+            || target.access != psi_checked_trees::CheckedStructuralAccess::Owned
+            || !target.qualifications.is_empty()
+            || target.fused_service_erasure.is_some()
+            || !sources.insert(argument.source_parameter_index)
+        {
+            return unsupported(
+                "selected structural Unit operator operands drifted from whole affine roots",
+            );
+        }
+    }
+    if sources.len() != machine.structural_parameters.len()
+        || sources
+            .iter()
+            .copied()
+            .enumerate()
+            .any(|(index, source)| u32::try_from(index).ok() != Some(source))
+    {
+        return unsupported(
+            "selected structural Unit operator operands are not an exact root permutation",
         );
     }
     Ok(())

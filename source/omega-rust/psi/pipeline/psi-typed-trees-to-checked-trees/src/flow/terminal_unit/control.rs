@@ -935,6 +935,14 @@ pub(super) fn build_checked_machine(
     if !is_unit(program, state.return_type) {
         return None;
     }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let selected_scalar_result_local = selected_operator_scalar_result_local(
+        program,
+        machine,
+        state,
+        statements,
+        selected_operator_applications,
+    );
     let binders = machine_binders(program, machine);
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         psi_typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
@@ -946,14 +954,19 @@ pub(super) fn build_checked_machine(
                 .primitive_type_reference(parameter.type_reference)
                 .is_some()
     });
-    let (attachment_type_identity, structural_parameters, scalar_parameters) =
+    let (attachment_type_identity, mut structural_parameters, scalar_parameters) =
         if machine.attached_data.is_none() {
-            if !carries_fused_service_parameter {
+            if carries_fused_service_parameter {
+                let (structural, scalar) =
+                    free_fused_service_scalar_signature(program, shapes, state, &binders)?;
+                (None, structural, scalar)
+            } else if selected_scalar_result_local.is_some() && !carries_scalar_parameter {
+                let structural =
+                    free_selected_operator_structural_signature(program, shapes, state, &binders)?;
+                (None, structural, Vec::new())
+            } else {
                 return None;
             }
-            let (structural, scalar) =
-                free_fused_service_scalar_signature(program, shapes, state, &binders)?;
-            (None, structural, scalar)
         } else if carries_fused_service_parameter {
             let (attachment, structural, scalar) =
                 fused_service_scalar_signature(program, shapes, machine, state, &binders)?;
@@ -980,7 +993,6 @@ pub(super) fn build_checked_machine(
     )?;
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
     let calls = facts.flow.control.calls.span_or_empty(state_flow.calls);
-    let statements = program.statement_table.statements(state.statement_nodes);
     let write_only_store = build_write_only_primitive_store(
         program,
         facts,
@@ -992,13 +1004,6 @@ pub(super) fn build_checked_machine(
     );
     let construction = build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
-    );
-    let selected_scalar_result_local = selected_operator_scalar_result_local(
-        program,
-        machine,
-        state,
-        statements,
-        selected_operator_applications,
     );
     let selected_ieee_float_fma_result_locals = selected_ieee_float_fma_result_locals(
         program,
@@ -1161,13 +1166,22 @@ pub(super) fn build_checked_machine(
         operations.push(store);
     } else {
         let call_offset = if let Some((application, result)) = selected_scalar_result_local {
-            operations.push(build_selected_operator_scalar_call(
-                program,
-                facts,
-                state,
-                application,
-                result,
-            )?);
+            let operation =
+                build_selected_operator_scalar_call(program, facts, state, application, result)
+                    .or_else(|| {
+                        build_selected_operator_structural_scalar_call(
+                            program,
+                            facts,
+                            shapes,
+                            machine,
+                            state,
+                            &mut structural_parameters,
+                            &entry_claims,
+                            application,
+                            result,
+                        )
+                    })?;
+            operations.push(operation);
             0
         } else if let Some(locals) = selected_ieee_float_fma_result_locals {
             for (application, result) in locals {

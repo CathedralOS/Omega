@@ -154,6 +154,7 @@ pub(super) fn checked_terminal_machine_name(
             selection.signature,
             CheckedTerminalSignatureEligibility::Attached
                 | CheckedTerminalSignatureEligibility::FreeUnitEffect
+                | CheckedTerminalSignatureEligibility::Eligible
         )
         || selection.name.is_empty()
     {
@@ -220,6 +221,11 @@ pub(super) fn validate_unit_operation_sequence(
                 coordinate, result, ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                coordinate,
+                result,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                 coordinate,
                 result,
                 ..

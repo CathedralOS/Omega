@@ -232,6 +232,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 // Exact realization custody was already joined by selected
                 // execution before this plan was minted.
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => true,
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -261,7 +262,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 _ => false,
             })
     });
-    let retained_type_identities = boundary_machines
+    let mut retained_type_identities = boundary_machines
         .iter()
         .flat_map(|plan| {
             plan.attachment_type_identity
@@ -326,6 +327,32 @@ pub(crate) fn build_checked_unit_effect_plans(
                 }),
         )
         .collect::<BTreeSet<_>>();
+    for operation in candidates.iter().flat_map(|plan| &plan.operations) {
+        let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+            realization_machine,
+            realization_state,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        let Some(realization) = facts
+            .flow
+            .terminal_structural_scalar_returns
+            .machines
+            .iter()
+            .find(|plan| plan.machine == *realization_machine && plan.state == *realization_state)
+        else {
+            continue;
+        };
+        retained_type_identities.insert(realization.attachment_type_identity.as_str());
+        retained_type_identities.extend(
+            realization
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity.as_str()),
+        );
+    }
     shapes.retain_transitive(&retained_type_identities);
 
     CheckedUnitEffectPlans {

@@ -326,6 +326,19 @@ pub(super) fn lower_selected_machine(
             SelectedMachineRoute::StructuralUnitControl,
         );
     }
+    if selection.signature == CheckedTerminalSignatureEligibility::Eligible
+        && checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(selection.machine)
+            .is_some()
+    {
+        return routed_machine(
+            lower_unit_effect_closure(checked, selection.machine),
+            SelectedMachineRoute::UnitEffect,
+        );
+    }
     match selection.signature {
         CheckedTerminalSignatureEligibility::Eligible => {}
         CheckedTerminalSignatureEligibility::Attached

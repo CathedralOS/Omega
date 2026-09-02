@@ -191,6 +191,8 @@ mod ranges_storage_and_entries;
 mod recursion_slices_and_conversions;
 #[path = "canary_suite/reports_and_capabilities.rs"]
 mod reports_and_capabilities;
+#[path = "canary_suite/structural_selected_operator.rs"]
+mod structural_selected_operator;
 #[path = "canary_suite/surface_and_targets.rs"]
 mod surface_and_targets;
 #[path = "canary_suite/time_hosts_and_indexed_storage.rs"]

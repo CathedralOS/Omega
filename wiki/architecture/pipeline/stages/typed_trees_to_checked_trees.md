@@ -267,6 +267,18 @@ Must own:
   occurrence and source span. No display identity, digest, or marker that an
   audit happened participates.
 
+  The first structural-operand Unit composition retains a separate
+  `SelectedOperatorStructuralScalarCall` row. It accepts one primitive local
+  initializer in a free Unit machine only when the selected realization has no
+  scalar parameters and the authored operands are an exact permutation of all
+  direct, whole, claim-free owned affine source parameters. Source and
+  realization structural shapes must agree before the caller adopts the
+  realization's specialized carrier identities. The row retains the exact
+  provider-plan and realization contract commitments plus empty service reach;
+  consumed roots do not reappear in the Unit-return discard frontier. Content
+  evidence, contracts on the caller, paths, borrows, services, mixed operands,
+  and structural results reject rather than falling back to scalar planning.
+
   Open caller binders, nested open arguments, return-only or forwarded consts,
   unresolved nominal identity, named explicit const declarations, and
   constraints without a closed structural replay remain unavailable rather
