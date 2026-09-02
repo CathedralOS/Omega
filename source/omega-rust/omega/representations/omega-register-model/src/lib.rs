@@ -12,12 +12,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use omega_target::Architecture;
 
 mod identities;
+mod preservation_storage;
 
 pub use identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,
     RegisterReservationProfileIdentity, TargetRegisterEnvironmentIdentity,
     target_register_environment_identity,
 };
+pub use preservation_storage::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RegisterUnitId(pub u16);

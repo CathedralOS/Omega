@@ -292,6 +292,19 @@ unwind state, or grant machine/publication authority. Later executable lowering
 must reconcile this allocation-visible requirement against final machine
 effects before any preservation protocol can be admitted.
 
+The adjacent non-authoritative callee-save storage stage answers only how the
+target ABI groups those required units into storage carriers. A target-owned,
+identity-bound catalog declares the exact preservation view, full unit image,
+size, and alignment for each canonical group. Thus fragmented AMD64 GPR units
+coalesce into one carrier, Microsoft XMM6-XMM15 remain distinct 16-byte
+carriers, and AArch64 D8-D15 retain only their ABI-preserved low halves.
+Positional production and independent keyed replay then assign dense slots at
+offsets relative to an abstract callee-save area. The result is deliberately
+not a frame layout or a save protocol: it chooses no SP/FP base, final offset,
+red-zone/shadow-space use, instruction sequence, unwind/probe state, memory or
+fault behavior, encoding, emission, or publication, and it still requires
+final-machine clobber reconciliation.
+
 Logical spilling and stack-slot coloring are compiler-private allocation
 decisions rather than user-selected optimization rules. The coloring entrance
 consumes the independently validated logical-spill carrier and returns a

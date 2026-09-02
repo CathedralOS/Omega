@@ -851,6 +851,43 @@ stack delta, unwind row, probe, trap/fault claim, encoding, emission, or
 publication authority. A final-machine reconciliation boundary remains
 necessary after executable call and spill lowering.
 
+Non-authoritative callee-save storage planning forms the next adjacent V1
+boundary. The physical register model now has a separate validated
+preservation-storage catalog identity, leaving the physical model identity
+stable while target ISA crates own exact ABI storage grouping. System V AMD64
+declares RBX, RBP, and R12-R15 as six 8-byte groups whose fragmented units are
+stored through their complete GPR views. Microsoft x64 declares RBX, RSI, RDI,
+RBP, R12-R15 as eight 8-byte groups plus XMM6-XMM15 as ten 16-byte groups.
+AAPCS64 and Darwin each declare X19-X29 and D8-D15 as nineteen 8-byte groups;
+the D groups include only the ABI-preserved low 64-bit unit and never the Q
+high half. Catalog validation requires dense IDs, unique nonempty names, exact
+storage-view unit equality, byte-sized geometry, and complete convention
+coverage in canonical order, then binds every field into its identity.
+
+`stage_non_authoritative_callee_save_storage` consumes only validated
+allocation-visible requirements and the matching register environment. Under
+the closed `CanonicalTargetPreservationGroupsV1` policy, it emits one dense
+abstract slot per storage group containing at least one modified unit. Each
+slot retains the catalog group and view, its complete preserved unit image,
+the exact modified-unit requirements and witnesses, size, alignment, and an
+offset relative solely to this artifact's abstract callee-save area. Slots
+follow catalog order and do not reuse lifetime storage; empty functions retain
+extent zero and alignment one. Work is deterministic for function count `F`,
+catalog groups `G`, catalog membership units `U`, modified-unit rows `M`,
+witnesses `W`, and emitted slots `S`: rule evaluations `1+F+M`, candidates
+`G+M`, validation `1+G+U+F+M+W+S`, commits `1+F+S+M+W`, and iterations
+`1+G+U+F+M+W`.
+
+Production walks groups positionally while validation reconstructs a separate
+unit-to-group map and keyed buckets, recomputes work, and admits only exact
+agreement. The plan binds requirement, environment, physical-model, catalog,
+target, ABI, full preservation roster, policy, budget, usage, functions,
+slots, modified rows, and witnesses. It is not combined spill/frame layout:
+there is no SP/FP selection, final frame offset, red-zone or shadow-space
+decision, save/restore instruction or pairing, memory/fault/trap claim,
+unwind/probe state, encoding, emission, publication, or final-machine
+reconciliation.
+
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is
 `r + ((r + (a + b)) + (b + r))`: its middle original remains unused at the
