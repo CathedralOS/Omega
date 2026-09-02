@@ -71,10 +71,16 @@ inside the structural refinement row. The same exact one-carrier plus
 primitive-scalar lane admits a free Unit machine without synthesizing a
 receiver or attachment: Terminal records `attachment: None`, retains the
 Service carrier structurally, and retains ordinary scalar parameters in its
-independent scalar namespace. Borrowing, nesting, internal forwarding,
-multiple carriers, mixed receiver requirements, composed control, native
-installed-provider scalar ABI realization, root establishment, and Independent
-mode remain closed rather than being represented as fused.
+independent scalar namespace. One exact internal forwarding lane is also live:
+a free, nongeneric, lifetime-free, one-state Unit caller may move its sole
+owned carrier as one whole-root argument into one free helper whose direct
+boundary calls terminate the route. The two receipts preserve the same
+carrier, `Bound` domain, requirement, and selected-plan digest; raw plus final
+custody replay that edge independently. Borrowing, nesting, scalar-bearing or
+repeated forwarding, projections, duplicate edges, multiple carriers, mixed
+receiver requirements, composed control, native installed-provider scalar ABI
+realization, root establishment, and Independent mode remain closed rather
+than being represented as fused.
 Multiple distinct carriers specifically wait on a
 Terminal domain-application identity: the current structural-domain table keys
 only `SemanticDomainId` while binding one carrier identity, so one `Bound` row
