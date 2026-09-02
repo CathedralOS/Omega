@@ -380,7 +380,9 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             entry: machine,
             functions: vec![MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -580,7 +582,9 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         entry: machine,
         functions: vec![MachineCodeFunction {
             fixed_integer_scalar_abi: None,
+            unit_scalar_abi: None,
             internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
             dynamic_scalar_calls: Vec::new(),
             dynamic_parameter_scalar_calls: Vec::new(),
             forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2218,7 +2222,9 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             entry: machine,
             functions: vec![MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2325,7 +2331,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "4e9a3a348ad05c3bb662eeedd01f00936a8344c4f4d932762c06cd700fda62cc"
+        "110671fa1adc3de4cc7cbbb570883ff9ebef3ed122d7abd0748918b0f2f61a36"
     );
 
     let mut changed_plan = plan;
@@ -2514,7 +2520,9 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         entry: machine_id(1),
         functions: vec![MachineCodeFunction {
             fixed_integer_scalar_abi: None,
+            unit_scalar_abi: None,
             internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
             dynamic_scalar_calls: Vec::new(),
             dynamic_parameter_scalar_calls: Vec::new(),
             forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2697,7 +2705,9 @@ fn two_function_plan() -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2734,7 +2744,9 @@ fn two_function_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2833,6 +2845,7 @@ fn semantic_x86_fma_plan(profile: TargetProfile) -> MachineCodePlan {
                     },
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::IeeeFloatConstant {
@@ -2931,7 +2944,9 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -2968,7 +2983,9 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -4118,7 +4135,9 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -4168,7 +4187,9 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),
@@ -4215,7 +4236,9 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
+                installed_provider_unit_scalar_calls: Vec::new(),
                 dynamic_scalar_calls: Vec::new(),
                 dynamic_parameter_scalar_calls: Vec::new(),
                 forwarded_dynamic_descriptor_calls: Vec::new(),

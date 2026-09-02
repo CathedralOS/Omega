@@ -123,6 +123,7 @@ fn fixture() -> TargetOperationPlanWithNativeCallbacks {
                         &CallSignature::default(),
                     )
                     .unwrap(),
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::IntegerConstant {

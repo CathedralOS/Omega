@@ -4,6 +4,7 @@
 mod boolean_cleanup;
 mod dynamic_scalar_dispatch;
 mod expression_homes;
+mod installed_provider_scalar;
 mod native_callback;
 mod ranked_countdown;
 mod structural_calls;

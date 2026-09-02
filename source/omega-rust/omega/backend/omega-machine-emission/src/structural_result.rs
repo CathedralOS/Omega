@@ -66,6 +66,7 @@ pub(super) fn emit(
         &AssignedUnitBody {
             structural_types: structural_types.clone(),
             call_plan: call_plan.clone(),
+            scalar_parameters: Vec::new(),
             parameters: structural_parameters.clone(),
             operations: vec![
                 AssignedUnitOperation::Call {

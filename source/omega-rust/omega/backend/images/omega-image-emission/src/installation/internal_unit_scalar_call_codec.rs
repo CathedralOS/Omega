@@ -128,6 +128,9 @@ pub(super) fn encode_argument_source(
     source: InternalUnitScalarArgumentSourceRecord,
 ) -> Result<(), InstallationError> {
     match source {
+        InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
+            return Err(InstallationError::UnsupportedInstalledScalarSource);
+        }
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
@@ -183,4 +186,28 @@ pub(super) fn encode_offset(bytes: &mut Vec<u8>, value: usize) -> Result<(), Ins
 pub(super) fn decode_offset(reader: &mut Reader<'_>) -> Result<usize, InstallationError> {
     usize::try_from(reader.u64()?)
         .map_err(|_| InstallationError::InstalledScalarOffsetNotRepresentable)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omega_machine_code::UnitScalarParameterLocationRecord;
+    use omega_target_operations::MachineRegister;
+    use psi_core::{IntegerSign, IntegerType};
+
+    #[test]
+    fn ordinary_installation_codec_rejects_parameter_sources() {
+        let mut bytes = Vec::new();
+        let source = InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index: 0,
+            source_value: ValueId::new(1).unwrap(),
+            scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+            location: UnitScalarParameterLocationRecord::Register(MachineRegister::X86Rdi),
+        };
+        assert_eq!(
+            encode_argument_source(&mut bytes, source),
+            Err(InstallationError::UnsupportedInstalledScalarSource)
+        );
+        assert!(bytes.is_empty());
+    }
 }

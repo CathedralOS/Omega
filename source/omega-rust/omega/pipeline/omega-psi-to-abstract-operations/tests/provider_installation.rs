@@ -9,5 +9,7 @@ mod catalog_admission;
 mod ids;
 #[path = "provider_installation/projected_claims.rs"]
 mod projected_claims;
+#[path = "provider_installation/scalar_provider.rs"]
+mod scalar_provider;
 #[path = "provider_installation/structural_provider.rs"]
 mod structural_provider;

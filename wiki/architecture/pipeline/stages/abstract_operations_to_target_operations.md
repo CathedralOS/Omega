@@ -99,6 +99,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   edges; it is not a general CFG legalization path.
 - `lowering/unit/projected_argument.rs` owns the shared target-layout lowering
   for one structural argument projected from an attached Unit parameter.
+- `lowering/unit/boundary_call.rs` also owns the bounded native
+  installed-provider scalar join: one fixed signed `i32` caller parameter is
+  matched directly to the boundary and selected candidate declarations and to
+  one Unit-result native call plan. The surrounding Unit coordinator admits
+  only `[InstalledProviderCall, Return]`, so a caller-saved incoming register is
+  never silently reused.
 - `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
 - `tests.rs` owns exact stage-boundary and rejection canaries.
 
@@ -151,6 +157,10 @@ relocation on x86-64 and AArch64. The exact three-block equality/exit
 continuation used by the direct rebound canary also reaches machine code and
 object replay. General attached-Unit CFG legalization remains open outside
 that explicitly bounded family.
+Installed-provider scalar lowering currently admits one direct fixed signed
+`i32` parameter forwarded unchanged to one Unit-returning candidate. Wider or
+mixed scalars, computed arguments, runtime structural arguments in the same
+call, and repeated use requiring a durable caller home remain fenced.
 Boundary-edge summaries are preserved through target legalization, including
 source-level boundary edges, exact registrar occurrence/native-parameter
 identity rows, target-aware links, and lowered host-operation edges. These rows

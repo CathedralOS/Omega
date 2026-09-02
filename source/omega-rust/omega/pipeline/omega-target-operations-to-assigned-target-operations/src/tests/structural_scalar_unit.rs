@@ -102,6 +102,7 @@ fn direct_plan(target: NativeTarget) -> TargetOperationPlan {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: declarations,
                     call_plan: caller_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: vec![TargetStructuralParameter {
                         place: root,
                         structural_type: root_type,

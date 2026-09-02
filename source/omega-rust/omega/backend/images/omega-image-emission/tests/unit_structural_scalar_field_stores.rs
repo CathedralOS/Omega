@@ -88,6 +88,7 @@ fn field_store_plan(target: NativeTarget) -> TargetOperationPlan {
                     },
                 ],
                 call_plan: call_plan.clone(),
+                scalar_parameters: Vec::new(),
                 parameters: vec![TargetStructuralParameter {
                     place: root,
                     structural_type: root_type,

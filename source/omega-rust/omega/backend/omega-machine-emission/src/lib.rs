@@ -210,6 +210,7 @@ fn emit_function(
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
+    let mut installed_provider_unit_scalar_calls = Vec::new();
     let mut dynamic_scalar_calls = Vec::new();
     let mut dynamic_parameter_scalar_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
@@ -247,6 +248,7 @@ fn emit_function(
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
             dynamic_scalar_calls = emitted.dynamic_scalar_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
@@ -261,9 +263,7 @@ fn emit_function(
             unit_affine_cleanup = emitted.affine_cleanup;
             emitted.bytes
         }
-        AssignedOperation::ReturnDynamicParameterScalarCall {
-            ..
-        } => {
+        AssignedOperation::ReturnDynamicParameterScalarCall { .. } => {
             let emitted = dynamic_parameter::emit(&function.operation, function.machine, target)?;
             scalar_stack_eligible = true;
             semantic_code_attribution.push(SemanticCodeAttribution {
@@ -287,6 +287,7 @@ fn emit_function(
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
             dynamic_scalar_calls = emitted.dynamic_scalar_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
@@ -492,6 +493,7 @@ fn emit_function(
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
             dynamic_scalar_calls = emitted.dynamic_scalar_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
@@ -874,6 +876,15 @@ fn emit_function(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        unit_scalar_abi: match &function.operation {
+            AssignedOperation::UnitBody(body) if !body.scalar_parameters.is_empty() => {
+                Some(omega_machine_code::UnitScalarFunctionAbiRecord {
+                    call_plan: body.call_plan.clone(),
+                    parameters: body.scalar_parameters.clone(),
+                })
+            }
+            _ => None,
+        },
         provenance: function.provenance.clone(),
         bytes,
         x86_scalar_fma,
@@ -887,6 +898,7 @@ fn emit_function(
         foreign_calls,
         internal_unit_calls,
         internal_unit_scalar_calls,
+        installed_provider_unit_scalar_calls,
         dynamic_scalar_calls,
         dynamic_parameter_scalar_calls,
         forwarded_dynamic_descriptor_calls,
@@ -1127,6 +1139,7 @@ pub enum EmissionError {
     UnitFunctionHasNoReturn,
     UnitCallStackAreaNotEncodable,
     InvalidUnitScalarCallCustody(psi_core::OperationId),
+    InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),

@@ -457,6 +457,7 @@ mod tests {
                             &signature,
                         )
                         .unwrap(),
+                        scalar_parameters: Vec::new(),
                         parameters: Vec::new(),
                         operations: operations
                             .iter()

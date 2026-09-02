@@ -7,6 +7,7 @@
 mod dynamic_argument;
 mod dynamic_scalar;
 mod foreign_call;
+mod installed_provider;
 mod operation;
 mod scalar_call;
 mod structural_scalar;
@@ -54,6 +55,7 @@ pub(super) fn assign(
     Ok(AssignedOperation::UnitBody(AssignedUnitBody {
         structural_types: body.structural_types.clone(),
         call_plan: body.call_plan.clone(),
+        scalar_parameters: body.scalar_parameters.clone(),
         parameters: body.parameters.clone(),
         operations,
     }))

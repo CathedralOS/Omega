@@ -165,6 +165,7 @@ pub(super) fn assign_known_unit_scalar_source(
     assigned_homes: &BTreeMap<ValueId, AssignedUnitScalarHome>,
 ) -> Option<AssignedUnitScalarArgumentSource> {
     match source {
+        TargetUnitScalarArgumentSource::Parameter { .. } => None,
         TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             source_value,
@@ -300,7 +301,7 @@ fn validate_placement_registers(
     Ok(())
 }
 
-fn assigned_unit_scalar_destination(
+pub(super) fn assigned_unit_scalar_destination(
     value: ValueId,
     placement: &omega_calling_conventions::ValuePlacement,
     target: NativeTarget,

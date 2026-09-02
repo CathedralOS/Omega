@@ -30,10 +30,10 @@ mod integer_bitwise_not_immediate;
 mod integer_bitwise_or_immediate;
 mod integer_bitwise_xor_immediate;
 mod integer_equal_immediate;
-mod integer_less_than_immediate;
 mod integer_exact_cast_immediate_operand;
 mod integer_ieee_float_literal_sequence;
 mod integer_less_or_equal_immediate;
+mod integer_less_than_immediate;
 mod integer_widen_immediate;
 mod wrapping_integer_add_immediate;
 mod wrapping_integer_multiply_immediate;
@@ -147,6 +147,7 @@ fn unit_call_pair() -> (AbstractFunction, TargetFunction) {
                     &CallSignature::default(),
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::Call {
@@ -228,6 +229,7 @@ fn byte_sequence_literal_pair() -> (AbstractFunction, TargetFunction) {
                     &CallSignature::default(),
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::EstablishByteSequenceLiteral {
@@ -297,6 +299,7 @@ fn integer_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
                     &CallSignature::default(),
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::IntegerConstant {
@@ -364,6 +367,7 @@ fn ieee_float_literal_unit_return_pair() -> (AbstractFunction, TargetFunction) {
                     &CallSignature::default(),
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::IeeeFloatConstant {
@@ -470,6 +474,7 @@ fn trivial_affine_local_pair() -> (AbstractFunction, TargetFunction) {
                     &CallSignature::default(),
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::EstablishTrivialAffineLocal {

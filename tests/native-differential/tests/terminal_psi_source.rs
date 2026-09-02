@@ -198,6 +198,7 @@ fn stage_terminal_component(
                 selected_program_entry
                     .calling_plans()
                     .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry)),
+                selected_program_entry.fused_service_establishments(),
             ),
             optimization_selections: checked.optimization_selections(),
             selected_provider_plans: checked.selected_provider_plans(),

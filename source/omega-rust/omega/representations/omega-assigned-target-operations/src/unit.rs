@@ -2,8 +2,8 @@ use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
     AbstractDynamicDescriptorArgument, AbstractReboundDynamicScalarDispatch, AbstractResult,
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
-    CompletionClaimSource, MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
-    TargetStructuralParameter,
+    CompletionClaimSource, FixedIntegerScalarAbiValue, MachineRegister, ProviderExecutionBinding,
+    RankedU32CountdownCustody, TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -11,9 +11,9 @@ use psi_core::{
     ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashRouteBucket, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    ClaimTransfer, CompletionReceipt, CrashRouteBucket, ProviderCandidateConformance,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 use crate::AssignedCallDestination;
@@ -34,6 +34,7 @@ pub struct AssignedRankedU32Countdown {
 pub struct AssignedUnitBody {
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
+    pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<AssignedUnitOperation>,
 }
@@ -151,6 +152,12 @@ impl AssignedDynamicTraitDescriptorAbi {
 /// Exact physical source of one attached-Unit scalar-call argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssignedUnitScalarArgumentSource {
+    Parameter {
+        parameter_index: u32,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        location: crate::AssignedScalarLocation,
+    },
     IntegerImmediate {
         defining_operation: OperationId,
         source_value: ValueId,
@@ -163,6 +170,7 @@ pub enum AssignedUnitScalarArgumentSource {
 impl AssignedUnitScalarArgumentSource {
     pub const fn source_value(self) -> ValueId {
         match self {
+            Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
         }
@@ -170,6 +178,7 @@ impl AssignedUnitScalarArgumentSource {
 
     pub const fn scalar_type(self) -> IntegerType {
         match self {
+            Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => scalar_type,
             Self::Home(home) => home.scalar_type,
         }
@@ -308,6 +317,22 @@ pub enum AssignedUnitOperation {
     },
     NonreturningTail {
         psi_edge: EdgeId,
+    },
+    /// One selected Unit provider invoked through an admitted boundary with
+    /// an exact fixed-integer scalar ABI. This is deliberately distinct from
+    /// both anonymous internal scalar calls and the optimized structural
+    /// installed-provider lane.
+    InstalledProviderCall {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider: ProviderCandidateConformance,
+        call_plan: CallPlan,
+        scalar_arguments: Vec<AssignedUnitScalarCallArgument>,
+        source_arguments: Vec<StructuralArgument>,
+        copies: Vec<AssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
+        completion_claim_sources: Vec<omega_target_operations::CompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     NormalizedForeignCall {
         psi_operation: OperationId,

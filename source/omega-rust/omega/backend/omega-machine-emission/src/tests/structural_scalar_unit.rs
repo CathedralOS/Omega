@@ -100,6 +100,7 @@ fn assigned_direct_plan(target: NativeTarget) -> AssignedOperationPlan {
                         },
                     ],
                     call_plan: caller_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: vec![TargetStructuralParameter {
                         place: root,
                         structural_type: root_type,

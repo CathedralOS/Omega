@@ -209,7 +209,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             })
             .collect::<Vec<_>>();
         if result.is_some()
-            || !arguments.is_empty()
+            || installed.scalar_arguments != *arguments
             || installed.structural_arguments != *structural_arguments
             || installed.completion_claim_sources != exact_sources
             || installed.completion_receipts != *completion_receipts

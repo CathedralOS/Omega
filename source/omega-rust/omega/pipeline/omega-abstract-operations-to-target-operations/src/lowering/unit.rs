@@ -66,9 +66,11 @@ pub(super) fn lower_unit_function(
             fixed_integer_scalar_abis,
             ieee_float_fma,
             native_callbacks,
+            &prepared.scalar_parameters,
             &prepared.parameters,
         )?
     };
+    validate_bounded_installed_scalar_body(function.machine, &lowered.operations)?;
 
     Ok(TargetFunction {
         machine: function.machine,
@@ -81,8 +83,57 @@ pub(super) fn lower_unit_function(
                 .map(|declaration| (*declaration).clone())
                 .collect(),
             call_plan: prepared.call_plan,
+            scalar_parameters: prepared.scalar_parameters,
             parameters: prepared.parameters,
             operations: lowered.operations,
         }),
     })
+}
+
+fn validate_bounded_installed_scalar_body(
+    machine: MachineId,
+    operations: &[TargetUnitOperation],
+) -> Result<(), LoweringError> {
+    let Some((psi_operation, boundary)) = operations.iter().find_map(|operation| match operation {
+        TargetUnitOperation::InstalledProviderCall {
+            psi_operation,
+            boundary,
+            scalar_arguments,
+            ..
+        } if !scalar_arguments.is_empty() => Some((*psi_operation, *boundary)),
+        _ => None,
+    }) else {
+        return Ok(());
+    };
+    if !matches!(
+        operations,
+        [
+            TargetUnitOperation::InstalledProviderCall {
+                psi_operation: actual_operation,
+                boundary: actual_boundary,
+                scalar_arguments,
+                source_arguments,
+                arguments,
+                claim_transfers,
+                completion_claim_sources,
+                completion_receipts,
+                ..
+            },
+            TargetUnitOperation::Return { .. },
+        ] if *actual_operation == psi_operation
+            && *actual_boundary == boundary
+            && scalar_arguments.len() == 1
+            && source_arguments.is_empty()
+            && arguments.is_empty()
+            && claim_transfers.is_empty()
+            && completion_claim_sources.is_empty()
+            && completion_receipts.is_empty()
+    ) {
+        return Err(LoweringError::InstalledProviderCallShapeMismatch {
+            machine,
+            operation: psi_operation,
+            boundary,
+        });
+    }
+    Ok(())
 }

@@ -42,6 +42,7 @@ fn unit_assignment_retains_typed_structural_argument_paths() {
             operation: TargetOperation::UnitBody(omega_target_operations::TargetUnitBody {
                 structural_types: Vec::new(),
                 call_plan: call_plan.clone(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![TargetUnitOperation::Call {
                     psi_operation: OperationId::new(1).unwrap(),

@@ -3,6 +3,10 @@ use super::super::shared::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum KnownUnitInteger {
+    Parameter {
+        parameter_index: u32,
+        scalar_type: IntegerType,
+    },
     Immediate {
         defining_operation: OperationId,
         scalar_type: IntegerType,
@@ -14,6 +18,7 @@ pub(super) enum KnownUnitInteger {
 impl KnownUnitInteger {
     pub(super) const fn scalar_type(self) -> IntegerType {
         match self {
+            Self::Parameter { scalar_type, .. } => scalar_type,
             Self::Immediate { scalar_type, .. } => scalar_type,
             Self::Home(home) => home.scalar_type,
         }
@@ -24,6 +29,14 @@ impl KnownUnitInteger {
         source_value: ValueId,
     ) -> TargetUnitScalarArgumentSource {
         match self {
+            Self::Parameter {
+                parameter_index,
+                scalar_type,
+            } => TargetUnitScalarArgumentSource::Parameter {
+                parameter_index,
+                source_value,
+                scalar_type,
+            },
             Self::Immediate {
                 defining_operation,
                 scalar_type,

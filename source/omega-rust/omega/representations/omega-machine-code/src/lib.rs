@@ -15,6 +15,7 @@ use omega_abstract_operations::{
 };
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
+use omega_target_operations::MachineRegister;
 use omega_target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument, CallSiteOwner,
     CompilerBuiltinExecution, CompletionClaimSource, ProviderExecutionBinding,
@@ -25,9 +26,10 @@ use psi_core::{
     ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, ProviderCandidateConformance, StructuralArgument,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +64,9 @@ pub struct MachineCodeFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    /// Exact Unit-returning fixed-integer input ABI when this function belongs
+    /// to the bounded scalar-provider cohort.
+    pub unit_scalar_abi: Option<UnitScalarFunctionAbiRecord>,
     pub provenance: TerminalPsiProvenance,
     pub bytes: Vec<u8>,
     /// Feature-requiring scalar FMA3 instruction intervals. These records do
@@ -110,6 +115,10 @@ pub struct MachineCodeFunction {
     /// calls because scalar values have `ValueId` homes rather than `PlaceId`
     /// projections.
     pub internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
+    /// Selected-provider Unit calls whose scalar ABI has no result. These
+    /// remain distinct from anonymous internal scalar calls so provider and
+    /// completion authority survive object replay.
+    pub installed_provider_unit_scalar_calls: Vec<InstalledProviderUnitScalarCallRecord>,
     /// Complete descriptor, table-address, receiver-copy, and indirect-call
     /// custody for rebound named-dynamic scalar calls in attached Unit bodies.
     /// The table contents remain semantic demands until object construction
@@ -810,6 +819,18 @@ pub struct UnitScalarHomeRecord {
     pub byte_offset: u32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitScalarFunctionAbiRecord {
+    pub call_plan: CallPlan,
+    pub parameters: Vec<omega_target_operations::FixedIntegerScalarAbiValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnitScalarParameterLocationRecord {
+    Register(MachineRegister),
+    IncomingStack { byte_offset: u32 },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitIntegerConstantRecord {
     pub defining_operation: OperationId,
@@ -839,6 +860,12 @@ pub struct UnitStructuralScalarFieldStoreRecord {
 /// Exact semantic and physical source of one attached-Unit scalar argument.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InternalUnitScalarArgumentSourceRecord {
+    Parameter {
+        parameter_index: u32,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+        location: UnitScalarParameterLocationRecord,
+    },
     IntegerImmediate {
         defining_operation: OperationId,
         source_value: ValueId,
@@ -851,6 +878,7 @@ pub enum InternalUnitScalarArgumentSourceRecord {
 impl InternalUnitScalarArgumentSourceRecord {
     pub const fn source_value(self) -> ValueId {
         match self {
+            Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
         }
@@ -858,6 +886,7 @@ impl InternalUnitScalarArgumentSourceRecord {
 
     pub const fn scalar_type(self) -> IntegerType {
         match self {
+            Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => scalar_type,
             Self::Home(home) => home.scalar_type,
         }
@@ -889,6 +918,25 @@ pub struct InternalUnitScalarCallRecord {
     pub call_plan: CallPlan,
     pub result: InternalUnitScalarCallResultRecord,
     pub arguments: Vec<InternalUnitScalarCallArgumentRecord>,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// One emitted Unit-returning fixed-i32 call through an exact selected
+/// provider. The internal relocation owns the mutable call field; this row
+/// owns the complete semantic selection and scalar argument interval.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledProviderUnitScalarCallRecord {
+    pub owner: CallSiteOwner,
+    pub boundary: BoundaryMachineId,
+    pub provider: ProviderCandidateConformance,
+    pub call_plan: CallPlan,
+    pub arguments: Vec<InternalUnitScalarCallArgumentRecord>,
+    pub source_arguments: Vec<StructuralArgument>,
+    pub claim_transfers: Vec<ClaimTransfer>,
+    pub completion_claim_sources: Vec<omega_target_operations::CompletionClaimSource>,
+    pub completion_receipts: Vec<CompletionReceipt>,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,

@@ -35,6 +35,12 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   homes and replays each raw-bit constant source before producing an assigned
   FMA operation. The selected plan and admitted provider remain semantic
   custody; this stage does not encode machine bytes or establish MXCSR.
+- `assignment/function/unit/installed_provider.rs` owns the ordinary-path
+  physical assignment for the exact one-`i32`, Unit-returning selected-provider
+  call. It rejoins the caller's scalar parameter placement, canonical callee
+  plan, provider, and empty structural/claim rosters before binding the first
+  native argument register. Zero-scalar installed providers remain routed to
+  the distinct optimized structural continuation.
 - `omega-assigned-target-operations/src/lib.rs` owns the output representation.
 - This is the bounded compatibility continuation. The selected-instruction,
   liveness, and allocation continuation is its durable replacement; neither is
@@ -76,3 +82,7 @@ and operand handles before any object relocation is permitted.
 Value summaries are preserved through assignment, but their storage/drop
 consequences are still metadata rather than explicit assigned cleanup or move
 operations.
+The installed-provider scalar continuation does not yet allocate a durable
+caller home. Consequently the target stage rejects repeated calls from the
+caller-saved incoming register; widening that cohort requires explicit
+preservation/reload custody here.

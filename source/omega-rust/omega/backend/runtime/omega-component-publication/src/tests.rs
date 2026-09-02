@@ -296,6 +296,7 @@ fn terminal_image(
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            unit_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],
                 edges: vec![edge],
@@ -312,6 +313,7 @@ fn terminal_image(
             foreign_calls: Vec::new(),
             internal_unit_calls: Vec::new(),
             internal_unit_scalar_calls: Vec::new(),
+            installed_provider_unit_scalar_calls: Vec::new(),
             dynamic_scalar_calls: Vec::new(),
             dynamic_parameter_scalar_calls: Vec::new(),
             forwarded_dynamic_descriptor_calls: Vec::new(),

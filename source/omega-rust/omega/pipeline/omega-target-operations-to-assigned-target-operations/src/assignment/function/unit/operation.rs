@@ -1,4 +1,7 @@
-use super::{dynamic_argument, dynamic_scalar, foreign_call, scalar_call, structural_scalar};
+use super::{
+    dynamic_argument, dynamic_scalar, foreign_call, installed_provider, scalar_call,
+    structural_scalar,
+};
 use crate::assignment::shared::*;
 
 pub(super) fn assign(
@@ -302,15 +305,39 @@ pub(super) fn assign(
         TargetUnitOperation::InstalledProviderCall {
             psi_operation,
             boundary,
-            ..
+            provider,
+            call_plan,
+            scalar_arguments,
+            source_arguments,
+            arguments,
+            claim_transfers,
+            completion_claim_sources,
+            completion_receipts,
         } => {
-            return Err(
-                AssignmentError::InstalledProviderCallRequiresOptimizedLane {
-                    machine: machine,
-                    operation: *psi_operation,
-                    boundary: *boundary,
-                },
-            );
+            if scalar_arguments.is_empty() {
+                return Err(
+                    AssignmentError::InstalledProviderCallRequiresOptimizedLane {
+                        machine: machine,
+                        operation: *psi_operation,
+                        boundary: *boundary,
+                    },
+                );
+            }
+            installed_provider::assign(
+                machine,
+                body,
+                target,
+                *psi_operation,
+                *boundary,
+                provider,
+                call_plan,
+                scalar_arguments,
+                source_arguments,
+                arguments,
+                claim_transfers,
+                completion_claim_sources,
+                completion_receipts,
+            )?
         }
         TargetUnitOperation::NormalizedForeignCall {
             psi_operation,

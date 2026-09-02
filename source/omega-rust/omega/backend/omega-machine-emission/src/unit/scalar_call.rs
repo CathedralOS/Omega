@@ -356,6 +356,29 @@ const fn unit_scalar_argument_source_record(
     source: AssignedUnitScalarArgumentSource,
 ) -> InternalUnitScalarArgumentSourceRecord {
     match source {
+        AssignedUnitScalarArgumentSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location: match location {
+                omega_assigned_target_operations::AssignedScalarLocation::Register(register) => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::Register(register)
+                }
+                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                    byte_offset,
+                } => omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                    byte_offset,
+                },
+                omega_assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
+                    unreachable!()
+                }
+            },
+        },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             source_value,
@@ -460,6 +483,9 @@ fn emit_x86_64_unit_scalar_argument(
         } => (11, Some(byte_offset)),
     };
     match argument.source {
+        AssignedUnitScalarArgumentSource::Parameter { source_value, .. } => {
+            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+        }
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             source_value,
             scalar_type,
@@ -498,6 +524,9 @@ fn emit_aarch64_unit_scalar_argument(
     };
     let mut instructions = Vec::new();
     match argument.source {
+        AssignedUnitScalarArgumentSource::Parameter { source_value, .. } => {
+            return Err(EmissionError::UnsupportedUnitScalarType(source_value));
+        }
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             source_value,
             scalar_type,

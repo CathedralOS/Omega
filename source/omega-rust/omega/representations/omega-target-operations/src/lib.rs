@@ -450,6 +450,11 @@ pub struct TargetUnitBody {
     /// projected-layout and partial-cleanup partitions at artifact boundaries.
     pub structural_types: Vec<StructuralTypeDeclaration>,
     pub call_plan: CallPlan,
+    /// Ordered fixed-integer scalar parameters and their exact incoming ABI
+    /// placements. This first Unit-returning scalar lane is deliberately
+    /// bounded, but the rows remain distinct from zero-payload structural
+    /// custody rather than being inferred from the call plan.
+    pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<TargetUnitOperation>,
 }
@@ -531,6 +536,14 @@ pub struct TargetUnitScalarHomeRequirement {
 /// scalar call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TargetUnitScalarArgumentSource {
+    /// One incoming Unit-function scalar parameter. The surrounding
+    /// `TargetUnitBody::scalar_parameters` roster owns its exact physical
+    /// placement; this occurrence retains the nominal parameter join.
+    Parameter {
+        parameter_index: u32,
+        source_value: ValueId,
+        scalar_type: IntegerType,
+    },
     /// A preceding terminal integer-constant operation. The target call still
     /// carries its source identity; an immediate is not an anonymous literal.
     IntegerImmediate {
@@ -547,6 +560,7 @@ pub enum TargetUnitScalarArgumentSource {
 impl TargetUnitScalarArgumentSource {
     pub const fn source_value(self) -> ValueId {
         match self {
+            Self::Parameter { source_value, .. } => source_value,
             Self::IntegerImmediate { source_value, .. } => source_value,
             Self::Home(home) => home.source_value,
         }
@@ -554,6 +568,7 @@ impl TargetUnitScalarArgumentSource {
 
     pub const fn scalar_type(self) -> IntegerType {
         match self {
+            Self::Parameter { scalar_type, .. } => scalar_type,
             Self::IntegerImmediate { scalar_type, .. } => scalar_type,
             Self::Home(home) => home.scalar_type,
         }
@@ -736,6 +751,11 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         provider: ProviderCandidateConformance,
+        /// Exact native plan of the selected provider candidate. The plan is
+        /// retained even for the historical zero-scalar structural lane.
+        call_plan: CallPlan,
+        /// Ordered fixed-integer arguments bound to `call_plan.parameters`.
+        scalar_arguments: Vec<TargetUnitScalarCallArgument>,
         source_arguments: Vec<StructuralArgument>,
         arguments: Vec<TargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,

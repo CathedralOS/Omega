@@ -378,6 +378,7 @@ fn validate_source(
 ) -> Result<(), ObjectError> {
     let invalid = || ObjectError::InvalidInternalUnitScalarCallEvidence(function.machine);
     match source {
+        InternalUnitScalarArgumentSourceRecord::Parameter { .. } => return Err(invalid()),
         InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
@@ -469,6 +470,7 @@ fn expected_argument_bytes(
             let register = register.unwrap_or(11);
             let mut bytes = Vec::new();
             match argument.source {
+                InternalUnitScalarArgumentSourceRecord::Parameter { .. } => return None,
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     scalar_type,
                     value,
@@ -496,6 +498,7 @@ fn expected_argument_bytes(
             let register = register.unwrap_or(9);
             let mut words = Vec::new();
             match argument.source {
+                InternalUnitScalarArgumentSourceRecord::Parameter { .. } => return None,
                 InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                     scalar_type,
                     value,

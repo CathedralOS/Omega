@@ -51,6 +51,9 @@ fn assigned_argument(
     argument: &omega_target_operations::NormalizedForeignScalarArgument,
 ) -> omega_assigned_target_operations::AssignedNormalizedForeignScalarArgument {
     let source = match argument.source {
+        omega_target_operations::TargetUnitScalarArgumentSource::Parameter { .. } => {
+            panic!("literal helper receives an immediate")
+        }
         omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             source_value,
