@@ -9,7 +9,7 @@ source/
     compiler/
       beta_compiler.beta         self-reconstructing source
       beta_compiler_bytecode.tape admitted Alpha implementation
-  gamma/                         strict first-order functional calculus
+  gamma/                         bounded concatenative compiler machine
     evaluator/
       gamma_evaluator.beta       in-progress Beta-written evaluator
   delta/                         typed pure functional language

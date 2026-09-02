@@ -7,7 +7,7 @@ language.
 ```text
 alpha/          raw tape semantics and audited native VM seeds
 beta/           trusted imperative tape-assembly language and compiler
-gamma/          strict first-order functional bootstrap calculus
+gamma/          bounded concatenative compiler machine
 delta/          typed pure functional compiler language
 epsilon/        closed compiler-host language
 library/        core, allocation, and standard-library source

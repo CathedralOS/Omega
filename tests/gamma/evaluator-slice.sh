@@ -7,245 +7,89 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$GATE_DIR/../.." && pwd -P)
 . "$OMEGA_REPO_ROOT/tools/bootstrap/beta/artifact_env.sh"
 
 command -v python3 >/dev/null 2>&1 || {
-    echo "Gamma evaluator slice: skipped (python3 absent)"
+    echo "Gamma evaluator: skipped (python3 absent)"
     exit 0
 }
 
 TMP=$(mktemp -d)
-trap 'rm -rf -- "$TMP"' EXIT
+trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
 "$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
-stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator"
-
-make_request() {
-    CASE_SOURCE=$1 CASE_INPUT_HEX=$2 python3 -c '
-import os, struct, sys
-source = os.environ["CASE_SOURCE"].encode("ascii")
-invocation_input = bytes.fromhex(os.environ["CASE_INPUT_HEX"])
-sys.stdout.buffer.write(b"GAMMAREQ\x01" + struct.pack("<II", len(source), len(invocation_input)) + source + invocation_input)
-'
-}
+stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator" >/dev/null
 
 assert_case() {
-    name=$1
-    expected_status=$2
-    source=$3
-    input_hex=$4
-    expected_hex=$5
-
-    make_request "$source" "$input_hex" > "$TMP/request"
+    NAME=$1 EXPECTED_STATUS=$2 SOURCE=$3 INPUT_HEX=$4 EXPECTED_HEX=$5
+    SOURCE=$SOURCE INPUT_HEX=$INPUT_HEX python3 -c '
+import os, struct, sys
+source = os.environ["SOURCE"].encode("ascii")
+invocation_input = bytes.fromhex(os.environ["INPUT_HEX"])
+sys.stdout.buffer.write(struct.pack("<I", len(source)) + source + invocation_input)
+' > "$TMP/request"
     set +e
     "$TMP/evaluator" < "$TMP/request" > "$TMP/output"
-    actual_status=$?
+    ACTUAL_STATUS=$?
     set -e
-    if [ "$actual_status" -ne "$expected_status" ]; then
-        echo "FAIL: $name status $actual_status, expected $expected_status" >&2
+    [ "$ACTUAL_STATUS" -eq "$EXPECTED_STATUS" ] || {
+        echo "Gamma evaluator: $NAME status $ACTUAL_STATUS, expected $EXPECTED_STATUS" >&2
         exit 1
-    fi
-    EXPECTED_HEX=$expected_hex OUTPUT_PATH="$TMP/output" python3 -c '
+    }
+    EXPECTED_HEX=$EXPECTED_HEX OUTPUT="$TMP/output" python3 -c '
 import os
 from pathlib import Path
-actual = Path(os.environ["OUTPUT_PATH"]).read_bytes()
+actual = Path(os.environ["OUTPUT"]).read_bytes()
 expected = bytes.fromhex(os.environ["EXPECTED_HEX"])
 if actual != expected:
     raise SystemExit(f"output {actual.hex()}, expected {expected.hex()}")
 ' || {
-        echo "FAIL: $name output mismatch" >&2
+        echo "Gamma evaluator: $NAME output mismatch" >&2
         exit 1
     }
-    echo "ok - $name"
+    echo "ok - $NAME"
 }
 
-assert_case identity 0 \
-    '(def main (input) (Complete input)) (entry main)' \
-    006162ff 006162ff
-assert_case forward-entry 0 \
-    '(entry main) (def main (input) (Complete #x00ff2a))' \
-    '' 00ff2a
-assert_case bytes-single 0 \
-    '(def main (input) (Complete (bytes-single 65))) (entry main)' \
-    '' 41
-assert_case bytes-concat 0 \
-    '(def main (input) (Complete (bytes-concat #x6162 input))) (entry main)' \
-    63 616263
-assert_case bytes-length 0 \
-    '(def main (input) (Complete (bytes-single (bytes-length input)))) (entry main)' \
-    010203 03
-assert_case bytes-get 0 \
-    '(def main (input) (Complete (bytes-single (bytes-get #x00ff 1)))) (entry main)' \
-    '' ff
-assert_case bytes-slice 0 \
-    '(def main (input) (Complete (bytes-slice (bytes-concat #x6162 input) 1 3))) (entry main)' \
-    6364 626364
-assert_case bytes-get-bounds 2 \
-    '(def main (input) (Complete (bytes-single (bytes-get #x00 1)))) (entry main)' \
-    '' ''
-assert_case bytes-slice-bounds 2 \
-    '(def main (input) (Complete (bytes-slice input 1 1))) (entry main)' \
-    '' ''
-assert_case arithmetic 0 \
-    '(def main (input) (Complete (bytes-single (+ (* 6 7) (- (/ 20 5) (% 8 3)))))) (entry main)' \
-    '' 2c
-assert_case signed-arithmetic 0 \
-    '(def main (input) (Complete (bytes-single (+ -2 3)))) (entry main)' \
-    '' 01
-assert_case signed-less 0 \
-    '(def main (input) (Complete (bytes-single (< (/ -7 2) 0)))) (entry main)' \
-    '' 01
-assert_case maximum-integer 0 \
-    '(def main (input) (if 9223372036854775807 (Complete input) Reject)) (entry main)' \
-    61 61
-assert_case minimum-integer 0 \
-    '(def main (input) (if -9223372036854775808 (Complete input) Reject)) (entry main)' \
-    62 62
-assert_case positive-literal-overflow 1 \
-    '(def main (input) (Complete 9223372036854775808)) (entry main)' \
-    '' ''
-assert_case negative-literal-overflow 1 \
-    '(def main (input) (Complete -9223372036854775809)) (entry main)' \
-    '' ''
-assert_case add-overflow 2 \
-    '(def main (input) (Complete (bytes-single (+ 9223372036854775807 1)))) (entry main)' \
-    '' ''
-assert_case subtract-overflow 2 \
-    '(def main (input) (Complete (bytes-single (- -9223372036854775808 1)))) (entry main)' \
-    '' ''
-assert_case multiply-overflow 2 \
-    '(def main (input) (Complete (bytes-single (* 9223372036854775807 2)))) (entry main)' \
-    '' ''
-assert_case divide-zero 2 \
-    '(def main (input) (Complete (bytes-single (/ 1 0)))) (entry main)' \
-    '' ''
-assert_case divide-overflow 2 \
-    '(def main (input) (Complete (bytes-single (/ -9223372036854775808 -1)))) (entry main)' \
-    '' ''
-assert_case remainder-overflow 2 \
-    '(def main (input) (Complete (bytes-single (% -9223372036854775808 -1)))) (entry main)' \
-    '' ''
-assert_case nested-let 0 \
-    '(def main (input) (let x 65 (let y 1 (Complete (bytes-single (+ x y)))))) (entry main)' \
-    '' 42
-assert_case bytes-let 0 \
-    '(def main (input) (let prefix #x6162 (Complete (bytes-concat prefix input)))) (entry main)' \
-    63 616263
-assert_case duplicate-parameter-binding 2 \
-    '(def main (input) (let input #x (Complete input))) (entry main)' \
-    '' ''
-assert_case duplicate-active-let 2 \
-    '(def main (input) (let x 1 (let x 2 (Complete #x)))) (entry main)' \
-    '' ''
-assert_case unreachable-duplicate-let 0 \
-    '(def main (input) (if 0 (let input #x Reject) (Complete input))) (entry main)' \
-    61 61
-assert_case integer-equality 0 \
-    '(def main (input) (if (= (+ 1 2) 3) (Complete input) Reject)) (entry main)' \
-    61 61
-assert_case cross-kind-equality 0 \
-    '(def main (input) (if (= 1 #x01) Reject (Complete input))) (entry main)' \
-    62 62
-assert_case logical-bytes-equality 0 \
-    '(def main (input) (if (= (bytes-slice #x006162ff 1 2) (bytes-concat #x61 #x62)) (Complete input) Reject)) (entry main)' \
-    63 63
-assert_case unequal-bytes 0 \
-    '(def main (input) (if (= #x6162 #x6163) Reject (Complete input))) (entry main)' \
-    64 64
-assert_case reject-equality 0 \
-    '(def main (input) (if (= Reject Reject) (Complete input) Reject)) (entry main)' \
-    65 65
-assert_case complete-equality 0 \
-    '(def main (input) (if (= (Complete #x61) (Complete #x61)) (Complete input) Reject)) (entry main)' \
-    66 66
-assert_case if-true 0 \
-    '(def main (input) (if 1 (Complete input) (Complete 2))) (entry main)' \
-    61 61
-assert_case if-false 0 \
-    '(def main (input) (if 0 (Complete 1) (Complete input))) (entry main)' \
-    62 62
-assert_case authored-reject 2 \
-    '(def main (input) Reject) (entry main)' \
-    '' ''
-assert_case runtime-kind-trap 2 \
-    '(def main (input) (Complete 1)) (entry main)' \
-    '' ''
-assert_case malformed-source 1 \
-    '(def main (input) (Complete #x0)) (entry main)' \
-    '' ''
-assert_case unresolved-entry 1 \
-    '(def main (input) (Complete input)) (entry other)' \
-    '' ''
-assert_case unresolved-call 2 \
-    '(def main (input) (helper input)) (entry main)' \
-    '' ''
-assert_case unused-declaration 0 \
-    '(def helper (value) (Complete #x00)) (def main (input) (Complete input)) (entry main)' \
-    61 61
-assert_case later-entry 0 \
-    '(def first (value) (Complete #x61)) (entry second) (def second (input) (Complete #x62))' \
-    '' 62
-assert_case duplicate-function 1 \
-    '(def same (value) (Complete #x61)) (def same (input) (Complete #x62)) (entry same)' \
-    '' ''
-assert_case forward-call 0 \
-    '(def main (input) (helper input)) (def helper (value) (Complete value)) (entry main)' \
-    61 61
-assert_case nested-call 0 \
-    '(def addone (value) (+ value 1)) (def main (input) (Complete (bytes-single (addone 64)))) (entry main)' \
-    '' 41
-assert_case lexical-isolation 0 \
-    '(def keep (value) (let x 66 (bytes-single value))) (def main (input) (let x 65 (Complete (keep x)))) (entry main)' \
-    '' 41
-assert_case mutual-call 0 \
-    '(def even (value) (if (= value 0) 1 (odd (- value 1)))) (def odd (value) (if (= value 0) 0 (even (- value 1)))) (def main (input) (Complete (bytes-single (even 20)))) (entry main)' \
-    '' 01
-assert_case unreachable-unresolved-call 0 \
-    '(def main (input) (if 0 (missing input) (Complete input))) (entry main)' \
-    62 62
-assert_case deep-bounded-recursion 0 \
-    '(def loop (value) (if (= value 0) (Complete #x01) (loop (- value 1)))) (def main (input) (loop 10000)) (entry main)' \
-    '' 01
-assert_case pair-first 0 \
-    '(def main (input) (Complete (pair-first (pair input 7)))) (entry main)' \
-    6162 6162
-assert_case pair-second 0 \
-    '(def main (input) (Complete (bytes-single (pair-second (pair input 65))))) (entry main)' \
-    '' 41
-assert_case nested-pair 0 \
-    '(def main (input) (Complete (pair-first (pair (pair-second (pair 0 input)) 1)))) (entry main)' \
-    63 63
-assert_case pair-through-call 0 \
-    '(def select (value) (pair-second value)) (def main (input) (Complete (select (pair 0 input)))) (entry main)' \
-    64 64
-assert_case pair-kind-trap 2 \
-    '(def main (input) (Complete (pair-first input))) (entry main)' \
-    65 ''
-assert_case pair-strict 2 \
-    '(def main (input) (Complete (pair-first (pair (/ 1 0) input)))) (entry main)' \
-    66 ''
-assert_case pair-equality-trap 2 \
-    '(def main (input) (if (= (pair 1 2) (pair 1 2)) (Complete input) Reject)) (entry main)' \
-    67 ''
-assert_case pair-cross-equality-trap 2 \
-    '(def main (input) (if (= (pair 1 2) 1) (Complete input) Reject)) (entry main)' \
-    68 ''
-assert_case uppercase-identifier 1 \
-    '(def main (input) (if 0 Uppercase (Complete input))) (entry main)' \
-    69 ''
-assert_case retired-data-form 1 \
-    '(data Maybe (None 0) (Some 1)) (def main (input) (Complete input)) (entry main)' \
-    6a ''
-assert_case retired-match-form 1 \
-    '(def main (input) (match input (_ (Complete input)))) (entry main)' \
-    6b ''
+assert_case literal 0 ': main 0x2a output-byte ;' '' 2a
+assert_case word-little-endian 0 ': main 0x102030405060708 output-word ;' '' 0807060504030201
+assert_case comments 0 '# head
+: main # body
+  0x41 output-byte ;' '' 41
+assert_case forward-call 0 ': main emit ; : emit 0x41 output-byte ;' '' 41
+assert_case nested-call 0 ': one 0x1 + ; : two one one ; : main 0x3f two output-byte ;' '' 41
+assert_case branch-true 0 ': yes 0x59 output-byte ; : no 0x4e output-byte ; : main 0x1 branch yes no ;' '' 59
+assert_case branch-false 0 ': yes 0x59 output-byte ; : no 0x4e output-byte ; : main 0x0 branch yes no ;' '' 4e
+assert_case tail-loop 0 ': loop 0x0 cell-get dup 0x0 = branch done step ; : step 0x1 - 0x0 cell-set jump loop ; : done drop 0x41 output-byte ; : main 0x186a0 0x0 cell-set jump loop ;' '' 41
+assert_case ordinary-recursion 0 ': loop dup 0x0 = branch done recurse ; : recurse 0x1 - loop ; : done drop ; : main 0x2710 loop ;' '' ''
+assert_case input 0 ': main input-length output-byte 0x0 input-get output-byte ;' 5a 015a
+assert_case input-bounds 2 ': main 0x1 input-get ;' 5a ''
+assert_case cell 0 ': main 0x41 0x0 cell-set 0x0 cell-get output-byte ;' '' 41
+assert_case cell-bounds 2 ': main 0x13e0000 cell-get ;' '' ''
+assert_case stack-ops 0 ': main 0x40 0x1 over drop swap swap + dup drop output-byte ;' '' 41
+assert_case signed-less 0 ': main 0xffffffffffffffff 0x0 < output-byte ;' '' 01
+assert_case divide 0 ': main 0xfffffffffffffff9 0x2 / 0xfffffffffffffffd = output-byte ;' '' 01
+assert_case divide-zero 2 ': main 0x1 0x0 / ;' '' ''
+assert_case divide-overflow 2 ': main 0x8000000000000000 0xffffffffffffffff / ;' '' ''
+assert_case underflow 2 ': main drop ;' '' ''
+assert_case unknown-word 2 ': main absent ;' '' ''
+assert_case duplicate-name 1 ': main ; : main ;' '' ''
+assert_case builtin-collision 1 ': dup ; : main ;' '' ''
+assert_case missing-main 1 ': other ;' '' ''
+assert_case wide-literal 2 ': main 0x10000000000000000 ;' '' ''
+assert_case failed-assertion 2 ': main output-position 0x1 assert-equal ;' '' ''
+assert_case late-prefix 2 ': main 0x41 output-byte drop ;' '' 41
 
-printf 'BAD' > "$TMP/request"
+printf '\001\000\000\000\000' > "$TMP/request"
 set +e
 "$TMP/evaluator" < "$TMP/request" > "$TMP/output"
-actual_status=$?
+STATUS=$?
 set -e
-[ "$actual_status" -eq 1 ] && [ ! -s "$TMP/output" ] || {
-    echo "FAIL: malformed request was not a quiet status-1 result" >&2
-    exit 1
-}
-echo "ok - malformed-request"
+[ "$STATUS" -eq 1 ] && [ ! -s "$TMP/output" ]
+echo "ok - invalid-source-byte"
 
-echo "Gamma evaluator core: 62/62 cases passed"
+printf '\020\000\000\000short' > "$TMP/request"
+set +e
+"$TMP/evaluator" < "$TMP/request" > "$TMP/output"
+STATUS=$?
+set -e
+[ "$STATUS" -eq 1 ] && [ ! -s "$TMP/output" ]
+echo "ok - invalid-source-length"
+
+echo "Gamma evaluator: 28/28 cases passed ($(wc -l < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" | tr -d ' ') lines, $(wc -c < "$TMP/evaluator.tape" | tr -d ' ') tape bytes)"

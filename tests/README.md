@@ -7,7 +7,7 @@ or a multi-package build rather than one Rust crate.
   semantic-shape guards.
 - `alpha/` contains Alpha conformance and reference tests.
 - `beta/` contains trusted Beta compiler reconstruction and differential tests.
-- `gamma/` contains the Gamma evaluator development gate.
+- `gamma/` contains the Gamma evaluator and compiler-customer gates.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
 - `omega/` contains Omega-language pass, fail, pending, and execution cases.
 - `fixtures/` contains reusable package and Terminal Psi inputs.

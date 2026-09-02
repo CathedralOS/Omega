@@ -16,8 +16,8 @@ audited Alpha VM + admitted Beta compiler tape
 ```
 
 Alpha is unchanged. The imperative tape-assembly language is trusted Beta.
-The former functional Beta is Gamma, the former Gamma is Delta, and the former
-Delta is Epsilon.
+Gamma is now a bounded concatenative compiler machine. The former Gamma is
+Delta, and the former Delta is Epsilon.
 
 ## Rules
 
@@ -38,12 +38,12 @@ Delta is Epsilon.
 - [x] Trusted Beta's 16,812-byte addressed source reconstructs its admitted 2,135-byte
   compiler tape byte-for-byte; the independent six-case differential and
   strict grammar regression pass.
-- [x] Gamma's unary-function, pair-based functional contract is fixed at
-  `source/gamma/LANGUAGE.md`; a 96-line Gamma compiler emits and runs an exact
+- [x] Gamma's concatenative compiler-machine contract is fixed at
+  `source/gamma/LANGUAGE.md`; an 81-line Gamma compiler emits and runs an exact
   35-byte addressed-CFG customer tape.
-- [ ] A Beta-authored Gamma evaluator source and 62-case focused gate cover the
-  complete narrowed expression surface, declaration census, entry selection,
-  isolated unary calls, immutable pairs, and bounded ordinary recursion. Its
+- [ ] A 739-line Beta-authored Gamma evaluator source and 28-case focused gate
+  cover words, stacks, cells, sealed input, append-only output, ordinary calls,
+  and explicit tail CFG transfers. Its
   derived Alpha tape and complete conformance suite remain absent.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
@@ -67,29 +67,27 @@ Delta is Epsilon.
 - **GAMMA-EVALUATOR.** Complete the Beta-authored evaluator for the exact strict
   first-order calculus in `source/gamma/LANGUAGE.md`.
 
-  Keep only signed checked `Int`, compact immutable `Bytes`, immutable pairs,
-  `if`, one-binding `let`, unary first-order calls, and mutual recursion. Retain
-  exact immutable source bytes plus declaration spans only; resolve global and local names through exact
-  source-order linear byte scans. Persistent values use a bounded bump arena;
-  bindings and call contexts use a separate reusable bounded stack. Do not add
-  an AST, token array, hashes, caches, interning, general GC, user-defined
-  constructors, pattern matching, closures, function values, mutation, raw memory, macros, polymorphism, source-visible
-  continuations, exceptions, modules, packages, interactive evaluation, or
-  ambient effects.
+  Keep only 64-bit words, an explicit checked data stack, fixed cells, sealed
+  input, append-only byte/word output, named words, ordinary calls, and explicit
+  tail `jump`/`branch`. Retain exact source bytes plus 32-byte definition rows;
+  resolve names through exact source-order linear scans. Do not add an AST,
+  token array, hashes, caches, interning, heap values, garbage collection,
+  locals, algebraic data, pattern matching, closures, computed jumps,
+  exceptions, modules, packages, interactive evaluation, or ambient effects.
 
   The evaluator uses the fixed `AlphaBootstrapV2` partition recorded in the
-  Gamma profile: 1 MiB tape, 8 MiB request, 8 MiB declarations, 16 MiB
-  evaluator stack, 191 MiB immutable arena, and 32 MiB reserved for Alpha's
-  hidden call stack. Regions do not share spare capacity.
+  Gamma profile: 1 MiB tape, 8 MiB request, 8 MiB definitions, 16 MiB data
+  stack, 159 MiB cells, 16 MiB word continuations, 16 MiB reserved, and 32 MiB
+  for Alpha's hidden call stack. Regions do not share spare capacity.
 
-  The exact-ended `GAMMAREQ` v1 invocation supplies u32-length-delimited Gamma
-  source and sealed input bytes. The entry returns only `(Complete Bytes)` or
-  `Reject`. Status alone distinguishes invalid request/source, authored
-  trap/rejection, incomplete capacity, and internal contradiction. There is no
+  The exact-ended v2 invocation supplies a little-endian u32 Gamma-source length,
+  exact source, and all remaining bytes as sealed input. Returning from `main`
+  succeeds with stdout. Status alone distinguishes invalid request/source,
+  authored trap, incomplete capacity, and internal contradiction. There is no
   failure frame, stable reason taxonomy, source coordinate, detailed capacity
-  report, fuel, or call ceiling. No nonzero result publishes an artifact; recursive
-  divergence remains divergence. `Complete` validates and streams its rope in
-  one pass. A late failure may leave stdout bytes, but invocation plumbing
+  report, fuel, or source-visible call ceiling. No nonzero result publishes an
+  artifact; looping remains divergence. Output writes immediately. A late
+  failure may leave stdout bytes, but invocation plumbing
   discards them unless status is 0; only status-0 stdout is an artifact.
   Successful output is capped at Alpha's 1,048,572-byte raw tape maximum.
 
@@ -97,22 +95,18 @@ Delta is Epsilon.
   Its derived Alpha tape is bound through the admitted Beta compiler rather
   than separately admitted as opaque bytecode.
 
-  The current source is a 62-case-passing evaluator core. It implements
-  framing, bounded unary function rows, entry selection and calls, structural
-  checks for every retained form, `if`, `let`, checked integer operations, every
-  byte primitive, defined non-pair equality, pair traps, outcomes, and bounded
-  arena/stack operation.
-  A 96-line Gamma-written Delta0 compiler exercises pairs, recursive source
-  traversal, exact address assertions, byte emission, and direct CFG execution.
+  The current source is a 28-case-passing, 739-line evaluator core producing a
+  4,292-byte tape. An 81-line Gamma-written Delta0 compiler exercises cells,
+  stack effects, source traversal, exact address assertions, byte emission, and
+  direct CFG execution.
 
   Acceptance: a closed positive/negative suite pins lexical rejection,
-  complete structural syntax rejection, declaration census, runtime name traps,
-  left-to-right strictness, branch selectivity, checked integer edges,
-  `bytes-single`, rope
-  and view bounds, pair projection and equality traps, forward/mutual calls, exact
-  linear name lookup, deep bounded recursion, arena exhaustion, frame
-  exhaustion, malformed private state, and deterministic replay. Mutating an
-  evaluator opcode, branch target, allocation bound, pair tag, or trap
+  source-envelope and definition rejection, duplicate/builtin names, runtime
+  name traps, exact stack effects, wrapping and signed arithmetic edges, input,
+  cell and output bounds, forward/nested calls, exact linear lookup, deep tail
+  transitions, bounded ordinary recursion, stack/continuation exhaustion,
+  malformed private state, and deterministic replay. Mutating an evaluator
+  opcode, branch target, extent bound, or trap
   path is detected by audit or a focused case. Output gates cover successful
   single-pass streaming plus late malformed-rope and oversize prefixes that
   remain unpublished under nonzero status.

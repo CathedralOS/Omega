@@ -3025,3 +3025,44 @@ operations remain: that 1.3% implementation cost is smaller than the expected
 customer complexity of quotient loops, and decimal parsing plus alignment work
 are credible near-term uses. Reopen individual arithmetic or byte primitives
 only against complete customer source rather than feature count alone.
+
+## D67 — Gamma is a concatenative compiler machine
+
+D67 supersedes D66's unary Lisp-and-pair Gamma. The Beta implementation made the
+audit cost visible: 2,231 physical source lines, 1,879 instruction/data lines,
+233 address assertions, and a 13,630-byte Alpha tape. Only about 39% of tape
+bytes implemented expression semantics; request handling, parsing, structural
+validation, names, immutable byte ropes, traversal, and storage containment
+dominated the root.
+
+The selected challenger retains compiler mechanics directly: 64-bit words, an
+explicit checked stack, fixed zero-initialized cells, sealed input, append-only
+byte/word output, named words, ordinary calls, and tail `jump`/`branch` control.
+It removes expression trees, lexical environments, pairs, immutable byte graphs,
+general structural validation, and returned value construction. Its exact
+Beta implementation is 739 physical lines, including 107 address assertions,
+and emits a 4,292-byte Alpha tape.
+
+The customer comparison did not move complexity downstream. The same Delta0
+addressed-CFG compiler fell from 4,357 bytes and 96 lines of Lisp Gamma to 1,914
+bytes and 81 lines of concatenative Gamma. Both versions emit the identical
+35-byte Alpha countdown tape, which is stamped and executed. The selected total
+review surface is therefore 820 lines rather than 2,327.
+
+Gamma definitions are mutually visible source spans. Ordinary word calls retain
+only a source cursor/end continuation. `jump` and `branch` replace the active
+word, so a tested 100,000-transition loop uses constant continuation storage;
+10,000 ordinary recursive calls also complete. Fixed bounds cover request,
+definition rows, stack, cells, continuations, output, and Alpha's hidden stack.
+Malformed definitions reject before execution; reached unknown body words trap.
+Output may precede a later failure and remains authoritative only under status
+zero.
+
+This trades high-level purity for direct auditability and compiler-shaped power.
+Cells are source-visible bounded mutable state, arithmetic follows Alpha's exact
+wrapping/signed rules, and stack effects are part of each builtin contract. The
+language has no locals, heap values, algebraic data, computed jumps, or ambient
+effects. Reopen a richer value language only when a representative Delta
+compiler is materially larger or less auditable because of explicit cells and
+stack shuffling. Reopen structural body validation only if unreachable malformed
+tokens become a concrete trust problem worth its measured parser cost.

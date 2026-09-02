@@ -1,9 +1,9 @@
 # Bootstrap chain alternatives
 
-> **Status: candidate D selected after implementation measurement.** The live
+> **Status: concatenative Gamma selected after implementation measurement.** The live
 > direction is `Alpha -> Beta -> Gamma -> Delta -> Epsilon -> Omega`. Alpha
 > remains the portable tape machine. Beta is the trusted imperative tape-
-> assembly language; Gamma is the strict functional calculus; Delta and Epsilon
+> assembly language; Gamma is the bounded concatenative compiler machine; Delta and Epsilon
 > are the typed functional and fixed-storage compiler languages.
 
 ## Question
