@@ -581,6 +581,34 @@ pub(super) fn check_program(source: &str) -> Result<(), Vec<psi_diagnostics::Dia
 }
 
 #[test]
+fn constrained_u8_call_argument_does_not_manufacture_owned_transfer() {
+    let source = r#"
+        data Counter {}
+
+        data Main {
+            values: [i32; 5];
+            counter: Counter;
+        }
+
+        machine Counter::observe(&mut self, value: u8 [0..=20]) {}
+
+        machine Main::main(&mut self) {
+            let view: &[i32] = self.values.as_slice();
+            self.counter.observe(0);
+            self.consume(view);
+        }
+
+        machine Main::consume(&self, values: &[i32]) {
+            let length: u64 = values.len;
+        }
+    "#;
+
+    check_program(source).expect(
+        "a constrained copy primitive is not an owned operand and the receiver field is disjoint",
+    );
+}
+
+#[test]
 fn accepts_mutable_local_named_place_arguments() {
     let source = r#"
         data Main {}

@@ -304,7 +304,10 @@ explicitly.
       subslice-member root, whose checked and Terminal composed-Unit custody is
       now closed but whose ordinary-package native path still reaches the
       deliberately Linux-only sealed `Console::exit_process` physical catalog
-      on non-Linux hosts; and borrow liveness across an owned receiver call;
+      on non-Linux hosts; and the looping-cast root, whose constrained `u8`
+      argument no longer manufactures owned-transfer conflicts but which still
+      lacks a Terminal composed-Unit plan spanning borrowed-view setup, looping
+      scalar dispatch/result conversion, and guarded Console leaves;
   - replace the remaining standalone std/alloc `Toolchain` compatibility
     classification only after every compiler consumer has an exact
     source-byte catalog entry or accepted semantic role; a new label derived

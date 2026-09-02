@@ -1102,7 +1102,9 @@ Current ownership is:
   arenas, `flow/ownership/place_types.rs` owns contextual type-reference
   resolution for canonical places, and `flow/ownership/type_references.rs`
   owns the policy that distinguishes copy-like scalar places from
-  ownership-consuming places.
+  ownership-consuming places. That policy consumes the typed tree's normalized
+  type multiplicity; it does not maintain a second partial primitive-name list,
+  so constrained copy primitives cannot manufacture owned call transfers.
 - `flow/domain/*` owns domain dependency and invalidation rules. Mutating a
   place should invalidate facts there, not ad hoc in proof or borrow code.
   `flow/domain/dependencies/expression.rs` owns dependency expression
