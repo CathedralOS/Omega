@@ -199,7 +199,10 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
     assert_eq!(target_arguments.len(), cases.len());
     for (parameter_index, (argument, case)) in target_arguments.iter().zip(cases).enumerate() {
         assert_eq!(argument.source_value(), case.value);
-        assert_eq!(argument.scalar_type(), case.scalar_type);
+        assert_eq!(
+            argument.scalar_type(),
+            psi_core::ScalarType::Integer(case.scalar_type)
+        );
         assert_eq!(
             argument.source,
             omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -302,7 +305,10 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         argument.placement = target_arguments[0].placement.clone()
     });
     mutate_last(assigned.clone(), &|argument| {
-        let bytes = argument.source.scalar_type().bits().div_ceil(8);
+        let psi_core::ScalarType::Integer(argument_type) = argument.source.scalar_type() else {
+            panic!("literal argument remains an integer")
+        };
+        let bytes = argument_type.bits().div_ceil(8);
         argument.placement.locations = vec![omega_calling_conventions::ValueLocation::Stack {
             stack_byte_offset: 0,
             value_byte_offset: 0,

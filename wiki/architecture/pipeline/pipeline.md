@@ -156,7 +156,7 @@ descriptor arguments, and parameter-slot dispatch. The selected native
 lowerer chooses the `{data, table}` entry placement, generates role-identified
 erased-data adapters, and emits distinct forwarded tables. Object and image
 replay bind caller-to-table, table-to-adapter, and adapter-to-realization
-relocations. Canonical installation format 59 retains the application/row/
+relocations. Canonical installation format 60 retains the application/row/
 realization identities and exact code/data spans needed to rejoin those facts.
 Its forwarding rows additionally retain the semantic scalar result and exact
 result/home carrier; they do not invent Terminal machine identities for
@@ -165,9 +165,9 @@ self` as one no-copy pointer and replays one Boolean or fixed-integer literal
 store into either a direct field or a primitive field one record projection
 below it, followed by an independently identified direct scalar field read and
 return. Target assignment independently resolves that bounded path and its
-accumulated byte offset before native emission. The first Boolean store uses the existing fixed-integer dynamic
-result-home lane for that independent return; Boolean forwarded results remain
-outside this carrier.
+accumulated byte offset before native emission. Boolean-returning forwarded
+calls use an exact one-byte result home and direct Boolean control carrier;
+they do not pass through an invented integer comparison.
 
 D32 makes this boundary the owner of physical children for every settled
 boundary occurrence. The canonical Terminal artifact remains immutable while

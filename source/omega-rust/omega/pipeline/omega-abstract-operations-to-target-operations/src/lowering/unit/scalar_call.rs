@@ -16,11 +16,14 @@ pub(super) enum KnownUnitInteger {
 }
 
 impl KnownUnitInteger {
-    pub(super) const fn scalar_type(self) -> IntegerType {
+    pub(super) fn scalar_type(self) -> IntegerType {
         match self {
             Self::Parameter { scalar_type, .. } => scalar_type,
             Self::Immediate { scalar_type, .. } => scalar_type,
-            Self::Home(home) => home.scalar_type,
+            Self::Home(home) => match home.scalar_type {
+                ScalarType::Integer(integer) => integer,
+                _ => unreachable!("known Unit integer home retains an integer type"),
+            },
         }
     }
 
@@ -235,7 +238,7 @@ pub(super) fn lower_scalar_call(
     let result_home = TargetUnitScalarHomeRequirement {
         defining_operation: *psi_operation,
         source_value: *result,
-        scalar_type: *result_type,
+        scalar_type: ScalarType::Integer(*result_type),
         shape: result_shape,
     };
     insert_known_unit_integer(values, *result, KnownUnitInteger::Home(result_home))?;

@@ -20,10 +20,12 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     let Some(result) = function.result.scalar() else {
         return Ok(None);
     };
-    let ScalarType::Integer(result_type) = result.scalar_type else {
-        return Ok(None);
+    let result_supported = match result.scalar_type {
+        ScalarType::Boolean => true,
+        ScalarType::Integer(integer) => fixed_native_integer_shape(integer).is_some(),
+        ScalarType::IeeeFloat(_) => false,
     };
-    if fixed_native_integer_shape(result_type).is_none()
+    if !result_supported
         || function.parameters.iter().any(|parameter| {
             !matches!(parameter.scalar_type, ScalarType::Integer(integer)
                 if fixed_native_integer_shape(integer).is_some())
@@ -61,9 +63,9 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         call_plan: prepared.call_plan,
         scalar_parameters,
         structural_parameters: prepared.target_structural_parameters,
-        result: FixedIntegerScalarAbiValue {
+        result: MixedStructuralScalarAbiResult {
             value: result.value,
-            scalar_type: result_type,
+            scalar_type: result.scalar_type,
             placement: result_placement,
         },
     }))

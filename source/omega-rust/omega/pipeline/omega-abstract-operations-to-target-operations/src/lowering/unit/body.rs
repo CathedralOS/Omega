@@ -239,7 +239,7 @@ pub(super) fn lower_unit_body(
                 &mut provenance,
             )?,
             AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
-                lower_dynamic_argument_scalar_call(
+                let _ = lower_dynamic_argument_scalar_call(
                     operation,
                     function,
                     target,
@@ -251,21 +251,23 @@ pub(super) fn lower_unit_body(
                     &mut scalar_values,
                     &mut operations,
                     &mut provenance,
-                )?
+                )?;
             }
-            AbstractOperation::CallDynamicScalar { .. } => lower_dynamic_scalar_call(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                &parameters_by_place,
-                &mut shape_cache,
-                &mut active,
-                &mut scalar_values,
-                &mut operations,
-                &mut provenance,
-            )?,
+            AbstractOperation::CallDynamicScalar { .. } => {
+                let _ = lower_dynamic_scalar_call(
+                    operation,
+                    function,
+                    target,
+                    functions,
+                    structural_types,
+                    &parameters_by_place,
+                    &mut shape_cache,
+                    &mut active,
+                    &mut scalar_values,
+                    &mut operations,
+                    &mut provenance,
+                )?;
+            }
             AbstractOperation::CallDynamicParameterScalar { psi_operation, .. } => {
                 return Err(LoweringError::InvalidDynamicScalarDispatch {
                     machine: function.machine,

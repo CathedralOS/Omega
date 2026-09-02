@@ -182,7 +182,8 @@ pub(super) fn emit_structural_scalar_call(
         ));
     };
     let invalid = || EmissionError::InvalidStructuralScalarCallCustody(*psi_operation);
-    let result_shape = unit_scalar_shape(result.value, integer_type).map_err(|_| invalid())?;
+    let result_shape = unit_scalar_shape(result.value, psi_core::ScalarType::Integer(integer_type))
+        .map_err(|_| invalid())?;
     let scalar_shapes = scalar_arguments
         .iter()
         .map(|argument| {
@@ -397,7 +398,8 @@ pub(super) fn emit_structural_result_call(
         || call_plan.parameters.as_slice()
             != [callee_scalar.placement.clone(), source_placement.clone()]
         || scalar_argument.parameter_index != 0
-        || scalar_argument.source.scalar_type() != callee_scalar.scalar_type
+        || scalar_argument.source.scalar_type()
+            != psi_core::ScalarType::Integer(callee_scalar.scalar_type)
         || assigned_scalar_destination(&callee_scalar.placement)
             != Some(scalar_argument.destination)
         || copy.destination != *source_placement
@@ -502,11 +504,7 @@ fn exact_mixed_callee_abi_matches(
     copies: &[omega_assigned_target_operations::AssignedAggregateCopy],
 ) -> bool {
     &abi.call_plan == call_plan
-        && abi.result.scalar_type
-            == match result_type {
-                psi_core::ScalarType::Integer(integer_type) => integer_type,
-                _ => return false,
-            }
+        && abi.result.scalar_type == result_type
         && call_plan.result.as_ref() == Some(&abi.result.placement)
         && abi.scalar_parameters.len() == scalar_arguments.len()
         && abi
@@ -514,7 +512,8 @@ fn exact_mixed_callee_abi_matches(
             .iter()
             .zip(scalar_arguments)
             .all(|(parameter, argument)| {
-                parameter.scalar_type == argument.source.scalar_type()
+                psi_core::ScalarType::Integer(parameter.scalar_type)
+                    == argument.source.scalar_type()
                     && usize::try_from(argument.parameter_index)
                         .ok()
                         .and_then(|index| call_plan.parameters.get(index))

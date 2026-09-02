@@ -188,6 +188,10 @@ fn exact_result_boolean_guard(
         matches!(expression, CheckedScalarExpression::IntegerLiteral { .. })
     };
     match boolean {
+        CheckedBooleanExpression::Local { position } => {
+            result.primitive_type == PrimitiveType::Bool
+                && *position == result.binding_ordinal as usize
+        }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             (is_result(left) && is_literal(right)) || (is_literal(left) && is_result(right))
         }

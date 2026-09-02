@@ -396,6 +396,31 @@ pub(super) fn assign(
             when_true: *when_true,
             when_false: *when_false,
         },
+        TargetUnitOperation::ConditionalBoolean {
+            condition,
+            when_true,
+            when_false,
+        } => {
+            let assigned = assigned_scalar_homes
+                .get(&condition.source_value)
+                .copied()
+                .filter(|home| {
+                    condition.scalar_type == psi_core::ScalarType::Boolean
+                        && condition.shape == ValueShape::integer(1, 1)
+                        && home.defining_operation == condition.defining_operation
+                        && home.source_value == condition.source_value
+                        && home.scalar_type == condition.scalar_type
+                        && home.shape == condition.shape
+                })
+                .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
+                    condition.source_value,
+                ))?;
+            AssignedUnitOperation::ConditionalBoolean {
+                condition: assigned,
+                when_true: *when_true,
+                when_false: *when_false,
+            }
+        }
         TargetUnitOperation::ConditionalDispatch { fallthrough_edge } => {
             AssignedUnitOperation::ConditionalDispatch {
                 fallthrough_edge: *fallthrough_edge,

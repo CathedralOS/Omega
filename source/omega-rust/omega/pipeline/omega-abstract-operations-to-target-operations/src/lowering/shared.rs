@@ -17,9 +17,9 @@ pub(super) use omega_target::{Architecture, NativeTarget, ObjectFormat};
 pub(super) use omega_target_operations::{
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
     BoundarySettlementBinding, FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi,
-    MachineRegister, MixedStructuralScalarFunctionAbi, ScalarParameterLocation,
-    TargetBooleanControl, TargetBooleanExpression, TargetCallArgument, TargetConditionalBooleanArm,
-    TargetConditionalIntegerArm, TargetDynamicDescriptorArgument,
+    MachineRegister, MixedStructuralScalarAbiResult, MixedStructuralScalarFunctionAbi,
+    ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression, TargetCallArgument,
+    TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorParameterAbi, TargetFunction,
     TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
     TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression, TargetScalarImmediate,

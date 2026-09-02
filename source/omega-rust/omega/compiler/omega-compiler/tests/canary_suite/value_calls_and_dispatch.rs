@@ -1142,7 +1142,11 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
     }
 }
 
-fn assert_mutable_dynamic_store_canary(fixture: &str, description: &str, native_expectation: &str) {
+fn assert_forwarded_dynamic_result_canary(
+    fixture: &str,
+    description: &str,
+    native_expectation: &str,
+) {
     let _ = native_expectation;
     let canary = pass_canary(fixture);
     for target in ["linux_x86_64", "linux_arm64"] {
@@ -1206,7 +1210,7 @@ fn assert_mutable_dynamic_store_canary(fixture: &str, description: &str, native_
                     .collect(),
             )
             .expect("exact Console exit permission policy");
-        compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+        let report = compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
             &canary,
             target,
             permission_policy,
@@ -1221,6 +1225,9 @@ fn assert_mutable_dynamic_store_canary(fixture: &str, description: &str, native_
                     .join("\n")
             )
         });
+        if fixture == "traits/runtime_local_named_dyn_boolean_pass_through_exit" {
+            assert_boolean_forwarded_native_custody(&report, target);
+        }
     }
     #[cfg(target_os = "linux")]
     {
@@ -1248,9 +1255,77 @@ fn assert_mutable_dynamic_store_canary(fixture: &str, description: &str, native_
     }
 }
 
+fn assert_boolean_forwarded_native_custody(report: &CompileReport, target: &str) {
+    let native = report
+        .retained_native_artifact()
+        .expect("Boolean forwarded result keeps native custody");
+    let object = native.object();
+    let forwarded = object
+        .functions()
+        .iter()
+        .filter_map(|function| {
+            let [call] = function.forwarded_dynamic_descriptor_calls.as_slice() else {
+                return None;
+            };
+            Some((function, call))
+        })
+        .collect::<Vec<_>>();
+    let [(caller, call)] = forwarded.as_slice() else {
+        panic!("{target} should retain one forwarded Boolean result call")
+    };
+    assert_eq!(
+        call.semantic_result.scalar_type,
+        psi_core::ScalarType::Boolean
+    );
+    assert_eq!(call.result.home.scalar_type, psi_core::ScalarType::Boolean);
+    assert_eq!(
+        call.result.home.shape,
+        omega_calling_conventions::ValueShape::integer(1, 1)
+    );
+    assert!(object.functions().iter().any(|function| {
+        function
+            .mixed_structural_scalar_abi
+            .as_ref()
+            .is_some_and(|abi| abi.result.scalar_type == psi_core::ScalarType::Boolean)
+    }));
+    let branch_offset = call.code_offset + call.byte_count;
+    let bytes = caller.bytes(object);
+    match target {
+        "linux_x86_64" => assert!(
+            bytes[branch_offset..]
+                .windows(3)
+                .next()
+                .is_some_and(|prefix| prefix == [0x40, 0x0f, 0xb6])
+                && bytes[branch_offset..branch_offset + 20]
+                    .windows(4)
+                    .any(|window| window == [0x84, 0xc0, 0x0f, 0x84]),
+            "x86-64 must load the one-byte home, test AL, and branch false on zero"
+        ),
+        "linux_arm64" => {
+            let compare = u32::from_le_bytes(
+                bytes[branch_offset + 4..branch_offset + 8]
+                    .try_into()
+                    .expect("AArch64 compare word"),
+            );
+            let branch = u32::from_le_bytes(
+                bytes[branch_offset + 8..branch_offset + 12]
+                    .try_into()
+                    .expect("AArch64 branch word"),
+            );
+            assert_eq!(compare, 0x7100_013f, "AArch64 must compare w9 with zero");
+            assert_eq!(
+                branch & 0xff00_001f,
+                0x5400_0000,
+                "AArch64 must branch false with b.eq"
+            );
+        }
+        _ => unreachable!("bounded target roster"),
+    }
+}
+
 #[test]
 fn runtime_local_named_dyn_mutable_pass_through_exit_canary_runs() {
-    assert_mutable_dynamic_store_canary(
+    assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_pass_through_exit",
         "mutable forwarded named dynamic descriptor canary",
         "the indirect slot must preserve exclusive access and select the rebound Item instance",
@@ -1258,8 +1333,17 @@ fn runtime_local_named_dyn_mutable_pass_through_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_boolean_pass_through_exit_canary_runs() {
+    assert_forwarded_dynamic_result_canary(
+        "traits/runtime_local_named_dyn_boolean_pass_through_exit",
+        "forwarded named dynamic Boolean result canary",
+        "the indirect slot must preserve the selected true result through its durable Boolean home",
+    );
+}
+
+#[test]
 fn runtime_local_named_dyn_mutable_boolean_pass_through_exit_canary_runs() {
-    assert_mutable_dynamic_store_canary(
+    assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_boolean_pass_through_exit",
         "mutable forwarded named dynamic Boolean descriptor canary",
         "the indirect slot must store true into the rebound Item before returning its independent code field",
@@ -1268,7 +1352,7 @@ fn runtime_local_named_dyn_mutable_boolean_pass_through_exit_canary_runs() {
 
 #[test]
 fn runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit_canary_runs() {
-    assert_mutable_dynamic_store_canary(
+    assert_forwarded_dynamic_result_canary(
         "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit",
         "projected mutable forwarded named dynamic Boolean descriptor canary",
         "the indirect slot must store true through the nested Flags path before returning the selected Item code",

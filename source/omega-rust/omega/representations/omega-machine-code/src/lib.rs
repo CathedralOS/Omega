@@ -65,9 +65,10 @@ pub struct MachineCodeFunction {
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
     /// Independently supplied and emission-validated ABI for the bounded
-    /// fixed-integer-result function family with both scalar and structural
-    /// parameters. Mixed calls must join this row by exact machine identity;
-    /// caller records cannot manufacture it.
+    /// scalar-result function family with fixed-integer and structural
+    /// parameters. Results may be a fixed integer or Boolean. Mixed calls must
+    /// join this row by exact machine identity; caller records cannot
+    /// manufacture it.
     pub mixed_structural_scalar_abi:
         Option<omega_target_operations::MixedStructuralScalarFunctionAbi>,
     /// Exact semantic return evidence for the bounded structural-call/scalar-
@@ -843,12 +844,12 @@ pub struct InternalUnitCallArgumentRecord {
     pub bytes: Vec<u8>,
 }
 
-/// One durable fixed-width integer home in an attached Unit frame.
+/// One durable scalar home in an attached Unit frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UnitScalarHomeRecord {
     pub defining_operation: OperationId,
     pub source_value: ValueId,
-    pub scalar_type: IntegerType,
+    pub scalar_type: ScalarType,
     pub shape: ValueShape,
     pub byte_offset: u32,
 }
@@ -940,10 +941,10 @@ impl InternalUnitScalarArgumentSourceRecord {
         }
     }
 
-    pub const fn scalar_type(self) -> IntegerType {
+    pub const fn scalar_type(self) -> ScalarType {
         match self {
-            Self::Parameter { scalar_type, .. } => scalar_type,
-            Self::IntegerImmediate { scalar_type, .. } => scalar_type,
+            Self::Parameter { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::Home(home) => home.scalar_type,
         }
     }

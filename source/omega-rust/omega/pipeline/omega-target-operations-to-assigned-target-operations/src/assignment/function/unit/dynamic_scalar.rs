@@ -2,7 +2,6 @@
 
 use super::scalar_call::allocate_unit_scalar_home;
 use crate::assignment::shared::*;
-use psi_core::ScalarType;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign(
@@ -39,7 +38,7 @@ pub(super) fn assign(
             && argument.path == source.path
     };
     if result.value != result_requirement.source_value
-        || result.scalar_type != ScalarType::Integer(result_requirement.scalar_type)
+        || result.scalar_type != result_requirement.scalar_type
         || result_requirement.defining_operation != psi_operation
         || call_plan != &expected_call_plan
         || call_plan.parameters.as_slice() != std::slice::from_ref(&initial_argument.destination)

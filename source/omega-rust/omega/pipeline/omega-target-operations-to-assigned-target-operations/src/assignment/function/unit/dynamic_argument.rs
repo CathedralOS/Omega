@@ -30,11 +30,14 @@ pub(super) fn assign(
     if !structural_arguments.is_empty() || dynamic_arguments.is_empty() {
         return Err(invalid());
     }
-    let ScalarType::Integer(integer_type) = result.scalar_type else {
-        return Err(invalid());
+    let result_shape = match result.scalar_type {
+        ScalarType::Boolean => ValueShape::integer(1, 1),
+        ScalarType::Integer(integer_type) => {
+            super::scalar_call::fixed_integer_shape(result.value, integer_type)
+                .map_err(|_| invalid())?
+        }
+        ScalarType::IeeeFloat(_) => return Err(invalid()),
     };
-    let result_shape = super::scalar_call::fixed_integer_shape(result.value, integer_type)
-        .map_err(|_| invalid())?;
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
@@ -52,7 +55,7 @@ pub(super) fn assign(
         || call_plan.parameters.len() != parameter_count
         || result_home.defining_operation != psi_operation
         || result_home.source_value != result.value
-        || result_home.scalar_type != integer_type
+        || result_home.scalar_type != result.scalar_type
         || result_home.shape != result_shape
     {
         return Err(invalid());

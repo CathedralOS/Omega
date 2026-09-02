@@ -84,8 +84,8 @@ pub struct AssignedAggregateCopy {
     pub destination: ValuePlacement,
 }
 
-/// Durable physical home assigned to one fixed-width integer value produced
-/// by a scalar call in an attached Unit body.
+/// Durable physical home assigned to one scalar value produced by a scalar
+/// call in an attached Unit body.
 ///
 /// `byte_offset` is relative to the function's allocated Unit frame. Machine
 /// emission independently reconstructs the complete structural-plus-scalar
@@ -94,7 +94,7 @@ pub struct AssignedAggregateCopy {
 pub struct AssignedUnitScalarHome {
     pub defining_operation: OperationId,
     pub source_value: ValueId,
-    pub scalar_type: IntegerType,
+    pub scalar_type: ScalarType,
     pub shape: ValueShape,
     pub byte_offset: u32,
 }
@@ -177,10 +177,10 @@ impl AssignedUnitScalarArgumentSource {
         }
     }
 
-    pub const fn scalar_type(self) -> IntegerType {
+    pub const fn scalar_type(self) -> ScalarType {
         match self {
-            Self::Parameter { scalar_type, .. } => scalar_type,
-            Self::IntegerImmediate { scalar_type, .. } => scalar_type,
+            Self::Parameter { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::Home(home) => home.scalar_type,
         }
     }
@@ -325,6 +325,11 @@ pub enum AssignedUnitOperation {
         scalar_type: IntegerType,
         left: AssignedUnitScalarArgumentSource,
         right: AssignedUnitScalarArgumentSource,
+        when_true: omega_target_operations::TargetUnitConditionalSuccessor,
+        when_false: omega_target_operations::TargetUnitConditionalSuccessor,
+    },
+    ConditionalBoolean {
+        condition: AssignedUnitScalarHome,
         when_true: omega_target_operations::TargetUnitConditionalSuccessor,
         when_false: omega_target_operations::TargetUnitConditionalSuccessor,
     },

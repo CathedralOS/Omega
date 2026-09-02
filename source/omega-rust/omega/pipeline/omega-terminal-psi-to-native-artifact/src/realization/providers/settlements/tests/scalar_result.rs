@@ -146,7 +146,10 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     };
     assert!(producer_arguments.is_empty());
     assert_eq!(consumer_arguments.len(), 1);
-    assert_eq!(target_home.scalar_type, integer);
+    assert_eq!(
+        target_home.scalar_type,
+        psi_core::ScalarType::Integer(integer)
+    );
     assert_eq!(target_home.shape, shape);
     assert_eq!(
         consumer_arguments[0].source,
@@ -189,7 +192,10 @@ fn assert_exact_fixed_integer_foreign_result_flow(
         unreachable!()
     };
     assert_eq!(assigned_home.byte_offset, 0);
-    assert_eq!(assigned_home.scalar_type, integer);
+    assert_eq!(
+        assigned_home.scalar_type,
+        psi_core::ScalarType::Integer(integer)
+    );
     assert_eq!(assigned_home.shape, shape);
     assert_eq!(
         scalar_arguments[0].source,
@@ -227,7 +233,10 @@ fn assert_exact_fixed_integer_foreign_result_flow(
     assert_eq!(producer.call_plan, producer_call_plan.call);
     assert_eq!(consumer.call_plan, consumer_call_plan.call);
     assert_eq!(result.home, function.unit_scalar_homes[0]);
-    assert_eq!(result.home.scalar_type, integer);
+    assert_eq!(
+        result.home.scalar_type,
+        psi_core::ScalarType::Integer(integer)
+    );
     assert_eq!(result.home.shape, shape);
     assert_eq!(
         argument.source,
@@ -308,7 +317,7 @@ fn assert_exact_fixed_integer_foreign_result_flow(
         .as_mut()
         .unwrap()
         .home
-        .scalar_type = opposite_sign(integer);
+        .scalar_type = psi_core::ScalarType::Integer(opposite_sign(integer));
     assert!(omega_image_emission::build_object_artifact(&changed_result_type).is_err());
     let mut changed_result_shape = machine_code.clone();
     changed_result_shape.functions[0].foreign_calls[0]

@@ -19,7 +19,7 @@ pub(super) fn lower_dynamic_scalar_call(
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
+) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
     let AbstractOperation::CallDynamicScalar {
         psi_operation,
         result,
@@ -62,11 +62,14 @@ pub(super) fn lower_dynamic_scalar_call(
         shape_cache,
         active,
     )?;
-    let ScalarType::Integer(result_type) = result.scalar_type else {
+    if !matches!(
+        result.scalar_type,
+        ScalarType::Boolean | ScalarType::Integer(_)
+    ) {
         return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
             result.value,
         ));
-    };
+    }
     let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -107,14 +110,16 @@ pub(super) fn lower_dynamic_scalar_call(
     let result_home = TargetUnitScalarHomeRequirement {
         defining_operation: *psi_operation,
         source_value: result.value,
-        scalar_type: result_type,
+        scalar_type: result.scalar_type,
         shape: result_shape,
     };
-    insert_known_unit_integer(
-        scalar_values,
-        result.value,
-        KnownUnitInteger::Home(result_home),
-    )?;
+    if matches!(result.scalar_type, ScalarType::Integer(_)) {
+        insert_known_unit_integer(
+            scalar_values,
+            result.value,
+            KnownUnitInteger::Home(result_home),
+        )?;
+    }
     operations.push(TargetUnitOperation::DynamicScalarCall {
         psi_operation: *psi_operation,
         result: *result,
@@ -127,5 +132,5 @@ pub(super) fn lower_dynamic_scalar_call(
         crash_continuations: crash_continuations.clone(),
     });
     provenance.operations.push(*psi_operation);
-    Ok(())
+    Ok(result_home)
 }

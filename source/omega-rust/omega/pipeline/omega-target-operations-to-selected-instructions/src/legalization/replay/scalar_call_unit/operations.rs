@@ -68,7 +68,7 @@ pub(super) fn replay_call(
     };
     let definition = omega_optimization_unit::ValueDefinition {
         value: result,
-        scalar_type: ScalarType::Integer(result_home.scalar_type),
+        scalar_type: result_home.scalar_type,
         site: omega_optimization_unit::ValueDefinitionSite::Node { block, node: index },
     };
     let expected_arguments = [

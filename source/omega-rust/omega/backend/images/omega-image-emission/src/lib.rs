@@ -3232,7 +3232,9 @@ fn validate_foreign_scalar_arguments(
         .scalar_arguments
         .iter()
         .map(|argument| {
-            let scalar_type = argument.source.scalar_type();
+            let psi_core::ScalarType::Integer(scalar_type) = argument.source.scalar_type() else {
+                return Err(invalid());
+            };
             let bits = scalar_type.bits();
             if scalar_type.carrier() != psi_core::IntegerCarrier::Fixed
                 || !matches!(bits, 8 | 16 | 32 | 64)
@@ -3256,8 +3258,11 @@ fn validate_foreign_scalar_arguments(
         .scalar_result
         .as_ref()
         .map(|result| {
-            let expected_shape = unit_scalar_call_custody::integer_shape(result.home.scalar_type)
-                .ok_or_else(invalid)?;
+            let psi_core::ScalarType::Integer(result_type) = result.home.scalar_type else {
+                return Err(invalid());
+            };
+            let expected_shape =
+                unit_scalar_call_custody::integer_shape(result_type).ok_or_else(invalid)?;
             if result.home.defining_operation
                 != match call.owner {
                     CallSiteOwner::Operation(operation) => operation,

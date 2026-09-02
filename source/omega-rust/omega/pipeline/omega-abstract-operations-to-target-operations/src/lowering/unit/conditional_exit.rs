@@ -8,21 +8,25 @@ use super::scalar_definitions::lower_integer_constant;
 use super::structural_scalar::lower_dynamic_argument_scalar_call;
 
 pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
-    function.block_entries.len() == 3
-        && function.operations.len() == 10
+    let common = function.block_entries.len() == 3
+        && !function.operations.is_empty()
         && function
             .block_entries
             .iter()
             .all(|entry| entry.parameters.is_empty())
         && function.block_entries[0].block == function.entry
         && function.block_entries[0].operation_offset == 0
-        && function.block_entries[1].operation_offset == 4
-        && function.block_entries[2].operation_offset == 7
         && matches!(
             function.operations[0],
             AbstractOperation::CallDynamicScalar { .. }
                 | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
-        )
+        );
+    if !common {
+        return false;
+    }
+    let integer = function.operations.len() == 10
+        && function.block_entries[1].operation_offset == 4
+        && function.block_entries[2].operation_offset == 7
         && matches!(
             function.operations[1],
             AbstractOperation::IntegerConstant { .. }
@@ -52,7 +56,33 @@ pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
             function.operations[8],
             AbstractOperation::BoundaryCall { .. }
         )
-        && matches!(function.operations[9], AbstractOperation::ReturnUnit { .. })
+        && matches!(function.operations[9], AbstractOperation::ReturnUnit { .. });
+    let boolean = function.operations.len() == 8
+        && function.block_entries[1].operation_offset == 2
+        && function.block_entries[2].operation_offset == 5
+        && matches!(
+            function.operations[1],
+            AbstractOperation::Conditional { .. }
+        )
+        && matches!(
+            function.operations[2],
+            AbstractOperation::IntegerConstant { .. }
+        )
+        && matches!(
+            function.operations[3],
+            AbstractOperation::BoundaryCall { .. }
+        )
+        && matches!(function.operations[4], AbstractOperation::ReturnUnit { .. })
+        && matches!(
+            function.operations[5],
+            AbstractOperation::IntegerConstant { .. }
+        )
+        && matches!(
+            function.operations[6],
+            AbstractOperation::BoundaryCall { .. }
+        )
+        && matches!(function.operations[7], AbstractOperation::ReturnUnit { .. });
+    common && (integer || boolean)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -85,7 +115,7 @@ pub(super) fn lower(
     let mut integer_constants = BTreeMap::new();
     let mut scalar_values = BTreeMap::new();
 
-    match &function.operations[0] {
+    let result_home = match &function.operations[0] {
         AbstractOperation::CallDynamicScalar { .. } => lower_dynamic_scalar_call(
             &function.operations[0],
             function,
@@ -115,38 +145,49 @@ pub(super) fn lower(
             )?
         }
         _ => unreachable!("bounded shape fixes the dynamic scalar operation"),
-    }
-    lower_constant(
-        function,
-        &function.operations[1],
-        false,
-        &mut integer_constants,
-        &mut scalar_values,
-        &mut operations,
-        &mut provenance,
-    )?;
-
-    let AbstractOperation::IntegerEqual {
-        psi_operation,
-        result,
-        left,
-        right,
-    } = function.operations[2]
-    else {
-        unreachable!("bounded shape fixes the equality operation")
     };
+    let boolean_control = result_home.scalar_type == ScalarType::Boolean;
+    if boolean_control != (function.operations.len() == 8) {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        ));
+    }
+    let (
+        conditional_index,
+        true_constant,
+        true_boundary,
+        true_return,
+        false_constant,
+        false_boundary,
+        false_return,
+    ) = if boolean_control {
+        (1, 2, 3, 4, 5, 6, 7)
+    } else {
+        (3, 4, 5, 6, 7, 8, 9)
+    };
+    if !boolean_control {
+        lower_constant(
+            function,
+            &function.operations[1],
+            false,
+            &mut integer_constants,
+            &mut scalar_values,
+            &mut operations,
+            &mut provenance,
+        )?;
+    }
+
     let AbstractOperation::Conditional {
         condition,
         ref when_true,
         ref when_false,
-    } = function.operations[3]
+    } = function.operations[conditional_index]
     else {
         unreachable!("bounded shape fixes the conditional operation")
     };
     let true_block = &function.block_entries[1];
     let false_block = &function.block_entries[2];
-    if condition != result
-        || when_true.target != true_block.block
+    if when_true.target != true_block.block
         || when_false.target != false_block.block
         || !when_true.bindings.is_empty()
         || !when_false.bindings.is_empty()
@@ -157,31 +198,17 @@ pub(super) fn lower(
             function.machine,
         ));
     }
-    let left_known = scalar_values
-        .get(&left)
-        .copied()
-        .ok_or(LoweringError::UnknownValue(left))?;
-    let right_known = scalar_values
-        .get(&right)
-        .copied()
-        .ok_or(LoweringError::UnknownValue(right))?;
-    let scalar_type = left_known.scalar_type();
-    if right_known.scalar_type() != scalar_type || scalar_type.bits() != 32 {
-        return Err(LoweringError::UnsupportedOperationInUnitFunction(
-            function.machine,
-        ));
-    }
     let AbstractOperation::ReturnUnit {
         psi_edge: true_return_edge,
         cleanup_actions: true_cleanup,
-    } = &function.operations[6]
+    } = &function.operations[true_return]
     else {
         unreachable!("bounded shape fixes the true return")
     };
     let AbstractOperation::ReturnUnit {
         psi_edge: false_return_edge,
         cleanup_actions: false_cleanup,
-    } = &function.operations[9]
+    } = &function.operations[false_return]
     else {
         unreachable!("bounded shape fixes the false return")
     };
@@ -190,30 +217,72 @@ pub(super) fn lower(
     }
 
     let conditional_ordinal = operations.len();
-    let true_ordinal = conditional_ordinal + 2;
-    operations.push(TargetUnitOperation::ConditionalIntegerEqual {
-        psi_operation,
-        result,
-        scalar_type,
-        left: left_known.into_target_source(left),
-        right: right_known.into_target_source(right),
-        when_true: omega_target_operations::TargetUnitConditionalSuccessor {
-            psi_edge: when_true.psi_edge,
-            operation_ordinal: u32::try_from(true_ordinal)
-                .map_err(|_| LoweringError::UnsupportedOperationInUnitFunction(function.machine))?,
-            nominal_return_edge: *true_return_edge,
-        },
-        // Patched after the true arm has been lowered.
-        when_false: omega_target_operations::TargetUnitConditionalSuccessor {
-            psi_edge: when_false.psi_edge,
-            operation_ordinal: 0,
-            nominal_return_edge: *false_return_edge,
-        },
-    });
-    operations.push(TargetUnitOperation::ConditionalDispatch {
-        fallthrough_edge: when_true.psi_edge,
-    });
-    provenance.operations.push(psi_operation);
+    let true_ordinal = conditional_ordinal + if boolean_control { 1 } else { 2 };
+    let target_when_true = omega_target_operations::TargetUnitConditionalSuccessor {
+        psi_edge: when_true.psi_edge,
+        operation_ordinal: u32::try_from(true_ordinal)
+            .map_err(|_| LoweringError::UnsupportedOperationInUnitFunction(function.machine))?,
+        nominal_return_edge: *true_return_edge,
+    };
+    let target_when_false = omega_target_operations::TargetUnitConditionalSuccessor {
+        psi_edge: when_false.psi_edge,
+        operation_ordinal: 0,
+        nominal_return_edge: *false_return_edge,
+    };
+    if boolean_control {
+        if condition != result_home.source_value {
+            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ));
+        }
+        operations.push(TargetUnitOperation::ConditionalBoolean {
+            condition: result_home,
+            when_true: target_when_true,
+            when_false: target_when_false,
+        });
+    } else {
+        let AbstractOperation::IntegerEqual {
+            psi_operation,
+            result,
+            left,
+            right,
+        } = function.operations[2]
+        else {
+            unreachable!("bounded integer shape fixes the equality operation")
+        };
+        let left_known = scalar_values
+            .get(&left)
+            .copied()
+            .ok_or(LoweringError::UnknownValue(left))?;
+        let right_known = scalar_values
+            .get(&right)
+            .copied()
+            .ok_or(LoweringError::UnknownValue(right))?;
+        let scalar_type = left_known.scalar_type();
+        if condition != result
+            || right_known.scalar_type() != scalar_type
+            || scalar_type.bits() != 32
+        {
+            return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                function.machine,
+            ));
+        }
+        operations.push(TargetUnitOperation::ConditionalIntegerEqual {
+            psi_operation,
+            result,
+            scalar_type,
+            left: left_known.into_target_source(left),
+            right: right_known.into_target_source(right),
+            when_true: target_when_true,
+            when_false: target_when_false,
+        });
+        provenance.operations.push(psi_operation);
+    }
+    if !boolean_control {
+        operations.push(TargetUnitOperation::ConditionalDispatch {
+            fallthrough_edge: when_true.psi_edge,
+        });
+    }
     provenance
         .edges
         .extend([when_true.psi_edge, when_false.psi_edge]);
@@ -234,17 +303,17 @@ pub(super) fn lower(
         &mut scalar_values,
         &mut operations,
         &mut provenance,
-        4,
-        5,
+        true_constant,
+        true_boundary,
     )?;
     operations.push(TargetUnitOperation::NonreturningTail {
         psi_edge: *true_return_edge,
     });
     let false_ordinal = operations.len();
-    let TargetUnitOperation::ConditionalIntegerEqual { when_false, .. } =
-        &mut operations[conditional_ordinal]
-    else {
-        unreachable!("the bounded condition was just inserted")
+    let when_false = match &mut operations[conditional_ordinal] {
+        TargetUnitOperation::ConditionalIntegerEqual { when_false, .. }
+        | TargetUnitOperation::ConditionalBoolean { when_false, .. } => when_false,
+        _ => unreachable!("the bounded condition was just inserted"),
     };
     when_false.operation_ordinal = u32::try_from(false_ordinal)
         .map_err(|_| LoweringError::UnsupportedOperationInUnitFunction(function.machine))?;
@@ -264,8 +333,8 @@ pub(super) fn lower(
         &mut scalar_values,
         &mut operations,
         &mut provenance,
-        7,
-        8,
+        false_constant,
+        false_boundary,
     )?;
 
     operations.push(TargetUnitOperation::Return {

@@ -11975,7 +11975,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 59 retains compact strong-identity
+  relocation. Canonical installation format 60 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -11985,7 +11985,7 @@ checked-result arithmetic decision listed below.
   reject adapter-byte drift. Forwarded fixed-integer scalar results now receive
   the same durable attached-Unit home as other scalar calls. Target lowering,
   assignment, machine emission, object replay, and final-image replay retain
-  and rejoin the defining operation, value, integer type, shape, ABI result
+  and rejoin the defining operation, value, scalar type, shape, ABI result
   placement, frame home, and exact normalization/store byte interval. A later
   bounded conditional consumes that home rather than an emitter-local result.
   The ordinary authority review treats the transparent helper as the exact
@@ -12022,7 +12022,7 @@ checked-result arithmetic decision listed below.
   execution. The store field and subsequent scalar return field are retained
   independently. The first Boolean native canary stores `true` and returns an
   independent `i32` self field through the existing fixed-integer result-home
-  lane; it does not claim a Boolean forwarded-result carrier. The mutable ABI
+  lane. The mutable ABI
   carries `&mut self` as one no-copy pointer to caller storage; the private adapter
   rejoins the realization's exact structural-only scalar-result ABI before
   calling it. For the one-field path, target lowering accumulates the outer
@@ -12035,8 +12035,22 @@ checked-result arithmetic decision listed below.
   return an independent selected code of 23. All three exit 70 on Linux x86-64
   while their target artifacts cross-link. Exact machine tests place the
   projected Boolean at byte offset 8 and reject path or accumulated-offset
-  drift before emission. Canonical installation format 59 retains this
+  drift before emission. Canonical installation format 60 retains this
   already-encoded path evidence.
+
+  Boolean-returning forwarded calls now use the same producer-bound result-
+  home model without pretending that a Boolean is an integer. The mixed
+  structural/scalar realization ABI retains an exact scalar-typed result, the
+  caller allocates a one-byte/alignment-one Boolean home in its ordered Unit
+  frame, and the bounded eight-operation continuation branches directly on
+  that home. Target assignment rejects producer, value, type, or shape drift;
+  machine emission normalizes the ABI result, stores it durably, then emits an
+  exact `test al, al`/`je` or `cmp w9, #0`/`b.eq` false branch. The source-
+  native canary selects `true` from the rebound instance, cross-links on both
+  Linux architectures, and exits 70 on the hosted target. Object and
+  installation replay rejoin the Boolean semantic result, call placement,
+  home roster, normalization/store interval, and canonical format-60 scalar
+  tag. Integer-result forwarding remains unchanged.
 
   Remaining work:
 
@@ -12047,9 +12061,7 @@ checked-result arithmetic decision listed below.
   - widen beyond the current single Boolean or fixed-integer literal
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
-    projections, and multiple writes still have no native carrier, while
-    Boolean-returning forwarded calls still need an exact result-home and
-    control carrier of their own;
+    projections, and multiple writes still have no native carrier;
   - extend the v1 borrowed surface to Unit-returning requirements and
     additional call forms when their exact semantic and physical rules are
     settled;

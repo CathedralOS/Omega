@@ -63,7 +63,7 @@ pub(super) fn call_parts<'a>(
         || callee != ac
         || result_home.defining_operation != *psi_operation
         || result_home.source_value != *result
-        || result_home.scalar_type != *scalar_type
+        || result_home.scalar_type != ScalarType::Integer(*scalar_type)
         || !is_u64(*scalar_type)
         || requirement_obligations != aro
         || crash_continuations != arc

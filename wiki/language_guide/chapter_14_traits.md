@@ -793,8 +793,8 @@ selection. The current scalar-returning lane gives the forwarded result a
 durable attached-Unit frame home, so later bounded control flow reads the exact
 normalized result rather than relying on a transient ABI register. Target
 assignment and object/image replay independently rejoin that home to the
-operation, value, integer type, shape, result placement, and emitted store
-bytes on x86-64 and AArch64. Installation format 59 retains the same semantic
+operation, value, scalar type, shape, result placement, and emitted store
+bytes on x86-64 and AArch64. Installation format 60 retains the same semantic
 result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
 local result interval. A first mutation-bearing realization body is admitted
@@ -810,9 +810,11 @@ x86-64 and AArch64. Store path, accumulated byte offset, and return field are
 identified independently; assignment rejects disagreement between the path and
 offset. The
 first Boolean store returns an independent `i32` field through the existing
-fixed-integer result-home lane; Boolean-returning forwarded calls, paths deeper
-than one field, indexed/case projections, wider or computed mutation bodies,
-and Unit-returning dynamic requirements remain outside this bounded rung.
+fixed-integer result-home lane. A Boolean-returning forwarded call instead
+uses an exact one-byte Boolean home and branches directly on that value after
+the indirect call. Paths deeper than one field, indexed/case projections,
+wider or computed mutation bodies, and Unit-returning dynamic requirements
+remain outside this bounded rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected

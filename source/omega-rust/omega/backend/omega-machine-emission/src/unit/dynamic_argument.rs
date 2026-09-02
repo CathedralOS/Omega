@@ -55,10 +55,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         unreachable!("forwarded descriptor router supplied another operation")
     };
     let invalid = || EmissionError::InvalidDynamicDescriptorCallCustody(*psi_operation);
-    let psi_core::ScalarType::Integer(result_type) = result.scalar_type else {
-        return Err(invalid());
-    };
-    let expected_result = super::unit_scalar_shape(result.value, result_type)?;
+    let expected_result = super::unit_scalar_shape(result.value, result.scalar_type)?;
     let Some(helper) = functions
         .iter()
         .find(|function| function.machine == *callee)
@@ -80,7 +77,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         || function_call_plan != call_plan
         || result_home.defining_operation != *psi_operation
         || result_home.source_value != result.value
-        || result_home.scalar_type != result_type
+        || result_home.scalar_type != result.scalar_type
         || result_home.shape != expected_result
         || call_plan.result.as_ref().map(|placement| placement.shape) != Some(expected_result)
         || call_plan.parameters.len() != 2

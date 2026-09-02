@@ -440,7 +440,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
             let result = omega_target_operations::TargetUnitScalarHomeRequirement {
                 defining_operation: operation,
                 source_value: source,
-                scalar_type: integer,
+                scalar_type: psi_core::ScalarType::Integer(integer),
                 shape,
             };
             assert_eq!(
@@ -526,7 +526,7 @@ fn assignment_replays_the_complete_fixed_integer_result_family_and_rejects_drift
         let invalid = omega_target_operations::TargetUnitScalarHomeRequirement {
             defining_operation: operation,
             source_value: source,
-            scalar_type: integer,
+            scalar_type: psi_core::ScalarType::Integer(integer),
             shape: ValueShape::integer(8, 8),
         };
         assert!(

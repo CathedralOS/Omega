@@ -51,10 +51,13 @@ pub(super) fn emit_dynamic_scalar_call(
         unreachable!("dynamic-scalar router supplied another operation")
     };
     let invalid = || EmissionError::InvalidDynamicScalarCallCustody(*psi_operation);
-    let psi_core::ScalarType::Integer(result_type) = result.scalar_type else {
+    if !matches!(
+        result.scalar_type,
+        psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_)
+    ) {
         return Err(invalid());
-    };
-    if result_type != result_home.scalar_type
+    }
+    if result.scalar_type != result_home.scalar_type
         || result.value != result_home.source_value
         || result_home.defining_operation != *psi_operation
         || !dynamic_dispatch.has_complete_application_custody(owner, *psi_operation)
