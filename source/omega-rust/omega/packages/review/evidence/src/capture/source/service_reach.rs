@@ -213,10 +213,16 @@ fn derive_declared_service_reach(
             psi_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters
                 .get(*ordinal as usize)
                 .map(|parameter| {
-                    compilation
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                        .type_symbol(&compilation.type_reference_table)
+                    psi_typed_trees::service::exact_bound_service_requirement(
+                        compilation,
+                        parameter.type_reference,
+                    )
+                    .unwrap_or_else(|| {
+                        compilation
+                            .type_reference_table
+                            .type_reference(parameter.type_reference)
+                            .type_symbol(&compilation.type_reference_table)
+                    })
                 })
                 .unwrap_or_else(SymbolHandle::invalid),
             psi_effects::InvocationTarget::Service(symbol) => *symbol,

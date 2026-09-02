@@ -685,6 +685,20 @@ fn fused_service_field_mut(
     panic!("checked Service fixture has no fused structural field")
 }
 
+fn fused_service_parameter_mut(
+    checked: &mut CheckedCompilation,
+) -> &mut psi_checked_trees::CheckedUnitStructuralParameterPlan {
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.structural_parameters)
+        .find(|parameter| parameter.fused_service_erasure.is_some())
+        .expect("checked Service fixture has no fused structural parameter")
+}
+
 #[test]
 fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     let canary = pass_canary("providers/service_fused_erasure_compile");
@@ -695,6 +709,113 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         .expect("exact typed Service, Fused provenance, and selected plan should rejoin");
     psi_checked_trees_to_terminal::lower_machine(&baseline, "Main::main")
         .expect("authorized fused Service carrier should erase during Terminal lowering");
+    let parameter_plan = baseline
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| {
+            plan.structural_parameters
+                .iter()
+                .any(|parameter| parameter.fused_service_erasure.is_some())
+        })
+        .expect("direct Service parameter machine should retain a checked Unit plan");
+    let [parameter] = parameter_plan.structural_parameters.as_slice() else {
+        panic!("direct Service parameter machine should retain one structural parameter")
+    };
+    let receipt = parameter
+        .fused_service_erasure
+        .as_ref()
+        .expect("direct Service parameter should retain exact Fused custody");
+    assert_eq!(
+        parameter.multiplicity,
+        psi_language_core::Multiplicity::Affine
+    );
+    assert_eq!(
+        parameter.access,
+        psi_checked_trees::CheckedStructuralAccess::Owned
+    );
+    assert_eq!(parameter.qualifications.len(), 1);
+    assert!(receipt.source_parameter.is_valid());
+    let parameter_machine = baseline
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == parameter_plan.machine)
+        .expect("direct Service parameter machine remains in typed trees");
+    let [parameter_state] = baseline.typed.machine_states(parameter_machine) else {
+        panic!("direct Service parameter machine should have one state")
+    };
+    let [psi_typed_trees::statement::StatementNode::Call(settled_call)] = baseline
+        .typed
+        .statement_table
+        .statements(parameter_state.statement_nodes)
+    else {
+        panic!("direct Service parameter machine should retain one settled call")
+    };
+    assert!(
+        !settled_call.receiver_symbol.is_valid(),
+        "exact Service parameter receiver should settle to direct adapter dispatch"
+    );
+    psi_checked_trees_to_terminal::lower_machine(&baseline, "ParameterHarness::run")
+        .expect("authorized direct Service parameter should lower through Terminal");
+
+    let mut parameter_downgrade = baseline.clone();
+    fused_service_parameter_mut(&mut parameter_downgrade).fused_service_erasure = None;
+    let parameter_downgrade_error =
+        omega_selected_dispatch::validate_fused_service_terminal_custody(
+            &parameter_downgrade,
+            &provenance,
+        )
+        .expect_err("removing a direct Service parameter receipt must reject");
+    assert!(parameter_downgrade_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("lost its exact Fused erasure settlement")
+    }));
+    let raw_lowering_error =
+        psi_checked_trees_to_terminal::lower_machine(&parameter_downgrade, "ParameterHarness::run")
+            .expect_err("raw Terminal lowering must also reject a removed Service receipt");
+    assert!(
+        raw_lowering_error
+            .to_string()
+            .contains("lost its Fused erasure receipt")
+    );
+
+    let mut parameter_symbol_substitution = baseline.clone();
+    fused_service_parameter_mut(&mut parameter_symbol_substitution)
+        .fused_service_erasure
+        .as_mut()
+        .expect("parameter receipt")
+        .source_parameter = psi_symbols::SymbolHandle::invalid();
+    let parameter_symbol_error = omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &parameter_symbol_substitution,
+        &provenance,
+    )
+    .expect_err("a substituted Service parameter symbol must reject");
+    assert!(parameter_symbol_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("substituted its exact typed parameter symbol")
+            || diagnostic
+                .message
+                .contains("rejoins 0 exact typed parameters")
+    }));
+
+    let mut parameter_access_substitution = baseline.clone();
+    fused_service_parameter_mut(&mut parameter_access_substitution).access =
+        psi_checked_trees::CheckedStructuralAccess::SharedBorrow;
+    let parameter_access_error = omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &parameter_access_substitution,
+        &provenance,
+    )
+    .expect_err("a borrowed checked Service parameter must reject");
+    assert!(parameter_access_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("not the exact direct owned affine source parameter")
+    }));
 
     let mut classifier_twins = baseline.clone();
     let service_field_type = {

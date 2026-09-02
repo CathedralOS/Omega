@@ -132,6 +132,7 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        fused_service_erasure: None,
     };
     checked.facts.flow.terminal_structural_unit_controls =
         psi_checked_trees::CheckedStructuralUnitControlPlans {
@@ -205,6 +206,7 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        fused_service_erasure: None,
     };
     let leaf = |state| psi_checked_trees::CheckedStructuralUnitControlStatePlan {
         state,
@@ -356,6 +358,7 @@ fn install_structural_unit_two_conditional_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        fused_service_erasure: None,
     };
     let CheckedStructuralUnitControlTerminatorPlan::Conditional { when_true, .. } =
         &mut plan.states[0].terminator
@@ -440,6 +443,7 @@ fn install_structural_unit_join_fixture(checked: &mut CheckedTrees) {
         multiplicity: Multiplicity::Affine,
         access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: Vec::new(),
+        fused_service_erasure: None,
     };
     plan.states[0].scalar_parameters.push(
         psi_checked_trees::CheckedStructuralScalarParameterPlan {

@@ -658,6 +658,8 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/service_nonboundary_requirement_rejected",
     "providers/service_bound_nonservice_rejected",
     "providers/service_authored_lookalike_not_privileged",
+    "providers/service_borrowed_parameter_rejected",
+    "providers/service_nested_carrier_rejected",
     "inline_asm/asm_pushfq_requires_u64_destination",
     "inline_asm/asm_popfq_requires_saved_place",
     "inline_asm/asm_rdmsr_requires_u64_destination",

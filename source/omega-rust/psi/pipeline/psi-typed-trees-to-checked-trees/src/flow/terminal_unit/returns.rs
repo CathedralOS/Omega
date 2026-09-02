@@ -1567,6 +1567,7 @@ fn build_trait_operator_scalar_return_machine(
                 multiplicity,
                 access: CheckedStructuralAccess::Owned,
                 qualifications,
+                fused_service_erasure: None,
             })
         })
         .collect::<Option<Vec<_>>>()?;

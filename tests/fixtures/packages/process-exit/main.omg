@@ -1,7 +1,8 @@
 // Public reach of one exact ordinary-package Console boundary.
 use host_services::console;
+use omega::language::core::service;
 
-pub machine terminate(console: Console, return_code: i32)
+pub machine terminate(console: Service<Console> in Bound, return_code: i32)
 reaches Console
 invokes console;
 {

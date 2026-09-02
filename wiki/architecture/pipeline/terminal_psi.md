@@ -127,6 +127,18 @@ that field to precisely the bodyless boundaries called through it. Validation
 requires exact root/call equality and rejects missing attachments, duplicate or
 orphan roots, runtime `self`, and provider roots forwarded as arguments.
 
+The adjacent first Fused Service-parameter slice uses the same zero-payload
+structural vocabulary without treating an authored boundary-opaque value as an
+ordinary empty record. Checked plans carry a separate exact receipt joining the
+typed parameter symbol and authored position to the normalized
+`Service<R> in Bound` identity, `Bound` domain, requirement, and selected-plan
+digest. The raw producer rechecks typed receipt custody; the compiler's final
+gate additionally rejoins exact Fused selection provenance. Only one direct
+owned affine parameter making one direct boundary call in a one-state attached
+Unit machine is admitted. Transfers, projections, borrows, multiple calls,
+composed control, scalar-bearing/free helpers, initial root establishment, and
+Independent execution remain absent from Terminal rather than being guessed.
+
 Preservation is not realization. Omega target lowering currently accepts the
 one exact Linux `exit_process(i32) -> Unit` migration shape through import-free
 `exit_group`, including the consumed scalar and nonreturning trap tail. D39

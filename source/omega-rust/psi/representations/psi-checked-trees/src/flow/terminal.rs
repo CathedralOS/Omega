@@ -953,6 +953,19 @@ pub struct CheckedFusedServiceErasureReceipt {
     pub provider_plan_digest: [u8; 32],
 }
 
+/// Exact compiler-owned authority for erasing one direct, owned
+/// `Service<R> in Bound` state parameter in a Fused build. The typed symbol
+/// and normalized full carrier identity survive independently of the
+/// structural parameter's dense position and erased base shape so a removed,
+/// moved, or fabricated receipt rejects at the checked-to-Terminal boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedFusedServiceParameterReceipt {
+    pub source_parameter: SymbolHandle,
+    pub carrier_type_identity: String,
+    pub requirement: SymbolHandle,
+    pub provider_plan_digest: [u8; 32],
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedByteSequenceCarrier {
     BorrowedView,
@@ -998,6 +1011,10 @@ pub struct CheckedUnitStructuralParameterPlan {
     pub access: CheckedStructuralAccess,
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
+    /// Present only for the first direct, owned affine
+    /// `Service<R> in Bound` parameter rung. `None` on a typed Service
+    /// parameter is a rejecting custody downgrade, never legacy behavior.
+    pub fused_service_erasure: Option<CheckedFusedServiceParameterReceipt>,
 }
 
 /// Source-handle-free structural path retained by checked terminal plans.

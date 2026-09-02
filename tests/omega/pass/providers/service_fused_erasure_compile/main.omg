@@ -20,3 +20,11 @@ data Main {
 machine Main::main(&mut self) {
     self.service.ping();
 }
+
+// The first parameter rung is deliberately direct and one-hop: one owned
+// affine carrier authorizes one fused boundary call, with no forwarding,
+// borrowing, nesting, or return transport.
+data ParameterHarness { }
+machine ParameterHarness::run(service: Service<Ping> in Bound) {
+    service.ping();
+}

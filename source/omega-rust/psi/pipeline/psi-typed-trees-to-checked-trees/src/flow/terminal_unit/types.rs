@@ -1464,6 +1464,68 @@ impl<'program> ShapeCollector<'program> {
         })
     }
 
+    /// Admit the first parameter-only Fused Service carrier without widening
+    /// ordinary structural shape collection to boundary-opaque data. The
+    /// inserted empty record is a compiler-owned erased ABI shape; the exact
+    /// typed carrier and selection authority remain in the adjacent receipt.
+    pub(super) fn add_fused_service_parameter_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        source_parameter: SymbolHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<(
+        String,
+        psi_checked_trees::CheckedFusedServiceParameterReceipt,
+    )> {
+        let carrier = psi_typed_trees::service::classify_exact_bound_service_carrier(
+            self.program,
+            type_reference,
+        )
+        .ok()??;
+        let authorization = self.program.fused_service_erasure(carrier.requirement)?;
+        if !source_parameter.is_valid() {
+            return None;
+        }
+
+        let mut base_type = type_reference;
+        while let TypeReferenceNode::Constrained {
+            base_type: unconstrained,
+            ..
+        } = self.program.type_reference_table.type_reference(base_type)
+        {
+            base_type = *unconstrained;
+        }
+        let type_identity = self
+            .program
+            .normalized_type_identity_with_binders(base_type, binders)
+            .into_string();
+        let plan = CheckedUnitStructuralTypePlan {
+            identity: type_identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
+        };
+        if self
+            .types
+            .get(&type_identity)
+            .is_some_and(|existing| existing != &plan)
+        {
+            return None;
+        }
+        self.types.insert(type_identity.clone(), plan);
+
+        Some((
+            type_identity,
+            psi_checked_trees::CheckedFusedServiceParameterReceipt {
+                source_parameter,
+                carrier_type_identity: self
+                    .program
+                    .normalized_type_identity_with_binders(type_reference, binders)
+                    .into_string(),
+                requirement: carrier.requirement,
+                provider_plan_digest: authorization.provider_plan_digest,
+            },
+        ))
+    }
+
     pub(super) fn retain_transitive(&mut self, roots: &BTreeSet<&str>) {
         let mut retained = roots
             .iter()

@@ -841,6 +841,7 @@ pub(super) fn build_static_boundary_requirements(
                     ),
                     access,
                     qualifications,
+                    fused_service_erasure: None,
                 });
             }
             if !supported {

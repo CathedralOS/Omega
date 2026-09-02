@@ -73,6 +73,20 @@ pub(crate) enum TypeReferenceOwner<'program> {
 }
 
 impl TypeReferenceOwner<'_> {
+    fn allows_direct_routed_service_carrier(&self) -> bool {
+        matches!(
+            self,
+            Self::DataField {
+                generic_depth: 0,
+                ..
+            } | Self::StateParameter {
+                owner: StateSignatureOwner::Machine(_),
+                generic_depth: 0,
+                ..
+            }
+        )
+    }
+
     fn allows_checked_write_only_parameter(&self) -> bool {
         matches!(
             self,
@@ -290,13 +304,7 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     type_parameters: &[TypeParameter],
     lifetime_parameters: &[psi_typed_trees::name::Identifier],
 ) {
-    if let Err(error) =
-        psi_typed_trees::service::classify_exact_bound_service_carrier(program, type_reference)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} uses an invalid routed service carrier: {error}"
-        )));
-    }
+    validate_routed_service_carrier_placement(program, type_reference, owner, true, diagnostics);
     // `range-constraints-require-exact-domain`: a range constraint under a
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
@@ -319,6 +327,95 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
             lifetime_parameters,
         },
     );
+}
+
+/// Find routed Service carriers recursively rather than relying on the outer
+/// type shell. The first executable rung permits only a direct data field or
+/// direct concrete-machine parameter; references, aggregate/generic nesting,
+/// locals, returns, traits, requirements, and operators remain explicit
+/// implementation fences.
+fn validate_routed_service_carrier_placement(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    owner: TypeReferenceOwner<'_>,
+    direct: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match psi_typed_trees::service::classify_exact_bound_service_carrier(program, type_reference) {
+        Err(error) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses an invalid routed service carrier: {error}"
+            )));
+            return;
+        }
+        Ok(Some(_)) => {
+            if !direct || !owner.allows_direct_routed_service_carrier() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} places `Service<R> in Bound` outside the first direct field/owned concrete-machine-parameter rung"
+                )));
+            }
+            return;
+        }
+        Ok(None) => {}
+    }
+
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            validate_routed_service_carrier_placement(program, *referee, owner, false, diagnostics);
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            validate_routed_service_carrier_placement(
+                program,
+                *base_type,
+                owner,
+                direct,
+                diagnostics,
+            );
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            validate_routed_service_carrier_placement(
+                program,
+                *element_type,
+                owner,
+                false,
+                diagnostics,
+            );
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                validate_routed_service_carrier_placement(
+                    program,
+                    *argument,
+                    owner.generic_argument(),
+                    false,
+                    diagnostics,
+                );
+            }
+        }
+        TypeReferenceNode::Named { symbol, .. } => {
+            if let Some(origin) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol)
+                .and_then(|definition| definition.generic_instance)
+            {
+                validate_routed_service_carrier_placement(
+                    program,
+                    origin,
+                    owner.generic_argument(),
+                    false,
+                    diagnostics,
+                );
+            }
+        }
+        TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Unit => {}
+    }
 }
 
 pub(crate) fn validate_generic_instance_argument_bounds(

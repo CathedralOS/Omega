@@ -531,6 +531,15 @@ pub(super) fn build_call_operation(
                                 && nominal_use.satisfaction_requirement == requirement
                         })
                 });
+        let routed_service_parameter_receiver = caller_parameters.iter().any(|parameter| {
+            parameter
+                .fused_service_erasure
+                .as_ref()
+                .is_some_and(|receipt| {
+                    receipt.source_parameter == call.receiver_symbol
+                        && receipt.requirement == definition.symbol
+                })
+        });
         let mut scalar_parameters = Vec::new();
         let mut structural_arguments = Vec::new();
         for (abi_position, ((_, parameter), argument)) in
@@ -626,7 +635,8 @@ pub(super) fn build_call_operation(
                             machine,
                             &call_site,
                             definition.symbol,
-                        ))
+                        )
+                        && !routed_service_parameter_receiver)
             }
             || match expected_boundary_result {
                 None => !is_unit(program, signature.return_type),
@@ -2004,6 +2014,7 @@ fn structural_signature_with_affine_pair(
         })
         .flatten();
     let mut structural_parameters = Vec::new();
+    let mut fused_service_parameter_count = 0_usize;
     for (position, parameter) in parameters.iter().enumerate() {
         if parameter.is_const {
             return None;
@@ -2038,12 +2049,37 @@ fn structural_signature_with_affine_pair(
         // Typed attached `self` intentionally carries the machine/Self symbol,
         // not the data-definition symbol. Its carrier is the independently
         // resolved attachment above.
-        let type_identity = if parameter.is_self {
-            attachment_type_identity.clone()
+        let (type_identity, fused_service_erasure) = if parameter.is_self {
+            (attachment_type_identity.clone(), None)
+        } else if psi_typed_trees::service::exact_bound_service_requirement(
+            program,
+            parameter.type_reference,
+        )
+        .is_some()
+        {
+            if allow_affine_pair || parameter.is_mutable || !binders.is_empty() {
+                return None;
+            }
+            fused_service_parameter_count = fused_service_parameter_count.checked_add(1)?;
+            if fused_service_parameter_count != 1 {
+                return None;
+            }
+            let (identity, receipt) = shapes.add_fused_service_parameter_type(
+                parameter.type_reference,
+                parameter.symbol,
+                binders,
+            )?;
+            (identity, Some(receipt))
         } else if allow_affine_pair {
-            shapes.add_partial_affine_array_type(parameter.type_reference, binders)?
+            (
+                shapes.add_partial_affine_array_type(parameter.type_reference, binders)?,
+                None,
+            )
         } else {
-            shapes.add_type(parameter.type_reference, binders, &[])?
+            (
+                shapes.add_type(parameter.type_reference, binders, &[])?,
+                None,
+            )
         };
         let qualifications =
             parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
@@ -2053,6 +2089,13 @@ fn structural_signature_with_affine_pair(
             crate::checks::type_multiplicity(program, parameter.type_reference)
         };
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        if fused_service_erasure.is_some()
+            && (multiplicity != Multiplicity::Affine
+                || access != CheckedStructuralAccess::Owned
+                || qualifications.len() != 1)
+        {
+            return None;
+        }
         if matches!(
             shapes.types.get(&type_identity).map(|shape| &shape.shape),
             Some(CheckedUnitStructuralTypeShape::PrimitiveScalar(_))
@@ -2073,6 +2116,7 @@ fn structural_signature_with_affine_pair(
             multiplicity,
             access,
             qualifications,
+            fused_service_erasure,
         });
     }
     Some((attachment_type_identity, structural_parameters))
@@ -2139,6 +2183,7 @@ pub(super) fn structural_scalar_signature(
             },
             access: structural_access_for_type_reference(program, parameter.type_reference)?,
             qualifications,
+            fused_service_erasure: None,
         });
     }
     Some((
