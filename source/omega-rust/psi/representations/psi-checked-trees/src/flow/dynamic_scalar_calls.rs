@@ -16,8 +16,28 @@ use super::{
 /// lanes without widening `CheckedUnitEffectPlans` again.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedDynamicDispatchPlans {
+    /// Exact descriptor movements across ordinary calls, independent of
+    /// whether a particular Terminal lowering composes or preserves the call.
+    pub transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
     pub direct_scalar_calls: Vec<CheckedDynamicScalarCallPlan>,
     pub rebound_scalar_calls: Vec<CheckedReboundDynamicScalarCallPlan>,
+}
+
+/// One checked call argument that transfers an already-selected dynamic
+/// descriptor into one exact bare dynamic parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicDescriptorTransferPlan {
+    pub caller_machine: SymbolHandle,
+    pub caller_state: SymbolHandle,
+    pub coordinate: CheckedUnitCallCoordinate,
+    pub target_machine: SymbolHandle,
+    pub target_state: SymbolHandle,
+    /// Dense among the target's non-self runtime parameters.
+    pub parameter_position: u32,
+    pub parameter: SymbolHandle,
+    pub target_trait: SymbolHandle,
+    pub source_binding: SymbolHandle,
+    pub selection: DynamicConformanceBindingFact,
 }
 
 /// Shared checked custody for the selected call version of one local named
