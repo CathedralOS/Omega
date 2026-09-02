@@ -339,7 +339,7 @@ pub(super) fn expected_maximal_residual_subtrees(
         };
         let StructuralTypeShape::FixedArray {
             element: leaf,
-            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9),
+            length: inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10),
         } = declarations.get(&element)?.shape
         else {
             return None;
@@ -403,7 +403,7 @@ pub(super) fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
         [StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3)]
             | [
                 StructuralPathSegment::FixedIndex(0 | 1),
-                StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8),
+                StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9),
             ]
     )
 }

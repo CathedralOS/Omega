@@ -1055,9 +1055,9 @@ callee-row coordinate, emits the exact two-machine closure, retains sibling
 guarded rows and producer provenance on the callee, and rejoins each selected
 row to a distinct caller-local term without changing the four-unit runtime.
 The next bounded rung permits one, two, three, four, five, six, seven, eight,
-nine, ten, or eleven distinct selected whole-result guarded terms to be used
-once each as dense ordered named `requires` inputs of one direct tail state in
-the matching payloadless arm.
+nine, ten, eleven, or twelve distinct selected whole-result guarded terms to be
+used once each as dense ordered named `requires` inputs of one direct tail state
+in the matching payloadless arm.
 Terminal retains that tail as an independently resolvable third machine with
 one structural parameter,
 the exact ordered requirements, and an identity structural return, while one
@@ -1066,7 +1066,7 @@ applications, evidence terms, and caller/target places. Format 42 / vocabulary
 45 reject omission, duplication, reordering, redirection, interface drift, and
 tail-shape drift. The tail remains outside the runtime entry graph, so
 interpretation and fixed fuel retain the existing four-unit saved-result path.
-Payload projections, multiple or partial-result substitutions, twelve-or-more
+Payload projections, multiple or partial-result substitutions, thirteen-or-more
 evidence arguments, repeated term use, later invalidation, erased proof-output
 linkage, wider structural calls, and tagged-sum target lowering remain outside
 this bounded source rung.
@@ -1375,14 +1375,14 @@ Partial construction follows the same rule on its established prefix, while
 trap and nuclear-abort terminators carry no cleanup.
 
 The exact nested replay carrier accepts `[[T; N]; 2]` for inner length three,
-four, five, six, seven, eight, or nine, with the same claim-free affine-record leaf restrictions. Two Unit
+four, five, six, seven, eight, nine, or ten, with the same claim-free affine-record leaf restrictions. Two Unit
 calls must move one literal leaf from each distinct outer element in authored
 order. Terminal verification reconstructs the full complement directly from
 the nested type graph and requires decreasing outer-then-inner cleanup order;
-the length-nine form therefore names sixteen no-code residual leaves. Codec,
+the length-ten form therefore names eighteen no-code residual leaves. Codec,
 interpreter, Omega, machine, object/image, and installation replay must retain
-the same paths and layout. All seven lengths charge exactly five call/return
-fuel units, and inner length ten or runtime liveness state grants no authority.
+the same paths and layout. All eight lengths charge exactly five call/return
+fuel units, and inner length eleven or runtime liveness state grants no authority.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

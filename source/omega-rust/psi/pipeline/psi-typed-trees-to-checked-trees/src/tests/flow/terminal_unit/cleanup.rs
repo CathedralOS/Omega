@@ -3275,8 +3275,19 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         machine Root::one_nine(values: [[Token; 9]; 2]) {
             Sink::take(values[1][8]);
         }
-        machine Root::too_wide(values: [[Token; 10]; 2]) {
+        machine Root::nested_ten(values: [[Token; 10]; 2]) {
             Sink::take(values[1][9]);
+            Sink::take(values[0][1]);
+        }
+        machine Root::same_outer_ten(values: [[Token; 10]; 2]) {
+            Sink::take(values[0][0]);
+            Sink::take(values[0][9]);
+        }
+        machine Root::one_ten(values: [[Token; 10]; 2]) {
+            Sink::take(values[1][9]);
+        }
+        machine Root::too_wide(values: [[Token; 11]; 2]) {
+            Sink::take(values[1][10]);
             Sink::take(values[0][1]);
         }
         "#,
@@ -3549,6 +3560,53 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         ],
         "nonet outer and inner live complements both descend",
     );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "nested_ten"))
+        .expect("one leaf move per outer decet leaves eighteen exact residual leaves");
+    assert_eq!(
+        plan.machine.operations[..2]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => path(&structural_arguments[0].path),
+                _ => panic!("nested decet cleanup contains calls before return"),
+            })
+            .collect::<Vec<_>>(),
+        vec![(1, 9), (0, 1)],
+        "authored nested-decet move order is retained",
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| path(&discard.path))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, 8),
+            (1, 7),
+            (1, 6),
+            (1, 5),
+            (1, 4),
+            (1, 3),
+            (1, 2),
+            (1, 1),
+            (1, 0),
+            (0, 9),
+            (0, 8),
+            (0, 7),
+            (0, 6),
+            (0, 5),
+            (0, 4),
+            (0, 3),
+            (0, 2),
+            (0, 0),
+        ],
+        "decet outer and inner live complements both descend",
+    );
     for machine in [
         "same_outer",
         "one",
@@ -3564,6 +3622,8 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         "one_eight",
         "same_outer_nine",
         "one_nine",
+        "same_outer_ten",
+        "one_ten",
         "too_wide",
     ] {
         assert!(

@@ -2179,17 +2179,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through fourteenth bounded represented-record levels are now live under
+  Third through fifteenth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of twelve
+  recursive classifier and validator owns every admitted depth instead of thirteen
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A fifteenth
+  storage, content, domain, provider, or establishment authority. A sixteenth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -9879,8 +9879,19 @@ reach or trust, and private proof improvements do not change public identity.
   outer layout, 72-byte outer stride, exact offsets, and five fuel units.
   Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup, wrong-
   length/layout/stride/offset, codec, object, image, and installation mutations
-  reject. `[[T; 10]; 2]` and wider forms remain fenced without runtime liveness
-  state or a cleanup loop.
+  reject.
+
+  The next exact nested successor is now closed. The same carrier admits
+  `[[T; 10]; 2]` with one distinct literal leaf move from each outer element
+  and eighteen live residual leaves in decreasing outer-then-inner order.
+  Checked production through Terminal codec/interpreter replay, Omega
+  lowering, optimization validation, five-target layout and machine emission,
+  object, image, and installation replay retain the authored two-call order,
+  160-byte outer layout, 80-byte outer stride, exact offsets, and five fuel
+  units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
+  wrong-length/layout/stride/offset, codec, object, image, and installation
+  mutations reject. `[[T; 11]; 2]` and wider forms remain fenced without
+  runtime liveness state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
   uninitialized mutable `[T; 3]`, with `T` the exact empty, unqualified,
@@ -10120,7 +10131,7 @@ reach or trust, and private proof improvements do not change public identity.
   cleanup-order, and artifact mutations reject; `[T; 25]` and wider prefixes
   remain fail closed without runtime liveness state or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 9]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 10]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 24]` to deeper canonical fuel/action
   ordinals.
 
@@ -10491,23 +10502,22 @@ Remaining N6/N8 work:
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
   bounded rung now permits one, two, three, four, five, six, seven, eight,
-  nine, ten, or eleven distinct bound whole-result terms to be used once each:
-  the matching payloadless arm may pass them as dense ordered named `requires`
-  inputs of one direct tail state whose sole ordinary argument is the saved
-  result and whose body returns that argument unchanged. Terminal retains an
-  independently resolvable third
-  machine with the exact ordered
-  requirement lanes and identity-return shape, plus one selected-use row per
-  term naming its machine, input position, proposition applications, evidence
-  terms, and caller/target result places. Codec format 42 / vocabulary 45 and
+  nine, ten, eleven, or twelve distinct bound whole-result terms to be used once
+  each: the matching payloadless arm may pass them as dense ordered named
+  `requires` inputs of one direct tail state whose sole ordinary argument is the
+  saved result and whose body returns that argument unchanged. Terminal retains
+  an independently resolvable third machine with the exact ordered requirement
+  lanes and identity-return shape, plus one selected-use row per term naming its
+  machine, input position, proposition applications, evidence terms, and
+  caller/target result places. Codec format 42 / vocabulary 45 and
   the verifier reject omitted, duplicated, reordered, redirected, interface-
   drifted, or non-identity uses while fixed fuel and interpretation retain the
-  existing four-unit runtime. The length-eleven source, canonical codec,
+  existing four-unit runtime. The length-twelve source, canonical codec,
   independent verifier, proof admission, fixed-fuel, and interpreter path retain
-  eleven dense distinct rows, while an otherwise fully rejoined twelfth row fails
-  the bounded cardinality gate. Payload projections, multiple or partial-result
-  substitutions, twelve-or-more evidence arguments, repeated term use, later
-  invalidation, erased proof-output linkage, wider structural calls, and
+  twelve dense distinct rows, while an otherwise fully rejoined thirteenth row
+  fails the bounded cardinality gate. Payload projections, multiple or partial-
+  result substitutions, thirteen-or-more evidence arguments, repeated term use,
+  later invalidation, erased proof-output linkage, wider structural calls, and
   tagged-sum execution remain fail-closed.
 
   Requirement guarantees are inherited and satisfiers author additions only;
