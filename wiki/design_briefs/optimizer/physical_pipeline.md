@@ -798,6 +798,30 @@ stack/frame base, final offset or size, red-zone or shadow-space placement,
 prologue/epilogue, instruction, probing, unwind, fault behavior, executable
 access, or publication.
 
+Allocation-visible callee-saved requirements form a separate adjacent V1
+boundary because abstract spill geometry and selected register writes answer
+different questions. Its small pipeline entrance consumes authenticated
+selected instructions, baseline allocated homes, the post-allocation manifest,
+and the selected target register environment. For every ordinary instruction,
+terminator, and structural Unit call/return instruction, it maps `Def` and
+`UseDef` operands through their assigned home view and intersects that view's
+exact `write_units` footprint with the target convention's complete
+callee-saved roster; implicit definitions and clobbers use the same
+intersection. Each retained unit carries ordered typed witnesses, while
+functions with no such write retain an explicit empty row.
+
+The artifact binds selected, home, manifest, environment, physical-model,
+target, ABI, full preservation roster, policy, budget, usage, and all
+function/unit/witness rows. Production traverses positionally; validation
+reconstructs independently from keyed home/function maps. Linux x64 and Arm64
+scalar-call fixtures retain a nonempty live-across-call preserved-home
+requirement, and the ordinary no-call fixture retains empty requirements across
+the five native targets. These are static may-write facts, not a save protocol:
+there is no save/restore choice, frame slot or coordinate, prologue/epilogue,
+stack delta, unwind row, probe, trap/fault claim, encoding, emission, or
+publication authority. A final-machine reconciliation boundary remains
+necessary after executable call and spill lowering.
+
 The original-victim canary now reaches this allocation boundary. Its exact
 graph is
 `r + ((r + (a + b)) + (b + r))`: its middle original remains unused at the

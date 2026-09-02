@@ -1,3 +1,13 @@
+//! Candidate review compilation and disposable-session coordination.
+//!
+//! Public routes establish semantic-binding policy and session lifetime. The
+//! dependency-first loop compiles and projects each package; the adjacent
+//! `session_accounting` leaf independently reconciles aggregate sponsor use.
+
+mod session_accounting;
+
+use session_accounting::verify_build_session_accounting;
+
 use super::custody::{
     dependency_first_package_order, package_build_root, verify_transitive_source_custody,
 };
@@ -431,166 +441,7 @@ fn compile_resolved_package_reviews_in_session(
             checked_root = Some(checked);
         }
     }
-    let reported_fuel = reviews.iter().try_fold(0_u64, |total, review| {
-        let Some(usage) = review.build_evaluation_usage() else {
-            return Some(total);
-        };
-        total
-            .checked_add(usage.fuel_units)
-            .and_then(|total| total.checked_add(usage.replay_fuel_units))
-    });
-    if reported_fuel != Some(evaluation_sponsor.consumed_fuel_units()) {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildEvaluationAccountingMismatch {
-                reported: reported_fuel,
-                sponsored: evaluation_sponsor.consumed_fuel_units(),
-            },
-        );
-    }
-    let reported_build_log = reviews.iter().try_fold(0_u64, |total, review| {
-        let Some(usage) = review.build_evaluation_usage() else {
-            return Some(total);
-        };
-        total
-            .checked_add(usage.build_log_bytes)
-            .and_then(|total| total.checked_add(usage.replay_build_log_bytes))
-    });
-    if reported_build_log != Some(evaluation_sponsor.consumed_build_log_bytes()) {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildLogAccountingMismatch {
-                reported: reported_build_log,
-                sponsored: evaluation_sponsor.consumed_build_log_bytes(),
-            },
-        );
-    }
-    let reported_filesystem_attempts = reviews.iter().try_fold(0_u64, |total, review| {
-        let Some(usage) = review.build_evaluation_usage() else {
-            return Some(total);
-        };
-        total
-            .checked_add(usage.filesystem_operation_attempts)
-            .and_then(|total| total.checked_add(usage.replay_filesystem_operation_attempts))
-    });
-    if reported_filesystem_attempts
-        != Some(evaluation_sponsor.consumed_filesystem_operation_attempts())
-    {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildFilesystemAttemptAccountingMismatch {
-                reported: reported_filesystem_attempts,
-                sponsored: evaluation_sponsor.consumed_filesystem_operation_attempts(),
-            },
-        );
-    }
-    let reported_live_filesystem_handle_peak = Some(
-        reviews
-            .iter()
-            .filter_map(|review| review.build_evaluation_usage())
-            .map(|usage| usage.session_peak_live_filesystem_handles)
-            .max()
-            .unwrap_or(0),
-    );
-    let sponsored_live = evaluation_sponsor.live_filesystem_handles();
-    let sponsored_peak = evaluation_sponsor.peak_live_filesystem_handles();
-    if reported_live_filesystem_handle_peak != Some(sponsored_peak) || sponsored_live != 0 {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildLiveFilesystemHandleAccountingMismatch {
-                reported_peak: reported_live_filesystem_handle_peak,
-                sponsored_peak,
-                sponsored_live,
-            },
-        );
-    }
-    let reported_live_cell_peak = Some(
-        reviews
-            .iter()
-            .filter_map(|review| review.build_evaluation_usage())
-            .flat_map(|usage| [usage.peak_live_cells, usage.replay_peak_live_cells])
-            .max()
-            .unwrap_or(0),
-    );
-    let sponsored_live = evaluation_sponsor.live_cells();
-    let sponsored_peak = evaluation_sponsor.peak_live_cells();
-    let reported_live_cell_session_peak = reviews
-        .iter()
-        .filter_map(|review| review.build_evaluation_usage())
-        .map(|usage| usage.session_peak_live_cells)
-        .max();
-    if reported_live_cell_peak != Some(sponsored_peak)
-        || reported_live_cell_session_peak != Some(sponsored_peak)
-        || sponsored_live != 0
-    {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildLiveCellAccountingMismatch {
-                reported_invocation_peak: reported_live_cell_peak,
-                reported_session_peak: reported_live_cell_session_peak,
-                sponsored_peak,
-                sponsored_live,
-            },
-        );
-    }
-    let reported_live_text_byte_peak = Some(
-        reviews
-            .iter()
-            .filter_map(|review| review.build_evaluation_usage())
-            .flat_map(|usage| {
-                [
-                    usage.peak_live_text_bytes,
-                    usage.replay_peak_live_text_bytes,
-                ]
-            })
-            .max()
-            .unwrap_or(0),
-    );
-    let sponsored_live = evaluation_sponsor.live_text_bytes();
-    let sponsored_peak = evaluation_sponsor.peak_live_text_bytes();
-    let reported_live_text_byte_session_peak = reviews
-        .iter()
-        .filter_map(|review| review.build_evaluation_usage())
-        .map(|usage| usage.session_peak_live_text_bytes)
-        .max();
-    if reported_live_text_byte_peak != Some(sponsored_peak)
-        || reported_live_text_byte_session_peak != Some(sponsored_peak)
-        || sponsored_live != 0
-    {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildLiveTextByteAccountingMismatch {
-                reported_invocation_peak: reported_live_text_byte_peak,
-                reported_session_peak: reported_live_text_byte_session_peak,
-                sponsored_peak,
-                sponsored_live,
-            },
-        );
-    }
-    let reported_result_cells = reviews.iter().try_fold(0u64, |total, review| {
-        let Some(usage) = review.build_evaluation_usage() else {
-            return Some(total);
-        };
-        total
-            .checked_add(usage.result_cells)
-            .and_then(|total| total.checked_add(usage.replay_result_cells))
-    });
-    let reported_result_text_bytes = reviews.iter().try_fold(0u64, |total, review| {
-        let Some(usage) = review.build_evaluation_usage() else {
-            return Some(total);
-        };
-        total
-            .checked_add(usage.result_text_bytes)
-            .and_then(|total| total.checked_add(usage.replay_result_text_bytes))
-    });
-    let sponsored_cells = evaluation_sponsor.consumed_result_cells();
-    let sponsored_text_bytes = evaluation_sponsor.consumed_result_text_bytes();
-    if reported_result_cells != Some(sponsored_cells)
-        || reported_result_text_bytes != Some(sponsored_text_bytes)
-    {
-        return Err(
-            CompileResolvedPackageReviewsError::BuildResultCustodyAccountingMismatch {
-                reported_cells: reported_result_cells,
-                sponsored_cells,
-                reported_text_bytes: reported_result_text_bytes,
-                sponsored_text_bytes,
-            },
-        );
-    }
+    verify_build_session_accounting(&reviews, evaluation_sponsor)?;
     Ok(CompiledPackageReviews {
         reviews: CompilerIssuedPackageReviewSet { reviews },
         checked_root,

@@ -3364,8 +3364,8 @@ fn recursive_reload_home_validation_cannot_reenter_its_producer() {
     let stage = root.join(
         "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/recursive_reload_value_homes",
     );
-    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
-        .expect("read recursive reload-home entrance");
+    let entrance =
+        std::fs::read_to_string(stage.join("mod.rs")).expect("read recursive reload-home entrance");
     assert!(
         entrance.contains("let plan = compute::compute(")
             && entrance.contains("validate_recursive_reload_value_homes("),
@@ -3392,7 +3392,11 @@ fn recursive_reload_home_validation_cannot_reenter_its_producer() {
             "recursive reload-home replay must not consume producer mechanics; found {forbidden}",
         );
     }
-    for required in ["struct ReplaySpec", "let mut points = BTreeMap", "fn reconstruct("] {
+    for required in [
+        "struct ReplaySpec",
+        "let mut points = BTreeMap",
+        "fn reconstruct(",
+    ] {
         assert!(
             replay.contains(required),
             "recursive reload-home replay must visibly own independent `{required}` reconstruction",
@@ -3479,8 +3483,7 @@ fn homed_spill_pseudo_validation_cannot_reenter_its_producer() {
     );
     let mut replay = recursive_rust_source(&stage.join("replay"));
     replay.push_str(
-        &std::fs::read_to_string(stage.join("replay.rs"))
-            .expect("read homed spill-pseudo replay"),
+        &std::fs::read_to_string(stage.join("replay.rs")).expect("read homed spill-pseudo replay"),
     );
     replay.push_str(
         &std::fs::read_to_string(stage.join("validate.rs"))
@@ -3669,6 +3672,66 @@ fn spill_frame_requirements_are_independent_and_non_authoritative() {
         assert!(
             !all_source.contains(forbidden),
             "spill-frame requirements must not acquire authoritative `{forbidden}` custody",
+        );
+    }
+}
+
+#[test]
+fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritative() {
+    let root = workspace_root();
+    let stage = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/callee_saved_requirements",
+    );
+    let entrance = std::fs::read_to_string(stage.join("mod.rs"))
+        .expect("read allocated callee-saved requirement entrance");
+    assert!(
+        entrance.contains("let plan = compute::derive(")
+            && entrance.contains("validate_allocated_callee_saved_requirements("),
+        "the callee-saved requirement entrance must visibly join production to independent replay",
+    );
+    let producer = recursive_rust_source(&stage.join("compute"));
+    let mut replay = recursive_rust_source(&stage.join("replay"));
+    replay.push_str(
+        &std::fs::read_to_string(stage.join("validation.rs"))
+            .expect("read allocated callee-saved requirement validator"),
+    );
+    for forbidden in ["super::compute", "compute::derive", "DirectTraversal"] {
+        assert!(
+            !replay.contains(forbidden),
+            "callee-saved requirement replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    for required in ["BTreeMap", "fn keyed_homes<", "ReplayTraversal"] {
+        assert!(
+            replay.contains(required),
+            "callee-saved requirement replay must visibly own independent `{required}` reconstruction",
+        );
+    }
+    assert!(
+        !producer.contains("ReplayTraversal"),
+        "callee-saved requirement production must not consume replay mechanics",
+    );
+    assert!(
+        producer.contains("write_units") && replay.contains("write_units"),
+        "both derivation paths must use exact register-view write footprints",
+    );
+    let all_source = recursive_rust_source(&stage);
+    for forbidden in [
+        "omega_machine_optimizer",
+        "MachineEncoded",
+        "PostAllocationMachineInstruction",
+        "StackPointer",
+        "FramePointer",
+        "FrameOffset",
+        "SaveRestore",
+        "StackProbe",
+        "UnwindPlan",
+        "TrapBehavior",
+        "ProgramMemory",
+    ] {
+        assert!(
+            !all_source.contains(forbidden),
+            "callee-saved requirements must not acquire authoritative `{forbidden}` custody",
         );
     }
 }
@@ -5425,7 +5488,12 @@ fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
 
     let entrance = std::fs::read_to_string(rewrite_root.join("mod.rs"))
         .expect("read countdown invariant-constant relocation entrance");
-    for forbidden in ["PsiRewritePatch", "PsiOptimizationRule", "AnalysisManager", "LICM"] {
+    for forbidden in [
+        "PsiRewritePatch",
+        "PsiOptimizationRule",
+        "AnalysisManager",
+        "LICM",
+    ] {
         assert!(
             !entrance.contains(forbidden),
             "countdown relocation entrance must remain exact; found `{forbidden}`",

@@ -269,6 +269,19 @@ selected call is not an encoded relocation. Machine effects reject the form
 until stack, memory, trap, preservation, and relocation semantics have their
 own validated carriers.
 
+The first preservation fact is now explicit but still non-authoritative.
+`stage_allocated_callee_saved_requirements` consumes authenticated selected
+instructions and baseline register homes, intersects every selected
+definition's exact physical `write_units` (plus implicit definitions and
+clobbers) with the target ABI's full callee-saved roster, and emits ordered
+per-unit witnesses. Direct positional derivation and separately keyed replay
+must agree on every root, unit, witness, and bounded-work count. This says only
+which preserved units may be modified. It does not select save/restore
+instructions, allocate frame slots, construct a prologue or epilogue, describe
+unwind state, or grant machine/publication authority. Later executable lowering
+must reconcile this allocation-visible requirement against final machine
+effects before any preservation protocol can be admitted.
+
 Logical spilling and stack-slot coloring are compiler-private allocation
 decisions rather than user-selected optimization rules. The coloring entrance
 consumes the independently validated logical-spill carrier and returns a

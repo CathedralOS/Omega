@@ -485,6 +485,20 @@ The registered semantic ladder therefore exposes the whole descent from one
 small meaningful entrance without granting frame layout, executable memory,
 fault, unwind, probing, encoding, emission, or publication authority.
 
+Allocation-visible callee-save discovery enters through the adjacent 31-line
+`allocation/callee_saved_requirements/mod.rs` coordinator. That file visibly
+joins `compute::derive` to `validate_allocated_callee_saved_requirements` and
+does no hidden traversal. Shared immutable target convention selection lives in
+`allocation/abi_preservation/`; the requirement carrier, identity, custody,
+errors, and validator remain named top-level leaves. Positional production
+descends through `compute/{ordinary,structural,state,work}`, while independent
+keyed reconstruction descends through
+`replay/{ordinary,structural,writes,state,work}` without importing producer
+mechanics. The mirrored test entrance separates fixture, positive matrix,
+corruption, and budget evidence. Architecture guards register every rung,
+require exact `write_units` use on both paths, and forbid frame, save/restore,
+unwind, machine, encoding, and publication authority.
+
 Function-relative V9 mutation coverage enters through the five-line
 `function_relative_manifest_mutation_matrix/mod.rs` stage group. It descends
 into separate `fixture`, `manifest_fields`, `manifest_wire`, `wire_offsets`,

@@ -4,6 +4,8 @@ use omega_register_model::TargetRegisterEnvironmentIdentity;
 use omega_target::NativeTarget;
 use psi_core::MachineId;
 
+pub use super::super::abi_preservation::FrameAbiPreservationConvention;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NonAuthoritativeSpillFrameRequirementIdentity([u8; 32]);
 
@@ -20,15 +22,6 @@ impl NonAuthoritativeSpillFrameRequirementIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NonAuthoritativeSpillFrameRequirementPolicy {
     AbstractSpillAreaAndPreservationConventionV1,
-}
-
-/// Exact target-owned preservation row selected for planning facts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FrameAbiPreservationConvention {
-    SystemVAMD64,
-    MicrosoftX64,
-    Aapcs64,
-    DarwinAapcs64,
 }
 
 /// Requirements only. This artifact has no selected base, offset, frame size,
