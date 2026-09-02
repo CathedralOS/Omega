@@ -546,8 +546,28 @@ pub struct TargetScalarStructuralFieldStore {
     pub field_byte_offset: u32,
     pub defining_operation: OperationId,
     pub source_value: ValueId,
-    pub scalar_type: IntegerType,
-    pub value: IntegerValue,
+    pub immediate: TargetScalarImmediate,
+}
+
+/// Exact immediate accepted by the bounded scalar structural-field store.
+/// This is intentionally a closed carrier: widening it requires native and
+/// replay rules for the new scalar family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetScalarImmediate {
+    Boolean(bool),
+    Integer {
+        scalar_type: IntegerType,
+        value: IntegerValue,
+    },
+}
+
+impl TargetScalarImmediate {
+    pub const fn scalar_type(self) -> ScalarType {
+        match self {
+            Self::Boolean(_) => ScalarType::Boolean,
+            Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
+        }
+    }
 }
 
 /// A scalar value produced by an attached-Unit call that must survive the
@@ -912,7 +932,7 @@ pub enum TargetOperation {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
     },
-    /// Execute one exact direct mutable-self `i32` literal store before the
+    /// Execute one exact direct mutable-self Boolean or fixed-integer literal store before the
     /// existing direct structural-field scalar return. The wrapper owns the
     /// effect/return sequencing without turning scalar functions into Unit
     /// operation streams.

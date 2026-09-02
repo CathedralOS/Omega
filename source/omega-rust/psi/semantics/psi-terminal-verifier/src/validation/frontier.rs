@@ -313,22 +313,6 @@ pub(super) fn validate_structural_frontier(
             snapshots
                 .operation_entries
                 .insert(operation.id, frontier.snapshot());
-            if let OperationKind::BooleanStructuralField { source, .. } = operation.kind
-                && machine
-                    .structural_parameters
-                    .iter()
-                    .find(|parameter| parameter.place == source)
-                    .is_none_or(|parameter| {
-                        parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    })
-                && (!frontier.owned_places.contains_key(&source)
-                    || frontier.partial_custody_paths.contains_key(&source))
-            {
-                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
-                    operation: operation.id,
-                    place: source,
-                });
-            }
             if let OperationKind::EstablishTrivialAffineLocal { destination } = operation.kind {
                 if frontier
                     .owned_places

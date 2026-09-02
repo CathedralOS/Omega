@@ -1,16 +1,20 @@
 //! Canonical transport for the direct mutable-self scalar-store record.
 
-use omega_machine_code::{
-    InternalUnitScalarArgumentSourceRecord, ScalarStructuralScalarFieldStoreRecord,
-};
+use omega_machine_code::ScalarStructuralScalarFieldStoreRecord;
+use omega_target_operations::TargetScalarImmediate;
 use psi_core::{OperationId, StructuralFieldId};
 
 use super::{
     InstallationError, Reader,
-    internal_unit_scalar_call_codec::{
-        decode_argument_source, decode_offset, encode_argument_source, encode_offset,
+    boundary_result_scalar_codec::{
+        decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
+    decode_boolean,
+    internal_unit_scalar_call_codec::{decode_offset, encode_offset},
     push_u32, push_u64,
+    unit_scalar_codec::{
+        decode_integer_type, decode_integer_value, encode_integer_type, encode_integer_value,
+    },
     unit_structural_scalar_field_store_codec::{
         decode_destination, decode_path, encode_destination, encode_path,
     },
@@ -32,15 +36,23 @@ pub(super) fn encode_scalar_structural_scalar_field_store(
     push_u64(bytes, store.field.get());
     encode_direct_placement(bytes, &store.destination_placement)?;
     push_u32(bytes, store.field_byte_offset);
-    encode_argument_source(
-        bytes,
-        InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-            defining_operation: store.defining_operation,
-            source_value: store.source_value,
-            scalar_type: store.scalar_type,
-            value: store.value,
-        },
-    )?;
+    push_u64(bytes, store.defining_operation.get());
+    push_u64(bytes, store.source_value.get());
+    match store.immediate {
+        TargetScalarImmediate::Boolean(value) => {
+            bytes.extend_from_slice(&[1, u8::from(value), 0, 0]);
+        }
+        TargetScalarImmediate::Integer { scalar_type, value } => {
+            bytes.extend_from_slice(&[2, 0, 0, 0]);
+            encode_integer_type(bytes, scalar_type)?;
+            encode_integer_value(bytes, value);
+        }
+    }
+    push_u64(bytes, store.return_operation.get());
+    push_u64(bytes, store.return_source_value.get());
+    push_u64(bytes, store.return_field.get());
+    push_u32(bytes, store.return_field_byte_offset);
+    encode_boundary_result_scalar_type(bytes, store.return_scalar_type);
     encode_offset(bytes, store.operation_ordinal)?;
     encode_offset(bytes, store.code_offset)?;
     encode_offset(bytes, store.byte_count)?;
@@ -75,15 +87,37 @@ pub(super) fn decode_scalar_structural_scalar_field_store(
                 .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
             let destination_placement = decode_direct_placement(reader)?;
             let field_byte_offset = reader.u32()?;
-            let InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-                defining_operation,
-                source_value,
-                scalar_type,
-                value,
-            } = decode_argument_source(reader)?
-            else {
-                return Err(InstallationError::NonCanonicalEncoding);
+            let defining_operation = OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let source_value = psi_core::ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let immediate = match reader.u8()? {
+                1 => {
+                    let value = decode_boolean(reader.u8()?)?;
+                    if reader.take(2)? != [0; 2] {
+                        return Err(InstallationError::NonzeroReservedField);
+                    }
+                    TargetScalarImmediate::Boolean(value)
+                }
+                2 => {
+                    if reader.take(3)? != [0; 3] {
+                        return Err(InstallationError::NonzeroReservedField);
+                    }
+                    TargetScalarImmediate::Integer {
+                        scalar_type: decode_integer_type(reader)?,
+                        value: decode_integer_value(reader)?,
+                    }
+                }
+                _ => return Err(InstallationError::NonCanonicalEncoding),
             };
+            let return_operation = OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let return_source_value = psi_core::ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let return_field = StructuralFieldId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInstalledScalarIdentity)?;
+            let return_field_byte_offset = reader.u32()?;
+            let return_scalar_type = decode_boundary_result_scalar_type(reader)?;
             let operation_ordinal = decode_offset(reader)?;
             let code_offset = decode_offset(reader)?;
             let byte_count = decode_offset(reader)?;
@@ -99,8 +133,12 @@ pub(super) fn decode_scalar_structural_scalar_field_store(
                 field_byte_offset,
                 defining_operation,
                 source_value,
-                scalar_type,
-                value,
+                immediate,
+                return_operation,
+                return_source_value,
+                return_field,
+                return_field_byte_offset,
+                return_scalar_type,
                 operation_ordinal,
                 code_offset,
                 byte_count,

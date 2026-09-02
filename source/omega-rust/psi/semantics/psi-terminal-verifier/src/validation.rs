@@ -1027,69 +1027,9 @@ fn validate_boolean_structural_field(
     source: PlaceId,
     field: StructuralFieldId,
 ) -> Result<(), ModuleError> {
-    let invalid = || ModuleError::InvalidBooleanStructuralField {
-        operation,
-        source,
-        field,
-    };
-    let parameter = machine
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == source)
-        .filter(|parameter| parameter.qualifications.is_empty())
-        .ok_or_else(invalid)?;
-    if parameter.access == StructuralAccess::WriteOnlyBorrow {
-        return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
-    }
-    let affine_entry_observation = machine.id == module.entry
-        && parameter.multiplicity == StructuralMultiplicity::Affine
-        && machine
-            .parameters
-            .iter()
-            .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
-        && affine_cleanup::every_scalar_return_nominally_cleans(machine, source);
-    let unrestricted_borrowed_observation = parameter.multiplicity
-        == StructuralMultiplicity::Unrestricted
-        && matches!(
-            parameter.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        );
-    if (!affine_entry_observation && !unrestricted_borrowed_observation)
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == source)
-        || !machine.content_entry_claims.is_empty()
-        || machine
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|candidate| {
-                matches!(candidate.kind,
-                OperationKind::BooleanStructuralField {
-                    source: other_source,
-                    field: other_field,
-                } if (other_source, other_field) != (source, field))
-            })
-    {
-        return Err(invalid());
-    }
-    let declaration = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parameter.structural_type)
-        .ok_or_else(invalid)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return Err(invalid());
-    };
-    if !fields.iter().any(|candidate| {
-        candidate.id == field
-            && !candidate.relevance.is_erased()
-            && candidate.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
-    }) {
-        return Err(invalid());
-    }
-    Ok(())
+    structural_scalar_fields::validate_boolean_structural_field(
+        module, machine, operation, source, field,
+    )
 }
 
 pub(crate) fn machine_value_types(

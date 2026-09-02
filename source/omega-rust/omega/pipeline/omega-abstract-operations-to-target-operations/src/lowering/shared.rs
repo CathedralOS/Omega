@@ -22,7 +22,7 @@ pub(super) use omega_target_operations::{
     TargetConditionalIntegerArm, TargetDynamicDescriptorArgument,
     TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorParameterAbi, TargetFunction,
     TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-    TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression,
+    TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression, TargetScalarImmediate,
     TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
     TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TargetX86ScalarFmaSettlement,

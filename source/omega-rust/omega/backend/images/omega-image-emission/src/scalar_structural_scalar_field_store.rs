@@ -3,7 +3,7 @@
 use omega_calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
 use omega_machine_code::{MachineCodeFunction, SemanticCodeSite};
 use omega_target::{Architecture, NativeTarget};
-use psi_core::{IntegerSign, IntegerType};
+use psi_core::{IntegerSign, ScalarType};
 
 use crate::ObjectError;
 use crate::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
@@ -26,11 +26,17 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
         .scalar_structural_parameter_homes
         .get(parameter_index)
         .ok_or_else(invalid)?;
-    let width = store
-        .scalar_type
-        .bits()
-        .checked_div(8)
-        .ok_or_else(invalid)?;
+    let (scalar_type, width, bits) = match store.immediate {
+        omega_target_operations::TargetScalarImmediate::Boolean(value) => {
+            (ScalarType::Boolean, 1, u64::from(u8::from(value)))
+        }
+        omega_target_operations::TargetScalarImmediate::Integer { scalar_type, value } => (
+            ScalarType::Integer(scalar_type),
+            scalar_type.bits().checked_div(8).ok_or_else(invalid)?,
+            integer_bits(scalar_type, value).ok_or_else(invalid)?,
+        ),
+    };
+    let return_width = scalar_width(store.return_scalar_type).ok_or_else(invalid)?;
     if !store.destination.is_self
         || function.attachment != Some(store.destination.structural_type)
         || store.destination.access != psi_terminal::StructuralAccess::MutableBorrow
@@ -60,12 +66,14 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
                 ..
             }]
         )
-        || !matches!(store.scalar_type.bits(), 8 | 16 | 32 | 64)
-        || store.scalar_type.is_address()
-        || !store.scalar_type.admits(store.value)
+        || !matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_))
         || store
             .field_byte_offset
             .checked_add(u32::from(width))
+            .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
+        || store
+            .return_field_byte_offset
+            .checked_add(u32::from(return_width))
             .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
         || !function
             .provenance
@@ -75,22 +83,40 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
             .provenance
             .operations
             .contains(&store.psi_operation)
+        || !function
+            .provenance
+            .operations
+            .contains(&store.return_operation)
+        || store.return_operation == store.psi_operation
         || store.operation_ordinal != 1
         || store.code_offset != 0
         || exact_attribution_count(function, store) != 1
     {
         return Err(invalid());
     }
-    let bits = integer_bits(store.scalar_type, store.value).ok_or_else(invalid)?;
     let (expected_store, expected_function) = match target.architecture {
-        Architecture::X86_64 => expected_x86(store, width, bits),
-        Architecture::Aarch64 => expected_aarch64(store, width, bits),
+        Architecture::X86_64 => expected_x86(store, width, bits, return_width),
+        Architecture::Aarch64 => expected_aarch64(store, width, bits, return_width),
     }
     .ok_or_else(invalid)?;
+    let return_byte_count = match target.architecture {
+        Architecture::X86_64 => 1,
+        Architecture::Aarch64 => 4,
+    };
+    let read_byte_count = expected_function
+        .len()
+        .checked_sub(
+            expected_store
+                .len()
+                .checked_add(return_byte_count)
+                .ok_or_else(invalid)?,
+        )
+        .ok_or_else(invalid)?;
     if store.byte_count == 0
         || store.byte_count != expected_store.len()
         || store.bytes != expected_store
         || function.bytes != expected_function
+        || exact_return_attribution_count(function, store, read_byte_count) != 1
     {
         return Err(invalid());
     }
@@ -113,10 +139,28 @@ fn exact_attribution_count(
         .count()
 }
 
+fn exact_return_attribution_count(
+    function: &MachineCodeFunction,
+    store: &omega_machine_code::ScalarStructuralScalarFieldStoreRecord,
+    byte_count: usize,
+) -> usize {
+    function
+        .semantic_code_attribution
+        .iter()
+        .filter(|row| {
+            row.site == SemanticCodeSite::Operation(store.return_operation)
+                && row.operation_ordinal == 2
+                && row.code_offset == store.byte_count
+                && row.byte_count == byte_count
+        })
+        .count()
+}
+
 fn expected_x86(
     store: &omega_machine_code::ScalarStructuralScalarFieldStoreRecord,
     width: u16,
     bits: u64,
+    return_width: u16,
 ) -> Option<(Vec<u8>, Vec<u8>)> {
     const ADDRESS_REGISTER: u8 = 10;
     const READ_ADDRESS_REGISTER: u8 = 11;
@@ -162,8 +206,14 @@ fn expected_x86(
             READ_ADDRESS_REGISTER
         }
     };
-    x86_memory_load(&mut bytes, 0, read_base, store.field_byte_offset, width)?;
-    x86_normalize(&mut bytes, store.scalar_type)?;
+    x86_memory_load(
+        &mut bytes,
+        0,
+        read_base,
+        store.return_field_byte_offset,
+        return_width,
+    )?;
+    x86_normalize(&mut bytes, store.return_scalar_type)?;
     bytes.push(0xc3);
     Some((store_bytes, bytes))
 }
@@ -244,16 +294,20 @@ fn x86_modrm(bytes: &mut Vec<u8>, register: u8, base: u8, offset: u32) {
     }
 }
 
-fn x86_normalize(bytes: &mut Vec<u8>, scalar_type: IntegerType) -> Option<()> {
-    match (scalar_type.sign(), scalar_type.bits()) {
-        (_, 64) => {}
-        (IntegerSign::Unsigned, 8) => bytes.extend_from_slice(&[0x25, 0xff, 0, 0, 0]),
-        (IntegerSign::Unsigned, 16) => bytes.extend_from_slice(&[0x25, 0xff, 0xff, 0, 0]),
-        (IntegerSign::Unsigned, 32) => bytes.extend_from_slice(&[0x89, 0xc0]),
-        (IntegerSign::Signed, 8) => bytes.extend_from_slice(&[0x48, 0x0f, 0xbe, 0xc0]),
-        (IntegerSign::Signed, 16) => bytes.extend_from_slice(&[0x48, 0x0f, 0xbf, 0xc0]),
-        (IntegerSign::Signed, 32) => bytes.extend_from_slice(&[0x48, 0x63, 0xc0]),
-        _ => return None,
+fn x86_normalize(bytes: &mut Vec<u8>, scalar_type: ScalarType) -> Option<()> {
+    match scalar_type {
+        ScalarType::Boolean => bytes.extend_from_slice(&[0x83, 0xe0, 0x01]),
+        ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
+            (_, 64) => {}
+            (IntegerSign::Unsigned, 8) => bytes.extend_from_slice(&[0x25, 0xff, 0, 0, 0]),
+            (IntegerSign::Unsigned, 16) => bytes.extend_from_slice(&[0x25, 0xff, 0xff, 0, 0]),
+            (IntegerSign::Unsigned, 32) => bytes.extend_from_slice(&[0x89, 0xc0]),
+            (IntegerSign::Signed, 8) => bytes.extend_from_slice(&[0x48, 0x0f, 0xbe, 0xc0]),
+            (IntegerSign::Signed, 16) => bytes.extend_from_slice(&[0x48, 0x0f, 0xbf, 0xc0]),
+            (IntegerSign::Signed, 32) => bytes.extend_from_slice(&[0x48, 0x63, 0xc0]),
+            _ => return None,
+        },
+        ScalarType::IeeeFloat(_) => return None,
     }
     Some(())
 }
@@ -262,6 +316,7 @@ fn expected_aarch64(
     store: &omega_machine_code::ScalarStructuralScalarFieldStoreRecord,
     width: u16,
     bits: u64,
+    return_width: u16,
 ) -> Option<(Vec<u8>, Vec<u8>)> {
     const ADDRESS_REGISTER: u8 = 17;
     const READ_ADDRESS_REGISTER: u8 = 9;
@@ -322,18 +377,23 @@ fn expected_aarch64(
         }
     };
     instructions.push(aarch64_access(
-        aarch64_load_base(width)?,
+        aarch64_load_base(return_width)?,
         0,
         read_base,
-        store.field_byte_offset,
-        width,
+        store.return_field_byte_offset,
+        return_width,
     )?);
-    if store.scalar_type.bits() != 64 {
-        let base = match store.scalar_type.sign() {
-            IntegerSign::Signed => 0x9340_0000,
-            IntegerSign::Unsigned => 0xd340_0000,
-        };
-        instructions.push(base | (u32::from(store.scalar_type.bits() - 1) << 10));
+    match store.return_scalar_type {
+        ScalarType::Boolean => instructions.push(0x1200_0000),
+        ScalarType::Integer(integer) if integer.bits() != 64 => {
+            let base = match integer.sign() {
+                IntegerSign::Signed => 0x9340_0000,
+                IntegerSign::Unsigned => 0xd340_0000,
+            };
+            instructions.push(base | (u32::from(integer.bits() - 1) << 10));
+        }
+        ScalarType::Integer(_) => {}
+        ScalarType::IeeeFloat(_) => return None,
     }
     instructions.push(0xd65f_03c0);
     Some((
@@ -343,6 +403,18 @@ fn expected_aarch64(
             .flat_map(u32::to_le_bytes)
             .collect(),
     ))
+}
+
+fn scalar_width(scalar_type: ScalarType) -> Option<u16> {
+    match scalar_type {
+        ScalarType::Boolean => Some(1),
+        ScalarType::Integer(integer)
+            if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+        {
+            integer.bits().checked_div(8)
+        }
+        ScalarType::Integer(_) | ScalarType::IeeeFloat(_) => None,
+    }
 }
 
 fn aarch64_load_base(width: u16) -> Option<u32> {

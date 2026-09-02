@@ -1,7 +1,7 @@
 //! Native emission for the bounded mutable-self store then scalar-return carrier.
 
 use omega_assigned_target_operations::{
-    AssignedFunction, AssignedIntegerExpression, AssignedOperation,
+    AssignedBooleanExpression, AssignedFunction, AssignedIntegerExpression, AssignedOperation,
 };
 use omega_calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
 use omega_machine_code::{
@@ -11,7 +11,8 @@ use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{TargetScalarStructuralFieldStore, TargetStructuralParameter};
 
 use crate::scalar::{
-    emit_aarch64_integer_expression, emit_x86_64_integer_expression, integer_bits,
+    emit_aarch64_boolean_expression, emit_aarch64_integer_expression,
+    emit_x86_64_boolean_expression, emit_x86_64_integer_expression, integer_bits,
     require_native_integer_width,
 };
 use crate::unit::structural_scalar::{emit_aarch64_unit_immediate, emit_x86_64_memory_store_width};
@@ -47,26 +48,78 @@ pub(super) fn emit(
                 && parameter.placement == store.destination_placement
         })
         .ok_or_else(invalid)?;
-    let AssignedOperation::ReturnIntegerExpression {
+    let (
         psi_edge,
-        source_value,
-        scalar_type,
         frame,
-        expression:
-            AssignedIntegerExpression::StructuralField {
-                psi_operation: read_operation,
-                source_value: expression_value,
-                source,
-                field,
-                source_placement,
-                field_byte_offset,
-                integer_type,
-            },
-    } = scalar
-    else {
-        return Err(invalid());
+        read_operation,
+        return_source_value,
+        return_field,
+        return_field_byte_offset,
+        return_scalar_type,
+        exact_return,
+    ) = match scalar {
+        AssignedOperation::ReturnBooleanExpression {
+            psi_edge,
+            source_value,
+            frame,
+            expression:
+                AssignedBooleanExpression::StructuralField {
+                    psi_operation,
+                    source_value: expression_value,
+                    source,
+                    field,
+                    source_placement,
+                    field_byte_offset,
+                },
+        } => (
+            psi_edge,
+            frame,
+            psi_operation,
+            source_value,
+            field,
+            field_byte_offset,
+            psi_core::ScalarType::Boolean,
+            source_value == expression_value
+                && source == &store.destination.place
+                && source_placement == &store.destination_placement,
+        ),
+        AssignedOperation::ReturnIntegerExpression {
+            psi_edge,
+            source_value,
+            scalar_type: return_type,
+            frame,
+            expression:
+                AssignedIntegerExpression::StructuralField {
+                    psi_operation,
+                    source_value: expression_value,
+                    source,
+                    field,
+                    source_placement,
+                    field_byte_offset,
+                    integer_type,
+                },
+        } => (
+            psi_edge,
+            frame,
+            psi_operation,
+            source_value,
+            field,
+            field_byte_offset,
+            psi_core::ScalarType::Integer(*return_type),
+            source_value == expression_value
+                && return_type == integer_type
+                && source == &store.destination.place
+                && source_placement == &store.destination_placement,
+        ),
+        _ => return Err(invalid()),
     };
-    let width = require_native_integer_width(store.source_value, store.scalar_type)? / 8;
+    let (width, bits) = match store.immediate {
+        omega_target_operations::TargetScalarImmediate::Boolean(value) => (1, u64::from(value)),
+        omega_target_operations::TargetScalarImmediate::Integer { scalar_type, value } => (
+            require_native_integer_width(store.source_value, scalar_type)? / 8,
+            integer_bits(store.source_value, scalar_type, value)?,
+        ),
+    };
     if !store.destination.is_self
         || function.attachment != Some(store.destination.structural_type)
         || !matches!(
@@ -86,13 +139,7 @@ pub(super) fn emit(
                 ..
             }]
         )
-        || source_value != expression_value
-        || scalar_type != &store.scalar_type
-        || integer_type != &store.scalar_type
-        || source != &store.destination.place
-        || field != &store.field
-        || source_placement != &store.destination_placement
-        || field_byte_offset != &store.field_byte_offset
+        || !exact_return
         || !frame.register_spills.is_empty()
         || frame.byte_size != 0
         || store
@@ -112,7 +159,6 @@ pub(super) fn emit(
     {
         return Err(invalid());
     }
-    let bits = integer_bits(store.source_value, store.scalar_type, store.value)?;
     let mut bytes = Vec::new();
     match target.architecture {
         Architecture::X86_64 => emit_x86_store(&mut bytes, parameter, store, width, bits)?,
@@ -121,25 +167,40 @@ pub(super) fn emit(
     let store_bytes = bytes.clone();
     let store_byte_count = store_bytes.len();
     let mut internal_calls = Vec::new();
-    let scalar_bytes = match target.architecture {
-        Architecture::X86_64 => emit_x86_64_integer_expression(
+    let scalar_bytes = match (target.architecture, scalar) {
+        (Architecture::X86_64, AssignedOperation::ReturnBooleanExpression { expression, .. }) => {
+            emit_x86_64_boolean_expression(frame, expression, Some((&mut internal_calls, target)))?
+        }
+        (Architecture::Aarch64, AssignedOperation::ReturnBooleanExpression { expression, .. }) => {
+            emit_aarch64_boolean_expression(frame, expression, Some((&mut internal_calls, target)))?
+        }
+        (
+            Architecture::X86_64,
+            AssignedOperation::ReturnIntegerExpression {
+                scalar_type,
+                expression,
+                ..
+            },
+        ) => emit_x86_64_integer_expression(
             *scalar_type,
             frame,
-            match scalar {
-                AssignedOperation::ReturnIntegerExpression { expression, .. } => expression,
-                _ => unreachable!(),
-            },
+            expression,
             Some((&mut internal_calls, target)),
         )?,
-        Architecture::Aarch64 => emit_aarch64_integer_expression(
+        (
+            Architecture::Aarch64,
+            AssignedOperation::ReturnIntegerExpression {
+                scalar_type,
+                expression,
+                ..
+            },
+        ) => emit_aarch64_integer_expression(
             *scalar_type,
             frame,
-            match scalar {
-                AssignedOperation::ReturnIntegerExpression { expression, .. } => expression,
-                _ => unreachable!(),
-            },
+            expression,
             Some((&mut internal_calls, target)),
         )?,
+        _ => unreachable!("scalar-store result shape was checked above"),
     };
     if !internal_calls.is_empty() {
         return Err(invalid());
@@ -164,8 +225,12 @@ pub(super) fn emit(
             field_byte_offset: store.field_byte_offset,
             defining_operation: store.defining_operation,
             source_value: store.source_value,
-            scalar_type: store.scalar_type,
-            value: store.value,
+            immediate: store.immediate,
+            return_operation: *read_operation,
+            return_source_value: *return_source_value,
+            return_field: *return_field,
+            return_field_byte_offset: *return_field_byte_offset,
+            return_scalar_type,
             operation_ordinal: 1,
             code_offset: 0,
             byte_count: store_byte_count,

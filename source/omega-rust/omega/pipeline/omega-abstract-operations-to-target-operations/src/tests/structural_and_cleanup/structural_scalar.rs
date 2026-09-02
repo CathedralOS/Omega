@@ -411,8 +411,13 @@ fn unrestricted_mutable_integer_store_wraps_the_direct_field_return() {
         assert_eq!(store.psi_operation, OperationId::new(75).unwrap());
         assert_eq!(store.defining_operation, OperationId::new(74).unwrap());
         assert_eq!(store.source_value, ValueId::new(74).unwrap());
-        assert_eq!(store.scalar_type.bits(), 32);
-        assert_eq!(store.value, IntegerValue::Signed(23));
+        assert!(matches!(
+            store.immediate,
+            omega_target_operations::TargetScalarImmediate::Integer {
+                scalar_type,
+                value: IntegerValue::Signed(23),
+            } if scalar_type.bits() == 32
+        ));
         assert!(store.path.is_empty());
         assert_eq!(store.field_byte_offset, 0);
         assert_eq!(
