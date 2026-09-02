@@ -1,0 +1,564 @@
+# Representative Delta state-machine compiler in Gamma.
+# One exact global namespace keeps this experiment small and fail-closed.
+# Symbol row: kind name-start name-length owner aux0 aux1 aux2 unused.
+
+: cursor 0x0 cell-get ;
+: set_cursor 0x0 cell-set ;
+: advance cursor + set_cursor ;
+: token_start 0x1 cell-get ;
+: set_token_start 0x1 cell-set ;
+: token_length 0x2 cell-get ;
+: set_token_length 0x2 cell-set ;
+: symbol_count 0x3 cell-get ;
+: set_symbol_count 0x3 cell-set ;
+: pc 0x4 cell-get ;
+: set_pc 0x4 cell-set ;
+: add_pc pc + set_pc ;
+: variable_next 0x5 cell-get ;
+: set_variable_next 0x5 cell-set ;
+: current_machine 0x6 cell-get ;
+: set_current_machine 0x6 cell-set ;
+: entry_address 0x7 cell-get ;
+: set_entry_address 0x7 cell-set ;
+: expected_low 0x8 cell-get ;
+: set_expected_low 0x8 cell-set ;
+: expected_high 0x9 cell-get ;
+: set_expected_high 0x9 cell-set ;
+: expected_length 0xa cell-get ;
+: set_expected_length 0xa cell-set ;
+: compare_index 0xb cell-get ;
+: set_compare_index 0xb cell-set ;
+: compare_remaining 0xc cell-get ;
+: set_compare_remaining 0xc cell-set ;
+: scan_index 0xd cell-get ;
+: set_scan_index 0xd cell-set ;
+: saved_name_start 0xe cell-get ;
+: set_saved_name_start 0xe cell-set ;
+: saved_name_length 0xf cell-get ;
+: set_saved_name_length 0xf cell-set ;
+: pending_kind 0x10 cell-get ;
+: set_pending_kind 0x10 cell-set ;
+: pending_owner 0x11 cell-get ;
+: set_pending_owner 0x11 cell-set ;
+: pending_aux0 0x12 cell-get ;
+: set_pending_aux0 0x12 cell-set ;
+: pending_aux1 0x13 cell-get ;
+: set_pending_aux1 0x13 cell-set ;
+: pending_aux2 0x14 cell-get ;
+: set_pending_aux2 0x14 cell-set ;
+: new_symbol 0x15 cell-get ;
+: set_new_symbol 0x15 cell-set ;
+: number_index 0x16 cell-get ;
+: set_number_index 0x16 cell-set ;
+: number_value 0x17 cell-get ;
+: set_number_value 0x17 cell-set ;
+: current_type 0x18 cell-get ;
+: set_current_type 0x18 cell-set ;
+: member_count 0x19 cell-get ;
+: set_member_count 0x19 cell-set ;
+: temp_one 0x1a cell-get ;
+: set_temp_one 0x1a cell-set ;
+: temp_two 0x1b cell-get ;
+: set_temp_two 0x1b cell-set ;
+: temp_three 0x1c cell-get ;
+: set_temp_three 0x1c cell-set ;
+: switch_count 0x1d cell-get ;
+: set_switch_count 0x1d cell-set ;
+: kind_expected 0x1e cell-get ;
+: set_kind_expected 0x1e cell-set ;
+
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_char ;
+: no_token 0x0 ;
+: skip_char cursor input-get dup 0x21 < branch skip_space skip_hash ;
+: skip_space drop 0x1 advance jump skip ;
+: skip_hash 0x23 = branch skip_comment token_begin ;
+: skip_comment 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_char ;
+: comment_char cursor input-get dup 0xa = branch comment_end comment_cr ;
+: comment_cr dup 0xd = branch comment_end comment_advance ;
+: comment_end drop 0x1 advance jump skip ;
+: comment_advance drop 0x1 advance jump comment_loop ;
+: token_begin cursor set_token_start jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body ;
+: token_body cursor input-get dup 0x21 < branch token_delimiter token_hash_test ;
+: token_hash_test 0x23 = branch token_done token_advance ;
+: token_delimiter drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done cursor token_start - set_token_length 0x1 ;
+: need_token next 0x1 assert-equal ;
+
+: token_exact
+  set_expected_length set_expected_high set_expected_low
+  token_length expected_length = branch exact_begin exact_false
+;
+: exact_begin 0x0 set_compare_index expected_low set_compare_remaining jump exact_loop ;
+: exact_loop compare_index expected_length = branch exact_true exact_switch ;
+: exact_switch compare_index 0x8 = branch exact_use_high exact_byte ;
+: exact_use_high expected_high set_compare_remaining jump exact_byte ;
+: exact_byte
+  compare_remaining 0x100 % compare_index token_start + input-get =
+  branch exact_next exact_false
+;
+: exact_next
+  compare_remaining 0x100 / set_compare_remaining
+  compare_index 0x1 + set_compare_index jump exact_loop
+;
+: exact_true 0x1 ;
+: exact_false 0x0 ;
+
+: is_sum 0x6d7573 0x0 0x3 token_exact ;
+: is_record 0x64726f636572 0x0 0x6 token_exact ;
+: is_array 0x7961727261 0x0 0x5 token_exact ;
+: is_machine 0x656e696863616d 0x0 0x7 token_exact ;
+: is_local 0x6c61636f6c 0x0 0x5 token_exact ;
+: is_state 0x6574617473 0x0 0x5 token_exact ;
+: is_end 0x646e65 0x0 0x3 token_exact ;
+: is_entry 0x7972746e65 0x0 0x5 token_exact ;
+: is_endswitch 0x6374697773646e65 0x68 0x9 token_exact ;
+: is_const 0x74736e6f63 0x0 0x5 token_exact ;
+: is_add 0x646461 0x0 0x3 token_exact ;
+: is_sub 0x627573 0x0 0x3 token_exact ;
+: is_construct 0x63757274736e6f63 0x74 0x9 token_exact ;
+: is_field_set 0x65732d646c656966 0x74 0x9 token_exact ;
+: is_field_get 0x65672d646c656966 0x74 0x9 token_exact ;
+: is_index_set 0x65732d7865646e69 0x74 0x9 token_exact ;
+: is_index_get 0x65672d7865646e69 0x74 0x9 token_exact ;
+: is_call 0x6c6c6163 0x0 0x4 token_exact ;
+: is_return 0x6e7275746572 0x0 0x6 token_exact ;
+: is_goto 0x6f746f67 0x0 0x4 token_exact ;
+: is_brzero 0x6f72657a7262 0x0 0x6 token_exact ;
+: is_switch 0x686374697773 0x0 0x6 token_exact ;
+: is_halt 0x746c6168 0x0 0x4 token_exact ;
+: is_word 0x64726f77 0x0 0x4 token_exact ;
+
+: require_name
+  token_length 0x0 = branch bad name_first
+;
+: name_first
+  token_start input-get dup 0x5f = branch name_rest name_lower
+;
+: name_lower dup 0x41 < branch bad name_upper ;
+: name_upper dup 0x5b < branch name_rest name_lower_start ;
+: name_lower_start dup 0x61 < branch bad name_lower_upper ;
+: name_lower_upper dup 0x7b < branch name_rest bad ;
+: name_rest drop 0x1 set_compare_index jump name_loop ;
+: name_loop compare_index token_length = branch name_done name_char ;
+: name_char
+  compare_index token_start + input-get dup 0x5f = branch name_next name_digit
+;
+: name_digit dup 0x30 < branch bad name_digit_upper ;
+: name_digit_upper dup 0x3a < branch name_next name_rest_lower ;
+: name_rest_lower dup 0x41 < branch bad name_rest_uppercase ;
+: name_rest_uppercase dup 0x5b < branch name_next name_rest_lowercase ;
+: name_rest_lowercase dup 0x61 < branch bad name_rest_upper ;
+: name_rest_upper dup 0x7b < branch name_next bad ;
+: name_next drop compare_index 0x1 + set_compare_index jump name_loop ;
+: name_done ;
+: save_name require_name token_start set_saved_name_start token_length set_saved_name_length ;
+
+: parse_nat 0x0 set_number_index 0x0 set_number_value jump nat_loop ;
+: nat_loop number_index token_length = branch nat_done nat_digit ;
+: nat_digit
+  number_index token_start + input-get dup 0x30 < branch bad nat_upper
+;
+: nat_upper dup 0x3a < branch nat_accumulate bad ;
+: nat_accumulate
+  0x30 - number_value 0xa * + set_number_value
+  number_index 0x1 + set_number_index jump nat_loop
+;
+: nat_done number_value ;
+
+: row_address 0x1 - 0x8 * 0x100 + ;
+: row_get swap row_address + cell-get ;
+: row_set swap row_address + cell-set ;
+: symbol_kind 0x0 row_get ;
+: symbol_owner 0x3 row_get ;
+: symbol_aux0 0x4 row_get ;
+: symbol_aux1 0x5 row_get ;
+: symbol_aux2 0x6 row_get ;
+
+: find_symbol 0x1 set_scan_index jump find_loop ;
+: find_loop symbol_count scan_index < branch find_absent find_row ;
+: find_row
+  scan_index 0x2 row_get token_length = branch find_compare_begin find_next
+;
+: find_compare_begin 0x0 set_compare_index jump find_compare ;
+: find_compare compare_index token_length = branch find_present find_compare_byte ;
+: find_compare_byte
+  scan_index 0x1 row_get compare_index + input-get
+  token_start compare_index + input-get = branch find_compare_next find_next
+;
+: find_compare_next compare_index 0x1 + set_compare_index jump find_compare ;
+: find_next scan_index 0x1 + set_scan_index jump find_loop ;
+: find_present scan_index 0x1 ;
+: find_absent 0x0 0x0 ;
+: require_absent find_symbol 0x0 assert-equal drop ;
+: require_symbol find_symbol 0x1 assert-equal ;
+: require_kind set_kind_expected dup symbol_kind kind_expected assert-equal ;
+
+: begin_symbol
+  symbol_count 0x1 + dup set_new_symbol set_symbol_count
+;
+: add_saved
+  begin_symbol
+  pending_kind new_symbol 0x0 row_set
+  saved_name_start new_symbol 0x1 row_set
+  saved_name_length new_symbol 0x2 row_set
+  pending_owner new_symbol 0x3 row_set
+  pending_aux0 new_symbol 0x4 row_set
+  pending_aux1 new_symbol 0x5 row_set
+  pending_aux2 new_symbol 0x6 row_set
+  new_symbol
+;
+: prepare_symbol
+  require_absent save_name
+  0x0 set_pending_owner 0x0 set_pending_aux0 0x0 set_pending_aux1 0x0 set_pending_aux2
+;
+
+: resolve_type
+  is_word branch type_word type_named
+;
+: type_word 0x0 0x1 ;
+: type_named
+  require_symbol set_temp_one
+  temp_one symbol_kind dup 0x1 = branch type_sum type_record_test
+;
+: type_sum drop temp_one 0x1 ;
+: type_record_test dup 0x3 = branch type_record type_array_test ;
+: type_record drop temp_one temp_one symbol_aux2 ;
+: type_array_test 0x5 = branch type_array bad ;
+: type_array temp_one temp_one symbol_aux2 ;
+
+: add_variable
+  set_temp_two set_temp_one
+  0x7 set_pending_kind current_machine set_pending_owner
+  temp_one set_pending_aux0 variable_next set_pending_aux1 temp_two set_pending_aux2
+  add_saved
+  variable_next temp_two 0x8 * + set_variable_next
+;
+
+: initialize
+  0x0 set_cursor 0x0 set_symbol_count 0xb set_pc 0x100000 set_variable_next
+  0x0 set_current_machine 0x0 set_entry_address
+;
+
+: pass_one initialize jump p1_top ;
+: p1_top next 0x0 = branch p1_done p1_sum ;
+: p1_sum is_sum branch collect_sum p1_record ;
+: p1_record is_record branch collect_record p1_array ;
+: p1_array is_array branch collect_array p1_machine ;
+: p1_machine is_machine branch collect_machine p1_entry ;
+: p1_entry is_entry branch collect_entry bad ;
+
+: collect_sum
+  need_token prepare_symbol 0x1 set_pending_kind add_saved set_current_type
+  0x0 set_member_count jump collect_sum_case
+;
+: collect_sum_case
+  need_token is_end branch collect_sum_done collect_sum_name
+;
+: collect_sum_name
+  prepare_symbol 0x2 set_pending_kind current_type set_pending_owner
+  member_count set_pending_aux0 add_saved drop
+  member_count 0x1 + set_member_count jump collect_sum_case
+;
+: collect_sum_done member_count current_type 0x4 row_set jump p1_top ;
+
+: collect_record
+  need_token prepare_symbol 0x3 set_pending_kind add_saved set_current_type
+  0x0 set_member_count jump collect_field
+;
+: collect_field
+  need_token is_end branch collect_record_done collect_field_name
+;
+: collect_field_name
+  prepare_symbol need_token resolve_type set_temp_two set_temp_one
+  0x4 set_pending_kind current_type set_pending_owner
+  member_count set_pending_aux0 temp_one set_pending_aux1 temp_two set_pending_aux2
+  add_saved drop member_count 0x1 + set_member_count jump collect_field
+;
+: collect_record_done
+  member_count current_type 0x4 row_set
+  member_count current_type 0x6 row_set jump p1_top
+;
+
+: collect_array
+  need_token prepare_symbol need_token resolve_type set_temp_two set_temp_one
+  temp_one 0x0 assert-equal
+  need_token parse_nat dup 0x0 = branch bad collect_array_ready
+;
+: collect_array_ready
+  0x5 set_pending_kind temp_one set_pending_aux0 dup set_pending_aux1 set_pending_aux2
+  add_saved drop jump p1_top
+;
+
+: collect_machine
+  need_token prepare_symbol 0x6 set_pending_kind add_saved set_current_machine
+  need_token prepare_symbol need_token resolve_type add_variable
+  dup current_machine 0x4 row_set drop
+  need_token prepare_symbol need_token resolve_type add_variable
+  dup current_machine 0x5 row_set drop
+  jump p1_machine_body
+;
+: p1_machine_body
+  need_token is_end branch p1_machine_done p1_local
+;
+: p1_local is_local branch collect_local p1_state ;
+: p1_state is_state branch collect_state p1_statement ;
+: p1_statement jump count_statement ;
+: p1_machine_done 0x0 set_current_machine jump p1_top ;
+: collect_local
+  need_token prepare_symbol need_token resolve_type add_variable drop
+  jump p1_machine_body
+;
+: collect_state
+  need_token prepare_symbol 0x8 set_pending_kind current_machine set_pending_owner
+  pc set_pending_aux0 add_saved set_temp_one
+  current_machine symbol_aux2 0x0 = branch collect_first_state collect_state_done
+;
+: collect_first_state pc current_machine 0x6 row_set jump collect_state_done ;
+: collect_state_done jump p1_machine_body ;
+
+: count_statement
+  is_const branch count_const count_add_test
+;
+: count_const need_token need_token 0x17 add_pc jump p1_machine_body ;
+: count_add_test is_add branch count_binary count_sub_test ;
+: count_sub_test is_sub branch count_binary count_construct_test ;
+: count_construct_test is_construct branch count_construct count_field_set_test ;
+: count_field_set_test is_field_set branch count_memory count_field_get_test ;
+: count_field_get_test is_field_get branch count_memory count_index_set_test ;
+: count_index_set_test is_index_set branch count_memory count_index_get_test ;
+: count_index_get_test is_index_get branch count_memory count_call_test ;
+: count_call_test is_call branch count_call count_return_test ;
+: count_return_test is_return branch count_return count_goto_test ;
+: count_goto_test is_goto branch count_goto count_brzero_test ;
+: count_brzero_test is_brzero branch count_brzero count_switch_test ;
+: count_switch_test is_switch branch count_switch count_halt_test ;
+: count_halt_test is_halt branch count_halt bad ;
+: count_binary need_token need_token need_token 0x2a add_pc jump p1_machine_body ;
+: count_construct need_token need_token need_token 0x17 add_pc jump p1_machine_body ;
+: count_memory need_token need_token need_token 0x1a add_pc jump p1_machine_body ;
+: count_call need_token need_token need_token 0x30 add_pc jump p1_machine_body ;
+: count_return need_token 0xe add_pc jump p1_machine_body ;
+: count_goto need_token 0x9 add_pc jump p1_machine_body ;
+: count_brzero need_token need_token need_token 0x20 add_pc jump p1_machine_body ;
+: count_halt need_token 0xf add_pc jump p1_machine_body ;
+: count_switch
+  need_token need_token 0x0 set_switch_count jump count_switch_arm
+;
+: count_switch_arm
+  need_token is_endswitch branch count_switch_done count_switch_pair
+;
+: count_switch_pair need_token switch_count 0x1 + set_switch_count jump count_switch_arm ;
+: count_switch_done
+  switch_count 0x0 = branch bad count_switch_size
+;
+: count_switch_size switch_count 0x15 * 0x1 + add_pc jump p1_machine_body ;
+
+: collect_entry
+  need_token require_symbol set_temp_one temp_one 0x6 require_kind drop
+  need_token require_symbol set_temp_two temp_two 0x8 require_kind drop
+  temp_two symbol_owner temp_one assert-equal
+  temp_two symbol_aux0 set_entry_address jump p1_top
+;
+: p1_done entry_address 0x0 = branch bad p1_ready ;
+: p1_ready ;
+
+# Alpha emitters consume operands in reverse encoding order.
+: alpha_halt 0x0 output-byte output-byte ;
+: alpha_imm 0x1 output-byte output-byte output-word ;
+: alpha_add 0x3 output-byte output-byte output-byte ;
+: alpha_sub 0x4 output-byte output-byte output-byte ;
+: alpha_load 0xa output-byte output-byte output-byte ;
+: alpha_store 0xb output-byte output-byte output-byte ;
+: alpha_jmp 0xc output-byte output-word ;
+: alpha_jz 0xd output-byte output-byte output-word ;
+: alpha_jeq 0x10 output-byte output-byte output-byte output-word ;
+: alpha_call 0x13 output-byte output-word ;
+: alpha_ret 0x14 output-byte ;
+
+: variable_type 0x4 row_get ;
+: variable_address 0x5 row_get ;
+: require_variable
+  need_token require_symbol 0x7 require_kind
+  dup symbol_owner current_machine assert-equal
+;
+: require_state
+  need_token require_symbol 0x8 require_kind
+  dup symbol_owner current_machine assert-equal
+;
+: require_machine need_token require_symbol 0x6 require_kind ;
+: require_sum need_token require_symbol 0x1 require_kind ;
+: require_case need_token require_symbol 0x2 require_kind ;
+: require_field need_token require_symbol 0x4 require_kind ;
+: require_word_variable require_variable dup variable_type 0x0 assert-equal ;
+: require_same_type variable_type swap variable_type assert-equal ;
+
+: emit_load_r0 dup variable_address 0x0 alpha_imm 0x0 0x0 alpha_load ;
+: emit_load_r1 dup variable_address 0x1 alpha_imm 0x1 0x1 alpha_load ;
+: emit_store_r0 variable_address 0x1 alpha_imm 0x0 0x1 alpha_store ;
+: emit_constant_r0 0x0 alpha_imm ;
+: emit_constant_r1 0x1 alpha_imm ;
+
+: pass_two
+  0x0 set_cursor 0x0 set_current_machine
+  entry_address alpha_call 0x0 alpha_halt jump p2_top
+;
+: p2_top next 0x0 = branch p2_done p2_sum ;
+: p2_sum is_sum branch skip_to_end p2_record ;
+: p2_record is_record branch skip_to_end p2_array ;
+: p2_array is_array branch p2_skip_array p2_machine ;
+: p2_machine is_machine branch p2_enter_machine p2_entry ;
+: p2_entry is_entry branch p2_skip_entry bad ;
+: skip_to_end need_token is_end branch p2_top skip_to_end ;
+: p2_skip_array need_token need_token need_token jump p2_top ;
+: p2_skip_entry need_token need_token jump p2_top ;
+: p2_enter_machine
+  need_token require_symbol set_current_machine
+  need_token need_token need_token need_token
+  jump p2_machine_body
+;
+: p2_machine_body
+  need_token is_end branch p2_machine_done p2_local
+;
+: p2_local is_local branch p2_skip_local p2_state ;
+: p2_skip_local need_token need_token jump p2_machine_body ;
+: p2_state is_state branch p2_emit_state p2_statement ;
+: p2_emit_state
+  require_state symbol_aux0 output-position assert-equal jump p2_machine_body
+;
+: p2_statement jump emit_statement ;
+: p2_machine_done 0x0 set_current_machine jump p2_top ;
+: p2_done cursor input-length assert-equal ;
+
+: emit_statement
+  is_const branch emit_const emit_add_test
+;
+: emit_const
+  require_word_variable set_temp_one need_token parse_nat emit_constant_r0
+  temp_one emit_store_r0 jump p2_machine_body
+;
+: emit_add_test is_add branch emit_add emit_sub_test ;
+: emit_sub_test is_sub branch emit_sub emit_construct_test ;
+: emit_add 0x1 set_member_count jump emit_binary ;
+: emit_sub 0x0 set_member_count jump emit_binary ;
+: emit_binary
+  require_word_variable set_temp_one require_word_variable set_temp_two
+  require_word_variable set_temp_three
+  temp_two emit_load_r0 drop temp_three emit_load_r1 drop
+  member_count 0x1 = branch emit_binary_add emit_binary_sub
+;
+: emit_binary_add 0x1 0x0 alpha_add jump emit_binary_store ;
+: emit_binary_sub 0x1 0x0 alpha_sub jump emit_binary_store ;
+: emit_binary_store temp_one emit_store_r0 jump p2_machine_body ;
+
+: emit_construct_test is_construct branch emit_construct emit_field_set_test ;
+: emit_construct
+  require_variable set_temp_one require_sum set_temp_two require_case set_temp_three
+  temp_one variable_type temp_two assert-equal
+  temp_three symbol_owner temp_two assert-equal
+  temp_three symbol_aux0 emit_constant_r0 temp_one emit_store_r0
+  jump p2_machine_body
+;
+
+: emit_field_set_test is_field_set branch emit_field_set emit_field_get_test ;
+: emit_field_get_test is_field_get branch emit_field_get emit_index_set_test ;
+: emit_field_set
+  require_variable set_temp_one require_field set_temp_two require_variable set_temp_three
+  temp_one variable_type temp_two symbol_owner assert-equal
+  temp_three variable_type temp_two symbol_aux1 assert-equal
+  temp_three emit_load_r0 drop
+  temp_one variable_address temp_two symbol_aux0 0x8 * + 0x1 alpha_imm
+  0x0 0x1 alpha_store jump p2_machine_body
+;
+: emit_field_get
+  require_variable set_temp_one require_variable set_temp_two require_field set_temp_three
+  temp_two variable_type temp_three symbol_owner assert-equal
+  temp_one variable_type temp_three symbol_aux1 assert-equal
+  temp_two variable_address temp_three symbol_aux0 0x8 * + 0x0 alpha_imm
+  0x0 0x0 alpha_load temp_one emit_store_r0 jump p2_machine_body
+;
+
+: emit_index_set_test is_index_set branch emit_index_set emit_index_get_test ;
+: emit_index_get_test is_index_get branch emit_index_get emit_call_test ;
+: require_array_variable
+  require_variable dup variable_type 0x5 require_kind
+;
+: require_index
+  need_token parse_nat dup set_temp_three
+  temp_two symbol_aux1 < 0x1 assert-equal
+;
+: emit_index_set
+  require_array_variable set_temp_two set_temp_one require_index
+  require_variable dup variable_type temp_two symbol_aux0 assert-equal emit_load_r0 drop
+  temp_one variable_address temp_three 0x8 * + 0x1 alpha_imm
+  0x0 0x1 alpha_store jump p2_machine_body
+;
+: emit_index_get
+  require_variable set_switch_count
+  require_array_variable set_temp_two set_temp_one
+  require_index
+  switch_count variable_type temp_two symbol_aux0 assert-equal
+  temp_one variable_address temp_three 0x8 * + 0x0 alpha_imm
+  0x0 0x0 alpha_load switch_count emit_store_r0 jump p2_machine_body
+;
+
+: emit_call_test is_call branch emit_call emit_return_test ;
+: emit_call
+  require_variable set_temp_one require_machine set_temp_two require_variable set_temp_three
+  temp_two symbol_aux0 variable_type temp_three variable_type assert-equal
+  temp_two symbol_aux1 variable_type temp_one variable_type assert-equal
+  temp_three emit_load_r0 drop temp_two symbol_aux0 emit_store_r0
+  temp_two symbol_aux2 alpha_call temp_one emit_store_r0 jump p2_machine_body
+;
+: emit_return_test is_return branch emit_return emit_goto_test ;
+: emit_return
+  require_variable dup variable_type current_machine symbol_aux1 variable_type assert-equal
+  emit_load_r0 drop alpha_ret jump p2_machine_body
+;
+: emit_goto_test is_goto branch emit_goto emit_brzero_test ;
+: emit_goto require_state symbol_aux0 alpha_jmp jump p2_machine_body ;
+: emit_brzero_test is_brzero branch emit_brzero emit_switch_test ;
+: emit_brzero
+  require_word_variable emit_load_r0 drop
+  require_state symbol_aux0 0x0 alpha_jz
+  require_state symbol_aux0 alpha_jmp jump p2_machine_body
+;
+
+: emit_switch_test is_switch branch emit_switch emit_halt_test ;
+: emit_switch
+  require_variable set_temp_one require_sum set_temp_two
+  temp_one variable_type temp_two assert-equal
+  0x0 set_switch_count jump collect_switch_targets
+;
+: collect_switch_targets
+  need_token is_endswitch branch emit_switch_ready collect_switch_case
+;
+: collect_switch_case
+  require_symbol dup 0x2 require_kind
+  dup symbol_owner temp_two assert-equal
+  dup symbol_aux0 switch_count assert-equal drop
+  require_state symbol_aux0 switch_count 0x80 + cell-set
+  switch_count 0x1 + set_switch_count jump collect_switch_targets
+;
+: emit_switch_ready
+  switch_count temp_two symbol_aux0 assert-equal
+  temp_one emit_load_r0 drop 0x0 set_scan_index jump emit_switch_arm
+;
+: emit_switch_arm
+  scan_index 0x1 + switch_count = branch emit_switch_last emit_switch_compare
+;
+: emit_switch_compare
+  scan_index emit_constant_r1
+  scan_index 0x80 + cell-get 0x1 0x0 alpha_jeq
+  scan_index 0x1 + set_scan_index jump emit_switch_arm
+;
+: emit_switch_last scan_index 0x80 + cell-get alpha_jmp jump p2_machine_body ;
+
+: emit_halt_test is_halt branch emit_halt bad ;
+: emit_halt require_word_variable emit_load_r0 drop 0x0 alpha_halt jump p2_machine_body ;
+
+: main pass_one pass_two ;
+: bad input-length input-get ;

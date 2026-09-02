@@ -8,6 +8,8 @@ or a multi-package build rather than one Rust crate.
 - `alpha/` contains Alpha conformance and reference tests.
 - `beta/` contains trusted Beta compiler reconstruction and differential tests.
 - `gamma/` contains the Gamma evaluator and compiler-customer gates.
+- `delta/` contains measured candidate-language experiments; it does not define
+  a canonical Delta edge.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
 - `omega/` contains Omega-language pass, fail, pending, and execution cases.
 - `fixtures/` contains reusable package and Terminal Psi inputs.

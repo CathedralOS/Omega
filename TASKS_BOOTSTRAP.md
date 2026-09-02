@@ -53,6 +53,11 @@ Delta, and the former Delta is Epsilon.
   It remains a diagnostic side artifact, not an admitted bootstrap edge.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
+- [x] A noncanonical typed state-machine Delta experiment covers nominal sums,
+  records, fixed arrays, typed machine variables, states, exhaustive
+  transitions, calls, and direct Alpha emission in 564 Gamma lines. It does not
+  yet justify inserting another functional rung; larger syntax/scope/diagnostic
+  customers remain the revisit trigger.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
   absent.
 - [ ] `source/omega/omega_compiler.epsilon` (`D`) is incomplete; `omega0` is
