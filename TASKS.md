@@ -12294,7 +12294,14 @@ checked-result arithmetic decision listed below.
     exact requirement/schema digest, and selected Fused provider-plan digest.
     The retained `ProgramEntry` validates that roster before accepting it; the
     Terminal native proposal independently rejoins every row to its canonical
-    entry attachment, erased field, and unique selected plan. Targetless
+    entry attachment, erased field, and unique selected plan. Both ordinary
+    and explicitly optimized compiler realization entrances now must pass that
+    exact sorted roster into `NativeProgramEntrySettlement`. Native settlement
+    owns the rows after independently replaying source/target custody, the
+    canonical Terminal attachment and erased field, and one exact selected
+    provider-plan digest; missing constructor custody, duplicate/reordered
+    fields, or source/field/carrier/plan substitution cannot silently cross the
+    native boundary. Targetless
     checking, free entries, and identical non-root owners establish nothing,
     while field/receipt/plan substitution rejects. This receipt means the
     generated bridge semantically supplies authority instead of treating zero
@@ -12381,7 +12388,8 @@ checked-result arithmetic decision listed below.
   exact scalar value to the Console boundary call. Lowering does not fabricate
   an empty attached record or provider-attachment requirement. The selected
   application root now retains the exact Fused establishment
-  receipt described above. Native installed-provider scalar ABI realization
+  receipt through validated native entry settlement as described above.
+  Native installed-provider scalar ABI realization
   and runtime routed publication remain separate fences.
   Provider-internal nested fields and all other boundary-bearing parameters
   remain transitional until their separately fenced carrier rungs land; do not

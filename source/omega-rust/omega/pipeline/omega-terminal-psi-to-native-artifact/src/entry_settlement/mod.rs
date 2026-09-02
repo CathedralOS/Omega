@@ -3,6 +3,7 @@
 
 mod calling_plans;
 mod model;
+mod service_establishment;
 
 pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
@@ -24,6 +25,9 @@ pub fn validate_native_program_entry_settlement(
     if slot.owner.native_target() != target {
         return Err(NativeProgramEntrySettlementError::TargetDrift);
     }
+    program_entry
+        .validate_fused_service_establishments_for_target()
+        .map_err(|_| NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
     program_entry
         .validate_for_target(target)
         .map_err(|_| NativeProgramEntrySettlementError::CallingPlanPairingDrift)?;
@@ -58,11 +62,15 @@ pub fn validate_native_program_entry_settlement(
     if entry_count != 1 {
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
+    service_establishment::validate_terminal_rows(&module, program_entry)?;
     Ok(ValidatedNativeProgramEntrySettlement {
         checked_entry: checked_entry.clone(),
         target,
         source: program_entry.source.clone(),
         semantic_boundary_entry_plan: program_entry.semantic_boundary_entry_plan.cloned(),
         storage_entry: program_entry.storage_entry.cloned(),
+        fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
     })
 }
+
+pub(crate) use service_establishment::validate_for_artifact_and_selected_plans as validate_fused_program_entry_establishments;

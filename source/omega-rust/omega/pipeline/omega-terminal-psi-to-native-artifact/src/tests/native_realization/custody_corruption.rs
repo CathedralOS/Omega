@@ -26,7 +26,7 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&substituted, None),
+            NativeProgramEntrySettlement::new(&substituted, None, &[]),
             omega_target::NativeTarget::windows_x64(),
         ),
         Err(NativeProgramEntrySettlementError::SourceSignatureSubstitution)
@@ -35,7 +35,7 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         validate_native_program_entry_settlement(
             &artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&source, None),
+            NativeProgramEntrySettlement::new(&source, None, &[]),
             omega_target::NativeTarget::linux_x64(),
         ),
         Err(NativeProgramEntrySettlementError::TargetDrift)
@@ -58,7 +58,7 @@ fn rejects_source_signature_target_and_artifact_substitution() {
         validate_native_program_entry_settlement(
             &substituted_artifact,
             &receipt,
-            NativeProgramEntrySettlement::new(&source, None),
+            NativeProgramEntrySettlement::new(&source, None, &[]),
             omega_target::NativeTarget::windows_x64(),
         ),
         Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution)

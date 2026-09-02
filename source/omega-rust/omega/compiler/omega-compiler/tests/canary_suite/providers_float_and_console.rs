@@ -2169,6 +2169,7 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
     let program_entry = omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
         proposal.program_entry().source_signature(),
         calling_plans,
+        proposal.program_entry().fused_service_establishments(),
     );
     let compiler_builtins = proposal
         .compiler_builtins()

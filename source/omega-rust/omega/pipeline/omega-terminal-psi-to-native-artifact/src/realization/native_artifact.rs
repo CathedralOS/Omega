@@ -25,6 +25,12 @@ pub(super) fn realize(
     artifact
         .validate()
         .map_err(|error| realization_error("canonical artifact replay", error))?;
+    crate::entry_settlement::validate_fused_program_entry_establishments(
+        &artifact,
+        request.program_entry,
+        request.selected_provider_plans,
+    )
+    .map_err(|error| realization_error("Fused ProgramEntry establishment", error))?;
     let boundary_application_coverage = retain_boundary_application_coverage(
         &artifact,
         checked_scope,

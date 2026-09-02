@@ -72,6 +72,7 @@ pub(super) fn realize(
     let program_entry = omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
         admission.program_entry.source_signature(),
         calling_plans,
+        admission.program_entry.fused_service_establishments(),
     );
     omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
         artifact,

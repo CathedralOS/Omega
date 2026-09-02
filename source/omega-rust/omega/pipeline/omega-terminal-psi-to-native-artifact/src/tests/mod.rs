@@ -2,7 +2,7 @@
 
 pub(crate) mod fixtures;
 mod lowering_fence;
-mod native_realization;
+pub(crate) mod native_realization;
 mod optimizer_entry;
 mod providers;
 mod ranked;
