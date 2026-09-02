@@ -40,11 +40,15 @@ stop the item on one precise owner question before adding machinery.
   Remaining work:
 
   - finish D29 artifact-qualified symbolic demand/final substitution for
-    separately compiled generic artifacts, nested authored operator
-    applications beyond the proven transitive scalar-helper closure, and
-    fixed-token structural applications beyond the proven all-affine,
-    structural-operand/scalar-result Terminal lane, including mixed
-    structural/scalar operands, structural results, and native custody;
+    separately compiled generic artifacts and nested authored operator
+    applications beyond the proven transitive scalar-helper closure;
+  - compose the proven all-affine structural-operand/scalar-result
+    `CallStructuralScalar` lane into a hosted Unit entry closure before adding
+    its native custody. The current selected-operator Unit operation admits
+    scalar operands only, so a rooted native canary correctly stops before
+    D32; do not mint physical evidence around that missing checked/Terminal
+    composition. Then extend fixed-token structural applications to mixed
+    structural/scalar operands and structural results;
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed normalized-import
