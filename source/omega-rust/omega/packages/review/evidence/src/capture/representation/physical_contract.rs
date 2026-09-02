@@ -193,6 +193,9 @@ pub(super) fn project_value_placement(
                 omega_calling_conventions::ValueClass::Float => {
                     PackageReviewBoundaryValueClass::Float
                 }
+                omega_calling_conventions::ValueClass::BorrowedReference => {
+                    PackageReviewBoundaryValueClass::BorrowedReference
+                }
                 omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
                     PackageReviewBoundaryValueClass::HomogeneousFloatAggregate { members }
                 }

@@ -261,14 +261,43 @@ fn build_adapters(
                 },
             )
             .map_err(|_| invalid())?;
-            let realization_call_plan = evaluate_call_plan(
+            let realization_parameter_shape =
+                if argument.instance.access == psi_terminal::StructuralAccess::MutableBorrow {
+                    ValueShape::borrowed_reference(
+                        argument.instance.shape.byte_size,
+                        argument.instance.shape.alignment,
+                    )
+                } else {
+                    argument.instance.shape
+                };
+            let expected_realization_call_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: vec![argument.instance.shape],
+                    parameters: vec![realization_parameter_shape],
                     result: result_shape,
                 },
             )
             .map_err(|_| invalid())?;
+            let realization_abi = realization
+                .mixed_structural_scalar_abi
+                .as_ref()
+                .ok_or_else(invalid)?;
+            if !realization_abi.scalar_parameters.is_empty()
+                || realization_abi.structural_parameters.len() != 1
+                || realization_abi.structural_parameters[0].structural_type
+                    != argument.instance.structural_type
+                || realization_abi.structural_parameters[0].access != argument.instance.access
+                || realization_abi.structural_parameters[0].shape != realization_parameter_shape
+                || realization_abi.call_plan != expected_realization_call_plan
+                || realization_abi.result.placement
+                    != *expected_realization_call_plan
+                        .result
+                        .as_ref()
+                        .ok_or_else(invalid)?
+            {
+                return Err(invalid());
+            }
+            let realization_call_plan = realization_abi.call_plan.clone();
             let identity = ForwardedDynamicDescriptorAdapterIdentity {
                 application: application.commitment,
                 row_index: u32::try_from(row_index).map_err(|_| invalid())?,
@@ -316,6 +345,9 @@ fn assigned_result_matches(
             | AssignedOperation::ReturnBooleanExpression { .. },
             psi_terminal::ClosedConformanceCallableResult::Bool,
         ) => true,
+        (AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore { scalar, .. }, result) => {
+            assigned_result_matches(scalar, result)
+        }
         _ => false,
     }
 }

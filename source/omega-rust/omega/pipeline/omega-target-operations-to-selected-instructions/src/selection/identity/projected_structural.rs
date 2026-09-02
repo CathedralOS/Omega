@@ -117,6 +117,7 @@ fn encode_placement(bytes: &mut Vec<u8>, placement: &omega_calling_conventions::
     match placement.shape.class {
         omega_calling_conventions::ValueClass::Integer => bytes.push(1),
         omega_calling_conventions::ValueClass::Float => bytes.push(2),
+        omega_calling_conventions::ValueClass::BorrowedReference => bytes.push(5),
         omega_calling_conventions::ValueClass::HomogeneousFloatAggregate { members } => {
             bytes.push(3);
             bytes.push(members);

@@ -155,8 +155,7 @@ pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
     };
     let scalar_count = abi.scalar_parameters.len();
     let structural_count = abi.structural_parameters.len();
-    scalar_count != 0
-        && structural_count != 0
+    structural_count != 0
         && function.fixed_integer_scalar_abi.is_none()
         && function.scalar_stack.is_some()
         && function.unit_stack.is_none()
@@ -532,6 +531,7 @@ mod tests {
             unit_scalar_homes: vec![home],
             unit_integer_constants: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
+            scalar_structural_scalar_field_store: None,
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),

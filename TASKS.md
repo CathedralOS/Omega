@@ -8151,6 +8151,17 @@ Owners:
   status 70 and their detailed unresolved-call/exact-row diagnostics. Exact-
   owner ambiguity, the 795 rooted/4 legacy inventory, and receipt-drift fences
   remain green; the two-implementation runtime-dispatch pair remains separate.
+  The mutable local-named dynamic realization now retains borrowed-reference
+  ABI custody instead of copying its receiver value. The bounded native rung
+  admits one direct mutable-self fixed-integer field store followed by an exact
+  read of that field, emits and independently replays the store/read/return
+  bytes on x86-64 and AArch64, carries the evidence through installation, and
+  executes the authored-root probe with status 70 after changing the field to
+  23. Structural-only scalar-result realizations publish their exact ABI, and
+  forwarded descriptor adapters rejoin that ABI before targeting the
+  realization. Wider mutation sequences, projected paths, non-immediate store
+  values, and other scalar or aggregate field families remain fenced rather
+  than being inferred from this carrier.
   The paired authored-root two-implementation dynamic-dispatch regressions—
   Circle then Square and the swapped Square then Circle order—now launch
   `OutputOnly` native execution solely through exact checked-report executable

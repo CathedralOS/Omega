@@ -120,6 +120,7 @@ pub(super) fn emit(
         unit_scalar_homes: Vec::new(),
         unit_integer_constants: Vec::new(),
         unit_structural_scalar_field_stores: Vec::new(),
+        scalar_structural_scalar_field_store: None,
         unit_affine_cleanup: None,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),

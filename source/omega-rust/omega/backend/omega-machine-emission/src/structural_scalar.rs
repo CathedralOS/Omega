@@ -8,6 +8,7 @@ use omega_target::NativeTarget;
 use super::{EmissionError, unit::UnitEmission, unit::emit_unit_body};
 
 pub(super) fn emit(
+    owner: psi_core::MachineId,
     operation: &AssignedOperation,
     target: NativeTarget,
     functions: &[AssignedFunction],
@@ -52,7 +53,7 @@ pub(super) fn emit(
                 },
             ],
         },
-        None,
+        Some(owner),
         None,
         target,
         functions,

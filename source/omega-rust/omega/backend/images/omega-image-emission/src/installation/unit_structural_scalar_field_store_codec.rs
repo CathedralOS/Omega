@@ -101,7 +101,7 @@ pub(super) fn decode_unit_structural_scalar_field_stores(
     Ok(stores)
 }
 
-fn encode_destination(
+pub(super) fn encode_destination(
     bytes: &mut Vec<u8>,
     destination: &StructuralParameterDeclaration,
 ) -> Result<(), InstallationError> {
@@ -116,7 +116,7 @@ fn encode_destination(
     encode_projected_qualifications(bytes, &destination.projected_qualifications)
 }
 
-fn decode_destination(
+pub(super) fn decode_destination(
     reader: &mut Reader<'_>,
 ) -> Result<StructuralParameterDeclaration, InstallationError> {
     let place =
@@ -142,7 +142,7 @@ fn decode_destination(
     })
 }
 
-fn encode_path(
+pub(super) fn encode_path(
     bytes: &mut Vec<u8>,
     path: &[StructuralPathSegment],
 ) -> Result<(), InstallationError> {
@@ -174,7 +174,9 @@ fn encode_path(
     Ok(())
 }
 
-fn decode_path(reader: &mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, InstallationError> {
+pub(super) fn decode_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathSegment>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManySettlementArgumentPathSegments)?;
     if count > reader.remaining() / 8 {

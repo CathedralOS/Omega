@@ -7,6 +7,7 @@ mod dynamic_parameter;
 mod operation_routes;
 mod ranked_countdown;
 mod scalar;
+mod scalar_store;
 mod structural;
 mod structural_parameter;
 mod unit;

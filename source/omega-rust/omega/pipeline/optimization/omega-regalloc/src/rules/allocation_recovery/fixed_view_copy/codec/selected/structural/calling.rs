@@ -359,6 +359,7 @@ pub(super) fn encode_shape(bytes: &mut Vec<u8>, shape: ValueShape) {
     match shape.class {
         ValueClass::Integer => bytes.push(1),
         ValueClass::Float => bytes.push(2),
+        ValueClass::BorrowedReference => bytes.push(5),
         ValueClass::HomogeneousFloatAggregate { members } => {
             bytes.push(3);
             bytes.push(members);
@@ -379,6 +380,7 @@ pub(super) fn decode_shape(
     let class = match cursor.byte()? {
         1 => ValueClass::Integer,
         2 => ValueClass::Float,
+        5 => ValueClass::BorrowedReference,
         3 => ValueClass::HomogeneousFloatAggregate {
             members: cursor.byte()?,
         },

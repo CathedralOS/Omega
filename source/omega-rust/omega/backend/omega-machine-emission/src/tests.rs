@@ -8,9 +8,9 @@ use omega_target_operations::{
     ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression, TargetCallArgument,
     TargetConditionalBooleanArm, TargetConditionalIntegerArm, TargetFunction,
     TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
-    TargetOperationPlan, TargetScalarExpression, TargetStructuralArgument,
-    TargetStructuralParameter, TargetUnitBody, TargetUnitOperation, TargetX86ScalarFmaSettlement,
-    TerminalPsiProvenance,
+    TargetOperationPlan, TargetScalarExpression, TargetScalarStructuralFieldStore,
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitBody, TargetUnitOperation,
+    TargetX86ScalarFmaSettlement, TerminalPsiProvenance,
 };
 use omega_target_operations_to_assigned_target_operations::assign_registers;
 use psi_core::{
@@ -3239,6 +3239,153 @@ fn emits_signed_i32_structural_field_reads_for_native_targets() {
     assert_eq!(
         aarch64_instructions(&aarch64.functions[0].bytes),
         [0xb940_0c20, 0x9340_7c00, 0xd65f_03c0]
+    );
+}
+
+fn mutable_integer_store_return_plan(target: NativeTarget) -> TargetOperationPlan {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
+    let machine = MachineId::new(20).unwrap();
+    let structural_type = StructuralTypeId::new(20).unwrap();
+    let place = PlaceId::new(20).unwrap();
+    let field = StructuralFieldId::new(20).unwrap();
+    let defining_operation = OperationId::new(20).unwrap();
+    let store_operation = OperationId::new(21).unwrap();
+    let read_operation = OperationId::new(22).unwrap();
+    let edge = EdgeId::new(20).unwrap();
+    let literal = ValueId::new(20).unwrap();
+    let result = ValueId::new(21).unwrap();
+    let shape = ValueShape::borrowed_reference(4, 4);
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![shape],
+            result: Some(ValueShape::integer(4, 4)),
+        },
+    )
+    .unwrap();
+    let destination = psi_terminal::StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: true,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let parameter = TargetStructuralParameter {
+        place,
+        structural_type,
+        multiplicity: destination.multiplicity,
+        access: destination.access,
+        projected_qualifications: Vec::new(),
+        shape,
+        placement: call_plan.parameters[0].clone(),
+    };
+    let store = TargetScalarStructuralFieldStore {
+        psi_operation: store_operation,
+        destination: destination.clone(),
+        path: Vec::new(),
+        field,
+        destination_placement: parameter.placement.clone(),
+        field_byte_offset: 0,
+        defining_operation,
+        source_value: literal,
+        scalar_type: integer_type,
+        value: IntegerValue::Signed(23),
+    };
+    TargetOperationPlan {
+        psi: identity(),
+        target,
+        entry: machine,
+        functions: vec![TargetFunction {
+            fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            machine,
+            attachment: Some(structural_type),
+            provenance: TerminalPsiProvenance {
+                operations: vec![defining_operation, store_operation, read_operation],
+                edges: vec![edge],
+            },
+            operation: TargetOperation::ScalarReturnAfterStructuralScalarFieldStore {
+                store,
+                scalar: Box::new(TargetOperation::ReturnIntegerExpression {
+                    psi_edge: edge,
+                    source_value: result,
+                    scalar_type: integer_type,
+                    expression: TargetIntegerExpression::StructuralField {
+                        psi_operation: read_operation,
+                        source_value: result,
+                        source: place,
+                        field,
+                        source_placement: parameter.placement.clone(),
+                        field_byte_offset: 0,
+                        integer_type,
+                    },
+                }),
+                structural_types: vec![StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: "MutableCarrier".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![psi_terminal::StructuralFieldDeclaration {
+                            id: field,
+                            identity: "value".into(),
+                            relevance: psi_terminal::BindingRelevance::Relevant,
+                            field_type: psi_terminal::StructuralFieldType::Scalar(
+                                psi_core::ScalarType::Integer(integer_type),
+                            ),
+                        }],
+                    },
+                }],
+                call_plan,
+                structural_parameters: vec![parameter],
+            },
+        }],
+    }
+}
+
+#[test]
+fn emits_mutable_self_store_through_the_original_reference_before_return_read() {
+    let x86 = emit_machine_code(&mutable_integer_store_return_plan(NativeTarget::linux_x64()))
+        .expect("emit x86 mutable store");
+    assert_eq!(
+        x86.functions[0].bytes,
+        [
+            0x49, 0xbb, 23, 0, 0, 0, 0, 0, 0, 0, 0x44, 0x89, 0x1f, 0x40, 0x8b, 0x07, 0x48, 0x63,
+            0xc0, 0xc3,
+        ]
+    );
+    let store = x86.functions[0]
+        .scalar_structural_scalar_field_store
+        .as_ref()
+        .expect("x86 store evidence");
+    assert_eq!(store.bytes, x86.functions[0].bytes[..store.byte_count]);
+    assert!(matches!(
+        store.destination_placement.locations.as_slice(),
+        [ValueLocation::Indirect {
+            copy_stack_byte_offset: None,
+            ..
+        }]
+    ));
+
+    let arm = emit_machine_code(&mutable_integer_store_return_plan(
+        NativeTarget::linux_arm64(),
+    ))
+    .expect("emit AArch64 mutable store");
+    assert_eq!(
+        aarch64_instructions(&arm.functions[0].bytes),
+        [
+            0xd280_02f0,
+            0xb900_0010,
+            0xb940_0000,
+            0x9340_7c00,
+            0xd65f_03c0
+        ]
+    );
+    assert!(
+        arm.functions[0]
+            .scalar_structural_scalar_field_store
+            .is_some()
     );
 }
 

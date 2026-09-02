@@ -5,8 +5,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     target: NativeTarget,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<Option<MixedStructuralScalarFunctionAbi>, LoweringError> {
-    if function.parameters.is_empty()
-        || function.structural_parameters.is_empty()
+    if function.structural_parameters.is_empty()
         || !function.published_service_ceiling.is_empty()
         || !function.entry_claims.is_empty()
         || function.operations.iter().any(|operation| {
@@ -305,6 +304,60 @@ mod tests {
             );
             assert_eq!(abi.result.value, mixed.result.scalar().unwrap().value);
             assert_eq!(abi.call_plan.result.as_ref(), Some(&abi.result.placement));
+        }
+    }
+
+    #[test]
+    fn mixed_abi_admits_a_structural_only_parameter_suffix() {
+        let mut structural_only = function();
+        structural_only.parameters.clear();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        structural_only.structural_parameters =
+            vec![psi_terminal::StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                is_self: true,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::MutableBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }];
+        let declaration = StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "CounterState".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![psi_terminal::StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                    )),
+                }],
+            },
+        };
+        let declarations = BTreeMap::from([(structural_type, &declaration)]);
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let abi = derive_mixed_structural_scalar_function_abi(
+                &structural_only,
+                target,
+                &declarations,
+            )
+            .unwrap()
+            .expect("structural-only scalar-result signature publishes mixed ABI");
+            assert!(abi.scalar_parameters.is_empty());
+            assert_eq!(abi.structural_parameters.len(), 1);
+            assert_eq!(abi.call_plan.parameters.len(), 1);
+            assert_eq!(
+                abi.structural_parameters[0].shape.class,
+                omega_calling_conventions::ValueClass::BorrowedReference
+            );
+            assert_eq!(
+                abi.structural_parameters[0].placement,
+                abi.call_plan.parameters[0]
+            );
         }
     }
 }

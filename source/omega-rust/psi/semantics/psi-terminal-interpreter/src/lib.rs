@@ -1822,8 +1822,11 @@ impl TerminalExecution {
                                     parameter.access,
                                     StructuralAccess::MutableBorrow
                                         | StructuralAccess::WriteOnlyBorrow
-                                ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                    && parameter.qualifications.is_empty()
+                                ) && matches!(
+                                    parameter.multiplicity,
+                                    StructuralMultiplicity::Unrestricted
+                                        | StructuralMultiplicity::Affine
+                                ) && parameter.qualifications.is_empty()
                                     && parameter.projected_qualifications.is_empty()
                             })
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;

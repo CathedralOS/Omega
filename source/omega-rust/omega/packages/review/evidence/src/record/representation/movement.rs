@@ -4,6 +4,7 @@
 pub enum PackageReviewBoundaryValueClass {
     Integer,
     Float,
+    BorrowedReference,
     HomogeneousFloatAggregate {
         members: u8,
     },

@@ -265,7 +265,7 @@ pub(super) fn assign_call(
     })
 }
 
-pub(super) fn declaration_map(
+pub(in crate::assignment::function) fn declaration_map(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>> {
     let map = declarations
@@ -323,7 +323,7 @@ pub(super) fn resolve_field_path(
     Some((structural_type, selected_shape?, total_offset))
 }
 
-fn direct_integer_field_offset(
+pub(in crate::assignment::function) fn direct_integer_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
     scalar_type: psi_core::IntegerType,

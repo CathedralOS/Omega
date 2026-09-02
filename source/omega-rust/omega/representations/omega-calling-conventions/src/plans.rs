@@ -94,6 +94,10 @@ pub enum SystemVEightbyteClass {
 pub enum ValueClass {
     Integer,
     Float,
+    /// A pointer to caller-owned aggregate storage. `ValueShape::byte_size`
+    /// and `alignment` describe the referent, while the call placement carries
+    /// exactly one pointer and never allocates a caller-side value copy.
+    BorrowedReference,
     HomogeneousFloatAggregate {
         members: u8,
     },
@@ -124,6 +128,14 @@ impl ValueShape {
             class: ValueClass::Float,
             byte_size,
             alignment: byte_size,
+        }
+    }
+
+    pub const fn borrowed_reference(byte_size: u16, alignment: u16) -> Self {
+        Self {
+            class: ValueClass::BorrowedReference,
+            byte_size,
+            alignment,
         }
     }
 
@@ -956,6 +968,14 @@ fn validate_signature_shapes(
     policy: CallingPolicy,
     signature: &CallSignature,
 ) -> Result<(), PlanDiagnostic> {
+    if signature
+        .result
+        .is_some_and(|shape| matches!(shape.class, ValueClass::BorrowedReference))
+    {
+        return Err(PlanDiagnostic(
+            "borrowed references are parameter-only call values".into(),
+        ));
+    }
     for shape in signature.parameters.iter().chain(signature.result.iter()) {
         if shape.alignment == 0 || !shape.alignment.is_power_of_two() {
             return Err(PlanDiagnostic(
@@ -968,6 +988,11 @@ fn validate_signature_shapes(
             ));
         }
         match shape.class {
+            ValueClass::BorrowedReference if shape.byte_size == 0 => {
+                return Err(PlanDiagnostic(
+                    "borrowed-reference call values need a nonempty referent".into(),
+                ));
+            }
             ValueClass::Integer
                 if shape.byte_size > 8
                     && policy != CallingPolicy::Aapcs64
@@ -1195,6 +1220,19 @@ fn validate_value_placement(
     architecture: Architecture,
     value_index: usize,
 ) -> Result<(), PlanDiagnostic> {
+    if matches!(placement.shape.class, ValueClass::BorrowedReference)
+        && !matches!(
+            placement.locations.as_slice(),
+            [ValueLocation::Indirect {
+                copy_stack_byte_offset: None,
+                ..
+            }]
+        )
+    {
+        return Err(PlanDiagnostic(format!(
+            "borrowed-reference value {value_index} must retain one direct pointer to caller storage"
+        )));
+    }
     let mut covered = vec![false; usize::from(placement.shape.byte_size)];
     for location in &placement.locations {
         let (value_byte_offset, byte_size) = match *location {
@@ -1318,7 +1356,22 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             ));
         }
         let slot = parameter_slot_base + index;
-        let location = if matches!(shape.class, ValueClass::Integer)
+        let location = if matches!(shape.class, ValueClass::BorrowedReference) {
+            let pointer = if slot < 4 {
+                IndirectPointerLocation::Register(integer[slot])
+            } else {
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32 + ((slot - 4) * 8) as u32,
+                    alignment: 8,
+                }
+            };
+            ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size: shape.byte_size,
+                alignment: shape.alignment,
+            }
+        } else if matches!(shape.class, ValueClass::Integer)
             && !matches!(shape.byte_size, 1 | 2 | 4 | 8)
         {
             let pointer = if slot < 4 {
@@ -1366,8 +1419,10 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             // passed aggregates to be 16-byte aligned, even when the source
             // type itself has a smaller natural alignment.
             copy_stack_offset = align_up(copy_stack_offset, 16);
-            *copy_stack_byte_offset = Some(copy_stack_offset);
-            copy_stack_offset += u32::from(*byte_size).next_multiple_of(8);
+            if !matches!(placement.shape.class, ValueClass::BorrowedReference) {
+                *copy_stack_byte_offset = Some(copy_stack_offset);
+                copy_stack_offset += u32::from(*byte_size).next_multiple_of(8);
+            }
         }
     }
     Ok(CallPlan {
@@ -1607,6 +1662,29 @@ fn evaluate_split_bank_call(
     let mut parameters = Vec::with_capacity(signature.parameters.len());
     for shape in signature.parameters.iter().copied() {
         let mut locations = Vec::new();
+        if matches!(shape.class, ValueClass::BorrowedReference) {
+            let pointer = if integer_index < integer_registers.len() {
+                let register = integer_registers[integer_index];
+                integer_index += 1;
+                IndirectPointerLocation::Register(register)
+            } else {
+                stack_offset = align_up(stack_offset, 8);
+                let pointer = IndirectPointerLocation::Stack {
+                    stack_byte_offset: stack_offset,
+                    alignment: 8,
+                };
+                stack_offset += 8;
+                pointer
+            };
+            locations.push(ValueLocation::Indirect {
+                pointer,
+                copy_stack_byte_offset: None,
+                byte_size: shape.byte_size,
+                alignment: shape.alignment,
+            });
+            parameters.push(ValuePlacement { shape, locations });
+            continue;
+        }
         if let ValueClass::SystemVAggregate { first, second } = shape.class {
             debug_assert_eq!(policy, CallingPolicy::SystemVAMD64);
             let classes = [first, second];
@@ -1657,6 +1735,7 @@ fn evaluate_split_bank_call(
             ValueClass::Float => Some(1),
             ValueClass::HomogeneousFloatAggregate { members } => Some(members),
             ValueClass::Integer => None,
+            ValueClass::BorrowedReference => unreachable!("handled above"),
             ValueClass::SystemVAggregate { .. } => unreachable!("handled above"),
         };
         let float_registers_needed = float_members.map(|members| {
@@ -1765,8 +1844,10 @@ fn evaluate_split_bank_call(
         ] = placement.locations.as_mut_slice()
         {
             stack_offset = align_up(stack_offset, u32::from((*alignment).clamp(8, 16)));
-            *copy_stack_byte_offset = Some(stack_offset);
-            stack_offset += u32::from(*byte_size).next_multiple_of(8);
+            if !matches!(placement.shape.class, ValueClass::BorrowedReference) {
+                *copy_stack_byte_offset = Some(stack_offset);
+                stack_offset += u32::from(*byte_size).next_multiple_of(8);
+            }
         }
     }
     Ok(CallPlan {
@@ -1947,6 +2028,11 @@ fn result_placement(
             shape,
         )],
         ValueClass::Float => vec![register_location(float_register(0), shape)],
+        ValueClass::BorrowedReference => {
+            return Err(PlanDiagnostic(
+                "borrowed references cannot be call results".into(),
+            ));
+        }
         ValueClass::HomogeneousFloatAggregate { members } => {
             let member_size = shape.byte_size / u16::from(members);
             (0..members)
@@ -2252,6 +2338,7 @@ impl Fnv1a {
         match shape.class {
             ValueClass::Integer => self.u8(0),
             ValueClass::Float => self.u8(1),
+            ValueClass::BorrowedReference => self.u8(4),
             ValueClass::HomogeneousFloatAggregate { members } => {
                 self.u8(2);
                 self.u8(members);
@@ -3477,5 +3564,80 @@ mod tests {
         )
         .expect_err("equal classes must use an existing normalized aggregate class");
         assert!(error.0.contains("at least one SSE eightbyte"));
+    }
+
+    #[test]
+    fn borrowed_references_retain_original_storage_pointers_without_copies() {
+        let borrowed = ValueShape::borrowed_reference(16, 8);
+        for (policy, register) in [
+            (CallingPolicy::MicrosoftX64, MachineRegister::X86Rcx),
+            (CallingPolicy::SystemVAMD64, MachineRegister::X86Rdi),
+            (CallingPolicy::Aapcs64, MachineRegister::Aarch64X(0)),
+        ] {
+            let plan = evaluate_call_plan(
+                policy,
+                &CallSignature {
+                    parameters: vec![borrowed],
+                    result: Some(ValueShape::integer(4, 4)),
+                },
+            )
+            .expect("borrowed-reference plan");
+            assert_eq!(
+                plan.parameters[0].locations,
+                vec![ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(register),
+                    copy_stack_byte_offset: None,
+                    byte_size: 16,
+                    alignment: 8,
+                }]
+            );
+            validate_call_plan(
+                &plan,
+                &CallSignature {
+                    parameters: vec![borrowed],
+                    result: Some(ValueShape::integer(4, 4)),
+                },
+            )
+            .expect("borrowed-reference plan validates");
+        }
+    }
+
+    #[test]
+    fn borrowed_reference_stack_pointer_is_not_a_referent_copy() {
+        let mut parameters = vec![ValueShape::integer(8, 8); 6];
+        parameters.push(ValueShape::borrowed_reference(16, 8));
+        let plan = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters,
+                result: None,
+            },
+        )
+        .expect("stacked borrowed-reference plan");
+        assert_eq!(
+            plan.parameters[6].locations,
+            vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Stack {
+                    stack_byte_offset: 0,
+                    alignment: 8,
+                },
+                copy_stack_byte_offset: None,
+                byte_size: 16,
+                alignment: 8,
+            }]
+        );
+    }
+
+    #[test]
+    fn borrowed_references_are_not_results() {
+        let error = evaluate_call_plan(
+            CallingPolicy::SystemVAMD64,
+            &CallSignature {
+                parameters: Vec::new(),
+                result: Some(ValueShape::borrowed_reference(8, 8)),
+            },
+        )
+        .expect_err("borrowed-reference result must be rejected");
+        assert!(error.0.contains("parameter-only"));
     }
 }

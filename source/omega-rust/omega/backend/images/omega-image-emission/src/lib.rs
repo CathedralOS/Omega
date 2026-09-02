@@ -39,6 +39,7 @@ mod scalar_division_stack;
 mod scalar_shared_convergence;
 mod scalar_stack;
 mod scalar_stack_mutation;
+mod scalar_structural_scalar_field_store;
 mod stack_demand;
 mod structural_condition_layout;
 mod structural_condition_read;
@@ -87,6 +88,7 @@ use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
 use scalar_stack::validate_scalar_stack;
+use scalar_structural_scalar_field_store::validate_scalar_structural_scalar_field_store;
 use structural_return::validate_structural_return_record;
 use unit_affine_cleanup::validate_unit_affine_cleanup;
 use unit_call_custody::{
@@ -285,6 +287,8 @@ pub struct ObjectFunction {
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
+    pub scalar_structural_scalar_field_store:
+        Option<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
@@ -1315,6 +1319,7 @@ fn build_object_artifact_with_x86_feature_profile(
             stack.local_peak_bytes = stack.local_peak_bytes.max(dynamic_peak);
         }
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
+        validate_scalar_structural_scalar_field_store(plan.target, function)?;
         let dynamic_borrowed_roots = function
             .dynamic_scalar_calls
             .iter()
@@ -2089,6 +2094,9 @@ fn build_object_artifact_with_x86_feature_profile(
             unit_integer_constants: function.unit_integer_constants.clone(),
             unit_structural_scalar_field_stores: function
                 .unit_structural_scalar_field_stores
+                .clone(),
+            scalar_structural_scalar_field_store: function
+                .scalar_structural_scalar_field_store
                 .clone(),
             unit_parameters: function.unit_parameters.clone(),
             unit_parameter_homes: function.unit_parameter_homes.clone(),
@@ -3874,6 +3882,7 @@ pub enum ObjectError {
     InvalidUnitScalarFunctionAbi(MachineId),
     InvalidInstalledProviderUnitScalarCallEvidence(MachineId),
     InvalidUnitStructuralScalarFieldStoreEvidence(MachineId),
+    InvalidScalarStructuralScalarFieldStoreEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),
     InternalCallOperationNotInProvenance {
         caller: MachineId,
