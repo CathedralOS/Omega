@@ -174,6 +174,13 @@ keeps direction, exact/wrapping policy, parameterized, and runtime-expression
 siblings separately enableable and auditable. Right-shift replay additionally
 pins signed sign-fill versus unsigned/address zero-fill.
 
+Proof-bearing operations remain separate even when every data operand is
+constant. Constant-operands wrapping divide has its own exact family whose
+grammar validates the nonzero divisor and whose replay requires
+`TargetIntegerExpression::WrappingDivide` with the original obligation and two
+ordered immediate children. A `ReturnIntegerImmediate` is a rejected proof-
+erasing substitution, not a stronger optimization.
+
 Mandatory lowering may expose a machine-rule candidate without authorizing the
 rewrite. The exact unsigned-`U64` parameter zero-comparison families, for
 example, lower their authored zero and equality to `CompareI64Zero` plus

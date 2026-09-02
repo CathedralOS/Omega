@@ -33,6 +33,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineWrappingIntegerAddImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate
             }
+            Self::StraightLineWrappingIntegerDivideImmediateOperands(_) => {
+                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideImmediateOperands
+            }
             Self::StraightLineWrappingIntegerSubtractImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractImmediate
             }

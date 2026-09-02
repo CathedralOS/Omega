@@ -20,6 +20,7 @@ use super::immediate::{
     StraightLineSaturatingIntegerMultiplyImmediateTranslationError,
     StraightLineSaturatingIntegerSubtractImmediateTranslationError,
     StraightLineWrappingIntegerAddImmediateTranslationError,
+    StraightLineWrappingIntegerDivideImmediateOperandsTranslationError,
     StraightLineWrappingIntegerMultiplyImmediateTranslationError,
     StraightLineWrappingIntegerShiftLeftImmediateTranslationError,
     StraightLineWrappingIntegerShiftRightImmediateTranslationError,
@@ -80,6 +81,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineWrappingIntegerAddImmediate(
         StraightLineWrappingIntegerAddImmediateTranslationError,
+    ),
+    StraightLineWrappingIntegerDivideImmediateOperands(
+        StraightLineWrappingIntegerDivideImmediateOperandsTranslationError,
     ),
     StraightLineWrappingIntegerSubtractImmediate(
         StraightLineWrappingIntegerSubtractImmediateTranslationError,

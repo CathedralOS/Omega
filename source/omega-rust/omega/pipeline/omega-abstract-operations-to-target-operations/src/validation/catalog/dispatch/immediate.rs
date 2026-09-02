@@ -13,6 +13,7 @@ mod saturating_integer_add;
 mod saturating_integer_multiply;
 mod saturating_integer_subtract;
 mod wrapping_integer_add;
+mod wrapping_integer_divide_operands;
 mod wrapping_integer_multiply;
 mod wrapping_integer_shift_left;
 mod wrapping_integer_shift_right;
@@ -29,6 +30,7 @@ pub(in crate::validation::catalog) use saturating_integer_add::DESCRIPTOR as SAT
 pub(in crate::validation::catalog) use saturating_integer_multiply::DESCRIPTOR as SATURATING_INTEGER_MULTIPLY;
 pub(in crate::validation::catalog) use saturating_integer_subtract::DESCRIPTOR as SATURATING_INTEGER_SUBTRACT;
 pub(in crate::validation::catalog) use wrapping_integer_add::DESCRIPTOR as WRAPPING_INTEGER_ADD;
+pub(in crate::validation::catalog) use wrapping_integer_divide_operands::DESCRIPTOR as WRAPPING_INTEGER_DIVIDE_OPERANDS;
 pub(in crate::validation::catalog) use wrapping_integer_multiply::DESCRIPTOR as WRAPPING_INTEGER_MULTIPLY;
 pub(in crate::validation::catalog) use wrapping_integer_shift_left::DESCRIPTOR as WRAPPING_INTEGER_SHIFT_LEFT;
 pub(in crate::validation::catalog) use wrapping_integer_shift_right::DESCRIPTOR as WRAPPING_INTEGER_SHIFT_RIGHT;

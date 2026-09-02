@@ -865,6 +865,16 @@ targets (1,620 direct and 1,620 optimized cases), explicitly retaining signed
 sign-fill versus unsigned/address zero-fill while rejecting every left, exact,
 plain, parameter, mixed-runtime, arithmetic, and bitwise sibling.
 
+Proof-bearing constant wrapping-divide custody lives beside the immediate
+families under `straight_line_wrapping_integer_divide_immediate_operands/`, but
+its 27-line entrance joins an exact four-operation grammar to expression
+replay rather than materialization replay. The grammar validates native fixed
+types, ordered constants, and nonzero semantics; replay requires the original
+obligation and two exact immediate children. Dedicated typed receipt, catalog,
+fixture, corruption, and optimized-custody leaves cover 160 direct and 160
+optimized cases, while the architecture ladder prevents this proof-preserving
+family from collapsing into the parameter or result-immediate siblings.
+
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line
 `lowering/coordination/projected_qualifications/mod.rs` entrance owns only the

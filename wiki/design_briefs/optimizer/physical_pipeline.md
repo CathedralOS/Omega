@@ -277,6 +277,16 @@ targets at direct and optimized custody (1,620 cases each), including an
 effective width-minus-one case that distinguishes signed sign-fill from
 unsigned/address zero-fill. Left, proof-bearing exact, parameter, mixed-runtime,
 arithmetic, and bitwise siblings remain disjoint.
+Proof-bearing wrapping divide over two constants is independently cataloged
+without pretending the operation was materialized away. Its native fixed-
+integer grammar checks the nonzero divisor and recomputes the quotient only as
+receipt evidence; target replay requires the exact wrapping-divide expression,
+obligation, ordered immediate children, provenance, and return edge. Eight
+fixed types cross four ordered boundary pairs on all five targets at direct
+and optimized custody (160 cases each). The optimized fixture proves the
+canonical nonzero goal from the divisor constant's semantic equality and a
+closed integer relation. Immediate return, address, parameter, operand-order,
+obligation, and adjacent division/remainder-policy substitutions fail closed.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
