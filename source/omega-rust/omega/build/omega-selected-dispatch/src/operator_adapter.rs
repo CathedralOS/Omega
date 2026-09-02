@@ -88,17 +88,40 @@ pub fn validate_selected_operator_terminal_custody(
     let mut diagnostics = Vec::new();
     for machine in &checked.facts.flow.terminal_unit_effects.machines {
         for operation in &machine.operations {
-            let CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+            let (
                 coordinate,
                 requirement_operator,
                 provider_plan_report_fingerprint,
                 provider_plan_commitment,
                 realization_machine,
                 realization_state,
-                ..
-            } = operation
-            else {
-                continue;
+            ) = match operation {
+                CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    coordinate,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    realization_machine,
+                    realization_state,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                    coordinate,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    realization_machine,
+                    realization_state,
+                    ..
+                } => (
+                    coordinate,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    realization_machine,
+                    realization_state,
+                ),
+                _ => continue,
             };
             let origin = CheckedValueOrigin::StateStatement {
                 machine_symbol: machine.machine,

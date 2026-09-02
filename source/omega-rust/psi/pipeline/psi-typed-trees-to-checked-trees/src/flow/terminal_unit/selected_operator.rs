@@ -135,3 +135,219 @@ pub(super) fn build_selected_operator_scalar_call(
         scalar_arguments,
     })
 }
+
+pub(super) fn free_selected_operator_structural_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<Vec<CheckedUnitStructuralParameterPlan>> {
+    if !binders.is_empty() {
+        return None;
+    }
+    let parameters = program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| {
+            if parameter.is_self
+                || parameter.is_const
+                || parameter.is_mutable
+                || is_reference(program, parameter.type_reference)
+                || program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+            {
+                return None;
+            }
+            let type_identity = shapes.add_type(parameter.type_reference, binders, &[])?;
+            let qualifications =
+                parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
+            let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
+            let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+            if multiplicity != Multiplicity::Affine
+                || access != CheckedStructuralAccess::Owned
+                || !qualifications.is_empty()
+            {
+                return None;
+            }
+            Some(CheckedUnitStructuralParameterPlan {
+                position: u32::try_from(position).ok()?,
+                is_self: false,
+                type_identity,
+                multiplicity,
+                access,
+                qualifications,
+                fused_service_erasure: None,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    (!parameters.is_empty()).then_some(parameters)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_selected_operator_structural_scalar_call(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    source_machine: &psi_typed_trees::machine::Machine,
+    source_state: &psi_typed_trees::state::State,
+    structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    application: &crate::SelectedOperatorApplication,
+    result: CheckedUnitScalarResultBindingPlan,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    if source_machine.attached_data.is_some()
+        || !program.machine_contracts(source_machine).is_empty()
+        || !program.state_contracts(source_state).is_empty()
+        || machine_has_content_evidence(facts, source_machine.symbol, source_state.symbol)
+        || !entry_claims.is_empty()
+        || application.provider_plan_report_fingerprint == 0
+        || application.provider_plan_commitment.is_empty()
+    {
+        return None;
+    }
+    let operator = program
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == application.requirement_operator)?;
+    if !operator.is_boundary
+        || program.operator_parameters(operator).len() != application.operands.len()
+    {
+        return None;
+    }
+    let realizations = facts
+        .flow
+        .terminal_structural_scalar_returns
+        .machines
+        .iter()
+        .filter(|plan| {
+            plan.machine == application.realization_machine
+                && plan.state == application.realization_state
+        })
+        .collect::<Vec<_>>();
+    let [realization] = realizations.as_slice() else {
+        return None;
+    };
+    if !realization.scalar_parameters.is_empty()
+        || realization.structural_parameters.len() != application.operands.len()
+        || realization.result_type != result.primitive_type
+        || structural_parameters.len() != realization.structural_parameters.len()
+    {
+        return None;
+    }
+    let source_flow = state_flow(facts, source_machine.symbol, source_state.symbol)?;
+    let realization_flow = state_flow(
+        facts,
+        application.realization_machine,
+        application.realization_state,
+    )?;
+    if !service_reach_is_empty(facts, source_flow.service_reach)
+        || !service_reach_is_empty(facts, realization_flow.service_reach)
+    {
+        return None;
+    }
+    let source_parameters = program.state_parameters(source_state);
+    let argument_source_positions = application
+        .operands
+        .iter()
+        .map(|operand| {
+            let ExpressionNode::Name(path) = program.expression_table.expression(*operand) else {
+                return None;
+            };
+            if program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                != 1
+            {
+                return None;
+            }
+            source_parameters
+                .iter()
+                .position(|parameter| parameter.symbol == path.symbol)
+                .and_then(|position| u32::try_from(position).ok())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if argument_source_positions.len() != structural_parameters.len()
+        || argument_source_positions
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .len()
+            != structural_parameters.len()
+    {
+        return None;
+    }
+
+    for plan in &facts
+        .flow
+        .terminal_structural_scalar_returns
+        .structural_types
+    {
+        if shapes
+            .types
+            .get(&plan.identity)
+            .is_some_and(|existing| existing != plan)
+        {
+            return None;
+        }
+        shapes.types.insert(plan.identity.clone(), plan.clone());
+    }
+
+    let mut structural_arguments = Vec::with_capacity(realization.structural_parameters.len());
+    for (target_position, source_position) in argument_source_positions.iter().enumerate() {
+        let source_index = structural_parameters
+            .iter()
+            .position(|parameter| parameter.position == *source_position)?;
+        let target = realization.structural_parameters.get(target_position)?;
+        let source_shape = &shapes
+            .types
+            .get(&structural_parameters[source_index].type_identity)?
+            .shape;
+        let target_shape = &shapes.types.get(&target.type_identity)?.shape;
+        if source_shape != target_shape
+            || structural_parameters[source_index].multiplicity != Multiplicity::Affine
+            || structural_parameters[source_index].access != CheckedStructuralAccess::Owned
+            || !structural_parameters[source_index]
+                .qualifications
+                .is_empty()
+            || target.is_self
+            || target.multiplicity != Multiplicity::Affine
+            || target.access != CheckedStructuralAccess::Owned
+            || !target.qualifications.is_empty()
+            || target.fused_service_erasure.is_some()
+        {
+            return None;
+        }
+        structural_parameters[source_index].type_identity = target.type_identity.clone();
+        structural_arguments.push(CheckedUnitStructuralArgumentPlan {
+            source_parameter_index: u32::try_from(source_index).ok()?,
+            path: Vec::new(),
+            type_identity: target.type_identity.clone(),
+            access: CheckedStructuralAccess::Owned,
+            byte_sequence_literal: None,
+        });
+    }
+    let contract = facts
+        .contract_plans
+        .for_machine(application.realization_machine)?;
+    Some(
+        CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+            coordinate: CheckedUnitCallCoordinate {
+                statement_index: result.statement_index,
+                call_ordinal: 0,
+            },
+            result,
+            requirement_operator: application.requirement_operator,
+            provider_plan_report_fingerprint: application.provider_plan_report_fingerprint,
+            provider_plan_commitment: application.provider_plan_commitment,
+            realization_machine: application.realization_machine,
+            realization_state: application.realization_state,
+            realization_contract_report_fingerprint: contract.report_fingerprint,
+            realization_contract_commitment: contract.commitment,
+            service_reach: realization_flow.service_reach,
+            structural_arguments,
+        },
+    )
+}

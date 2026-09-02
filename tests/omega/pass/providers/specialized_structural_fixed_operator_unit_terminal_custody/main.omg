@@ -1,0 +1,36 @@
+// A Unit body composes one selected type+const structural operator into an
+// exact structural-scalar Terminal call. The first composition rung consumes
+// only whole, claim-free owned affine parameters.
+
+data Buffer<Element, const Count: u64> {
+    value: Element
+}
+
+data Position {}
+
+data Indexing {}
+
+boundary operator [] Indexing::index<Element, const Count: u64>(
+    items: Buffer<Element, Count>,
+    position: Position
+) -> bool
+requires Count == Count;
+
+data IndexingProvider {}
+
+machine IndexingProvider::index<Value, const Length: u64>(
+    items: Buffer<Value, Length>,
+    position: Position
+) -> bool
+satisfies Indexing::index
+{
+    true
+}
+
+machine consume(items: Buffer<i32, 4>, position: Position) {
+    let selected: bool = items[position];
+}
+
+data Main {}
+
+machine Main::main(&mut self) {}

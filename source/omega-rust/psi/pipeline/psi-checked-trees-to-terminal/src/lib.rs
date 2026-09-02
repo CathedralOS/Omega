@@ -1240,16 +1240,37 @@ pub fn lower_machine(
         SelectedMachineRoute::ReboundDynamicComposedUnit {
             realization_machine,
         } => vec![selection.machine, realization_machine],
-        SelectedMachineRoute::UnitEffect
-            if checked
-                .facts
-                .proof
-                .proof_output_calls
-                .iter()
-                .any(|(_, invocation)| {
-                    invocation.caller_machine_symbol == selection.machine
-                        && invocation.static_requirement_dispatch.is_some()
-                })
+        SelectedMachineRoute::UnitEffect => {
+            let mut closure = checked_unit_call_closure_including(checked, selection.machine, &[])?;
+            let mut structural_realizations = Vec::new();
+            for source in &closure {
+                let plan = unique_unit_machine(&checked.facts.flow.terminal_unit_effects, *source)?;
+                for realization in plan
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                            realization_machine,
+                            ..
+                        } => Some(*realization_machine),
+                        _ => None,
+                    })
+                {
+                    if !structural_realizations.contains(&realization) {
+                        structural_realizations.push(realization);
+                    }
+                }
+            }
+            let requires_complete_unit_closure = !structural_realizations.is_empty()
+                || checked
+                    .facts
+                    .proof
+                    .proof_output_calls
+                    .iter()
+                    .any(|(_, invocation)| {
+                        invocation.caller_machine_symbol == selection.machine
+                            && invocation.static_requirement_dispatch.is_some()
+                    })
                 || (lowered.semantic_module.machines.len() > 1
                     && checked
                         .machine_specializations
@@ -1257,9 +1278,13 @@ pub fn lower_machine(
                         .any(|specialization| {
                             specialization.instance == selection.machine
                                 && !specialization.conformance_applications.is_empty()
-                        })) =>
-        {
-            checked_unit_call_closure_including(checked, selection.machine, &[])?
+                        }));
+            if requires_complete_unit_closure {
+                closure.extend(structural_realizations);
+                closure
+            } else {
+                vec![selection.machine]
+            }
         }
         SelectedMachineRoute::ScalarGraph => {
             checked_scalar_call_closure(checked, selection.machine)?
@@ -1272,8 +1297,7 @@ pub fn lower_machine(
         | SelectedMachineRoute::PayloadlessCaseReturn
         | SelectedMachineRoute::StructuralReturn
         | SelectedMachineRoute::ComposedAttachedUnit
-        | SelectedMachineRoute::StructuralUnitControl
-        | SelectedMachineRoute::UnitEffect => vec![selection.machine],
+        | SelectedMachineRoute::StructuralUnitControl => vec![selection.machine],
     };
     let direct_float_source_machines = if route == SelectedMachineRoute::ScalarGraph {
         if source_machines.len() != lowered.semantic_module.machines.len() {
@@ -1398,7 +1422,9 @@ pub fn lower_machine(
         psi_terminal_verifier::validate_module(&lowered.semantic_module)
             .map_err(LoweringError::InvalidTerminalModule)?;
     }
-    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
+    lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
+        && route != SelectedMachineRoute::UnitEffect
+    {
         checked
             .facts
             .flow

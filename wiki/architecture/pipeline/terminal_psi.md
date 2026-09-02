@@ -2592,6 +2592,21 @@ reach cannot replace that selected row. Missing, duplicate, stale, or
 coordinate-mismatched applications fail closed; neither planning nor
 production scans conformances for a uniquely shaped realization.
 
+The first structural-operand Unit composition is a distinct checked operation,
+not a widened scalar `Call`. One free Unit body may bind a primitive result from
+one selected operator whose operands are an exact permutation of its whole,
+claim-free owned affine parameters. Checked planning rejoins the authored use,
+strong provider plan, exact specialized realization, contract, result, and
+empty service reach. Terminal production emits that realization as a separate
+machine and the use as `CallStructuralScalar`; source parameter order becomes
+explicit structural arguments, while consumed roots are absent from the Unit
+return discard list. Production rechecks the same custody and rejects missing,
+duplicate, reordered, projected, substituted, or borrowed operands. The Unit
+and realization share one exact structural-type catalog. Attached/hosted
+composition, claims, content evidence, services, mixed scalar/structural
+operands, structural results, control flow, and native evidence remain later
+slices.
+
 A nonempty path to a relevant Boolean field of a record parameter retains every
 canonical structural-field identity and rebases across structural Unit calls.
 For a field- or literal-fixed-index-projected structural argument, the caller's

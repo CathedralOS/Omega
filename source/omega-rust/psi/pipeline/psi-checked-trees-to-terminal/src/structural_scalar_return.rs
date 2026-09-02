@@ -306,7 +306,7 @@ pub(super) fn lower_structural_scalar_return_machine(
     lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0)
 }
 
-fn lower_structural_scalar_return_machine_in_namespace(
+pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     checked: &CheckedTrees,
     plan: &CheckedStructuralScalarReturnMachinePlan,
     terminal_machine: MachineId,

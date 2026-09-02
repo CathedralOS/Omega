@@ -135,6 +135,37 @@ pub(super) fn lower_unit_structural_types(
                 roots.push(construction.root_type_identity.clone());
             }
         }
+        for operation in &machine.operations {
+            if let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                realization_machine,
+                realization_state,
+                ..
+            } = operation
+            {
+                let realizations = checked
+                    .facts
+                    .flow
+                    .terminal_structural_scalar_returns
+                    .machines
+                    .iter()
+                    .filter(|plan| {
+                        plan.machine == *realization_machine && plan.state == *realization_state
+                    })
+                    .collect::<Vec<_>>();
+                let [realization] = realizations.as_slice() else {
+                    return unsupported(
+                        "selected structural-scalar Unit operation has no exact type catalog owner",
+                    );
+                };
+                roots.push(realization.attachment_type_identity.clone());
+                roots.extend(
+                    realization
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.clone()),
+                );
+            }
+        }
     }
     for (boundary, _) in boundaries {
         roots.extend(boundary.attachment_type_identity.iter().cloned());
@@ -536,6 +567,10 @@ pub(super) fn lower_unit_services(
                 | CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { service_reach, .. }
                 | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                    service_reach,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                     service_reach,
                     ..
                 }
