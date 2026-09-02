@@ -719,7 +719,9 @@ fn checked_store_literal_matches(
     primitive_type: PrimitiveType,
 ) -> bool {
     match (value, primitive_type) {
-        (CheckedScalarExpression::IntegerLiteral { .. }, PrimitiveType::I32) => true,
+        (CheckedScalarExpression::IntegerLiteral { .. }, primitive_type) => {
+            primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr
+        }
         (CheckedScalarExpression::Boolean(boolean), PrimitiveType::Bool) => {
             matches!(boolean.as_ref(), CheckedBooleanExpression::Constant(_))
         }
@@ -1908,7 +1910,8 @@ fn lower_caller_store_operations(
     };
     let constant = match &store.value {
         CheckedScalarExpression::IntegerLiteral { literal }
-            if store.primitive_type == PrimitiveType::I32 =>
+            if store.primitive_type.accepts_integer_literal()
+                && store.primitive_type != PrimitiveType::Addr =>
         {
             if integer_landing_scalar_type(literal)? != scalar_type {
                 return unsupported("direct dynamic store integer landing drifted");
@@ -2140,7 +2143,8 @@ fn lower_realization_store_operations(
     };
     let constant = match &store.value {
         CheckedScalarExpression::IntegerLiteral { literal }
-            if store.primitive_type == PrimitiveType::I32 =>
+            if store.primitive_type.accepts_integer_literal()
+                && store.primitive_type != PrimitiveType::Addr =>
         {
             if integer_landing_scalar_type(literal)? != scalar_type {
                 return unsupported("dynamic realization store integer landing drifted");

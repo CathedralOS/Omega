@@ -135,7 +135,7 @@ const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
     }
 
     data Payload {
-        value: i32;
+        value: u16;
     }
 
     data Envelope {
@@ -149,7 +149,7 @@ const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
 
     Primary: Item satisfies Shape {
         machine code(&mut self) -> i32 {
-            self.envelope.payload.value = 23;
+            self.envelope.payload.value = 513;
             transition { _ -> self.code }
         }
     }
@@ -902,6 +902,10 @@ fn dynamic_plan_retains_nested_mutating_realization_path() {
         ]
     );
     assert_eq!(store.field_identity, "value");
+    assert_eq!(
+        store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::U16
+    );
 }
 
 #[test]

@@ -1606,7 +1606,8 @@ fn checked_realization_structural_scalar_field_store_plan(
     };
     let primitive_type = program.primitive_type_reference(field.type_reference)?;
     if field.relevance.is_erased()
-        || !matches!(primitive_type, PrimitiveType::Bool | PrimitiveType::I32)
+        || !(primitive_type == PrimitiveType::Bool
+            || (primitive_type.accepts_integer_literal() && primitive_type != PrimitiveType::Addr))
     {
         return None;
     }

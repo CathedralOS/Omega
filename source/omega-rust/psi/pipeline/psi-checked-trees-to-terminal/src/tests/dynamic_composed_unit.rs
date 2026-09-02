@@ -87,7 +87,7 @@ const PROJECTED_MUTATING_REALIZATION_SOURCE: &str = r#"
     }
 
     data Payload [copy] {
-        value: i32;
+        value: u16;
     }
 
     data Envelope [copy] {
@@ -101,7 +101,7 @@ const PROJECTED_MUTATING_REALIZATION_SOURCE: &str = r#"
 
     Primary: Item satisfies Measure {
         machine measure(&mut self) -> i32 {
-            self.envelope.payload.value = 23;
+            self.envelope.payload.value = 513;
             transition { _ -> self.code }
         }
     }
@@ -1387,6 +1387,10 @@ fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() 
         ]
     );
     assert_eq!(store.field_identity, "value");
+    assert_eq!(
+        store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::U16
+    );
 
     let lowered = lower_machine(&checked, "Main::run").expect("projected realization lowers");
     psi_terminal_verifier::validate_module(&lowered.semantic_module)

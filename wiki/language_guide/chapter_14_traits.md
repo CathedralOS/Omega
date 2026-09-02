@@ -800,11 +800,12 @@ result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
 local result interval. A first mutation-bearing realization body is admitted
 through checked and Terminal form when `&mut self` receives exactly one
-primitive-field literal store, either directly or one named record projection
-below the receiver, and then returns an exact scalar self field. The
+primitive-field literal store, either directly or below an exact finite path of
+relevant named record fields, and then returns an exact scalar self field. The
 callable row retains the write separately from the return, and Terminal emits
-the store before the read. Direct Boolean and fixed-integer literal stores also
-reach native execution: `&mut self` is one no-copy pointer to caller storage,
+the store before the read. Direct Boolean and signed or unsigned 8-, 16-, 32-,
+or 64-bit integer literal stores also reach native execution: `&mut self` is one
+no-copy pointer to caller storage,
 the erased-data adapter rejoins the structural-only scalar-result ABI, and
 machine/object/image evidence replays the exact store/read/return bytes on
 x86-64 and AArch64. Store path, accumulated byte offset, and return field are
@@ -813,8 +814,8 @@ offset. The
 first Boolean store returns an independent `i32` field through the existing
 fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
-the indirect call. Paths deeper than one field, indexed/case projections,
-wider or computed mutation bodies remain outside this bounded rung. An
+the indirect call. Indexed/case projections, address and IEEE-float literals,
+computed values, and multiple stores remain outside this bounded rung. An
 operation-free, argument-free Unit-returning requirement may now be retained
 at the checked layer for a terminal direct or once-rebound local descriptor
 call. One transparent forwarding machine may accept that descriptor as its
