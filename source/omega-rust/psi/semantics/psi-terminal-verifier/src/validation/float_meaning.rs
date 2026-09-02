@@ -144,6 +144,10 @@ fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
                 crate::verification::verify_direct_float_result(module, result)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
+            psi_terminal::FloatMeaningSource::DirectOperationResult(result) => {
+                crate::verification::verify_direct_operation_float_result(module, result)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+            }
             _ => {}
         }
     }
@@ -155,6 +159,7 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
         psi_terminal::FloatMeaningSource::TransitionalInput(input) => Some(input.id.0),
         psi_terminal::FloatMeaningSource::DirectMachineParameter(_)
         | psi_terminal::FloatMeaningSource::DirectMachineResult(_)
+        | psi_terminal::FloatMeaningSource::DirectOperationResult(_)
         | psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
         | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
     }
@@ -162,13 +167,17 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
 
 #[cfg(test)]
 mod tests {
-    use psi_core::{BlockId, ContractId, IeeeFloatFormat, MachineId, ScalarType, ValueId};
+    use psi_core::{
+        BlockId, ContractId, EdgeId, IeeeFloatFormat, IeeeFloatValue, MachineId, OperationId,
+        PlaceId, ScalarType, StructuralTypeId, ValueId,
+    };
     use psi_terminal::{
-        DirectMachineFloatParameter, DirectMachineFloatResult, FloatMeaningEqualityProposition,
-        FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-        FloatProjectionInput, FloatProjectionInputId, ProofOnlyValueType, ProofPropositionId,
-        ProofValueDeclaration, ProofValueId, TerminalMachine, TerminalMachineResult,
-        ValueDeclaration, VocabularyMarker,
+        Block, DirectMachineFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
+        FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+        FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, Operation, OperationKind,
+        OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+        ProofValueId, StructuralMultiplicity, StructuralOperationResult, TerminalMachine,
+        TerminalMachineResult, Terminator, ValueDeclaration, VocabularyMarker,
     };
 
     fn contract(
@@ -312,6 +321,60 @@ mod tests {
                 result,
                 format: IeeeFloatFormat::Binary32,
             });
+        module
+    }
+
+    fn direct_operation_result_module(format: IeeeFloatFormat) -> TerminalModule {
+        let mut module = direct_module();
+        let owner = module.entry;
+        let producer = semantic_id(1, OperationId::new);
+        let result = semantic_id(2, ValueId::new);
+        let block = module.machines[0].entry;
+        module.machines[0].blocks = vec![Block {
+            id: block,
+            parameters: vec![ValueDeclaration {
+                id: semantic_id(3, ValueId::new),
+                scalar_type: ScalarType::IeeeFloat(format),
+            }],
+            operations: vec![Operation {
+                id: producer,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: result,
+                    scalar_type: ScalarType::IeeeFloat(format),
+                }),
+                kind: OperationKind::IeeeFloatConstant {
+                    value: match format {
+                        IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0x3f80_0000),
+                        IeeeFloatFormat::Binary64 => {
+                            IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000)
+                        }
+                    },
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                trivial_affine_discards: Vec::new(),
+                edge: semantic_id(1, EdgeId::new),
+            },
+        }];
+        module.float_meaning_projections[0].source =
+            FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
+                owner,
+                producer,
+                result,
+                format,
+            });
+        module.float_meaning_projections[0].operation = match format {
+            IeeeFloatFormat::Binary32 => FloatMeaningProjectionOperation::Meaning32,
+            IeeeFloatFormat::Binary64 => FloatMeaningProjectionOperation::Meaning64,
+        };
+        module.float_meaning_projections[0].contract = contract(match format {
+            IeeeFloatFormat::Binary32 => {
+                psi_numerics::float_projection::FloatProjectionOperation::Meaning32
+            }
+            IeeeFloatFormat::Binary64 => {
+                psi_numerics::float_projection::FloatProjectionOperation::Meaning64
+            }
+        });
         module
     }
 
@@ -532,6 +595,185 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn direct_operation_result_rejoins_exact_f32_and_f64_producers() {
+        assert_eq!(
+            validate_direct_sources(&direct_operation_result_module(IeeeFloatFormat::Binary32)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_direct_sources(&direct_operation_result_module(IeeeFloatFormat::Binary64)),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn direct_operation_result_rejects_coordinate_and_result_class_substitution() {
+        let module = direct_operation_result_module(IeeeFloatFormat::Binary32);
+
+        let mut wrong_owner = module.clone();
+        let FloatMeaningSource::DirectOperationResult(source) =
+            &mut wrong_owner.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.owner = semantic_id(2, MachineId::new);
+        assert!(matches!(
+            validate_direct_sources(&wrong_owner),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResultOwner(_),
+                ..
+            })
+        ));
+
+        let mut wrong_producer = module.clone();
+        let FloatMeaningSource::DirectOperationResult(source) =
+            &mut wrong_producer.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.producer = semantic_id(2, OperationId::new);
+        assert!(matches!(
+            validate_direct_sources(&wrong_producer),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResultProducer { .. },
+                ..
+            })
+        ));
+
+        let mut redirected_to_block_parameter = module.clone();
+        let FloatMeaningSource::DirectOperationResult(source) =
+            &mut redirected_to_block_parameter.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.result = redirected_to_block_parameter.machines[0].blocks[0].parameters[0].id;
+        assert!(matches!(
+            validate_direct_sources(&redirected_to_block_parameter),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResult { .. },
+                ..
+            })
+        ));
+
+        let mut redirected_to_parameter = module.clone();
+        let FloatMeaningSource::DirectOperationResult(source) =
+            &mut redirected_to_parameter.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.result = redirected_to_parameter.machines[0].parameters[0].id;
+        assert!(matches!(
+            validate_direct_sources(&redirected_to_parameter),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResult { .. },
+                ..
+            })
+        ));
+
+        let mut redirected_to_machine_result = module.clone();
+        let machine_result = ValueDeclaration {
+            id: semantic_id(4, ValueId::new),
+            scalar_type: ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        };
+        redirected_to_machine_result.machines[0].result =
+            TerminalMachineResult::Scalar(machine_result);
+        let FloatMeaningSource::DirectOperationResult(source) =
+            &mut redirected_to_machine_result.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.result = machine_result.id;
+        assert!(matches!(
+            validate_direct_sources(&redirected_to_machine_result),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResult { .. },
+                ..
+            })
+        ));
+
+        let mut wrong_format = module.clone();
+        let FloatMeaningSource::DirectOperationResult(source) =
+            &mut wrong_format.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.format = IeeeFloatFormat::Binary64;
+        assert!(matches!(
+            validate_direct_sources(&wrong_format),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::DirectOperationResultFormatMismatch,
+                ..
+            })
+        ));
+
+        let mut unit = module.clone();
+        unit.machines[0].blocks[0].operations[0].result = OperationResult::Unit;
+        assert!(matches!(
+            validate_direct_sources(&unit),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResult { .. },
+                ..
+            })
+        ));
+
+        let mut call = module.clone();
+        call.machines[0].blocks[0].operations[0].kind = OperationKind::Call {
+            callee: call.entry,
+            arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        assert!(matches!(
+            validate_direct_sources(&call),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::DirectOperationResultCallProducer { .. },
+                ..
+            })
+        ));
+
+        let mut structural = module;
+        structural.machines[0].blocks[0].operations[0].result =
+            OperationResult::Structural(StructuralOperationResult {
+                place: semantic_id(1, PlaceId::new),
+                structural_type: semantic_id(1, StructuralTypeId::new),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            });
+        assert!(matches!(
+            validate_direct_sources(&structural),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectOperationResult { .. },
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn direct_operation_result_tuple_deduplicates_and_does_not_alias_machine_result() {
+        let module = direct_operation_result_module(IeeeFloatFormat::Binary32);
+        let first = module.float_meaning_projections[0];
+        let mut duplicate = first;
+        duplicate.result.id = ProofValueId(1);
+        assert!(matches!(
+            validate_rows(&[first, duplicate]),
+            Err(ModuleError::DuplicateFloatMeaningProjection { .. })
+        ));
+
+        let mut machine_result = duplicate;
+        let FloatMeaningSource::DirectOperationResult(source) = first.source else {
+            unreachable!()
+        };
+        machine_result.source = FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
+            owner: source.owner,
+            result: source.result,
+            format: source.format,
+        });
+        assert_eq!(validate_rows(&[first, machine_result]), Ok(()));
     }
 
     #[test]

@@ -1495,7 +1495,18 @@ discards them as
 verifier, codec, interpreter, Omega lowering, native emission, object/image
 replay, and installation encoding retain the common root plus exact eighteen
 fuel units. Missing/reordered operations or cleanup, changed indices/root
-length, and length-nineteen or wider prefixes reject; no runtime liveness bitmap
+length, and other prefix drift reject; no runtime liveness bitmap or cleanup
+loop is introduced.
+
+The following bounded carrier admits the same shape at length nineteen with
+establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]`. Terminal
+publishes eighteen ordered zero-ABI local places, the Unit return discards them
+as `[17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the
+verifier, codec, interpreter, Omega lowering, native emission, object/image
+replay, and installation encoding retain the common root plus exact nineteen
+fuel units. Missing/reordered operations or cleanup, changed indices/root
+length, and length-twenty or wider prefixes reject; no runtime liveness bitmap
 or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
@@ -3681,9 +3692,17 @@ format)`. A real entry parameter named `result` shadows the pseudo binder.
 Independent validation requires the unique owner, exact scalar result identity,
 and exact IEEE type; parameter, Unit, structural, local, block, operation, and
 foreign-owner substitutions reject. An owner omitted from the selected artifact
-retains its transitional fallback. Nested state, call, and operation results,
-arbitrary Terminal values, structural leaves, and every other nonliteral source
-remain transitional.
+retains its transitional fallback. A following Terminal-only carrier identifies
+one direct scalar non-call operation result by exact owner machine, producer
+operation, declared result value, and IEEE format. Independent validation finds the unique
+owner and producer, requires that operation to declare the exact primitive
+`f32`/`f64` scalar result, and rejects call/Unit/structural results or
+substitution by machine results, parameters, or block parameters. Equal tuples deduplicate;
+the operation-result source class remains distinct from machine parameter and
+result classes. Checked/source production does not emit this carrier yet because
+it has no retained expression-to-Terminal-operation correspondence. Nested state
+and call results, arbitrary Terminal values, structural leaves, and every other
+nonliteral source remain transitional.
 The source-side exit checker admits the owning direct-result reflexivity form
 only after the exact authored `ensures` expression rejoins the checked
 `FloatMeaningEqual` row, both operands share one canonical proof value, and

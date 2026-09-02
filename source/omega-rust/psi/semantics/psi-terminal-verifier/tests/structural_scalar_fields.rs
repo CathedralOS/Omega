@@ -389,7 +389,7 @@ fn rejects_store_path_field_type_and_authority_corruption() {
 }
 
 #[test]
-fn rejects_integer_field_result_and_read_authority_corruption() {
+fn rejects_integer_field_result_and_write_only_authority_corruption() {
     let mut result = structural_scalar_field_module();
     result.machines[1].blocks[0].operations[0]
         .result
@@ -406,7 +406,9 @@ fn rejects_integer_field_result_and_read_authority_corruption() {
     authority.entry = id::<MachineId>(2);
     authority.machines.remove(0);
     authority.machines[0].structural_parameters[0].access = StructuralAccess::MutableBorrow;
-    let error = validate_module(&authority).expect_err("mutable field read rejects");
+    validate_module(&authority).expect("mutable authority remains readable");
+    authority.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+    let error = validate_module(&authority).expect_err("write-only field read rejects");
     assert!(
         matches!(
             error,

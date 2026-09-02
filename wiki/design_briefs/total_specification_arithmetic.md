@@ -229,10 +229,17 @@ result declaration; mapped Unit, structural, or wrong-format shapes reject.
 The independent verifier requires exact equality with the unique owner's scalar
 result and does not accept a parameter, local, block value, operation result, or
 another machine's same-numbered value. Owners outside the emitted artifact keep
-the transitional fallback. Neither carrier widens execution, fuel, interpreter
-behavior, or native float support. Nested state, call, and operation results,
-arbitrary Terminal values, structural leaves, locals, members, casts, const
-parameters, non-floats, foreign-owner sources, and other nonliteral forms remain
+the transitional fallback. A distinct Terminal-only non-call operation-result source now
+retains exact `(owner MachineId, producer OperationId, result ValueId, format)`
+identity. Replay requires the unique producer within that owner to declare the
+exact primitive `f32`/`f64` scalar result; call/Unit/structural results and
+machine-result, parameter, block-parameter, owner, producer, value, or format
+substitution reject. Neither artifact carrier widens execution, fuel,
+interpreter behavior, or native float support. Checked/source production for
+operation results remains transitional because no expression-to-Terminal-
+operation correspondence is retained. Nested state and call results, arbitrary
+Terminal values, structural leaves, locals, members, casts, const parameters,
+non-floats, foreign-owner sources, and other nonliteral forms remain
 transitional rather than production proof-ledger evidence.
 
 ## Crash routes

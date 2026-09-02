@@ -70,7 +70,8 @@ pub fn reconstruct_float_meaning_projection(
     let literal_meaning = match projection.source {
         FloatMeaningSource::TransitionalInput(_)
         | FloatMeaningSource::DirectMachineParameter(_)
-        | FloatMeaningSource::DirectMachineResult(_) => None,
+        | FloatMeaningSource::DirectMachineResult(_)
+        | FloatMeaningSource::DirectOperationResult(_) => None,
         FloatMeaningSource::ExactBinary32Literal(bits) => {
             Some(FloatMeaning::from_f32(f32::from_bits(bits)))
         }
@@ -174,6 +175,86 @@ pub(crate) fn verify_direct_float_parameter(
     Ok(())
 }
 
+/// Rejoin one artifact-relative source to the exact scalar result declared by
+/// one operation in its owning Terminal machine.
+pub(crate) fn verify_direct_operation_float_result(
+    module: &TerminalModule,
+    result: psi_terminal::DirectOperationFloatResult,
+) -> Result<(), FloatMeaningProjectionVerificationError> {
+    let mut owners = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == result.owner);
+    let owner = owners.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectOperationResultOwner(result.owner),
+    )?;
+    if owners.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectOperationResultOwner(
+                result.owner,
+            ),
+        );
+    }
+    let mut producers = owner
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| operation.id == result.producer);
+    let producer = producers.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectOperationResultProducer {
+            owner: result.owner,
+            producer: result.producer,
+        },
+    )?;
+    if producers.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectOperationResultProducer {
+                owner: result.owner,
+                producer: result.producer,
+            },
+        );
+    }
+    if matches!(
+        producer.kind,
+        psi_terminal::OperationKind::Call { .. }
+            | psi_terminal::OperationKind::CallUnit { .. }
+            | psi_terminal::OperationKind::CallStructuralScalar { .. }
+            | psi_terminal::OperationKind::CallDynamicScalar { .. }
+            | psi_terminal::OperationKind::CallDynamicParameterScalar { .. }
+            | psi_terminal::OperationKind::CallStructural { .. }
+            | psi_terminal::OperationKind::BoundaryCall { .. }
+    ) {
+        return Err(
+            FloatMeaningProjectionVerificationError::DirectOperationResultCallProducer {
+                owner: result.owner,
+                producer: result.producer,
+            },
+        );
+    }
+    let psi_terminal::OperationResult::Scalar(declaration) = producer.result else {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectOperationResult {
+                owner: result.owner,
+                producer: result.producer,
+                result: result.result,
+            },
+        );
+    };
+    if declaration.id != result.result {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectOperationResult {
+                owner: result.owner,
+                producer: result.producer,
+                result: result.result,
+            },
+        );
+    }
+    if declaration.scalar_type != ScalarType::IeeeFloat(result.format) {
+        return Err(FloatMeaningProjectionVerificationError::DirectOperationResultFormatMismatch);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatMeaningProjectionVerificationError {
     ResultTypeMismatch,
@@ -192,6 +273,21 @@ pub enum FloatMeaningProjectionVerificationError {
         result: ValueId,
     },
     DirectResultFormatMismatch,
+    InvalidDirectOperationResultOwner(MachineId),
+    InvalidDirectOperationResultProducer {
+        owner: MachineId,
+        producer: psi_core::OperationId,
+    },
+    InvalidDirectOperationResult {
+        owner: MachineId,
+        producer: psi_core::OperationId,
+        result: ValueId,
+    },
+    DirectOperationResultCallProducer {
+        owner: MachineId,
+        producer: psi_core::OperationId,
+    },
+    DirectOperationResultFormatMismatch,
     EqualityCarrierMismatch,
 }
 
