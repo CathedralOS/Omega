@@ -3632,8 +3632,13 @@ Remaining:
   record fields before that sole mixed occurrence, with the same whole-root
   equality, inequality, Unit-call rebasing, codec, verifier, fuel, interpreter,
   and per-prefix mutation replay covering all twelve ordered field identities.
-  Thirteen or more enclosing fields, case-payload or mixed-under-mixed
-  placement, two mixed sibling fields, direct projected mixed comparisons,
+  A thirteenth bounded rung now admits exactly thirteen enclosing acyclic
+  relevant record fields before that sole mixed occurrence, with the same
+  whole-root equality, inequality, Unit-call rebasing, codec, verifier, fuel,
+  interpreter, and per-prefix mutation replay covering all thirteen ordered
+  field identities. Fourteen or more enclosing fields, case-payload or
+  mixed-under-mixed placement, two mixed sibling fields, direct projected mixed
+  comparisons,
   recursive cycles, address and erased payload equality, and runtime sum layout
   remain fenced.
   Semantic codec format 33 / vocabulary
@@ -9369,11 +9374,11 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to twenty-seven unary, binary, primitive-cast,
+  call producers in up to twenty-eight unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  twenty-eighth direct scalar shell remains fenced; aggregate fields and projected
-  concrete record, selected-case, or fixed-array literals retain their
-  separate two-shell computation budget.
+  twenty-ninth direct scalar shell remains fenced; aggregate fields and
+  projected concrete record, selected-case, or fixed-array literals retain
+  their separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
   likewise contain an independently bounded non-reference call tree in each
   direct common or payload field while publishing every write. Direct typed
@@ -9415,8 +9420,8 @@ compiler concept is introduced.
   beyond-per-position-budget, binding-reborrow, reference-valued/opaque,
   escaped, non-bijective, generic, recursive or reference-bearing aggregate
   literals, a fourth direct aggregate level, a third projected aggregate or
-  aggregate/literal computed shell, a twenty-eighth direct scalar computed shell,
-  other computed field shapes, and out-of-isolated-root shapes remain
+  aggregate/literal computed shell, a twenty-ninth direct scalar computed
+  shell, other computed field shapes, and out-of-isolated-root shapes remain
   conservative fences. Do not restore
   authored `stores` clauses or treat lifetime elision as evidence; Git carries
   individual evidence cohorts.
