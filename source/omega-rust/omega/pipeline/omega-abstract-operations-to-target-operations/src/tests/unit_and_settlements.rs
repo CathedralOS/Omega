@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn dynamic_unit_dispatch_stops_at_explicit_target_abi_fence() {
+fn parameter_dynamic_unit_dispatch_stops_at_explicit_target_abi_fence() {
     let machine = MachineId::new(71).unwrap();
     let block = BlockId::new(72).unwrap();
     let operation = OperationId::new(73).unwrap();

@@ -1334,6 +1334,11 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
+            AssignedUnitOperation::DynamicUnitCall { psi_operation, .. } => {
+                return Err(EmissionError::UnsupportedDynamicUnitDispatch(
+                    *psi_operation,
+                ));
+            }
             AssignedUnitOperation::ConditionalIntegerEqual {
                 psi_operation,
                 result: _,

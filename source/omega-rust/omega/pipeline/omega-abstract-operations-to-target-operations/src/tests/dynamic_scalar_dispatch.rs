@@ -8,7 +8,7 @@ use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 use super::prelude::*;
-use crate::{lower_to_target_operations, LoweringError};
+use crate::{LoweringError, lower_to_target_operations};
 
 fn abstract_plan() -> omega_abstract_operations::AbstractOperationPlan {
     let source = r#"
@@ -94,6 +94,97 @@ fn forwarded_parameter_plan() -> omega_abstract_operations::AbstractOperationPla
     let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
     lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
         .expect("lower verified Terminal artifact")
+}
+
+fn dynamic_unit_plan() -> omega_abstract_operations::AbstractOperationPlan {
+    let source = r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {}
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            erased.touch();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower rebound dynamic Unit source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified Terminal artifact")
+}
+
+#[test]
+fn lowers_rebound_dynamic_unit_without_a_scalar_result_carrier() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let source = dynamic_unit_plan();
+        let lowered = lower_to_target_operations(&source, target)
+            .expect("target lowering retains rebound dynamic Unit dispatch");
+        let caller = lowered
+            .functions
+            .iter()
+            .find(|function| function.machine == lowered.entry)
+            .expect("entry caller");
+        let TargetOperation::UnitBody(body) = &caller.operation else {
+            panic!("dynamic Unit caller must remain an attached Unit body")
+        };
+        let calls = body
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::DynamicUnitCall {
+                    dynamic_dispatch,
+                    call_plan,
+                    initial_argument,
+                    rebound_argument,
+                    ..
+                } => Some((
+                    dynamic_dispatch,
+                    call_plan,
+                    initial_argument,
+                    rebound_argument,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(dynamic, call_plan, initial, rebound)] = calls.as_slice() else {
+            panic!("one target dynamic Unit call expected: {body:#?}")
+        };
+        assert!(call_plan.result.is_none());
+        assert_eq!(call_plan.parameters.len(), 1);
+        assert_eq!(initial.path, dynamic.initial.source.path);
+        assert_eq!(rebound.path, dynamic.rebound.source.path);
+        assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
+        assert_eq!(initial.destination, rebound.destination);
+        assert!(
+            dynamic
+                .application
+                .realization_callables
+                .iter()
+                .any(|callable| {
+                    callable.machine == dynamic.dispatch.realization
+                        && callable.result == psi_terminal::ClosedConformanceCallableResult::Unit
+                })
+        );
+    }
 }
 
 #[test]
@@ -206,10 +297,12 @@ fn lowers_rebound_descriptor_into_forwarded_call_abi() {
             application.trait_identity,
             argument.custody.target.trait_identity
         );
-        assert!(lowered
-            .functions
-            .iter()
-            .any(|function| function.machine == **callee));
+        assert!(
+            lowered
+                .functions
+                .iter()
+                .any(|function| function.machine == **callee)
+        );
     }
 }
 
@@ -248,10 +341,12 @@ fn lowers_rebound_dynamic_versions_to_one_target_indirect_call() {
         assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
         assert_eq!(initial.destination, rebound.destination);
         assert_eq!(dynamic.application.rows.len(), 2);
-        assert!(source
-            .functions
-            .iter()
-            .any(|function| function.machine == dynamic.dispatch.realization));
+        assert!(
+            source
+                .functions
+                .iter()
+                .any(|function| function.machine == dynamic.dispatch.realization)
+        );
     }
 }
 

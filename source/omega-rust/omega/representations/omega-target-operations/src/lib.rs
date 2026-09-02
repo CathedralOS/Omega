@@ -831,6 +831,18 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// One exact rebound Unit invocation. Descriptor and table custody are
+    /// identical to the scalar form, while the native call signature and
+    /// operation deliberately contain no result or result-home carrier.
+    DynamicUnitCall {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
+        call_plan: CallPlan,
+        initial_argument: TargetStructuralArgument,
+        rebound_argument: TargetStructuralArgument,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     /// One bounded equality decision after a durable Unit scalar result.
     /// The true arm is laid out first and both arms must end in admitted
     /// nonreturning boundary settlements. This is deliberately not a general

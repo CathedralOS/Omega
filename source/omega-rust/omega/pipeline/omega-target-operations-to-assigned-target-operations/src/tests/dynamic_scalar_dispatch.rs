@@ -1,7 +1,7 @@
 use crate::assign_registers;
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_assigned_target_operations::{AssignedOperation, AssignedUnitOperation};
-use omega_calling_conventions::{evaluate_call_plan, CallSignature, CallingPolicy, ValueShape};
+use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use omega_target::NativeTarget;
 use omega_target_operations::{
@@ -110,6 +110,136 @@ fn forwarded_target_plan(target: NativeTarget) -> omega_target_operations::Targe
         .expect("lower verified Terminal artifact");
     lower_to_target_operations(&abstract_plan, target)
         .expect("lower caller and forwarded helper to target operations")
+}
+
+fn dynamic_unit_target_plan(target: NativeTarget) -> omega_target_operations::TargetOperationPlan {
+    let source = r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {}
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            erased.touch();
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower rebound dynamic Unit source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified Terminal artifact");
+    lower_to_target_operations(&abstract_plan, target)
+        .expect("lower rebound dynamic Unit call to target operations")
+}
+
+#[test]
+fn assigns_rebound_dynamic_unit_descriptor_without_a_result_home() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = dynamic_unit_target_plan(target);
+        let assigned = assign_registers(&target_plan).expect("assign dynamic Unit descriptor");
+        let caller = assigned
+            .functions
+            .iter()
+            .find(|function| function.machine == assigned.entry)
+            .expect("entry caller");
+        let AssignedOperation::UnitBody(body) = &caller.operation else {
+            panic!("dynamic Unit caller must remain an attached Unit body")
+        };
+        let calls = body
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                AssignedUnitOperation::DynamicUnitCall {
+                    dynamic_dispatch,
+                    call_plan,
+                    descriptor_abi,
+                    descriptor_home_byte_offset,
+                    initial_copy,
+                    rebound_copy,
+                    ..
+                } => Some((
+                    dynamic_dispatch,
+                    call_plan,
+                    descriptor_abi,
+                    descriptor_home_byte_offset,
+                    initial_copy,
+                    rebound_copy,
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(dynamic, call_plan, descriptor, descriptor_offset, initial, rebound)] =
+            calls.as_slice()
+        else {
+            panic!("one assigned rebound Unit call expected: {body:#?}")
+        };
+        assert!(call_plan.result.is_none());
+        assert_eq!(descriptor.instance_offset(), 0);
+        assert_eq!(descriptor.table_offset(), 8);
+        assert_eq!(descriptor.word_size(), 8);
+        assert_eq!(descriptor.total_size(), 16);
+        assert_eq!(descriptor.align(), 8);
+        assert_eq!(**descriptor_offset % 8, 0);
+        assert_eq!(initial.path, dynamic.initial.source.path);
+        assert_eq!(rebound.path, dynamic.rebound.source.path);
+        assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
+        assert_eq!(initial.destination, rebound.destination);
+    }
+}
+
+#[test]
+fn rejects_reauthenticated_dynamic_unit_owner_substitution() {
+    let mut plan = dynamic_unit_target_plan(NativeTarget::linux_x64());
+    let caller = plan
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let TargetOperation::UnitBody(body) = &mut caller.operation else {
+        panic!("dynamic Unit caller must remain an attached Unit body")
+    };
+    let rejected_operation = body
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_target_operations::TargetUnitOperation::DynamicUnitCall {
+                psi_operation,
+                dynamic_dispatch,
+                ..
+            } => {
+                dynamic_dispatch.dispatch.owner =
+                    MachineId::new(dynamic_dispatch.dispatch.owner.get() + 100)
+                        .expect("distinct machine");
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .expect("dynamic Unit call");
+    assert!(matches!(
+        assign_registers(&plan),
+        Err(crate::AssignmentError::DynamicUnitCallCustodyMismatch {
+            operation: rejected,
+            ..
+        }) if rejected == rejected_operation
+    ));
 }
 
 #[test]
@@ -261,10 +391,12 @@ fn assigns_rebound_descriptor_arguments_to_forwarded_call_registers() {
         assert_eq!(argument.instance.destination, expected_instance);
         assert_eq!(argument.table_destination, expected_table);
         assert_eq!(call_plan.parameters.len(), 2);
-        assert!(target_plan
-            .functions
-            .iter()
-            .any(|function| function.machine == **callee));
+        assert!(
+            target_plan
+                .functions
+                .iter()
+                .any(|function| function.machine == **callee)
+        );
     }
 }
 
@@ -359,10 +491,12 @@ fn assigns_canonical_descriptor_and_distinct_rebound_source() {
         assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
         assert_eq!(initial.destination, rebound.destination);
         assert_eq!(dynamic.application.rows.len(), 2);
-        assert!(target_plan
-            .functions
-            .iter()
-            .any(|function| function.machine == dynamic.dispatch.realization));
+        assert!(
+            target_plan
+                .functions
+                .iter()
+                .any(|function| function.machine == dynamic.dispatch.realization)
+        );
     }
 }
 

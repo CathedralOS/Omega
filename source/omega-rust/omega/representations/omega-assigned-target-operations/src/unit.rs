@@ -326,6 +326,19 @@ pub enum AssignedUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// One physically assigned rebound Unit invocation. The descriptor frame
+    /// region is real ABI custody, while no scalar result home is invented.
+    DynamicUnitCall {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
+        call_plan: CallPlan,
+        descriptor_abi: AssignedDynamicTraitDescriptorAbi,
+        descriptor_home_byte_offset: u32,
+        initial_copy: AssignedAggregateCopy,
+        rebound_copy: AssignedAggregateCopy,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     ConditionalIntegerEqual {
         psi_operation: OperationId,
         result: ValueId,
