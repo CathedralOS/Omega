@@ -12054,10 +12054,17 @@ checked-result arithmetic decision listed below.
 
   Remaining work:
 
-  - add an AArch64 result-execution replay canary; object and final-image
-    custody are complete on both architectures, and the existing Linux x86-64
-    full-pipeline canary executes the forwarded adapter and checks the selected
-    instance through exit status;
+  - add an AArch64 result-execution replay canary. The native assertion is
+    already enabled on a Linux/AArch64 host, but this macOS/AArch64 development
+    host cannot execute the Linux image. Reusing the fixture on macOS is not a
+    test-only switch: std currently declares `macos_arm64::Console::exit_process`
+    as a compiler intrinsic for which no closed native catalog identity exists.
+    Replacing it with the legacy string-backed `_exit` import also lacks the
+    normalized package terminal-mechanism identity and the attached-Unit
+    transitive plan. Do not paper over either boundary in the canary. Object and
+    final-image custody remain complete on both architectures, and the Linux
+    x86-64 full-pipeline canary executes the forwarded adapter and checks the
+    selected instance through exit status;
   - widen beyond the current single Boolean or fixed-integer literal
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
