@@ -1,6 +1,6 @@
 use crate::legalization::catalog::{
     LEGALIZATION_FORMS, LegalizationFormDescriptor, LegalizationProducerMatcherKind,
-    ScalarLegalizationMatcherKind,
+    LegalizationShapeConstraints, ScalarConditionShape, ScalarLegalizationMatcherKind,
 };
 
 use super::super::leaves::{
@@ -10,10 +10,17 @@ use super::super::leaves::{
 use super::super::shared::*;
 
 pub(crate) fn match_scalar_form(
+    condition: ScalarConditionShape,
     when_true: &TargetIntegerControl,
     when_false: &TargetIntegerControl,
 ) -> Option<&'static LegalizationFormDescriptor> {
     let mut matches = LEGALIZATION_FORMS.iter().filter(|descriptor| {
+        if !matches!(
+            descriptor.constraints,
+            LegalizationShapeConstraints::Scalar(constraints) if constraints.condition == condition
+        ) {
+            return false;
+        }
         let LegalizationProducerMatcherKind::Scalar(matcher) = descriptor.producer_matcher else {
             return false;
         };

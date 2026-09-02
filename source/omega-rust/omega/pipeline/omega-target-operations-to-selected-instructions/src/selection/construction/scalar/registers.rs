@@ -6,17 +6,22 @@ use crate::selection::shared::*;
 
 use super::model::ScalarConstructionContext;
 
-pub(super) fn condition(context: &ScalarConstructionContext<'_>) -> VirtualRegister {
+pub(super) fn condition_input(
+    context: &ScalarConstructionContext<'_>,
+    id: u32,
+    input: usize,
+) -> VirtualRegister {
+    let input = context.condition_inputs[input];
     VirtualRegister {
-        id: VirtualRegisterId(0),
-        scalar_type: ScalarType::Boolean,
-        class: context.input_class,
+        id: VirtualRegisterId(id),
+        scalar_type: input.scalar_type,
+        class: input.class,
         origin: VirtualRegisterOrigin::EntryParameter {
-            source_value: context.source.condition_source,
-            parameter_index: context.source.condition_parameter_index,
+            source_value: input.source_value,
+            parameter_index: input.parameter_index,
         },
-        definition_site: context.source.condition_definition_site,
-        entry_fixed_view: Some(context.input_view),
+        definition_site: input.definition_site,
+        entry_fixed_view: Some(input.view),
     }
 }
 

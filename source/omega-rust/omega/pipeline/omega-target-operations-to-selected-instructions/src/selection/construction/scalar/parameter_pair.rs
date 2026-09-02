@@ -58,7 +58,7 @@ pub(super) fn build(
         fixed.fixed_view,
     );
     Ok(ConstructedScalarBody {
-        virtual_registers: vec![registers::condition(context), result],
+        virtual_registers: vec![registers::condition_input(context, 0, 0), result],
         blocks: vec![
             blocks::condition(context)?,
             blocks::parameter_return(

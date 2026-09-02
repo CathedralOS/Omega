@@ -136,13 +136,18 @@ pub const AARCH64_SUBTRACT_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstr
     family: RegisterConstraintFamily::Instruction,
     variant: 7,
 };
+/// Two-input i64 comparison. Both operands are read and NZCV is defined.
+pub const AARCH64_COMPARE_I64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 8,
+};
 
 /// Closed baseline constraint inventory currently owned by the AArch64 target.
 /// The ordinary rows are limited to the baseline operations required by a
 /// register-passed scalar conditional-return CFG plus the first arithmetic row
 /// needed by the pressure vertical. Other ordinary and feature-specific
 /// instruction rows remain intentionally absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 16] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 17] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_RETURN,
@@ -159,6 +164,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 16] = [
     AARCH64_ADD_I64_IMMEDIATE,
     AARCH64_SUBTRACT_I64,
     AARCH64_SUBTRACT_I64_IMMEDIATE,
+    AARCH64_COMPARE_I64,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -728,6 +734,17 @@ pub fn aarch64_register_constraint_catalog(
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(16),
+            key: AARCH64_COMPARE_I64,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Use, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: view("nzcv").units.clone(),
             clobbers: Vec::new(),
         },
         RegisterInstructionConstraint {

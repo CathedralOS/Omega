@@ -14,7 +14,7 @@ use shared::*;
 pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
-    canonical::identity(plan, b"omega.terminal-legalized-operations.v12\0", true)
+    canonical::identity(plan, b"omega.terminal-legalized-operations.v13\0", true)
 }
 
 #[doc(hidden)]

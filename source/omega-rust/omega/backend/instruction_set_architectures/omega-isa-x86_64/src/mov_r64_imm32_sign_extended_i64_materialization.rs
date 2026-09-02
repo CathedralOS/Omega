@@ -356,14 +356,11 @@ mod tests {
 
         let mut forged_model = x86_64_physical_register_model();
         let eax_index = usize::from(forged_model.view_named("eax").unwrap().id.0);
-        forged_model.views[eax_index].write_semantics =
-            RegisterWriteSemantics::PreservesUnwritten;
+        forged_model.views[eax_index].write_semantics = RegisterWriteSemantics::PreservesUnwritten;
         let forged = validate_physical_register_model(forged_model).unwrap();
         assert_eq!(
             decode_x86_64_mov_r64_imm32_sign_extended_i64_materialization(&forged, &canonical),
-            Err(
-                X86_64MovR64Imm32SignExtendedI64MaterializationError::NonCanonicalPhysicalModel
-            )
+            Err(X86_64MovR64Imm32SignExtendedI64MaterializationError::NonCanonicalPhysicalModel)
         );
     }
 }

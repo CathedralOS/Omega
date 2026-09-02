@@ -51,11 +51,40 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1 => {
                 8
             }
+            LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1 => 9,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
-        bytes.extend_from_slice(&(function.condition_parameter_index as u64).to_le_bytes());
-        encode_register(&mut bytes, function.condition_register);
-        encode_definition_site(&mut bytes, function.condition_definition_site);
+        match &function.condition {
+            LegalizedCondition::DirectParameter {
+                parameter_index,
+                register,
+                definition_site,
+            } => {
+                // Preserve the exact pre-V13 byte layout for every existing
+                // direct-condition recipe.
+                bytes.extend_from_slice(&(*parameter_index as u64).to_le_bytes());
+                encode_register(&mut bytes, *register);
+                encode_definition_site(&mut bytes, *definition_site);
+            }
+            LegalizedCondition::IntegerEqualParametersV1 {
+                operation,
+                result_definition_site,
+                fuel,
+                left,
+                right,
+            } => {
+                bytes.push(0xff);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                encode_definition_site(&mut bytes, *result_definition_site);
+                encode_fuel(&mut bytes, fuel);
+                for parameter in [left, right] {
+                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
+                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
+                    encode_register(&mut bytes, parameter.register);
+                    encode_definition_site(&mut bytes, parameter.definition_site);
+                }
+            }
+        }
         bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
         bytes.extend_from_slice(&function.true_block.get().to_le_bytes());
         bytes.extend_from_slice(&function.false_block.get().to_le_bytes());

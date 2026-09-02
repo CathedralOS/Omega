@@ -18,8 +18,10 @@ fn unit_legalization_retains_a_static_attachment_without_inventing_a_receiver() 
             selected.selected().plan().functions[0].attachment,
             Some(attachment)
         );
-        assert!(selected.selected().plan().functions[0]
-            .virtual_registers
-            .is_empty());
+        assert!(
+            selected.selected().plan().functions[0]
+                .virtual_registers
+                .is_empty()
+        );
     }
 }

@@ -978,6 +978,44 @@ decision. Only true language-semantic questions belong in
   drift fail closed.
 - [ ] Add exact address-mode folding, compare/branch selection, extension
   elimination, and constant materialization one named family at a time.
+  - [x] Add the first exact runtime compare/branch vertical as one bounded
+    `U64` integer-equality conditional family. The admitted source is exactly
+    two distinct entry `U64` parameters, an entry block containing
+    `[IntegerEqual, Conditional]`, and two leaves containing
+    `[IntegerConstant(U64), Return]`. Positive runtime fixtures use distinct
+    constants so both outcomes remain observable. Abstract block offsets are
+    `[0, 2, 4]`, node counts are `[2, 2, 2]`, the operation count is six, and
+    no block parameter, attachment, address carrier, nested Boolean
+    expression, non-immediate leaf, or extra source operation is admitted.
+    Target admission requires
+    `ReturnIntegerExpressionConditionalControl` with one
+    `TargetBooleanExpression::IntegerEqual` whose ordered children are the
+    exact two `U64` parameter expressions and whose result is the conditional
+    source.
+    Legalization appends one recipe/catalog row without renumbering older
+    tags, retains a closed direct-parameter-or-integer-equality condition
+    carrier, and independently replays the comparison operation, result
+    definition, ordered parameter values/indices/locations/definitions,
+    provenance, fuel, edges, and immediate leaves. Old direct-condition
+    canonical payloads remain byte-stable; the current legalized-plan and
+    independent-replay identity domains advance for the new semantic schema.
+    Selection adds one two-register integer-compare semantic and target
+    constraint row. It reuses `ConditionalBranchNonZero` by sending the
+    nonzero/not-equal successor to the source false block and retaining the
+    zero/equal fallthrough as the source true block; it does not invent a
+    second branch family or make the AArch64 compare-zero/CBNZ rule applicable.
+    Producer/replay rejection and corruption suites cover condition
+    kind/source, comparison type and operation, operand
+    order/index/location/definition, definition/operand/provenance/fuel
+    custody, source shape, leaf payloads, recipe, and identity substitution.
+    Selected construction and independent
+    validation pin the four-virtual-register, six-instruction shape,
+    successor inversion,
+    register constraints, machine effects, both ISA encodings, allocation,
+    resolved layout, object/callable publication where supported, and runtime
+    execution of equal and unequal inputs. The positive, negative, corruption,
+    identity, cross-target, and runtime suites pass on Linux x64 and Linux
+    arm64.
   - [x] Add constant-widen-to-immediate as its own exact abstract-to-target
     family. Its independently reconstructed source grammar and target replay
     cover all 18 native fixed-integer widening relations and preserve the

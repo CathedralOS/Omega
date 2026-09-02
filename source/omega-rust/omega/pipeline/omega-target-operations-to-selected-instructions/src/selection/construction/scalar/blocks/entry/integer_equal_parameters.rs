@@ -1,25 +1,42 @@
-//! Shared conditional entry block.
+//! Ordered U64 parameter comparison with equality mapped to the zero successor.
 
 use crate::selection::constraints::instruction;
 use crate::selection::shared::*;
 
-use super::super::model::ScalarConstructionContext;
+use super::ScalarConstructionContext;
+use super::direct_parameter::{false_successor, true_successor};
 
-pub(in crate::selection::construction::scalar) fn condition(
+pub(super) fn build(
     context: &ScalarConstructionContext<'_>,
 ) -> Result<SelectedBlock, SelectedInstructionError> {
     let source = context.source;
+    let LegalizedCondition::IntegerEqualParametersV1 {
+        operation,
+        fuel,
+        left,
+        right,
+        ..
+    } = &source.condition
+    else {
+        unreachable!("condition entrance selected integer equality")
+    };
     let keys = context.constraints.keys;
     Ok(SelectedBlock {
         id: SelectedBlockId(0),
         source_block: source.entry_block,
         instructions: vec![instruction(
             SelectedInstructionId(0),
-            SelectedInstructionKind::CompareI64Zero,
-            keys.compare_i64_zero,
-            &[VirtualRegisterId(0)],
+            SelectedInstructionKind::CompareI64,
+            keys.compare_i64,
+            &[VirtualRegisterId(0), VirtualRegisterId(1)],
             SelectedInstructionProvenance {
-                values: vec![source.condition_source],
+                operations: vec![*operation],
+                values: vec![
+                    left.source_value,
+                    right.source_value,
+                    source.condition_source,
+                ],
+                fuel: fuel.clone(),
                 ..Default::default()
             },
             context.catalog,
@@ -36,20 +53,8 @@ pub(in crate::selection::construction::scalar) fn condition(
                 },
                 context.catalog,
             )?,
-            when_nonzero: SelectedSuccessor {
-                psi_edge: source.branch_true_edge,
-                block: SelectedBlockId(1),
-                source_target: source.true_block,
-                bindings: source.branch_true_bindings.clone(),
-                fuel: source.branch_true_fuel.clone(),
-            },
-            when_zero: SelectedSuccessor {
-                psi_edge: source.branch_false_edge,
-                block: SelectedBlockId(2),
-                source_target: source.false_block,
-                bindings: source.branch_false_bindings.clone(),
-                fuel: source.branch_false_fuel.clone(),
-            },
+            when_nonzero: false_successor(source),
+            when_zero: true_successor(source),
         },
     })
 }

@@ -5,5 +5,6 @@ mod active_resident_original_victim_chain;
 mod assignment;
 mod immediate_conditional;
 mod projected_structural_call_return;
+mod runtime_integer_equal_conditional;
 mod widened_exact_add;
 mod widened_exact_subtract;

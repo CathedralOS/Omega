@@ -170,6 +170,7 @@ fn terminal_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> Sele
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
+        compare_i64: keys.compare_i64,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
         return_unit: keys.return_unit,
@@ -241,6 +242,7 @@ fn exact_declaration<'a>(
 fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
+        SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,

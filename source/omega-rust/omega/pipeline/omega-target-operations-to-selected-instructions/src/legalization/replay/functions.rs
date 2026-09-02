@@ -1,3 +1,4 @@
+use super::conditions;
 use super::leaf::{replay_edge_fuel, replay_leaf};
 use super::shared::*;
 use super::validators::{scalar_validator_accepts, validate_unit_form};
@@ -104,7 +105,6 @@ pub(super) fn replay_function(
         || optimized.blocks[0].id != abstracted.block_entries[0].block
         || optimized.blocks[1].id != abstracted.block_entries[1].block
         || optimized.blocks[2].id != abstracted.block_entries[2].block
-        || optimized.blocks[0].nodes.len() != 1
         || abstracted
             .block_entries
             .iter()
@@ -125,25 +125,20 @@ pub(super) fn replay_function(
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
-    let TargetOperation::ReturnIntegerConditionalControl {
-        condition_source,
-        condition_parameter_index,
-        condition_location: ScalarParameterLocation::Register(condition_register),
-        scalar_type,
-        when_true,
-        when_false,
-    } = &target.operation
-    else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    if scalar_type.is_address()
-        || scalar_type.sign() != IntegerSign::Unsigned
-        || scalar_type.bits() != 64
+    let condition = conditions::replay(
+        function,
+        architecture,
+        target,
+        abstracted,
+        optimized,
+        proposed.condition_source,
+        &proposed.condition,
+    )?;
+    if condition.result_type.is_address()
+        || condition.result_type.sign() != IntegerSign::Unsigned
+        || condition.result_type.bits() != 64
     {
         return Err(Error::UnsupportedIntegerShape { function });
-    }
-    if condition_register.architecture() != architecture {
-        return Err(Error::SourceCustodyMismatch);
     }
 
     let form = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(proposed.recipe))
@@ -153,8 +148,8 @@ pub(super) fn replay_function(
     };
     if !scalar_validator_accepts(
         validator,
-        when_true.control.as_ref(),
-        when_false.control.as_ref(),
+        condition.when_true.control.as_ref(),
+        condition.when_false.control.as_ref(),
     ) {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
@@ -162,7 +157,9 @@ pub(super) fn replay_function(
     let LegalizationShapeConstraints::Scalar(constraints) = form.constraints else {
         return Err(Error::NonCanonicalLegalizedPlan);
     };
-    if abstracted.operations.len() != constraints.operation_count
+    if constraints.condition != condition.shape
+        || optimized.blocks[0].nodes.len() != constraints.entry_node_count
+        || abstracted.operations.len() != constraints.operation_count
         || abstracted.parameters.len() != constraints.parameter_count
         || optimized.parameters.len() != constraints.parameter_count
         || abstracted
@@ -176,42 +173,21 @@ pub(super) fn replay_function(
         return Err(Error::UnsupportedSourceShape { function });
     }
 
-    let Some(parameter) = optimized.parameters.get(*condition_parameter_index) else {
-        return Err(Error::UnsupportedCondition { function });
-    };
-    let Some(abstract_parameter) = abstracted.parameters.get(*condition_parameter_index) else {
-        return Err(Error::UnsupportedCondition { function });
-    };
-    if parameter.value != *condition_source
-        || parameter.scalar_type != ScalarType::Boolean
-        || abstract_parameter.value != *condition_source
-        || abstract_parameter.scalar_type != ScalarType::Boolean
-    {
-        return Err(Error::UnsupportedCondition { function });
-    }
-    if proposed.condition_source != *condition_source
-        || proposed.condition_parameter_index != *condition_parameter_index
-        || proposed.condition_register != *condition_register
-        || proposed.condition_definition_site != parameter.site
-    {
-        return Err(Error::NonCanonicalLegalizedPlan);
-    }
-
-    let entry_node = &optimized.blocks[0].nodes[0];
-    if entry_node.operation != abstracted.operations[0] {
+    let entry_node = &optimized.blocks[0].nodes[condition.conditional_node_index];
+    if entry_node.operation != abstracted.operations[condition.conditional_node_index] {
         return Err(Error::SourceCustodyMismatch);
     }
     let AbstractOperation::Conditional {
-        condition,
+        condition: branch_condition,
         when_true: abstract_true,
         when_false: abstract_false,
     } = &entry_node.operation
     else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    if *condition != *condition_source
-        || abstract_true.psi_edge != when_true.psi_edge
-        || abstract_false.psi_edge != when_false.psi_edge
+    if *branch_condition != condition.source
+        || abstract_true.psi_edge != condition.when_true.psi_edge
+        || abstract_false.psi_edge != condition.when_false.psi_edge
         || abstract_true.target != optimized.blocks[1].id
         || abstract_false.target != optimized.blocks[2].id
         || !abstract_true.bindings.is_empty()
@@ -253,8 +229,8 @@ pub(super) fn replay_function(
     let true_operations = replay_leaf(
         function,
         proposed.recipe,
-        when_true.psi_edge,
-        when_true.control.as_ref(),
+        condition.when_true.psi_edge,
+        condition.when_true.control.as_ref(),
         &abstracted.operations[constraints.block_offsets[1]..constraints.block_offsets[2]],
         &optimized.blocks[1].nodes,
         abstracted,
@@ -267,8 +243,8 @@ pub(super) fn replay_function(
     let false_operations = replay_leaf(
         function,
         proposed.recipe,
-        when_false.psi_edge,
-        when_false.control.as_ref(),
+        condition.when_false.psi_edge,
+        condition.when_false.control.as_ref(),
         &abstracted.operations[constraints.block_offsets[2]..],
         &optimized.blocks[2].nodes,
         abstracted,
@@ -293,14 +269,20 @@ pub(super) fn replay_function(
         && (proposed.when_true.source_value != proposed.when_false.source_value
             || true_index != false_index
             || true_register != false_register
-            || *true_index == *condition_parameter_index)
+            || matches!(
+                &proposed.condition,
+                LegalizedCondition::DirectParameter { parameter_index, .. }
+                    if *true_index == *parameter_index
+            ))
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
     let expected_provenance = TerminalPsiProvenance {
-        operations: true_operations
+        operations: condition
+            .provenance_operation
             .into_iter()
+            .chain(true_operations)
             .chain(false_operations)
             .collect(),
         edges: vec![

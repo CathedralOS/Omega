@@ -95,7 +95,7 @@ fn build_direct(
         context.constraints.keys.subtract_i64
     };
     let result_class = row(context.catalog, key)?.operands[2].class;
-    let mut virtual_registers = vec![registers::condition(context)];
+    let mut virtual_registers = vec![registers::condition_input(context, 0, 0)];
     for (id, instruction, source_value, definition_site) in [
         (1, 2, true_left.source_value, true_left.definition_site),
         (2, 3, true_right.source_value, true_right.definition_site),
@@ -158,7 +158,7 @@ fn build_widened(
         context.constraints.keys.subtract_i64
     };
     let result_class = row(context.catalog, key)?.operands[2].class;
-    let mut virtual_registers = vec![registers::condition(context)];
+    let mut virtual_registers = vec![registers::condition_input(context, 0, 0)];
     for (id, instruction, temporary, immediate) in [
         (1, 2, true_left_temporary, true_left),
         (2, 3, true_right_temporary, true_right),

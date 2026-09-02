@@ -8,7 +8,8 @@ use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::registers;
 
 pub(super) fn is_candidate(source: &SourceFunction) -> bool {
-    matches!(source.when_true.value, SourceLeafValue::Immediate { .. })
+    source.recipe != LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
+        && matches!(source.when_true.value, SourceLeafValue::Immediate { .. })
         && matches!(source.when_false.value, SourceLeafValue::Immediate { .. })
 }
 
@@ -33,7 +34,7 @@ pub(super) fn build(
         row(context.catalog, context.constraints.keys.materialize_i64)?.operands[0].class;
     Ok(ConstructedScalarBody {
         virtual_registers: vec![
-            registers::condition(context),
+            registers::condition_input(context, 0, 0),
             registers::instruction_result(
                 context,
                 1,

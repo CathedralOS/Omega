@@ -48,10 +48,21 @@ pub(super) fn validate_initial_roots(
         .functions
         .iter()
         .map(|source| {
-            1 + usize::from(matches!(
-                source.when_true.value,
-                SourceLeafValue::EntryParameter { .. }
-            ))
+            let condition_inputs = match &source.condition {
+                LegalizedCondition::DirectParameter { .. } => 1,
+                LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => {
+                    1 + usize::from(
+                        left.source_value != right.source_value
+                            || left.parameter_index != right.parameter_index
+                            || left.register != right.register,
+                    )
+                }
+            };
+            condition_inputs
+                + usize::from(matches!(
+                    source.when_true.value,
+                    SourceLeafValue::EntryParameter { .. }
+                ))
         })
         .sum::<usize>();
     if constraints.fixed_inputs.len() != expected_fixed_inputs {

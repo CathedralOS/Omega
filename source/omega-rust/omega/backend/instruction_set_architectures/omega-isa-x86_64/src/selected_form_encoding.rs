@@ -434,6 +434,7 @@ fn family_and_operand_count(
         SelectedInstructionKind::CompareI64Zero => {
             (MachineAlternativeFamily::CompareI64Zero, 1, 0..=0)
         }
+        SelectedInstructionKind::CompareI64 => (MachineAlternativeFamily::CompareI64, 2, 0..=0),
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1, 0..=0)
         }
@@ -613,6 +614,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::CompareI64Zero => {
             append_register_binary(&mut bytes, 0x85, registers[0], registers[0]);
+        }
+        SelectedInstructionKind::CompareI64 => {
+            append_register_binary(&mut bytes, 0x39, registers[1], registers[0]);
         }
         SelectedInstructionKind::ExactAddI64 { .. } => {
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
@@ -1195,6 +1199,10 @@ enum DecodedInstruction {
     Test {
         register: u8,
     },
+    Compare {
+        left: u8,
+        right: u8,
+    },
     Lea {
         destination: u8,
         base: u8,
@@ -1274,7 +1282,7 @@ fn decode_one(
     let reg = ((modrm >> 3) & 7) | (rex_r << 3);
     let rm_low = modrm & 7;
     let rm = rm_low | (rex_b << 3);
-    if matches!(opcode, 0x89 | 0x85 | 0x31 | 0x29 | 0x01 | 0xf7) {
+    if matches!(opcode, 0x89 | 0x85 | 0x39 | 0x31 | 0x29 | 0x01 | 0xf7) {
         if mode != 3 || bytes.len() < 3 {
             return Err(X86_64SelectedFormEncodingError::MalformedEncoding);
         }
@@ -1284,6 +1292,10 @@ fn decode_one(
                 destination: rm,
             },
             0x85 if reg == rm => DecodedInstruction::Test { register: reg },
+            0x39 => DecodedInstruction::Compare {
+                left: rm,
+                right: reg,
+            },
             0x31 => DecodedInstruction::Xor {
                 source: reg,
                 destination: rm,
@@ -1390,6 +1402,13 @@ fn validate_decoded(
                     register: registers[0],
                 }]
         }
+        SelectedInstructionKind::CompareI64 => {
+            decoded
+                == [DecodedInstruction::Compare {
+                    left: registers[0],
+                    right: registers[1],
+                }]
+        }
         SelectedInstructionKind::ExactAddI64 { .. } => {
             matches!(decoded, [DecodedInstruction::Lea { destination, base, index: Some(index), displacement: 0 }]
                 if *destination == registers[2]
@@ -1477,6 +1496,7 @@ fn footprint(
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
+        SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ExactAddI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
@@ -1547,6 +1567,7 @@ fn footprint(
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
+                SelectedInstructionKind::CompareI64 => vec![0, 1],
                 SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
                 SelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
                     vec![]
@@ -1562,10 +1583,14 @@ fn footprint(
                 SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
+                SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
             },
         );
-        if matches!(kind, SelectedInstructionKind::CompareI64Zero) {
+        if matches!(
+            kind,
+            SelectedInstructionKind::CompareI64Zero | SelectedInstructionKind::CompareI64
+        ) {
             effects.implicit_unit_defs = units("rflags");
         }
         if matches!(kind, SelectedInstructionKind::ExactSubtractI64 { .. }) {
@@ -2016,6 +2041,34 @@ mod tests {
         )
         .unwrap();
         assert_eq!(encoded.bytes(), [0x4b, 0x8d, 0x04, 0x24]);
+    }
+
+    #[test]
+    fn compare_i64_is_canonical_register_cmp_with_exact_footprint() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let rax = physical.model().view_named("rax").unwrap().id;
+        let rbx = physical.model().view_named("rbx").unwrap().id;
+        let r8 = physical.model().view_named("r8").unwrap().id;
+        let r9 = physical.model().view_named("r9").unwrap().id;
+        let alternative = alternative(MachineAlternativeFamily::CompareI64, 0);
+        for (operands, expected) in [
+            ([rax, rbx], [0x48, 0x39, 0xd8]),
+            ([r8, r9], [0x4d, 0x39, 0xc8]),
+            ([rax, rax], [0x48, 0x39, 0xc0]),
+        ] {
+            let encoded = encode_x86_64_selected_form(
+                &physical,
+                SelectedInstructionKind::CompareI64,
+                alternative,
+                &operands,
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes(), expected);
+            assert_eq!(encoded.footprint().register_reads, operands);
+            assert!(encoded.footprint().register_writes.is_empty());
+            assert!(encoded.footprint().writes_rflags);
+            assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
+        }
     }
 
     #[test]

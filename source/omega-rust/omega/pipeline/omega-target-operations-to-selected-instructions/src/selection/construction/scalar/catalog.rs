@@ -6,7 +6,7 @@ use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::{
     active_resident_exact_add_bridge_chain, active_resident_exact_add_chain,
     active_resident_exact_add_original_victim_chain, exact_binary_pair, immediate_pair,
-    parameter_pair,
+    integer_equal_immediate_pair, parameter_pair,
 };
 
 type CandidateClassifier = fn(&SourceFunction) -> bool;
@@ -22,6 +22,11 @@ struct ScalarFamilyDescriptor {
 }
 
 const SCALAR_FAMILIES: &[ScalarFamilyDescriptor] = &[
+    ScalarFamilyDescriptor::new(
+        "integer-equal-immediate-pair",
+        integer_equal_immediate_pair::is_candidate,
+        integer_equal_immediate_pair::build,
+    ),
     ScalarFamilyDescriptor::new(
         "immediate-pair",
         immediate_pair::is_candidate,
@@ -123,13 +128,13 @@ mod tests {
             Err(SelectedInstructionError::UnsupportedSourceShape { function: 7 })
         ));
         assert_eq!(
-            unique_match(7, std::iter::once(&SCALAR_FAMILIES[0]))
+            unique_match(7, std::iter::once(&SCALAR_FAMILIES[1]))
                 .expect("one row is exact")
                 .name,
             "immediate-pair"
         );
         assert!(matches!(
-            unique_match(7, [&SCALAR_FAMILIES[0], &SCALAR_FAMILIES[1]].into_iter()),
+            unique_match(7, [&SCALAR_FAMILIES[1], &SCALAR_FAMILIES[2]].into_iter()),
             Err(SelectedInstructionError::AmbiguousSourceShape {
                 function: 7,
                 first: "immediate-pair",

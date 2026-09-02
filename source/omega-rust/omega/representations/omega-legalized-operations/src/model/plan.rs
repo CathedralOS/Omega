@@ -61,6 +61,9 @@ pub enum LegalizationRecipe {
     /// original epoch-two victim:
     /// `r + ((r + (a + b)) + (b + r))`; the false leaf returns one immediate.
     ReturnU64ActiveResidentExactAddOriginalVictimChainConditionalV1,
+    /// Equality of two ordered U64 entry parameters controls two immediate
+    /// U64 return arms.
+    ReturnU64IntegerEqualParametersConditionalV1,
 }
 
 /// Closed identity legalization admitted for a value-less Unit function.

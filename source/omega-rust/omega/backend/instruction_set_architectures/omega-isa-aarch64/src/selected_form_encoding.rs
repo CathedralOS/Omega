@@ -416,6 +416,7 @@ fn family_and_operand_count(
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
         SelectedInstructionKind::CompareI64Zero => (MachineAlternativeFamily::CompareI64Zero, 1),
+        SelectedInstructionKind::CompareI64 => (MachineAlternativeFamily::CompareI64, 2),
         SelectedInstructionKind::MaterializeI64 { .. } => {
             (MachineAlternativeFamily::MaterializeI64, 1)
         }
@@ -508,6 +509,11 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::CompareI64Zero => {
             words.push(0xf100_001f | (u32::from(registers[0]) << 5));
+        }
+        SelectedInstructionKind::CompareI64 => {
+            words.push(
+                0xeb00_001f | (u32::from(registers[1]) << 16) | (u32::from(registers[0]) << 5),
+            );
         }
         SelectedInstructionKind::ExactAddI64 { .. } => {
             words.push(
@@ -648,6 +654,10 @@ enum DecodedWord {
     CompareZero {
         source: u8,
     },
+    Compare {
+        left: u8,
+        right: u8,
+    },
     Add {
         left: u8,
         right: u8,
@@ -719,6 +729,12 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             source: ((word >> 5) & 0x1f) as u8,
         });
     }
+    if word & 0xffe0_fc1f == 0xeb00_001f {
+        return Ok(DecodedWord::Compare {
+            left: ((word >> 5) & 0x1f) as u8,
+            right: ((word >> 16) & 0x1f) as u8,
+        });
+    }
     if word & 0xffe0_fc00 == 0x8b00_0000 {
         return Ok(DecodedWord::Add {
             left: ((word >> 5) & 0x1f) as u8,
@@ -773,6 +789,13 @@ fn validate_decoded(
             decoded
                 == [DecodedWord::CompareZero {
                     source: registers[0],
+                }]
+        }
+        SelectedInstructionKind::CompareI64 => {
+            decoded
+                == [DecodedWord::Compare {
+                    left: registers[0],
+                    right: registers[1],
                 }]
         }
         SelectedInstructionKind::ExactAddI64 { .. } => {
@@ -916,6 +939,7 @@ fn footprint(
         SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![operands[0]], false),
         SelectedInstructionKind::CopyI64 => (vec![operands[0]], vec![operands[1]], false),
         SelectedInstructionKind::CompareI64Zero => (vec![operands[0]], vec![], true),
+        SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
         SelectedInstructionKind::ExactAddI64 { .. }
         | SelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
@@ -972,6 +996,7 @@ fn footprint(
                 | SelectedInstructionKind::CompareI64Zero
                 | SelectedInstructionKind::ExactAddI64Immediate { .. }
                 | SelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
+                SelectedInstructionKind::CompareI64 => vec![0, 1],
                 SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
@@ -984,6 +1009,7 @@ fn footprint(
                 SelectedInstructionKind::ExactAddI64 { .. }
                 | SelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 SelectedInstructionKind::CompareI64Zero => vec![],
+                SelectedInstructionKind::CompareI64 => vec![],
                 _ => unreachable!("control forms handled separately"),
             },
         );
@@ -1293,6 +1319,11 @@ mod tests {
                 1,
             ),
             (
+                SelectedInstructionKind::CompareI64,
+                MachineAlternativeFamily::CompareI64,
+                2,
+            ),
+            (
                 SelectedInstructionKind::ExactAddI64 {
                     obligation: ObligationId::new(1).unwrap(),
                     accepted_fact: fact,
@@ -1341,6 +1372,18 @@ mod tests {
                 assert!(encoded.footprint().encoded.implicit_unit_defs.is_empty());
             }
         }
+        let compare = encode_aarch64_selected_form(
+            &physical,
+            SelectedInstructionKind::CompareI64,
+            alternative(MachineAlternativeFamily::CompareI64),
+            &views[..2],
+        )
+        .unwrap();
+        assert_eq!(compare.bytes(), [0x7f, 0x00, 0x04, 0xeb]);
+        assert_eq!(compare.footprint().register_reads, views[..2]);
+        assert!(compare.footprint().register_writes.is_empty());
+        assert!(compare.footprint().writes_nzcv);
+        assert_eq!(compare.footprint().encoded.external_operand_reads, [0, 1]);
     }
 
     #[test]

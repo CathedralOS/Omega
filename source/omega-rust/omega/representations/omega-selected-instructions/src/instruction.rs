@@ -89,6 +89,10 @@ pub struct SelectedOperand {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
     CompareI64Zero,
+    /// Compare two i64 register bit-patterns and define the target condition
+    /// state consumed by conditional control. This instruction has no scalar
+    /// result; equality is represented by the zero condition.
+    CompareI64,
     MaterializeI64 {
         value: IntegerValue,
     },

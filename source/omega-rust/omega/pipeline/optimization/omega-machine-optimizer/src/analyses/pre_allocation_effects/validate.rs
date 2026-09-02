@@ -267,6 +267,7 @@ fn replay_declaration<'a>(
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
     let semantic = match instruction.kind {
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
+        SelectedInstructionKind::CompareI64 => MachineSemanticKind::CompareI64,
         SelectedInstructionKind::MaterializeI64 { .. } => MachineSemanticKind::MaterializeI64,
         SelectedInstructionKind::CopyI64 => MachineSemanticKind::CopyI64,
         SelectedInstructionKind::ExactAddI64 { .. } => MachineSemanticKind::ExactAddI64,
@@ -312,6 +313,7 @@ fn copied_selected_keys(keys: TargetRegisterEnvironmentConstraintKeys) -> Select
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
+        compare_i64: keys.compare_i64,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
         return_unit: keys.return_unit,

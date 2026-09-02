@@ -42,7 +42,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
                 block: SelectedBlockId(0),
                 instructions: vec![InstructionMachineEffects {
                     instruction: SelectedInstructionId(0),
-                    kind: SelectedInstructionKind::CompareI64Zero,
+                    kind: SelectedInstructionKind::CompareI64,
                     constraint: RegisterConstraintKey {
                         family: RegisterConstraintFamily::Instruction,
                         variant: 4,
@@ -74,7 +74,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
                     alternatives: vec![
                         MachineAlternative {
                             key: MachineAlternativeKey {
-                                family: MachineAlternativeFamily::CompareI64Zero,
+                                family: MachineAlternativeFamily::CompareI64,
                                 variant: 0,
                             },
                             applicability: MachineAlternativeApplicability::Always,
@@ -88,7 +88,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
                         },
                         MachineAlternative {
                             key: MachineAlternativeKey {
-                                family: MachineAlternativeFamily::CompareI64Zero,
+                                family: MachineAlternativeFamily::CompareI64,
                                 variant: 1,
                             },
                             applicability: MachineAlternativeApplicability::
@@ -110,7 +110,7 @@ fn plan() -> PreAllocationMachineEffectPlan {
                         },
                         MachineAlternative {
                             key: MachineAlternativeKey {
-                                family: MachineAlternativeFamily::CompareI64Zero,
+                                family: MachineAlternativeFamily::CompareI64,
                                 variant: 2,
                             },
                             applicability: MachineAlternativeApplicability::
