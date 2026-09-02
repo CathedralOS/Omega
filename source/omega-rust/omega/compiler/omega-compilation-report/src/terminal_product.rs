@@ -363,6 +363,7 @@ impl TerminalNativeRealizationProposal {
         let module = psi_terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
         )?;
+        self.validate_fused_program_entry_establishments(&module)?;
         for demand in self.boundary_application_coverage.demands().rows() {
             let matching_operations = module
                 .machines
@@ -505,6 +506,92 @@ impl TerminalNativeRealizationProposal {
                     );
                 }
                 (false, None) => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_fused_program_entry_establishments(
+        &self,
+        module: &psi_terminal::TerminalModule,
+    ) -> Result<(), &'static str> {
+        let rows = self.program_entry.fused_service_establishments();
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let source = self.program_entry.source_signature();
+        let Some(receiver_identity) = source.receiver().normalized_type_identity() else {
+            return Err("Terminal proposal gives a free ProgramEntry a Fused root establishment");
+        };
+        let entry_machines = module
+            .machines
+            .iter()
+            .filter(|machine| machine.id == module.entry)
+            .collect::<Vec<_>>();
+        let [entry_machine] = entry_machines.as_slice() else {
+            return Err("Terminal proposal has no unique entry machine for root establishment");
+        };
+        let Some(attachment) = entry_machine.attachment else {
+            return Err("Terminal proposal root establishment lost its entry attachment");
+        };
+        let attachment_types = module
+            .structural_types
+            .iter()
+            .filter(|declaration| declaration.id == attachment)
+            .collect::<Vec<_>>();
+        let [attachment_type] = attachment_types.as_slice() else {
+            return Err("Terminal proposal root establishment has no unique attachment type");
+        };
+        let psi_terminal::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
+            return Err("Terminal proposal root establishment attachment is not a record");
+        };
+        if attachment_type.identity != rows[0].attachment_type_identity()
+            || rows
+                .iter()
+                .any(|row| row.attachment_type_identity() != attachment_type.identity)
+        {
+            return Err("Terminal proposal root establishment substituted its receiver type");
+        }
+        let mut field_identities = std::collections::BTreeSet::new();
+        for row in rows {
+            if row.source_signature_identity() != source.identity()
+                || row.target_slot() != source.target_slot()
+                || row.receiver_type_identity() != receiver_identity
+                || !field_identities.insert(row.field_identity())
+            {
+                return Err(
+                    "Terminal proposal root establishment drifted from ProgramEntry custody",
+                );
+            }
+            let matching_fields = fields
+                .iter()
+                .filter(|field| field.identity == row.field_identity())
+                .collect::<Vec<_>>();
+            let [field] = matching_fields.as_slice() else {
+                return Err("Terminal proposal root establishment has no unique receiver field");
+            };
+            if !matches!(
+                &field.field_type,
+                psi_terminal::StructuralFieldType::Erased { type_identity }
+                    if type_identity == row.carrier_type_identity()
+            ) {
+                return Err("Terminal proposal root establishment substituted its erased carrier");
+            }
+            let matching_plans = self
+                .selected_provider_plans
+                .plans()
+                .iter()
+                .filter(|plan| {
+                    omega_program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&plan.schema)
+                        == row.requirement_identity()
+                        && plan.schema.identity_digest() == row.service_schema_digest()
+                        && plan.identity_digest() == row.selected_provider_plan_digest()
+                })
+                .count();
+            if matching_plans != 1 {
+                return Err(
+                    "Terminal proposal root establishment has no unique selected provider plan",
+                );
             }
         }
         Ok(())

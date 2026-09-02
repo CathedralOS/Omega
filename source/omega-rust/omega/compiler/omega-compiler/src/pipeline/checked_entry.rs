@@ -1144,7 +1144,7 @@ fn compile_to_checked_inner_with_replay(
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
     // for interpreter or production execution.
-    let selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
+    let mut selected_program_entry = crate::pipeline::build_config::select_compiler_program_entry(
         &typed,
         &build_config,
         selected_target_profile,
@@ -1313,6 +1313,17 @@ fn compile_to_checked_inner_with_replay(
             x86_scalar_fma_provider,
             selected_target_profile,
         )?;
+
+    if let Some(entry) = selected_program_entry.as_mut() {
+        let establishments = omega_selected_dispatch::derive_fused_program_entry_establishments(
+            &selected_execution_settlement.program,
+            entry.source_signature(),
+            &selected_execution_settlement.selected_provider_provenance,
+        )?;
+        entry
+            .bind_fused_service_establishments(establishments)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the
     // caller (this is the only owner at this point in the pipeline).

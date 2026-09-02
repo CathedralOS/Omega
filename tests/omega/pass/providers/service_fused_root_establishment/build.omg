@@ -1,0 +1,7 @@
+target linux_x86_64 { }
+
+machine build(builder: &mut Build) {
+    builder.application("service-fused-root-establishment");
+    builder.select_provider<Ping, PingProvider>();
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

@@ -18,6 +18,7 @@ omega-function-identity = { path = "../../representations/omega-function-identit
 omega-image = { path = "../../backend/images/omega-image" }
 omega-native-artifact = { path = "../../backend/artifacts/omega-native-artifact" }
 omega-package-compilation = { path = "../../build/omega-package-compilation" }
+omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-optimization-core = { path = "../../representations/omega-optimization-core" }
 omega-target = { path = "../../representations/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }

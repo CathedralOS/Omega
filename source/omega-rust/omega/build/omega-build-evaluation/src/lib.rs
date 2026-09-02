@@ -1844,6 +1844,8 @@ pub struct SelectedProgramEntryCallingPlans {
 pub struct SelectedCompilerProgramEntry {
     source_signature: omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
+    fused_service_establishments:
+        Vec<omega_program_entry_plan::ProgramEntryFusedServiceEstablishment>,
 }
 
 impl SelectedCompilerProgramEntry {
@@ -1854,6 +1856,7 @@ impl SelectedCompilerProgramEntry {
         Self {
             source_signature,
             calling_plans,
+            fused_service_establishments: Vec::new(),
         }
     }
 
@@ -1871,13 +1874,55 @@ impl SelectedCompilerProgramEntry {
         self.calling_plans.as_ref()
     }
 
+    pub fn fused_service_establishments(
+        &self,
+    ) -> &[omega_program_entry_plan::ProgramEntryFusedServiceEstablishment] {
+        &self.fused_service_establishments
+    }
+
+    pub fn bind_fused_service_establishments(
+        &mut self,
+        mut establishments: Vec<omega_program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+    ) -> Result<(), &'static str> {
+        if establishments.is_empty() {
+            self.fused_service_establishments.clear();
+            return Ok(());
+        }
+        let source_identity = self.source_signature.identity();
+        let target_slot = self.source_signature.target_slot();
+        let receiver_identity = self
+            .source_signature
+            .receiver()
+            .normalized_type_identity()
+            .ok_or("a free ProgramEntry cannot establish receiver fields")?;
+        establishments.sort_by(|left, right| left.field_identity().cmp(right.field_identity()));
+        if establishments
+            .windows(2)
+            .any(|pair| pair[0].field_identity() == pair[1].field_identity())
+            || establishments.iter().any(|establishment| {
+                establishment.source_signature_identity() != source_identity
+                    || establishment.target_slot() != target_slot
+                    || establishment.receiver_type_identity() != receiver_identity
+            })
+        {
+            return Err("Fused root establishments drifted from their selected ProgramEntry");
+        }
+        self.fused_service_establishments = establishments;
+        Ok(())
+    }
+
     pub fn into_parts(
         self,
     ) -> (
         omega_program_entry_plan::SelectedProgramEntrySourceSignature,
         Option<SelectedProgramEntryCallingPlans>,
+        Vec<omega_program_entry_plan::ProgramEntryFusedServiceEstablishment>,
     ) {
-        (self.source_signature, self.calling_plans)
+        (
+            self.source_signature,
+            self.calling_plans,
+            self.fused_service_establishments,
+        )
     }
 }
 
@@ -5450,6 +5495,44 @@ mod tests {
         SelectedCompilerProgramEntry::new(source_signature, None)
     }
 
+    fn provisioned_program_entry_settlement() -> SelectedCompilerProgramEntry {
+        let source_signature =
+            omega_program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+                omega_target::TargetProfile::WindowsX64.program_entry_slot(),
+                psi_symbols::SymbolHandle::from_arena_index(1),
+                psi_symbols::SymbolHandle::from_arena_index(2),
+                "Application::start".into(),
+                "entry".into(),
+                "Application::start::entry(&mut self) -> Unit".into(),
+                omega_program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                    normalized_type_identity: "ref-mut(named(name(Application)))".into(),
+                },
+                Vec::new(),
+            )
+            .expect("exact provisioned ProgramEntry fixture");
+        SelectedCompilerProgramEntry::new(source_signature, None)
+    }
+
+    fn fused_root_row(
+        selected: &SelectedCompilerProgramEntry,
+        field: &str,
+    ) -> omega_program_entry_plan::ProgramEntryFusedServiceEstablishment {
+        omega_program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
+            selected.source_signature().identity(),
+            selected.source_signature().target_slot(),
+            "ref-mut(named(name(Application)))".into(),
+            "named(name(Application))".into(),
+            field.into(),
+            "qualified(named(name(Service<Console>)), declared-domain(name(Bound)))".into(),
+            "named(name(Service<Console>))".into(),
+            "Bound".into(),
+            "Console".into(),
+            omega_effects::provider_plan::ServiceSchemaDigest::from_digest([1; 32]),
+            omega_effects::provider_plan::ProviderPlanDigest::from_digest([2; 32]),
+        )
+        .expect("exact Fused root fixture")
+    }
+
     #[test]
     fn compiler_program_entry_absence_needs_no_typed_or_calling_plan_facts() {
         let selected = select_compiler_program_entry(
@@ -5471,10 +5554,42 @@ mod tests {
 
         assert_eq!(selected.machine_name(), "Application::start");
         assert!(selected.calling_plans().is_none());
-        let (source_signature, calling_plans) = selected.into_parts();
+        let (source_signature, calling_plans, establishments) = selected.into_parts();
 
         assert_eq!(source_signature, expected_source);
         assert!(calling_plans.is_none());
+        assert!(establishments.is_empty());
+    }
+
+    #[test]
+    fn compiler_program_entry_binds_exact_sorted_fused_root_establishments() {
+        let mut selected = provisioned_program_entry_settlement();
+        let second = fused_root_row(&selected, "#2");
+        let first = fused_root_row(&selected, "#1");
+        selected
+            .bind_fused_service_establishments(vec![second, first.clone()])
+            .expect("exact provisioned roots should bind");
+        assert_eq!(
+            selected
+                .fused_service_establishments()
+                .iter()
+                .map(|row| row.field_identity())
+                .collect::<Vec<_>>(),
+            ["#1", "#2"],
+        );
+
+        assert!(
+            selected
+                .bind_fused_service_establishments(vec![first.clone(), first])
+                .is_err(),
+            "duplicate direct receiver fields must reject"
+        );
+        let mut free = source_only_program_entry_settlement();
+        assert!(
+            free.bind_fused_service_establishments(vec![fused_root_row(&selected, "#3")])
+                .is_err(),
+            "a free ProgramEntry cannot acquire receiver establishment"
+        );
     }
 
     #[test]

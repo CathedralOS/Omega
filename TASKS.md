@@ -12273,8 +12273,8 @@ checked-result arithmetic decision listed below.
     returns, trait/requirement signatures, and operators. Additional or
     scalar-bearing Service forwarding, projected or borrowed arguments,
     multiple carrier parameters, mixed receiver requirements, composed
-    control, native installed-provider scalar ABI realization, root
-    establishment, and Independent execution remain separately fenced.
+    control, native installed-provider scalar ABI realization, and Independent
+    execution remain separately fenced.
     Multiple distinct
     carriers are **DEPENDENCY-BLOCKED**, not language-design-blocked: Terminal
     structural qualifications currently key one domain plan only by
@@ -12282,6 +12282,22 @@ checked-result arithmetic decision listed below.
     `Bound` domain cannot honestly represent both `Service<A>` and
     `Service<B>` in one machine. Land an exact domain-application identity
     before removing that fence; do not collapse the carrier identities;
+  - the first Fused application-root establishment receipt is live. After one
+    target selects its exact attached `ProgramEntry` and provider plans, the
+    compiler derives one sorted source-free row for every direct
+    `Service<R> in Bound` field on that receiver. Each row retains the source
+    signature and target slot, source receiver and Terminal attachment
+    identities, direct field identity, carrier/base and `Bound` identities,
+    exact requirement/schema digest, and selected Fused provider-plan digest.
+    The retained `ProgramEntry` validates that roster before accepting it; the
+    Terminal native proposal independently rejoins every row to its canonical
+    entry attachment, erased field, and unique selected plan. Targetless
+    checking, free entries, and identical non-root owners establish nothing,
+    while field/receipt/plan substitution rejects. This receipt means the
+    generated bridge semantically supplies authority instead of treating zero
+    bytes as `Bound`; it grants no runtime publication, stable slot, era,
+    service handle, or Independent execution. Carry it into those later
+    component/runtime ledgers rather than defining a second root vocabulary;
   - final Fused custody is split by source responsibility: the field owner
     rejoins routed record fields, the parameter owner independently rejoins
     direct machine parameters, and its private forwarding owner replays the
@@ -12360,9 +12376,10 @@ checked-result arithmetic decision listed below.
   attachment, retains the Service carrier in the structural parameter
   namespace, retains `return_code` in the scalar namespace, and passes that
   exact scalar value to the Console boundary call. Lowering does not fabricate
-  an empty attached record or provider-attachment requirement. Native
-  installed-provider scalar ABI realization and initial routed root
-  establishment remain separate fences.
+  an empty attached record or provider-attachment requirement. The selected
+  application root now retains the exact Fused establishment
+  receipt described above. Native installed-provider scalar ABI realization
+  and runtime routed publication remain separate fences.
   Provider-internal nested fields and all other boundary-bearing parameters
   remain transitional until their separately fenced carrier rungs land; do not
   broaden either custody proof by name.

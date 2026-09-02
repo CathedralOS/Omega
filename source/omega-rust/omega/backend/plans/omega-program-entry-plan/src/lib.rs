@@ -13,6 +13,7 @@ mod post_handoff_writer;
 mod program_entry_physical;
 mod root_role;
 mod selected_entry;
+mod service_establishment;
 mod source_signature;
 mod uefi_handle_protocol;
 
@@ -27,6 +28,7 @@ pub use post_handoff_writer::*;
 pub use program_entry_physical::*;
 pub use root_role::ProgramStorageEntryRootRole;
 pub use selected_entry::SelectedProgramStorageEntryPlan;
+pub use service_establishment::ProgramEntryFusedServiceEstablishment;
 pub use source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,

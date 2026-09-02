@@ -1,6 +1,9 @@
 //! Exact Fused routed-service custody at the checked-to-Terminal boundary.
 
 mod parameters;
+mod root;
+
+pub use root::derive_fused_program_entry_establishments;
 
 use omega_provider_planning::CompositionMode;
 use omega_provider_planning::plans::SelectedProviderReviewProvenance;

@@ -852,6 +852,17 @@ declaration remains pure; the generated bridge records storage, qualification,
 lineage, and backing for the one provisioned occurrence rather than attaching
 root authority or a storage class to the type.
 
+The first Fused routed-service exception is explicit rather than a ZII
+fiction. After the target selects its exact attached `ProgramEntry` and Fused
+provider, the compiler retains one establishment receipt per direct
+`Service<R> in Bound` receiver field. That receipt binds the selected source
+signature and slot, receiver/attachment and field identities, carrier and
+`Bound` identities, exact service schema, and selected plan digest; the
+Terminal proposal replays the erased field and plan independently. The bridge
+therefore supplies semantic authority while provisioning this occurrence even
+though the physical field is zero-payload. This is not yet runtime slot
+publication, an era handle, or Independent execution.
+
 A freestanding schema may instead publish image and initial-storage roots in its
 visible parameter list. Those are ordinary arguments to the selected source
 entry only because that target intentionally makes provisioning the program's
