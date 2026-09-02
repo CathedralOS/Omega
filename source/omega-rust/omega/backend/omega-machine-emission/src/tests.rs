@@ -27,6 +27,9 @@ use psi_terminal::{
     StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
+#[path = "tests/forwarded_dynamic_descriptor.rs"]
+mod forwarded_dynamic_descriptor;
+
 fn emit_machine_code(plan: &TargetOperationPlan) -> Result<MachineCodePlan, EmissionError> {
     let assigned = assign_registers(plan).expect("test target operations must assign");
     super::emit_machine_code(&assigned)

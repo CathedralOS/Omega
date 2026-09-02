@@ -643,6 +643,17 @@ fn build_object_artifact_with_x86_feature_profile(
     }
     if let Some((function, call)) = plan.functions.iter().find_map(|function| {
         function
+            .forwarded_dynamic_descriptor_calls
+            .first()
+            .map(|call| (function, call))
+    }) {
+        return Err(ObjectError::DynamicParameterAdapterTablesUnavailable {
+            caller: function.machine,
+            operation: call.psi_operation,
+        });
+    }
+    if let Some((function, call)) = plan.functions.iter().find_map(|function| {
+        function
             .dynamic_parameter_scalar_calls
             .first()
             .map(|call| (function, call))
@@ -2366,6 +2377,7 @@ fn validate_private_functions<'plan>(
             || !private.function.internal_unit_scalar_calls.is_empty()
             || !private.function.dynamic_scalar_calls.is_empty()
             || !private.function.dynamic_parameter_scalar_calls.is_empty()
+            || !private.function.forwarded_dynamic_descriptor_calls.is_empty()
             || !private.function.x86_scalar_fma.is_empty()
             || !private.function.x86_scalar_fma_occurrences.is_empty()
             || private.function.x86_floating_control.is_some()

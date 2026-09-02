@@ -353,7 +353,7 @@ fn emit_x86_64_instance(
     })
 }
 
-fn emit_x86_64_stack_address(
+pub(super) fn emit_x86_64_stack_address(
     bytes: &mut Vec<u8>,
     register: u8,
     byte_offset: u32,
