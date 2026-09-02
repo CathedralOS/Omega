@@ -366,8 +366,9 @@ pub(super) fn validate_internal_unit_call_custody(
     if callee_mixed_abi.is_some() && callee_mixed_structural_return.is_some() {
         return Err(invalid());
     }
-    if (callee_mixed_abi.is_some() || callee_mixed_structural_return.is_some())
-        == custody.scalar_arguments.is_empty()
+    if callee_mixed_abi.is_none()
+        && callee_mixed_structural_return.is_none()
+        && !custody.scalar_arguments.is_empty()
     {
         return Err(invalid());
     }
