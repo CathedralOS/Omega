@@ -12134,7 +12134,8 @@ checked-result arithmetic decision listed below.
   corresponding entry claim.
 
   The first mutation-bearing realization body is live through checked custody
-  and Terminal verification. It is exactly one literal `bool` or `i32` store
+  and Terminal verification. It is exactly one literal `bool` or signed or
+  unsigned 8-, 16-, 32-, or 64-bit integer store
   into either a direct primitive field of `&mut self` or a primitive field
   below an exact finite path of relevant record fields, followed by the existing
   exact scalar self-field return. The checked callable roster retains the store,
@@ -12164,6 +12165,10 @@ checked-result arithmetic decision listed below.
   nested projected Boolean through the `Envelope/Flags` path at byte offset 8
   and reject path or accumulated-offset drift before emission. Canonical
   installation format 64 retains this already-encoded path evidence.
+  The fixed-integer source gate now matches that already-general physical
+  carrier: a nested `u16` source fixture and direct `u64` native canary retain
+  exact landed types, values, widths, offsets, and bytes. Address, IEEE-float,
+  computed, and multiple-store mutation forms remain fenced.
 
   Boolean-returning forwarded calls now use the same producer-bound result-
   home model without pretending that a Boolean is an integer. The mixed

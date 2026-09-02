@@ -1227,6 +1227,31 @@ fn assert_forwarded_dynamic_result_canary(
         });
         if fixture == "traits/runtime_local_named_dyn_boolean_pass_through_exit" {
             assert_boolean_forwarded_native_custody(&report, target);
+        } else if fixture == "traits/runtime_local_named_dyn_mutable_pass_through_exit" {
+            let object = report
+                .retained_native_artifact()
+                .expect("fixed-integer mutation keeps native custody")
+                .object();
+            let stores = object
+                .functions()
+                .iter()
+                .filter_map(|function| function.scalar_structural_scalar_field_store.as_ref())
+                .collect::<Vec<_>>();
+            let [store] = stores.as_slice() else {
+                panic!("{target} should retain one fixed-integer realization store")
+            };
+            assert!(store.path.is_empty());
+            assert_eq!(store.field_byte_offset, 0);
+            assert!(matches!(
+                store.immediate,
+                omega_target_operations::TargetScalarImmediate::Integer {
+                    scalar_type,
+                    value: psi_core::IntegerValue::Unsigned(513),
+                } if scalar_type == psi_core::IntegerType::new(
+                    psi_core::IntegerSign::Unsigned,
+                    64,
+                ).expect("u64 type")
+            ));
         } else if fixture
             == "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit"
         {

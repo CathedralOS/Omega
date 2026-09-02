@@ -807,26 +807,27 @@ result-less throughout.
 The same closed application now admits one exact mutation-bearing callable in
 Terminal form. Its checked row carries a primitive-field literal store through
 `&mut self` separately from the scalar return expression. The field may be
-directly below the realization's attached self type or exactly one named record
-field below it. Lowering materializes the constant and store before the
-existing self-field read, and Terminal validation retains the empty or
-one-field carrier path exactly. An exclusive field
+directly below the realization's attached self type or below an exact finite
+path of relevant named record fields. Lowering materializes the constant and
+store before the existing self-field read, and Terminal validation retains and
+replays every carrier-path segment exactly. An exclusive field
 subloan from an unrestricted mutable-borrow root retains unrestricted
 multiplicity for the duration of that exclusive call; it does not invent a
-linear entry claim. Direct Boolean and fixed-integer literal stores now lower
+linear entry claim. Direct Boolean and signed or unsigned 8-, 16-, 32-, or
+64-bit integer literal stores now lower
 `&mut self` as one no-copy pointer to caller storage, emit the store before an
 independently identified direct scalar field read, and retain independent
 x86-64/AArch64 machine, object, image, and installation replay evidence. Target
-lowering accumulates the outer and primitive-field offsets; assignment replays
-the path against the retained declarations, and machine emission rejects path
-or offset drift before producing bytes. A
+lowering accumulates every record-field and final primitive-field offset;
+assignment replays the path against the retained declarations, and machine
+emission rejects path or offset drift before producing bytes. A
 structural-only scalar-result realization publishes the ABI that its private
 erased-data adapter must rejoin before calling it. Boolean-returning forwarded
 calls now publish the same ABI with an exact Boolean result, normalize and
 store that result into a one-byte durable Unit home, and branch directly on
 that home with target-specific zero tests. The first Boolean store still
-returns an independent `i32` self field through the fixed-integer lane. A second write,
-path deeper than one named record field, indexed/case projection, computed
+returns an independent `i32` self field through the fixed-integer lane. A
+second write, indexed/case projection, address or IEEE-float literal, computed
 store value, shared receiver, or body reorder remains outside the native
 carrier.
 
