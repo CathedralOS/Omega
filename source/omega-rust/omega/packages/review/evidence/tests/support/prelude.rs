@@ -44,8 +44,9 @@ pub(crate) use omega_package_evidence::record::{
     PackageReviewReferenceAccess, PackageReviewRepresentationTargetProfile,
     PackageReviewRepresentationTcbKind, PackageReviewSemanticDependencyExposure,
     PackageReviewSemanticDependencyKind, PackageReviewSourceLocationOwner,
-    PackageReviewSourceLocationRole, PackageReviewSynchronousInvocation,
-    PackageReviewSyntheticSourceKind, PackageReviewTypeParameterKind,
+    PackageReviewSourceLocationRole, PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
+    PackageReviewTypeParameterKind,
 };
 pub(crate) use psi_core::PackageKeyIdentity;
 pub(crate) use std::fs;

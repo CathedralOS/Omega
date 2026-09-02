@@ -15,6 +15,7 @@ use super::super::{
     terminal_authority::PackageReviewTerminalAuthorityPermission,
 };
 use super::{
+    CheckedPackageBoundaryApplicationDemandReview,
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
     PackageReviewCanonicalRowSources,
@@ -45,6 +46,7 @@ pub struct CheckedPackageReviewProjection {
     pub(crate) selected_provider_families: Vec<CheckedPackageProviderFamilyReview>,
     pub(crate) boundary_application_realizations:
         Vec<CheckedPackageBoundaryApplicationRealizationReview>,
+    pub(crate) boundary_application_demands: Vec<CheckedPackageBoundaryApplicationDemandReview>,
     pub(crate) row_sources: PackageReviewCanonicalRowSources,
 }
 
@@ -71,6 +73,7 @@ impl PartialEq for CheckedPackageReviewProjection {
             && self.selected_providers == other.selected_providers
             && self.selected_provider_families == other.selected_provider_families
             && self.boundary_application_realizations == other.boundary_application_realizations
+            && self.boundary_application_demands == other.boundary_application_demands
     }
 }
 

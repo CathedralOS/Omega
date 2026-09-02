@@ -1,6 +1,7 @@
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
+    CheckedPackageBoundaryApplicationDemandReview,
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, PackageReviewBoundaryApplication,
     PackageReviewBoundaryApplicationRealization, PackageReviewCompilerIntrinsicExecution,
@@ -85,6 +86,35 @@ pub(crate) fn encode_boundary_application_realization_key(
     encode_nominal(encoder, &realization.operator_declaration)?;
     encoder.string(&realization.requirement_identity)?;
     encode_boundary_application(encoder, &realization.application)
+}
+
+pub(crate) fn encode_boundary_application_demand_key(
+    encoder: &mut Encoder,
+    demand: &CheckedPackageBoundaryApplicationDemandReview,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &demand.operator_declaration)?;
+    encoder.string(&demand.requirement_identity)?;
+    encode_nominal(encoder, &demand.producer_callable)?;
+    encoder.sequence(&demand.arguments, |encoder, argument| {
+        match argument {
+            crate::record::PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
+                requirement_binder_ordinal,
+                producer_binder_ordinal,
+            } => {
+                encoder.byte(0);
+                encoder.u32(*requirement_binder_ordinal);
+                encoder.u32(*producer_binder_ordinal);
+            }
+        }
+        Ok(())
+    })
+}
+
+pub(crate) fn encode_boundary_application_demand(
+    encoder: &mut Encoder,
+    demand: &CheckedPackageBoundaryApplicationDemandReview,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_boundary_application_demand_key(encoder, demand)
 }
 
 pub(crate) fn encode_boundary_application_realization(

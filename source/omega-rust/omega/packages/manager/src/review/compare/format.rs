@@ -330,6 +330,7 @@ pub(super) const fn row_kind_token(kind: PackageReviewCanonicalRowKind) -> &'sta
         PackageReviewCanonicalRowKind::BoundaryApplicationRealization => {
             "boundary_application_realization"
         }
+        PackageReviewCanonicalRowKind::BoundaryApplicationDemand => "boundary_application_demand",
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => {
             "non_executable_quotient_correspondence"
         }
@@ -364,6 +365,7 @@ pub(super) const fn row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::NonExecutableQuotientCorrespondence => 17,
         PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation => 18,
         PackageReviewCanonicalRowKind::TerminalAuthorityPermission => 19,
+        PackageReviewCanonicalRowKind::BoundaryApplicationDemand => 20,
     }
 }
 

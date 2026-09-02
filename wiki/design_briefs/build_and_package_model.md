@@ -1071,6 +1071,20 @@ direct call. The still-open occurrence in the authored template remains
 symbolic non-coverage. This local fixed point is not an artifact-qualified
 symbolic-demand exchange and grants nothing to a separately compiled consumer.
 
+Package review v126/canonical row v84/recovery v21 implements the first
+producer side of that exchange. A public generic callable using a named
+generic boundary operator exports an opaque-blocking symbolic-demand row under
+the exact producer `PackageKey`, callable nominal, operator nominal, stable
+requirement identity, and direct requirement-type-binder to
+callable-type-binder mapping. Checked conversion and package capture each
+rejoin the authored use to its enclosing callable and exact declaration
+telescopes. Private callables, nested symbolic types, consts, lifetimes,
+machines, propositions, fixed-token uses, and statement uses remain absent or
+fail closed. This row is composition input only: it names no provider and
+claims no realization, coverage, Terminal custody, native code, or admission.
+Foreign reachable specialization and final closed substitution remain work of
+the future `PackageInstance` composition path.
+
 D32 keeps physical realization distinct. A validated optimization projection
 retains the immutable canonical Terminal identity and identifies the surviving
 executable boundary occurrences. Each receives one `NativeArtifact` physical

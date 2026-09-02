@@ -18,5 +18,6 @@ pub(crate) struct PackageReviewCanonicalRowSources {
     pub(crate) dangerous_authority_slack: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) terminal_authority_permissions: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) boundary_application_realizations: Vec<PackageReviewCanonicalRowSource>,
+    pub(crate) boundary_application_demands: Vec<PackageReviewCanonicalRowSource>,
     pub(crate) selected_provider_set: PackageReviewCanonicalRowSource,
 }

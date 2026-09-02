@@ -746,6 +746,192 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_exports_artifact_qualified_symbolic_generic_boundary_demand() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Math {}
+pub boundary operator Math::same<Value>(left: Value, right: Value) -> bool;
+
+pub machine compare<Element>(left: Element, right: Element) -> bool {
+    Math::same(left, right)
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("generic producer should retain its symbolic boundary demand");
+    assert!(checked.facts.operators.boundary_applications.is_empty());
+    let review = project_checked_package_review(&checked)
+        .expect("symbolic boundary demand should project without claiming realization");
+    assert!(review.boundary_application_realizations().is_empty());
+    let [demand] = review.boundary_application_demands() else {
+        panic!("one artifact-qualified symbolic demand")
+    };
+    assert!(
+        demand
+            .requirement_identity()
+            .contains("operator::Math::same")
+    );
+    assert_eq!(demand.operator_declaration().path(), "Math::same");
+    assert_eq!(
+        demand.operator_declaration().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(demand.producer_callable().path(), "compare");
+    assert_eq!(
+        demand.producer_callable().owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+    assert_eq!(
+        demand.arguments(),
+        &[
+            PackageReviewSymbolicBoundaryApplicationArgument::TypeBinder {
+                requirement_binder_ordinal: 0,
+                producer_binder_ordinal: 0,
+            }
+        ]
+    );
+    let rows = review.canonical_rows().expect("canonical review rows");
+    let symbolic_rows = rows
+        .iter()
+        .filter(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationDemand)
+        .collect::<Vec<_>>();
+    let [row] = symbolic_rows.as_slice() else {
+        panic!("one canonical symbolic-demand row")
+    };
+    assert_eq!(row.risk(), PackageReviewCanonicalRowRisk::Blocking);
+    assert!(
+        row.source()
+            .authored_locations()
+            .expect("symbolic demand has authored source")
+            .iter()
+            .any(|location| {
+                location.role() == PackageReviewSourceLocationRole::BoundaryApplicationUse
+            })
+    );
+    let recovered = decode_package_review_canonical_row(
+        &encode_package_review_canonical_row(row).expect("encode symbolic-demand recovery row"),
+    )
+    .expect("recover symbolic-demand row");
+    assert_eq!(
+        recovered.kind(),
+        PackageReviewCanonicalRowKind::BoundaryApplicationDemand
+    );
+    assert_eq!(recovered.canonical_bytes(), row.canonical_bytes());
+    assert_eq!(recovered.source(), row.source());
+}
+
+#[test]
+fn symbolic_generic_boundary_demand_rejects_binder_and_callable_drift() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Math {}
+pub boundary operator Math::same<Value>(left: Value, right: Value) -> bool;
+
+pub machine compare<Element>(left: Element, right: Element) -> bool {
+    Math::same(left, right)
+}
+
+pub machine other<Element>(left: Element, right: Element) -> bool { true }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("symbolic demand fixture should check");
+
+    let mut wrong_requirement_binder = checked.clone();
+    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        binder_owner,
+        ..
+    } = &mut wrong_requirement_binder
+        .facts
+        .operators
+        .symbolic_boundary_applications[0]
+        .arguments[0];
+    *binder_owner = psi_symbols::SymbolHandle::invalid();
+    assert!(project_checked_package_review(&wrong_requirement_binder).is_err());
+
+    let mut wrong_requirement_ordinal = checked.clone();
+    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        binder_ordinal,
+        ..
+    } = &mut wrong_requirement_ordinal
+        .facts
+        .operators
+        .symbolic_boundary_applications[0]
+        .arguments[0];
+    *binder_ordinal = 1;
+    assert!(project_checked_package_review(&wrong_requirement_ordinal).is_err());
+
+    let mut wrong_producer_binder = checked.clone();
+    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        machine_binder_symbol,
+        ..
+    } = &mut wrong_producer_binder
+        .facts
+        .operators
+        .symbolic_boundary_applications[0]
+        .arguments[0];
+    *machine_binder_symbol = psi_symbols::SymbolHandle::invalid();
+    assert!(project_checked_package_review(&wrong_producer_binder).is_err());
+
+    let other = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "other")
+        .expect("alternate public generic callable");
+    let mut wrong_callable = checked.clone();
+    wrong_callable
+        .facts
+        .operators
+        .symbolic_boundary_applications[0]
+        .machine_symbol = other.symbol;
+    let psi_checked_trees::CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+        machine_binder_symbol,
+        ..
+    } = &mut wrong_callable
+        .facts
+        .operators
+        .symbolic_boundary_applications[0]
+        .arguments[0];
+    *machine_binder_symbol = checked.machine_type_parameters(other)[0].symbol;
+    assert!(project_checked_package_review(&wrong_callable).is_err());
+}
+
+#[test]
 fn review_projects_distinct_specialized_generic_checked_body_applications() {
     let Some(target) = host_target_name() else {
         return;

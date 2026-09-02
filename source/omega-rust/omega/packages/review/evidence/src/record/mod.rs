@@ -65,6 +65,7 @@ pub use identity::{
     PackageReviewToolchainSourceIdentity,
 };
 pub use package::{
+    CheckedPackageBoundaryApplicationDemandReview,
     CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
@@ -74,6 +75,7 @@ pub use package::{
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
     PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
+    PackageReviewSymbolicBoundaryApplicationArgument,
 };
 pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{

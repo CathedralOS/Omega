@@ -39,8 +39,13 @@ stop the item on one precise owner question before adding machinery.
 
   Remaining work:
 
-  - finish D29 artifact-qualified symbolic demand/final substitution for
-    separately compiled generic artifacts. Extend the landed local
+  - finish D29 cross-artifact final substitution for separately compiled
+    generic artifacts. The producer-side package projection now retains a
+    public generic callable's direct type-binder boundary demand under exact
+    package-qualified operator/callable identity, without claiming coverage;
+    `PackageInstance` composition must rejoin a foreign reachable
+    specialization and close every symbolic argument before coverage. Extend
+    the landed local
     final-substitution fixed point beyond the proven type/const
     single-instantiation scalar-helper, nested-expression, and
     selected-provider-chain cohort only as another concrete language form

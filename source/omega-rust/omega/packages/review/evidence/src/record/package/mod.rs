@@ -6,6 +6,7 @@ mod source;
 pub use callables::{CheckedPackageCallableReview, PackageReviewCheckedServiceReach};
 pub use package::CheckedPackageReviewProjection;
 pub use providers::{
+    CheckedPackageBoundaryApplicationDemandReview,
     CheckedPackageBoundaryApplicationRealizationReview,
     CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
     CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
@@ -14,5 +15,6 @@ pub use providers::{
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
     PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
+    PackageReviewSymbolicBoundaryApplicationArgument,
 };
 pub(crate) use source::PackageReviewCanonicalRowSources;

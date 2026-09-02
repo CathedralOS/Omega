@@ -14,8 +14,8 @@ use super::values::declarations::{
 };
 use super::values::identity::encode_nominal;
 use super::values::providers::{
-    encode_boundary_application_realization, encode_boundary_application_realization_key,
-    encode_provider, encode_provider_family,
+    encode_boundary_application_demand_key, encode_boundary_application_realization,
+    encode_boundary_application_realization_key, encode_provider, encode_provider_family,
 };
 use super::{PackageReviewEncodingError, PackageReviewEncodingLimits};
 use crate::record::{
@@ -64,6 +64,7 @@ pub(crate) fn encode_rows_with_limits(
         .saturating_add(review.dangerous_authority_slack.len())
         .saturating_add(review.terminal_authority_permissions.len())
         .saturating_add(review.boundary_application_realizations.len())
+        .saturating_add(review.boundary_application_demands.len())
         .saturating_add(2);
     if required_rows > limits.maximum_rows {
         return Err(PackageReviewEncodingError::new(
@@ -374,6 +375,22 @@ pub(crate) fn encode_rows_with_limits(
                 row_source(&review.row_sources.boundary_application_realizations, index)?,
                 |encoder| encode_boundary_application_realization_key(encoder, realization),
                 |encoder| encode_boundary_application_realization(encoder, realization),
+            )?,
+        )?;
+    }
+    for (index, demand) in review.boundary_application_demands.iter().enumerate() {
+        push_row(
+            &mut rows,
+            &mut total_row_bytes,
+            limits,
+            encode_row(
+                review,
+                limits,
+                PackageReviewCanonicalRowKind::BoundaryApplicationDemand,
+                PackageReviewCanonicalRowRisk::Blocking,
+                row_source(&review.row_sources.boundary_application_demands, index)?,
+                |encoder| encode_boundary_application_demand_key(encoder, demand),
+                |_| Ok(()),
             )?,
         )?;
     }

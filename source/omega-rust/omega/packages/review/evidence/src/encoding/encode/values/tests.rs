@@ -594,6 +594,7 @@ pub(crate) fn empty_review() -> CheckedPackageReviewProjection {
         selected_providers: Vec::new(),
         selected_provider_families: Vec::new(),
         boundary_application_realizations: Vec::new(),
+        boundary_application_demands: Vec::new(),
         row_sources: PackageReviewCanonicalRowSources {
             public_traits: Vec::new(),
             public_conformances: Vec::new(),
@@ -611,6 +612,7 @@ pub(crate) fn empty_review() -> CheckedPackageReviewProjection {
             dangerous_authority_slack: Vec::new(),
             terminal_authority_permissions: Vec::new(),
             boundary_application_realizations: Vec::new(),
+            boundary_application_demands: Vec::new(),
             selected_provider_set: PackageReviewCanonicalRowSource::compiler_derived(
                 PackageReviewSyntheticSourceKind::EmptySelectedProviderSet,
             ),
