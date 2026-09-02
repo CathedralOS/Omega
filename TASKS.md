@@ -11743,27 +11743,25 @@ checked-result arithmetic decision listed below.
   rejoins every interface, source, argument, slot, and scalar result and
   rejects missing, substituted, orphaned, or mismatched custody. Terminal call
   semantics import only the declared interface at that point, never a concrete
-  realization's private facts. The canonical interpreter executes a
-  hand-constructed but fully encoded, verified, and decoded cross-machine
-  descriptor transfer and table dispatch, including suspension-frame custody;
-  its canary selects the transferred realization rather than a same-shape
-  decoy. The ordinary checked-to-Terminal producer does not yet project these
-  rows from a nontransparent Omega source machine, so this is a completed
-  semantic/portable execution foundation rather than a completed source lane.
+  realization's private facts. The canonical interpreter executes a fully
+  encoded, verified, and decoded cross-machine descriptor transfer and table
+  dispatch, including suspension-frame custody; its canary selects the
+  transferred realization rather than a same-shape decoy. The ordinary
+  checked-to-Terminal producer now projects the same rows from authored Omega:
+  a transparent scalar forwarder remains a real Terminal machine, its caller
+  passes the exact rebound descriptor, and its parameter-slot call retains a
+  second source-call join. Both the plain Unit lane and the existing boundary-
+  exit control lane encode and verify this portable ABI rather than composing
+  the helper away.
 
-  The earlier transparent scalar-helper composition remains a separately live
-  native baseline: it consumes the same retained checked transfer instead of
-  rediscovering source syntax, composes the unobservable helper before Terminal
-  publication, and crosses target lowering, assignment, object replay, and
-  x86-64/AArch64 execution. General `CallDynamicParameterScalar` currently
-  fails closed at native abstract-operation lowering; no target pretends to
-  implement the new physical descriptor-parameter ABI yet.
+  Native realization deliberately remains the next boundary. General
+  `CallDynamicParameterScalar` fails closed at abstract-operation lowering; no
+  target pretends to implement a physical descriptor-parameter ABI yet. The
+  older direct and caller-local rebound lanes still cross target lowering,
+  assignment, object replay, and x86-64/AArch64 execution unchanged.
 
   Remaining work:
 
-  - project the retained checked transfer into Terminal for a nontransparent
-    source machine and add one ordinary Omega-source encode/verify/interpret
-    canary;
   - lower the portable descriptor parameter/argument/slot model through
     abstract operations, target calling plans, assignment, relocation, object
     replay, and x86-64/AArch64 execution, with one physical ABI selected by each
