@@ -895,6 +895,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-operations",
  "omega-boundary-applications",
+ "omega-calling-conventions",
  "omega-effects",
  "omega-image-emission",
  "omega-installation-evidence",

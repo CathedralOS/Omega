@@ -182,11 +182,54 @@ fn validate_terminal_image_with_import_count(
             "terminal-Psi image initialized-data count does not match its exact final bytes",
         ));
     }
-    output
-        .validate_final_initialized_data_relocation_envelope(artifact.data_bytes(), relocations)?;
+    let encoded_final_data =
+        encoded_final_data_with_image_import_slots(artifact, object, relocations)?;
+    output.validate_final_initialized_data_relocation_envelope(&encoded_final_data, relocations)?;
     validate_dynamic_conformance_tables(artifact, object, relocations, output)?;
     validate_callback_relocation_targets(artifact, object, relocations, output)?;
     Ok(evidence)
+}
+
+/// Reconstruct initialized data introduced by the image writer itself.
+///
+/// Mach-O lowers every referenced unresolved import through one image-local
+/// lazy-binding pointer. Those slots do not exist in the object data, but their
+/// count and placement are fully determined by the exact object import and
+/// relocation sets. Retaining them in this replay input keeps the relocation
+/// envelope closed without treating an arbitrary image-added suffix as trusted.
+fn encoded_final_data_with_image_import_slots(
+    artifact: &ObjectArtifact,
+    object: &omega_object_file::ObjectPlan,
+    relocations: &omega_object_file::RelocationPlan,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut encoded = artifact.data_bytes().to_vec();
+    if artifact.target().object_format != omega_target::ObjectFormat::MachO {
+        return Ok(encoded);
+    }
+
+    let referenced_import_count = object
+        .layout
+        .symbols
+        .iter()
+        .filter(|(handle, symbol)| {
+            symbol.kind == omega_object_file::SymbolKind::Import
+                && relocations
+                    .records()
+                    .any(|(_, relocation)| relocation.symbol_handle == *handle)
+        })
+        .count();
+    for _ in 0..referenced_import_count {
+        let aligned = encoded
+            .len()
+            .checked_add(7)
+            .map(|length| length & !7)
+            .ok_or_else(|| Diagnostic::error("Mach-O import-pointer alignment overflows"))?;
+        let end = aligned
+            .checked_add(8)
+            .ok_or_else(|| Diagnostic::error("Mach-O import-pointer data size overflows"))?;
+        encoded.resize(end, 0);
+    }
+    Ok(encoded)
 }
 
 fn validate_dynamic_conformance_tables(

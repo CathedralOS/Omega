@@ -14,8 +14,90 @@ use omega_task_plans::{
 use std::fs;
 use std::path::PathBuf;
 
+use omega_terminal_psi_to_native_artifact as native;
+
 const INSTALL_NAME: &[u8] = b"/usr/lib/libSystem.B.dylib";
 const SYMBOL: &[u8] = b"_getpid";
+
+fn replay_native_artifact_parts(
+    parts: &native::NativeArtifactParts,
+) -> native::NativeArtifactParts {
+    let module = psi_terminal_codec::decode_module(parts.psi_artifact.semantic_bytes())
+        .expect("replay Terminal semantics");
+    let proof = psi_terminal_codec::decode_proof_bundle(parts.psi_artifact.proof_bytes())
+        .expect("replay Terminal proof");
+    let debug = parts
+        .psi_artifact
+        .debug_bytes()
+        .map(|bytes| psi_terminal_codec::decode_debug_map(&module, bytes).expect("debug map"));
+    native::NativeArtifactParts {
+        target: parts.target,
+        psi_artifact: psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &module,
+            &proof,
+            debug.as_ref(),
+        )
+        .expect("reconstruct canonical Terminal artifact"),
+        object: parts.object.clone(),
+        image: parts.image.clone(),
+        selected_provider_closure_report_identity: parts.selected_provider_closure_report_identity,
+        selected_provider_closure_digest: parts.selected_provider_closure_digest,
+        selected_provider_plans: parts.selected_provider_plans.clone(),
+        provider_executions: parts.provider_executions.clone(),
+        terminal_authority_policy_identity: parts.terminal_authority_policy_identity,
+        terminal_authority_permission_policy_identity: parts
+            .terminal_authority_permission_policy_identity,
+        terminal_authority_closure_review: parts.terminal_authority_closure_review.clone(),
+        boundary_application_coverage: parts.boundary_application_coverage.clone(),
+        physical_evidence_scope: parts.physical_evidence_scope.clone(),
+        physical_evidence: parts.physical_evidence.clone(),
+    }
+}
+
+fn assert_physical_child_mutation_rejected(
+    parts: &native::NativeArtifactParts,
+    mutate: impl FnOnce(&mut native::NativePhysicalChildParts),
+) {
+    let mut replay = replay_native_artifact_parts(parts);
+    let evidence = replay
+        .physical_evidence
+        .take()
+        .expect("admitted foreign-call physical evidence")
+        .into_parts();
+    let [child] = evidence.children.as_slice() else {
+        panic!("one admitted-provider physical child")
+    };
+    let mut child = child.clone().into_parts();
+    mutate(&mut child);
+    replay.physical_evidence = Some(native::NativePhysicalEvidence::from_replayed_parts(
+        native::NativePhysicalEvidenceParts {
+            projection: evidence.projection,
+            children: vec![native::NativePhysicalChild::from_replayed_parts(child)],
+            identity: evidence.identity,
+        },
+    ));
+    assert!(
+        native::NativeArtifact::from_replayed_parts(replay).is_err(),
+        "mutated admitted-provider physical custody must not replay",
+    );
+}
+
+fn assert_d41_parent_mutation_rejected(
+    parts: &native::NativeArtifactParts,
+    mutate: impl FnOnce(&mut native::BoundaryTraitSettlementParts),
+) {
+    assert_physical_child_mutation_rejected(parts, |child| {
+        let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent.clone()
+        else {
+            panic!("admitted foreign-call child must retain its D41 parent")
+        };
+        let mut parent = parent.into_parts();
+        mutate(&mut parent);
+        child.parent = native::PhysicalChildParent::BoundaryTraitSettlement(
+            native::BoundaryTraitSettlement::from_replayed_parts(parent),
+        );
+    });
+}
 
 struct Fixture {
     root: PathBuf,
@@ -432,6 +514,11 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     assert!(foreign_call.text_offset + 4 <= control.restore_offset);
     assert_eq!(artifact.image().output().format, "mach-o-arm64-executable");
     assert_eq!(artifact.image().output().final_image_imports, 1);
+    assert_eq!(
+        artifact.image().output().final_data_bytes,
+        [0; 8],
+        "one referenced Mach-O import has one exact lazy-binding pointer slot",
+    );
     let [normalized] = artifact
         .object()
         .object()
@@ -450,6 +537,169 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     };
     assert_eq!(install_name, INSTALL_NAME);
     assert_eq!(symbol, SYMBOL);
+
+    assert_eq!(
+        artifact.physical_evidence_scope(),
+        native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
+        "source-reviewed imports require complete unoptimized D32 custody",
+    );
+    let physical = artifact
+        .physical_evidence()
+        .expect("source-evaluated import retains complete D32 evidence");
+    assert_eq!(physical.projection().operator_occurrences().len(), 0);
+    assert_eq!(physical.projection().boundary_occurrences().len(), 1);
+    let [child] = physical.children() else {
+        panic!("one source boundary call must produce exactly one D41 child")
+    };
+    assert!(matches!(
+        child.occurrence(),
+        native::NativePhysicalOccurrence::Boundary(_),
+    ));
+    assert_eq!(child.projection(), physical.projection().identity());
+    let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent() else {
+        panic!("source-evaluated import must retain its D41 settlement parent")
+    };
+    assert_eq!(
+        parent.requirement_identity(),
+        admission.execution.requirement
+    );
+    assert_eq!(parent.target(), artifact.target());
+    let [selected_plan] = artifact.selected_provider_plans() else {
+        panic!("one exact selected provider plan expected")
+    };
+    assert_eq!(parent.selected_plan_digest(), selected_plan.plan_digest());
+    assert_eq!(
+        *parent.selected_plan_digest().as_bytes(),
+        admission.same_stack.provider_plan_commitment().as_bytes(),
+        "D41 parent and opaque same-stack leaf must bind the same selected plan",
+    );
+
+    let native::BoundaryTraitSettlementRole::AdmittedProvider {
+        execution,
+        realization,
+    } = parent.role()
+    else {
+        panic!("source-evaluated import must be an admitted-provider D41 role")
+    };
+    let execution_record = foreign_call.provider_execution;
+    let expected_execution =
+        omega_target_operations::ProviderExecutionBinding::from_execution_record(
+            omega_target_operations::ProviderPlanReportIdentity::new(
+                execution_record.provider_plan_report_identity,
+            )
+            .expect("selected provider-plan report identity"),
+            execution_record.provider_execution_report_identity,
+            execution_record.provider_execution_report_fingerprint,
+            execution_record.normalized_root_report_identity,
+            execution_record.boundary_contract_report_fingerprint,
+        )
+        .expect("complete admitted-provider execution record");
+    assert_eq!(*execution, expected_execution);
+    assert_eq!(parent.execution(), expected_execution.into());
+    assert_eq!(realization.locator, foreign_call.locator);
+    assert_eq!(realization.locator, normalized.locator);
+    assert_eq!(
+        realization.boundary_entry_plan,
+        foreign_call.boundary_entry_plan,
+    );
+    assert_eq!(realization.same_stack_contribution, admission.same_stack,);
+    assert_eq!(
+        realization.same_stack_contribution,
+        foreign_call.same_stack_contribution,
+    );
+    let [image_foreign_call] = artifact.image().foreign_calls() else {
+        panic!("one final-image foreign call expected")
+    };
+    assert_eq!(image_foreign_call, foreign_call);
+
+    let object_function = artifact
+        .object()
+        .functions()
+        .iter()
+        .find(|function| function.machine == foreign_call.machine)
+        .expect("foreign call owning object function");
+    let machine_offset = foreign_call
+        .text_offset
+        .checked_sub(object_function.text_offset)
+        .expect("object call lies within its function");
+    let matching_relocations = artifact
+        .object()
+        .relocations()
+        .records()
+        .filter(|(_, relocation)| relocation.symbol_handle == normalized.symbol)
+        .collect::<Vec<_>>();
+    let [(_, object_relocation)] = matching_relocations.as_slice() else {
+        panic!("one unresolved object relocation must target the normalized import")
+    };
+    assert_eq!(child.machine_span().offset(), machine_offset);
+    assert_eq!(child.object_span().offset(), foreign_call.text_offset);
+    assert_eq!(child.final_image_span(), child.object_span());
+    assert_eq!(
+        child.machine_span().byte_count(),
+        object_relocation.byte_width,
+    );
+    assert_eq!(
+        child.object_span().byte_count(),
+        object_relocation.byte_width
+    );
+    assert_eq!(
+        child.final_image_span().byte_count(),
+        object_relocation.byte_width,
+    );
+    let machine_span = child.machine_span();
+    let object_span = child.object_span();
+    let final_image_span = child.final_image_span();
+    assert_eq!(
+        &object_function.bytes(artifact.object())
+            [machine_span.offset()..machine_span.offset() + machine_span.byte_count()],
+        &artifact.object().text_bytes()
+            [object_span.offset()..object_span.offset() + object_span.byte_count()],
+    );
+    let object_instruction = u32::from_le_bytes(
+        artifact.object().text_bytes()
+            [object_span.offset()..object_span.offset() + object_span.byte_count()]
+            .try_into()
+            .expect("one AArch64 branch instruction"),
+    );
+    let final_instruction = u32::from_le_bytes(
+        artifact.image().output().final_text_bytes
+            [final_image_span.offset()..final_image_span.offset() + final_image_span.byte_count()]
+            .try_into()
+            .expect("one final AArch64 branch instruction"),
+    );
+    assert_eq!(object_instruction & 0xfc00_0000, 0x9400_0000);
+    assert_eq!(final_instruction & 0xfc00_0000, 0x9400_0000);
+    assert_ne!(
+        object_instruction, final_instruction,
+        "Mach-O import lowering must relocate the admitted call to its exact image thunk",
+    );
+
+    let native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(relocation) =
+        child.relocation()
+    else {
+        panic!("admitted foreign call must retain unresolved import relocation custody")
+    };
+    let boundary_plan_identity = omega_calling_conventions::validate_boundary_entry_plan(
+        realization.boundary_entry_plan.clone(),
+        &omega_calling_conventions::CallSignature {
+            parameters: Vec::new(),
+            result: None,
+        },
+    )
+    .expect("retained zero-argument boundary entry plan revalidates")
+    .contract_commitment_digest();
+    assert_eq!(
+        *relocation.locator_identity(),
+        realization.locator.identity_digest().as_bytes(),
+    );
+    assert_eq!(relocation.boundary_plan_identity(), &boundary_plan_identity);
+    assert_eq!(relocation.object_symbol(), normalized.symbol);
+    assert_eq!(relocation.origin(), object_relocation.origin);
+    assert_eq!(relocation.offset(), object_relocation.offset);
+    assert_eq!(relocation.byte_width(), object_relocation.byte_width);
+    assert_eq!(relocation.addend(), object_relocation.addend);
+    assert_eq!(relocation.kind(), object_relocation.kind);
+    assert_ne!(relocation.final_image_symbol_identity(), &[0; 32]);
 
     let object_demand =
         omega_image_emission::derive_stack_demand(artifact.object(), artifact.object().entry())
@@ -519,4 +769,120 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     )
     .expect("installation replays the admitted foreign stack demand");
     assert_eq!(installation_demand, object_demand);
+
+    let parts = artifact.into_parts();
+    let mut missing_provider = replay_native_artifact_parts(&parts);
+    missing_provider.provider_executions.clear();
+    assert!(
+        native::NativeArtifact::from_replayed_parts(missing_provider).is_err(),
+        "D41 replay must reject removal of its admitted provider execution",
+    );
+    let mut duplicate_provider = replay_native_artifact_parts(&parts);
+    duplicate_provider
+        .provider_executions
+        .push(duplicate_provider.provider_executions[0].clone());
+    assert!(
+        native::NativeArtifact::from_replayed_parts(duplicate_provider).is_err(),
+        "D41 replay must reject duplicate admitted provider execution",
+    );
+
+    let mut missing_child = replay_native_artifact_parts(&parts);
+    let evidence = missing_child
+        .physical_evidence
+        .take()
+        .expect("admitted foreign-call physical evidence")
+        .into_parts();
+    missing_child.physical_evidence = Some(native::NativePhysicalEvidence::from_replayed_parts(
+        native::NativePhysicalEvidenceParts {
+            projection: evidence.projection,
+            children: Vec::new(),
+            identity: evidence.identity,
+        },
+    ));
+    assert!(
+        native::NativeArtifact::from_replayed_parts(missing_child).is_err(),
+        "D32 replay must reject a missing D41 child",
+    );
+
+    let mut duplicate_child = replay_native_artifact_parts(&parts);
+    let evidence = duplicate_child
+        .physical_evidence
+        .take()
+        .expect("admitted foreign-call physical evidence")
+        .into_parts();
+    let mut children = evidence.children;
+    children.push(children[0].clone());
+    duplicate_child.physical_evidence = Some(native::NativePhysicalEvidence::from_replayed_parts(
+        native::NativePhysicalEvidenceParts {
+            projection: evidence.projection,
+            children,
+            identity: evidence.identity,
+        },
+    ));
+    assert!(
+        native::NativeArtifact::from_replayed_parts(duplicate_child).is_err(),
+        "D32 replay must reject duplicate D41 children",
+    );
+
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        parent.requirement_identity.push_str("::substituted");
+    });
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        parent.selected_plan_digest =
+            native::NativeSelectedProviderPlanDigest::from_digest([7; 32]);
+    });
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        let native::BoundaryTraitSettlementRole::AdmittedProvider { execution, .. } =
+            &mut parent.role
+        else {
+            panic!("fixture D41 parent is admitted-provider custody")
+        };
+        *execution = omega_target_operations::ProviderExecutionBinding::from_execution_record(
+            omega_target_operations::ProviderPlanReportIdentity::new(
+                admission.plan_report_identity,
+            )
+            .expect("selected provider-plan report identity"),
+            0x4d41_4348_ffff,
+            execution.provider_execution_report_fingerprint(),
+            execution.normalized_root_report_identity(),
+            execution.boundary_contract_report_fingerprint(),
+        )
+        .expect("substituted provider execution is structurally complete");
+    });
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        let native::BoundaryTraitSettlementRole::AdmittedProvider { realization, .. } =
+            &mut parent.role
+        else {
+            panic!("fixture D41 parent is admitted-provider custody")
+        };
+        realization.locator = omega_target::normalize_foreign_locator(
+            ForeignLocatorCandidate::MachODylibSymbol {
+                install_name: INSTALL_NAME.to_vec(),
+                symbol: b"_substituted_getpid".to_vec(),
+            },
+            omega_target::TargetProfile::MacosArm64,
+        )
+        .expect("substituted locator remains structurally valid");
+    });
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        let native::BoundaryTraitSettlementRole::AdmittedProvider { realization, .. } =
+            &mut parent.role
+        else {
+            panic!("fixture D41 parent is admitted-provider custody")
+        };
+        realization.boundary_entry_plan.state.preemption =
+            omega_calling_conventions::Preemption::ProviderDefined;
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.relocation = native::PhysicalRelocationDisposition::DirectInstructionBytes;
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.machine_bytes_digest[0] ^= 1;
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.object_bytes_digest[0] ^= 1;
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.final_image_bytes_digest[0] ^= 1;
+    });
 }

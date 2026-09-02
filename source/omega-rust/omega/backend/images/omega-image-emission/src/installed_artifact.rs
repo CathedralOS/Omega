@@ -154,9 +154,10 @@ impl std::fmt::Display for InstalledArtifactMemoryProjectionError {
 
 impl std::error::Error for InstalledArtifactMemoryProjectionError {}
 
-/// Reconstruct the exact pre/post-relocation section images expected by the
-/// installation provider. Mutable initialized data and BSS remain outside this
-/// bounded immutable-table lane.
+/// Reconstruct the exact compiler-authored pre/post-relocation section images
+/// expected by the installation provider. Image-writer thunks and their mutable
+/// binding slots, other mutable initialized data, and BSS remain outside this
+/// bounded lane.
 pub fn project_installed_artifact_memory_images(
     object: &ObjectArtifact,
     image: &ExecutableImage,
@@ -172,8 +173,8 @@ pub fn project_installed_artifact_memory_images(
         ))
     })?;
     let output = image.output();
-    if output.final_text_bytes.len() != object.text_bytes().len()
-        || output.final_data_bytes.len() != object.data_bytes().len()
+    if output.final_text_bytes.len() < object.text_bytes().len()
+        || output.final_data_bytes.len() < object.data_bytes().len()
         || output.final_image_layout.text_address == 0
     {
         return Err(InstalledArtifactMemoryProjectionError(
@@ -200,8 +201,8 @@ pub fn project_installed_artifact_memory_images(
     let encoded =
         flatten_installed_sections(object.text_bytes(), object.data_bytes(), data_offset)?;
     let materialized = flatten_installed_sections(
-        &output.final_text_bytes,
-        &output.final_data_bytes,
+        &output.final_text_bytes[..object.text_bytes().len()],
+        &output.final_data_bytes[..object.data_bytes().len()],
         data_offset,
     )?;
     Ok(InstalledArtifactMemoryImages {

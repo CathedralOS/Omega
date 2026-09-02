@@ -270,12 +270,116 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         let [call] = machine_code.functions[0].foreign_calls.as_slice() else {
             panic!("one retained foreign call")
         };
+        assert_eq!(
+            call.owner,
+            omega_target_operations::CallSiteOwner::Operation(operation)
+        );
+        assert_eq!(call.operation_ordinal, 0);
         assert_eq!(call.locator, locator);
+        assert_eq!(call.boundary_entry_plan, boundary_entry_plan);
         assert_eq!(call.call_plan, boundary_entry_plan.call);
         assert_eq!(call.same_stack_contribution, same_stack);
+        assert_eq!(
+            call.provider_execution.provider_plan_report_identity,
+            evidence.provider_plan_report_identity,
+        );
+        assert_eq!(
+            call.provider_execution.provider_execution_report_identity,
+            802
+        );
+        assert_eq!(
+            call.provider_execution
+                .provider_execution_report_fingerprint,
+            803
+        );
+        assert_eq!(call.provider_execution.normalized_root_report_identity, 804);
+        assert_eq!(
+            call.provider_execution.boundary_contract_report_fingerprint,
+            805
+        );
+
+        let mut duplicate_call = machine_code.clone();
+        let duplicate = duplicate_call.functions[0].foreign_calls[0].clone();
+        duplicate_call.functions[0].foreign_calls.push(duplicate);
+        assert!(
+            omega_image_emission::build_object_artifact(&duplicate_call).is_err(),
+            "object replay must reject duplicate semantic foreign-call ownership",
+        );
+        let mut substituted_plan = machine_code.clone();
+        substituted_plan.functions[0].foreign_calls[0]
+            .boundary_entry_plan
+            .call
+            .entry_control = omega_calling_conventions::EntryControl::InterruptReturn;
+        assert!(
+            omega_image_emission::build_object_artifact(&substituted_plan).is_err(),
+            "object replay must reject substitution of the admitted boundary-entry plan",
+        );
+        let mut substituted_relocation = machine_code.clone();
+        substituted_relocation.functions[0].foreign_calls[0].offset += 1;
+        assert!(
+            omega_image_emission::build_object_artifact(&substituted_relocation).is_err(),
+            "object replay must reject a foreign-call relocation detached from its instruction",
+        );
+        let mut substituted_bytes = machine_code.clone();
+        let call_offset = substituted_bytes.functions[0].foreign_calls[0].offset;
+        substituted_bytes.functions[0].bytes[call_offset] ^= 1;
+        assert!(
+            omega_image_emission::build_object_artifact(&substituted_bytes).is_err(),
+            "object replay must reject substituted foreign-call instruction bytes",
+        );
+
         let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
-        assert_eq!(object.object().layout.normalized_imports.len(), 1);
+        let [object_call] = object.foreign_calls() else {
+            panic!("one object foreign call")
+        };
+        assert_eq!(object_call.machine, machine);
+        assert_eq!(object_call.owner, call.owner);
+        assert_eq!(object_call.locator, locator);
+        assert_eq!(object_call.provider_execution, call.provider_execution);
+        assert_eq!(object_call.boundary_entry_plan, boundary_entry_plan);
+        assert_eq!(object_call.same_stack_contribution, same_stack);
+        let [normalized_import] = object.object().layout.normalized_imports.as_slice() else {
+            panic!("one normalized unresolved object import")
+        };
+        assert_eq!(normalized_import.locator, locator);
         assert_eq!(object.relocations().record_count(), 1);
+        let matching_relocations = object
+            .relocations()
+            .records()
+            .filter(|(_, relocation)| relocation.symbol_handle == normalized_import.symbol)
+            .collect::<Vec<_>>();
+        let [(_, relocation)] = matching_relocations.as_slice() else {
+            panic!("one unresolved relocation must target the normalized import symbol")
+        };
+        let object_function = object
+            .functions()
+            .iter()
+            .find(|function| function.machine == machine)
+            .expect("object function owning the foreign call");
+        assert_eq!(
+            object_call.text_offset,
+            object_function.text_offset + call.offset,
+        );
+        assert_eq!(relocation.offset, object_call.text_offset);
+        assert_eq!(relocation.byte_width, 4);
+        assert_eq!(relocation.symbol_handle, normalized_import.symbol);
+        assert_eq!(relocation.addend, 0);
+        assert_eq!(
+            relocation.origin.semantic_operation_identity(),
+            Some(u64::from(operation.get())),
+        );
+        assert_eq!(
+            relocation.kind,
+            match profile {
+                omega_target::TargetProfile::LinuxX64 => {
+                    omega_object_file::RelocationKind::X86_64Relative32
+                }
+                omega_target::TargetProfile::LinuxArm64 => {
+                    omega_object_file::RelocationKind::Aarch64Branch26
+                }
+                _ => unreachable!(),
+            },
+        );
         let interpreter = omega_target::normalize_elf_interpreter_plan(
             match profile {
                 omega_target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".to_vec(),
