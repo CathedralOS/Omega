@@ -35,9 +35,13 @@ pub use physical::{
     NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallRelocation,
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
     OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
-    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
+    PhysicalRelocationDisposition, SelectedLoweringNativePublicationInput,
+    ValidatedOptimizedNativePhysicalEvidenceScope,
 };
-use physical::{derive_physical_evidence, derive_validated_optimization_scope};
+use physical::{
+    derive_physical_evidence, derive_validated_optimization_scope,
+    derive_validated_selected_lowering_optimization_scope,
+};
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v6\0";
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
@@ -169,6 +173,37 @@ impl NativePhysicalEvidenceScope {
                 final_unit,
                 boundary_application_coverage,
                 coverage_identity,
+            )?,
+        ))
+    }
+
+    /// Admit one validated selected-lowering lineage together with the exact
+    /// return-only machine plan that must reappear in the emitted object.
+    ///
+    /// This preserves the ordinary optimized projection and adds no new
+    /// backend. Native artifact construction and replay independently recover
+    /// the machine projection from [`omega_image_emission::ObjectArtifact`]
+    /// before accepting the scope.
+    pub fn from_validated_selected_lowering_optimization(
+        final_plan: &AbstractOperationPlan,
+        terminal: TerminalPsiIdentity,
+        validation: OptimizedAbstractPlanProjectionIdentity,
+        final_unit: OptimizationUnitIdentity,
+        boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
+        publication: SelectedLoweringNativePublicationInput<'_>,
+    ) -> Result<Self, &'static str> {
+        let coverage_identity =
+            boundary_application_coverage_identity(Some(boundary_application_coverage))
+                .expect("present boundary-application coverage has an identity");
+        Ok(Self::ValidatedOptimizedProjection(
+            derive_validated_selected_lowering_optimization_scope(
+                final_plan,
+                terminal,
+                validation,
+                final_unit,
+                boundary_application_coverage,
+                coverage_identity,
+                publication,
             )?,
         ))
     }

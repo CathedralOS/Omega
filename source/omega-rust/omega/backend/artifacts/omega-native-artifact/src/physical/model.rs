@@ -147,6 +147,8 @@ pub struct ValidatedOptimizedNativePhysicalEvidenceScope {
     final_unit: OptimizationUnitIdentity,
     boundary_application_coverage: [u8; 32],
     projection: NativeOptimizationProjection,
+    selected_lowering_publication:
+        Option<super::selected_lowering::SelectedLoweringNativePublicationBinding>,
     identity: [u8; 32],
 }
 
@@ -169,6 +171,12 @@ impl ValidatedOptimizedNativePhysicalEvidenceScope {
 
     pub(super) const fn boundary_application_coverage(&self) -> &[u8; 32] {
         &self.boundary_application_coverage
+    }
+
+    pub(super) const fn selected_lowering_publication(
+        &self,
+    ) -> Option<&super::selected_lowering::SelectedLoweringNativePublicationBinding> {
+        self.selected_lowering_publication.as_ref()
     }
 }
 
@@ -723,8 +731,19 @@ pub(super) fn validated_optimized_native_physical_evidence_scope(
         final_unit,
         boundary_application_coverage,
         projection,
+        selected_lowering_publication: None,
         identity,
     }
+}
+
+pub(super) fn validated_selected_lowering_native_physical_evidence_scope(
+    mut scope: ValidatedOptimizedNativePhysicalEvidenceScope,
+    publication: super::selected_lowering::SelectedLoweringNativePublicationBinding,
+    identity: [u8; 32],
+) -> ValidatedOptimizedNativePhysicalEvidenceScope {
+    scope.selected_lowering_publication = Some(publication);
+    scope.identity = identity;
+    scope
 }
 
 pub(super) fn native_physical_evidence(
