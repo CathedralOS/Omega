@@ -337,6 +337,15 @@ fn validate_exact_dynamic_plan(
     selection_statement_index: usize,
     call_statement_index: u32,
 ) -> Result<DynamicCallerShape, LoweringError> {
+    let forwarded = match plan.origin {
+        psi_checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
+        psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+            machine,
+            state,
+            coordinate,
+            parameter,
+        } => Some((machine, state, coordinate, parameter)),
+    };
     let store = plan.caller_structural_scalar_field_store.as_ref();
     let exact_selections = checked
         .facts
@@ -381,18 +390,19 @@ fn validate_exact_dynamic_plan(
     if selected_rows != 1 {
         return unsupported("direct dynamic dispatch lost its exact selected conformance row");
     }
-    if checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .for_machine(plan.caller_machine)
-        .is_some()
-        || checked
+    if forwarded.is_none()
+        && (checked
             .facts
             .flow
             .terminal_unit_effects
-            .composed_for_machine(plan.caller_machine)
+            .for_machine(plan.caller_machine)
             .is_some()
+            || checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(plan.caller_machine)
+                .is_some())
     {
         return unsupported("direct dynamic caller overlaps another checked Unit route");
     }
@@ -416,8 +426,13 @@ fn validate_exact_dynamic_plan(
         .filter(|call| {
             call.statement_index == plan.coordinate.statement_index as usize
                 && call.call_ordinal == plan.coordinate.call_ordinal as usize
-                && call.receiver_symbol == plan.receiver_binding
-                && call.target_symbol == plan.requirement
+                && match forwarded {
+                    Some((_, state, _, _)) => !call.has_receiver && call.target_symbol == state,
+                    None => {
+                        call.receiver_symbol == plan.receiver_binding
+                            && call.target_symbol == plan.requirement
+                    }
+                }
         })
         .collect::<Vec<_>>();
     let [call] = matching_calls.as_slice() else {
@@ -457,10 +472,21 @@ fn validate_exact_dynamic_plan(
         + usize::from(plan.unit_continuation.is_some()) * 2;
     if call.statement_index != plan.coordinate.statement_index as usize
         || call.call_ordinal != plan.coordinate.call_ordinal as usize
-        || call.receiver_symbol != plan.receiver_binding
-        || call.target_symbol != plan.requirement
-        || !call.has_receiver
-        || call.service_reach != plan.checked_call_service_reach
+        || match forwarded {
+            Some((machine, state, coordinate, parameter)) => {
+                call.has_receiver
+                    || call.target_symbol != state
+                    || !validate_forwarded_dynamic_call(
+                        checked, plan, machine, state, coordinate, parameter,
+                    )?
+            }
+            None => {
+                call.receiver_symbol != plan.receiver_binding
+                    || call.target_symbol != plan.requirement
+                    || !call.has_receiver
+                    || call.service_reach != plan.checked_call_service_reach
+            }
+        }
         || checked
             .facts
             .flow
@@ -526,6 +552,54 @@ fn validate_exact_dynamic_plan(
     Ok(DynamicCallerShape {
         attachment_type_identity: plan.caller_attachment_type_identity.clone(),
     })
+}
+
+fn validate_forwarded_dynamic_call(
+    checked: &CheckedTrees,
+    plan: &CheckedDynamicScalarCallPlan,
+    helper_machine: psi_symbols::SymbolHandle,
+    helper_state: psi_symbols::SymbolHandle,
+    coordinate: psi_checked_trees::CheckedUnitCallCoordinate,
+    parameter: psi_symbols::SymbolHandle,
+) -> Result<bool, LoweringError> {
+    let selections = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|selection| selection.machine == helper_machine)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Ok(false);
+    };
+    if selection.signature != psi_checked_trees::CheckedTerminalSignatureEligibility::Eligible {
+        return Ok(false);
+    }
+    let state_facts = checked
+        .facts
+        .flow
+        .control
+        .states
+        .iter()
+        .filter_map(|(_, state)| {
+            (state.machine_symbol == helper_machine && state.state_symbol == helper_state)
+                .then_some(state)
+        })
+        .collect::<Vec<_>>();
+    let [state] = state_facts.as_slice() else {
+        return Ok(false);
+    };
+    let calls = checked.facts.flow.control.calls.span_or_empty(state.calls);
+    let [call] = calls else {
+        return Ok(false);
+    };
+    Ok(call.statement_index == coordinate.statement_index as usize
+        && call.call_ordinal == coordinate.call_ordinal as usize
+        && call.receiver_symbol == parameter
+        && call.target_symbol == plan.requirement
+        && call.has_receiver
+        && call.service_reach == plan.checked_call_service_reach)
 }
 
 fn checked_store_literal_matches(
