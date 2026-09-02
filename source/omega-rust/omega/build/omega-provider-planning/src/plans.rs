@@ -720,6 +720,14 @@ fn selected_operator_provider_evidence(
         let demanded_application = match use_site {
             None => None,
             Some((expression, origin)) => {
+                if use_site_is_generic_template(checked, origin) {
+                    // Generic templates are not executable provider evidence,
+                    // even when one call happens not to mention a template
+                    // binder. Concrete clones are annotated independently
+                    // after final substitution. An emitted non-generic use
+                    // still requires exactly one closed demand below.
+                    return Ok(None);
+                }
                 let matching = checked
                     .facts
                     .operators
@@ -863,6 +871,22 @@ fn selected_operator_provider_evidence(
             *plan.identity_digest().as_bytes(),
         ),
     )))
+}
+
+fn use_site_is_generic_template(
+    checked: &psi_checked_trees::CheckedTrees,
+    origin: psi_checked_trees::CheckedValueOrigin,
+) -> bool {
+    let psi_checked_trees::CheckedValueOrigin::StateStatement { machine_symbol, .. } = origin
+    else {
+        return false;
+    };
+    checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .is_some_and(|machine| !checked.typed.machine_type_parameters(machine).is_empty())
 }
 
 pub fn intrinsic_realization_matches_operator(

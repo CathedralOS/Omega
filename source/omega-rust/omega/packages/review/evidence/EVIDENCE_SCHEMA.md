@@ -120,9 +120,12 @@ Schema v117 / row v75 admits actual selected type/const-generic boundary-
 operator applications backed by checked Omega bodies. Named calls and supported
 local fixed-token uses enter the same row. Omega supplies only the exact
 selected requirement/provider symbols; Psi independently derives each closed
-application from the authored operands and clones a private concrete machine
-through ordinary authoritative specialization. The authored generic provider
-remains intact as public API. Each canonical row retains the ordered package-
+application from the authored operands. Ordinary helper and selected-provider
+specialization alternate to a local fixed point, so an application closed only
+inside a single-instantiation specialized scalar helper, nested expression, or
+selected-provider body receives the same row as a direct call. The authored generic provider
+remains intact as public API while Psi clones one private concrete provider per
+distinct application. Each canonical row retains the ordered package-
 qualified type or canonical const application, selected-plan digest, generic
 template, concrete machine/state, specialization commitment, and machine-
 contract commitment. Distinct applications retain distinct specializations;
@@ -130,8 +133,9 @@ equal applications deduplicate only at semantic review. Replay independently
 reconstructs the application, template identity, specialization commitment,
 and checked realization contract. Open, missing, duplicate, substituted,
 stale, or category/carrier-changing rows reject. Unsupported fixed-token
-shapes, lifetime, static-machine, proposition, external generic, symbolic
-cross-artifact, Terminal, and native physical coverage remain closed.
+shapes, unproven local call forms, lifetime, static-machine, proposition,
+external generic, symbolic cross-artifact, unsupported Terminal continuation,
+and native physical coverage remain closed.
 
 Schema v116 / row v74 retains the atomic evaluated-import receipt beside each
 normalized locator: exact producer package/callable/closure, evaluator

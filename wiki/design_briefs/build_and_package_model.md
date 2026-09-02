@@ -1054,6 +1054,15 @@ supply stays exact-only. Bootstrap lowering is non-authoritative and cannot
 publish coverage. D28 deliberately adds no universal generic carrier until a
 checked generic operator realization exists.
 
+Within one compilation, ordinary generic-machine specialization and selected
+generic-provider specialization run to a fixed point over an immutable authored
+provider template. Consequently a type/const demand that becomes concrete only
+inside a single-instantiation specialized scalar helper, nested expression, or
+another selected provider body receives the same exact checked and package-review custody as a
+direct call. The still-open occurrence in the authored template remains
+symbolic non-coverage. This local fixed point is not an artifact-qualified
+symbolic-demand exchange and grants nothing to a separately compiled consumer.
+
 D32 keeps physical realization distinct. A validated optimization projection
 retains the immutable canonical Terminal identity and identifies the surviving
 executable boundary occurrences. Each receives one `NativeArtifact` physical

@@ -40,8 +40,11 @@ stop the item on one precise owner question before adding machinery.
   Remaining work:
 
   - finish D29 artifact-qualified symbolic demand/final substitution for
-    separately compiled generic artifacts and nested authored operator
-    applications beyond the proven transitive scalar-helper closure;
+    separately compiled generic artifacts. Extend the landed local
+    final-substitution fixed point beyond the proven type/const
+    single-instantiation scalar-helper, nested-expression, and
+    selected-provider-chain cohort only as another concrete language form
+    requires it;
   - extend the landed hosted D32 fixed-token lane beyond mixed fixed-width
     integer scalar operands plus exact whole, claim-free, owned-affine
     structural operands and one scalar result to structural results. Keep

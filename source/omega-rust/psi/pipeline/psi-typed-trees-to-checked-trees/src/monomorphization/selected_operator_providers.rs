@@ -1,17 +1,24 @@
 use super::*;
 
 pub(crate) fn specialize_selected_generic_operator_providers(
+    templates: &TypedTrees,
     program: &mut TypedTrees,
     selected: &[crate::SelectedGenericOperatorProviderSpecialization],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<usize, Vec<Diagnostic>> {
     if selected.is_empty() {
-        return Ok(());
+        return Ok(0);
     }
     materialize_static_argument_types(program);
-    let source = program.clone();
     let mut diagnostics = Vec::new();
+    let mut materialized = 0_usize;
 
     for request in selected {
+        // Clone the immutable authored graph per request so concrete type
+        // references discovered after ordinary specialization can be copied
+        // into the clone without mutating the template authority shared by
+        // another selected provider.
+        let mut source = templates.clone();
+        materialize_static_argument_types(&mut source);
         let Some(machine_index) = source
             .machines()
             .iter()
@@ -22,9 +29,10 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             ));
             continue;
         };
-        let template_machine = &source.machines()[machine_index];
+        let template_machine = source.machines()[machine_index].clone();
         let Some(operator) =
             psi_typed_trees::operator::declaration_by_symbol(&source, request.requirement_operator)
+                .cloned()
         else {
             diagnostics.push(Diagnostic::error(
                 "selected generic operator provider names no operator requirement",
@@ -39,7 +47,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         };
         if psi_typed_trees::operator::resolve_satisfied_checked_operator(
             &source,
-            template_machine,
+            &template_machine,
             namespace.as_str(),
             requirement.as_str(),
         )
@@ -52,7 +60,10 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             continue;
         }
 
-        let applications = match selected_operator_applications(&source, operator) {
+        let current_operator =
+            psi_typed_trees::operator::declaration_by_symbol(program, request.requirement_operator)
+                .expect("selected provider requirement survives specialization");
+        let applications = match selected_operator_applications(program, current_operator) {
             Ok(applications) => applications,
             Err(mut errors) => {
                 diagnostics.append(&mut errors);
@@ -65,10 +76,11 @@ pub(crate) fn specialize_selected_generic_operator_providers(
         let template = selected_operator_candidate(&source, machine_index);
         let mut concrete = Vec::<(SpecializationKey, Candidate)>::new();
         for application in applications {
+            let application = copy_application_types(program, &mut source, &application);
             let candidate = match selected_operator_candidate_for_application(
                 &source,
                 &template,
-                template_machine,
+                &template_machine,
                 &application,
             ) {
                 Ok(candidate) => candidate,
@@ -99,6 +111,14 @@ pub(crate) fn specialize_selected_generic_operator_providers(
                 machine_arguments: Vec::new(),
                 evidence_arguments: Vec::new(),
             };
+            if has_materialized_specialization(
+                program,
+                template_machine.symbol,
+                operator.symbol,
+                &key,
+            ) {
+                continue;
+            }
             if !concrete.iter().any(|(retained, _)| retained == &key) {
                 concrete.push((key, candidate));
             }
@@ -138,7 +158,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
             fnv1a_report_fingerprint(&canonical_template_contract_bytes);
         let template_contract_commitment =
             machine_template_commitment(&canonical_template_contract_bytes);
-        let normalized_template_identity = normalized_machine_identity(&source, template_machine)
+        let normalized_template_identity = normalized_machine_identity(&source, &template_machine)
             .expect("selected generic provider has a normalized template identity");
         let accepted_template_commitment = accepted_template_commitment(&source, machine_index);
 
@@ -155,6 +175,7 @@ pub(crate) fn specialize_selected_generic_operator_providers(
                 accepted_template_commitment.clone(),
             ) {
                 Ok(_) => {
+                    materialized += 1;
                     let instance = program
                         .machine_specializations
                         .last()
@@ -174,10 +195,60 @@ pub(crate) fn specialize_selected_generic_operator_providers(
     }
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(materialized)
     } else {
         Err(diagnostics)
     }
+}
+
+fn copy_application_types(
+    program: &TypedTrees,
+    source: &mut TypedTrees,
+    application: &[psi_typed_trees::operator::ClosedOperatorApplicationArgument],
+) -> Vec<psi_typed_trees::operator::ClosedOperatorApplicationArgument> {
+    application
+        .iter()
+        .map(|argument| match argument {
+            psi_typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                binder_symbol,
+                type_reference,
+            } => psi_typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                binder_symbol: *binder_symbol,
+                type_reference: copy_type_reference(program, source, *type_reference, &[]),
+            },
+            psi_typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                binder_symbol,
+                declared_carrier,
+                value,
+            } => psi_typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                binder_symbol: *binder_symbol,
+                declared_carrier: copy_type_reference(program, source, *declared_carrier, &[]),
+                value: value.clone(),
+            },
+        })
+        .collect()
+}
+
+fn has_materialized_specialization(
+    program: &TypedTrees,
+    template: SymbolHandle,
+    requirement: SymbolHandle,
+    key: &SpecializationKey,
+) -> bool {
+    program
+        .machine_specializations
+        .iter()
+        .any(|specialization| {
+            specialization.template == template
+                && specialization.type_argument_identities == key.type_arguments
+                && specialization.const_argument_identities == key.const_arguments
+                && specialization.machine_arguments.is_empty()
+                && specialization.conformance_arguments.is_empty()
+                && specialization
+                    .operator_realizations
+                    .iter()
+                    .any(|realization| realization.requirement_symbol == requirement)
+        })
 }
 
 fn selected_operator_candidate(program: &TypedTrees, machine_index: usize) -> Candidate {
@@ -345,36 +416,28 @@ fn selected_operator_applications(
                 .iter()
                 .enumerate()
             {
-                let expression = match statement {
-                    StatementNode::Expression(expression) => Some(*expression),
-                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        Some(local.initial_value)
-                    }
-                    StatementNode::Assignment(assignment) if assignment.value.is_valid() => {
-                        Some(assignment.value)
-                    }
-                    _ => None,
-                };
-                let Some(expression) = expression else {
-                    continue;
-                };
-                match selected_operator_application_at_expression(
-                    program,
-                    &symbols,
-                    operator,
-                    machine,
-                    state,
-                    statement_index,
-                    expression,
-                ) {
-                    Ok(Some(application)) if !application.is_empty() => {
-                        if !applications.contains(&application) {
-                            applications.push(application);
+                for root in executable_statement_expression_roots(program, statement) {
+                    let mut expressions = Vec::new();
+                    collect_expression_tree(program, root, &mut expressions);
+                    for expression in expressions {
+                        match selected_operator_application_at_expression(
+                            program,
+                            &symbols,
+                            operator,
+                            machine,
+                            state,
+                            statement_index,
+                            expression,
+                        ) {
+                            Ok(Some(application)) if !application.is_empty() => {
+                                if !applications.contains(&application) {
+                                    applications.push(application);
+                                }
+                            }
+                            Ok(Some(_)) | Ok(None) => {}
+                            Err(error) => diagnostics.push(error),
                         }
                     }
-                    Ok(Some(_)) => {}
-                    Ok(None) => {}
-                    Err(error) => diagnostics.push(error),
                 }
             }
         }
@@ -384,6 +447,44 @@ fn selected_operator_applications(
     } else {
         Err(diagnostics)
     }
+}
+
+fn executable_statement_expression_roots(
+    program: &TypedTrees,
+    statement: &StatementNode,
+) -> Vec<psi_typed_trees::expression::ExpressionHandle> {
+    let mut roots = Vec::new();
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            roots.extend([assignment.target, assignment.value]);
+        }
+        StatementNode::Call(call) => {
+            roots.extend_from_slice(program.statement_table.expression_handles(call.arguments))
+        }
+        StatementNode::Expression(expression) => roots.push(*expression),
+        StatementNode::LocalData(local) => roots.push(local.initial_value),
+        StatementNode::Transition(transition) => {
+            if let psi_typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                roots.push(guard);
+            }
+            for target in [transition.target, transition.continuation] {
+                match program.statement_table.transition_target(target) {
+                    psi_typed_trees::statement::TransitionTargetNode::Named {
+                        arguments, ..
+                    } => roots
+                        .extend_from_slice(program.statement_table.expression_handles(*arguments)),
+                    psi_typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                        roots.push(*expression)
+                    }
+                    psi_typed_trees::statement::TransitionTargetNode::SelfTarget
+                    | psi_typed_trees::statement::TransitionTargetNode::Terminal => {}
+                }
+            }
+        }
+        StatementNode::AssemblyFact(_) => {}
+    }
+    roots.retain(|expression| expression.is_valid());
+    roots
 }
 
 fn selected_operator_application_at_expression(
@@ -460,7 +561,11 @@ fn selected_operator_application_at_expression(
             &operand_types,
         )? {
             Some(application) => Ok(Some(application)),
-            None => Err(open_operator_application(program, operator)),
+            // A generic template may forward one of its own binders here.
+            // That is a symbolic demand, not a concrete specialization and
+            // not final coverage. A concrete clone is revisited by the outer
+            // fixed-point loop; validation still rejects an emitted open use.
+            None => Ok(None),
         };
     }
     let Some(spelling) = operator.spelling else {
@@ -484,21 +589,6 @@ fn selected_operator_application_at_expression(
     };
     psi_validation::validate_closed_operator_application(program, symbols, operator, &application)?;
     Ok(Some(application))
-}
-
-fn open_operator_application(
-    program: &TypedTrees,
-    operator: &psi_typed_trees::operator::OperatorDefinition,
-) -> Diagnostic {
-    Diagnostic::error(format!(
-        "selected generic operator `{}` has an open application",
-        program
-            .operator_path_members(operator.name)
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::"),
-    ))
 }
 
 fn binary_operator_spelling(
