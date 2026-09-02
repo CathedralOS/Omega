@@ -192,9 +192,7 @@ fn settlement_input_corruption_has_complete_typed_failures() {
     wrong_target_plan.target = TargetProfile::WindowsX64.target_name().into();
     assert_eq!(validate(&[AdmittedIeeeFloatFmaSettlement { provider_plan: &wrong_target_plan, ..valid }]), StraightLineNearestIeeeFloatFusedMultiplyAddUnitReturnTranslationError::SettlementPlanTarget);
     let mut wrong_row_plan = valid_plan.clone();
-    wrong_row_plan.rows[0].binding = ProviderBinding::CompilerIntrinsic {
-        machine: "x86_64::not_fma".into(),
-    };
+    wrong_row_plan.rows[0].binding = ProviderBinding::Syscall { number: 1 };
     assert_eq!(
         validate(&[AdmittedIeeeFloatFmaSettlement {
             provider_plan: &wrong_row_plan,

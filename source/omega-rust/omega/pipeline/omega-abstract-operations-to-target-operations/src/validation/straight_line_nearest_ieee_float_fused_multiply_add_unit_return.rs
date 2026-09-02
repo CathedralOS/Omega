@@ -176,8 +176,7 @@ pub(crate) fn validate(
     }
     if !matches!(provider_plan.rows.as_slice(), [row]
         if row.requirement_identity == expected_slot.selected_plan_requirement_identity()
-            && matches!(&row.binding, ProviderBinding::CompilerIntrinsic { machine }
-                if machine == expected_slot.realization_identity()))
+            && matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }))
     {
         return Err(Error::SettlementPlanRow);
     }

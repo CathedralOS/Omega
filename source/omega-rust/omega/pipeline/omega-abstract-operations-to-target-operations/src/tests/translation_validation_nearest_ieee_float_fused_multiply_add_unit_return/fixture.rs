@@ -131,7 +131,9 @@ pub(super) fn provider_plan(target: NativeTarget, format: IeeeFloatFormat) -> Pr
             requirement_identity: slot.selected_plan_requirement_identity().into(),
             requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::CompilerIntrinsic {
-                machine: slot.realization_identity().into(),
+                machine:
+                    "named-callable(path(TestFmaProvider::realize),parameters(),result-dispatch())"
+                        .into(),
             },
         }],
         origin_package_identity: None,

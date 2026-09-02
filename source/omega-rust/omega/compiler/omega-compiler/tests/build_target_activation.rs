@@ -676,8 +676,12 @@ machine Main::main(&mut self) {
 #[test]
 fn aarch64_fma_demand_is_not_an_x86_feature_association() {
     let main = pass_canary_main("float/named_provider_fused_multiply_add_exit");
-    let checked = compile_to_checked(&main, Some("linux_arm64"))
-        .expect("AArch64 FMA remains admitted by its own target realization");
+    let checked = compile_to_checked_with_packages(
+        &main,
+        Some("linux_arm64"),
+        package_inputs_with_standard_library(&main, "named-provider-fused-multiply-add-exit"),
+    )
+    .expect("AArch64 FMA remains admitted by its own target realization");
     assert_eq!(checked.x86_scalar_fma_provider(), None);
     assert!(checked.x86_scalar_fma_plan_associations().is_empty());
 }
