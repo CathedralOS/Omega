@@ -31,6 +31,15 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     .services(machine.service_reach_row)
                     .is_empty()
                     || !machine.invokes.is_empty()
+                    || program.machine_states(machine).iter().any(|state| {
+                        program.state_parameters(state).iter().any(|parameter| {
+                            psi_typed_trees::service::exact_bound_service_requirement(
+                                program,
+                                parameter.type_reference,
+                            )
+                            .is_some()
+                        })
+                    })
                 {
                     CheckedTerminalSignatureEligibility::FreeUnitEffect
                 } else {
