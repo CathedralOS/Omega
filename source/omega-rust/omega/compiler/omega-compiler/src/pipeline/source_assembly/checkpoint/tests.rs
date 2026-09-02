@@ -106,7 +106,7 @@ impl Drop for Fixture {
 }
 
 #[test]
-fn exact_child_matches_the_one_target_source_assembly_path() {
+fn separately_prepared_exact_children_have_identical_source_assembly() {
     let fixture = Fixture::new(false);
     let inputs = fixture.child_inputs(
         omega_target::TargetProfile::WindowsX64,
@@ -126,13 +126,14 @@ fn exact_child_matches_the_one_target_source_assembly_path() {
         .expect("assemble exact source child");
 
     let mut direct_timings = CompileTimings::default();
-    let (direct_count, direct) = super::super::source_files_to_syntax_trees_for_engine(
-        &fixture.main,
-        Some("windows_x86_64"),
-        Some(&inputs),
-        &mut direct_timings,
-    )
-    .expect("one-target source assembly should succeed");
+    let direct_checkpoint =
+        ImmutableSourceParseCheckpoint::prepare(&fixture.main, Some(&inputs), &mut direct_timings)
+            .expect("prepare independent exact source checkpoint");
+    let (direct_count, direct) = direct_checkpoint
+        .for_exact_target("windows_x86_64", Some(&inputs))
+        .expect("independent exact child source inputs should match")
+        .assemble(&mut direct_timings)
+        .expect("independent exact source child should assemble");
     assert_eq!(child_count, direct_count);
     assert_eq!(child.syntax_trees, direct.syntax_trees);
     assert_eq!(child.sources, direct.sources);

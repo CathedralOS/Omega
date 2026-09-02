@@ -230,6 +230,16 @@ selected target imports. The ordinary one-target path uses that same child, so
 it cannot drift from later multi-target orchestration. The checkpoint remains
 compiler-private and does not itself loop targets or publish a batch result.
 
+Checked compilation now consumes that source/parse result through the
+compiler-private `PreparedCheckedSource` boundary. Shared parse timings and the
+immutable source frontier remain on the prepared value; target, exact package
+inputs, build staging, filesystem/evaluation sponsors, and replay custody enter
+only through a fresh child execution. Reusing the prepared value for a sibling
+therefore cannot retain the first child's mutable build or semantic state, and
+the ordinary standalone route is one child through the same continuation.
+Canonical target-set orchestration and its ordered outcomes remain above this
+boundary.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.

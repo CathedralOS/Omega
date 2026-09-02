@@ -5,7 +5,7 @@ use crate::pipeline::phase_transitions::{
     symbol_resolved_trees_to_seeded_base, syntax_trees_to_symbol_resolved_trees,
     type_seeded_extension, typed_trees_to_checked_trees,
 };
-use crate::pipeline::source_assembly::source_files_to_syntax_trees_for_engine;
+use crate::pipeline::source_assembly::ImmutableSourceParseCheckpoint;
 use crate::pipeline::timing::CompileTimings;
 use psi_checked_trees::CheckedTrees;
 use psi_diagnostics::Diagnostic;
@@ -542,6 +542,81 @@ impl CheckedCompileRequest {
     }
 }
 
+/// Target-independent source and parse work retained for one or more exact
+/// checked children.
+///
+/// The checkpoint owns no child authority. Each child must independently
+/// supply package inputs, build staging, and exact target selection; source
+/// assembly rejects a child whose immutable package source projection differs
+/// from the one prepared here.
+pub(super) struct PreparedCheckedSource {
+    root_path: std::path::PathBuf,
+    source_checkpoint: ImmutableSourceParseCheckpoint,
+    shared_timings: CompileTimings,
+}
+
+struct CheckedChildExecution<'a> {
+    selected_target_profile: Option<omega_target::TargetProfile>,
+    package_inputs: Option<&'a PackageCompilationInputs>,
+    build_dir: Option<&'a Path>,
+    filesystem_sponsor: Option<psi_build_time_evaluation::BuildMachineFilesystemSponsor>,
+    evaluation_sponsor: Option<psi_build_time_evaluation::BuildEvaluationSponsor>,
+    replay_record: Option<&'a super::ReviewOnlyBuildFilesystemReplayRecord>,
+}
+
+impl CheckedChildExecution<'_> {
+    #[cfg(test)]
+    fn exact_target(selected_target_profile: omega_target::TargetProfile) -> Self {
+        Self {
+            selected_target_profile: Some(selected_target_profile),
+            package_inputs: None,
+            build_dir: None,
+            filesystem_sponsor: None,
+            evaluation_sponsor: None,
+            replay_record: None,
+        }
+    }
+}
+
+impl PreparedCheckedSource {
+    pub(super) fn prepare(
+        root_path: &Path,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut shared_timings = CompileTimings::default();
+        let source_checkpoint = ImmutableSourceParseCheckpoint::prepare(
+            root_path,
+            package_inputs,
+            &mut shared_timings,
+        )?;
+        Ok(Self {
+            root_path: root_path.to_owned(),
+            source_checkpoint,
+            shared_timings,
+        })
+    }
+
+    fn compile_child_with_replay(
+        &self,
+        child: CheckedChildExecution<'_>,
+    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        let target_name = child
+            .selected_target_profile
+            .map(omega_target::TargetProfile::target_name);
+        let mut timings = self.shared_timings.clone();
+        let (source_file_count, syntax) = match target_name {
+            Some(target_name) => self
+                .source_checkpoint
+                .for_exact_target(target_name, child.package_inputs)?
+                .assemble(&mut timings)?,
+            None => self
+                .source_checkpoint
+                .assemble_targetless(child.package_inputs, &mut timings)?,
+        };
+        compile_assembled_checked_child(&self.root_path, child, source_file_count, syntax, timings)
+    }
+}
+
 fn execute_checked_request(
     request: CheckedCompileRequest,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
@@ -919,21 +994,39 @@ fn compile_to_checked_inner_with_replay(
     evaluation_sponsor: Option<psi_build_time_evaluation::BuildEvaluationSponsor>,
     replay_record: Option<&super::ReviewOnlyBuildFilesystemReplayRecord>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let mut timings = CompileTimings::default();
     let selected_target_profile = target_name
         .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
+    let prepared = PreparedCheckedSource::prepare(root_path, package_inputs)?;
+    prepared.compile_child_with_replay(CheckedChildExecution {
+        selected_target_profile,
+        package_inputs,
+        build_dir,
+        filesystem_sponsor,
+        evaluation_sponsor,
+        replay_record,
+    })
+}
+
+fn compile_assembled_checked_child(
+    root_path: &Path,
+    child: CheckedChildExecution<'_>,
+    mut source_file_count: usize,
+    syntax: crate::pipeline::source_assembly::AssembledSyntax,
+    mut timings: CompileTimings,
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let CheckedChildExecution {
+        selected_target_profile,
+        package_inputs,
+        build_dir,
+        filesystem_sponsor,
+        evaluation_sponsor,
+        replay_record,
+    } = child;
     // CLI aliases end at request admission. Every source, build, provider, and
     // artifact consumer below observes only the catalog's canonical spelling.
     let target_name = selected_target_profile.map(omega_target::TargetProfile::target_name);
-
-    let (mut source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
-        root_path,
-        target_name,
-        package_inputs,
-        &mut timings,
-    )?;
     let mut generated_source_custody = syntax.generated_source_custody.clone();
     let frozen_syntax = syntax.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, &mut timings)?;
@@ -1389,7 +1482,59 @@ fn compile_to_checked_inner_with_replay(
 
 #[cfg(test)]
 mod continuation_tests {
-    use super::reject_target_scoped_generated_machines;
+    use super::{
+        CheckedChildExecution, PreparedCheckedSource, reject_target_scoped_generated_machines,
+    };
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_PREPARED_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
+    struct PreparedFixture {
+        root: std::path::PathBuf,
+        main: std::path::PathBuf,
+    }
+
+    impl PreparedFixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "omega-prepared-checked-source-{}-{}",
+                std::process::id(),
+                NEXT_PREPARED_FIXTURE.fetch_add(1, Ordering::Relaxed),
+            ));
+            fs::create_dir(&root).expect("create prepared checked-source fixture");
+            let main = root.join("main.omg");
+            fs::write(&main, "const ANSWER: u32 = 42;\n")
+                .expect("write prepared checked-source main");
+            fs::write(
+                root.join("build.omg"),
+                r#"target linux_x86_64 { }
+target windows_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("prepared-checked-source");
+    transition builder.target {
+        TargetProfile::WindowsX86_64 -> windows(builder)
+        _ -> other(builder)
+    }
+    state windows(builder: &mut Build) {
+        builder.subsystem = Subsystem::Gui;
+    }
+    state other(builder: &mut Build) {
+        builder.subsystem = Subsystem::Console;
+    }
+}
+"#,
+            )
+            .expect("write prepared checked-source build");
+            Self { root, main }
+        }
+    }
+
+    impl Drop for PreparedFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
 
     #[test]
     fn generated_target_scoped_machine_rejects_before_seeded_resolution() {
@@ -1409,5 +1554,43 @@ mod continuation_tests {
                 .message
                 .contains("extension-aware target-selection custody")
         );
+    }
+
+    #[test]
+    fn prepared_source_checkpoint_preserves_standalone_child_identity_and_siblings() {
+        let fixture = PreparedFixture::new();
+        let standalone = super::compile_to_checked(&fixture.main, Some("windows_x86_64"))
+            .expect("standalone Windows child should compile");
+        let main = fixture.main.clone();
+        let (windows, linux, windows_again) =
+            crate::compiler::execution::run_on_compile_thread(move || {
+                let prepared = PreparedCheckedSource::prepare(&main, None)
+                    .expect("prepare checked source checkpoint");
+                let windows = prepared
+                    .compile_child_with_replay(CheckedChildExecution::exact_target(
+                        omega_target::TargetProfile::WindowsX64,
+                    ))
+                    .expect("compile Windows child from prepared source");
+                let linux = prepared
+                    .compile_child_with_replay(CheckedChildExecution::exact_target(
+                        omega_target::TargetProfile::LinuxX64,
+                    ))
+                    .expect("compile Linux child from prepared source");
+                let windows_again = prepared
+                    .compile_child_with_replay(CheckedChildExecution::exact_target(
+                        omega_target::TargetProfile::WindowsX64,
+                    ))
+                    .expect("recompile Windows child after sibling");
+                (windows, linux, windows_again)
+            });
+
+        assert_eq!(standalone, windows);
+        assert_eq!(windows, windows_again);
+        assert_eq!(windows.subsystem(), 2);
+        assert_eq!(
+            linux.selected_target_profile(),
+            Some(omega_target::TargetProfile::LinuxX64),
+        );
+        assert_ne!(linux.subsystem(), windows.subsystem());
     }
 }

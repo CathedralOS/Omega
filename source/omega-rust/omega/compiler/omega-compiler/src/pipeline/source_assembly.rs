@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 mod checkpoint;
-use checkpoint::ImmutableSourceParseCheckpoint;
+pub(in crate::pipeline) use checkpoint::ImmutableSourceParseCheckpoint;
 
 #[derive(Clone)]
 pub(super) struct AssembledSyntax {
@@ -179,21 +179,6 @@ pub(super) fn retain_generated_syntax_extension(
         generated_source_custody: retained,
         base_sources: assembled.sources.clone(),
     })
-}
-
-pub(super) fn source_files_to_syntax_trees_for_engine(
-    root_path: &Path,
-    target_name: Option<&str>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    timings: &mut CompileTimings,
-) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-    let checkpoint = ImmutableSourceParseCheckpoint::prepare(root_path, package_inputs, timings)?;
-    match target_name {
-        Some(target_name) => checkpoint
-            .for_exact_target(target_name, package_inputs)?
-            .assemble(timings),
-        None => checkpoint.assemble_targetless(package_inputs, timings),
-    }
 }
 
 fn append_dependency_generated_sources_to_storage(
