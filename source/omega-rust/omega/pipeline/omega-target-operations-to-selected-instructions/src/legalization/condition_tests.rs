@@ -250,6 +250,90 @@ fn less_or_equal_fixture() -> Fixture {
     fixture
 }
 
+fn not_equal_fixture() -> Fixture {
+    let mut fixture = fixture();
+    let equality_result = id::<ValueId>(14);
+    let boolean_not_operation = id::<OperationId>(15);
+    let TargetOperation::ReturnIntegerExpressionConditionalControl { condition, .. } =
+        &mut fixture.target.operation
+    else {
+        unreachable!("comparison fixture")
+    };
+    let TargetBooleanExpression::IntegerLessThan {
+        psi_operation,
+        scalar_type,
+        left,
+        right,
+    } = condition
+    else {
+        unreachable!("comparison fixture")
+    };
+    *condition = TargetBooleanExpression::Not {
+        psi_operation: boolean_not_operation,
+        operand: Box::new(TargetBooleanExpression::IntegerEqual {
+            psi_operation: *psi_operation,
+            scalar_type: *scalar_type,
+            left: left.clone(),
+            right: right.clone(),
+        }),
+    };
+
+    let AbstractOperation::IntegerLessThan {
+        psi_operation,
+        left,
+        right,
+        ..
+    } = fixture.abstracted.operations[0].clone()
+    else {
+        unreachable!("comparison fixture")
+    };
+    fixture.abstracted.operations = vec![
+        AbstractOperation::IntegerEqual {
+            psi_operation,
+            result: equality_result,
+            left,
+            right,
+        },
+        AbstractOperation::BooleanNot {
+            psi_operation: boolean_not_operation,
+            result: fixture.condition,
+            operand: equality_result,
+        },
+    ];
+
+    let equality_node = &mut fixture.optimized.blocks[0].nodes[0];
+    equality_node.operation = fixture.abstracted.operations[0].clone();
+    equality_node.definitions[0].value = equality_result;
+    fixture.optimized.blocks[0].nodes.push(OptimizationNode {
+        operation: fixture.abstracted.operations[1].clone(),
+        provenance: vec![PsiProvenance::Operation(boolean_not_operation)],
+        fuel: vec![FuelSettlement {
+            site: PsiProvenance::Operation(boolean_not_operation),
+            units: 1,
+        }],
+        effect: EffectLink {
+            input: 1,
+            output: 2,
+        },
+        definitions: vec![ValueDefinition {
+            value: fixture.condition,
+            scalar_type: ScalarType::Boolean,
+            site: ValueDefinitionSite::Node {
+                block: fixture.optimized.entry,
+                node: 1,
+            },
+        }],
+        uses: vec![ValueUse {
+            value: equality_result,
+            block: fixture.optimized.entry,
+            node: 1,
+        }],
+        successors: Vec::new(),
+        ownership: Vec::new(),
+    });
+    fixture
+}
+
 #[test]
 fn strict_less_than_condition_is_produced_and_independently_replayed() {
     let fixture = fixture();
@@ -528,4 +612,167 @@ fn inclusive_comparison_replay_rejects_order_and_predicate_substitution() {
         .map(|_| ()),
         Err(LegalizationError::NonCanonicalLegalizedPlan)
     );
+}
+
+#[test]
+fn not_equal_condition_retains_both_operations_and_replays_independently() {
+    let fixture = not_equal_fixture();
+    let derived = source::derive_condition_for_test(
+        0,
+        &fixture.target,
+        &fixture.abstracted,
+        &fixture.optimized,
+    )
+    .expect("not-equal source condition");
+    assert_eq!(
+        derived.shape,
+        ScalarConditionShape::IntegerNotEqualU64Parameters
+    );
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        equality_operation,
+        equality_result,
+        equality_fuel,
+        boolean_not_operation,
+        boolean_not_result,
+        boolean_not_fuel,
+        left,
+        right,
+        ..
+    } = &derived.legalized
+    else {
+        panic!("not-equal custody")
+    };
+    assert_eq!(*equality_operation, fixture.operation);
+    assert_eq!(
+        *equality_result,
+        fixture.optimized.blocks[0].nodes[0].definitions[0].value
+    );
+    assert_eq!(*boolean_not_result, fixture.condition);
+    assert_ne!(*equality_operation, *boolean_not_operation);
+    assert_eq!(equality_fuel.len(), 1);
+    assert_eq!(boolean_not_fuel.len(), 1);
+    assert_eq!(left.source_value, fixture.left);
+    assert_eq!(right.source_value, fixture.right);
+    assert_eq!(
+        derived.provenance_operations,
+        [*equality_operation, *boolean_not_operation]
+    );
+
+    let replayed = replay::replay_condition_for_test(
+        0,
+        Architecture::X86_64,
+        &fixture.target,
+        &fixture.abstracted,
+        &fixture.optimized,
+        derived.source,
+        &derived.legalized,
+    )
+    .expect("independent not-equal replay");
+    assert_eq!(replayed.source, fixture.condition);
+    assert_eq!(
+        replayed.shape,
+        ScalarConditionShape::IntegerNotEqualU64Parameters
+    );
+}
+
+#[test]
+fn not_equal_replay_rejects_intermediate_result_fuel_and_order_corruption() {
+    let fixture = not_equal_fixture();
+    let derived = source::derive_condition_for_test(
+        0,
+        &fixture.target,
+        &fixture.abstracted,
+        &fixture.optimized,
+    )
+    .expect("not-equal source condition");
+
+    let mut corruptions = Vec::new();
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        equality_result, ..
+    } = &mut corrupted
+    else {
+        unreachable!("not-equal custody")
+    };
+    *equality_result = fixture.condition;
+    corruptions.push(corrupted);
+
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        equality_result_definition_site,
+        ..
+    } = &mut corrupted
+    else {
+        unreachable!("not-equal custody")
+    };
+    *equality_result_definition_site = ValueDefinitionSite::Node {
+        block: fixture.optimized.entry,
+        node: 1,
+    };
+    corruptions.push(corrupted);
+
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 { equality_fuel, .. } = &mut corrupted
+    else {
+        unreachable!("not-equal custody")
+    };
+    equality_fuel[0].units += 1;
+    corruptions.push(corrupted);
+
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        boolean_not_result, ..
+    } = &mut corrupted
+    else {
+        unreachable!("not-equal custody")
+    };
+    *boolean_not_result = fixture.optimized.blocks[0].nodes[0].definitions[0].value;
+    corruptions.push(corrupted);
+
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        boolean_not_result_definition_site,
+        ..
+    } = &mut corrupted
+    else {
+        unreachable!("not-equal custody")
+    };
+    *boolean_not_result_definition_site = ValueDefinitionSite::Node {
+        block: fixture.optimized.entry,
+        node: 0,
+    };
+    corruptions.push(corrupted);
+
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        boolean_not_fuel, ..
+    } = &mut corrupted
+    else {
+        unreachable!("not-equal custody")
+    };
+    boolean_not_fuel[0].units += 1;
+    corruptions.push(corrupted);
+
+    let mut corrupted = derived.legalized.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } = &mut corrupted else {
+        unreachable!("not-equal custody")
+    };
+    std::mem::swap(left, right);
+    corruptions.push(corrupted);
+
+    for corrupted in corruptions {
+        assert_eq!(
+            replay::replay_condition_for_test(
+                0,
+                Architecture::X86_64,
+                &fixture.target,
+                &fixture.abstracted,
+                &fixture.optimized,
+                derived.source,
+                &corrupted,
+            )
+            .map(|_| ()),
+            Err(LegalizationError::NonCanonicalLegalizedPlan)
+        );
+    }
 }

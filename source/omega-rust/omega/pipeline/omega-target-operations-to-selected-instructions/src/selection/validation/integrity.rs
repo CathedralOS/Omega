@@ -14,6 +14,7 @@ pub(super) fn validate_dense(
                     LegalizedCondition::IntegerEqualParametersV1 { .. }
                         | LegalizedCondition::IntegerLessThanParametersV1 { .. }
                         | LegalizedCondition::IntegerLessOrEqualParametersV1 { .. }
+                        | LegalizedCondition::IntegerNotEqualParametersV1 { .. }
                 ) {
                     4
                 } else {
@@ -233,6 +234,7 @@ pub(super) fn validate_provenance_partition(
         first_successor,
         second_successor,
         expected_compare_fuel,
+        expected_branch_fuel,
         expected_first_fuel,
         expected_second_fuel,
     ) = match (&source.condition, &entry.terminator) {
@@ -247,6 +249,7 @@ pub(super) fn validate_provenance_partition(
             instruction,
             when_nonzero,
             when_zero,
+            &[][..],
             &[][..],
             source.branch_true_fuel.as_slice(),
             source.branch_false_fuel.as_slice(),
@@ -263,8 +266,29 @@ pub(super) fn validate_provenance_partition(
             when_nonzero,
             when_zero,
             fuel.as_slice(),
+            &[][..],
             source.branch_false_fuel.as_slice(),
             source.branch_true_fuel.as_slice(),
+        ),
+        (
+            LegalizedCondition::IntegerNotEqualParametersV1 {
+                equality_fuel,
+                boolean_not_fuel,
+                ..
+            },
+            SelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            },
+        ) => (
+            instruction,
+            when_nonzero,
+            when_zero,
+            equality_fuel.as_slice(),
+            boolean_not_fuel.as_slice(),
+            source.branch_true_fuel.as_slice(),
+            source.branch_false_fuel.as_slice(),
         ),
         (
             LegalizedCondition::IntegerLessThanParametersV1 { fuel, .. },
@@ -278,6 +302,7 @@ pub(super) fn validate_provenance_partition(
             when_less,
             when_not_less,
             fuel.as_slice(),
+            &[][..],
             source.branch_true_fuel.as_slice(),
             source.branch_false_fuel.as_slice(),
         ),
@@ -293,6 +318,7 @@ pub(super) fn validate_provenance_partition(
             when_less,
             when_not_less,
             fuel.as_slice(),
+            &[][..],
             source.branch_false_fuel.as_slice(),
             source.branch_true_fuel.as_slice(),
         ),
@@ -303,7 +329,7 @@ pub(super) fn validate_provenance_partition(
         }
     };
     if entry.instructions[0].provenance.fuel != expected_compare_fuel
-        || !branch.provenance.fuel.is_empty()
+        || branch.provenance.fuel != expected_branch_fuel
         || first_successor.fuel != expected_first_fuel
         || second_successor.fuel != expected_second_fuel
     {

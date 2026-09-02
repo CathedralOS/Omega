@@ -25,7 +25,8 @@ pub(super) fn validate_virtual_registers(
         )],
         LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
         | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
-        | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } => [left, right]
+        | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }
+        | LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } => [left, right]
             .into_iter()
             .map(|parameter| {
                 (

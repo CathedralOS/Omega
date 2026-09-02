@@ -280,7 +280,7 @@ pub(super) fn replay_function(
 
     let expected_provenance = TerminalPsiProvenance {
         operations: condition
-            .provenance_operation
+            .provenance_operations
             .into_iter()
             .chain(true_operations)
             .chain(false_operations)

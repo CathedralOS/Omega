@@ -444,7 +444,7 @@ those joins. The crate-level `lib.rs` is only the responsibility map between
 the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for all seventeen forms: twelve scalar, one plain Unit, and four
+inventory for all eighteen forms: thirteen scalar, one plain Unit, and four
 structural Unit. Each row names its typed recipe, producer matcher kind, exact
 source-shape constraints, non-authoritative structural cost, and independent
 validator kind. `source/matchers/` walks that catalog to recognize a form;
@@ -455,15 +455,19 @@ identity. Structural selected-form validation separately reconstructs ABI
 layout and call constraints without importing selection construction helpers.
 
 The runtime comparison vertical is deliberately narrower than the recursive
-target-expression vocabulary. Its three exact candidates are three-block
+target-expression vocabulary. Its four exact candidates are three-block
 unsigned-`U64` functions with two distinct entry parameters and either
 `[IntegerEqual, Conditional]`, `[IntegerLessThan, Conditional]`, or
-`[IntegerLessOrEqual, Conditional]` in the entry block, plus one `U64`
+`[IntegerLessOrEqual, Conditional]`, or the composite
+`[IntegerEqual, BooleanNot, Conditional]` in the entry block, plus one `U64`
 immediate return in each leaf. Legalization represents the condition as a
-closed choice among the established direct Boolean parameter and the three
-ordered comparisons. Each comparison leaf retains its operation, result
-definition, exact parameter values, locations and definitions, provenance,
-and fuel through mirrored producer and replay rungs.
+closed choice among the established direct Boolean parameter, three ordered
+comparisons, and exact integer inequality. Each simple comparison leaf retains
+its operation, result definition, exact parameter values, locations and
+definitions, provenance, and fuel through mirrored producer and replay rungs.
+The inequality leaf additionally retains the equality result consumed by
+Boolean-not, both result-definition sites, and independent operation,
+provenance, and fuel custody for both source operations.
 
 Selected construction lowers each comparison to one two-register compare
 and retains four virtual registers. Equality reuses the existing nonzero
@@ -474,12 +478,18 @@ not-less/source-false is fallthrough. Inclusive less-or-equal reuses that exact
 predicate by canonicalizing `left <= right` to `!(right < left)`: construction
 reverses the compare operands, maps less/source-false to the taken edge, and
 keeps not-less/source-true as fallthrough. It therefore needs no `JBE`/`B.LS`
-instruction family. Layout and function-fragment evidence
+instruction family. Integer inequality eliminates the materialized Boolean-not
+result: the ordinary ordered compare feeds the existing nonzero branch, with
+not-equal/source-true taken and equal/source-false as fallthrough. Compare
+provenance remains attributable only to equality and branch provenance only to
+Boolean-not. Layout and function-fragment evidence
 therefore carry an exact predicate plus taken/fallthrough custody rather than
-misnaming every branch as nonzero. x86 baseline layout emits `JB rel32`; only
-the explicit branch-relaxation rule may change its alternative and bytes to
-`JB rel8`. AArch64 emits `B.LO`. The compare-zero/CBNZ fusion remains
-inapplicable to both two-register forms because its exact producer still
+misnaming every branch as nonzero. For the ordered predicate, x86 baseline
+layout emits `JB rel32`; only the explicit branch-relaxation rule may change
+its alternative and bytes to `JB rel8`, while AArch64 emits `B.LO`. Equality
+and inequality retain the existing x86 `JNE` and AArch64 `B.NE` family with
+opposite successor mappings. The compare-zero/CBNZ fusion remains
+inapplicable to all two-register forms because its exact producer still
 requires `CompareI64Zero` and nonzero control.
 
 Scalar source-leaf construction enters through a sub-100-line `derive_leaf`

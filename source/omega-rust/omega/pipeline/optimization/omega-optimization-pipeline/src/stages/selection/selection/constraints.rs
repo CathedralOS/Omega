@@ -27,7 +27,8 @@ pub(crate) fn selection_constraints(
             ),
             LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
             | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
-            | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } => {
+            | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }
+            | LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } => {
                 for parameter in [left, right] {
                     push_fixed_input(
                         &mut fixed_inputs,

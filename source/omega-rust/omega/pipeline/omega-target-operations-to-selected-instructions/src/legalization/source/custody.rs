@@ -34,6 +34,10 @@ pub(super) fn validate_source_register_architecture(
                 left.register.architecture() != architecture
                     || right.register.architecture() != architecture
             }
+            LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } => {
+                left.register.architecture() != architecture
+                    || right.register.architecture() != architecture
+            }
         };
         condition_register_mismatch
             || match (&function.when_true.value, &function.when_false.value) {

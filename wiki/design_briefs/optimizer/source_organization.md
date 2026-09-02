@@ -238,11 +238,14 @@ enablement and order.
 Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
 entrance over exact `direct_parameter`, `integer_equal_parameters`,
-`integer_less_than_parameters`, and `integer_less_or_equal_parameters` leaves.
-The three comparison leaves delegate only their common ordered-parameter
+`integer_less_than_parameters`, `integer_less_or_equal_parameters`, and
+`integer_not_equal_parameters` leaves. The three simple comparison leaves
+delegate only their common ordered-parameter
 mechanics to `integer_parameter_comparison`; each named leaf continues to own
-its predicate. `replay/conditions/mod.rs` independently reconstructs those
-same four closed forms through its own mirrored comparison mechanics
+its predicate. The composite inequality leaf delegates its shared parameter
+projection to `integer_parameter_not_equal` while retaining the equality and
+Boolean-not chain itself. `replay/conditions/mod.rs` independently reconstructs
+those same five closed forms through its own mirrored comparison mechanics
 without importing producer helpers. The ordered legalization catalog selects
 the complete condition-plus-leaf recipe, so an immediate-leaf direct condition
 cannot overlap the immediate-leaf integer-equality condition. Condition leaves
@@ -260,7 +263,10 @@ successor to the false source arm. Strict less-than constructs the same ordered
 compare but a predicate-specific terminator with less/source-true taken and
 not-less/source-false as fallthrough. Inclusive less-or-equal reverses the
 compare operands and maps that same less predicate to source false, leaving
-source true as fallthrough. Their independent validation siblings
+source true as fallthrough. Integer inequality owns its separate entry leaf:
+it keeps equality provenance on the compare and Boolean-not provenance on the
+existing nonzero branch, mapping nonzero to source true and zero to source
+false without materializing a Boolean-not result. Their independent validation siblings
 reconstruct the exact instruction, operands, provenance, predicate, and
 successor mapping. ISA constraint/effect
 catalogs and encoders remain target-owned leaves rather than being hidden in

@@ -44,6 +44,6 @@ pub(super) fn derive<'a>(
         when_true,
         when_false,
         conditional_node_index: 0,
-        provenance_operation: None,
+        provenance_operations: Vec::new(),
     })
 }

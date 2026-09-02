@@ -221,7 +221,7 @@ pub(super) fn replay<'a>(
         when_true,
         when_false,
         conditional_node_index: 1,
-        provenance_operation: Some(*psi_operation),
+        provenance_operations: vec![*psi_operation],
     })
 }
 

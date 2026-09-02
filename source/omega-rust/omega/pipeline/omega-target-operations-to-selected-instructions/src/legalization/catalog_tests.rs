@@ -3,7 +3,7 @@ use omega_legalized_operations::{
     LegalizationRecipe, StructuralUnitLegalizationRecipe, UnitLegalizationRecipe,
 };
 
-const EXPECTED_RECIPES: [LegalizationFormRecipe; 17] = [
+const EXPECTED_RECIPES: [LegalizationFormRecipe; 18] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ImmediateConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EntryParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1),
@@ -33,6 +33,9 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 17] = [
     ),
     LegalizationFormRecipe::Scalar(
         LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1,
+    ),
+    LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1,
     ),
     LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
     LegalizationFormRecipe::StructuralUnit(StructuralUnitLegalizationRecipe::ReturnUnitV1),
@@ -112,4 +115,24 @@ fn planning_cost_is_present_for_all_families_but_not_a_legality_key() {
         row.cost.projected_selected_instruction_count > 0
             && row.cost.introduced_temporary_count <= 4
     }));
+}
+
+#[test]
+fn not_equal_catalog_row_freezes_the_exact_nested_source_grammar() {
+    let row = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1,
+    ))
+    .expect("not-equal catalog row");
+    let LegalizationShapeConstraints::Scalar(constraints) = row.constraints else {
+        panic!("scalar not-equal row")
+    };
+    assert_eq!(
+        constraints.condition,
+        ScalarConditionShape::IntegerNotEqualU64Parameters
+    );
+    assert_eq!(constraints.entry_node_count, 3);
+    assert_eq!(constraints.block_offsets, [0, 3, 5]);
+    assert_eq!(constraints.operation_count, 7);
+    assert_eq!(constraints.leaf_node_counts, [2, 2]);
+    assert_eq!(constraints.parameter_count, 2);
 }
