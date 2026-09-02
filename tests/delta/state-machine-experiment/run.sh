@@ -15,6 +15,7 @@ TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
 COMPILER="$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.gamma"
 SAMPLE="$GATE_DIR/sample.delta"
+PARSER="$GATE_DIR/nested_parser.delta"
 
 materialize_beta_compiler "$TMP/beta-compiler" >/dev/null
 "$TMP/beta-compiler" < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" > "$TMP/evaluator.tape"
@@ -22,7 +23,7 @@ stamp_seed "$TMP/evaluator.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/evaluator
 stamp_seed "$OMEGA_PATH_GAMMA/compiler/gamma_compiler_bytecode.tape" \
     "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/gamma-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER EVALUATOR="$TMP/evaluator" \
     NATIVE_GAMMA="$TMP/gamma-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -51,9 +52,9 @@ native_delta = subprocess.run(
 )
 if native_delta.returncode != 0:
     raise SystemExit(f"native Gamma compilation exited {native_delta.returncode}")
-if len(native_delta.stdout) != 19872:
+if len(native_delta.stdout) != 22339:
     raise SystemExit(f"native Delta compiler is {len(native_delta.stdout)} bytes")
-if hashlib.sha256(native_delta.stdout).hexdigest() != "48d7204145c83d32bcd5094083c00d7e737dcb1201395b1abe737691086f6747":
+if hashlib.sha256(native_delta.stdout).hexdigest() != "ad81791af359259b2039f93b82807e539d0b3e2f2ca5771a3b966b3d3eee46fa":
     raise SystemExit("native Delta compiler identity changed")
 (temporary / "delta-compiler.tape").write_bytes(native_delta.stdout)
 '
@@ -61,7 +62,7 @@ if hashlib.sha256(native_delta.stdout).hexdigest() != "48d7204145c83d32bcd509408
 stamp_seed "$TMP/delta-compiler.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" \
     "$TMP/delta-compiler" >/dev/null
 
-COMPILER=$COMPILER SAMPLE=$SAMPLE EVALUATOR="$TMP/evaluator" \
+COMPILER=$COMPILER SAMPLE=$SAMPLE PARSER=$PARSER EVALUATOR="$TMP/evaluator" \
     NATIVE_DELTA="$TMP/delta-compiler" TMP=$TMP python3 -c '
 import hashlib
 import os
@@ -71,6 +72,7 @@ from pathlib import Path
 
 compiler = Path(os.environ["COMPILER"]).read_bytes()
 sample = Path(os.environ["SAMPLE"]).read_text()
+parser = Path(os.environ["PARSER"]).read_text()
 temporary = Path(os.environ["TMP"])
 
 def interpreted(subject: str):
@@ -87,12 +89,12 @@ def native(subject: str):
         stdout=subprocess.PIPE,
     )
 
-expected_hash = "65e8c17e790b75dea9c9f560a86197f24b38f10f196e35a6edeb49da4f749579"
+expected_hash = "0bb738bae6ab3edca36fe27483dcbaec0d1d85f50d2024af6165344eb284a456"
 left = interpreted(sample)
 right = native(sample)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("interpreted/native successful compilation disagrees")
-if len(left.stdout) != 453 or hashlib.sha256(left.stdout).hexdigest() != expected_hash:
+if len(left.stdout) != 523 or hashlib.sha256(left.stdout).hexdigest() != expected_hash:
     raise SystemExit("representative output identity changed")
 (temporary / "sample.tape").write_bytes(left.stdout)
 
@@ -126,10 +128,45 @@ for name, source in cases.items():
         )
     if left.stdout != right.stdout:
         raise SystemExit(f"{name}: interpreted/native prefixes disagree")
+
+left = interpreted(parser)
+right = native(parser)
+if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
+    raise SystemExit("nested parser interpreted/native compilation disagrees")
+if len(left.stdout) != 1919:
+    raise SystemExit(f"nested parser tape is {len(left.stdout)} bytes")
+if hashlib.sha256(left.stdout).hexdigest() != "e5fa32384acdf04a5e956500142a92088229ba8f65e88e0596d90606bdaa9343":
+    raise SystemExit("nested parser tape identity changed")
+(temporary / "parser.tape").write_bytes(left.stdout)
 '
 
 stamp_seed "$TMP/sample.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/sample" >/dev/null
 "$TMP/sample" < /dev/null > "$TMP/sample.out"
 [ ! -s "$TMP/sample.out" ]
 
-echo "Delta state-machine experiment: 564-line Gamma compiler produced identical 19,872-byte native compiler and 453-byte sample outputs; 8 rejection twins agree"
+stamp_seed "$TMP/parser.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/parser" >/dev/null
+PARSER="$TMP/parser" python3 -c '
+import os
+import subprocess
+
+cases = [
+    ("nested", b"{a{b}c}", 0, "03"),
+    ("shadowing", b"{a{a}}", 0, "02"),
+    ("spaces", b"{ a { b } c }", 0, "03"),
+    ("duplicate", b"{aa}", 1, "0102"),
+    ("unclosed", b"{a", 1, "0202"),
+    ("unmatched-close", b"}", 1, "0200"),
+    ("empty", b"", 0, "00"),
+    ("name-overflow", b"{abcdefghijklmnopq}", 2, ""),
+    ("scope-overflow", b"{{{{{{{{{", 2, ""),
+]
+for name, data, expected_status, expected_hex in cases:
+    result = subprocess.run([os.environ["PARSER"]], input=data, stdout=subprocess.PIPE)
+    if result.returncode != expected_status or result.stdout.hex() != expected_hex:
+        raise SystemExit(
+            f"{name}: {result.returncode}/{result.stdout.hex()}, "
+            f"expected {expected_status}/{expected_hex}"
+        )
+'
+
+echo "Delta state-machine experiment: 636-line Gamma compiler produced identical 22,339-byte native compiler; 523-byte state and 1,919-byte parser customers pass with 8 rejection twins"

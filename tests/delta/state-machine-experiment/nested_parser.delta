@@ -1,0 +1,109 @@
+# Nested declaration parser using fixed indexed arenas.
+# Input grammar: { opens scope, } closes scope, lowercase bytes declare names.
+# Spaces are ignored. Output is declaration count or error-code/source-offset.
+
+array Names word 16
+array Depths word 16
+array ScopeStarts word 8
+
+machine main ignored word result word
+local current word
+local offset word
+local node_count word
+local depth word
+local scan word
+local scope_start word
+local temp word
+local one word
+local eof word
+local open_char word
+local close_char word
+local space_char word
+local names Names
+local depths Depths
+local scopes ScopeStarts
+state start
+const result 0
+const offset 0
+const node_count 0
+const depth 0
+const one 1
+const eof 18446744073709551615
+const open_char 123
+const close_char 125
+const space_char 32
+goto read_next
+state read_next
+read current
+copy temp current
+sub temp temp eof
+brzero temp at_end check_open
+state check_open
+copy temp current
+sub temp temp open_char
+brzero temp open_scope check_close
+state check_close
+copy temp current
+sub temp temp close_char
+brzero temp close_scope check_space
+state check_space
+copy temp current
+sub temp temp space_char
+brzero temp consume name_start
+state open_scope
+index-set-dyn scopes depth node_count
+add depth depth one
+add offset offset one
+goto read_next
+state close_scope
+brzero depth malformed close_scope_ready
+state close_scope_ready
+sub depth depth one
+add offset offset one
+goto read_next
+state consume
+add offset offset one
+goto read_next
+state name_start
+brzero depth malformed name_scope
+state name_scope
+sub temp depth one
+index-get-dyn scope_start scopes temp
+copy scan scope_start
+goto scan_check
+state scan_check
+copy temp node_count
+sub temp temp scan
+brzero temp insert_name scan_name
+state scan_name
+index-get-dyn temp names scan
+sub temp temp current
+brzero temp duplicate scan_next
+state scan_next
+add scan scan one
+goto scan_check
+state insert_name
+index-set-dyn names node_count current
+index-set-dyn depths node_count depth
+add node_count node_count one
+add offset offset one
+goto read_next
+state at_end
+brzero depth success malformed
+state success
+write node_count
+halt result
+state duplicate
+const result 1
+write result
+write offset
+halt result
+state malformed
+const result 2
+write result
+write offset
+const result 1
+halt result
+end
+
+entry main start

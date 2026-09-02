@@ -3210,3 +3210,33 @@ scanning across whitespace. This formatting changes no Beta tokens or tapes.
 The canonical Beta compiler source falls from D65's 16,812 bytes to 14,696 bytes
 at the same 458 lines and reconstructs the same admitted 2,135-byte tape. The
 Gamma evaluator remains 738 lines and emits the same 4,289-byte tape.
+
+## D73 — Indexed arenas carry Delta's parser and scope workload
+
+The state-machine Delta experiment adds typed copy, sequential byte input/output,
+and checked dynamic array reads/writes. The Gamma compiler grows from 564 to 636
+lines and from 22,601 to 25,533 source bytes. Its native tape grows from 19,872
+to 22,339 bytes; the original representative program grows from 453 to 523 bytes
+because every generated program now includes one shared checked-index runtime
+helper and authored-trap block.
+
+A new 109-line Delta customer parses a nested declaration stream into fixed
+indexed name/depth arrays and a dynamic scope-start stack. It permits nested
+shadowing, rejects same-scope duplicates with exact source offsets, detects
+unclosed and unmatched scopes, and reports name/scope arena exhaustion through
+the generated runtime boundary. Its Alpha tape is 1,919 bytes. Interpreted and
+self-hosted-native Gamma compilation produce identical Delta compiler tapes and
+identical outputs for both customers.
+
+This closes three D71 revisit conditions without a functional value language:
+variable-length logical collections, nested scopes, and deterministic located
+diagnostics. They cost 72 additional Gamma lines and remained explicit state
+machines over bounded typed storage. The strongest remaining functional-language
+challenge is now rich recursive syntax transformation across many node variants,
+not tokenization, scope management, or collection representation alone.
+
+The experiment remains noncanonical. It still has one global declaration
+namespace, one-word sum values, static machine storage, restricted call recursion,
+and a small statement vocabulary. Those restrictions must either become selected
+Delta semantics or be expanded against the Epsilon compiler customer before the
+functional Delta contract is replaced.

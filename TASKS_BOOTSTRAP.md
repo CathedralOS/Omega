@@ -55,9 +55,10 @@ Delta, and the former Delta is Epsilon.
 - [ ] Gamma-written Delta compiler source and tape are absent.
 - [x] A noncanonical typed state-machine Delta experiment covers nominal sums,
   records, fixed arrays, typed machine variables, states, exhaustive
-  transitions, calls, and direct Alpha emission in 564 Gamma lines. It does not
-  yet justify inserting another functional rung; larger syntax/scope/diagnostic
-  customers remain the revisit trigger. Its latest implementation is retained
+  transitions, calls, dynamic indexed arenas, nested scopes, deterministic
+  source-offset diagnostics, and direct Alpha emission in 636 Gamma lines. It
+  does not justify inserting another functional rung for parsing or storage;
+  rich recursive syntax transformation remains the revisit trigger. Its latest implementation is retained
   at `source/delta/compiler/experiments/state_machine/delta_compiler.gamma`.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
   absent.
