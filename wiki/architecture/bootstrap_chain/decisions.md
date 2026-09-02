@@ -3040,14 +3040,14 @@ explicit checked stack, fixed zero-initialized cells, sealed input, append-only
 byte/word output, named words, ordinary calls, and tail `jump`/`branch` control.
 It removes expression trees, lexical environments, pairs, immutable byte graphs,
 general structural validation, and returned value construction. Its exact
-Beta implementation is 739 physical lines, including 107 address assertions,
-and emits a 4,292-byte Alpha tape.
+Beta implementation is 738 physical lines, including 107 address assertions,
+and emits a 4,289-byte Alpha tape.
 
 The customer comparison did not move complexity downstream. The same Delta0
 addressed-CFG compiler fell from 4,357 bytes and 96 lines of Lisp Gamma to 1,914
 bytes and 81 lines of concatenative Gamma. Both versions emit the identical
 35-byte Alpha countdown tape, which is stamped and executed. The selected total
-review surface is therefore 820 lines rather than 2,327.
+review surface is therefore 819 lines rather than 2,327.
 
 Gamma definitions are mutually visible source spans. Ordinary word calls retain
 only a source cursor/end continuation. `jump` and `branch` replace the active
@@ -3066,3 +3066,25 @@ effects. Reopen a richer value language only when a representative Delta
 compiler is materially larger or less auditable because of explicit cells and
 stack shuffling. Reopen structural body validation only if unreachable malformed
 tokens become a concrete trust problem worth its measured parser cost.
+
+## D68 — Gamma reconstructs its evaluator tape without embedding it
+
+A retained 213-line Gamma program reads the canonical addressed Beta evaluator
+source and emits its Alpha tape. It tokenizes comments, separators, registers,
+hexadecimal words, numeric address assertions, all 21 used Alpha mnemonics, and
+the evaluator's quoted `db` data with `\0`. It contains mnemonic hashes and
+opcode signatures, but no evaluator tape bytes and no host assembly call.
+
+The executable gate builds the expected tape with the admitted Beta compiler,
+runs the reconstructor under the Beta-authored Gamma evaluator on the same source,
+and requires exact equality. Both paths now produce the same 4,289-byte tape.
+This is a reconstruction triangle and capability measurement, not a compiler
+fixed point: the Beta compiler remains authoritative, and the Gamma program does
+not compile arbitrary Gamma into a self-reproducing native compiler.
+
+The experiment exposed a real evaluator defect. `output-word` originally peeled
+bytes with Alpha's signed division and remainder, so words with bit 63 set emitted
+incorrect high bytes. The evaluator now stores the raw word in reserved scratch
+memory and emits eight `loadb` results. A full-width all-ones regression pins the
+behavior. That repair reduced the evaluator to 738 Beta lines and 4,289 tape
+bytes while making exact self-reconstruction possible.

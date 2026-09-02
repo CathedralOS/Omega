@@ -14,7 +14,8 @@ ambient effects.
 Its exact contract is
 [`source/gamma/LANGUAGE.md`](../../../../source/gamma/LANGUAGE.md). Its customers
 are the Delta compiler and explicitly justified small bootstrap tools. The
-Beta-authored evaluator covers the core in a 28-case focused gate. An 81-line
+Beta-authored evaluator covers the core in a 29-case focused gate. An 81-line
 Gamma compiler emits and runs an exact 35-byte addressed-CFG customer.
-The evaluator's derived tape admission and complete conformance closure remain
-open.
+A 213-line Gamma reconstructor independently reproduces the evaluator's exact
+4,289-byte tape from its addressed Beta source. Tape admission and complete
+conformance closure remain open.
