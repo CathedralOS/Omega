@@ -35,8 +35,10 @@ pub(super) fn validate_terminal_rows(
     let psi_terminal::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     };
-    if attachment_type.identity != receiver_identity
-        || attachment_type.identity != rows[0].attachment_type_identity()
+    // The source receiver is semantic identity while the attachment names the
+    // retained Terminal structure. Each rejoins the row independently; they
+    // are not required to share one spelling across package compilation.
+    if attachment_type.identity != rows[0].attachment_type_identity()
         || rows.iter().any(|row| {
             row.source_signature_identity() != settlement.source().identity()
                 || row.target_slot() != settlement.source().target_slot()
