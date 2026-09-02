@@ -9985,11 +9985,23 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-twenty root and exact nineteen-operation/one-edge fuel ordinals.
   Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
-  artifact mutations reject; `[T; 21]` and wider prefixes remain fail closed
+  artifact mutations reject; other prefix drift remains fail closed
+  without runtime liveness state or a loop.
+
+  The following bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 21]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]` and
+  ordinary cleanup
+  `[19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-twenty-one root and exact twenty-operation/one-edge fuel ordinals.
+  Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
+  artifact mutations reject; `[T; 22]` and wider prefixes remain fail closed
   without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 20]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 21]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
@@ -10995,9 +11007,16 @@ Remaining N6/N8 work:
   machine-result, or operation-result substitution reject. Terminal format 66 /
   vocabulary 69 encode this distinct source class. Checked/source production
   remains transitional until nested-state contract identity is proven to the
-  emitted block coordinate. Still open are carriers for nested-state results
-  and call results, other arbitrary Terminal values, structural float leaves,
-  plus production
+  emitted block coordinate. A following Terminal-only call-result carrier now
+  retains exact `(owner MachineId, producer OperationId, result ValueId,
+  format)` identity. Independent replay admits only scalar results of ordinary,
+  structural-argument scalar, dynamic-descriptor scalar, dynamic-parameter
+  scalar, and boundary calls; non-call operations, Unit/structural calls,
+  wrong result classes, coordinate substitution, and format drift reject.
+  Terminal format 67 / vocabulary 70 encode this distinct source class.
+  Checked/source production remains transitional because no expression-to-
+  Terminal-call-operation correspondence is retained. Still open are carriers
+  for nested-state results, other arbitrary Terminal values, structural float leaves, plus production
   proof-ledger discharge. The ordinary exit
   checker now discharges the direct owning-result reflexivity form without a
   label shortcut: the current `ensures` expression must rejoin its exact
@@ -11391,7 +11410,18 @@ boundary without its corresponding checked law.
   original image, interpreter, and normalized imports through that owner.
   Exact x86-64/AArch64 replay is deterministic. The driver result remains the
   same non-installable custody type and grants no publication or execution
-  authority. The first production object-retention prerequisite is now live:
+  authority. An authority-distinct image-emission request router now binds the
+  writer choice to that exact object custody: a direct request carries only
+  the PE subsystem, while a dynamic-ELF request carries only the consumed
+  normalized interpreter. Import-bearing ELF objects require the dynamic
+  request and cannot fall back to the direct writer; unused or mismatched
+  interpreter inputs reject with their typed owner intact. Independent replay
+  keeps ordinary `ExecutableImage` authority separate from the non-installable
+  dynamic-ELF result. That result retains the complete source `ObjectArtifact`,
+  so PSI-only or other semantic/evidence substitution rejects even when object
+  bytes and layout are unchanged. This image-bound router does not manufacture
+  loader policy or generalize the compiler's `NativeArtifact` admission owner. The
+  first production object-retention prerequisite is now live:
   `MachineCodeFunction` owns ordered source-free `ForeignCallRelocation` rows
   containing the exact normalized locator, semantic call owner, and native
   relocation field. Ordinary `build_object_artifact` independently replays the
@@ -11481,7 +11511,8 @@ boundary without its corresponding checked law.
   retain the exact semantic call owner, locator, provider-execution record, and
   relocation offset. The local test evidence is an input assumption, not a
   deployment admission claim. Remaining work is the real external admission
-  owner and automatic native-request integration, the external-root
+  owner and compiler/native-artifact integration beyond the image-bound
+  request router, the external-root
   `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment support,
   general runtime expressions, non-fixed-integer/float/aggregate/
   indirect result signatures, callback-native
@@ -11799,7 +11830,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 66 / vocabulary 69, these rows carry
+  and retained by current format 67 / vocabulary 70, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation

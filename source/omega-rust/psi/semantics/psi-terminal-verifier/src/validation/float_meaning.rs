@@ -152,6 +152,10 @@ fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
                 crate::verification::verify_direct_operation_float_result(module, result)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
+            psi_terminal::FloatMeaningSource::DirectCallResult(result) => {
+                crate::verification::verify_direct_call_float_result(module, result)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+            }
             _ => {}
         }
     }
@@ -165,6 +169,7 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
         | psi_terminal::FloatMeaningSource::DirectMachineResult(_)
         | psi_terminal::FloatMeaningSource::DirectBlockParameter(_)
         | psi_terminal::FloatMeaningSource::DirectOperationResult(_)
+        | psi_terminal::FloatMeaningSource::DirectCallResult(_)
         | psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
         | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
     }
@@ -177,13 +182,13 @@ mod tests {
         PlaceId, ScalarType, StructuralTypeId, ValueId,
     };
     use psi_terminal::{
-        Block, DirectBlockFloatParameter, DirectMachineFloatParameter, DirectMachineFloatResult,
-        DirectOperationFloatResult, FloatMeaningEqualityProposition, FloatMeaningProjection,
-        FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
-        FloatProjectionInputId, Operation, OperationKind, OperationResult, ProofOnlyValueType,
-        ProofPropositionId, ProofValueDeclaration, ProofValueId, StructuralMultiplicity,
-        StructuralOperationResult, TerminalMachine, TerminalMachineResult, Terminator,
-        ValueDeclaration, VocabularyMarker,
+        Block, DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
+        DirectMachineFloatResult, DirectOperationFloatResult, FloatMeaningEqualityProposition,
+        FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+        FloatProjectionInput, FloatProjectionInputId, Operation, OperationKind, OperationResult,
+        ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+        StructuralMultiplicity, StructuralOperationResult, TerminalMachine, TerminalMachineResult,
+        Terminator, ValueDeclaration, VocabularyMarker,
     };
 
     fn contract(
@@ -394,6 +399,31 @@ mod tests {
                 owner,
                 block,
                 parameter,
+                format,
+            });
+        module
+    }
+
+    fn direct_call_result_module(format: IeeeFloatFormat) -> TerminalModule {
+        let mut module = direct_operation_result_module(format);
+        let owner = module.entry;
+        let producer = module.machines[0].blocks[0].operations[0].id;
+        let result = module.machines[0].blocks[0].operations[0]
+            .result
+            .scalar()
+            .expect("fixture call scalar result")
+            .id;
+        module.machines[0].blocks[0].operations[0].kind = OperationKind::Call {
+            callee: owner,
+            arguments: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        module.float_meaning_projections[0].source =
+            FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
+                owner,
+                producer,
+                result,
                 format,
             });
         module
@@ -870,6 +900,216 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn direct_call_result_rejoins_every_scalar_result_call_variant() {
+        assert_eq!(
+            validate_direct_sources(&direct_call_result_module(IeeeFloatFormat::Binary32)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_direct_sources(&direct_call_result_module(IeeeFloatFormat::Binary64)),
+            Ok(())
+        );
+
+        let variants = [
+            OperationKind::CallStructuralScalar {
+                callee: semantic_id(1, MachineId::new),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+            OperationKind::CallDynamicScalar {
+                descriptor_ordinal: 0,
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+            OperationKind::CallDynamicParameterScalar {
+                parameter_ordinal: 0,
+                requirement_slot: 0,
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+            OperationKind::BoundaryCall {
+                boundary: semantic_id(1, psi_core::BoundaryMachineId::new),
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                completion_receipts: Vec::new(),
+            },
+        ];
+        for variant in variants {
+            let mut module = direct_call_result_module(IeeeFloatFormat::Binary32);
+            module.machines[0].blocks[0].operations[0].kind = variant;
+            assert_eq!(validate_direct_sources(&module), Ok(()));
+        }
+    }
+
+    #[test]
+    fn direct_call_result_rejects_coordinates_non_calls_and_wrong_result_classes() {
+        let module = direct_call_result_module(IeeeFloatFormat::Binary32);
+
+        let mut wrong_owner = module.clone();
+        let FloatMeaningSource::DirectCallResult(source) =
+            &mut wrong_owner.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.owner = semantic_id(2, MachineId::new);
+        assert!(matches!(
+            validate_direct_sources(&wrong_owner),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResultOwner(_),
+                ..
+            })
+        ));
+
+        let mut wrong_producer = module.clone();
+        let FloatMeaningSource::DirectCallResult(source) =
+            &mut wrong_producer.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.producer = semantic_id(2, OperationId::new);
+        assert!(matches!(
+            validate_direct_sources(&wrong_producer),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResultProducer { .. },
+                ..
+            })
+        ));
+
+        let mut wrong_value = module.clone();
+        let block_parameter = wrong_value.machines[0].blocks[0].parameters[0].id;
+        let FloatMeaningSource::DirectCallResult(source) =
+            &mut wrong_value.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.result = block_parameter;
+        assert!(matches!(
+            validate_direct_sources(&wrong_value),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResult { .. },
+                ..
+            })
+        ));
+
+        let mut non_call = module.clone();
+        non_call.machines[0].blocks[0].operations[0].kind = OperationKind::IeeeFloatConstant {
+            value: IeeeFloatValue::Binary32(0x3f80_0000),
+        };
+        assert!(matches!(
+            validate_direct_sources(&non_call),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResultProducerKind { .. },
+                ..
+            })
+        ));
+
+        let mut unit_call = module.clone();
+        unit_call.machines[0].blocks[0].operations[0].kind = OperationKind::CallUnit {
+            callee: unit_call.entry,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        };
+        assert!(matches!(
+            validate_direct_sources(&unit_call),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResultProducerKind { .. },
+                ..
+            })
+        ));
+
+        let mut structural_call = module.clone();
+        structural_call.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructural {
+            callee: structural_call.entry,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+            selected_evidence: Vec::new(),
+        };
+        assert!(matches!(
+            validate_direct_sources(&structural_call),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResultProducerKind { .. },
+                ..
+            })
+        ));
+
+        let mut unit_result = module.clone();
+        unit_result.machines[0].blocks[0].operations[0].result = OperationResult::Unit;
+        assert!(matches!(
+            validate_direct_sources(&unit_result),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResult { .. },
+                ..
+            })
+        ));
+
+        let mut structural_result = module.clone();
+        structural_result.machines[0].blocks[0].operations[0].result =
+            OperationResult::Structural(StructuralOperationResult {
+                place: semantic_id(1, PlaceId::new),
+                structural_type: semantic_id(1, StructuralTypeId::new),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            });
+        assert!(matches!(
+            validate_direct_sources(&structural_result),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectCallResult { .. },
+                ..
+            })
+        ));
+
+        let mut wrong_format = module;
+        let FloatMeaningSource::DirectCallResult(source) =
+            &mut wrong_format.float_meaning_projections[0].source
+        else {
+            unreachable!()
+        };
+        source.format = IeeeFloatFormat::Binary64;
+        assert!(matches!(
+            validate_direct_sources(&wrong_format),
+            Err(ModuleError::InvalidFloatMeaningProjection {
+                error: crate::verification::FloatMeaningProjectionVerificationError::DirectCallResultFormatMismatch,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn direct_call_result_tuple_deduplicates_without_aliasing_non_call_source_class() {
+        let module = direct_call_result_module(IeeeFloatFormat::Binary32);
+        let first = module.float_meaning_projections[0];
+        let mut duplicate = first;
+        duplicate.result.id = ProofValueId(1);
+        assert!(matches!(
+            validate_rows(&[first, duplicate]),
+            Err(ModuleError::DuplicateFloatMeaningProjection { .. })
+        ));
+
+        let FloatMeaningSource::DirectCallResult(source) = first.source else {
+            unreachable!()
+        };
+        let mut non_call_class = duplicate;
+        non_call_class.source =
+            FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
+                owner: source.owner,
+                producer: source.producer,
+                result: source.result,
+                format: source.format,
+            });
+        assert_eq!(validate_rows(&[first, non_call_class]), Ok(()));
     }
 
     #[test]

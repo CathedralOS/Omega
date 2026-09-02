@@ -456,8 +456,18 @@ Each rejecting rung is retained in a stage-tagged error rather than flattened
 to a diagnostic; a malformed procedure-call placeholder therefore returns the
 descriptor owner still carrying the exact image, interpreter, and normalized
 imports. Both Linux profiles replay to deterministic production output, while
-the result remains the non-installable custody carrier above. The object-
-boundary production-retention prerequisite is now source-free:
+the result remains the non-installable custody carrier above. The object-bound
+image-emission request router now derives its writer path from that exact
+object custody. Its authority-distinct direct request carries only the PE
+subsystem, and its dynamic-ELF request carries only the consumed normalized
+interpreter. An import-bearing ELF object cannot fall back to direct emission;
+an unused or mismatched interpreter rejects with typed custody intact.
+Independent replay preserves the distinction between ordinary
+`ExecutableImage` authority and the non-installable dynamic result. The dynamic
+result retains the complete source `ObjectArtifact`; replay therefore rejects
+PSI-only or other semantic/evidence substitution even when object bytes and
+layout are unchanged. This does not supply loader policy or the compiler's
+general native-artifact admission owner. The object-boundary production-retention prerequisite is now source-free:
 `MachineCodeFunction` can own ordered `ForeignCallRelocation` rows joining one
 semantic call owner and exact native relocation field to the complete
 `NormalizedForeignLocator`. Ordinary object construction independently replays
@@ -514,7 +524,8 @@ General runtime expressions, non-fixed-integer, float, aggregate, and indirect
 result shapes, the external-root
 `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment, optional
 hash-policy extensions beyond the now integrated `.hash` plus `.gnu.hash`
-carriers, and general external-admission ownership remain open
+carriers, general external-admission ownership, and compiler/native-artifact
+integration beyond the image-bound request router remain open
 engineering work. An owned direct `[u8; N]` destination now contextually copies a quoted
 literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
