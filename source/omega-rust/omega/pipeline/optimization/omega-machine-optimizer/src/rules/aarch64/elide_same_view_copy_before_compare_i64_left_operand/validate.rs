@@ -7,7 +7,9 @@ use omega_register_model::ValidatedPhysicalRegisterModel;
 
 use crate::*;
 
-pub fn validate_aarch64_same_view_copy_i64_before_compare_zero<S: ValidatedSelectedAnalysis>(
+pub fn validate_aarch64_same_view_copy_i64_before_compare_i64_left_operand<
+    S: ValidatedSelectedAnalysis,
+>(
     selected: &S,
     liveness: &ValidatedLiveness,
     source: &ValidatedPostAllocationMachinePlan,
@@ -41,7 +43,7 @@ pub(crate) fn validate_from_inputs(
     plan: Aarch64SameViewCopyElisionPlan,
 ) -> Result<ValidatedAarch64SameViewCopyElision, Aarch64SameViewCopyElisionError> {
     if plan.policy
-        != Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1
+        != Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1
     {
         return Err(Aarch64SameViewCopyElisionError::ArtifactMismatch);
     }

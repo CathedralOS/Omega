@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Exact non-terminal same-view copy elision.
 //!
-//! This owner proposes one adjacent body `CopyI64; CompareI64Zero` disposition
+//! This owner proposes one adjacent body `CopyI64; CompareI64` disposition
 //! through the bounded descriptor matcher, then joins it to an independent
 //! shared-family replay under this leaf's exact contract. The shared artifact
 //! family supplies codec and custody, and the machine catalog remains the only
@@ -16,7 +16,7 @@ mod tests;
 
 use crate::{Aarch64SameViewCopyElisionError, ValidatedAarch64SameViewCopyElision};
 
-pub fn optimize_aarch64_same_view_copy_i64_before_compare_zero<
+pub fn optimize_aarch64_same_view_copy_i64_before_compare_i64_left_operand<
     S: omega_regalloc::ValidatedSelectedAnalysis,
 >(
     selected: &S,
@@ -29,4 +29,4 @@ pub fn optimize_aarch64_same_view_copy_i64_before_compare_zero<
     validate::validate(selected, liveness, source, physical, plan)
 }
 
-pub use validate::validate_aarch64_same_view_copy_i64_before_compare_zero;
+pub use validate::validate_aarch64_same_view_copy_i64_before_compare_i64_left_operand;

@@ -6,7 +6,7 @@ use crate::{
     QualifiedPhysicalOperand,
 };
 
-const IDENTITY_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-elision.v2\0";
+const IDENTITY_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-elision.v3\0";
 const REVISION_DOMAIN: &[u8] = b"omega.aarch64-same-view-copy-elision-revision.v2\0";
 
 pub fn aarch64_same_view_copy_elision_identity(
@@ -49,6 +49,7 @@ pub(super) fn encode_content(plan: &Aarch64SameViewCopyElisionPlan) -> Vec<u8> {
         crate::Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 => {
             1
         }
+        crate::Aarch64SameViewCopyElisionPolicy::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1 => 2,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());

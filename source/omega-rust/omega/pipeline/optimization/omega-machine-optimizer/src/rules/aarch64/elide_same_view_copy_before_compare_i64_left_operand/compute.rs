@@ -36,6 +36,6 @@ pub(crate) fn compute_from_inputs(
         inputs,
         budget,
         super::contract::CONTRACT,
-        &super::pattern::AARCH64_SAME_VIEW_COPY_BEFORE_COMPARE_ZERO_V1,
+        &super::pattern::AARCH64_SAME_VIEW_COPY_BEFORE_COMPARE_I64_LEFT_OPERAND_V1,
     )
 }

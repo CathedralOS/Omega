@@ -111,7 +111,7 @@ fn every_exact_optimization_has_one_rule_stage_disposition() {
                 *target == TestTargetDisposition::Architecture(Architecture::Aarch64)
             })
             .count(),
-        4
+        5
     );
     assert_eq!(
         catalog
@@ -211,6 +211,6 @@ fn every_exact_optimization_has_an_exhaustive_named_target_disposition() {
         }
     }
 
-    assert_eq!(scheduled, 70);
-    assert_eq!(rejected, 20);
+    assert_eq!(scheduled, 72);
+    assert_eq!(rejected, 23);
 }

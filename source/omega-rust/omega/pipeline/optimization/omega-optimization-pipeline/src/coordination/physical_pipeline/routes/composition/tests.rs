@@ -264,10 +264,10 @@ fn every_exact_rule_pair_has_a_typed_physical_composition_disposition() {
         }
     }
 
-    assert_eq!(cells, 306);
-    assert_eq!(accepted, 148);
-    assert_eq!(unsupported, 90);
-    assert_eq!(wrong_target, 68);
+    assert_eq!(cells, 342);
+    assert_eq!(accepted, 156);
+    assert_eq!(unsupported, 110);
+    assert_eq!(wrong_target, 76);
 }
 
 #[test]

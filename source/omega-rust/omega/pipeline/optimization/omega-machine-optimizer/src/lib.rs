@@ -16,6 +16,7 @@ pub use analyses::pre_allocation_effects::*;
 pub use costs::*;
 pub use planning::post_allocation::*;
 pub use rules::aarch64::compare_zero_branch_nonzero::*;
+pub use rules::aarch64::elide_same_view_copy_before_compare_i64_left_operand::*;
 pub use rules::aarch64::elide_same_view_copy_before_compare_zero::*;
 pub use rules::aarch64::elide_same_view_copy_before_return::*;
 pub use rules::aarch64::materialize_i64_movn::*;

@@ -703,6 +703,24 @@ The shared copy-elision artifact codec and generic downstream carrier retain
 the new policy without creating a second enablement schedule or vertical
 pipeline.
 
+The fourth descriptor consumer is the separately selected AArch64
+`CopyI64; CompareI64` left-operand elision. Its exact adjacent-body descriptor
+requires same physical view/storage across the copy and binds the copy
+destination only to comparison operand zero. Its independent validator does
+not import the descriptor matcher, and its catalog row reuses the shared
+copy-disposition publication route. The compiler selection is intentionally an
+honest zero-action route until ordinary lowering produces that exact same-view
+pair; this milestone does not authorize right-operand matching or general copy
+elimination.
+
+The two comparison-consuming copy rules share only the lower
+`same_view_copy_before_compare/{roots,footprints,proposal,replay}` mechanics.
+Their exact folders retain the rule entrances, declarative patterns, policy
+contracts, and tests. Physical custody likewise descends through the small
+`post_allocation_optimizations/aarch64_same_view_copy/mod.rs` entrance into
+separate baseline-source, selected-lowering-source, model, and execution
+leaves; the deleted flat stage file is not a second route.
+
 ## Deeper briefs
 
 - [Semantic contract](optimizer/semantic_contract.md): observability, exact

@@ -1883,11 +1883,33 @@ decision. Only true language-semantic questions belong in
     The shared matcher
     vocabulary is now truthfully named instruction-pair rather than terminal-
     pair; arbitrary-length patterns remain outside its authority.
+  - [x] Add the exact adjacent-body left-operand sibling
+    `Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1`. It recognizes
+    only `CopyI64; CompareI64`, requires the copy source and destination to
+    share one physical view/storage, and requires the copy destination VReg to
+    be the comparison's ordered left operand. The right operand is not
+    reclassified into this rule. The exact leaf retains its own policy and
+    comparison-consumer contract; descriptor proposal and the independently
+    implemented replay shared by the two exact compare-consuming siblings
+    retain exact footprints, liveness, provenance, revisions, actions, and the
+    five-axis success/first-over budget matrix.
+    The shared copy-elision identity and wire codec advance to V3 with appended
+    policy tag `2`, while its revision domain remains V2. The exact selection
+    encoding and identity advance to V14 with appended optimization tag `19`;
+    established tags remain stable and V9 downstream manifest frames learn the
+    same exact name without forking their schemas. One new AArch64
+    machine-catalog row and explicit
+    build selection route the result through the existing generic disposition,
+    layout, realization, manifest, object, and callable custody. Current
+    compiler lowering does not produce the admitted same-view pair, so the
+    compiler route honestly records zero actions on Linux and macOS AArch64;
+    applied deletion remains proven at the machine-rule boundary.
 - [ ] Add exact copy removal, redundant extension removal, address folding,
   compare/test selection, and scheduling where independently verifiable. The
-  admitted same-view return-copy and before-compare-zero cases are evidence for
-  the first family, not completion of general copy removal or a claim that
-  current lowering produces either exact candidate.
+  admitted same-view return-copy, before-compare-zero, and before-compare-I64-
+  left-operand cases are evidence for the first family, not completion of
+  general copy removal or a claim that current lowering produces any exact
+  candidate.
 - [x] Add target cost models as non-authoritative identities. The V1 entrance
   binds exact native-target identity to retained exact-or-bounded size
   knowledge while keeping latency explicitly unavailable. Machine-rule
@@ -2148,19 +2170,19 @@ unchecked rewrite or opt into lossy floating-point semantics.
   while pinning target and phase selections, encoding, ELF/COFF/Mach-O object
   form and text bytes, callable ABI, frameless exit policy, codecs, manifests,
   and deterministic container bytes. An adjacent post-allocation matrix now
-  covers all seven exact machine rules
-  across all 14 applicable hosted rule/OS pairs: Linux and Windows x64, plus
+  covers all eight exact machine rules
+  across all 16 applicable hosted rule/OS pairs: Linux and Windows x64, plus
   Linux and macOS Arm64. Every row runs twice and pins honest zero/nonzero
   action expectations, realization, encoding/layout manifests, fragment/text
   bytes, ELF/COFF/Mach-O containers, object artifacts, callable ABI/exit
-  policy, and exact selection custody. A closed seven-rule refusal matrix
+  policy, and exact selection custody. A closed eight-rule refusal matrix
   rejects each wrong architecture before execution. This still does not claim
   allocator or unwind completion:
   physical spill insertion, final frame layout, and unwind authority remain
   compiler prerequisites under P5 rather than an owner language decision.
 - [ ] Add versioned compile-time, memory, code-size, and runtime benchmarks.
 - [x] Publish exact-rule release notes and rollback procedures. The versioned
-  V1 inventory names all 18 canonical exact rules, phases, target
+  V1 inventory names all 19 canonical exact rules, phases, target
   applicability, experimental status, exact rollback spelling, supported
   compositions, and fail-closed carrier limits; its native-only runbook owns
   receipt capture, verification, and restoration.

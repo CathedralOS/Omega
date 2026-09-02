@@ -58,6 +58,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_post_allocation_machine_optimization",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_optimizations/aarch64_same_view_copy/mod.rs",
+        coordination_marker: "use execution::{stage_with_inputs, validate_with_inputs};",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/machine/post_allocation_machine_effects/construction/mod.rs",
         coordination_marker: "fn analyze_and_seal",
     },

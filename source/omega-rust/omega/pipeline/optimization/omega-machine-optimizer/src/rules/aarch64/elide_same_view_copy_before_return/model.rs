@@ -43,6 +43,7 @@ impl Aarch64SameViewCopyElisionRevisionIdentity {
 pub enum Aarch64SameViewCopyElisionPolicy {
     Aarch64ElideSameViewCopyI64BeforeReturnV1,
     Aarch64ElideSameViewCopyI64BeforeCompareZeroV1,
+    Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
