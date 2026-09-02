@@ -78,6 +78,29 @@ fn package_aware_import_cannot_mount_bundled_standard_library() {
     );
 }
 
+#[test]
+fn package_aware_source_can_use_the_public_core_fixed_vec_carrier() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use omega::language::core::fixed_vec;
+data Readings {
+    values: FixedVec<i32, 4>;
+}
+"#,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only package graph should validate");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("FixedVec is a source-visible core carrier for ordinary packages");
+}
+
 fn generated_source(
     relative_path: &[u8],
     bytes: &[u8],
@@ -5238,7 +5261,6 @@ machine build(builder: &mut Build) {
             .with_package_inputs(inputs)
             .with_requested_product(RequestedCompileProduct::NativeArtifact),
         )
-        .expect("package-aware Linux native fixture should compile")
     };
 
     let exit_package = identity(45);
@@ -5279,14 +5301,42 @@ machine build(builder: &mut Build) {
         .typed
         .symbols
         .display_path(console_provenance.provider.schema.symbol(), "::");
+    let console_schema = console_plan.schema.identity_digest();
+    let console_exit_requirement = console_plan
+        .rows
+        .iter()
+        .find(|row| row.method == "exit_process")
+        .expect("selected Console plan retains exit_process")
+        .requirement_identity
+        .clone();
+    let console_permission = omega_effects::ServiceTerminalAuthorityPermission::new(
+        console_schema,
+        console_exit_requirement.clone(),
+        omega_effects::TerminalAuthorityDisposition::from_classes([
+            omega_effects::TerminalAuthorityClass::ProcessTermination,
+        ]),
+    );
     let console_binding = AcceptedSemanticBinding::new(
         AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         host_services_package,
         console_path,
-        console_plan.schema.identity_digest(),
+        console_schema,
         console_plan.identity_digest(),
     )
-    .expect("exact process-exit Console candidate");
+    .expect("exact process-exit Console candidate")
+    .with_terminal_authority_permissions(vec![console_permission.clone()])
+    .expect("accepted Console binding carries its exact terminal permission");
+    let console_permission_policy =
+        omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+            vec![
+                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                    console_schema,
+                    console_exit_requirement,
+                    console_permission.permitted().clone(),
+                ),
+            ],
+        )
+        .expect("receiving policy accepts the exact Console terminal permission");
     let exit = compile(
         CompileRequest::new(CompileOptions {
             root_path: exit_root.join("main.omg"),
@@ -5298,6 +5348,7 @@ machine build(builder: &mut Build) {
                 .with_accepted_semantic_bindings(vec![console_binding])
                 .expect("accept exact ordinary Console binding"),
         )
+        .with_terminal_authority_permission_policy(console_permission_policy)
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
     )
     .expect("package-aware ordinary process-exit fixture should compile");
@@ -5313,7 +5364,8 @@ machine build(builder: &mut Build) {
             .expect("artifact-owned physical evidence"),
     ));
 
-    let empty = compile_package(&empty_root, 46, "physical-empty");
+    let empty = compile_package(&empty_root, 46, "physical-empty")
+        .expect("package-aware empty Linux native fixture should compile");
     assert_eq!(
         exit.production_manifest()
             .expect("exit production manifest")
@@ -5326,11 +5378,13 @@ machine build(builder: &mut Build) {
         omega_compiler::FinalRealizationEvidenceError::NativeArtifactMismatch,
     );
 
-    let port = compile_package(&port_root, 47, "physical-port");
-    assert_eq!(
-        port.require_package_native_physical_evidence()
-            .expect_err("the PortIo lane has no D32 physical evidence yet"),
-        omega_compiler::FinalRealizationEvidenceError::NativePhysicalEvidenceUnavailable,
+    let port_diagnostics = compile_package(&port_root, 47, "physical-port")
+        .expect_err("unsupported PortIo authority must reject before D32 evidence derivation");
+    assert!(
+        port_diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("unsupported by the current D45 role sum")),
+        "unexpected PortIo diagnostics: {port_diagnostics:#?}",
     );
 }
 
