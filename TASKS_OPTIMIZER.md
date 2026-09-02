@@ -1477,6 +1477,25 @@ decision. Only true language-semantic questions belong in
   artifact chooses no frame base or size, final offset, red-zone/shadow-space
   placement, instruction, prologue/epilogue, probe, unwind, fault behavior,
   executable access, or publication.
+  A twenty-first independently replayed, pipeline-owned V1 boundary now starts
+  from authenticated selected instructions plus baseline allocated homes and
+  reports the exact ABI-preserved register units those selected writes may
+  modify. It uses each assigned view's `write_units` footprint, not its readable
+  aliases, and retains ordered typed witnesses for operand definitions,
+  implicit definitions, and implicit clobbers across ordinary instructions,
+  terminators, and structural Unit call/return instructions. The identity binds
+  selected, home, post-allocation-manifest, register-environment, physical-model,
+  target, exact ABI, full callee-saved roster, policy, budget, usage, functions,
+  units, and witnesses. A positional producer and separately keyed replay agree;
+  every root and retained field, cross-target custody, and every first-under
+  budget axis fail closed. The attached-Unit scalar-call fixture produces
+  nonempty exact requirements on Linux System V AMD64 and AAPCS64, including
+  the live-across-call `v5` preserved home, while the no-call fixture produces
+  empty requirements across all five native targets. This is may-write
+  requirement evidence only: it chooses no save/restore sequence, slot, frame
+  base/offset, prologue/epilogue, stack delta, unwind row, probe, fault/trap
+  behavior, encoding, emission, or publication. Final machine reconciliation
+  remains required after executable call/spill lowering exists.
   ISA lowering, executable spill accesses, final frame offsets, unwind/probing,
   and downstream realization remain engineering work. Real memory
   insertion is owner-blocked only on the spill-access fault semantics recorded
@@ -1518,7 +1537,10 @@ decision. Only true language-semantic questions belong in
   signed-branch vocabulary. V4-V9 decode compatibility remains supported.
   This is allocation evidence only: general call shapes and ABIs, callee-save
   prologue/epilogue realization, call memory/stack/trap effects, relocation,
-  encoding, emission, and publication remain unsupported.
+  encoding, emission, and publication remain unsupported. The adjacent exact
+  allocation-visible requirements stage now proves which ABI-preserved units
+  this selected program may modify, with per-write witnesses and independent
+  replay. It deliberately stops before choosing or realizing callee saves.
 
 ## P6 — Machine optimizer
 

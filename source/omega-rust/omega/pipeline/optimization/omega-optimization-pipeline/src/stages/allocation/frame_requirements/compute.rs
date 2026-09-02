@@ -1,6 +1,9 @@
 //! Direct traversal over authenticated abstract access rows.
 
-use crate::ValidatedTargetRegisterEnvironment;
+use crate::{
+    ValidatedTargetRegisterEnvironment,
+    stages::allocation::abi_preservation::selected_abi_preservation,
+};
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use omega_regalloc::ValidatedAbstractSpillAccessConstraints;
 
@@ -24,40 +27,10 @@ pub(super) fn derive(
     if source.receipt().register_environment() != environment.identity() {
         return Err(SpillFrameRequirementError::RootMismatch);
     }
-    let target = environment.target();
-    let (abi_preservation_convention, convention) =
-        match (target.architecture, target.object_format) {
-            (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Elf) => (
-                FrameAbiPreservationConvention::SystemVAMD64,
-                omega_isa_x86_64::x86_64_preservation_convention_for_target(
-                    environment.physical(),
-                    target,
-                ),
-            ),
-            (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Coff) => (
-                FrameAbiPreservationConvention::MicrosoftX64,
-                omega_isa_x86_64::x86_64_preservation_convention_for_target(
-                    environment.physical(),
-                    target,
-                ),
-            ),
-            (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::Elf) => (
-                FrameAbiPreservationConvention::Aapcs64,
-                omega_isa_aarch64::aarch64_preservation_convention_for_target(
-                    environment.physical(),
-                    target,
-                ),
-            ),
-            (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::MachO) => (
-                FrameAbiPreservationConvention::DarwinAapcs64,
-                omega_isa_aarch64::aarch64_preservation_convention_for_target(
-                    environment.physical(),
-                    target,
-                ),
-            ),
-            _ => return Err(SpillFrameRequirementError::UnsupportedTargetConvention),
-        };
-    let convention = convention.ok_or(SpillFrameRequirementError::UnsupportedTargetConvention)?;
+    let selected = selected_abi_preservation(environment)
+        .map_err(|_| SpillFrameRequirementError::UnsupportedTargetConvention)?;
+    let abi_preservation_convention = selected.kind;
+    let convention = selected.convention;
     let functions = source
         .plan()
         .functions
