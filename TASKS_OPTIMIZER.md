@@ -477,7 +477,7 @@ decision. Only true language-semantic questions belong in
 - [x] Psi candidate declarations retain applied and skipped decisions with
   independently replayed manifest, rule, revision, and policy evidence.
 - [>] Complete independent translation validation for every lowering and
-  machine-rule family. Sixty-four abstract-to-target families are covered,
+  machine-rule family. Sixty-five abstract-to-target families are covered,
   including
   parameterless straight-line Unit return with an independently reconstructed
   empty native call plan, exact return edge/provenance, and plan-global
@@ -608,6 +608,17 @@ decision. Only true language-semantic questions belong in
   order boundaries on all five targets at direct and optimized custody (180
   cases at each boundary). Exact, wrapping, add, multiply, plain-immediate,
   parameter, and runtime-expression substitution fail closed.
+  The adjacent constant saturating-integer-multiply-to-immediate family admits
+  only `[IntegerConstant, IntegerConstant, SaturatingIntegerMultiply, Return]`.
+  Independent source grammar recomputes `IntegerType::saturating_mul`; target
+  replay requires the exact `ReturnIntegerImmediate` while retaining both
+  constants, all definitions, authored source/provenance custody, and the
+  return edge. Signed and unsigned fixed 8/16/32/64 plus address64 cross
+  positive saturation, signed negative saturation, unsigned/address zero
+  clamp, reversed constant custody, and an ordinary product on all five targets
+  at direct and optimized custody (180 cases at each boundary). Exact/wrapping
+  multiply, saturating add/subtract, plain-immediate, parameter, and runtime-
+  expression substitution fail closed.
   The adjacent parameterless `IeeeFloatConstant; ReturnUnit` family retains
   the literal's exact operation/result identities and raw Binary32 or Binary64
   bits, including signed zero and NaN payloads, plus the return edge,
@@ -1246,6 +1257,17 @@ decision. Only true language-semantic questions belong in
     exact/wrapping/add/multiply/plain/parameter/runtime-expression substitution
     fail closed. This authenticates existing lowering without new target or
     persisted-wire vocabulary.
+  - [x] Add constant saturating-integer-multiply-to-immediate as its own exact
+    abstract-to-target family. Its four-operation grammar independently
+    recomputes `IntegerType::saturating_mul` and requires the precise immediate
+    result while retaining authored source and provenance custody. Direct and
+    optimized custody each cover 180 signed/unsigned fixed-or-address type/
+    pair/target cases, including positive saturation, signed negative
+    saturation, unsigned/address zero clamping, reversed constant custody, and
+    an ordinary product; catalog ambiguity, corruption, exact/wrapping
+    multiply, saturating add/subtract, plain/parameter/runtime-expression
+    substitution fail closed. This authenticates existing lowering without new
+    target or persisted-wire vocabulary.
   - [x] Add constant Boolean-not-to-immediate as its own exact abstract-to-
     target family. Its independently reconstructed three-operation grammar and
     target replay cover both truth values across all five targets, retain both
