@@ -58,6 +58,8 @@ pub struct InstalledProviderUnitCallEvidence {
     pub psi_operation: psi_core::OperationId,
     pub boundary: psi_core::BoundaryMachineId,
     pub provider: psi_terminal::ProviderCandidateConformance,
+    /// Ordered scalar values supplied by the exact admitted call occurrence.
+    pub scalar_arguments: Vec<psi_core::ValueId>,
     pub structural_arguments: Vec<psi_terminal::StructuralArgument>,
     pub completion_claim_sources: Vec<InstalledProviderCompletionClaimSource>,
     pub completion_receipts: Vec<psi_terminal::CompletionReceipt>,

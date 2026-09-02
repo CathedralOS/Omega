@@ -19,6 +19,7 @@ pub struct AdmittedInstalledProviderUnitCall {
     pub(crate) psi_operation: OperationId,
     pub(crate) boundary: psi_core::BoundaryMachineId,
     pub(crate) provider: ProviderCandidateConformance,
+    pub(crate) scalar_arguments: Vec<psi_core::ValueId>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
     pub(crate) completion_claim_sources: Vec<CompletionClaimSource>,
     pub(crate) completion_receipts: Vec<CompletionReceipt>,
@@ -39,6 +40,10 @@ impl AdmittedInstalledProviderUnitCall {
 
     pub const fn provider(&self) -> &ProviderCandidateConformance {
         &self.provider
+    }
+
+    pub fn scalar_arguments(&self) -> &[psi_core::ValueId] {
+        &self.scalar_arguments
     }
 
     pub fn structural_arguments(&self) -> &[StructuralArgument] {
@@ -101,6 +106,7 @@ impl omega_installation_evidence::ProviderInstallationEvidence for AdmittedProvi
                     psi_operation: call.psi_operation,
                     boundary: call.boundary,
                     provider: call.provider.clone(),
+                    scalar_arguments: call.scalar_arguments.clone(),
                     structural_arguments: call.structural_arguments.clone(),
                     completion_claim_sources: call
                         .completion_claim_sources

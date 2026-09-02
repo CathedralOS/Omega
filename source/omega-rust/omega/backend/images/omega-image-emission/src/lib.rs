@@ -18,13 +18,14 @@ mod byte_sequence_custody;
 mod completion_receipts;
 mod dynamic_conformance;
 mod dynamic_elf;
-mod forwarded_dynamic_descriptor;
 mod final_image_validation;
+mod forwarded_dynamic_descriptor;
 mod fully_consumed_affine_pair;
 mod image_output;
 mod installation;
 #[cfg(feature = "installed-artifact")]
 mod installed_artifact;
+mod installed_provider_unit_scalar_call;
 mod instruction_loads;
 mod partial_cleanup_partition;
 mod ranked_u32_countdown;
@@ -78,6 +79,7 @@ use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
 };
+use installed_provider_unit_scalar_call::validate_installed_provider_unit_scalar_calls;
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -245,6 +247,7 @@ pub struct ObjectFunction {
     pub machine: MachineId,
     pub attachment: Option<psi_core::StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    pub unit_scalar_abi: Option<omega_machine_code::UnitScalarFunctionAbiRecord>,
     pub provenance: TerminalPsiProvenance,
     pub symbol: ObjectSymbolHandle,
     pub text_offset: usize,
@@ -262,9 +265,10 @@ pub struct ObjectFunction {
     pub scalar_call_stacks: Vec<ObjectScalarCallStack>,
     pub internal_unit_calls: Vec<omega_machine_code::InternalUnitCallRecord>,
     pub internal_unit_scalar_calls: Vec<omega_machine_code::InternalUnitScalarCallRecord>,
+    pub installed_provider_unit_scalar_calls:
+        Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
     pub dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
-    pub dynamic_parameter_scalar_calls:
-        Vec<omega_machine_code::DynamicParameterScalarCallRecord>,
+    pub dynamic_parameter_scalar_calls: Vec<omega_machine_code::DynamicParameterScalarCallRecord>,
     pub forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
@@ -1055,8 +1059,9 @@ fn build_object_artifact_with_x86_feature_profile(
             .internal_unit_calls
             .len()
             .checked_add(function.internal_unit_scalar_calls.len())
+            .and_then(|count| count.checked_add(function.forwarded_dynamic_descriptor_calls.len()))
             .and_then(|count| {
-                count.checked_add(function.forwarded_dynamic_descriptor_calls.len())
+                count.checked_add(function.installed_provider_unit_scalar_calls.len())
             })
             .ok_or(ObjectError::InvalidInternalUnitCallEvidence(
                 function.machine,
@@ -1088,12 +1093,18 @@ fn build_object_artifact_with_x86_feature_profile(
                     .iter()
                     .map(|call| (call.owner, call.target)),
             )
-            .chain(function.forwarded_dynamic_descriptor_calls.iter().map(|call| {
-                (
-                    CallSiteOwner::Operation(call.psi_operation),
-                    call.callee,
-                )
-            }))
+            .chain(
+                function
+                    .forwarded_dynamic_descriptor_calls
+                    .iter()
+                    .map(|call| (CallSiteOwner::Operation(call.psi_operation), call.callee)),
+            )
+            .chain(
+                function
+                    .installed_provider_unit_scalar_calls
+                    .iter()
+                    .map(|call| (call.owner, call.provider.candidate)),
+            )
             .collect::<std::collections::BTreeSet<_>>();
         if custody_identities.len() != unit_custody_count
             || custody_identities != relocation_identities
@@ -1223,6 +1234,12 @@ fn build_object_artifact_with_x86_feature_profile(
             function,
             &machine_functions,
             validated_function_stack.as_ref(),
+            &validated_call_stacks,
+        )?;
+        validate_installed_provider_unit_scalar_calls(
+            plan.target,
+            function,
+            &machine_functions,
             &validated_call_stacks,
         )?;
         let dynamic_peak = validate_dynamic_scalar_calls(
@@ -1790,18 +1807,17 @@ fn build_object_artifact_with_x86_feature_profile(
                 .and_then(|bytes| size.checked_add(bytes))
                 .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)
         })?
-        .checked_add(
-            forwarded_dynamic_applications
-                .iter()
-                .try_fold(0usize, |size, application| {
-                    application
-                        .adapters
-                        .len()
-                        .checked_mul(8)
-                        .and_then(|bytes| size.checked_add(bytes))
-                        .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)
-                })?,
-        )
+        .checked_add(forwarded_dynamic_applications.iter().try_fold(
+            0usize,
+            |size, application| {
+                application
+                    .adapters
+                    .len()
+                    .checked_mul(8)
+                    .and_then(|bytes| size.checked_add(bytes))
+                    .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)
+            },
+        )?)
         .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?;
     if dynamic_data_size != 0 {
         object.layout.sections.insert(SectionPlan {
@@ -1984,6 +2000,7 @@ fn build_object_artifact_with_x86_feature_profile(
             machine: function.machine,
             attachment: function.attachment,
             fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+            unit_scalar_abi: function.unit_scalar_abi.clone(),
             provenance: function.provenance.clone(),
             symbol,
             text_offset,
@@ -1997,11 +2014,12 @@ fn build_object_artifact_with_x86_feature_profile(
             scalar_call_stacks,
             internal_unit_calls: function.internal_unit_calls.clone(),
             internal_unit_scalar_calls: function.internal_unit_scalar_calls.clone(),
+            installed_provider_unit_scalar_calls: function
+                .installed_provider_unit_scalar_calls
+                .clone(),
             dynamic_scalar_calls: function.dynamic_scalar_calls.clone(),
             dynamic_parameter_scalar_calls: function.dynamic_parameter_scalar_calls.clone(),
-            forwarded_dynamic_descriptor_calls: function
-                .forwarded_dynamic_descriptor_calls
-                .clone(),
+            forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
             unit_structural_scalar_field_stores: function
@@ -2056,15 +2074,13 @@ fn build_object_artifact_with_x86_feature_profile(
             {
                 return Err(ObjectError::DuplicateForwardedDynamicDescriptorAdapter);
             }
-            forwarded_dynamic_descriptor_adapters.push(
-                ObjectForwardedDynamicDescriptorAdapter {
-                    record: adapter.clone(),
-                    symbol,
-                    target_symbol,
-                    text_offset,
-                    byte_count: adapter.bytes.len(),
-                },
-            );
+            forwarded_dynamic_descriptor_adapters.push(ObjectForwardedDynamicDescriptorAdapter {
+                record: adapter.clone(),
+                symbol,
+                target_symbol,
+                text_offset,
+                byte_count: adapter.bytes.len(),
+            });
         }
     }
 
@@ -2703,9 +2719,17 @@ fn validate_private_functions<'plan>(
             || !private.function.foreign_calls.is_empty()
             || !private.function.internal_unit_calls.is_empty()
             || !private.function.internal_unit_scalar_calls.is_empty()
+            || !private
+                .function
+                .installed_provider_unit_scalar_calls
+                .is_empty()
+            || private.function.unit_scalar_abi.is_some()
             || !private.function.dynamic_scalar_calls.is_empty()
             || !private.function.dynamic_parameter_scalar_calls.is_empty()
-            || !private.function.forwarded_dynamic_descriptor_calls.is_empty()
+            || !private
+                .function
+                .forwarded_dynamic_descriptor_calls
+                .is_empty()
             || !private.function.x86_scalar_fma.is_empty()
             || !private.function.x86_scalar_fma_occurrences.is_empty()
             || private.function.x86_floating_control.is_some()
@@ -3502,6 +3526,9 @@ fn validate_foreign_scalar_source(
         }),
     };
     let exact_sources = match argument.source {
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
+            return Err(invalid());
+        }
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             defining_operation,
             source_value,
@@ -3559,6 +3586,9 @@ fn expected_foreign_scalar_argument_bytes(
     };
     let mut bytes = Vec::new();
     match argument.source {
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => {
+            return None;
+        }
         omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
             scalar_type,
             value,
@@ -3776,6 +3806,8 @@ pub enum ObjectError {
     },
     InvalidInternalUnitCallEvidence(MachineId),
     InvalidInternalUnitScalarCallEvidence(MachineId),
+    InvalidUnitScalarFunctionAbi(MachineId),
+    InvalidInstalledProviderUnitScalarCallEvidence(MachineId),
     InvalidUnitStructuralScalarFieldStoreEvidence(MachineId),
     InvalidUnitAffineCleanupEvidence(MachineId),
     InternalCallOperationNotInProvenance {

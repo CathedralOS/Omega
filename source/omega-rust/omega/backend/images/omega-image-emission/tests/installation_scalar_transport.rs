@@ -84,6 +84,7 @@ fn scalar_transport_plan() -> TargetOperationPlan {
                         &CallSignature::default(),
                     )
                     .expect("Unit call plan"),
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::IntegerConstant {

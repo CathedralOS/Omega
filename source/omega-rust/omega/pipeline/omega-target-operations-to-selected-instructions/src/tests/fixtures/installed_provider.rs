@@ -153,6 +153,12 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
             parameter.multiplicity = StructuralMultiplicity::Affine;
         }
     }
+    let omega_target_operations::TargetOperation::UnitBody(provider_body) =
+        &target.functions[1].operation
+    else {
+        panic!("provider Unit body");
+    };
+    let provider_call_plan = provider_body.call_plan.clone();
     let omega_target_operations::TargetOperation::UnitBody(caller_body) =
         &mut target.functions[0].operation
     else {
@@ -170,6 +176,8 @@ pub(in crate::tests) fn installed_provider_legalization_fixture() -> (
             psi_operation: operation,
             boundary,
             provider,
+            call_plan: provider_call_plan,
+            scalar_arguments: Vec::new(),
             source_arguments: arguments,
             arguments: target_arguments,
             claim_transfers: receipts

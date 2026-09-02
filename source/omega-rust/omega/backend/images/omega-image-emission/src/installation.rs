@@ -3269,6 +3269,7 @@ pub enum InstallationError {
     InvalidInstalledIntegerSignTag(u8),
     InvalidInstalledIntegerValueTag(u8),
     InvalidInstalledScalarSourceTag(u8),
+    UnsupportedInstalledScalarSource,
     InvalidBoundaryRealizationTag,
     InvalidBoundaryExecutionTag,
     InvalidCleanupActionTag(u8),

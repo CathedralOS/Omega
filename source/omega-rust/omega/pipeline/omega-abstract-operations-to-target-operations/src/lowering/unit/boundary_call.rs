@@ -1,6 +1,7 @@
 //! Boundary settlement and admitted-provider Unit-call lowering.
 
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
+use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::structural_shape;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
@@ -64,10 +65,17 @@ pub(super) fn lower_boundary_call(
                     .get(boundary)
                     .copied()
                     .ok_or(LoweringError::UnknownBoundarySettlement(*boundary))?;
+                let has_scalar_argument = !arguments.is_empty();
                 if result.is_some()
-                    || !arguments.is_empty()
                     || callee.result != AbstractFunctionResult::Unit
-                    || !callee.parameters.is_empty()
+                    || arguments.len() != callee.parameters.len()
+                    || arguments.len() != declaration.scalar_parameters.len()
+                    || arguments.len() != installed.scalar_arguments.len()
+                    || installed.scalar_arguments != *arguments
+                    || arguments.len() > 1
+                    || (has_scalar_argument
+                        && (!callee.structural_parameters.is_empty()
+                            || !structural_arguments.is_empty()))
                     || structural_arguments.len() != callee.structural_parameters.len()
                     || declaration.structural_parameters.len() != callee.structural_parameters.len()
                     || installed.provider.signature.parameters.len()
@@ -79,6 +87,40 @@ pub(super) fn lower_boundary_call(
                         boundary: *boundary,
                     });
                 }
+                let scalar_shapes = callee
+                    .parameters
+                    .iter()
+                    .zip(&declaration.scalar_parameters)
+                    .map(|(callee_parameter, boundary_parameter)| {
+                        let (ScalarType::Integer(callee_type), ScalarType::Integer(boundary_type)) =
+                            (callee_parameter.scalar_type, *boundary_parameter)
+                        else {
+                            return Err(LoweringError::InstalledProviderCallShapeMismatch {
+                                machine: function.machine,
+                                operation: *psi_operation,
+                                boundary: *boundary,
+                            });
+                        };
+                        if callee_type != boundary_type
+                            || callee_type.carrier() != psi_core::IntegerCarrier::Fixed
+                            || callee_type.sign() != psi_core::IntegerSign::Signed
+                            || callee_type.bits() != 32
+                        {
+                            return Err(LoweringError::InstalledProviderCallShapeMismatch {
+                                machine: function.machine,
+                                operation: *psi_operation,
+                                boundary: *boundary,
+                            });
+                        }
+                        fixed_native_integer_shape(callee_type).ok_or(
+                            LoweringError::InstalledProviderCallShapeMismatch {
+                                machine: function.machine,
+                                operation: *psi_operation,
+                                boundary: *boundary,
+                            },
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let callee_shapes = callee
                     .structural_parameters
                     .iter()
@@ -94,11 +136,50 @@ pub(super) fn lower_boundary_call(
                 let callee_plan = evaluate_call_plan(
                     CallingPolicy::native_for_target(target),
                     &CallSignature {
-                        parameters: callee_shapes.clone(),
+                        parameters: scalar_shapes
+                            .iter()
+                            .chain(&callee_shapes)
+                            .copied()
+                            .collect(),
                         result: None,
                     },
                 )
                 .map_err(LoweringError::AbiPlan)?;
+                let target_scalar_arguments = arguments
+                    .iter()
+                    .zip(&callee.parameters)
+                    .zip(&scalar_shapes)
+                    .zip(&callee_plan.parameters)
+                    .enumerate()
+                    .map(
+                        |(parameter_index, (((source_value, parameter), shape), placement))| {
+                            let known = scalar_values
+                                .get(source_value)
+                                .copied()
+                                .ok_or(LoweringError::UnknownValue(*source_value))?;
+                            let ScalarType::Integer(parameter_type) = parameter.scalar_type else {
+                                unreachable!("installed provider scalar type was checked above")
+                            };
+                            if known.scalar_type() != parameter_type || placement.shape != *shape {
+                                return Err(LoweringError::CallArgumentTypeMismatch {
+                                    callee: callee.machine,
+                                    argument: *source_value,
+                                });
+                            }
+                            Ok(TargetUnitScalarCallArgument {
+                                parameter_index: u32::try_from(parameter_index).map_err(|_| {
+                                    LoweringError::InstalledProviderCallShapeMismatch {
+                                        machine: function.machine,
+                                        operation: *psi_operation,
+                                        boundary: *boundary,
+                                    }
+                                })?,
+                                source: known.into_target_source(*source_value),
+                                placement: placement.clone(),
+                            })
+                        },
+                    )
+                    .collect::<Result<Vec<_>, _>>()?;
                 let mut target_arguments = Vec::with_capacity(structural_arguments.len());
                 for (index, (((argument, boundary_parameter), callee_parameter), signature)) in
                     structural_arguments
@@ -143,7 +224,8 @@ pub(super) fn lower_boundary_call(
                         || source.structural_type
                             != callee.structural_parameters[index].structural_type
                         || source.placement.shape != callee_shapes[index]
-                        || source.placement.shape != callee_plan.parameters[index].shape
+                        || source.placement.shape
+                            != callee_plan.parameters[scalar_shapes.len() + index].shape
                         || caller_parameter.qualifications.iter().any(|qualification| {
                             !boundary_parameter.qualifications.contains(qualification)
                                 || !callee_parameter.qualifications.contains(qualification)
@@ -170,7 +252,7 @@ pub(super) fn lower_boundary_call(
                         fixed_array_length: None,
                         element_stride: None,
                         source: source.placement.clone(),
-                        destination: callee_plan.parameters[index].clone(),
+                        destination: callee_plan.parameters[scalar_shapes.len() + index].clone(),
                     });
                 }
                 let claim_transfers = completion_receipts
@@ -217,6 +299,8 @@ pub(super) fn lower_boundary_call(
                     psi_operation: *psi_operation,
                     boundary: *boundary,
                     provider: installed.provider.clone(),
+                    call_plan: callee_plan,
+                    scalar_arguments: target_scalar_arguments,
                     source_arguments: structural_arguments.clone(),
                     arguments: target_arguments,
                     claim_transfers,

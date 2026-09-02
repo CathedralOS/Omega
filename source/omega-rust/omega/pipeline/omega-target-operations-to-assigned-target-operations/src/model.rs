@@ -17,6 +17,11 @@ pub enum AssignmentError {
         operation: OperationId,
         boundary: psi_core::BoundaryMachineId,
     },
+    InstalledProviderScalarCallCustodyMismatch {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: psi_core::BoundaryMachineId,
+    },
     BoundaryPortReadUnsupported {
         machine: MachineId,
         architecture: Architecture,

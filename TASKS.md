@@ -12257,7 +12257,23 @@ checked-result arithmetic decision listed below.
     scalar-bearing attached Unit provider bodies use the same Terminal scalar
     namespace, and provider-candidate verification compares the boundary and
     candidate scalar signatures already present at those two endpoints rather
-    than adding a duplicate conformance encoding. Checked trees
+    than adding a duplicate conformance encoding. The first native realization
+    rung is live for one direct installed-provider call with exactly one fixed
+    signed `i32` parameter and Unit result. Target lowering retains the exact
+    incoming parameter `ValueId`, caller and candidate Unit ABIs, selected
+    provider, and call plan; assignment and machine emission bind the unchanged
+    first native argument register on Linux x86-64/AArch64; object replay rejoins the
+    call bytes, relocation, operation interval, caller parameter, candidate
+    ABI, boundary, and provider. It admits no runtime structural arguments,
+    claims, computed scalar source, or second call from the caller-saved
+    parameter. The historical zero-scalar installed-provider path remains in
+    its distinct optimized structural lane. A rooted authored-source native
+    canary is **DEPENDENCY-BLOCKED**, not language-design-blocked: current
+    application closure prunes an otherwise valid unused scalar caller, while
+    `ProgramEntry` supplies no scalar input and the adjacent scalar-bearing
+    Service-forwarding/computed-source rungs remain fenced. Land one of those
+    independently checked reachability routes before claiming source-root
+    coverage; do not weaken the exact incoming-parameter join. Checked trees
     retain the exact typed parameter symbol, authored position, normalized
     carrier/base identities, exact `Bound` domain, requirement, and selected
     Fused plan digest. Adapter settlement consumes only that receipt; raw
@@ -12273,11 +12289,11 @@ checked-result arithmetic decision listed below.
     scalar arguments, projections, borrows, duplicate edges, and another
     forwarding hop reject. Recursive placement validation rejects Service
     carriers hidden in references, arrays, slices, generic wrappers, locals,
-    returns, trait/requirement signatures, and operators. Additional or
+    returns, trait/requirement signatures, and operators. Additional scalar
+    shapes, repeated scalar provider calls without a durable home, or
     scalar-bearing Service forwarding, projected or borrowed arguments,
     multiple carrier parameters, mixed receiver requirements, composed
-    control, native installed-provider scalar ABI realization, and Independent
-    execution remain separately fenced.
+    control, and Independent execution remain separately fenced.
     Multiple distinct
     carriers are **DEPENDENCY-BLOCKED**, not language-design-blocked: Terminal
     structural qualifications currently key one domain plan only by
@@ -12389,8 +12405,8 @@ checked-result arithmetic decision listed below.
   an empty attached record or provider-attachment requirement. The selected
   application root now retains the exact Fused establishment
   receipt through validated native entry settlement as described above.
-  Native installed-provider scalar ABI realization
-  and runtime routed publication remain separate fences.
+  Wider/repeated installed-provider scalar ABI realization and runtime routed
+  publication remain separate fences.
   Provider-internal nested fields and all other boundary-bearing parameters
   remain transitional until their separately fenced carrier rungs land; do not
   broaden either custody proof by name.

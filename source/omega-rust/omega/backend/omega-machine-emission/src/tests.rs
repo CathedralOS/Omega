@@ -29,6 +29,8 @@ use psi_terminal::{
 
 #[path = "tests/forwarded_dynamic_descriptor.rs"]
 mod forwarded_dynamic_descriptor;
+#[path = "tests/installed_provider_scalar.rs"]
+mod installed_provider_scalar;
 
 fn emit_machine_code(plan: &TargetOperationPlan) -> Result<MachineCodePlan, EmissionError> {
     let assigned = assign_registers(plan).expect("test target operations must assign");
@@ -108,6 +110,7 @@ fn assigned_x86_fma_emits_raw_bits_exact_plan_custody_and_canonical_mxcsr() {
                         },
                     )
                     .unwrap(),
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::IeeeFloatConstant {
@@ -270,6 +273,7 @@ fn normalized_foreign_unit_leaf_emits_placeholder_and_stack_custody_on_both_linu
                         &signature,
                     )
                     .unwrap(),
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::NormalizedForeignCall {
@@ -457,6 +461,7 @@ fn normalized_foreign_integer_literal_uses_only_the_evaluated_register_before_th
                         },
                     )
                     .unwrap(),
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::IntegerConstant {
@@ -872,6 +877,7 @@ fn linux_write_line_then_exit_owns_exact_code_data_and_argument_custody() {
                     },
                 )
                 .unwrap(),
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::EstablishByteSequenceLiteral {
@@ -1317,6 +1323,7 @@ fn executable_nominal_cleanup_plan(
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan: root_call_plan,
+                        scalar_parameters: Vec::new(),
                         parameters: vec![root_parameter],
                         operations: vec![TargetUnitOperation::Return {
                             psi_edge: root_return,
@@ -1337,6 +1344,7 @@ fn executable_nominal_cleanup_plan(
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan: empty_call_plan.clone(),
+                        scalar_parameters: Vec::new(),
                         parameters: Vec::new(),
                         operations: vec![
                             TargetUnitOperation::Call {
@@ -1365,6 +1373,7 @@ fn executable_nominal_cleanup_plan(
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan: empty_call_plan,
+                        scalar_parameters: Vec::new(),
                         parameters: Vec::new(),
                         operations: vec![TargetUnitOperation::Return {
                             psi_edge: helper_return,
@@ -2337,6 +2346,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: Vec::new(),
                     call_plan: empty_call_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::Call {
@@ -2365,6 +2375,7 @@ fn x86_unit_call_port_write_and_settlement_keep_exact_order() {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: Vec::new(),
                     call_plan: empty_call_plan,
+                    scalar_parameters: Vec::new(),
                     parameters: Vec::new(),
                     operations: vec![
                         TargetUnitOperation::PortWrite {
@@ -2483,6 +2494,7 @@ fn aarch64_rejects_port_write_before_emitting_a_partial_body() {
             operation: TargetOperation::UnitBody(TargetUnitBody {
                 structural_types: Vec::new(),
                 call_plan,
+                scalar_parameters: Vec::new(),
                 parameters: Vec::new(),
                 operations: vec![
                     TargetUnitOperation::PortWrite {
@@ -2560,6 +2572,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
+                        scalar_parameters: Vec::new(),
                         parameters: vec![parameter.clone()],
                         operations: vec![
                             TargetUnitOperation::Call {
@@ -2585,6 +2598,7 @@ fn forty_byte_unit_argument_is_copied_for_sysv_and_forwarded_indirectly_elsewher
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan,
+                        scalar_parameters: Vec::new(),
                         parameters: vec![parameter],
                         operations: vec![TargetUnitOperation::Return {
                             psi_edge: EdgeId::new(2).unwrap(),
@@ -2653,6 +2667,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: Vec::new(),
                     call_plan: call_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: vec![parameter(first, 0), parameter(second, 1)],
                     operations: vec![
                         TargetUnitOperation::PortWrite {
@@ -2684,6 +2699,7 @@ fn x86_unit_parameter_homes_survive_effects_and_parallel_reordering() {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: Vec::new(),
                     call_plan: call_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: vec![parameter(first, 0), parameter(second, 1)],
                     operations: vec![TargetUnitOperation::Return {
                         psi_edge: EdgeId::new(2).unwrap(),
@@ -2758,6 +2774,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: Vec::new(),
                     call_plan: call_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: vec![parameter(first, 0), parameter(second, 1)],
                     operations: vec![
                         TargetUnitOperation::Call {
@@ -2783,6 +2800,7 @@ fn aarch64_unit_parameter_homes_survive_parallel_reordering_and_restore_lr() {
                 operation: TargetOperation::UnitBody(TargetUnitBody {
                     structural_types: Vec::new(),
                     call_plan: call_plan.clone(),
+                    scalar_parameters: Vec::new(),
                     parameters: vec![parameter(first, 0), parameter(second, 1)],
                     operations: vec![TargetUnitOperation::Return {
                         psi_edge: EdgeId::new(2).unwrap(),
@@ -2896,6 +2914,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan: call_plan.clone(),
+                        scalar_parameters: Vec::new(),
                         parameters: parameters.clone(),
                         operations: vec![
                             TargetUnitOperation::Call {
@@ -2921,6 +2940,7 @@ fn aarch64_unit_calls_cover_stack_fragments_and_stack_indirect_copies() {
                     operation: TargetOperation::UnitBody(TargetUnitBody {
                         structural_types: Vec::new(),
                         call_plan,
+                        scalar_parameters: Vec::new(),
                         parameters,
                         operations: vec![TargetUnitOperation::Return {
                             psi_edge: EdgeId::new(2).unwrap(),
@@ -3002,6 +3022,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                         operation: TargetOperation::UnitBody(TargetUnitBody {
                             structural_types: Vec::new(),
                             call_plan: call_plan.clone(),
+                            scalar_parameters: Vec::new(),
                             parameters: vec![parameter.clone()],
                             operations: vec![
                                 TargetUnitOperation::Call {
@@ -3027,6 +3048,7 @@ fn unit_argument_fragments_cover_native_scalar_widths() {
                         operation: TargetOperation::UnitBody(TargetUnitBody {
                             structural_types: Vec::new(),
                             call_plan,
+                            scalar_parameters: Vec::new(),
                             parameters: vec![parameter],
                             operations: vec![TargetUnitOperation::Return {
                                 psi_edge: EdgeId::new(2).unwrap(),

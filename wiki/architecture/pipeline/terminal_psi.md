@@ -155,9 +155,29 @@ selected-plan digest; the helper must end the route in direct calls to that
 requirement. The raw producer and final compiler custody gate independently
 replay the one source edge and both receipts. Scalar-bearing or repeated
 forwarding, projections, borrows, duplicate edges, multiple carriers, mixed
-receiver requirements, composed control, native installed-provider scalar ABI
-realization, runtime publication, and Independent execution remain absent from
-Terminal rather than being guessed.
+receiver requirements, composed control, runtime publication, and Independent
+execution remain absent from Terminal rather than being guessed.
+
+The first native installed-provider scalar rung consumes that existing
+Terminal namespace without adding a second signature vocabulary. It accepts
+one direct Unit-returning provider call whose caller, boundary, and candidate
+each declare exactly one fixed signed `i32`; the call must forward the caller's
+exact incoming parameter and carry no runtime structural arguments or claims.
+Target and assigned operations retain the caller parameter, selected provider,
+candidate, and complete native plan. On the current Linux x86-64/AArch64 rung,
+machine emission uses the unchanged first argument register (`RDI` or `X0`) and
+emits one ordinary internal call. Object
+replay independently rejoins both Unit ABIs, the provider/boundary identity,
+operation interval, exact call bytes, and relocation. A second use is rejected
+because those registers are caller-saved; durable preservation, wider or mixed
+scalar shapes, and computed scalar sources remain later engineering rungs. The
+zero-scalar provider cohort continues through its separate optimized structural
+lane. This completes source-free backend realization, not a rooted authored
+application canary: current application closure prunes an unused scalar caller,
+and `ProgramEntry` has no scalar input. Rooted coverage depends on a separately
+checked reachable scalar source (for example, a later scalar-bearing Service
+forwarding or computed-source rung); it must not be simulated by weakening the
+incoming-parameter join.
 
 For a target-selected attached `ProgramEntry`, the compiler now retains the
 first Fused root-establishment receipt beside Terminal. It derives one row per

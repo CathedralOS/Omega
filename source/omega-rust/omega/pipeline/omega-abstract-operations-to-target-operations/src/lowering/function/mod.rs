@@ -20,10 +20,22 @@ pub(super) fn lower_function(
     ieee_float_fma: &BTreeMap<OperationId, omega_target_operations::TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
-    if let Some(lowered) =
-        lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
-    {
-        return Ok(lowered);
+    let has_installed_scalar_call = function.operations.iter().any(|operation| {
+        matches!(operation,
+            AbstractOperation::BoundaryCall {
+                psi_operation,
+                boundary,
+                arguments,
+                ..
+            } if !arguments.is_empty()
+                && installed_calls.contains_key(&(function.machine, *psi_operation, *boundary)))
+    });
+    if !has_installed_scalar_call {
+        if let Some(lowered) =
+            lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
+        {
+            return Ok(lowered);
+        }
     }
     if let Some(AbstractOperation::BoundaryCall {
         psi_operation,
@@ -33,10 +45,16 @@ pub(super) fn lower_function(
         matches!(
             operation,
             AbstractOperation::BoundaryCall {
+                psi_operation,
                 boundary,
                 arguments,
                 ..
             } if !arguments.is_empty()
+                && !installed_calls.contains_key(&(
+                    function.machine,
+                    *psi_operation,
+                    *boundary,
+                ))
                 && !matches!(
                     settlements.get(boundary).map(|binding| &binding.realization),
                     Some(omega_target_operations::BoundarySettlementRealization::Builtin(

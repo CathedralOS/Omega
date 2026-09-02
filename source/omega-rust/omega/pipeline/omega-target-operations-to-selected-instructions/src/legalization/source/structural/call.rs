@@ -69,6 +69,8 @@ pub(crate) fn derive_structural_call(
                 psi_operation: target_operation,
                 boundary: target_boundary,
                 provider,
+                call_plan: _,
+                scalar_arguments: target_scalar_arguments,
                 source_arguments,
                 arguments: target_arguments,
                 claim_transfers: target_transfers,
@@ -87,6 +89,7 @@ pub(crate) fn derive_structural_call(
         ) if target_operation == psi_operation
             && target_boundary == boundary
             && arguments.is_empty()
+            && target_scalar_arguments.is_empty()
             && source_arguments == structural_arguments
             && target_sources == completion_claim_sources
             && target_receipts == completion_receipts

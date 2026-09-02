@@ -162,27 +162,31 @@ pub(super) fn validate_installed_unit_scalar_calls(
                         return false;
                     };
                     let source_is_exact = match argument.source {
-                    omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
-                        defining_operation,
-                        source_value,
-                        scalar_type,
-                        value,
-                    } => function.unit_integer_constants.iter().any(|constant| {
-                        constant.defining_operation == defining_operation
-                            && constant.source_value == source_value
-                            && constant.scalar_type == scalar_type
-                            && constant.value == value
-                            && constant.operation_ordinal < custody.operation_ordinal
-                    }),
-                    omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
-                        function.unit_scalar_homes.iter().any(|candidate| candidate == &home)
-                            && record.internal_unit_scalar_calls.iter().any(|prior| {
-                                prior.machine == installed.machine
-                                    && prior.custody.operation_ordinal < custody.operation_ordinal
-                                    && prior.custody.result.home == home
-                            })
-                    }
-                };
+                        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter {
+                            ..
+                        } => false,
+                        omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+                            defining_operation,
+                            source_value,
+                            scalar_type,
+                            value,
+                        } => function.unit_integer_constants.iter().any(|constant| {
+                            constant.defining_operation == defining_operation
+                                && constant.source_value == source_value
+                                && constant.scalar_type == scalar_type
+                                && constant.value == value
+                                && constant.operation_ordinal < custody.operation_ordinal
+                        }),
+                        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
+                            function.unit_scalar_homes.iter().any(|candidate| candidate == &home)
+                                && record.internal_unit_scalar_calls.iter().any(|prior| {
+                                    prior.machine == installed.machine
+                                        && prior.custody.operation_ordinal
+                                            < custody.operation_ordinal
+                                        && prior.custody.result.home == home
+                                })
+                        }
+                    };
                     let argument_end = argument.code_offset.checked_add(argument.byte_count);
                     u32::try_from(index) == Ok(argument.parameter_index)
                         && argument.destination == parameter.placement

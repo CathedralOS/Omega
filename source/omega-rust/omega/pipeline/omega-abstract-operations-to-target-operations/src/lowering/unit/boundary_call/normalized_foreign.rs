@@ -120,6 +120,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                     || placement.shape != *shape
                     || shape.byte_size != placed_byte_size
                     || match source {
+                        TargetUnitScalarArgumentSource::Parameter { .. } => true,
                         TargetUnitScalarArgumentSource::IntegerImmediate {
                             scalar_type,
                             value,

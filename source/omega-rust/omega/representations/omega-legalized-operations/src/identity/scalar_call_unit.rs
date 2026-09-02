@@ -81,6 +81,16 @@ fn encode_argument_source(
     source: omega_target_operations::TargetUnitScalarArgumentSource,
 ) {
     match source {
+        omega_target_operations::TargetUnitScalarArgumentSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&parameter_index.to_le_bytes());
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+            encode_integer_type(bytes, scalar_type);
+        }
         omega_target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             source_value,

@@ -32,6 +32,7 @@ pub(super) fn lower_unit_body(
     fixed_integer_scalar_abis: &BTreeMap<MachineId, FixedIntegerScalarFunctionAbi>,
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
+    scalar_parameters: &[FixedIntegerScalarAbiValue],
     parameters: &[TargetStructuralParameter],
 ) -> Result<LoweredUnitBody, LoweringError> {
     let parameters_by_place = parameters
@@ -49,7 +50,21 @@ pub(super) fn lower_unit_body(
         BTreeMap::<ValueId, (OperationId, IntegerType, IntegerValue)>::new();
     let mut ieee_float_constants =
         BTreeMap::<ValueId, (OperationId, psi_core::IeeeFloatValue)>::new();
-    let mut scalar_values = BTreeMap::<ValueId, KnownUnitInteger>::new();
+    let mut scalar_values = scalar_parameters
+        .iter()
+        .enumerate()
+        .map(|(parameter_index, parameter)| {
+            Ok((
+                parameter.value,
+                KnownUnitInteger::Parameter {
+                    parameter_index: u32::try_from(parameter_index).map_err(|_| {
+                        LoweringError::UnitFunctionHasScalarParameters(function.machine)
+                    })?,
+                    scalar_type: parameter.scalar_type,
+                },
+            ))
+        })
+        .collect::<Result<BTreeMap<ValueId, KnownUnitInteger>, LoweringError>>()?;
     let mut nonreturning_boundary = false;
 
     for operation in &function.operations {

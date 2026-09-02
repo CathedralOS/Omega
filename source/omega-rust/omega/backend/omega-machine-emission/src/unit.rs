@@ -24,11 +24,13 @@ use psi_core::MachineId;
 
 mod dynamic_argument;
 mod dynamic_scalar;
+mod installed_provider;
 mod scalar_call;
 mod structural_scalar;
 
 use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
 use dynamic_scalar::emit_dynamic_scalar_call;
+use installed_provider::emit_installed_provider_scalar_call;
 use scalar_call::emit_unit_scalar_call;
 use structural_scalar::{emit_structural_scalar_call, emit_structural_scalar_field_store};
 
@@ -47,6 +49,8 @@ pub(super) struct UnitEmission {
     pub(super) foreign_calls: Vec<ForeignCallRelocation>,
     pub(super) internal_unit_calls: Vec<InternalUnitCallRecord>,
     pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
+    pub(super) installed_provider_unit_scalar_calls:
+        Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
     pub(super) dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
     pub(super) forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
@@ -553,6 +557,9 @@ fn emit_foreign_integer_argument(
                 .transpose()?
                 .unwrap_or(11);
             match argument.source {
+                AssignedUnitScalarArgumentSource::Parameter { .. } => {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
                 AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. } => {
                     let bits = super::integer_bits(source_value, scalar_type, value)?;
                     if scalar_type.bits() <= 32 {
@@ -584,6 +591,9 @@ fn emit_foreign_integer_argument(
                 .transpose()?
                 .unwrap_or(9);
             match argument.source {
+                AssignedUnitScalarArgumentSource::Parameter { .. } => {
+                    return Err(EmissionError::InvalidNormalizedForeignCallCustody);
+                }
                 AssignedUnitScalarArgumentSource::IntegerImmediate { value, .. } => {
                     let bits = super::integer_bits(source_value, scalar_type, value)?;
                     for chunk in 0..4 {
@@ -652,6 +662,29 @@ fn foreign_scalar_source_record(
     source: AssignedUnitScalarArgumentSource,
 ) -> InternalUnitScalarArgumentSourceRecord {
     match source {
+        AssignedUnitScalarArgumentSource::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location,
+        } => InternalUnitScalarArgumentSourceRecord::Parameter {
+            parameter_index,
+            source_value,
+            scalar_type,
+            location: match location {
+                omega_assigned_target_operations::AssignedScalarLocation::Register(register) => {
+                    omega_machine_code::UnitScalarParameterLocationRecord::Register(register)
+                }
+                omega_assigned_target_operations::AssignedScalarLocation::IncomingStack {
+                    byte_offset,
+                } => omega_machine_code::UnitScalarParameterLocationRecord::IncomingStack {
+                    byte_offset,
+                },
+                omega_assigned_target_operations::AssignedScalarLocation::FrameSpill { .. } => {
+                    unreachable!("incoming Unit parameters never originate in a frame spill")
+                }
+            },
+        },
         AssignedUnitScalarArgumentSource::IntegerImmediate {
             defining_operation,
             source_value,
@@ -682,6 +715,7 @@ pub(super) fn emit_unit_body(
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
+    let mut installed_provider_unit_scalar_calls = Vec::new();
     let mut dynamic_scalar_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
@@ -1133,6 +1167,17 @@ pub(super) fn emit_unit_body(
                     &mut internal_calls,
                 )?);
             }
+            AssignedUnitOperation::InstalledProviderCall { psi_operation, .. } => {
+                operation_site = Some(*psi_operation);
+                installed_provider_unit_scalar_calls.push(emit_installed_provider_scalar_call(
+                    &mut bytes,
+                    body,
+                    operation,
+                    target,
+                    operation_ordinal,
+                    &mut internal_calls,
+                )?);
+            }
             AssignedUnitOperation::StructuralScalarCall { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
                 internal_unit_calls.push(emit_structural_scalar_call(
@@ -1152,22 +1197,20 @@ pub(super) fn emit_unit_body(
                 ..
             } => {
                 operation_site = Some(*psi_operation);
-                forwarded_dynamic_descriptor_calls.push(
-                    emit_forwarded_dynamic_descriptor_call(
-                        operation,
-                        owner.ok_or(EmissionError::InvalidDynamicDescriptorCallCustody(
-                            *psi_operation,
-                        ))?,
-                        target,
-                        functions,
-                        &x86_homes,
-                        &aarch64_homes,
-                        &mut bytes,
-                        &mut internal_calls,
-                        operation_ordinal,
-                        code_offset,
-                    )?,
-                );
+                forwarded_dynamic_descriptor_calls.push(emit_forwarded_dynamic_descriptor_call(
+                    operation,
+                    owner.ok_or(EmissionError::InvalidDynamicDescriptorCallCustody(
+                        *psi_operation,
+                    ))?,
+                    target,
+                    functions,
+                    &x86_homes,
+                    &aarch64_homes,
+                    &mut bytes,
+                    &mut internal_calls,
+                    operation_ordinal,
+                    code_offset,
+                )?);
             }
             AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
@@ -2049,6 +2092,7 @@ pub(super) fn emit_unit_body(
         foreign_calls,
         internal_unit_calls,
         internal_unit_scalar_calls,
+        installed_provider_unit_scalar_calls,
         dynamic_scalar_calls,
         forwarded_dynamic_descriptor_calls,
         scalar_homes,
