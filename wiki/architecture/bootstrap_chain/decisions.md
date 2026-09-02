@@ -1711,10 +1711,12 @@ non-call operation-result carrier additionally retains exact owner, producer
 operation, declared scalar result, and format identity and is independently
 rejoined to the operation table. A separate Terminal-only block-parameter
 carrier retains exact owner, block, direct scalar parameter, and format
-identity and cannot be substituted by another value-declaration class. Call
-results remain a distinct source class. The operation-result checked/source
-producer remains transitional until an expression-to-Terminal-operation
-correspondence exists; block-parameter source production remains transitional
+identity and cannot be substituted by another value-declaration class. A
+separate Terminal-only call-result carrier retains exact owner, producer,
+declared scalar result, and format identity and accepts only the scalar-result
+call operation classes. The operation-result and call-result checked/source
+producers remain transitional until expression-to-Terminal-operation
+correspondences exist; block-parameter source production remains transitional
 until nested-state contract identity is proven to the emitted block coordinate.
 Other landed source forms remain explicitly transitional until their artifact-
 relative carriers exist.

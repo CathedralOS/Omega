@@ -1530,8 +1530,20 @@ as `[18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and
 the verifier, codec, interpreter, Omega lowering, native emission, object/image
 replay, and installation encoding retain the common root plus exact twenty fuel
 units. Missing/reordered operations or cleanup, changed indices/root length,
-and length-twenty-one or wider prefixes reject; no runtime liveness bitmap
-or cleanup loop is introduced.
+and other prefix drift reject; no runtime liveness bitmap or cleanup loop is
+introduced.
+
+The following bounded carrier admits the same shape at length twenty-one with
+establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]`.
+Terminal publishes twenty ordered zero-ABI local places, the Unit return
+discards them as
+`[19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and
+the verifier, codec, interpreter, Omega lowering, native emission, object/image
+replay, and installation encoding retain the common root plus exact twenty-one
+fuel units. Missing/reordered operations or cleanup, changed indices/root
+length, and length-twenty-two or wider prefixes reject; no runtime liveness
+bitmap or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
 finite nonempty list of claim-free, unqualified affine parameters whose records
@@ -3730,9 +3742,15 @@ direct scalar parameter, and IEEE format. Independent validation requires the
 unique block in that owner and exact membership in its parameter table;
 machine parameters, machine results, and operation results cannot substitute.
 Source production remains transitional until nested-state contract identity is
-proven to that block coordinate. Nested-state results and call results, other
-arbitrary Terminal values, structural leaves, and every other nonliteral source
-remain transitional.
+proven to that block coordinate. A separate Terminal-only call-result source
+retains exact owner machine, producer operation, declared scalar result, and
+IEEE format. Independent validation admits ordinary, structural-argument
+scalar, dynamic-descriptor scalar, dynamic-parameter scalar, and boundary call
+operations, while rejecting non-call producers, Unit/structural calls, wrong
+result classes, and coordinate or format substitution. Source production stays
+transitional until an expression-to-Terminal-call-operation correspondence is
+retained. Nested-state results, other arbitrary Terminal values, structural
+leaves, and every other nonliteral source remain transitional.
 The source-side exit checker admits the owning direct-result reflexivity form
 only after the exact authored `ensures` expression rejoins the checked
 `FloatMeaningEqual` row, both operands share one canonical proof value, and

@@ -52,7 +52,10 @@ mod x86_fma;
 
 pub use dynamic_elf::{
     DynamicElfImageEmission, DynamicElfImageEmissionError, DynamicElfOrchestrationError,
-    emit_admitted_dynamic_elf_image, emit_dynamic_elf_image, validate_dynamic_elf_image_emission,
+    ExecutableImageEmissionRequest, RequestedDynamicElfImage, RequestedExecutableImage,
+    RequestedExecutableImageError, emit_admitted_dynamic_elf_image, emit_dynamic_elf_image,
+    emit_requested_executable_image, validate_dynamic_elf_image_emission,
+    validate_requested_executable_image,
 };
 pub use image_output::{
     ExecutableImage, ObjectContainer, ScalarCallReferenceImage, can_emit_executable_image,

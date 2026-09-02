@@ -114,6 +114,20 @@ pub struct DirectOperationFloatResult {
     pub format: IeeeFloatFormat,
 }
 
+/// Exact artifact-relative identity of one scalar IEEE call-operation result.
+///
+/// The producer must be a scalar-result call operation in `owner` and declare
+/// `result` directly. Non-call operations, Unit calls, and structural-result
+/// calls remain distinct source classes even when another declaration reuses
+/// the same value identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DirectCallFloatResult {
+    pub owner: MachineId,
+    pub producer: OperationId,
+    pub result: ValueId,
+    pub format: IeeeFloatFormat,
+}
+
 /// Verifier-reconstructible source of one float-meaning projection.
 ///
 /// Exact literals own their raw landed bits and therefore need no producer ID.
@@ -127,6 +141,7 @@ pub enum FloatMeaningSource {
     DirectMachineResult(DirectMachineFloatResult),
     DirectBlockParameter(DirectBlockFloatParameter),
     DirectOperationResult(DirectOperationFloatResult),
+    DirectCallResult(DirectCallFloatResult),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
@@ -139,6 +154,7 @@ impl FloatMeaningSource {
             Self::DirectMachineResult(result) => result.format,
             Self::DirectBlockParameter(parameter) => parameter.format,
             Self::DirectOperationResult(result) => result.format,
+            Self::DirectCallResult(result) => result.format,
             Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
             Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,
         }

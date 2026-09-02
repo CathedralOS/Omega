@@ -16,6 +16,205 @@ use psi_diagnostics::Diagnostic;
 use crate::ObjectArtifact;
 use crate::final_image_validation::validate_terminal_dynamic_elf_image;
 
+/// Exact image-emission inputs selected outside the source-free object owner.
+///
+/// A normalized interpreter is consumed only when the object itself retains
+/// versioned ELF imports.  Supplying one cannot force an otherwise direct
+/// image through the dynamic ELF path, and omitting one cannot make an
+/// unresolved ELF import fall back to the direct writer.
+#[derive(Debug)]
+pub enum ExecutableImageEmissionRequest {
+    Direct {
+        subsystem: u16,
+    },
+    DynamicElf {
+        interpreter: NormalizedElfInterpreterPlan,
+    },
+}
+
+impl ExecutableImageEmissionRequest {
+    pub const fn direct(subsystem: u16) -> Self {
+        Self::Direct { subsystem }
+    }
+
+    pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
+        Self::DynamicElf { interpreter }
+    }
+}
+
+/// Result of the image-bound request router.
+///
+/// Dynamic ELF output deliberately remains distinct from [`crate::ExecutableImage`]
+/// and therefore cannot enter installation or publication APIs.
+#[derive(Debug)]
+#[must_use = "requested image emission retains its exact authority boundary"]
+pub enum RequestedExecutableImage {
+    Direct(crate::ExecutableImage),
+    DynamicElf(RequestedDynamicElfImage),
+}
+
+impl RequestedExecutableImage {
+    pub const fn output(&self) -> &EmittedImageOutput {
+        match self {
+            Self::Direct(image) => image.output(),
+            Self::DynamicElf(image) => image.output(),
+        }
+    }
+}
+
+/// Non-installable dynamic output bound to the complete object artifact that
+/// selected its writer path.
+///
+/// Retaining the whole artifact keeps Terminal PSI and every semantic/evidence
+/// row in the replay boundary rather than treating byte-identical object
+/// layouts as interchangeable.
+#[derive(Debug)]
+pub struct RequestedDynamicElfImage {
+    artifact: ObjectArtifact,
+    emission: DynamicElfImageEmission,
+}
+
+impl RequestedDynamicElfImage {
+    pub const fn artifact(&self) -> &ObjectArtifact {
+        &self.artifact
+    }
+
+    pub const fn emission(&self) -> &DynamicElfImageEmission {
+        &self.emission
+    }
+
+    pub const fn output(&self) -> &EmittedImageOutput {
+        self.emission.output()
+    }
+
+    pub fn into_emission(self) -> DynamicElfImageEmission {
+        self.emission
+    }
+}
+
+/// Rejected image-bound request with any consumed dynamic-loader input intact.
+#[derive(Debug)]
+#[must_use = "requested image-emission rejection may retain loader custody"]
+pub enum RequestedExecutableImageError {
+    MissingDynamicElfInterpreter {
+        target: omega_target::NativeTarget,
+        subsystem: u16,
+        diagnostic: Diagnostic,
+    },
+    UnexpectedDynamicElfInterpreter {
+        interpreter: NormalizedElfInterpreterPlan,
+        diagnostic: Diagnostic,
+    },
+    Direct(Diagnostic),
+    DynamicElf(Box<DynamicElfOrchestrationError>),
+}
+
+impl RequestedExecutableImageError {
+    pub const fn diagnostic(&self) -> &Diagnostic {
+        match self {
+            Self::MissingDynamicElfInterpreter { diagnostic, .. }
+            | Self::UnexpectedDynamicElfInterpreter { diagnostic, .. }
+            | Self::Direct(diagnostic) => diagnostic,
+            Self::DynamicElf(error) => error.diagnostic(),
+        }
+    }
+
+    pub fn into_unexpected_interpreter(self) -> Option<NormalizedElfInterpreterPlan> {
+        match self {
+            Self::UnexpectedDynamicElfInterpreter { interpreter, .. } => Some(interpreter),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for RequestedExecutableImageError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.diagnostic().fmt(formatter)
+    }
+}
+
+impl std::error::Error for RequestedExecutableImageError {}
+
+/// Select the only image-emission path justified by the exact object contents.
+///
+/// Import-bearing ELF objects require a consumed normalized interpreter and
+/// produce non-installable dynamic custody.  Every other object must omit that
+/// input and continues through the existing direct writer.
+pub fn emit_requested_executable_image(
+    artifact: &ObjectArtifact,
+    request: ExecutableImageEmissionRequest,
+) -> Result<RequestedExecutableImage, Box<RequestedExecutableImageError>> {
+    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
+    let requires_dynamic_elf =
+        artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports;
+    match (requires_dynamic_elf, request) {
+        (true, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => {
+            emit_dynamic_elf_image(artifact, interpreter)
+                .map(|emission| {
+                    RequestedExecutableImage::DynamicElf(RequestedDynamicElfImage {
+                        artifact: artifact.clone(),
+                        emission,
+                    })
+                })
+                .map_err(|error| Box::new(RequestedExecutableImageError::DynamicElf(error)))
+        }
+        (true, ExecutableImageEmissionRequest::Direct { subsystem }) => Err(Box::new(
+            RequestedExecutableImageError::MissingDynamicElfInterpreter {
+                target: artifact.target(),
+                subsystem,
+                diagnostic: Diagnostic::error(
+                    "import-bearing ELF image emission requires an exact normalized interpreter input",
+                ),
+            },
+        )),
+        (false, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => Err(Box::new(
+            RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
+                interpreter,
+                diagnostic: Diagnostic::error(
+                    "a normalized ELF interpreter cannot select the dynamic writer without normalized ELF imports",
+                ),
+            },
+        )),
+        (false, ExecutableImageEmissionRequest::Direct { subsystem }) => {
+            crate::emit_executable_image(artifact, subsystem)
+                .map(RequestedExecutableImage::Direct)
+                .map_err(|diagnostic| Box::new(RequestedExecutableImageError::Direct(diagnostic)))
+        }
+    }
+}
+
+/// Independently replay the selected image path without collapsing dynamic
+/// output into installable custody.
+pub fn validate_requested_executable_image(
+    artifact: &ObjectArtifact,
+    image: &RequestedExecutableImage,
+) -> Result<(), Diagnostic> {
+    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
+    match image {
+        RequestedExecutableImage::Direct(image) => {
+            if artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports {
+                return Err(Diagnostic::error(
+                    "import-bearing ELF object was substituted into direct image custody",
+                ));
+            }
+            crate::validate_executable_image(artifact, image)
+        }
+        RequestedExecutableImage::DynamicElf(image) => {
+            if artifact.target().object_format != ObjectFormat::Elf || !has_normalized_imports {
+                return Err(Diagnostic::error(
+                    "dynamic ELF image custody requires exact normalized ELF imports",
+                ));
+            }
+            if image.artifact != *artifact {
+                return Err(Diagnostic::error(
+                    "dynamic ELF image custody does not retain the exact source object artifact",
+                ));
+            }
+            validate_dynamic_elf_image_emission(artifact, &image.emission)
+        }
+    }
+}
+
 /// Exact admitted dynamic ELF bytes after production-emitter reconciliation.
 ///
 /// This is intentionally not [`crate::ExecutableImage`], so existing
@@ -193,8 +392,8 @@ impl std::error::Error for DynamicElfOrchestrationError {}
 /// The artifact is borrowed, the interpreter is consumed into the first ELF
 /// owner, and every rejection returns the exact stage carrier. Success remains
 /// non-installable custody and grants no publication or execution authority.
-/// The ordinary object builder does not yet populate normalized foreign imports,
-/// so this closes the chain driver but not its production compiler integration.
+/// The ordinary object builder now supplies the exact import-bearing input, but
+/// this carrier still stops before native-artifact/installable integration.
 pub fn emit_dynamic_elf_image(
     artifact: &ObjectArtifact,
     interpreter: NormalizedElfInterpreterPlan,
@@ -499,6 +698,55 @@ mod tests {
         build_object_artifact(&machine_code_plan(target)).expect("normalized foreign-call object")
     }
 
+    fn direct_artifact(target: TargetProfile) -> ObjectArtifact {
+        let native = target.native_target();
+        let machine = MachineId::new(1).unwrap();
+        let return_edge = psi_core::EdgeId::new(1).unwrap();
+        let call_plan = omega_calling_conventions::evaluate_call_plan(
+            omega_calling_conventions::CallingPolicy::native_for_target(native),
+            &omega_calling_conventions::CallSignature {
+                parameters: Vec::new(),
+                result: None,
+            },
+        )
+        .unwrap();
+        let target_plan = omega_target_operations::TargetOperationPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([0x6b; 32]),
+            },
+            target: native,
+            entry: machine,
+            functions: vec![omega_target_operations::TargetFunction {
+                fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
+                machine,
+                attachment: None,
+                provenance: TerminalPsiProvenance {
+                    operations: Vec::new(),
+                    edges: vec![return_edge],
+                },
+                operation: omega_target_operations::TargetOperation::UnitBody(
+                    omega_target_operations::TargetUnitBody {
+                        structural_types: Vec::new(),
+                        call_plan,
+                        scalar_parameters: Vec::new(),
+                        parameters: Vec::new(),
+                        operations: vec![omega_target_operations::TargetUnitOperation::Return {
+                            psi_edge: return_edge,
+                            cleanup_actions: Vec::new(),
+                        }],
+                    },
+                ),
+            }],
+        };
+        let assigned =
+            omega_target_operations_to_assigned_target_operations::assign_registers(&target_plan)
+                .unwrap();
+        let machine_code = omega_machine_emission::emit_machine_code(&assigned).unwrap();
+        build_object_artifact(&machine_code).expect("import-free direct object")
+    }
+
     fn admitted(artifact: &ObjectArtifact, target: TargetProfile) -> ValidatedElfDynamicExecutable {
         let image = omega_image::build_final_image(FinalImageInput {
             target: artifact.target(),
@@ -596,6 +844,127 @@ mod tests {
             assert!(first.output().bytes.starts_with(b"\x7fELF"));
             assert!(first.output().format.contains("dynamic-executable"));
         }
+    }
+
+    #[test]
+    fn image_request_router_selects_dynamic_elf_only_from_exact_object_custody() {
+        for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let artifact = artifact(target);
+            let requested = emit_requested_executable_image(
+                &artifact,
+                ExecutableImageEmissionRequest::dynamic_elf(interpreter(target)),
+            )
+            .expect("import-bearing ELF request selects the dynamic owner");
+            let RequestedExecutableImage::DynamicElf(emission) = &requested else {
+                panic!("normalized ELF imports cannot enter the direct writer")
+            };
+            assert_eq!(emission.output().final_image_imports, 2);
+            assert_eq!(emission.output().final_image_relocations, 3);
+            validate_requested_executable_image(&artifact, &requested)
+                .expect("selected dynamic image replays independently");
+        }
+    }
+
+    #[test]
+    fn image_request_router_rejects_psi_only_dynamic_artifact_substitution() {
+        let artifact = artifact(TargetProfile::LinuxX64);
+        let requested = emit_requested_executable_image(
+            &artifact,
+            ExecutableImageEmissionRequest::dynamic_elf(interpreter(TargetProfile::LinuxX64)),
+        )
+        .expect("exact import-bearing ELF request");
+        let RequestedExecutableImage::DynamicElf(image) = &requested else {
+            unreachable!("fixture has normalized ELF imports")
+        };
+        assert_eq!(image.artifact(), &artifact);
+
+        let mut substituted = artifact.clone();
+        substituted.psi = TerminalPsiIdentity {
+            vocabulary_marker: artifact.psi().vocabulary_marker,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x7c; 32]),
+        };
+        assert_eq!(substituted.object(), artifact.object());
+        assert_eq!(substituted.relocations(), artifact.relocations());
+        assert_eq!(substituted.text_bytes(), artifact.text_bytes());
+        assert_eq!(substituted.data_bytes(), artifact.data_bytes());
+        assert_ne!(substituted.psi(), artifact.psi());
+        assert!(validate_dynamic_elf_image_emission(&substituted, image.emission()).is_ok());
+        assert!(validate_requested_executable_image(&substituted, &requested).is_err());
+    }
+
+    #[test]
+    fn image_request_router_preserves_direct_authority_for_import_free_objects() {
+        for target in [
+            TargetProfile::LinuxX64,
+            TargetProfile::LinuxArm64,
+            TargetProfile::MacosArm64,
+            TargetProfile::WindowsX64,
+        ] {
+            let artifact = direct_artifact(target);
+            assert!(artifact.object().layout.normalized_imports.is_empty());
+            let requested = emit_requested_executable_image(
+                &artifact,
+                ExecutableImageEmissionRequest::direct(73),
+            )
+            .expect("import-free object selects the direct writer");
+            let RequestedExecutableImage::Direct(image) = &requested else {
+                panic!("import-free object cannot acquire dynamic ELF custody")
+            };
+            assert_eq!(image.output().final_image_imports, 0);
+            assert_eq!(
+                image.subsystem(),
+                (target == TargetProfile::WindowsX64).then_some(73),
+            );
+            validate_requested_executable_image(&artifact, &requested)
+                .expect("selected direct image replays independently");
+        }
+    }
+
+    #[test]
+    fn image_request_router_rejects_missing_unused_and_mismatched_interpreters() {
+        let artifact = artifact(TargetProfile::LinuxX64);
+        let missing =
+            emit_requested_executable_image(&artifact, ExecutableImageEmissionRequest::direct(73))
+                .expect_err("normalized ELF imports cannot fall back to the direct writer");
+        assert!(matches!(
+            *missing,
+            RequestedExecutableImageError::MissingDynamicElfInterpreter {
+                target,
+                subsystem: 73,
+                ..
+            } if target == TargetProfile::LinuxX64.native_target()
+        ));
+
+        let wrong_path = interpreter(TargetProfile::LinuxArm64);
+        let expected_path = wrong_path.interpreter_path().to_vec();
+        let mismatched = emit_requested_executable_image(
+            &artifact,
+            ExecutableImageEmissionRequest::dynamic_elf(wrong_path),
+        )
+        .expect_err("cross-target interpreter substitution must fail in the ELF owner");
+        let RequestedExecutableImageError::DynamicElf(error) = *mismatched else {
+            panic!("target mismatch must retain the dynamic orchestration failure")
+        };
+        assert_eq!(error.stage(), "link-inputs");
+        let DynamicElfOrchestrationError::LinkInputs(error) = *error else {
+            unreachable!()
+        };
+        let (_, recovered_interpreter, _) = error.into_parts();
+        assert_eq!(recovered_interpreter.interpreter_path(), expected_path);
+
+        let mut no_imports = artifact;
+        no_imports.object.layout.normalized_imports.clear();
+        let exact_interpreter = interpreter(TargetProfile::LinuxX64);
+        let expected_path = exact_interpreter.interpreter_path().to_vec();
+        let unexpected = emit_requested_executable_image(
+            &no_imports,
+            ExecutableImageEmissionRequest::dynamic_elf(exact_interpreter),
+        )
+        .expect_err("loader input cannot select dynamic ELF without normalized imports");
+        let recovered = unexpected
+            .into_unexpected_interpreter()
+            .expect("unused normalized interpreter is returned intact");
+        assert_eq!(recovered.interpreter_path(), expected_path);
     }
 
     #[test]

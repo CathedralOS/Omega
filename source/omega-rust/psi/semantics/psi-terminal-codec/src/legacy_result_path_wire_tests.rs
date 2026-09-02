@@ -2,10 +2,10 @@ use psi_core::{
     BlockId, ContractId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PsiSemanticId, ValueId,
 };
 use psi_terminal::{
-    Block, DirectBlockFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource, MachineContract,
-    ProofOnlyValueType, ProofValueDeclaration, ProofValueId, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
+    Block, DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatResult,
+    DirectOperationFloatResult, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatMeaningSource, MachineContract, ProofOnlyValueType, ProofValueDeclaration, ProofValueId,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
 };
 
 use super::{decode_module, encode_module};
@@ -82,11 +82,11 @@ fn v56_v59_reconstructs_absent_result_path_rosters_as_current_empty_rows() {
     assert_eq!(decode_module(&legacy), Ok(module.clone()));
 
     let current = encode_module(&module).expect("current result-path bytes");
-    assert_eq!(&current[8..10], &66_u16.to_le_bytes());
-    assert_eq!(&current[10..12], &69_u16.to_le_bytes());
+    assert_eq!(&current[8..10], &67_u16.to_le_bytes());
+    assert_eq!(&current[10..12], &70_u16.to_le_bytes());
 
     let mut crossed_pair = legacy;
-    crossed_pair[10..12].copy_from_slice(&69_u16.to_le_bytes());
+    crossed_pair[10..12].copy_from_slice(&70_u16.to_le_bytes());
     assert!(decode_module(&crossed_pair).is_err());
 }
 
@@ -131,6 +131,11 @@ fn v56_v59_rejects_current_only_direct_float_sources() {
         decode_module(&legacy),
         Err(super::CodecError::InvalidTag("FloatMeaningSource", 7))
     );
+    legacy[source_offset + 5] = 8;
+    assert_eq!(
+        decode_module(&legacy),
+        Err(super::CodecError::InvalidTag("FloatMeaningSource", 8))
+    );
 
     module.float_meaning_projections[0].source =
         FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
@@ -159,6 +164,21 @@ fn v56_v59_rejects_current_only_direct_float_sources() {
         Err(super::CodecError::InvalidTag(
             "legacy FloatMeaningSource",
             7
+        ))
+    );
+
+    module.float_meaning_projections[0].source =
+        FloatMeaningSource::DirectCallResult(DirectCallFloatResult {
+            owner: id::<MachineId>(1),
+            producer: id::<OperationId>(1),
+            result: id::<ValueId>(1),
+            format: IeeeFloatFormat::Binary32,
+        });
+    assert_eq!(
+        encode_legacy_result_path_raw(&module),
+        Err(super::CodecError::InvalidTag(
+            "legacy FloatMeaningSource",
+            8
         ))
     );
 }
