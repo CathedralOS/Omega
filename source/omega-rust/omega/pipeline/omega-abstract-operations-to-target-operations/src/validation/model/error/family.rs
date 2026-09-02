@@ -11,16 +11,17 @@ use super::immediate::{
     StraightLineIntegerBitwiseOrImmediateTranslationError,
     StraightLineIntegerBitwiseXorImmediateTranslationError,
     StraightLineIntegerEqualImmediateTranslationError,
-    StraightLineIntegerLessThanImmediateTranslationError,
-    StraightLineIntegerLessOrEqualImmediateTranslationError,
     StraightLineIntegerExactCastImmediateOperandTranslationError,
     StraightLineIntegerImmediateTranslationError,
+    StraightLineIntegerLessOrEqualImmediateTranslationError,
+    StraightLineIntegerLessThanImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
     StraightLineSaturatingIntegerAddImmediateTranslationError,
-    StraightLineSaturatingIntegerSubtractImmediateTranslationError,
     StraightLineSaturatingIntegerMultiplyImmediateTranslationError,
+    StraightLineSaturatingIntegerSubtractImmediateTranslationError,
     StraightLineWrappingIntegerAddImmediateTranslationError,
     StraightLineWrappingIntegerMultiplyImmediateTranslationError,
+    StraightLineWrappingIntegerShiftLeftImmediateTranslationError,
     StraightLineWrappingIntegerSubtractImmediateTranslationError,
 };
 use super::parameter::{
@@ -84,6 +85,9 @@ pub enum AbstractToTargetTranslationFamilyError {
     ),
     StraightLineWrappingIntegerMultiplyImmediate(
         StraightLineWrappingIntegerMultiplyImmediateTranslationError,
+    ),
+    StraightLineWrappingIntegerShiftLeftImmediate(
+        StraightLineWrappingIntegerShiftLeftImmediateTranslationError,
     ),
     StraightLineIntegerBitwiseNotImmediate(StraightLineIntegerBitwiseNotImmediateTranslationError),
     StraightLineIntegerEqualImmediate(StraightLineIntegerEqualImmediateTranslationError),

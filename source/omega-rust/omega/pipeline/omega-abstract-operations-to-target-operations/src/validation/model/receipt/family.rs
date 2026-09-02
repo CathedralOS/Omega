@@ -42,6 +42,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineSaturatingIntegerMultiplyImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyImmediate
             }
+            Self::StraightLineWrappingIntegerShiftLeftImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftLeftImmediate
+            }
             Self::StraightLineIntegerBitwiseNotImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate
             }

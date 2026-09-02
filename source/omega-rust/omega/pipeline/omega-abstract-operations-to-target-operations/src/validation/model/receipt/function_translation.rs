@@ -12,16 +12,17 @@ use super::immediate::{
     StraightLineIntegerBitwiseOrImmediateTranslationReceipt,
     StraightLineIntegerBitwiseXorImmediateTranslationReceipt,
     StraightLineIntegerEqualImmediateTranslationReceipt,
-    StraightLineIntegerLessThanImmediateTranslationReceipt,
-    StraightLineIntegerLessOrEqualImmediateTranslationReceipt,
     StraightLineIntegerExactCastImmediateOperandTranslationReceipt,
     StraightLineIntegerImmediateTranslationReceipt,
+    StraightLineIntegerLessOrEqualImmediateTranslationReceipt,
+    StraightLineIntegerLessThanImmediateTranslationReceipt,
     StraightLineIntegerWidenImmediateTranslationReceipt,
     StraightLineSaturatingIntegerAddImmediateTranslationReceipt,
-    StraightLineSaturatingIntegerSubtractImmediateTranslationReceipt,
     StraightLineSaturatingIntegerMultiplyImmediateTranslationReceipt,
+    StraightLineSaturatingIntegerSubtractImmediateTranslationReceipt,
     StraightLineWrappingIntegerAddImmediateTranslationReceipt,
     StraightLineWrappingIntegerMultiplyImmediateTranslationReceipt,
+    StraightLineWrappingIntegerShiftLeftImmediateTranslationReceipt,
     StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
 };
 use super::parameter::{
@@ -94,6 +95,9 @@ pub enum AbstractToTargetFunctionTranslationReceipt {
     ),
     StraightLineWrappingIntegerMultiplyImmediate(
         StraightLineWrappingIntegerMultiplyImmediateTranslationReceipt,
+    ),
+    StraightLineWrappingIntegerShiftLeftImmediate(
+        StraightLineWrappingIntegerShiftLeftImmediateTranslationReceipt,
     ),
     StraightLineIntegerBitwiseNotImmediate(
         StraightLineIntegerBitwiseNotImmediateTranslationReceipt,

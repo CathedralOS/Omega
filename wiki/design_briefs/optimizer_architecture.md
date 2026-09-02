@@ -165,12 +165,13 @@ profiles. Initially the physical pipeline admits only explicitly implemented
 compositions and rejects all others.
 
 That exactness also governs translation validation: constant saturating
-integer-add, integer-subtract, and integer-multiply materialization are
-separately named families with tiny `grammar::reconstruct`/`replay::validate`
-entrances, not arithmetic modes or optimization levels. Their typed receipts
-prove precise source shape, authored source and provenance custody, and the
-materialized result while the catalog keeps exact, wrapping, parameterized,
-and runtime-expression siblings separately enableable and auditable.
+integer-add, integer-subtract, integer-multiply, and wrapping integer-shift-left
+materialization are separately named families with tiny
+`grammar::reconstruct`/`replay::validate` entrances, not arithmetic modes or
+optimization levels. Their typed receipts prove precise source shape, authored
+source and provenance custody, and the materialized result while the catalog
+keeps direction, exact/wrapping policy, parameterized, and runtime-expression
+siblings separately enableable and auditable.
 
 Mandatory lowering may expose a machine-rule candidate without authorizing the
 rewrite. The exact unsigned-`U64` parameter zero-comparison families, for

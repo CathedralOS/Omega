@@ -257,6 +257,17 @@ unsigned fixed 8/16/32/64 and address64 each cross four ordered wrap boundaries
 at direct and optimized custody on all five targets. Exact or saturating
 policy, addition/subtraction, plain-immediate, and parameter-family
 substitution fail closed.
+Constant wrapping integer shift-left is independently cataloged rather than
+being hidden inside the parameter shift family. It admits two constants whose
+value and count types are independently signed/unsigned fixed 8/16/32/64 or
+address64, preserves their ordered roles, recomputes only through
+`IntegerType::wrapping_shift_left`, and requires one exact
+`ReturnIntegerImmediate`. All 81 type pairs cross zero, width, width-plus-one,
+and signed-negative or unsigned-maximum count boundaries on all five targets
+at direct and optimized custody (1,620 cases at each boundary). Shift-right,
+proof-bearing exact shifts, plain-immediate, parameter, mixed-runtime,
+arithmetic, and bitwise substitution fail closed. This validates existing
+lowering and adds no target operation or persisted wire form.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
