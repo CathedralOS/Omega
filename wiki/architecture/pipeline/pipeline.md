@@ -257,6 +257,13 @@ set for every requested profile. The outcome set is orchestration data only:
 it mints no batch manifest or support/test/audit claim, while successful
 children retain their ordinary standalone production reports.
 
+Package-aware controls supply different exact-target generated-source bundles
+over one equal package source projection. A malformed generated source rejects
+only its child. Native package controls also compare the successful child's
+retained artifact and production-manifest identities with and without an
+undeclared failing sibling; both remain exact. These are orchestration
+invariants, not evidence that either target was audited or supported.
+
 ## Representation Root Shape
 
 Durable representations should make their semantic spine visible at the root.

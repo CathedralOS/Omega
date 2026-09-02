@@ -259,10 +259,7 @@ explicitly.
   - reuse an identical checked/Terminal Psi or PCC product across target
     children only after exact strong-identity equality, then supply each native
     branch with its own target and lowering-authority inputs;
-  - add package generated-source child isolation, successful-child artifact
-    identity stability when siblings change, shared-Psi/different-lowerer, and
-    target-specific-Psi controls. Add the optional non-authoritative batch
-    manifest only if a concrete operational consumer emerges.
+  - add shared-Psi/different-lowerer and target-specific-Psi controls.
 
 - [ ] **APPLICATION-ROOT-ROLE-EVIDENCE — retain the admitted root role through
   authority-bearing outputs.**
