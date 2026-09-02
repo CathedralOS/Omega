@@ -1945,12 +1945,17 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let (optimized_conveyor, _) = optimized_conveyor
         .split_once("\nfn emit_callback_thunks(")
         .expect("optimized conveyor ends before the ordinary callback-thunk helper");
+    let (psi_only_conveyor, selected_physical_conveyor) = optimized_conveyor
+        .split_once("let continuation = match provider_installation")
+        .expect("optimized realization visibly separates Psi-only publication from selected physical continuation");
     let transitional_assignment =
         "omega_target_operations_to_assigned_target_operations::assign_registers";
     assert!(
         baseline_conveyor.contains(transitional_assignment)
-            && !optimized_conveyor.contains(transitional_assignment),
-        "only the publishable empty-selection baseline may retain transitional assignment"
+            && psi_only_conveyor.contains("if psi_only {")
+            && psi_only_conveyor.contains(transitional_assignment)
+            && !selected_physical_conveyor.contains(transitional_assignment),
+        "only the publishable baseline and explicit Psi-only survivor route may retain transitional assignment"
     );
     for forbidden in [
         "CheckedCompilation",
