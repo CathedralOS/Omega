@@ -357,6 +357,38 @@ pub struct ForwardedDynamicDescriptorArgumentRecord {
     pub instance_code_offset: usize,
     pub instance_byte_count: usize,
     pub table_address: DynamicTableAddressMaterialization,
+    /// Complete adapter set for this application in canonical row order.
+    pub adapters: Vec<ForwardedDynamicDescriptorAdapterRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ForwardedDynamicDescriptorAdapterIdentity {
+    pub application: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub row_index: u32,
+    pub realization: MachineId,
+}
+
+/// One compiler-generated bridge from the erased one-pointer slot ABI to the
+/// concrete realization ABI. It is deliberately not a Terminal machine and
+/// therefore carries a role-specific identity rather than a fabricated
+/// `MachineId` or callback-thunk identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForwardedDynamicDescriptorAdapterRecord {
+    pub identity: ForwardedDynamicDescriptorAdapterIdentity,
+    pub requirement_identity: String,
+    pub realization_identity: String,
+    pub realization_callable_identity: String,
+    pub result: psi_terminal::ClosedConformanceCallableResult,
+    pub erased_call_plan: CallPlan,
+    pub realization_call_plan: CallPlan,
+    pub source_shape: ValueShape,
+    pub bytes: Vec<u8>,
+    pub argument_code_offset: usize,
+    pub argument_byte_count: usize,
+    pub direct_call_offset: usize,
+    pub direct_call_byte_count: usize,
+    pub return_offset: usize,
+    pub return_byte_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

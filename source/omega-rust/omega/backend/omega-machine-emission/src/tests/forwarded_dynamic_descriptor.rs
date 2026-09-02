@@ -14,12 +14,17 @@ fn assigned_plan(target: NativeTarget) -> omega_assigned_target_operations::Assi
     let source = r#"
         trait Measure {
             machine measure(&self) -> i32;
+            machine alternate(&self) -> i32;
         }
 
         data Item { value: i32; }
 
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+
+            machine alternate(&self) -> i32 {
                 transition { _ -> self.value }
             }
         }
@@ -75,6 +80,63 @@ fn emits_forwarded_descriptor_materializations_and_direct_helper_call() {
         };
         assert_eq!(call.call_plan.parameters.len(), 2);
         assert_eq!(argument.instance.destination, call.call_plan.parameters[0]);
+        assert_eq!(argument.adapters.len(), 2);
+        for (row_index, adapter) in argument.adapters.iter().enumerate() {
+            assert_eq!(adapter.identity.row_index, row_index as u32);
+            assert_eq!(
+                adapter.identity.application,
+                match &argument.custody.source {
+                    omega_target_operations::AbstractDynamicDescriptorSource::Rebound {
+                        application,
+                        ..
+                    } => application.commitment,
+                    _ => panic!("caller-local descriptor expected"),
+                }
+            );
+            assert_eq!(adapter.erased_call_plan.parameters.len(), 1);
+            assert_eq!(adapter.realization_call_plan.parameters.len(), 1);
+            assert_eq!(
+                adapter.direct_call_byte_count,
+                if target.architecture == Architecture::X86_64 {
+                    5
+                } else {
+                    4
+                }
+            );
+            assert_eq!(
+                adapter.return_byte_count,
+                if target.architecture == Architecture::X86_64 {
+                    1
+                } else {
+                    4
+                }
+            );
+            match target.architecture {
+                Architecture::X86_64 => {
+                    assert_eq!(adapter.bytes[adapter.direct_call_offset], 0xe8);
+                    assert_eq!(adapter.bytes[adapter.return_offset], 0xc3);
+                }
+                Architecture::Aarch64 => {
+                    assert_eq!(
+                        u32::from_le_bytes(
+                            adapter.bytes
+                                [adapter.direct_call_offset..adapter.direct_call_offset + 4]
+                                .try_into()
+                                .unwrap()
+                        ),
+                        0x9400_0000,
+                    );
+                    assert_eq!(
+                        u32::from_le_bytes(
+                            adapter.bytes[adapter.return_offset..adapter.return_offset + 4]
+                                .try_into()
+                                .unwrap()
+                        ),
+                        0xd65f_03c0,
+                    );
+                }
+            }
+        }
         assert_eq!(
             call.direct_call_byte_count,
             if target.architecture == Architecture::X86_64 {
