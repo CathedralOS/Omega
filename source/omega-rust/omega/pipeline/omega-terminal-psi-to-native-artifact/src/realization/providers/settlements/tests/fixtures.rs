@@ -28,16 +28,37 @@ fn evaluated_import(
 
 pub(super) fn import_plan(symbol: &[u8], profile: omega_target::TargetProfile) -> ProviderPlan {
     let requirement = "omega::test::Foreign::leaf()";
+    let (target_name, locator) = match profile {
+        omega_target::TargetProfile::LinuxX64 => (
+            "linux_x86_64",
+            omega_target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libomega-test.so".to_vec(),
+                symbol: symbol.to_vec(),
+                version: b"OMEGA_TEST_1".to_vec(),
+            },
+        ),
+        omega_target::TargetProfile::LinuxArm64 => (
+            "linux_arm64",
+            omega_target::ForeignLocatorCandidate::ElfVersioned {
+                object: b"libomega-test.so".to_vec(),
+                symbol: symbol.to_vec(),
+                version: b"OMEGA_TEST_1".to_vec(),
+            },
+        ),
+        omega_target::TargetProfile::WindowsX64 => (
+            "windows_x86_64",
+            omega_target::ForeignLocatorCandidate::PeByName {
+                library: b"omega-test.dll".to_vec(),
+                export: symbol.to_vec(),
+            },
+        ),
+        _ => unreachable!(),
+    };
     ProviderPlan {
         name: "omega::test::foreign-provider".into(),
         provider_type: String::new(),
         provider_type_package_identity: None,
-        target: match profile {
-            omega_target::TargetProfile::LinuxX64 => "linux_x86_64",
-            omega_target::TargetProfile::LinuxArm64 => "linux_arm64",
-            _ => unreachable!(),
-        }
-        .into(),
+        target: target_name.into(),
         schema: ServiceSchema {
             trait_name: "omega::test::Foreign".into(),
             trait_package_identity: None,
@@ -68,15 +89,7 @@ pub(super) fn import_plan(symbol: &[u8], profile: omega_target::TargetProfile) -
             requirement_lifetime_partition: Vec::new(),
             binding: ProviderBinding::Import {
                 evaluated: evaluated_import(
-                    omega_target::normalize_foreign_locator(
-                        omega_target::ForeignLocatorCandidate::ElfVersioned {
-                            object: b"libomega-test.so".to_vec(),
-                            symbol: symbol.to_vec(),
-                            version: b"OMEGA_TEST_1".to_vec(),
-                        },
-                        profile,
-                    )
-                    .unwrap(),
+                    omega_target::normalize_foreign_locator(locator, profile).unwrap(),
                 ),
             },
         }],

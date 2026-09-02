@@ -2181,17 +2181,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through twentieth bounded represented-record levels are now live under
+  Third through twenty-first bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of eighteen
+  recursive classifier and validator owns every admitted depth instead of nineteen
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A twenty-first
+  storage, content, domain, provider, or establishment authority. A twenty-second
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -9948,7 +9948,18 @@ reach or trust, and private proof improvements do not change public identity.
   224-byte outer layout, 112-byte outer stride, exact offsets, and five fuel
   units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
   wrong-length/layout/stride/offset, codec, object, image, and installation
-  mutations reject. `[[T; 15]; 2]` and wider forms remain fenced without
+  mutations reject.
+
+  The following exact nested successor is now closed. The same carrier admits
+  `[[T; 15]; 2]` with one distinct literal leaf move from each outer element
+  and twenty-eight live residual leaves in decreasing outer-then-inner order.
+  Checked production through Terminal codec/interpreter replay, Omega
+  lowering, optimization validation, five-target layout and machine emission,
+  object, image, and installation replay retain the authored two-call order,
+  240-byte outer layout, 120-byte outer stride, exact offsets, and five fuel
+  units. Missing, duplicate, same-outer, out-of-bounds, reordered-cleanup,
+  wrong-length/layout/stride/offset, codec, object, image, and installation
+  mutations reject. `[[T; 16]; 2]` and wider forms remain fenced without
   runtime liveness state or a cleanup loop.
 
   The first construction-prefix ordinary-abandonment rung is closed. An
@@ -10189,7 +10200,7 @@ reach or trust, and private proof improvements do not change public identity.
   cleanup-order, and artifact mutations reject; `[T; 25]` and wider prefixes
   remain fail closed without runtime liveness state or a loop.
 
-  Extend recursive coverage beyond the exact `[[T; 10]; 2]` rung and extend
+  Extend recursive coverage beyond the exact `[[T; 15]; 2]` rung and extend
   construction-prefix cleanup beyond `[T; 24]` to deeper canonical fuel/action
   ordinals.
 
@@ -11698,7 +11709,11 @@ boundary without its corresponding checked law.
   and may feed later normalized foreign calls. The declared sign and width,
   canonical shape, home roster, producer ordinal, result-store interval, and
   later argument-load interval survive through ordinary object construction
-  and both Linux dynamic ELF drivers. Machine emission independently rejoins
+  and both Linux dynamic ELF drivers. Windows x86-64 now crosses the same
+  exact `u32` producer-to-consumer home chain through evaluated RAX/RCX
+  placement, Win64 shadow-space custody, ordinary object replay, and final PE
+  emission with both normalized import relocations. Machine emission
+  independently rejoins
   each custody row to its preceding constant, exact preceding scalar-call
   producer, or exact preceding normalized-foreign result producer and emits
   compact x86-64 or AArch64 register materialization. Object construction
@@ -11837,11 +11852,17 @@ producer now admits ordinary receiver-attached zero-result internal Unit calls
 after the independent literal FMA locals. Object replay requires each such
 call's complete interval to remain inside the function-level MXCSR envelope.
 The bounded Windows x86 source lane also admits one zero-argument, zero-result
-source-evaluated PE import after those locals. Its normalized locator remains
-owned by target-profile normalization rather than duplicated per-stage format
-allowlists, and object replay requires the call's nested complete-MXCSR
-save/restore interval to stay inside the outer FMA envelope. Scalar foreign
-arguments/results, wider mixtures, callback entry, other operations, wider
+  source-evaluated PE import after those locals. Its normalized locator remains
+  owned by target-profile normalization rather than duplicated per-stage format
+  allowlists, and object replay requires the call's nested complete-MXCSR
+  save/restore interval to stay inside the outer FMA envelope. Independently,
+  the ordinary Windows lane now carries one exact `u32` PE-import result into
+  a durable home and reuses that home as the sole scalar argument of a later
+  evaluated PE import; target lowering, assignment, machine/object replay, and
+  final PE emission retain both locators, Win64 placements, store/load byte
+  intervals, home/type/shape/ordinal identity, and both relocations. Float and
+  aggregate foreign values, wider scalar mixtures, callback entry, other
+  operations, wider
 source shapes, non-x86/software realization, and native differential-execution
 receipts remain engineering work. Generic Linux/Windows x86-64 semantics remain
 SSE2 baseline unless that explicit deployment input is selected.
@@ -12596,20 +12617,34 @@ checked-result arithmetic decision listed below.
   fourteen records, recursive or array-mediated paths, direct-sum coexistence,
   and target-dependent placement remain rejected; every shallower API retains
   its exact boundary.
-  The `omega-layout` materialization owner's 7,003-line regression corpus now
-  lives in a 4,305-line private test root over a focused 2,698-line
-  depth-eight-through-fourteen child. The 4,355-line production owner retains
-  47 production functions, 21 public projection entry points, exact module
-  paths, diagnostics, and the complete 29-test crate behavior. The matching
-  12,034-line Psi materialization owner is now a 4,699-line public
-  carrier/replay facade over private byte-derivation (5,724 lines), report-
-  identity (1,237 lines), and bounded sum-reachability (374 lines) owners. Its
-  append-only public inventory now has 31 carrier types and 17 validation entry
+  The complete plural depth-fifteen fixed-depth rung now admits a nonempty
+  authored-order set of
+  `Outer -> Thirteenth -> Twelfth -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct sums`
+  chains. Its compact report retains the outer whole-record layout once and one
+  exact row per outer occurrence; each row owns the unchanged plural
+  depth-fourteen report for that occurrence. The distinct non-clone carrier
+  composes the corresponding depth-fourteen carriers, preserves repeated
+  nominal occurrences, rebuilds every nested zero-padded image in authored
+  order, replays every layout and occurrence identity hash-free, and performs
+  one final atomic copy. Projection and replay share one memoized bounded walk
+  and global leaf ceiling across the complete cohort. Paths deeper than fifteen
+  records, recursive or array-mediated paths, direct-sum coexistence, and
+  target-dependent placement remain rejected; every shallower API retains its
+  exact boundary.
+  The `omega-layout` materialization owner's 7,436-line regression corpus now
+  lives in a 4,305-line private test root over a focused 3,131-line
+  depth-eight-through-fifteen child. The 4,609-line production owner retains
+  49 production functions, 22 public projection entry points, exact module
+  paths, diagnostics, and the complete 30-test crate behavior. The matching
+  12,798-line Psi materialization owner is now a 4,994-line public
+  carrier/replay facade over private byte-derivation (6,121 lines), report-
+  identity (1,309 lines), and bounded sum-reachability (374 lines) owners. Its
+  append-only public inventory now has 33 carrier types and 18 validation entry
   points while preserving the sibling `SumReachability` import path and exact
   diagnostics. This remains module ownership only; the fixed-depth reports and
   their exact shallower/deeper rejection boundaries remain distinct.
   Zero-length or nested sum arrays, direct-sum coexistence, paths deeper than
-  fourteen records, plural paths deeper than fourteen records, mixed
+  fifteen records, plural paths deeper than fifteen records, mixed
   common-field/case shapes,
   target-dependent inactive-case geometry, generic/opaque/quotient records,
   references, slices,

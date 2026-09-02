@@ -11,7 +11,7 @@ use psi_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// ordinary conformance evidence: this pass only replays one exact concrete
 /// policy/schema plan, its direct erased fields, and one acyclic ordinary
 /// record path from a represented outer field to erased leaves through at
-/// most nineteen additional represented records.
+/// most twenty additional represented records.
 pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for conformance in program.conformances() {
         let Some(trait_definition) = program
@@ -180,7 +180,7 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
     }
 }
 
-const MAX_CUSTODY_RECORD_DEPTH: usize = 20;
+const MAX_CUSTODY_RECORD_DEPTH: usize = 21;
 
 #[allow(clippy::too_many_arguments)]
 fn validate_nested_record(
@@ -732,7 +732,7 @@ fn unsupported_nested_custody_diagnostic(
     entry: &LayoutFieldEntryReport,
 ) -> Diagnostic {
     Diagnostic::error(format!(
-        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is {}, but its represented type contains non-runtime custody outside the exact twenty-record acyclic, non-generic, case-free projection spine",
+        "custody conformance `{}` disagrees with `{plan_name}`: normalized decision for `{}` is {}, but its represented type contains non-runtime custody outside the exact twenty-one-record acyclic, non-generic, case-free projection spine",
         program.symbols.display_path(conformance.symbol, "::"),
         canonical_path(schema, field),
         represented_decision(program, field.type_reference, &entry.placement),

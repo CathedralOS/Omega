@@ -193,6 +193,60 @@ machine Main::main(&mut self) {
         )
     }
 
+    fn new_windows_u32_result_chain() -> Self {
+        Self::with_source(
+            "windows-u32-result-chain",
+            "windows_x86_64",
+            r#"use omega::language::core::external_binding;
+
+target windows_x86_64 {
+}
+
+boundary trait Process {
+    machine current_id() -> u32;
+    machine sleep(milliseconds: u32);
+}
+
+windows_x86_64 machine current_id_binding() -> Binding<12, 19, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "GetCurrentProcessId",
+        },
+    }
+}
+
+windows_x86_64 machine sleep_binding() -> Binding<12, 5, 0> {
+    Binding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "Sleep",
+        },
+    }
+}
+
+machine current_id_leaf() -> u32
+    satisfies Process::current_id
+    via current_id_binding();
+
+machine sleep_leaf(milliseconds: u32)
+    satisfies Process::sleep
+    via sleep_binding();
+
+data Main { process: Process; }
+machine Main::main(&mut self) {
+    let current: u32 = self.process.current_id();
+    self.process.sleep(current);
+}
+"#,
+            r#"machine build(builder: &mut Build) {
+    builder.application("source-evaluated-windows-u32-result-chain");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+        )
+    }
+
     fn new_linux_named(name: &str, include_marker: bool) -> Self {
         let marker = if include_marker {
             "self.process.ping();"
@@ -418,6 +472,97 @@ fn retained_x86_fma_and_source_evaluated_import_compose_nested_mxcsr_custody() {
     assert_eq!(artifact.image().output().format, "pe64-x86_64-executable");
 }
 
+#[test]
+fn windows_evaluated_u32_result_reaches_a_later_pe_import_through_exact_home_custody() {
+    let fixture = Fixture::new_windows_u32_result_chain();
+    let retained = fixture.compile_terminal();
+    let admissions = admit_imports(&retained, 0x5749_4e52_0001);
+    assert_eq!(
+        admissions.len(),
+        2,
+        "both evaluated PE leaves require custody"
+    );
+    let settlements = admissions
+        .iter()
+        .map(|admission| {
+            SourceEvaluatedImportSettlement::new(&admission.execution, &admission.same_stack)
+        })
+        .collect::<Vec<_>>();
+    let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
+    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        permission_policy,
+        &settlements,
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!("Windows evaluated result chain should realize: {diagnostics:#?}")
+    });
+
+    artifact
+        .validate()
+        .expect("Windows evaluated result artifact independently replays");
+    assert_eq!(artifact.target(), omega_target::NativeTarget::windows_x64());
+    let [producer, consumer] = artifact.object().foreign_calls() else {
+        panic!("the source result chain must retain two PE calls")
+    };
+    let result = producer
+        .scalar_result
+        .as_ref()
+        .expect("GetCurrentProcessId retains its exact u32 result home");
+    let [argument] = consumer.scalar_arguments.as_slice() else {
+        panic!("Sleep retains the preceding result as its sole argument")
+    };
+    assert_eq!(
+        argument.source,
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(result.home)
+    );
+    assert_eq!(
+        result.home.scalar_type,
+        psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap()
+        )
+    );
+    assert_eq!(artifact.image().output().format, "pe64-x86_64-executable");
+    assert_eq!(artifact.image().output().final_image_imports, 2);
+    assert_eq!(artifact.image().output().final_image_relocations, 2);
+}
+
+#[test]
+fn windows_evaluated_result_rejects_cross_wired_same_stack_custody() {
+    let fixture = Fixture::new_windows_u32_result_chain();
+    let retained = fixture.compile_terminal();
+    let admissions = admit_imports(&retained, 0x5749_4e52_1001);
+    let [first, second] = admissions.as_slice() else {
+        panic!("the Windows result chain must retain exactly two import admissions")
+    };
+    let cross_wired = [
+        SourceEvaluatedImportSettlement::new(&first.execution, &second.same_stack),
+        SourceEvaluatedImportSettlement::new(&second.execution, &first.same_stack),
+    ];
+    let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
+    let diagnostics = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        permission_policy,
+        &cross_wired,
+    )
+    .expect_err("same-stack custody from the sibling PE leaf cannot authorize this result chain");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not carry same-stack custody for the exact selected provider row")
+    }));
+}
+
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.root);
@@ -499,20 +644,26 @@ fn terminal_authority_policy(
             Some((locator, row.boundary_entry_plan.as_ref()?))
         })
         .collect::<Vec<_>>();
-    let [(locator, boundary_entry_plan)] = matches.as_slice() else {
-        panic!("one exact normalized import policy row expected")
-    };
-    omega_terminal_psi_to_native_artifact::terminal_authority_policy_with_rows(vec![
-        omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicyRow::new(
-            omega_terminal_psi_to_native_artifact::normalized_foreign_terminal_mechanism(
-                locator,
-                boundary_entry_plan,
-            )
-            .expect("retained foreign boundary plan is canonical"),
-            omega_effects::TerminalAuthorityDisposition::from_classes([]),
-        ),
-    ])
-    .expect("receiving policy has one exact normalized import row")
+    assert!(
+        !matches.is_empty(),
+        "at least one normalized import policy row expected"
+    );
+    omega_terminal_psi_to_native_artifact::terminal_authority_policy_with_rows(
+        matches
+            .into_iter()
+            .map(|(locator, boundary_entry_plan)| {
+                omega_terminal_psi_to_native_artifact::TerminalAuthorityPolicyRow::new(
+                    omega_terminal_psi_to_native_artifact::normalized_foreign_terminal_mechanism(
+                        locator,
+                        boundary_entry_plan,
+                    )
+                    .expect("retained foreign boundary plan is canonical"),
+                    omega_effects::TerminalAuthorityDisposition::from_classes([]),
+                )
+            })
+            .collect(),
+    )
+    .expect("receiving policy has exact normalized import rows")
 }
 
 fn terminal_authority_permission_policy(
@@ -575,6 +726,61 @@ fn admit_import(
         same_stack,
         plan_report_identity,
     }
+}
+
+fn admit_imports(
+    retained: &omega_compilation_report::RetainedTerminalArtifact,
+    receipt_seed: u64,
+) -> Vec<AdmittedImport> {
+    let proposal = retained
+        .native_realization_proposal()
+        .expect("retained Terminal product has a native proposal");
+    proposal
+        .selected_provider_plans()
+        .plans()
+        .iter()
+        .flat_map(|plan| {
+            plan.rows.iter().filter_map(move |row| {
+                matches!(row.binding, ProviderBinding::Import { .. }).then_some((plan, row))
+            })
+        })
+        .enumerate()
+        .map(|(index, (plan, row))| {
+            let plan_report_identity = plan.report_fingerprint();
+            let plan_commitment =
+                SameStackProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes());
+            let requirement = row.requirement_identity.clone();
+            let execution = TestProviderExecution {
+                requirement: requirement.clone(),
+                plan_report_identity,
+            };
+            let receipt_identity = receipt_seed
+                .checked_add(u64::try_from(index).expect("import index fits u64"))
+                .expect("test admission receipt identity does not overflow");
+            let same_stack = admit_same_stack_contribution(
+                SameStackContributionAdmissionCandidate {
+                    provider_plan_report_identity: plan_report_identity,
+                    provider_plan_commitment: plan_commitment,
+                    requirement_identity: requirement.clone(),
+                    receipt: SameStackContributionAdmissionReceiptId::from_normalized_identity(
+                        receipt_identity,
+                    )
+                    .expect("nonzero test admission receipt identity"),
+                    bytes: 64,
+                    alignment: 16,
+                },
+                plan_report_identity,
+                plan_commitment,
+                &requirement,
+            )
+            .expect("exact provider-plan custody admits each foreign leaf");
+            AdmittedImport {
+                execution,
+                same_stack,
+                plan_report_identity,
+            }
+        })
+        .collect()
 }
 
 fn realize_linux_dynamic(

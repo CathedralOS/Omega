@@ -16,6 +16,7 @@ pub use sizing::primitive_layout;
 pub use sum_materialization::{
     project_conventional_record_with_depth_eight_nested_sums_materialization_layout,
     project_conventional_record_with_depth_eleven_nested_sums_materialization_layout,
+    project_conventional_record_with_depth_fifteen_nested_sums_materialization_layout,
     project_conventional_record_with_depth_five_nested_sums_materialization_layout,
     project_conventional_record_with_depth_four_nested_sums_materialization_layout,
     project_conventional_record_with_depth_fourteen_nested_sums_materialization_layout,

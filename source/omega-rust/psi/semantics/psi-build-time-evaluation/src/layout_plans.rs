@@ -33,6 +33,7 @@ pub use const_materializable::{
 pub use const_record_with_nested_sum_materializable::{
     ValidatedConstDepthEightNestedSumOccurrenceMaterialization,
     ValidatedConstDepthElevenNestedSumOccurrenceMaterialization,
+    ValidatedConstDepthFifteenNestedSumOccurrenceMaterialization,
     ValidatedConstDepthFiveNestedSumOccurrenceMaterialization,
     ValidatedConstDepthFourNestedSumOccurrenceMaterialization,
     ValidatedConstDepthNineNestedSumOccurrenceMaterialization,
@@ -46,6 +47,7 @@ pub use const_record_with_nested_sum_materializable::{
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
     ValidatedConstRecordWithDepthEightNestedSumsMaterialization,
     ValidatedConstRecordWithDepthElevenNestedSumsMaterialization,
+    ValidatedConstRecordWithDepthFifteenNestedSumsMaterialization,
     ValidatedConstRecordWithDepthFiveNestedSumsMaterialization,
     ValidatedConstRecordWithDepthFourNestedSumsMaterialization,
     ValidatedConstRecordWithDepthFourteenNestedSumsMaterialization,
@@ -63,6 +65,7 @@ pub use const_record_with_nested_sum_materializable::{
     ValidatedConstRecordWithNestedSumRecordsMaterialization,
     validate_const_materializable_record_with_depth_eight_nested_sums,
     validate_const_materializable_record_with_depth_eleven_nested_sums,
+    validate_const_materializable_record_with_depth_fifteen_nested_sums,
     validate_const_materializable_record_with_depth_five_nested_sums,
     validate_const_materializable_record_with_depth_four_nested_sums,
     validate_const_materializable_record_with_depth_fourteen_nested_sums,
