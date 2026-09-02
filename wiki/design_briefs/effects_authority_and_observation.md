@@ -532,6 +532,19 @@ legacy string-backed imports fail closed. The accepted whole-table identity
 remains in native-artifact replay. Complete selected-provider-closure traversal
 and exact service/schema containment remain the next distinct join.
 
+Receiving-policy version 4 adds the first checked-physical leaf without
+flattening it into either of those roles. An x86 `PortWrite` reached through
+one exact installed selected checked adapter is identified by its complete
+deployment profile and port; the written byte remains event data rather than
+physical-mechanism identity. Closure review independently requires the
+operation's service in the verified machine ceiling, an explicit exact
+physical-policy row classifying it as `PortIo`, and `PortIo` permission on the
+enclosing selected requirement and schema. A direct root has no such provider
+context and rejects. So do a non-x86 profile, target or port substitution, and
+two distinct checked mechanisms under the same bounded requirement. This
+retains classification evidence only; it does not perform or authorize port
+I/O or mint provider, installation, or invocation custody.
+
 A row publishes the union over every authority reachable through its argument
 values. Narrowing requires retained compiler-checked constants, ranges, handle
 provenance, or another exact constraint proof whose identity enters the

@@ -1,5 +1,5 @@
 //! Exact installed selected-provider closure review for D45's implemented
-//! compiler-intrinsic and normalized-foreign terminal roles.
+//! compiler-intrinsic, normalized-foreign, and bounded checked-physical roles.
 
 mod context;
 mod operations;
@@ -15,7 +15,7 @@ use reviewer::Reviewer;
 
 pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
-    target: omega_target::NativeTarget,
+    target_profile: omega_target::TargetProfile,
     plan: &AbstractOperationPlan,
     selected: &SelectedProviderPlanFacts,
     physical_policy: &TerminalAuthorityPolicy,
@@ -24,6 +24,7 @@ pub(crate) fn review_terminal_authority_closure(
     installed_candidates: &[psi_terminal::ProviderCandidateConformance],
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
     let context = ReviewContext::new(
+        target_profile,
         plan,
         selected,
         physical_policy,
@@ -31,14 +32,20 @@ pub(crate) fn review_terminal_authority_closure(
         mechanisms,
         installed_candidates,
     )?;
-    let root_boundaries = context.reachable_boundaries(plan.entry)?;
+    let root_edges = context.reachable_authority_edges(plan.entry)?;
+    if !root_edges.checked_physical.is_empty() {
+        return Err(
+            "root-reachable checked physical operation has no selected provider requirement custody"
+                .into(),
+        );
+    }
     let mut reviewer = Reviewer::new(context);
-    for boundary in root_boundaries {
+    for boundary in root_edges.boundaries {
         reviewer.expand_boundary(boundary)?;
     }
     TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
         terminal_artifact_identity,
-        target,
+        target_profile.native_target(),
         selected.identity_digest(),
         physical_policy.identity(),
         permission_policy.identity(),

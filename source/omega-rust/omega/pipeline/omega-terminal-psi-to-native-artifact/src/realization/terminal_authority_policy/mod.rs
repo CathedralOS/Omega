@@ -3,7 +3,8 @@
 use std::sync::OnceLock;
 
 use omega_effects::{
-    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
+    terminal_mechanism_identity_bytes, CheckedPhysicalOperationIdentity, TerminalAuthorityClass,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
 };
 
 mod classification;
@@ -27,11 +28,12 @@ use commitment::complete_policy_commitment;
 
 /// Version of the receiving-realization policy table over D45's shared
 /// role-tagged terminal-mechanism identity.
-pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 3;
+pub const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 4;
 
-/// Build one accepted receiving policy from explicit exact foreign rows.
+/// Build one accepted receiving policy from explicit exact non-intrinsic rows.
 /// Compiler-intrinsic rows cannot be overridden, duplicate physical identities
-/// reject, and an empty strong implementation contract is never policy key.
+/// reject, and a normalized foreign row's empty strong implementation contract
+/// is never a policy key.
 pub fn terminal_authority_policy_with_rows(
     mut explicit_rows: Vec<TerminalAuthorityPolicyRow>,
 ) -> Result<TerminalAuthorityPolicy, TerminalAuthorityPolicyBuildError> {
@@ -50,6 +52,18 @@ pub fn terminal_authority_policy_with_rows(
                 );
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => {}
+            TerminalMechanismIdentity::CheckedPhysical(physical) => match physical.operation() {
+                CheckedPhysicalOperationIdentity::PortWrite { .. }
+                    if row.disposition.classes() != [TerminalAuthorityClass::PortIo] =>
+                {
+                    return Err(
+                        TerminalAuthorityPolicyBuildError::CheckedPortWriteRequiresExactPortIo(
+                            row.mechanism,
+                        ),
+                    );
+                }
+                CheckedPhysicalOperationIdentity::PortWrite { .. } => {}
+            },
         }
     }
     explicit_rows.sort_by_key(|row| terminal_mechanism_identity_bytes(row.mechanism));

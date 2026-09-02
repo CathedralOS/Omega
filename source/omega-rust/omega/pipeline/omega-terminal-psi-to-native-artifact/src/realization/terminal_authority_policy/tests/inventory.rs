@@ -7,7 +7,7 @@ use super::*;
 use crate::realization::terminal_authority_policy::{
     classification::classify_from_inventory,
     commitment::complete_policy_commitment,
-    inventory::{CLOSED_POLICY_ROW_COUNT, closed_policy_mechanisms},
+    inventory::{closed_policy_mechanisms, CLOSED_POLICY_ROW_COUNT},
 };
 
 #[test]
@@ -137,12 +137,10 @@ fn linux_console_and_numeric_families_have_exact_dispositions() {
         .into_iter()
         .skip(2 + BuiltinFunction::COUNT)
     {
-        assert!(
-            policy
-                .classify(mechanism)
-                .expect("every current numeric coordinate must have a committed policy row")
-                .is_authority_class_empty()
-        );
+        assert!(policy
+            .classify(mechanism)
+            .expect("every current numeric coordinate must have a committed policy row")
+            .is_authority_class_empty());
     }
 }
 
@@ -165,8 +163,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            107, 239, 0, 3, 237, 102, 255, 174, 179, 104, 243, 187, 27, 192, 176, 201, 109, 167,
-            111, 242, 46, 13, 95, 241, 11, 170, 140, 74, 199, 208, 60, 106,
+            90, 224, 232, 15, 38, 46, 161, 39, 52, 97, 69, 90, 79, 234, 107, 108, 59, 54, 172, 162,
+            43, 40, 70, 182, 160, 44, 197, 199, 158, 6, 239, 133,
         ]
     );
 }

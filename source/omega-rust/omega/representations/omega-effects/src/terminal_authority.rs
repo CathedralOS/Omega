@@ -103,17 +103,53 @@ impl NormalizedForeignTerminalMechanismIdentity {
     }
 }
 
+/// Closed checked-physical operation catalog understood by D45.
+///
+/// Values written by an operation are trace data rather than mechanism
+/// identity. A port is part of the selected physical endpoint and therefore
+/// remains in the catalog coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedPhysicalOperationIdentity {
+    PortWrite { port: u16 },
+}
+
+/// One target-profile-qualified checked physical mechanism. Keeping the full
+/// deployment profile prevents Windows and UEFI from aliasing merely because
+/// both currently share an x86-64 COFF realization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedPhysicalTerminalMechanismIdentity {
+    target: omega_target::TargetProfile,
+    operation: CheckedPhysicalOperationIdentity,
+}
+
+impl CheckedPhysicalTerminalMechanismIdentity {
+    pub const fn port_write(target: omega_target::TargetProfile, port: u16) -> Self {
+        Self {
+            target,
+            operation: CheckedPhysicalOperationIdentity::PortWrite { port },
+        }
+    }
+
+    pub const fn target(self) -> omega_target::TargetProfile {
+        self.target
+    }
+
+    pub const fn operation(self) -> CheckedPhysicalOperationIdentity {
+        self.operation
+    }
+}
+
 /// D45's closed, role-tagged post-normalization terminal-mechanism sum.
 ///
 /// The role discriminant is semantic identity. Compiler intrinsics and foreign
 /// locators therefore cannot collide even if their child encodings happen to
-/// contain equal bytes. Future syscall, firmware/table, and checked-physical
-/// roles must be added as explicit variants rather than flattened optional
-/// fields.
+/// contain equal bytes. Future syscall and firmware/table roles must be added
+/// as explicit variants rather than flattened optional fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMechanismIdentity {
     CompilerIntrinsic(CompilerIntrinsicExecutionIdentity),
     NormalizedForeign(NormalizedForeignTerminalMechanismIdentity),
+    CheckedPhysical(CheckedPhysicalTerminalMechanismIdentity),
 }
 
 impl From<CompilerIntrinsicExecutionIdentity> for TerminalMechanismIdentity {
@@ -125,6 +161,12 @@ impl From<CompilerIntrinsicExecutionIdentity> for TerminalMechanismIdentity {
 impl From<NormalizedForeignTerminalMechanismIdentity> for TerminalMechanismIdentity {
     fn from(identity: NormalizedForeignTerminalMechanismIdentity) -> Self {
         Self::NormalizedForeign(identity)
+    }
+}
+
+impl From<CheckedPhysicalTerminalMechanismIdentity> for TerminalMechanismIdentity {
+    fn from(identity: CheckedPhysicalTerminalMechanismIdentity) -> Self {
+        Self::CheckedPhysical(identity)
     }
 }
 
@@ -149,6 +191,24 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
             bytes.extend_from_slice(target);
             bytes.extend_from_slice(&foreign.locator_identity().as_bytes());
             bytes.extend_from_slice(&foreign.implementation_contract().as_bytes());
+            bytes
+        }
+        TerminalMechanismIdentity::CheckedPhysical(physical) => {
+            let target = physical.target().identity().as_str().as_bytes();
+            let mut bytes = Vec::with_capacity(1 + 4 + target.len() + 3);
+            bytes.push(2);
+            bytes.extend_from_slice(
+                &u32::try_from(target.len())
+                    .expect("target-profile identity length fits u32")
+                    .to_be_bytes(),
+            );
+            bytes.extend_from_slice(target);
+            match physical.operation() {
+                CheckedPhysicalOperationIdentity::PortWrite { port } => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&port.to_be_bytes());
+                }
+            }
             bytes
         }
     }
@@ -808,5 +868,29 @@ mod tests {
             .map(compiler_intrinsic_execution_identity_bytes)
             .collect::<BTreeSet<_>>();
         assert_eq!(encoded.len(), identities.len());
+    }
+
+    #[test]
+    fn checked_port_write_identity_binds_profile_and_port() {
+        let linux = CheckedPhysicalTerminalMechanismIdentity::port_write(
+            omega_target::TargetProfile::LinuxX64,
+            0x03f8,
+        );
+        let windows = CheckedPhysicalTerminalMechanismIdentity::port_write(
+            omega_target::TargetProfile::WindowsX64,
+            0x03f8,
+        );
+        let other_port = CheckedPhysicalTerminalMechanismIdentity::port_write(
+            omega_target::TargetProfile::LinuxX64,
+            0x0080,
+        );
+        assert_ne!(
+            terminal_mechanism_identity_bytes(linux.into()),
+            terminal_mechanism_identity_bytes(windows.into()),
+        );
+        assert_ne!(
+            terminal_mechanism_identity_bytes(linux.into()),
+            terminal_mechanism_identity_bytes(other_port.into()),
+        );
     }
 }

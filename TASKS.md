@@ -2179,17 +2179,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through twelfth bounded represented-record levels are now live under
+  Third through thirteenth bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of ten
+  recursive classifier and validator owns every admitted depth instead of eleven
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A thirteenth
+  storage, content, domain, provider, or establishment authority. A fourteenth
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -9283,16 +9283,25 @@ compiler concept is introduced.
   four internal-call forms and exact boundary declarations. An exact selected
   checked-adapter row must resolve to one installed candidate and is traversed
   rather than treated as a terminal role; missing, duplicate, substituted, or
-  cyclic candidates reject. The only terminal roles admitted by this bounded
-  rung are the implemented compiler-intrinsic and normalized-foreign roles.
+  cyclic candidates reject. Receiving-policy version 4 now admits one bounded
+  checked-physical leaf in addition to the compiler-intrinsic and normalized-
+  foreign roles: an exact x86 `PortWrite` beneath one installed selected
+  checked adapter. Its mechanism identity retains the full deployment profile
+  and port, while the written byte remains event data. Review requires the
+  operation inside its machine's verified service ceiling, one explicit
+  `PortIo` physical-policy row, and `PortIo` permission on the enclosing exact
+  requirement/schema. Direct-root use without provider context, a non-x86
+  profile, target or port substitution, and two distinct checked mechanisms
+  under one requirement reject; repeated equal reach may deduplicate.
   Every reachable leaf must have one exact admitted physical mechanism, one
   exact selected plan/schema method, one physical-policy classification, and
   one permission-policy row keyed by the exact schema digest and requirement
   identity. Realization accepts only `exercised <= permitted`. Repeated equal
   reach deduplicates; changed mechanisms reject. String-backed imports,
-  syscalls, vtable slots/fields, table functions, and checked-physical
-  operations such as `PortWrite` reject explicitly until their role-specific
-  evidence and classification are implemented.
+  syscalls, vtable slots/fields, table functions, and other checked-physical
+  operations reject explicitly until their role-specific evidence and
+  classification are implemented. The PortWrite rung is classification only;
+  it grants no I/O, provider execution, installation, or invocation authority.
 
   `NativeArtifact` now retains both receiving-policy identities and a canonical
   closure-review receipt binding the Terminal artifact, native target, exact
@@ -9300,7 +9309,7 @@ compiler concept is introduced.
   its strong identity. Replay validates those cross-bindings, while receiver
   acceptance separately pins the identity produced by the actual review;
   freely constructible receipt data grants no authority. The remaining D45
-  work is to add the future syscall, firmware, table, and checked-physical role
+  work is to add the future syscall, firmware, table, and wider checked-physical role
   variants with their exact evidence and complete the package-permission
   migration described below before deleting the blessed filename classifier.
   No unsupported role is inferred from a string or accepted by a wildcard.
@@ -10481,22 +10490,23 @@ Remaining N6/N8 work:
   exact call endpoints; reconstruction imports only the guarded implication
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
-  bounded rung now permits one, two, three, four, five, six, seven, eight, or nine
-  distinct bound whole-result terms to be used once each: the matching payloadless arm
-  may pass them as dense ordered named `requires` inputs of one direct tail state
-  whose sole ordinary argument is the saved result and whose body returns that
-  argument unchanged. Terminal retains an independently resolvable third
+  bounded rung now permits one, two, three, four, five, six, seven, eight,
+  nine, or ten distinct bound whole-result terms to be used once each: the
+  matching payloadless arm may pass them as dense ordered named `requires`
+  inputs of one direct tail state whose sole ordinary argument is the saved
+  result and whose body returns that argument unchanged. Terminal retains an
+  independently resolvable third
   machine with the exact ordered
   requirement lanes and identity-return shape, plus one selected-use row per
   term naming its machine, input position, proposition applications, evidence
   terms, and caller/target result places. Codec format 42 / vocabulary 45 and
   the verifier reject omitted, duplicated, reordered, redirected, interface-
   drifted, or non-identity uses while fixed fuel and interpretation retain the
-  existing four-unit runtime. The length-nine source, canonical codec,
+  existing four-unit runtime. The length-ten source, canonical codec,
   independent verifier, proof admission, fixed-fuel, and interpreter path retain
-  nine dense distinct rows, while an otherwise fully rejoined tenth row fails
+  ten dense distinct rows, while an otherwise fully rejoined eleventh row fails
   the bounded cardinality gate. Payload projections, multiple or partial-result
-  substitutions, ten-or-more evidence arguments, repeated term use, later
+  substitutions, eleven-or-more evidence arguments, repeated term use, later
   invalidation, erased proof-output linkage, wider structural calls, and
   tagged-sum execution remain fail-closed.
 

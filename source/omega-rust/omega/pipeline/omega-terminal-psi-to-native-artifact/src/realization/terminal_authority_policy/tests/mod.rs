@@ -6,6 +6,7 @@ use omega_effects::{
 
 use super::*;
 
+mod checked_physical_rows;
 mod foreign_rows;
 mod inventory;
 
