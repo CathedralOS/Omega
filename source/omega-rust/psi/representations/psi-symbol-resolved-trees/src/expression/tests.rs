@@ -7,7 +7,7 @@ use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelections,
 };
-use psi_source::SourceSpan;
+use psi_source::{SourceId, SourceSpan, Span};
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
 
@@ -45,6 +45,8 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
         expression,
         AuthoredDeclarationSelectionExposure::PublicInterface,
     );
+    let source_span = SourceSpan::new(SourceId(7), Span::new(11, 19));
+    source.set_source_span(expression, source_span);
     source.attach_authored_selection_occurrences(expression, occurrences);
 
     assert_eq!(
@@ -66,6 +68,7 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
         copied.authored_expression_exposure(copied_expression),
         Some(AuthoredDeclarationSelectionExposure::PublicInterface)
     );
+    assert_eq!(copied.source_span(copied_expression), source_span);
 
     let self_copied_expression = source.copy_from_self(expression);
     assert_eq!(
@@ -78,6 +81,7 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
         source.authored_expression_exposure(self_copied_expression),
         Some(AuthoredDeclarationSelectionExposure::PublicInterface)
     );
+    assert_eq!(source.source_span(self_copied_expression), source_span);
 }
 
 #[test]
