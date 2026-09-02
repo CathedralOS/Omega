@@ -292,8 +292,15 @@ explicitly.
     freestanding UEFI package roots remain dependency-free, and standalone
     source fixtures stay on the compatibility path until they acquire real
     package roots. The remaining compatibility seams are:
-    - two synthesized trait-default roots needing separate authored-requirement
-      and executable-realization custody plus a Terminal composed-Unit plan;
+    - two synthesized trait-default roots needing separate authored-requirement,
+      template-application, and executable-realization custody: the same
+      authored default call may correctly select different realizations in two
+      conformance applications and therefore cannot reuse one undifferentiated
+      copied-selection identity. They also need a target-neutral composed-Unit
+      plan for scalar arguments and structural-field mutation. Their native
+      canaries additionally depend on `OWNER_QUESTIONS.md` Q2 because the
+      mutation must remain observable through the caller's mutable structural
+      parameter; a staged by-value copy is not a realization of that identity;
     - the named-`dyn`/Console ordinary-package native canary, needing accepted
       Console semantic-binding replay from the lock and multi-block target
       continuation;
