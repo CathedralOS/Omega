@@ -503,7 +503,7 @@ mod tests {
             object: artifact.object(),
             relocations: artifact.relocations(),
             text_bytes: artifact.text_bytes(),
-            data_bytes: &[],
+            data_bytes: artifact.data_bytes(),
         });
         let inputs = plan_elf_dynamic_link_inputs(image, interpreter(target)).unwrap();
         let sections = plan_elf_dynamic_sections(inputs).unwrap();
