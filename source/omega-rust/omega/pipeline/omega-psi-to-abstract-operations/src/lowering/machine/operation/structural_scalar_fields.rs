@@ -61,7 +61,7 @@ fn lower_store(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         || !has_empty_structural_custody(machine, destination.place)
-        || !matches!(path, [StructuralPathSegment::Field(_)])
+        || !matches!(path, [] | [StructuralPathSegment::Field(_)])
     {
         return Err(invalid());
     }

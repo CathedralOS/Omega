@@ -11875,7 +11875,23 @@ checked-result arithmetic decision listed below.
   borrow host canary select the rebound instance, consume the forwarded result,
   and execute the expected Linux x86-64 exit; both also cross-link on AArch64.
   The older direct and caller-local rebound lanes remain disjoint and
-  unchanged.
+  unchanged. Terminal verification now also treats an exact mutable field
+  subloan from an unrestricted mutable-borrow root as unrestricted for the
+  duration of the exclusive call; the previous blanket linear projection made
+  the claimed mutable forwarding lane fail its own native canary without a
+  corresponding entry claim.
+
+  The first mutation-bearing realization body is live through checked custody
+  and Terminal verification. It is exactly one literal `bool` or `i32` store
+  into a direct primitive field of `&mut self`, followed by the existing exact
+  scalar self-field return. The checked callable roster retains the store,
+  source statement, mutable-self parameter, field identity, primitive type,
+  and literal independently from the return expression; the selected-call
+  summary must equal its selected callable. Terminal materializes the constant
+  and direct self-field store before the read and permits no second mutation,
+  nested destination, computed value, shared receiver, or reordered body.
+  Native target lowering remains fenced because scalar-result functions do not
+  yet have a source-free physical carrier for a preceding Unit-valued store.
 
   Remaining work:
 
@@ -11883,9 +11899,13 @@ checked-result arithmetic decision listed below.
     custody are complete on both architectures, and the existing Linux x86-64
     full-pipeline canary executes the forwarded adapter and checks the selected
     instance through exit status;
-  - extend the v1 borrowed surface to Unit-returning requirements, mutation-
-    bearing `&mut self` realization bodies, and additional call forms when
-    their exact semantic and physical rules are settled;
+  - carry the exact mutation-bearing `&mut self` realization store through
+    target assignment, machine/object/image evidence, and native replay; then
+    widen beyond the current single direct literal store only when each wider
+    body has an exact semantic and physical rule;
+  - extend the v1 borrowed surface to Unit-returning requirements and
+    additional call forms when their exact semantic and physical rules are
+    settled;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

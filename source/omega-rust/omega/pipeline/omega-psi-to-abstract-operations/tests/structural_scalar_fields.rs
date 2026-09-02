@@ -303,6 +303,75 @@ fn retains_exact_store_and_integer_field_read_custody() {
 }
 
 #[test]
+fn retains_direct_mutable_self_store_in_scalar_function() {
+    let mut module = structural_scalar_field_module();
+    let realization = &mut module.machines[1];
+    let self_parameter = &mut realization.structural_parameters[0];
+    self_parameter.access = StructuralAccess::MutableBorrow;
+    let self_place = self_parameter.place;
+    let field = id::<StructuralFieldId>(1);
+    let integer = integer_type();
+    realization.blocks[0].operations = vec![
+        Operation {
+            id: id::<OperationId>(4),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id::<ValueId>(4),
+                scalar_type: integer,
+            }),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(23),
+            },
+        },
+        Operation {
+            id: id::<OperationId>(5),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: self_place,
+                path: Vec::new(),
+                field,
+                value: id::<ValueId>(4),
+            },
+        },
+        Operation {
+            id: id::<OperationId>(6),
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: id::<ValueId>(5),
+                scalar_type: integer,
+            }),
+            kind: OperationKind::IntegerStructuralField {
+                source: self_place,
+                field,
+            },
+        },
+    ];
+    realization.blocks[0].terminator = Terminator::Return {
+        cleanup_actions: Vec::new(),
+        edge: id::<EdgeId>(2),
+        value: id::<ValueId>(5),
+    };
+    let OperationKind::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::MutableBorrow;
+
+    let plan = lower(&module).expect("direct mutable-self store lowers to abstract custody");
+    let realization = &plan.functions[1];
+    assert!(matches!(
+        realization.operations.as_slice(),
+        [
+            AbstractOperation::IntegerConstant { .. },
+            AbstractOperation::StructuralScalarFieldStore { path, .. },
+            AbstractOperation::IntegerStructuralField { .. },
+            AbstractOperation::Return { .. }
+        ] if path.is_empty()
+    ));
+}
+
+#[test]
 fn rejects_store_path_field_value_and_integer_read_artifact_corruption() {
     let mut path = structural_scalar_field_module();
     let OperationKind::StructuralScalarFieldStore {

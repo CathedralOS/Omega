@@ -103,6 +103,32 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 "#;
 
+const MUTATING_REALIZATION_SOURCE: &str = r#"
+    trait Shape {
+        machine code(&mut self) -> i32;
+    }
+
+    data Item {
+        value: i32;
+    }
+
+    Primary: Item satisfies Shape {
+        machine code(&mut self) -> i32 {
+            self.value = 23;
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let erased: &mut dyn Shape = &mut self.item as &mut dyn Item::Primary;
+        let result: i32 = erased.code();
+    }
+"#;
+
 fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -446,6 +472,37 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
                 psi_checked_trees::CheckedBooleanExpression::Constant(true)
             )
     ));
+}
+
+#[test]
+fn dynamic_plan_retains_exact_mutating_realization_body() {
+    let checked = check_dynamic_source(MUTATING_REALIZATION_SOURCE);
+    let plan = sole_direct_dynamic_plan(&checked);
+    let store = plan
+        .realization_structural_scalar_field_store
+        .as_ref()
+        .expect("selected realization store");
+    assert_eq!(store.statement_index, 0);
+    assert_eq!(store.destination_parameter_position, 0);
+    assert!(store.carrier_path.is_empty());
+    assert_eq!(store.field_identity, "value");
+    assert_eq!(
+        store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::I32
+    );
+    assert!(matches!(
+        &store.value,
+        psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.value_i64() == Some(23)
+    ));
+    let [callable] = plan.realization_callables.as_slice() else {
+        panic!("one realization callable expected")
+    };
+    assert_eq!(callable.structural_scalar_field_store.as_ref(), Some(store));
+    assert_eq!(
+        callable.return_expression,
+        plan.realization_return_expression
+    );
 }
 
 #[test]

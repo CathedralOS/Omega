@@ -756,6 +756,19 @@ not general mutable initialized-data or BSS support. Multi-block continuation
 remains independent unfinished work. None of these boundaries permit
 devirtualizing the call.
 
+The same closed application now admits one exact mutation-bearing callable in
+Terminal form. Its checked row carries a direct primitive-field literal store
+through `&mut self` separately from the scalar return expression. Lowering
+materializes the constant and store before the existing self-field read, and
+Terminal validation accepts the empty carrier path only because the field is
+directly below the realization's attached self type. An exclusive field
+subloan from an unrestricted mutable-borrow root retains unrestricted
+multiplicity for the duration of that exclusive call; it does not invent a
+linear entry claim. A second write, nested destination, computed store value,
+shared receiver, or body reorder remains absent. Target and native artifact
+forms still reject this scalar-result/effect prefix until they retain an exact
+physical store carrier and replay evidence.
+
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts
 only on written paths and preserves facts over an explicitly unchanged suffix.

@@ -797,8 +797,13 @@ operation, value, integer type, shape, result placement, and emitted store
 bytes on x86-64 and AArch64. Installation format 56 retains the same semantic
 result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
-local result interval. Mutation-bearing realization bodies and
-Unit-returning dynamic requirements remain outside this bounded rung.
+local result interval. A first mutation-bearing realization body is admitted
+through checked and Terminal form when `&mut self` receives exactly one direct
+primitive-field literal store and then returns an exact scalar self field. The
+callable row retains the write separately from the return, and Terminal emits
+the store before the read. Native lowering of that scalar-result/effect prefix,
+wider or computed mutation bodies, and Unit-returning dynamic requirements
+remain outside this bounded rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected

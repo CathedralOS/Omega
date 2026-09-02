@@ -1056,14 +1056,19 @@ Current ownership is:
   inherited rows, defaults, scalar results, subject-bearing or wider public
   lanes, direct named-conformance calls, and dynamic named-witness dispatch
   remain conservative fences. The separate contract-free dynamic scalar lane
-  admits one attached Unit caller, one exact closed conformance row, one shared
-  field source, and an exact `bool` or `i32` result. It retains either one
-  never-rebound selection or an initializer plus one reassignment and latest
-  call as distinct direct/rebound checked catalogs; it grants no
+  admits one attached Unit caller, one exact closed conformance row, one
+  borrowed field source, and an exact `bool` or `i32` result. It retains either
+  one never-rebound selection or an initializer plus one reassignment and
+  latest call as distinct direct/rebound checked catalogs; it grants no
   implementation-private witness or authored contract lane. Package review
   already owns the declaration-level lane
   compatibility surface; this private call-site carrier adds no package
-  schema. A
+  schema. For a mutable receiver, the first mutation-bearing callable shape
+  retains exactly one literal assignment to a direct primitive `self` field
+  before the existing exact scalar return. The retained write joins the sole
+  authoritative mutation path, assignment-value fact, mutable-self parameter,
+  field/type identity, and source statement; other body shapes publish no
+  callable row. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized

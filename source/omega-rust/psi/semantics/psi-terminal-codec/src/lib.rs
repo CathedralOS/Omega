@@ -932,7 +932,7 @@ fn validate_operation_foundation(
                 )
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || !matches!(path.as_slice(), [StructuralPathSegment::Field(_)])
+                || !matches!(path.as_slice(), [] | [StructuralPathSegment::Field(_)])
                 || machine
                     .entry_claims
                     .iter()

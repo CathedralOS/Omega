@@ -793,7 +793,7 @@ fn build_checked_dynamic_scalar_call(
     {
         return None;
     }
-    let realization_return_expression = checked_realization_scalar_return_expression(
+    let realization_body = checked_realization_scalar_body(
         program,
         facts,
         realization_machine,
@@ -861,7 +861,8 @@ fn build_checked_dynamic_scalar_call(
         realization_machine: row.realization_machine,
         realization_state: row.realization_state,
         realization_identity: row.realization_identity.clone(),
-        realization_return_expression,
+        realization_return_expression: realization_body.return_expression,
+        realization_structural_scalar_field_store: realization_body.structural_scalar_field_store,
         realization_callables,
         realization_contract_report_fingerprint: contract.report_fingerprint,
         realization_contract_commitment: contract.commitment,
@@ -961,7 +962,7 @@ fn checked_dynamic_realization_callables(
             {
                 return None;
             }
-            let return_expression = checked_realization_scalar_return_expression(
+            let body = checked_realization_scalar_body(
                 program,
                 facts,
                 realization_machine,
@@ -982,7 +983,8 @@ fn checked_dynamic_realization_callables(
                 realization_state: closed.realization_state,
                 realization_identity,
                 result_type,
-                return_expression,
+                structural_scalar_field_store: body.structural_scalar_field_store,
+                return_expression: body.return_expression,
                 contract_report_fingerprint: contract.report_fingerprint,
                 contract_commitment: contract.commitment,
             })
@@ -1362,18 +1364,35 @@ fn checked_self_attachment_source(
     ))
 }
 
-fn checked_realization_scalar_return_expression(
+struct CheckedRealizationScalarBody {
+    structural_scalar_field_store: Option<psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
+    return_expression: CheckedScalarExpression,
+}
+
+fn checked_realization_scalar_body(
     program: &TypedTrees,
     facts: &CheckFacts,
     realization_machine: &psi_typed_trees::machine::Machine,
     realization_state: &psi_typed_trees::state::State,
     result_type: PrimitiveType,
-) -> Option<CheckedScalarExpression> {
-    let [statement] = program
+) -> Option<CheckedRealizationScalarBody> {
+    let statements = program
         .statement_table
-        .statements(realization_state.statement_nodes)
-    else {
-        return None;
+        .statements(realization_state.statement_nodes);
+    let (structural_scalar_field_store, return_statement_index, statement) = match statements {
+        [statement] => (None, 0, statement),
+        [StatementNode::Assignment(assignment), statement] => (
+            Some(checked_realization_structural_scalar_field_store_plan(
+                program,
+                facts,
+                realization_machine,
+                realization_state,
+                assignment,
+            )?),
+            1,
+            statement,
+        ),
+        _ => return None,
     };
     let (expression, value_role) = match statement {
         StatementNode::Expression(expression) => (
@@ -1405,7 +1424,7 @@ fn checked_realization_scalar_return_expression(
                 == psi_checked_trees::CheckedValueOrigin::StateStatement {
                     machine_symbol: realization_machine.symbol,
                     state_symbol: realization_state.symbol,
-                    statement_index: 0,
+                    statement_index: return_statement_index,
                     role: value_role,
                 }
                 && value.primitive_type == Some(result_type)
@@ -1417,25 +1436,154 @@ fn checked_realization_scalar_return_expression(
 
     if let Some(checked) = facts.values.scalar_expressions.expression_at(
         realization_state.symbol,
-        0,
+        u32::try_from(return_statement_index).ok()?,
         CheckedScalarExpressionRole::Return,
     ) {
-        return Some(checked.clone());
+        return Some(CheckedRealizationScalarBody {
+            structural_scalar_field_store,
+            return_expression: checked.clone(),
+        });
     }
 
-    checked_direct_self_field_return(
+    let return_expression = checked_direct_self_field_return(
         program,
         realization_machine,
         realization_state,
+        return_statement_index,
         expression,
         result_type,
-    )
+    )?;
+    Some(CheckedRealizationScalarBody {
+        structural_scalar_field_store,
+        return_expression,
+    })
+}
+
+fn checked_realization_structural_scalar_field_store_plan(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    realization_machine: &psi_typed_trees::machine::Machine,
+    realization_state: &psi_typed_trees::state::State,
+    assignment: &psi_typed_trees::statement::TableAssignment,
+) -> Option<psi_checked_trees::CheckedStructuralScalarFieldStorePlan> {
+    let self_parameters = program
+        .state_parameters(realization_state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.is_self)
+        .collect::<Vec<_>>();
+    let [(self_position, self_parameter)] = self_parameters.as_slice() else {
+        return None;
+    };
+    let TypeReferenceNode::Reference { access, .. } = program
+        .type_reference_table
+        .type_reference(self_parameter.type_reference)
+    else {
+        return None;
+    };
+    if self_parameter.is_const
+        || !self_parameter.is_mutable
+        || *access != psi_language_semantics::ReferenceAccess::Mutable
+        || !realization_machine.attached_data_symbol.is_valid()
+    {
+        return None;
+    }
+
+    let destination = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        realization_state.symbol,
+        0,
+        assignment.target,
+    )?;
+    let [
+        psi_facts::PlaceSegment::Field {
+            symbol: field_symbol,
+        },
+    ] = destination.segments.as_slice()
+    else {
+        return None;
+    };
+    if destination.root != psi_facts::PlaceRoot::Symbol(self_parameter.symbol)
+        || !field_symbol.is_valid()
+    {
+        return None;
+    }
+
+    let attachments = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == realization_machine.attached_data_symbol)
+        .collect::<Vec<_>>();
+    let [attachment] = attachments.as_slice() else {
+        return None;
+    };
+    let fields = program
+        .data_members(attachment)
+        .iter()
+        .filter_map(|candidate| {
+            let psi_typed_trees::data::DataMember::Field(field) = candidate else {
+                return None;
+            };
+            (field.symbol == *field_symbol).then_some(field)
+        })
+        .collect::<Vec<_>>();
+    let [field] = fields.as_slice() else {
+        return None;
+    };
+    let primitive_type = program.primitive_type_reference(field.type_reference)?;
+    if field.relevance.is_erased()
+        || !matches!(primitive_type, PrimitiveType::Bool | PrimitiveType::I32)
+    {
+        return None;
+    }
+
+    let expected_mutation_path = crate::labels::canonical_place_label_from_parts(
+        program,
+        destination.root,
+        &destination.segments,
+    );
+    let mutation_paths = facts
+        .mutation
+        .for_machine(realization_machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == realization_state.symbol)?
+        .frame
+        .complete_paths()?;
+    if !matches!(mutation_paths, [path] if path == &expected_mutation_path) {
+        return None;
+    }
+
+    let value = facts.values.scalar_expressions.expression_at(
+        realization_state.symbol,
+        0,
+        CheckedScalarExpressionRole::AssignmentValue,
+    )?;
+    let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
+        || matches!(
+            value,
+            CheckedScalarExpression::Boolean(expression)
+                if matches!(expression.as_ref(), CheckedBooleanExpression::Constant(_))
+        );
+    if !direct_literal || crate::values::scalar_expression_type(value) != Some(primitive_type) {
+        return None;
+    }
+
+    Some(psi_checked_trees::CheckedStructuralScalarFieldStorePlan {
+        statement_index: 0,
+        destination_parameter_position: u32::try_from(*self_position).ok()?,
+        carrier_path: Vec::new(),
+        field_identity: terminal_field_identity(program, field.symbol)?,
+        primitive_type,
+        value: value.clone(),
+    })
 }
 
 fn checked_direct_self_field_return(
     program: &TypedTrees,
     realization_machine: &psi_typed_trees::machine::Machine,
     realization_state: &psi_typed_trees::state::State,
+    statement_index: usize,
     expression: psi_typed_trees::expression::ExpressionHandle,
     result_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
@@ -1454,7 +1602,7 @@ fn checked_direct_self_field_return(
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         realization_state.symbol,
-        0,
+        statement_index,
         expression,
     )?;
     let [
