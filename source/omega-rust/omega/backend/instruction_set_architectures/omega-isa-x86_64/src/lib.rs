@@ -10,6 +10,7 @@ mod machine_effects;
 mod mov_r32_imm32_i64_materialization;
 mod mov_r64_imm32_sign_extended_i64_materialization;
 mod post_handoff_writer;
+mod preservation_storage;
 mod ranked_u32_countdown;
 mod register_model;
 mod selected_form_encoding;
@@ -49,6 +50,9 @@ pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
+};
+pub use preservation_storage::{
+    X86_64PreservationStorageCatalogError, x86_64_preservation_storage_catalog,
 };
 pub use ranked_u32_countdown::*;
 pub use register_model::{

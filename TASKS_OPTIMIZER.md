@@ -1542,6 +1542,30 @@ decision. Only true language-semantic questions belong in
   base/offset, prologue/epilogue, stack delta, unwind row, probe, fault/trap
   behavior, encoding, emission, or publication. Final machine reconciliation
   remains required after executable call/spill lowering exists.
+  A twenty-second independently replayed, pipeline-owned V1 boundary now maps
+  those modified units through exact target-owned preservation-storage
+  catalogs. System V AMD64 coalesces each fragmented preserved GPR into one
+  8-byte carrier; Microsoft x64 declares eight 8-byte GPR carriers and ten
+  distinct 16-byte XMM6-XMM15 carriers; AAPCS64 and Darwin declare X19-X29
+  plus only the preserved low D8-D15 halves as 8-byte carriers. The generic
+  catalog validator requires dense group identities, exact view/unit equality,
+  complete convention coverage, byte geometry, unique names, and an identity
+  over every field. For each function, the closed
+  `CanonicalTargetPreservationGroupsV1` policy emits dense slots only for
+  groups containing a modified unit, retains the complete carrier plus exact
+  source requirements and witnesses, and assigns deterministic offsets
+  relative solely to an abstract callee-save area. Positional production and a
+  separately keyed unit-to-group replay agree on all roots, rows, geometry,
+  usage, and identity. The Linux x64 fixture proves four modified fragments
+  coalesce into one 8-byte slot; Linux Arm64 proves one low-half unit produces
+  one 8-byte slot; all five native targets retain explicit empty functions
+  with extent zero and neutral alignment one. Corruption, cross-target custody,
+  determinism, and every first-under budget axis fail closed. This is a storage
+  grouping and relative-area plan only: it does not combine spill and
+  preservation areas, select SP/FP or red-zone/shadow-space use, assign a final
+  frame coordinate, choose save/restore instructions or pairing, claim
+  memory/fault/trap behavior, construct unwind/probe state, encode, emit,
+  publish, or reconcile final-machine clobbers.
   ISA lowering, executable spill accesses, final frame offsets, unwind/probing,
   and downstream realization remain engineering work. Real memory
   insertion is owner-blocked only on the spill-access fault semantics recorded

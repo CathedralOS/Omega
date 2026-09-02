@@ -6,6 +6,7 @@
 mod floating_control;
 mod machine_effects;
 mod post_handoff_writer;
+mod preservation_storage;
 mod ranked_u32_countdown;
 mod register_model;
 mod selected_form_encoding;
@@ -20,6 +21,9 @@ pub use post_handoff_writer::{
     encode_generated_post_handoff_writer_bytes,
     generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
     generated_post_handoff_writer_width,
+};
+pub use preservation_storage::{
+    Aarch64PreservationStorageCatalogError, aarch64_preservation_storage_catalog,
 };
 pub use ranked_u32_countdown::*;
 pub use register_model::{

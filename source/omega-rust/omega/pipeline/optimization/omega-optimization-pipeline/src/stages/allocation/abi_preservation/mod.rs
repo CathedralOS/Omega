@@ -9,6 +9,7 @@ pub use model::FrameAbiPreservationConvention;
 pub(crate) use model::{AbiPreservationSelectionError, SelectedAbiPreservation};
 
 use crate::ValidatedTargetRegisterEnvironment;
+use omega_register_model::ValidatedPreservationStorageCatalog;
 
 pub(crate) fn selected_abi_preservation(
     environment: &ValidatedTargetRegisterEnvironment,
@@ -48,4 +49,28 @@ pub(crate) fn selected_abi_preservation(
     convention
         .map(|convention| SelectedAbiPreservation { kind, convention })
         .ok_or(AbiPreservationSelectionError::UnsupportedTargetConvention)
+}
+
+/// Select the independently validated target-owned storage grouping paired
+/// with the ABI convention above. This is immutable target data, not a frame
+/// or save/restore decision.
+pub(crate) fn selected_preservation_storage_catalog(
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<ValidatedPreservationStorageCatalog, AbiPreservationSelectionError> {
+    match environment.target().architecture {
+        omega_target::Architecture::X86_64 => {
+            omega_isa_x86_64::x86_64_preservation_storage_catalog(
+                environment.physical(),
+                environment.target(),
+            )
+            .map_err(|_| AbiPreservationSelectionError::UnsupportedTargetConvention)
+        }
+        omega_target::Architecture::Aarch64 => {
+            omega_isa_aarch64::aarch64_preservation_storage_catalog(
+                environment.physical(),
+                environment.target(),
+            )
+            .map_err(|_| AbiPreservationSelectionError::UnsupportedTargetConvention)
+        }
+    }
 }

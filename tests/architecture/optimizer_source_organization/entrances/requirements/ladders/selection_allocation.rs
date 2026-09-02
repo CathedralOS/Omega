@@ -1,5 +1,7 @@
 use super::super::SemanticLadder;
 
+mod callee_save_storage;
+
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "selected-plan canonical identity",
@@ -305,6 +307,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/allocation/register_allocation/callee_saved_requirements/budget.rs",
         ],
     },
+    callee_save_storage::PRODUCTION,
+    callee_save_storage::COVERAGE,
     SemanticLadder {
         family: "non-authoritative spill-frame requirements",
         paths: &[
