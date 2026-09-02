@@ -156,11 +156,13 @@ descriptor arguments, and parameter-slot dispatch. The selected native
 lowerer chooses the `{data, table}` entry placement, generates role-identified
 erased-data adapters, and emits distinct forwarded tables. Object and image
 replay bind caller-to-table, table-to-adapter, and adapter-to-realization
-relocations. Canonical installation format 56 retains the application/row/
+relocations. Canonical installation format 58 retains the application/row/
 realization identities and exact code/data spans needed to rejoin those facts.
 Its forwarding rows additionally retain the semantic scalar result and exact
 result/home carrier; they do not invent Terminal machine identities for
-native-only adapters.
+native-only adapters. The bounded mutable form additionally carries `&mut
+self` as one no-copy pointer and replays one direct fixed-integer literal
+store followed by the exact field read and scalar return.
 
 D32 makes this boundary the owner of physical children for every settled
 boundary occurrence. The canonical Terminal artifact remains immutable while
