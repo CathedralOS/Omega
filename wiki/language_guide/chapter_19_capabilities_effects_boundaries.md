@@ -1221,6 +1221,14 @@ even when they share one semantic coverage row. D32 separately requires one
 physical child for each boundary-operation occurrence that survives verified
 optimization.
 
+The first package-exported symbolic form is deliberately narrow: a public
+generic callable may map each named boundary operator type binder directly to
+one of its own type binders. The package row retains both package-qualified
+declarations and the binder ordinals. It remains a blocking composition input,
+not a selected-provider or realization claim. Nested symbolic types and other
+static categories remain unsupported until their final substitution and
+recheck are implemented end to end.
+
 For a checked generic body, the compiler creates an ordinary authoritative
 machine specialization per distinct closed application and rechecks the
 substituted signature, contracts, effects, target restrictions, admissions,

@@ -9,3 +9,4 @@ pub(super) mod families;
 pub(super) mod installation;
 pub(super) mod intrinsics;
 pub(super) mod selection;
+pub(super) mod symbolic_demands;

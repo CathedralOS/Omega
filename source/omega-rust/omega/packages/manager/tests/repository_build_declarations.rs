@@ -325,6 +325,22 @@ fn assert_mixed_canary_category_standard_library_edges(
     expected_standard_library_consumers: usize,
     compatibility_roots: &[&str],
 ) {
+    assert_mixed_canary_category_standard_library_edges_with_build_consumers(
+        cases,
+        expected_roots,
+        expected_standard_library_consumers,
+        compatibility_roots,
+        &[],
+    );
+}
+
+fn assert_mixed_canary_category_standard_library_edges_with_build_consumers(
+    cases: &Path,
+    expected_roots: usize,
+    expected_standard_library_consumers: usize,
+    compatibility_roots: &[&str],
+    build_only_standard_library_consumers: &[&str],
+) {
     let mut roots = Vec::new();
     collect_build_roots(cases, &mut roots);
     assert_eq!(
@@ -386,13 +402,15 @@ fn assert_mixed_canary_category_standard_library_edges(
             .iter()
             .filter(|dependency| *dependency == &expected_dependency)
             .count();
+        let uses_standard_library =
+            uses_dependency_alias || build_only_standard_library_consumers.contains(&name);
         assert_eq!(
             standard_library_edges,
-            usize::from(uses_dependency_alias),
+            usize::from(uses_standard_library),
             "std import/dependency mismatch in {}",
             root.display()
         );
-        standard_library_consumers += usize::from(uses_dependency_alias);
+        standard_library_consumers += usize::from(uses_standard_library);
     }
     assert_eq!(
         standard_library_consumers,
@@ -594,7 +612,7 @@ fn float_canaries_retain_only_the_known_compiler_compatibility_seams() {
 fn trait_canaries_retain_only_the_known_compiler_compatibility_seams() {
     assert_partial_canary_category_standard_library_migration(
         &repository_root().join("tests/omega/pass/traits"),
-        22,
+        26,
         &[
             "runtime_generic_trait_default_exit",
             "runtime_inherited_trait_default_exit",
@@ -650,7 +668,6 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("dungeon", 14, 7),
         ("domains", 22, 19),
         ("host", 9, 8),
-        ("providers", 27, 14),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),
@@ -659,6 +676,18 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
             &[],
         );
     }
+
+    assert_mixed_canary_category_standard_library_edges_with_build_consumers(
+        &repository_root().join("tests/omega/pass/providers"),
+        28,
+        17,
+        &[],
+        &[
+            "specialized_mixed_structural_fixed_operator_hosted_native",
+            "specialized_mixed_structural_result_operator_hosted_native",
+            "specialized_structural_fixed_operator_hosted_native",
+        ],
+    );
 }
 
 #[test]

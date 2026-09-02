@@ -128,6 +128,7 @@ impl PendingPackageReview {
             dangerous_authority_slack: dangerous_authority_slack_sources,
             terminal_authority_permissions: terminal_authority_permission_sources,
             boundary_application_realizations: self.providers.application_realizations.sources,
+            boundary_application_demands: self.providers.application_demands.sources,
             selected_provider_set: selected_provider_row_source(
                 compilation,
                 &self.providers.selected,
@@ -156,6 +157,7 @@ impl PendingPackageReview {
             selected_providers: self.providers.selected,
             selected_provider_families: self.providers.families,
             boundary_application_realizations: self.providers.application_realizations.rows,
+            boundary_application_demands: self.providers.application_demands.rows,
             row_sources,
         })
     }

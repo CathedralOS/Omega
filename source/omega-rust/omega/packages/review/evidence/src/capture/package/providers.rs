@@ -5,6 +5,9 @@ use super::super::providers::families::project_selected_provider_families;
 use super::super::providers::installation::project_selected_installation_reach;
 use super::super::providers::intrinsics::project_compiler_intrinsic_execution;
 use super::super::providers::selection::validate_selected_provider_declaration_owner;
+use super::super::providers::symbolic_demands::{
+    ProjectedBoundaryApplicationDemands, project_boundary_application_demands,
+};
 use super::super::semantics::declarations::{nominal_identity, provider_requirement_identity};
 use crate::record::{
     CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
@@ -19,6 +22,7 @@ pub(super) struct ProjectedProviders {
     pub(super) selected: Vec<CheckedPackageProviderReview>,
     pub(super) families: Vec<CheckedPackageProviderFamilyReview>,
     pub(super) application_realizations: ProjectedBoundaryApplicationRealizations,
+    pub(super) application_demands: ProjectedBoundaryApplicationDemands,
 }
 
 pub(super) fn project_selected_providers(
@@ -237,10 +241,12 @@ pub(super) fn project_selected_providers(
 
     let families = project_selected_provider_families(compilation, target, &selected)?;
     let application_realizations = project_boundary_application_realizations(compilation, package)?;
+    let application_demands = project_boundary_application_demands(compilation, package)?;
     Ok(ProjectedProviders {
         selected,
         families,
         application_realizations,
+        application_demands,
     })
 }
 

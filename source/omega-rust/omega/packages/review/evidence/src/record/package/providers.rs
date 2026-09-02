@@ -312,6 +312,44 @@ pub enum PackageReviewBoundaryApplicationArgument {
     },
 }
 
+/// One artifact-qualified open D29 demand exported by a generic callable.
+/// The callable's nominal owner identifies the producer package; arguments
+/// map requirement binders to that callable's own declaration telescope.
+/// This is never realization or coverage evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPackageBoundaryApplicationDemandReview {
+    pub(crate) requirement_identity: String,
+    pub(crate) operator_declaration: PackageReviewNominalIdentity,
+    pub(crate) producer_callable: PackageReviewNominalIdentity,
+    pub(crate) arguments: Vec<PackageReviewSymbolicBoundaryApplicationArgument>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewSymbolicBoundaryApplicationArgument {
+    TypeBinder {
+        requirement_binder_ordinal: u32,
+        producer_binder_ordinal: u32,
+    },
+}
+
+impl CheckedPackageBoundaryApplicationDemandReview {
+    pub fn requirement_identity(&self) -> &str {
+        &self.requirement_identity
+    }
+
+    pub const fn operator_declaration(&self) -> &PackageReviewNominalIdentity {
+        &self.operator_declaration
+    }
+
+    pub const fn producer_callable(&self) -> &PackageReviewNominalIdentity {
+        &self.producer_callable
+    }
+
+    pub fn arguments(&self) -> &[PackageReviewSymbolicBoundaryApplicationArgument] {
+        &self.arguments
+    }
+}
+
 /// Semantic realization role for one closed boundary application.
 ///
 /// This is review vocabulary, not native execution evidence. New roles require

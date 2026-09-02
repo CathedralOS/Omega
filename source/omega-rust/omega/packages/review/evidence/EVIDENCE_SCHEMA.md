@@ -1,6 +1,6 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 125 and row schema version 83. This file
+The canonical review schema is version 126 and row schema version 84. This file
 records the exact closed vocabulary whose details would otherwise obscure the
 crate's architectural entrance.
 
@@ -10,6 +10,20 @@ external executable supplies, and exact terminal-authority permissions open
 for root admission, and compiler-retained contract-entailment stand-downs open
 for later discharge. The outer ledger encoding remains version 2; no new
 persistence authority is introduced.
+
+Schema v126 / row v84 / recovery v21 adds the first artifact-qualified D29
+symbolic boundary-demand row. A public generic callable's named boundary use
+retains the exact package-owned callable and operator nominals, stable
+requirement identity, authored use location, and a direct mapping from each
+operator type-binder ordinal to one callable type-binder ordinal. Checked
+conversion and package projection independently rejoin the use origin,
+declarations, binder symbols, categories, and ordinals. Equal demands
+deduplicate only with all authored locations retained. The row is blocking
+composition input and grants no provider selection, realization, coverage,
+Terminal custody, native execution, package admission, or audit claim. Private
+callables, nested symbolic types, consts, lifetimes, machines, propositions,
+fixed-token uses, and statement uses remain absent or fail closed. Recovery
+v21 adds only the closed `BoundaryApplicationDemand` row-kind tag.
 
 Schema v125 / row v83 / recovery v20 makes external executable-supply review
 total for authored conformance aliases on the already-supported top-level

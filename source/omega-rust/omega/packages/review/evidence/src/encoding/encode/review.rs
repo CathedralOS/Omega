@@ -10,7 +10,8 @@ use super::values::declarations::{
     encode_const_shape, encode_operator_shape, encode_proposition_shape,
 };
 use super::values::providers::{
-    encode_boundary_application_realization, encode_provider, encode_provider_family,
+    encode_boundary_application_demand, encode_boundary_application_realization, encode_provider,
+    encode_provider_family,
 };
 use super::{
     MAGIC, PACKAGE_REVIEW_ENCODING_VERSION, PackageReviewEncodingError, PackageReviewEncodingLimits,
@@ -64,6 +65,10 @@ pub(crate) fn encode_with_limits(
     encoder.sequence(
         &review.boundary_application_realizations,
         encode_boundary_application_realization,
+    )?;
+    encoder.sequence(
+        &review.boundary_application_demands,
+        encode_boundary_application_demand,
     )?;
     encoder.finish()
 }

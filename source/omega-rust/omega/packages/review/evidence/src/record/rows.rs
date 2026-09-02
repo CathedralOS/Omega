@@ -7,6 +7,7 @@ use super::{
     domains::PackageReviewDomainShape,
     identity::{PackageReviewSemanticDependency, PackageReviewToolchainSourceIdentity},
     package::{
+        CheckedPackageBoundaryApplicationDemandReview,
         CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
         CheckedPackageProviderFamilyReview, CheckedPackageProviderReview,
         CheckedPackageReviewProjection,
@@ -54,6 +55,9 @@ pub enum PackageReviewCanonicalRowKind {
     /// checked body. This is semantic review data, not Terminal/native
     /// coverage or package admission.
     BoundaryApplicationRealization,
+    /// One artifact-qualified open generic boundary-operator demand. This is
+    /// blocking composition input, not semantic or native coverage.
+    BoundaryApplicationDemand,
     /// One bounded proof-only direct quotient correspondence, rederived
     /// transactionally from source and carrying no executable authority.
     NonExecutableQuotientCorrespondence,
@@ -345,5 +349,9 @@ impl CheckedPackageReviewProjection {
         &self,
     ) -> &[CheckedPackageBoundaryApplicationRealizationReview] {
         &self.boundary_application_realizations
+    }
+
+    pub fn boundary_application_demands(&self) -> &[CheckedPackageBoundaryApplicationDemandReview] {
+        &self.boundary_application_demands
     }
 }

@@ -116,6 +116,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
                                 operator,
                                 &application.arguments,
                                 &operand_types,
+                                operator_use.origin,
                                 &mut diagnostics,
                             )
                         {
@@ -388,6 +389,7 @@ fn rejoin_validated_symbolic_arguments(
     operator: &psi_typed_trees::operator::OperatorDefinition,
     validated: &[psi_validation::ValidatedBoundaryOperatorApplicationArgument],
     operand_types: &[Option<TypeReferenceHandle>],
+    origin: CheckedValueOrigin,
     diagnostics: &mut Vec<psi_diagnostics::Diagnostic>,
 ) -> Option<(
     psi_symbols::SymbolHandle,
@@ -424,6 +426,12 @@ fn rejoin_validated_symbolic_arguments(
         ));
         return None;
     };
+    if origin.machine_symbol() != Some(machine_symbol) {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(
+            "symbolic boundary application use does not belong to its enclosing generic machine",
+        ));
+        return None;
+    }
     let machine_parameters = program.machine_type_parameters(machine);
     let rederived =
         psi_typed_trees::operator::symbolic_operator_type_application_for_operands(
