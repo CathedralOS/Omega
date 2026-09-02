@@ -175,11 +175,14 @@ siblings separately enableable and auditable. Right-shift replay additionally
 pins signed sign-fill versus unsigned/address zero-fill.
 
 Proof-bearing operations remain separate even when every data operand is
-constant. Constant-operands wrapping divide has its own exact family whose
-grammar validates the nonzero divisor and whose replay requires
-`TargetIntegerExpression::WrappingDivide` with the original obligation and two
-ordered immediate children. A `ReturnIntegerImmediate` is a rejected proof-
-erasing substitution, not a stronger optimization.
+constant. Constant-operands wrapping divide and wrapping remainder have
+separate exact families whose grammars validate the nonzero divisor and whose
+replays require the matching `TargetIntegerExpression` policy with the
+original obligation and two ordered immediate children. A
+`ReturnIntegerImmediate` is a rejected proof-erasing substitution, not a
+stronger optimization. Their optimized custody fixtures share only the
+canonical certificate construction; each family keeps its own tiny entrance,
+grammar, replay, catalog row, receipt, and public-route test.
 
 Mandatory lowering may expose a machine-rule candidate without authorizing the
 rewrite. The exact unsigned-`U64` parameter zero-comparison families, for

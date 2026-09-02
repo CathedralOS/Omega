@@ -42,6 +42,7 @@ mod saturating_integer_subtract_immediate;
 mod wrapping_integer_add_immediate;
 mod wrapping_integer_divide_immediate_operands;
 mod wrapping_integer_multiply_immediate;
+mod wrapping_integer_remainder_immediate_operands;
 mod wrapping_integer_shift_left_immediate;
 mod wrapping_integer_shift_right_immediate;
 mod wrapping_integer_subtract_immediate;

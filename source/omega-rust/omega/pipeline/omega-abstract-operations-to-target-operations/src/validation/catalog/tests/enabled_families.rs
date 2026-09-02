@@ -21,6 +21,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerDivideImmediateOperands,
+            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerRemainderImmediateOperands,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerSubtractImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyImmediate,

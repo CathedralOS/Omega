@@ -16,7 +16,9 @@ mod wrapping_divide;
 mod wrapping_divide_immediate_operands;
 mod wrapping_multiply;
 mod wrapping_multiply_immediate;
+mod wrapping_nonzero_immediate_operands;
 mod wrapping_remainder;
+mod wrapping_remainder_immediate_operands;
 mod wrapping_subtract;
 mod wrapping_subtract_immediate;
 
@@ -37,5 +39,6 @@ pub(crate) use wrapping_divide_immediate_operands::*;
 pub(crate) use wrapping_multiply::*;
 pub(crate) use wrapping_multiply_immediate::*;
 pub(crate) use wrapping_remainder::*;
+pub(crate) use wrapping_remainder_immediate_operands::*;
 pub(crate) use wrapping_subtract::*;
 pub(crate) use wrapping_subtract_immediate::*;

@@ -15,6 +15,7 @@ mod saturating_integer_subtract;
 mod wrapping_integer_add;
 mod wrapping_integer_divide_operands;
 mod wrapping_integer_multiply;
+mod wrapping_integer_remainder_operands;
 mod wrapping_integer_shift_left;
 mod wrapping_integer_shift_right;
 mod wrapping_integer_subtract;
@@ -32,6 +33,7 @@ pub(in crate::validation::catalog) use saturating_integer_subtract::DESCRIPTOR a
 pub(in crate::validation::catalog) use wrapping_integer_add::DESCRIPTOR as WRAPPING_INTEGER_ADD;
 pub(in crate::validation::catalog) use wrapping_integer_divide_operands::DESCRIPTOR as WRAPPING_INTEGER_DIVIDE_OPERANDS;
 pub(in crate::validation::catalog) use wrapping_integer_multiply::DESCRIPTOR as WRAPPING_INTEGER_MULTIPLY;
+pub(in crate::validation::catalog) use wrapping_integer_remainder_operands::DESCRIPTOR as WRAPPING_INTEGER_REMAINDER_OPERANDS;
 pub(in crate::validation::catalog) use wrapping_integer_shift_left::DESCRIPTOR as WRAPPING_INTEGER_SHIFT_LEFT;
 pub(in crate::validation::catalog) use wrapping_integer_shift_right::DESCRIPTOR as WRAPPING_INTEGER_SHIFT_RIGHT;
 pub(in crate::validation::catalog) use wrapping_integer_subtract::DESCRIPTOR as WRAPPING_INTEGER_SUBTRACT;
