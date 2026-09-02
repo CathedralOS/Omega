@@ -15,12 +15,17 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
     let source = r#"
         trait Measure {
             machine measure(&self) -> i32;
+            machine alternate(&self) -> i32;
         }
 
         data Item { value: i32; }
 
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+
+            machine alternate(&self) -> i32 {
                 transition { _ -> self.value }
             }
         }
@@ -74,8 +79,28 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
     );
     assert_eq!(dynamic.descriptor.owner, caller.machine);
+    assert_eq!(dynamic.application.owner, caller.machine);
+    assert_eq!(dynamic.application.rows.len(), 2);
+    assert!(dynamic.has_complete_application_custody(caller.machine, dynamic.dispatch.operation));
+    assert_eq!(
+        dynamic
+            .application
+            .rows
+            .iter()
+            .filter(|row| {
+                row.public_requirement_identity == dynamic.dispatch.public_requirement_identity
+                    && row.realization_callable_identity.as_deref()
+                        == Some(dynamic.dispatch.realization_callable_identity.as_str())
+            })
+            .count(),
+        1,
+        "the selected row must remain one exact member of the complete two-row application"
+    );
     assert_eq!(dynamic.dispatch.owner, caller.machine);
-    assert_eq!(dynamic.dispatch.descriptor_ordinal, dynamic.descriptor.ordinal);
+    assert_eq!(
+        dynamic.dispatch.descriptor_ordinal,
+        dynamic.descriptor.ordinal
+    );
     assert_eq!(
         dynamic.initial.ordinal,
         dynamic.descriptor.initial_selection_ordinal

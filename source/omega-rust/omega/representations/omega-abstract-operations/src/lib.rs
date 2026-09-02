@@ -13,12 +13,12 @@ use psi_core::{
     Proposition, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
-    CrashRouteBucket, EntryClaim, OutcomeSpecificCallEvidence, ProviderCandidateConformance,
-    StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, TerminalDynamicConformanceSelection,
+    BoundaryMachineDeclaration, ClaimTransfer, ClosedConformanceApplication, CompletionReceipt,
+    ContentEntryClaim, CrashCause, CrashRouteBucket, EntryClaim, OutcomeSpecificCallEvidence,
+    ProviderCandidateConformance, StructuralArgument, StructuralMultiplicity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicConformanceSelection,
     TerminalIndirectDynamicDispatch, TerminalModule, TerminalPsiIdentity, TerminalRankedScc,
     TerminalReboundDynamicDescriptor,
 };
@@ -258,15 +258,75 @@ pub struct AbstractResult {
 /// Exact target-neutral custody for one rebound dynamic scalar invocation.
 ///
 /// The two selections retain the initializer and latest runtime source. The
-/// descriptor retains their version relation, while `dispatch` identifies the
-/// sole private-table row permitted at the call site. The realization machine
-/// in that row is table content, not a statically addressed call target.
+/// descriptor retains their version relation. `application` is the complete
+/// canonical private-table map, while `dispatch` identifies the sole row
+/// permitted at this call site. Realization machines are table content, not
+/// statically addressed call targets.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractReboundDynamicScalarDispatch {
     pub initial: TerminalDynamicConformanceSelection,
     pub rebound: TerminalDynamicConformanceSelection,
     pub descriptor: TerminalReboundDynamicDescriptor,
+    pub application: ClosedConformanceApplication,
     pub dispatch: TerminalIndirectDynamicDispatch,
+}
+
+impl AbstractReboundDynamicScalarDispatch {
+    /// Replay the complete selected-table join without trusting the repeated
+    /// call-site row or compact report coordinate as authority.
+    pub fn has_complete_application_custody(
+        &self,
+        owner: MachineId,
+        operation: OperationId,
+    ) -> bool {
+        self.initial.owner == owner
+            && self.rebound.owner == owner
+            && self.descriptor.owner == owner
+            && self.application.owner == owner
+            && self.dispatch.owner == owner
+            && self.descriptor.initial_selection_ordinal == self.initial.ordinal
+            && self.descriptor.rebound_selection_ordinal == self.rebound.ordinal
+            && self.dispatch.operation == operation
+            && self.dispatch.descriptor_ordinal == self.descriptor.ordinal
+            && self.application.report_fingerprint != 0
+            && !self.application.commitment.is_zero()
+            && self.application.report_fingerprint
+                == psi_terminal::closed_conformance_application_report_fingerprint(
+                    &self.application,
+                )
+            && self.application.commitment
+                == psi_terminal::closed_conformance_application_commitment(&self.application)
+            && [&self.initial, &self.rebound].into_iter().all(|selection| {
+                selection.conformance_application_report_fingerprint
+                    == self.application.report_fingerprint
+                    && selection.conformance_application_commitment == self.application.commitment
+            })
+            && self
+                .application
+                .rows
+                .iter()
+                .filter(|row| {
+                    row.declaring_trait_identity == self.dispatch.declaring_trait_identity
+                        && row.public_requirement_identity
+                            == self.dispatch.public_requirement_identity
+                        && row.requirement_identity == self.dispatch.requirement_identity
+                        && row.realization_identity == self.dispatch.realization_identity
+                        && row.realization_callable_identity.as_deref()
+                            == Some(self.dispatch.realization_callable_identity.as_str())
+                })
+                .count()
+                == 1
+            && self
+                .application
+                .realization_callables
+                .iter()
+                .filter(|callable| {
+                    callable.source_callable_identity == self.dispatch.realization_callable_identity
+                        && callable.machine == self.dispatch.realization
+                })
+                .count()
+                == 1
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

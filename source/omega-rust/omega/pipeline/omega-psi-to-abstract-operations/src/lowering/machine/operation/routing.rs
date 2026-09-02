@@ -19,6 +19,7 @@ pub(super) fn lower(
     machine: &TerminalMachine,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
     dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[psi_terminal::ClosedConformanceApplication],
     retain_payloadless_for_optimization: bool,
     value_types: &BTreeMap<psi_core::ValueId, ScalarType>,
     byte_sequence_literals: &[StructuralLiteral<'_>],
@@ -44,7 +45,12 @@ pub(super) fn lower(
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallStructural { .. }
-        | OperationKind::BoundaryCall { .. } => calls::lower(operation, machine, dynamic_dispatch),
+        | OperationKind::BoundaryCall { .. } => calls::lower(
+            operation,
+            machine,
+            dynamic_dispatch,
+            closed_conformance_applications,
+        ),
         OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }
@@ -52,7 +58,12 @@ pub(super) fn lower(
         | OperationKind::IntegerStructuralField { .. } => {
             structural_scalar_fields::lower(operation, block, machine, structural_types)
         }
-        OperationKind::Call { .. } => calls::lower(operation, machine, dynamic_dispatch),
+        OperationKind::Call { .. } => calls::lower(
+            operation,
+            machine,
+            dynamic_dispatch,
+            closed_conformance_applications,
+        ),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
         OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => ieee_float::lower(operation),

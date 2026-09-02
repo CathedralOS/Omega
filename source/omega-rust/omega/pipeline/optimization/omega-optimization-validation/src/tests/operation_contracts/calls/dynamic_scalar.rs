@@ -10,12 +10,17 @@ fn dynamic_unit() -> omega_optimization_unit::PsiOptimizationUnit {
     let source = r#"
         trait Measure {
             machine measure(&self) -> i32;
+            machine alternate(&self) -> i32;
         }
 
         data Item { value: i32; }
 
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+
+            machine alternate(&self) -> i32 {
                 transition { _ -> self.value }
             }
         }
@@ -53,19 +58,13 @@ fn dynamic_unit() -> omega_optimization_unit::PsiOptimizationUnit {
     .expect("reconstruct dynamic optimization unit")
 }
 
-#[test]
-fn rebound_dynamic_call_reconstructs_and_validates_exact_optimizer_custody() {
-    let baseline = dynamic_unit();
-    validate_psi_optimization_unit(&baseline)
-        .expect("verified rebound dynamic operation must survive optimizer reconstruction");
-
-    let mut owner_drift = baseline.clone();
-    let caller = owner_drift
-        .functions
+fn dynamic_dispatch(
+    unit: &mut omega_optimization_unit::PsiOptimizationUnit,
+) -> &mut omega_abstract_operations::AbstractReboundDynamicScalarDispatch {
+    unit.functions
         .iter_mut()
-        .find(|function| function.machine == owner_drift.entry)
-        .unwrap();
-    let dynamic = caller
+        .find(|function| function.machine == unit.entry)
+        .unwrap()
         .blocks
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
@@ -75,7 +74,43 @@ fn rebound_dynamic_call_reconstructs_and_validates_exact_optimizer_custody() {
             } => Some(dynamic_dispatch),
             _ => None,
         })
-        .expect("dynamic operation");
+        .expect("dynamic operation")
+}
+
+#[test]
+fn rebound_dynamic_call_reconstructs_and_validates_exact_optimizer_custody() {
+    let baseline = dynamic_unit();
+    validate_psi_optimization_unit(&baseline)
+        .expect("verified rebound dynamic operation must survive optimizer reconstruction");
+
+    let mut missing_unselected_row = baseline.clone();
+    let dynamic = dynamic_dispatch(&mut missing_unselected_row);
+    assert_eq!(dynamic.application.rows.len(), 2);
+    let selected_requirement = dynamic.dispatch.public_requirement_identity.clone();
+    dynamic
+        .application
+        .rows
+        .retain(|row| row.public_requirement_identity == selected_requirement);
+    missing_unselected_row.identity =
+        recompute_psi_optimization_unit_identity(&missing_unselected_row);
+    assert!(
+        validate_psi_optimization_unit(&missing_unselected_row).is_err(),
+        "removing an unselected table row must invalidate complete application custody"
+    );
+
+    let mut reordered_rows = baseline.clone();
+    dynamic_dispatch(&mut reordered_rows)
+        .application
+        .rows
+        .swap(0, 1);
+    reordered_rows.identity = recompute_psi_optimization_unit_identity(&reordered_rows);
+    assert!(
+        validate_psi_optimization_unit(&reordered_rows).is_err(),
+        "reordering the canonical table map must invalidate its Terminal commitment"
+    );
+
+    let mut owner_drift = baseline.clone();
+    let dynamic = dynamic_dispatch(&mut owner_drift);
     dynamic.dispatch.owner = MachineId::new(dynamic.dispatch.owner.get() + 100).unwrap();
     owner_drift.identity = recompute_psi_optimization_unit_identity(&owner_drift);
     assert!(

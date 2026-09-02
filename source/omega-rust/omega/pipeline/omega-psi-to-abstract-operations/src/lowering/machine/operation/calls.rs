@@ -1,7 +1,10 @@
 use omega_abstract_operations::{
     AbstractOperation, AbstractReboundDynamicScalarDispatch, AbstractResult, CompletionClaimSource,
 };
-use psi_terminal::{Operation, OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
+use psi_terminal::{
+    ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDispatchCatalog,
+    TerminalMachine,
+};
 
 use crate::lowering::LoweringError;
 
@@ -9,6 +12,7 @@ pub(super) fn lower(
     operation: &Operation,
     machine: &TerminalMachine,
     dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+    closed_conformance_applications: &[ClosedConformanceApplication],
 ) -> Result<AbstractOperation, LoweringError> {
     Ok(match operation.kind.clone() {
         OperationKind::CallUnit {
@@ -88,6 +92,44 @@ pub(super) fn lower(
             ) else {
                 return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
             };
+            let applications = closed_conformance_applications
+                .iter()
+                .filter(|application| {
+                    application.owner == machine.id
+                        && application.report_fingerprint
+                            == initial.conformance_application_report_fingerprint
+                        && application.commitment == initial.conformance_application_commitment
+                        && application.report_fingerprint
+                            == rebound.conformance_application_report_fingerprint
+                        && application.commitment == rebound.conformance_application_commitment
+                })
+                .collect::<Vec<_>>();
+            let [application] = applications.as_slice() else {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            };
+            let rows = application
+                .rows
+                .iter()
+                .filter(|row| {
+                    row.declaring_trait_identity == dispatch.declaring_trait_identity
+                        && row.public_requirement_identity == dispatch.public_requirement_identity
+                        && row.requirement_identity == dispatch.requirement_identity
+                        && row.realization_identity == dispatch.realization_identity
+                        && row.realization_callable_identity.as_deref()
+                            == Some(dispatch.realization_callable_identity.as_str())
+                })
+                .collect::<Vec<_>>();
+            let callables = application
+                .realization_callables
+                .iter()
+                .filter(|callable| {
+                    callable.source_callable_identity == dispatch.realization_callable_identity
+                        && callable.machine == dispatch.realization
+                })
+                .collect::<Vec<_>>();
+            if !matches!(rows.as_slice(), [_]) || !matches!(callables.as_slice(), [_]) {
+                return Err(LoweringError::InvalidDynamicScalarCall(operation.id));
+            }
             let result = operation.result.expect_scalar();
             AbstractOperation::CallDynamicScalar {
                 psi_operation: operation.id,
@@ -99,6 +141,7 @@ pub(super) fn lower(
                     initial: (*initial).clone(),
                     rebound: (*rebound).clone(),
                     descriptor: (*descriptor).clone(),
+                    application: (*application).clone(),
                     dispatch: (*dispatch).clone(),
                 },
                 requirement_obligations,

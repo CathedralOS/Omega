@@ -11706,8 +11706,13 @@ checked-result arithmetic decision listed below.
   reassignment now retains ordered initializer/latest selections, both
   normalized structural sources, the common complete row map, and the selected
   call/continuation in a distinct checked rebound lane. That lane crosses
-  canonical Terminal, optimizer, target, and assignment custody and fails
-  explicitly at static table materialization. The pre-refactor
+  canonical Terminal, abstract operations, identity-bound optimizer
+  reconstruction and validation, target lowering, and physical assignment.
+  Each dynamic carrier retains its complete canonically ordered
+  `ClosedConformanceApplication`; downstream boundaries rejoin its strong
+  commitment, selected row, and callable, and multi-row tests reject removal
+  or reordering of an unselected table row. It fails explicitly at static table
+  materialization. The pre-refactor
   `omega-state-calls` path and its downstream table planning, instruction
   selection, and relocation consumers were deleted; their historical tests and
   task prose are not evidence that the canonical pipeline still implements
@@ -11716,10 +11721,6 @@ checked-result arithmetic decision listed below.
 
   Remaining work:
 
-  - retain the complete canonically ordered closed-conformance table catalog
-    after Terminal through abstract operations, optimizer reconstruction and
-    validation, target lowering, and physical assignment. The selected
-    indirect row alone cannot synthesize the complete table;
   - materialize private realization tables/functions and exact relocations,
     then lower the checked indirect call through the selected table row;
   - restore pass-through and rebound native canaries on the canonical Terminal

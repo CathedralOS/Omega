@@ -57,6 +57,7 @@ pub(super) fn lower_machine(
         machine,
         structural_types,
         dynamic_dispatch,
+        &module.closed_conformance_applications,
         retain_payloadless_for_optimization,
     )
 }

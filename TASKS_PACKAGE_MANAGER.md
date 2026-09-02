@@ -298,16 +298,17 @@ explicitly.
     runtime carrier now cross abstract operations, optimizer reconstruction and
     validation, target legalization, and physical frame assignment.
     Machine-emission preflight independently replays the non-overlapping
-    descriptor/result frame regions. The complete canonically ordered closed-
-    conformance table catalog still must survive Terminal through downstream
-    plans; the selected indirect row cannot synthesize a fixture-shaped
-    one-slot table. A
-    service-free straight-line body stops honestly at
+    descriptor/result frame regions. Each dynamic carrier now also retains the
+    complete canonically ordered `ClosedConformanceApplication`, binds it into
+    optimizer identity, and rejoins its strong commitment, selected row, and
+    callable through target lowering and assignment. Multi-row tests reject
+    removal or reordering of an unselected table row; no fixture-shaped
+    one-slot table is synthesized. A service-free straight-line body stops at
     `DynamicScalarTableMaterializationPending`; the Console canary first stops
     at the independent multi-block target-control gap. The remaining work is
-    complete table-catalog custody, static table address/function
-    materialization, indirect-call emission and relocations, multi-block
-    continuation control, and the end-to-end native canary. The two
+    static table address/function materialization, indirect-call emission and
+    relocations, multi-block continuation control, and the end-to-end native
+    canary. The two
     build/runtime float twins
     retain compatibility because early named-operator calls have no exact
     operational callable identity; six nested/repeated wire roots retain

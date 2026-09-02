@@ -48,26 +48,7 @@ pub(super) fn assign(
         || initial_argument.structural_type != rebound_argument.structural_type
         || !source_matches(initial_argument, &dynamic_dispatch.initial.source)
         || !source_matches(rebound_argument, &dynamic_dispatch.rebound.source)
-        || dynamic_dispatch.initial.owner != machine
-        || dynamic_dispatch.rebound.owner != machine
-        || dynamic_dispatch.descriptor.owner != machine
-        || dynamic_dispatch.dispatch.owner != machine
-        || dynamic_dispatch.initial.ordinal != dynamic_dispatch.descriptor.initial_selection_ordinal
-        || dynamic_dispatch.rebound.ordinal != dynamic_dispatch.descriptor.rebound_selection_ordinal
-        || dynamic_dispatch.dispatch.operation != psi_operation
-        || dynamic_dispatch.dispatch.descriptor_ordinal != dynamic_dispatch.descriptor.ordinal
-        || dynamic_dispatch
-            .initial
-            .conformance_application_report_fingerprint
-            != dynamic_dispatch
-                .rebound
-                .conformance_application_report_fingerprint
-        || dynamic_dispatch.initial.conformance_application_commitment
-            != dynamic_dispatch.rebound.conformance_application_commitment
-        || dynamic_dispatch
-            .initial
-            .conformance_application_commitment
-            .is_zero()
+        || !dynamic_dispatch.has_complete_application_custody(machine, psi_operation)
     {
         return Err(invalid());
     }

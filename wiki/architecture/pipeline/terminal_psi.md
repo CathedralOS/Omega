@@ -623,14 +623,19 @@ both declared source places, descriptor-version relation, selected-realization
 call graph, service closure, and non-rewritable call observation;
 physical assignment allocates the canonical runtime `{ instance, table }`
 carrier and durable result home. Machine-emission preflight independently
-replays those non-overlapping descriptor/result frame regions. The downstream
-plans do not yet retain the complete canonically ordered
-`ClosedConformanceApplication` table catalog; the selected indirect row cannot
-stand in for that complete map or authorize a fixture-shaped one-slot table.
-Machine emission therefore continues to reject the row as
-`DynamicScalarTableMaterializationPending` until complete table custody, static
-private table address/function materialization, indirect-call encoding, and
-relocations exist. This boundary is not permission to devirtualize the call.
+replays those non-overlapping descriptor/result frame regions. Each abstract
+dynamic carrier retains the complete canonically ordered
+`ClosedConformanceApplication`, not merely the selected indirect row.
+Optimizer identity binds the full telescope, row map, callable registry,
+report coordinate, and strong commitment; optimizer validation, target
+lowering, and assignment rejoin that application to the exact selected row and
+callable. Multi-row mutation tests reject removal or reordering of an
+unselected row. Identical applications may later be deduplicated by strong
+commitment when static artifact-private tables are materialized. Machine
+emission continues to reject the row as
+`DynamicScalarTableMaterializationPending` until static private table
+address/function materialization, indirect-call encoding, and relocations
+exist. This boundary is not permission to devirtualize the call.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts
