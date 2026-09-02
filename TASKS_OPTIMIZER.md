@@ -282,6 +282,12 @@ decision. Only true language-semantic questions belong in
   need a real join; no executable entrance may be a forwarding wall. The
   exhaustive architecture guard rejects missing, duplicate, or contradictory
   role declarations and pins every executable entrance to a coordination seam.
+- [x] Reduce the 100-line abstract-to-target family catalog entrance to a
+  39-line typed selection/whole-plan join over one adjacent 71-line
+  `enabled_families.rs` roster. That lower rung is the sole guarded
+  enable/disable and global-order seam; typed `dispatch` adapters, exact family
+  validators, selection behavior, errors, receipts, and public API are
+  unchanged.
 - [x] Split the 781-line transformation ledger into a 92-line construction
   entrance over model, construction validation, error, encoding, decoding,
   cursor, and test leaves without changing its stable wire identity.

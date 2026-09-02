@@ -724,6 +724,13 @@ Abstract-to-target validation follows the same entrance rule. Its 51-line
 function order, and structural declarations before the catalog selects one
 named family leaf. Settlement-aware and plain validators are closed descriptor
 variants, not an ambient mode or a second family schedule.
+The catalog itself now has an explicit short descent:
+`catalog/mod.rs -> enabled_families.rs -> dispatch/<family> -> exact
+grammar/replay`. The 39-line executable entrance owns the typed selection call
+and whole-plan validator exposure; the adjacent 71-line roster is the sole
+enable/disable and global-order seam. Architecture checks pin both that
+consumption edge and roster location, so growing the family set cannot turn the
+entrance back into a flat switchboard or introduce a proxy schedule.
 Constant bitwise-not immediate translation has its own small
 `straight_line_integer_bitwise_not_immediate/mod.rs` executable entrance. It
 descends directly to `grammar.rs` for the exact three-operation source shape and

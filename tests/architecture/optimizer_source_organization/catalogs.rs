@@ -54,10 +54,16 @@ const REQUIRED_EXACT_RULE_FOLDERS: &[RequiredExactRuleFolder] = &[
 
 /// Additional construction catalogs that are not source-visible optimization
 /// stages but still own one closed ordered family inventory.
-const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[RequiredRuleCatalog {
-    path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/catalog.rs",
-    order_marker: "SCALAR_FAMILIES",
-}];
+const REQUIRED_RULE_CATALOGS: &[RequiredRuleCatalog] = &[
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/enabled_families.rs",
+        order_marker: "ENABLED_TRANSLATION_FAMILIES",
+    },
+    RequiredRuleCatalog {
+        path: "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/catalog.rs",
+        order_marker: "SCALAR_FAMILIES",
+    },
+];
 
 #[derive(Debug)]
 struct ConstantDeclaration {
