@@ -26,7 +26,9 @@ pub(crate) fn expected_definitions(
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
         O::CallStructuralScalar { result, .. }
+        | O::CallStructuralScalarWithDynamicArguments { result, .. }
         | O::CallDynamicScalar { result, .. }
+        | O::CallDynamicParameterScalar { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: Some(result),

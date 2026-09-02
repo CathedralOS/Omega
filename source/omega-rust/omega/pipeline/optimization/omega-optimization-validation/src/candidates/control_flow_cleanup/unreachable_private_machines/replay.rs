@@ -138,6 +138,27 @@ pub(crate) fn validator_machine_references(
             | O::Call { callee, .. } => {
                 references.insert(*callee);
             }
+            O::CallStructuralScalarWithDynamicArguments {
+                callee,
+                dynamic_arguments,
+                ..
+            } => {
+                references.insert(*callee);
+                for argument in dynamic_arguments {
+                    if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        application,
+                        ..
+                    } = &argument.source
+                    {
+                        references.extend(
+                            application
+                                .realization_callables
+                                .iter()
+                                .map(|callable| callable.machine),
+                        );
+                    }
+                }
+            }
             O::CallDynamicScalar {
                 dynamic_dispatch, ..
             } => {

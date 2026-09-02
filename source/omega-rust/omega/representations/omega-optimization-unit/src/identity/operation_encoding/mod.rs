@@ -23,7 +23,9 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
 
         O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallDynamicParameterScalar { .. }
         | O::CallStructural { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }

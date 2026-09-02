@@ -21,6 +21,7 @@ psi-terminal-interpreter = { path = "../../../psi/semantics/psi-terminal-interpr
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
 
 [dev-dependencies]
+omega-optimization-validation = { path = "../optimization/omega-optimization-validation" }
 psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }

@@ -19,6 +19,30 @@ pub(crate) fn operation_service_contract_matches(
         | O::CallStructural { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+        O::CallStructuralScalarWithDynamicArguments {
+            callee,
+            dynamic_arguments,
+            ..
+        } => {
+            functions
+                .get(callee)
+                .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling))
+                && dynamic_arguments
+                    .iter()
+                    .all(|argument| match &argument.source {
+                        omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } => application.realization_callables.iter().all(|callable| {
+                            functions.get(&callable.machine).is_some_and(|realization| {
+                                reached_is_published(&realization.published_service_ceiling)
+                            })
+                        }),
+                        omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(
+                            _,
+                        ) => true,
+                    })
+        }
         O::CallDynamicScalar {
             dynamic_dispatch, ..
         } => functions
@@ -71,6 +95,26 @@ pub(crate) fn operation_structural_call_contract_matches(
             )
         }),
         O::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => functions.get(callee).is_some_and(|callee| {
+            structural_arguments_match(
+                caller,
+                structural_arguments,
+                &callee.structural_parameters,
+                types,
+                StructuralProjectionPolicy::Projected,
+                false,
+            ) && validate_internal_claim_transfers(
+                caller,
+                callee,
+                structural_arguments,
+                claim_transfers,
+            )
+        }),
+        O::CallStructuralScalarWithDynamicArguments {
             callee,
             structural_arguments,
             claim_transfers,

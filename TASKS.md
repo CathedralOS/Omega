@@ -11754,18 +11754,29 @@ checked-result arithmetic decision listed below.
   exit control lane encode and verify this portable ABI rather than composing
   the helper away.
 
-  Native realization deliberately remains the next boundary. General
-  `CallDynamicParameterScalar` fails closed at abstract-operation lowering; no
-  target pretends to implement a physical descriptor-parameter ABI yet. The
-  older direct and caller-local rebound lanes still cross target lowering,
+  The portable descriptor-parameter lane now also crosses the independently
+  reconstructed abstract-operation and optimizer boundary. Descriptor-bearing
+  structural calls use a distinct role rather than taxing or changing the
+  identity of ordinary structural calls. Each caller argument retains its
+  target parameter and either complete rebound-application custody or exact
+  incoming-parameter interface; each helper dispatch retains the parameter,
+  requirement slot, and scalar result. Optimization identity v19 binds those
+  rows, validation rejects missing or substituted custody, call/effect replay
+  retains every table realization, and the ordinary-call identity remains a
+  separate stable encoding. Native target realization deliberately remains
+  the next boundary: descriptor-bearing calls and
+  `CallDynamicParameterScalar` both fail closed before physical planning, so
+  no target pretends to implement a descriptor-parameter ABI yet. The older
+  direct and caller-local rebound lanes still cross target lowering,
   assignment, object replay, and x86-64/AArch64 execution unchanged.
 
   Remaining work:
 
-  - lower the portable descriptor parameter/argument/slot model through
-    abstract operations, target calling plans, assignment, relocation, object
-    replay, and x86-64/AArch64 execution, with one physical ABI selected by each
-    receiving lowerer rather than embedded in Terminal;
+  - lower the retained descriptor parameter/argument/slot model through target
+    calling plans, assignment, relocation, object replay, and x86-64/AArch64
+    execution, retaining each function's complete descriptor-parameter
+    signature even when a parameter is unused, with one physical ABI selected
+    by each receiving lowerer rather than embedded in Terminal;
   - extend the v1 shared-borrow/scalar-call surface when Unit results, mutable
     custody, or additional call forms have exact semantic and physical rules;
   - extend custody to changed-conformance, stored/joined/escaping,

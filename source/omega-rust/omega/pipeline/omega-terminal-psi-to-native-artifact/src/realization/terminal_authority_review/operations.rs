@@ -21,6 +21,12 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         AbstractOperation::CallDynamicScalar {
             dynamic_dispatch, ..
         } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
+        AbstractOperation::CallDynamicParameterScalar { .. } => {
+            AuthorityEdge::UnsupportedCheckedPhysical
+        }
+        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
+            AuthorityEdge::UnsupportedCheckedPhysical
+        }
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { .. } => AuthorityEdge::UnsupportedCheckedPhysical,
         AbstractOperation::WriteOnlyPrimitiveStore { .. }

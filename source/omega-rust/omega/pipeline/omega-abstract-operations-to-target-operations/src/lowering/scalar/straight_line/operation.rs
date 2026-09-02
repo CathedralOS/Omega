@@ -63,7 +63,9 @@ pub(super) fn lower_operation(
             });
         }
         AbstractOperation::CallStructuralScalar { .. }
+        | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
         | AbstractOperation::CallDynamicScalar { .. }
+        | AbstractOperation::CallDynamicParameterScalar { .. }
         | AbstractOperation::CallStructural { .. } => {
             return Err(LoweringError::UnsupportedOperationInScalarFunction(
                 function.machine,

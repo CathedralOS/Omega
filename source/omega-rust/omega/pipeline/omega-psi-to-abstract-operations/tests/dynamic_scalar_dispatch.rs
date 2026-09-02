@@ -1,6 +1,10 @@
-use omega_abstract_operations::AbstractOperation;
+use omega_abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
+use omega_optimization_unit::{
+    recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
+};
+use omega_optimization_validation::validate_psi_optimization_unit;
 use omega_psi_to_abstract_operations::lower_artifact_sections;
-use psi_core::{IntegerSign, IntegerType, ScalarType};
+use psi_core::{FuelScheduleIdentity, IntegerSign, IntegerType, ScalarType};
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -137,4 +141,178 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
         }),
         "rebound dispatch must not be substituted with a direct structural call"
     );
+}
+
+#[test]
+fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatch() {
+    let source = r#"
+        trait Measure {
+            machine measure(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+
+        machine forward(erased: &dyn Measure) -> i32 {
+            let result: i32 = erased.measure();
+            transition { _ -> result }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("forwarded dynamic source lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("verified forwarded dispatch reaches target-neutral Omega");
+
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let (callee, arguments) = caller
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                callee,
+                dynamic_arguments,
+                ..
+            } if !dynamic_arguments.is_empty() => Some((*callee, dynamic_arguments)),
+            _ => None,
+        })
+        .expect("caller retains one descriptor-bearing helper call");
+    let [argument] = arguments.as_slice() else {
+        panic!("one dynamic descriptor argument expected: {arguments:#?}")
+    };
+    assert_eq!(argument.argument.owner, caller.machine);
+    assert_eq!(argument.target.owner, callee);
+    let AbstractDynamicDescriptorSource::Rebound {
+        initial,
+        rebound,
+        descriptor,
+        application,
+    } = &argument.source
+    else {
+        panic!("the authored caller must supply its rebound descriptor")
+    };
+    assert_eq!(descriptor.owner, caller.machine);
+    assert_eq!(initial.owner, caller.machine);
+    assert_eq!(rebound.owner, caller.machine);
+    assert_eq!(application.owner, caller.machine);
+    assert_eq!(
+        initial.conformance_application_commitment,
+        application.commitment
+    );
+    assert_eq!(
+        rebound.conformance_application_commitment,
+        application.commitment
+    );
+
+    let helper = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)
+        .expect("forward helper retained");
+    let parameter_calls = helper
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            AbstractOperation::CallDynamicParameterScalar {
+                result,
+                dynamic_dispatch,
+                ..
+            } => Some((result, dynamic_dispatch)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(result, dispatch)] = parameter_calls.as_slice() else {
+        panic!("one helper parameter dispatch expected: {helper:#?}")
+    };
+    assert_eq!(dispatch.parameter, argument.target);
+    assert_eq!(dispatch.dispatch.owner, helper.machine);
+    assert_eq!(
+        dispatch.dispatch.parameter_ordinal,
+        dispatch.parameter.ordinal
+    );
+    assert_eq!(
+        result.scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    );
+
+    let optimization = reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).expect("nonzero test fuel schedule"),
+    )
+    .expect("forwarded descriptor custody reconstructs into the optimizer");
+    validate_psi_optimization_unit(&optimization)
+        .expect("forwarded descriptor optimizer custody validates independently");
+    let helper = optimization
+        .functions
+        .iter()
+        .find(|function| function.machine == callee)
+        .expect("optimizer retains the helper");
+    assert!(
+        helper
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                matches!(
+                    node.operation,
+                    AbstractOperation::CallDynamicParameterScalar { .. }
+                ) && node
+                    .definitions
+                    .iter()
+                    .any(|definition| definition.value == result.value)
+            })
+    );
+
+    let mut missing_argument = optimization.clone();
+    let caller_function = missing_argument
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller.machine)
+        .expect("mutated caller");
+    let call = caller_function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find(|node| {
+            matches!(
+                node.operation,
+                AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
+            )
+        })
+        .expect("descriptor-bearing call");
+    let AbstractOperation::CallStructuralScalarWithDynamicArguments {
+        dynamic_arguments, ..
+    } = &mut call.operation
+    else {
+        unreachable!()
+    };
+    dynamic_arguments.clear();
+    missing_argument.identity = recompute_psi_optimization_unit_identity(&missing_argument);
+    assert!(validate_psi_optimization_unit(&missing_argument).is_err());
 }

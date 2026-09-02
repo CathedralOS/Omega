@@ -20,7 +20,9 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
         O::CallStructuralScalar { result, .. }
+        | O::CallStructuralScalarWithDynamicArguments { result, .. }
         | O::CallDynamicScalar { result, .. }
+        | O::CallDynamicParameterScalar { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: Some(result),

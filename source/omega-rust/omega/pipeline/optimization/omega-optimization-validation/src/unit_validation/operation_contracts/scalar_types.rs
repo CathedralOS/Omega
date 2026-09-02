@@ -278,6 +278,27 @@ pub(crate) fn operation_scalar_types_match(
                     )
             })
         }
+        O::CallStructuralScalarWithDynamicArguments {
+            psi_operation,
+            result,
+            callee,
+            dynamic_arguments,
+            ..
+        } => functions.get(callee).is_some_and(|callee| {
+            callee.parameters.is_empty()
+                && matches!(
+                callee.result,
+                omega_abstract_operations::AbstractFunctionResult::Scalar(signature)
+                        if signature.scalar_type == result.scalar_type
+                )
+                && !dynamic_arguments.is_empty()
+                && dynamic_arguments.iter().all(|argument| {
+                    argument.has_complete_custody(function.machine, *psi_operation, callee.machine)
+                })
+                && dynamic_arguments
+                    .windows(2)
+                    .all(|pair| pair[0].target.ordinal < pair[1].target.ordinal)
+        }),
         O::CallDynamicScalar {
             psi_operation,
             result,
@@ -295,6 +316,37 @@ pub(crate) fn operation_scalar_types_match(
                             if signature.scalar_type == result.scalar_type
                     )
             }),
+        O::CallDynamicParameterScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            ..
+        } => {
+            let parameter = &dynamic_dispatch.parameter;
+            let dispatch = &dynamic_dispatch.dispatch;
+            let requirement = parameter
+                .requirements
+                .iter()
+                .filter(|requirement| requirement.slot == dispatch.requirement_slot)
+                .collect::<Vec<_>>();
+            matches!(requirement.as_slice(), [requirement]
+            if parameter.owner == function.machine
+                && dispatch.owner == function.machine
+                && dispatch.operation == *psi_operation
+                && dispatch.parameter_ordinal == parameter.ordinal
+                && match requirement.result {
+                    psi_terminal::ClosedConformanceCallableResult::Unit => false,
+                    psi_terminal::ClosedConformanceCallableResult::I32 => {
+                        result.scalar_type == ScalarType::Integer(
+                            IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                .expect("i32 is valid"),
+                        )
+                    }
+                    psi_terminal::ClosedConformanceCallableResult::Bool => {
+                        result.scalar_type == ScalarType::Boolean
+                    }
+                })
+        }
         O::CallStructural { callee, .. } => functions.get(callee).is_some_and(|callee| {
             callee.parameters.is_empty()
                 && matches!(

@@ -436,7 +436,11 @@ pub(super) fn conditional_provenance(
             | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
             | AbstractOperation::CallUnit { psi_operation, .. }
             | AbstractOperation::CallStructuralScalar { psi_operation, .. }
+            | AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                psi_operation, ..
+            }
             | AbstractOperation::CallDynamicScalar { psi_operation, .. }
+            | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
             | AbstractOperation::CallStructural { psi_operation, .. }
             | AbstractOperation::BoundaryCall { psi_operation, .. }
             | AbstractOperation::PortWrite { psi_operation, .. }

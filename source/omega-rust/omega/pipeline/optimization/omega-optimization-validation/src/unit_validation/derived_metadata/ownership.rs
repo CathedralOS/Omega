@@ -13,6 +13,9 @@ pub(crate) fn expected_ownership(
         | O::CallStructuralScalar {
             claim_transfers, ..
         }
+        | O::CallStructuralScalarWithDynamicArguments {
+            claim_transfers, ..
+        }
         | O::CallStructural {
             claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(

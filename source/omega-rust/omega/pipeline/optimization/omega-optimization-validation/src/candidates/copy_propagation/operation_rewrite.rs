@@ -104,7 +104,9 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
+        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
+        | O::CallDynamicParameterScalar { .. }
         | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
