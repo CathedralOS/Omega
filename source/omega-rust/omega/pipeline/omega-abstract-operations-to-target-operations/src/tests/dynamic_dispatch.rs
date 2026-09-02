@@ -375,7 +375,7 @@ fn rejects_reauthenticated_dynamic_descriptor_substitution() {
         .expect("dynamic operation");
     assert_eq!(
         lower_to_target_operations(&source, NativeTarget::linux_x64()),
-        Err(LoweringError::InvalidDynamicScalarDispatch {
+        Err(LoweringError::InvalidDynamicDispatch {
             machine: source.entry,
             operation: rejected_operation,
         })
@@ -414,7 +414,7 @@ fn rejects_dynamic_call_missing_an_unselected_table_row() {
         .expect("dynamic operation");
     assert_eq!(
         lower_to_target_operations(&source, NativeTarget::linux_x64()),
-        Err(LoweringError::InvalidDynamicScalarDispatch {
+        Err(LoweringError::InvalidDynamicDispatch {
             machine: source.entry,
             operation: rejected_operation,
         })

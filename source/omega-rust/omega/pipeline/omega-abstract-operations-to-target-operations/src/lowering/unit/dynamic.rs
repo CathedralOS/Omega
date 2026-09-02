@@ -1,4 +1,4 @@
-//! Exact target lowering for one rebound dynamic scalar call.
+//! Exact target lowering for one rebound dynamic call.
 
 use super::super::scalar::scalar_shape;
 use super::super::shared::*;
@@ -149,7 +149,7 @@ fn lower_dynamic_call(
     expected_result: Option<ScalarType>,
     result_shape: Option<ValueShape>,
 ) -> Result<LoweredDynamicCall, LoweringError> {
-    let invalid = || LoweringError::InvalidDynamicScalarDispatch {
+    let invalid = || LoweringError::InvalidDynamicDispatch {
         machine: function.machine,
         operation: psi_operation,
     };

@@ -5,8 +5,8 @@ use psi_core::{MachineId, OperationId, PlaceId, ValueId};
 use psi_terminal::ClosedConformanceApplicationCommitment;
 
 use super::{
-    InstallationError, InstalledDynamicConformanceSlot, InstalledDynamicConformanceTable,
-    InstalledDynamicParameterScalarCall, InstalledDynamicScalarCall,
+    InstallationError, InstalledDynamicCall, InstalledDynamicConformanceSlot,
+    InstalledDynamicConformanceTable, InstalledDynamicParameterScalarCall,
     InstalledForwardedDynamicDescriptorAdapter, InstalledForwardedDynamicDescriptorCall,
     InstalledForwardedDynamicDescriptorSlot, InstalledForwardedDynamicDescriptorTable, Reader,
     internal_unit_scalar_call_codec::{decode_offset, encode_offset},
@@ -20,7 +20,7 @@ use super::{
 pub(super) fn encode_dynamic_conformance_custody(
     bytes: &mut Vec<u8>,
     tables: &[InstalledDynamicConformanceTable],
-    calls: &[InstalledDynamicScalarCall],
+    calls: &[InstalledDynamicCall],
     adapters: &[InstalledForwardedDynamicDescriptorAdapter],
     forwarded_tables: &[InstalledForwardedDynamicDescriptorTable],
     forwarded_calls: &[InstalledForwardedDynamicDescriptorCall],
@@ -77,12 +77,12 @@ pub(super) fn encode_dynamic_conformance_custody(
         push_u64(
             bytes,
             u64::try_from(call.text_offset)
-                .map_err(|_| InstallationError::InvalidDynamicScalarCall(call.machine))?,
+                .map_err(|_| InstallationError::InvalidDynamicCall(call.machine))?,
         );
         push_u64(
             bytes,
             u64::try_from(call.byte_count)
-                .map_err(|_| InstallationError::InvalidDynamicScalarCall(call.machine))?,
+                .map_err(|_| InstallationError::InvalidDynamicCall(call.machine))?,
         );
     }
     push_u32(
@@ -205,7 +205,7 @@ pub(super) fn decode_dynamic_conformance_custody(
 ) -> Result<
     (
         Vec<InstalledDynamicConformanceTable>,
-        Vec<InstalledDynamicScalarCall>,
+        Vec<InstalledDynamicCall>,
         Vec<InstalledForwardedDynamicDescriptorAdapter>,
         Vec<InstalledForwardedDynamicDescriptorTable>,
         Vec<InstalledForwardedDynamicDescriptorCall>,
@@ -279,27 +279,27 @@ pub(super) fn decode_dynamic_conformance_custody(
         let machine =
             MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroFunctionIdentity)?;
         let operation = OperationId::new(reader.u64()?)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(machine))?;
+            .ok_or(InstallationError::InvalidDynamicCall(machine))?;
         let application_commitment =
             ClosedConformanceApplicationCommitment::from_digest(reader.array()?);
         if application_commitment.is_zero() {
-            return Err(InstallationError::InvalidDynamicScalarCall(machine));
+            return Err(InstallationError::InvalidDynamicCall(machine));
         }
-        let initial_source = PlaceId::new(reader.u64()?)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(machine))?;
-        let rebound_source = PlaceId::new(reader.u64()?)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(machine))?;
+        let initial_source =
+            PlaceId::new(reader.u64()?).ok_or(InstallationError::InvalidDynamicCall(machine))?;
+        let rebound_source =
+            PlaceId::new(reader.u64()?).ok_or(InstallationError::InvalidDynamicCall(machine))?;
         let selected_table_byte_offset = reader.u32()?;
         if reader.u32()? != 0 {
             return Err(InstallationError::NonzeroReservedField);
         }
-        let realization = MachineId::new(reader.u64()?)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(machine))?;
+        let realization =
+            MachineId::new(reader.u64()?).ok_or(InstallationError::InvalidDynamicCall(machine))?;
         let text_offset = usize::try_from(reader.u64()?)
-            .map_err(|_| InstallationError::InvalidDynamicScalarCall(machine))?;
+            .map_err(|_| InstallationError::InvalidDynamicCall(machine))?;
         let byte_count = usize::try_from(reader.u64()?)
-            .map_err(|_| InstallationError::InvalidDynamicScalarCall(machine))?;
-        calls.push(InstalledDynamicScalarCall {
+            .map_err(|_| InstallationError::InvalidDynamicCall(machine))?;
+        calls.push(InstalledDynamicCall {
             machine,
             operation,
             application_commitment,

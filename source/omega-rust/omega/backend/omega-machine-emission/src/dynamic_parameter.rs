@@ -412,7 +412,7 @@ mod tests {
             assert_eq!(function.dynamic_parameter_scalar_calls.len(), 1);
             assert_eq!(function.semantic_code_attribution.len(), 2);
             assert!(function.scalar_stack.is_some());
-            assert!(function.dynamic_scalar_calls.is_empty());
+            assert!(function.dynamic_calls.is_empty());
         }
     }
 }

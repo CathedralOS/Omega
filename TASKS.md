@@ -12017,7 +12017,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 62 retains compact strong-identity
+  relocation. Canonical installation format 63 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -12077,7 +12077,7 @@ checked-result arithmetic decision listed below.
   return an independent selected code of 23. All three exit 70 on Linux x86-64
   while their target artifacts cross-link. Exact machine tests place the
   projected Boolean at byte offset 8 and reject path or accumulated-offset
-  drift before emission. Canonical installation format 62 retains this
+  drift before emission. Canonical installation format 63 retains this
   already-encoded path evidence.
 
   Boolean-returning forwarded calls now use the same producer-bound result-
@@ -12091,7 +12091,7 @@ checked-result arithmetic decision listed below.
   native canary selects `true` from the rebound instance, cross-links on both
   Linux architectures, and exits 70 on the hosted target. Object and
   installation replay rejoin the Boolean semantic result, call placement,
-  home roster, normalization/store interval, and canonical format-62 scalar
+  home roster, normalization/store interval, and canonical format-63 scalar
   tag. Integer-result forwarding remains unchanged.
 
   The first Unit-returning requirement rung now has checked custody without
@@ -12134,10 +12134,19 @@ checked-result arithmetic decision listed below.
   call placement, and aligned two-word descriptor frame region are retained,
   while no result or scalar home exists in either carrier. Scalar and Unit
   assignment share descriptor allocation instead of duplicating it. Native
-  emission still rejects the assigned operation with an explicit
-  `UnsupportedDynamicUnitDispatch` fence until result-less machine evidence
-  and object replay exist. The forwarded outer call and parameter-slot helper
-  remain fenced at target lowering. No native support is claimed.
+  emission, object replay, image linking, and canonical installation now use
+  one result-neutral `DynamicCallRecord`: descriptor/table/receiver/indirect-
+  call custody is common, and scalar-result evidence is optional only when the
+  selected closed requirement is scalar. Unit calls therefore have no fake
+  result record or scalar home. Descriptor frame allocations are replayed in
+  operation order even when no scalar home follows them. Machine parameter
+  records now retain authored access, so shared/mutable borrows are not
+  misclassified as owned affine values requiring cleanup; canonical
+  installation format 63 uses the prior reserved parameter byte for that
+  access tag. Dynamic-source borrowing no longer suppresses cleanup of an
+  independently owned root. Source-driven calls cross machine/object/image/
+  installation replay on all four native targets. The forwarded outer call
+  and parameter-slot helper remain fenced at target lowering.
 
   Remaining work:
 
@@ -12156,9 +12165,8 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - carry local rebound Unit dispatch through result-less machine evidence,
-    object replay, and native execution; then carry the forwarded outer call
-    and parameter-slot helper through target tables/adapters. Add an honest
+  - carry the forwarded outer call and parameter-slot helper through target
+    tables/adapters and result-less native evidence. Add an honest
     direct-selection descriptor argument source before admitting direct
     forwarding, and do not widen bodies or call forms first;
   - extend custody to changed-conformance, stored/joined/escaping,

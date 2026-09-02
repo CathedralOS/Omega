@@ -150,7 +150,7 @@ fn lower_dynamic_parameter_return(
         .find(|requirement| requirement.slot == dispatch.requirement_slot)
         .cloned()
     else {
-        return Err(LoweringError::InvalidDynamicScalarDispatch {
+        return Err(LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
         });
@@ -177,19 +177,18 @@ fn lower_dynamic_parameter_return(
         || !cleanup_actions.is_empty()
         || !function.published_service_ceiling.is_empty()
     {
-        return Err(LoweringError::InvalidDynamicScalarDispatch {
+        return Err(LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
         });
     }
-    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| {
-        LoweringError::InvalidDynamicScalarDispatch {
+    let pointer_size =
+        u16::try_from(target.pointer_size).map_err(|_| LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
-        }
-    })?;
+        })?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| {
-        LoweringError::InvalidDynamicScalarDispatch {
+        LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
         }
@@ -205,7 +204,7 @@ fn lower_dynamic_parameter_return(
     )
     .map_err(LoweringError::AbiPlan)?;
     let [instance, table] = function_call_plan.parameters.as_slice() else {
-        return Err(LoweringError::InvalidDynamicScalarDispatch {
+        return Err(LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
         });
@@ -218,16 +217,15 @@ fn lower_dynamic_parameter_return(
         },
     )
     .map_err(LoweringError::AbiPlan)?;
-    let pointer_size_u32 = u32::try_from(target.pointer_size).map_err(|_| {
-        LoweringError::InvalidDynamicScalarDispatch {
+    let pointer_size_u32 =
+        u32::try_from(target.pointer_size).map_err(|_| LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
-        }
-    })?;
+        })?;
     let table_slot_byte_offset = dispatch
         .requirement_slot
         .checked_mul(pointer_size_u32)
-        .ok_or(LoweringError::InvalidDynamicScalarDispatch {
+        .ok_or(LoweringError::InvalidDynamicDispatch {
             machine: function.machine,
             operation: *psi_operation,
         })?;

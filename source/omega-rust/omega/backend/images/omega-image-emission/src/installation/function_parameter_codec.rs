@@ -1,4 +1,4 @@
-//! Canonical format-36 codec for installed function parameters and homes.
+//! Canonical format-37 codec for installed function parameters and homes.
 //!
 //! Unit/scalar row positions remain in the installation parent. This child
 //! shares their exact bytes while retaining the established decode labels.
@@ -6,6 +6,7 @@
 use omega_machine_code::{UnitParameterHomeRecord, UnitParameterRecord};
 use psi_core::{PlaceId, StructuralTypeId};
 
+use super::structural_scalar_codec::{access_tag, decode_access};
 use super::{
     InstallationError, Reader, decode_boolean, decode_multiplicity, multiplicity_tag, push_u32,
     push_u64,
@@ -27,7 +28,8 @@ pub(super) fn encode_parameter_records(
         push_u64(bytes, parameter.place.get());
         push_u64(bytes, parameter.structural_type.get());
         bytes.push(multiplicity_tag(parameter.multiplicity));
-        bytes.extend_from_slice(&[0; 3]);
+        bytes.push(access_tag(parameter.access));
+        bytes.extend_from_slice(&[0; 2]);
         encode_shape(bytes, parameter.shape)?;
     }
     Ok(())
@@ -46,7 +48,8 @@ pub(super) fn encode_parameter_homes(
         push_u64(bytes, home.place.get());
         push_u64(bytes, home.structural_type.get());
         bytes.push(multiplicity_tag(home.multiplicity));
-        bytes.extend_from_slice(&[0; 3]);
+        bytes.push(access_tag(home.access));
+        bytes.extend_from_slice(&[0; 2]);
         encode_shape(bytes, home.shape)?;
         encode_direct_placement(bytes, &home.source)?;
         push_u32(bytes, home.byte_offset);
@@ -96,13 +99,15 @@ fn decode_parameter_records(
             InstallationError::ZeroStructuralReturnIdentity(type_identity),
         )?;
         let multiplicity = decode_multiplicity(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
+        let access = decode_access(reader.u8()?)?;
+        if reader.take(2)? != [0; 2] {
             return Err(InstallationError::NonzeroReservedField);
         }
         parameters.push(UnitParameterRecord {
             place,
             structural_type,
             multiplicity,
+            access,
             shape: decode_shape(reader)?,
         });
     }
@@ -125,7 +130,8 @@ fn decode_parameter_homes(
             InstallationError::ZeroStructuralReturnIdentity(type_identity),
         )?;
         let multiplicity = decode_multiplicity(reader.u8()?)?;
-        if reader.take(3)? != [0; 3] {
+        let access = decode_access(reader.u8()?)?;
+        if reader.take(2)? != [0; 2] {
             return Err(InstallationError::NonzeroReservedField);
         }
         let shape = decode_shape(reader)?;
@@ -139,6 +145,7 @@ fn decode_parameter_homes(
             place,
             structural_type,
             multiplicity,
+            access,
             shape,
             source,
             byte_offset,

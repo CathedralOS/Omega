@@ -3,7 +3,7 @@
 use super::super::shared::*;
 use super::super::structural_layout::structural_shape;
 use super::boundary_call::lower_boundary_call;
-use super::dynamic_scalar::{lower_dynamic_scalar_call, lower_dynamic_unit_call};
+use super::dynamic::{lower_dynamic_scalar_call, lower_dynamic_unit_call};
 use super::return_unit::lower_unit_return;
 use super::scalar_call::{KnownUnitInteger, lower_scalar_call};
 use super::scalar_definitions::{
@@ -333,7 +333,7 @@ pub(super) fn lower_unit_body(
                 )?;
             }
             AbstractOperation::CallDynamicParameterScalar { psi_operation, .. } => {
-                return Err(LoweringError::InvalidDynamicScalarDispatch {
+                return Err(LoweringError::InvalidDynamicDispatch {
                     machine: function.machine,
                     operation: *psi_operation,
                 });

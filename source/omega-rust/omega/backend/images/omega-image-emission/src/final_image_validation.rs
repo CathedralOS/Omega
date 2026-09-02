@@ -443,7 +443,7 @@ fn validate_dynamic_conformance_tables(
     }
 
     for function in artifact.functions() {
-        for call in &function.dynamic_scalar_calls {
+        for call in &function.dynamic_calls {
             let table = artifact
                 .dynamic_conformance_tables()
                 .iter()

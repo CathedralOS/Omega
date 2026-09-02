@@ -1,4 +1,4 @@
-//! Physical descriptor and result-home assignment for rebound dynamic calls.
+//! Physical descriptor and optional result-home assignment for rebound dynamic calls.
 
 use super::scalar_call::allocate_unit_scalar_home;
 use crate::assignment::shared::*;

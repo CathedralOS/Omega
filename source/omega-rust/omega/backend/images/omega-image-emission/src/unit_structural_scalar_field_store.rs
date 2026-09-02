@@ -46,9 +46,11 @@ fn validate_store(
         || parameter.place != store.destination.place
         || parameter.structural_type != store.destination.structural_type
         || parameter.multiplicity != store.destination.multiplicity
+        || parameter.access != store.destination.access
         || home.place != parameter.place
         || home.structural_type != parameter.structural_type
         || home.multiplicity != parameter.multiplicity
+        || home.access != parameter.access
         || home.shape != parameter.shape
         || store.destination_placement != home.source
         || store.parameter_home_byte_offset != home.byte_offset

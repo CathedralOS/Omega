@@ -95,7 +95,6 @@ pub(super) fn validate_unit_affine_cleanup(
     attribution: &[SemanticCodeAttribution],
     parameter_homes: &[UnitParameterHomeRecord],
     internal_unit_calls: &[InternalUnitCallRecord],
-    borrowed_roots: &std::collections::BTreeSet<psi_core::PlaceId>,
     attachments: &std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
     functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     cleanup: &UnitAffineCleanupRecord,
@@ -133,8 +132,8 @@ pub(super) fn validate_unit_affine_cleanup(
         .rev()
         .filter(|home| {
             home.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && home.access == psi_terminal::StructuralAccess::Owned
                 && !transferred_roots.contains(&home.place)
-                && !borrowed_roots.contains(&home.place)
                 && !fully_consumed_affine_pair
         })
         .map(|home| home.place)
@@ -347,11 +346,13 @@ pub(super) fn validate_unit_affine_cleanup(
                     psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
                         *place != home.place
                             || home.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                            || home.access != psi_terminal::StructuralAccess::Owned
                     }
                     psi_terminal::TerminalAffineCleanupAction::InvokeNominal(nominal) => {
                         home.place != nominal.place
                             || home.structural_type != nominal.structural_type
                             || home.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                            || home.access != psi_terminal::StructuralAccess::Owned
                             || !bounded_nominal_receiver_shape(home.shape)
                             || (home.shape.byte_size == 0 && !home.source.locations.is_empty())
                             || (home.shape.byte_size != 0 && home.source.locations.is_empty())

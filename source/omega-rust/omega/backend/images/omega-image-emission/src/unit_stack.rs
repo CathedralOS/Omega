@@ -308,7 +308,7 @@ pub(super) fn validate_complete_unit_stack_evidence(
     function: UnitStackEvidence,
     calls: &[omega_machine_code::InternalCallRelocation],
     foreign_calls: &[ForeignCallRelocation],
-    dynamic_calls: &[omega_machine_code::DynamicScalarCallRecord],
+    dynamic_calls: &[omega_machine_code::DynamicCallRecord],
     boundary_settlements: &[omega_machine_code::BoundarySettlementRecord],
     integer_constants: &[omega_machine_code::UnitIntegerConstantRecord],
     scalar_homes: &[omega_machine_code::UnitScalarHomeRecord],

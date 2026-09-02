@@ -794,7 +794,7 @@ durable attached-Unit frame home, so later bounded control flow reads the exact
 normalized result rather than relying on a transient ABI register. Target
 assignment and object/image replay independently rejoin that home to the
 operation, value, scalar type, shape, result placement, and emitted store
-bytes on x86-64 and AArch64. Installation format 62 retains the same semantic
+bytes on x86-64 and AArch64. Installation format 63 retains the same semantic
 result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
 local result interval. A first mutation-bearing realization body is admitted
@@ -819,8 +819,11 @@ at the checked layer for a terminal direct or once-rebound local descriptor
 call. One transparent forwarding machine may accept that descriptor as its
 only parameter and perform the Unit call as its sole statement. Both call
 coordinates are retained, and the plan deliberately has no result carrier.
-Terminal/table representation and native execution remain outside the current
-executable rung.
+The once-rebound local form now reaches target assignment, native machine
+emission, table relocation, object/image replay, and installation on all four
+native targets using one result-neutral dynamic-call record. It publishes no
+scalar home. The transparent forwarded form remains outside the current
+native rung.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,
 default instantiation when applicable, normalized contracts, and selected

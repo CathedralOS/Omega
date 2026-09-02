@@ -1,4 +1,4 @@
-//! Source-free lowering for bounded local dynamic scalar calls.
+//! Source-free lowering for bounded local dynamic calls.
 //!
 //! A never-rebound value lowers to a direct call. A value rebound exactly once
 //! retains two selections and an indirect descriptor call. A checked forwarded

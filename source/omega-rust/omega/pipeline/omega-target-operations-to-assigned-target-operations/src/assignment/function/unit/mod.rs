@@ -4,8 +4,8 @@
 //! order, and delegates each operation to the exhaustive router. Scalar calls
 //! and normalized foreign calls descend into separate custody owners.
 
+mod dynamic;
 mod dynamic_argument;
-mod dynamic_scalar;
 mod foreign_call;
 mod installed_provider;
 mod operation;

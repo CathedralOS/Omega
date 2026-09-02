@@ -374,7 +374,7 @@ pub(super) fn lower_dynamic_argument_scalar_call(
     else {
         unreachable!("dynamic-argument scalar lowering receives only its exact role")
     };
-    let invalid = || LoweringError::InvalidDynamicScalarDispatch {
+    let invalid = || LoweringError::InvalidDynamicDispatch {
         machine: function.machine,
         operation: *psi_operation,
     };

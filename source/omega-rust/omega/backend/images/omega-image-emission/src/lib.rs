@@ -79,7 +79,7 @@ pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
 use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
-use dynamic_conformance::validate_dynamic_scalar_calls;
+use dynamic_conformance::validate_dynamic_calls;
 use forwarded_dynamic_descriptor::validate_forwarded_dynamic_descriptors;
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
@@ -282,7 +282,7 @@ pub struct ObjectFunction {
     pub internal_unit_scalar_calls: Vec<omega_machine_code::InternalUnitScalarCallRecord>,
     pub installed_provider_unit_scalar_calls:
         Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
-    pub dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
+    pub dynamic_calls: Vec<omega_machine_code::DynamicCallRecord>,
     pub dynamic_parameter_scalar_calls: Vec<omega_machine_code::DynamicParameterScalarCallRecord>,
     pub forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
@@ -1322,7 +1322,7 @@ fn build_object_artifact_with_x86_feature_profile(
             &machine_functions,
             &validated_call_stacks,
         )?;
-        let dynamic_peak = validate_dynamic_scalar_calls(
+        let dynamic_peak = validate_dynamic_calls(
             plan.target,
             function,
             &machine_functions,
@@ -1333,32 +1333,6 @@ fn build_object_artifact_with_x86_feature_profile(
         }
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
         validate_scalar_structural_scalar_field_store(plan.target, function)?;
-        let dynamic_borrowed_roots = function
-            .dynamic_scalar_calls
-            .iter()
-            .flat_map(|call| {
-                [
-                    call.initial_instance.source.place,
-                    call.rebound_instance.source.place,
-                ]
-            })
-            .chain(
-                function
-                    .forwarded_dynamic_descriptor_calls
-                    .iter()
-                    .flat_map(|call| &call.dynamic_arguments)
-                    .filter_map(|argument| {
-                        let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                            rebound,
-                            ..
-                        } = &argument.custody.source
-                        else {
-                            return None;
-                        };
-                        Some(rebound.source.place)
-                    }),
-            )
-            .collect::<std::collections::BTreeSet<_>>();
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
                 function.machine,
@@ -1367,7 +1341,6 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.semantic_code_attribution,
                 &function.unit_parameter_homes,
                 &function.internal_unit_calls,
-                &dynamic_borrowed_roots,
                 &attachments,
                 &machine_functions,
                 cleanup,
@@ -1395,7 +1368,6 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.semantic_code_attribution,
                 &function.scalar_structural_parameter_homes,
                 &function.internal_unit_calls,
-                &std::collections::BTreeSet::new(),
                 &attachments,
                 &machine_functions,
                 cleanup,
@@ -1430,7 +1402,6 @@ fn build_object_artifact_with_x86_feature_profile(
                     &function.semantic_code_attribution,
                     &function.scalar_structural_parameter_homes,
                     &function.internal_unit_calls,
-                    &std::collections::BTreeSet::new(),
                     &attachments,
                     &machine_functions,
                     &record.cleanup,
@@ -1449,6 +1420,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     parameter.place != home.place
                         || parameter.structural_type != home.structural_type
                         || parameter.multiplicity != home.multiplicity
+                        || parameter.access != home.access
                         || parameter.shape != home.shape
                 })
         {
@@ -1466,6 +1438,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     parameter.place != home.place
                         || parameter.structural_type != home.structural_type
                         || parameter.multiplicity != home.multiplicity
+                        || parameter.access != home.access
                         || parameter.shape != home.shape
                 })
             || (!scalar_custody
@@ -1502,7 +1475,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 stack,
                 &function.internal_calls,
                 &function.foreign_calls,
-                &function.dynamic_scalar_calls,
+                &function.dynamic_calls,
                 &function.boundary_settlements,
                 &function.unit_integer_constants,
                 &function.unit_scalar_homes,
@@ -1861,7 +1834,7 @@ fn build_object_artifact_with_x86_feature_profile(
     for application in plan
         .functions
         .iter()
-        .flat_map(|function| &function.dynamic_scalar_calls)
+        .flat_map(|function| &function.dynamic_calls)
         .map(|call| &call.dynamic_dispatch.application)
     {
         if let Some(existing) = dynamic_applications
@@ -2126,7 +2099,7 @@ fn build_object_artifact_with_x86_feature_profile(
             installed_provider_unit_scalar_calls: function
                 .installed_provider_unit_scalar_calls
                 .clone(),
-            dynamic_scalar_calls: function.dynamic_scalar_calls.clone(),
+            dynamic_calls: function.dynamic_calls.clone(),
             dynamic_parameter_scalar_calls: function.dynamic_parameter_scalar_calls.clone(),
             forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
@@ -2440,7 +2413,7 @@ fn build_object_artifact_with_x86_feature_profile(
     let dynamic_address_relocation_count = plan
         .functions
         .iter()
-        .flat_map(|function| &function.dynamic_scalar_calls)
+        .flat_map(|function| &function.dynamic_calls)
         .map(|call| match call.table_address.encoding {
             omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 { .. } => 1,
             omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress { .. } => 2,
@@ -2530,7 +2503,7 @@ fn build_object_artifact_with_x86_feature_profile(
         });
     }
     for (function, emitted) in plan.functions.iter().zip(&functions) {
-        for call in &function.dynamic_scalar_calls {
+        for call in &function.dynamic_calls {
             let table = dynamic_conformance_tables
                 .iter()
                 .find(|table| {
@@ -2837,7 +2810,7 @@ fn validate_private_functions<'plan>(
                 .installed_provider_unit_scalar_calls
                 .is_empty()
             || private.function.unit_scalar_abi.is_some()
-            || !private.function.dynamic_scalar_calls.is_empty()
+            || !private.function.dynamic_calls.is_empty()
             || !private.function.dynamic_parameter_scalar_calls.is_empty()
             || !private
                 .function
@@ -3872,7 +3845,7 @@ pub enum ObjectError {
         caller: MachineId,
         owner: CallSiteOwner,
     },
-    InvalidDynamicScalarCallEvidence {
+    InvalidDynamicCallEvidence {
         caller: MachineId,
         operation: psi_core::OperationId,
     },

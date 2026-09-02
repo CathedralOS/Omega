@@ -339,6 +339,7 @@ fn ranked_native_dispatch_emits_exact_machine_body_and_semantic_code_attribution
                 place: structural.place,
                 structural_type: structural.structural_type,
                 multiplicity: structural.multiplicity,
+                access: structural.access,
                 shape: structural.shape,
             });
         assert_invalid(&corrupted);

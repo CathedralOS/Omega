@@ -156,7 +156,7 @@ descriptor arguments, and parameter-slot dispatch. The selected native
 lowerer chooses the `{data, table}` entry placement, generates role-identified
 erased-data adapters, and emits distinct forwarded tables. Object and image
 replay bind caller-to-table, table-to-adapter, and adapter-to-realization
-relocations. Canonical installation format 62 retains the application/row/
+relocations. Canonical installation format 63 retains the application/row/
 realization identities and exact code/data spans needed to rejoin those facts.
 Its forwarding rows additionally retain the semantic scalar result and exact
 result/home carrier; they do not invent Terminal machine identities for
@@ -168,6 +168,13 @@ return. Target assignment independently resolves that bounded path and its
 accumulated byte offset before native emission. Boolean-returning forwarded
 calls use an exact one-byte result home and direct Boolean control carrier;
 they do not pass through an invented integer comparison.
+
+Local rebound Unit requirements use the same descriptor/table/receiver call
+record without a result carrier. Target assignment reserves only the aligned
+two-word descriptor region; machine and object replay require the call plan to
+have no result and publish no scalar home. Function parameter evidence retains
+authored access, so a borrowed receiver is not mistaken for an owned affine
+value at return. Forwarded Unit descriptors remain outside this native slice.
 
 D32 makes this boundary the owner of physical children for every settled
 boundary occurrence. The canonical Terminal artifact remains immutable while

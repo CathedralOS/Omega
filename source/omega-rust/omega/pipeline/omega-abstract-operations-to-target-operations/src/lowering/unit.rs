@@ -3,7 +3,7 @@
 mod body;
 mod boundary_call;
 mod conditional_exit;
-mod dynamic_scalar;
+mod dynamic;
 mod preflight;
 mod projected_argument;
 mod return_unit;

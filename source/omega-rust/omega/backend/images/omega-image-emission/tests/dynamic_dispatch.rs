@@ -288,6 +288,36 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
             let result: i32 = erased.measure();
         }
     "#;
+    compile_source(source, target)
+}
+
+fn dynamic_unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    let source = r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {}
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            erased.touch();
+        }
+    "#;
+    compile_source(source, target)
+}
+
+fn compile_source(source: &str, target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -306,6 +336,68 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
 }
 
 #[test]
+fn rebound_dynamic_unit_call_replays_without_scalar_result_evidence() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let plan = dynamic_unit_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let [call] = caller.dynamic_calls.as_slice() else {
+            panic!("one rebound dynamic Unit call expected: {caller:#?}")
+        };
+        assert!(call.result.is_none());
+        assert!(call.call_plan.result.is_none());
+        assert!(caller.unit_scalar_homes.is_empty());
+        assert_eq!(call.dynamic_dispatch.application.rows.len(), 1);
+        assert_ne!(
+            call.initial_instance.source.path,
+            call.rebound_instance.source.path
+        );
+
+        if target == NativeTarget::linux_x64() {
+            let mut wrong_access = plan.clone();
+            let caller = wrong_access
+                .functions
+                .iter_mut()
+                .find(|function| function.machine == wrong_access.entry)
+                .expect("entry caller");
+            caller.unit_parameters[0].access = psi_terminal::StructuralAccess::Owned;
+            assert!(
+                build_object_artifact(&wrong_access).is_err(),
+                "parameter access cannot be substituted independently of its home"
+            );
+        }
+
+        let artifact = build_object_artifact(&plan).expect("replay result-less dynamic call");
+        let [table] = artifact.dynamic_conformance_tables() else {
+            panic!("one Unit conformance table expected")
+        };
+        assert_eq!(table.slots.len(), 1);
+        let image = emit_executable_image(&artifact, 3)
+            .expect("link result-less dynamic call and private table");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("retain result-less dynamic installation custody");
+        assert_eq!(installation.dynamic_calls().len(), 1);
+        validate_installation_record(&installation, &image)
+            .expect("installation replay retains Unit dynamic custody");
+        let encoded = encode_installation_record(&installation).expect("encode Unit installation");
+        assert_eq!(
+            decode_installation_record(&encoded),
+            Ok(installation),
+            "canonical installation retains borrowed parameter access"
+        );
+    }
+}
+
+#[test]
 fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_replay() {
     for target in [
         NativeTarget::linux_x64(),
@@ -319,7 +411,7 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             .iter()
             .find(|function| function.machine == plan.entry)
             .expect("entry caller");
-        let [call] = caller.dynamic_scalar_calls.as_slice() else {
+        let [call] = caller.dynamic_calls.as_slice() else {
             panic!("one rebound dynamic call expected: {caller:#?}")
         };
         assert_eq!(call.dynamic_dispatch.application.rows.len(), 2);
@@ -367,7 +459,7 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
                 .expect("dynamic table installation custody");
         assert_eq!(installation.dynamic_conformance_tables().len(), 1);
-        assert_eq!(installation.dynamic_scalar_calls().len(), 1);
+        assert_eq!(installation.dynamic_calls().len(), 1);
         assert_eq!(installation.image_sections().data_byte_count, 16);
         validate_installation_record(&installation, &image)
             .expect("installation record must replay exact dynamic data");
@@ -378,7 +470,7 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             "canonical installation codec retains dynamic table custody"
         );
 
-        let call = &installation.dynamic_scalar_calls()[0];
+        let call = &installation.dynamic_calls()[0];
         let replacement = installation
             .functions()
             .iter()
@@ -400,7 +492,9 @@ fn rebound_dynamic_call_materializes_complete_private_table_and_executes_image_r
             .copy_from_slice(&replacement.get().to_le_bytes());
         assert_eq!(
             decode_installation_record(&substituted),
-            Err(omega_image_emission::InstallationError::InvalidDynamicScalarCall(call.machine)),
+            Err(omega_image_emission::InstallationError::InvalidDynamicCall(
+                call.machine
+            )),
             "a different valid function cannot replace the selected table realization"
         );
     }
@@ -414,7 +508,7 @@ fn object_replay_rejects_dynamic_slot_and_descriptor_byte_substitution() {
         .functions
         .iter_mut()
         .find(|function| function.machine == wrong_slot.entry)
-        .and_then(|function| function.dynamic_scalar_calls.first_mut())
+        .and_then(|function| function.dynamic_calls.first_mut())
         .expect("dynamic call");
     call.selected_table_byte_offset ^= 8;
     assert!(build_object_artifact(&wrong_slot).is_err());
@@ -425,7 +519,7 @@ fn object_replay_rejects_dynamic_slot_and_descriptor_byte_substitution() {
         .iter_mut()
         .find(|function| function.machine == wrong_descriptor.entry)
         .expect("entry caller");
-    let call = caller.dynamic_scalar_calls.first().expect("dynamic call");
+    let call = caller.dynamic_calls.first().expect("dynamic call");
     caller.bytes[call.rebound_instance.code_offset] ^= 1;
     assert!(build_object_artifact(&wrong_descriptor).is_err());
 }
@@ -444,5 +538,5 @@ fn normalized_runtime_installs_and_binds_relocated_dynamic_table_data() {
     let joined = bind_installed_artifact(object, image, installation, installed)
         .expect("exact relocated dynamic table must bind to installed occurrence");
     assert_eq!(joined.installation().dynamic_conformance_tables().len(), 1);
-    assert_eq!(joined.installation().dynamic_scalar_calls().len(), 1);
+    assert_eq!(joined.installation().dynamic_calls().len(), 1);
 }
