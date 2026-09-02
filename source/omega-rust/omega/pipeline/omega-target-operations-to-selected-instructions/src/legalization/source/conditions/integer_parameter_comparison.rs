@@ -9,6 +9,7 @@ pub(super) enum Kind {
     LessThan,
     LessOrEqual,
     I64LessThan,
+    I64LessOrEqual,
 }
 
 pub(super) fn derive<'a>(
@@ -74,7 +75,7 @@ pub(super) fn derive<'a>(
                 when_true,
                 when_false,
             },
-            Kind::LessOrEqual,
+            Kind::LessOrEqual | Kind::I64LessOrEqual,
         ) => (
             condition_source,
             psi_operation,
@@ -88,7 +89,9 @@ pub(super) fn derive<'a>(
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let parameter_type = match kind {
-        Kind::I64LessThan => IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+        Kind::I64LessThan | Kind::I64LessOrEqual => {
+            IntegerType::new(IntegerSign::Signed, 64).expect("i64")
+        }
         _ => IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
     };
     if *condition_type != parameter_type {
@@ -162,7 +165,7 @@ pub(super) fn derive<'a>(
                     left,
                     right,
                 },
-                Kind::LessOrEqual,
+                Kind::LessOrEqual | Kind::I64LessOrEqual,
             ) => (psi_operation, result, left, right),
             _ => return Err(Error::UnsupportedCondition { function }),
         };
@@ -220,6 +223,16 @@ pub(super) fn derive<'a>(
                 right,
             },
             ScalarConditionShape::IntegerLessThanI64Parameters,
+        ),
+        Kind::I64LessOrEqual => (
+            LegalizedCondition::I64LessOrEqualParametersV1 {
+                operation: *psi_operation,
+                result_definition_site,
+                fuel,
+                left,
+                right,
+            },
+            ScalarConditionShape::IntegerLessOrEqualI64Parameters,
         ),
     };
     Ok(DerivedCondition {

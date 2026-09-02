@@ -71,7 +71,8 @@ pub(super) fn validate_initial_roots(
                             || left.register != right.register,
                     )
                 }
-                LegalizedCondition::I64LessThanParametersV1 { left, right, .. } => {
+                LegalizedCondition::I64LessThanParametersV1 { left, right, .. }
+                | LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } => {
                     1 + usize::from(
                         left.source_value != right.source_value
                             || left.parameter_index != right.parameter_index

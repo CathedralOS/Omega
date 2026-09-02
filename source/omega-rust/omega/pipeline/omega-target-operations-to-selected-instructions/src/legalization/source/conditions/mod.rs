@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Classifies and reconstructs the exact scalar condition before leaf selection.
 
 mod direct_parameter;
+mod i64_less_or_equal_parameters;
 mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
@@ -8,22 +9,13 @@ mod integer_less_than_parameters;
 mod integer_not_equal_parameters;
 mod integer_parameter_comparison;
 mod integer_parameter_not_equal;
+mod model;
 mod u64_equal_zero_parameter;
 mod u64_not_equal_zero_parameter;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
-
-pub(in crate::legalization) struct DerivedCondition<'a> {
-    pub source: ValueId,
-    pub legalized: LegalizedCondition,
-    pub shape: ScalarConditionShape,
-    pub result_type: IntegerType,
-    pub when_true: &'a TargetConditionalIntegerArm,
-    pub when_false: &'a TargetConditionalIntegerArm,
-    pub conditional_node_index: usize,
-    pub provenance_operations: Vec<OperationId>,
-}
+pub(in crate::legalization) use model::DerivedCondition;
 
 pub(super) fn derive<'a>(
     function: usize,
@@ -65,6 +57,12 @@ pub(super) fn derive<'a>(
             condition: TargetBooleanExpression::IntegerLessThan { .. },
             ..
         } => integer_less_than_parameters::derive(function, target, abstracted, optimized),
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition: TargetBooleanExpression::IntegerLessOrEqual { scalar_type, .. },
+            ..
+        } if *scalar_type == IntegerType::new(IntegerSign::Signed, 64).expect("i64") => {
+            i64_less_or_equal_parameters::derive(function, target, abstracted, optimized)
+        }
         TargetOperation::ReturnIntegerExpressionConditionalControl {
             condition: TargetBooleanExpression::IntegerLessOrEqual { .. },
             ..

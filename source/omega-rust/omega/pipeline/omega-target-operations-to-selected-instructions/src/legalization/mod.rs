@@ -20,6 +20,7 @@ pub use model::{
     ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
     legalization_validator_identity, legalization_validator_identity_v17_legacy,
     legalization_validator_identity_v18_legacy, legalization_validator_identity_v19_legacy,
+    legalization_validator_identity_v20_legacy,
 };
 
 use omega_abstract_operations::AbstractOperationPlan;

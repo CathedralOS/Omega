@@ -8,6 +8,7 @@ pub(super) enum Kind {
     LessThan,
     LessOrEqual,
     I64LessThan,
+    I64LessOrEqual,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -77,7 +78,7 @@ pub(super) fn replay<'a>(
                 when_true,
                 when_false,
             },
-            Kind::LessOrEqual,
+            Kind::LessOrEqual | Kind::I64LessOrEqual,
         ) => (
             condition_source,
             psi_operation,
@@ -132,10 +133,22 @@ pub(super) fn replay<'a>(
                 },
                 Kind::I64LessThan,
             ) => (operation, result_definition_site, fuel, left, right),
+            (
+                LegalizedCondition::I64LessOrEqualParametersV1 {
+                    operation,
+                    result_definition_site,
+                    fuel,
+                    left,
+                    right,
+                },
+                Kind::I64LessOrEqual,
+            ) => (operation, result_definition_site, fuel, left, right),
             _ => return Err(Error::NonCanonicalLegalizedPlan),
         };
     let parameter_type = match kind {
-        Kind::I64LessThan => IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+        Kind::I64LessThan | Kind::I64LessOrEqual => {
+            IntegerType::new(IntegerSign::Signed, 64).expect("i64")
+        }
         _ => IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
     };
     if *condition_type != parameter_type {
@@ -191,7 +204,7 @@ pub(super) fn replay<'a>(
                     left,
                     right,
                 },
-                Kind::LessOrEqual,
+                Kind::LessOrEqual | Kind::I64LessOrEqual,
             ) => (psi_operation, result, left, right),
             _ => return Err(Error::UnsupportedCondition { function }),
         };
@@ -228,6 +241,7 @@ pub(super) fn replay<'a>(
         Kind::LessThan => ScalarConditionShape::IntegerLessThanU64Parameters,
         Kind::LessOrEqual => ScalarConditionShape::IntegerLessOrEqualU64Parameters,
         Kind::I64LessThan => ScalarConditionShape::IntegerLessThanI64Parameters,
+        Kind::I64LessOrEqual => ScalarConditionShape::IntegerLessOrEqualI64Parameters,
     };
     Ok(ReplayedCondition {
         source: *condition_source,

@@ -16,6 +16,7 @@ pub use identity::{
     legalized_operation_plan_identity_v14_legacy, legalized_operation_plan_identity_v15_legacy,
     legalized_operation_plan_identity_v16_legacy, legalized_operation_plan_identity_v17_legacy,
     legalized_operation_plan_identity_v18_legacy, legalized_operation_plan_identity_v19_legacy,
+    legalized_operation_plan_identity_v20_legacy,
 };
 pub use model::*;
 

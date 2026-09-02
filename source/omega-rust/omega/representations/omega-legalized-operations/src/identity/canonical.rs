@@ -62,6 +62,7 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1 => 13,
             LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1 => 14,
             LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1 => 15,
+            LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1 => 16,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         match &function.condition {
@@ -219,6 +220,24 @@ pub(super) fn identity(
                 encode_register(&mut bytes, parameter.register);
                 encode_definition_site(&mut bytes, parameter.definition_site);
                 encode_immediate(&mut bytes, zero);
+            }
+            LegalizedCondition::I64LessOrEqualParametersV1 {
+                operation,
+                result_definition_site,
+                fuel,
+                left,
+                right,
+            } => {
+                bytes.push(0xf8);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                encode_definition_site(&mut bytes, *result_definition_site);
+                encode_fuel(&mut bytes, fuel);
+                for parameter in [left, right] {
+                    bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
+                    bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
+                    encode_register(&mut bytes, parameter.register);
+                    encode_definition_site(&mut bytes, parameter.definition_site);
+                }
             }
         }
         bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());

@@ -533,6 +533,81 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
         legalized_operation_plan_identity(&signed_reversed),
         signed_identity
     );
+
+    let mut signed_inclusive = signed.clone();
+    signed_inclusive.functions[0].recipe =
+        LegalizationRecipe::ReturnU64I64LessOrEqualParametersConditionalV1;
+    let LegalizedCondition::I64LessThanParametersV1 {
+        operation,
+        result_definition_site,
+        fuel,
+        left,
+        right,
+    } = signed_inclusive.functions[0].condition.clone()
+    else {
+        panic!("signed strict less-than fixture")
+    };
+    signed_inclusive.functions[0].condition = LegalizedCondition::I64LessOrEqualParametersV1 {
+        operation,
+        result_definition_site,
+        fuel,
+        left,
+        right,
+    };
+    let signed_inclusive_identity = legalized_operation_plan_identity(&signed_inclusive);
+    assert_ne!(signed_inclusive_identity, signed_identity);
+    assert_ne!(signed_inclusive_identity, inclusive_identity);
+
+    let mut corruptions = Vec::new();
+    let mut corrupted = signed_inclusive.clone();
+    let LegalizedCondition::I64LessOrEqualParametersV1 { operation, .. } =
+        &mut corrupted.functions[0].condition
+    else {
+        unreachable!()
+    };
+    *operation = id(99);
+    corruptions.push(corrupted);
+    let mut corrupted = signed_inclusive.clone();
+    let LegalizedCondition::I64LessOrEqualParametersV1 {
+        result_definition_site,
+        ..
+    } = &mut corrupted.functions[0].condition
+    else {
+        unreachable!()
+    };
+    *result_definition_site = omega_optimization_unit::ValueDefinitionSite::FunctionParameter(0);
+    corruptions.push(corrupted);
+    let mut corrupted = signed_inclusive.clone();
+    let LegalizedCondition::I64LessOrEqualParametersV1 { fuel, .. } =
+        &mut corrupted.functions[0].condition
+    else {
+        unreachable!()
+    };
+    fuel[0].units += 1;
+    corruptions.push(corrupted);
+    let mut corrupted = signed_inclusive.clone();
+    let LegalizedCondition::I64LessOrEqualParametersV1 { left, right, .. } =
+        &mut corrupted.functions[0].condition
+    else {
+        unreachable!()
+    };
+    std::mem::swap(left, right);
+    corruptions.push(corrupted);
+    for corrupted in &corruptions {
+        assert_ne!(
+            legalized_operation_plan_identity(corrupted),
+            signed_inclusive_identity
+        );
+    }
+
+    assert_eq!(
+        legalized_operation_plan_identity_v20_legacy(&plan),
+        legalized_operation_plan_identity_v20_legacy(&plan.clone())
+    );
+    assert_ne!(
+        legalized_operation_plan_identity_v20_legacy(&plan),
+        legalized_operation_plan_identity(&plan)
+    );
     assert_eq!(
         legalized_operation_plan_identity_v17_legacy(&plan),
         legalized_operation_plan_identity_v17_legacy(&plan.clone())

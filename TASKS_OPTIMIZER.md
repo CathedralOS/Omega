@@ -1159,6 +1159,20 @@ decision. Only true language-semantic questions belong in
     operand-order, predicate, compare, and successor corruption; the semantic
     matrix distinguishes less, equal, and greater inputs and covers `0` and
     `U64::MAX` before Linux object and callable publication on both ISAs.
+  - [x] Add inclusive signed-`I64` runtime comparison as its own exact family
+    without expanding machine vocabulary. Legalization admits only the bounded
+    two-parameter, three-block `[IntegerLessOrEqual, Conditional]` form with
+    signed-`I64` operands and `U64` immediate leaves, appends recipe tag 16 and
+    a distinct condition discriminator, and advances current legalized-plan
+    and independent-replay identities to V21 while preserving V20 legacy.
+    Selection canonicalizes `left <= right` as `!(right < left)`: `CompareI64`
+    receives `[right, left]`, `ConditionalBranchI64LessThan` takes the source
+    false edge, and source true remains fallthrough. Independent producer and
+    replay leaves reject unsigned/strict predicate, sign, operand, definition,
+    provenance, fuel, and successor substitution. The boundary matrix covers
+    `I64::MIN`, `-1`, `0`, `1`, and `I64::MAX`; Linux publication pins reversed
+    x86 `cmp`/`JL` and AArch64 `cmp`/`B.LT` through object and callable custody.
+    No selected, ISA, allocation, layout, or machine wire identity advances.
   - [x] Eliminate one exact runtime Boolean-not comparison chain without
     expanding machine vocabulary. The admitted source is the same bounded
     two-parameter, three-block, immediate-leaf grammar, with entry operations
