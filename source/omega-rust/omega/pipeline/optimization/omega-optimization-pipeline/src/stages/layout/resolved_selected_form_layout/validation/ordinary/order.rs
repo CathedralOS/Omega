@@ -38,6 +38,11 @@ pub(super) fn derive<'a>(
                 when_less,
                 when_not_less,
                 ..
+            }
+            | SelectedTerminator::ConditionalBranchI64LessThan {
+                when_less,
+                when_not_less,
+                ..
             },
             SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1,
         ) if fusion.is_none() => (when_less, when_not_less),

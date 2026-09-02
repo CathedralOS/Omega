@@ -90,7 +90,7 @@ fn structural_unit_call_and_terminal_callee_retain_exact_unit_liveness() {
 }
 
 #[test]
-fn u64_less_than_successors_retain_semantic_polarity_order() {
+fn integer_less_than_successors_retain_semantic_polarity_order() {
     let key = RegisterConstraintKey {
         family: RegisterConstraintFamily::Instruction,
         variant: 99,
@@ -112,53 +112,69 @@ fn u64_less_than_successors_retain_semantic_polarity_order() {
         bindings: Vec::new(),
         fuel: Vec::new(),
     };
-    let function = SelectedFunction {
-        machine: MachineId::new(1).unwrap(),
-        attachment: None,
-        provenance: Default::default(),
-        entry_block: SelectedBlockId(0),
-        virtual_registers: Vec::new(),
-        blocks: vec![
-            SelectedBlock {
-                id: SelectedBlockId(0),
-                source_block: BlockId::new(1).unwrap(),
-                instructions: Vec::new(),
-                terminator: SelectedTerminator::ConditionalBranchU64LessThan {
-                    instruction: instruction(
-                        0,
-                        SelectedInstructionKind::ConditionalBranchU64LessThan,
-                    ),
-                    when_less: successor(1, 1, 2),
-                    when_not_less: successor(2, 2, 3),
-                },
+    for signed in [false, true] {
+        let branch_instruction = instruction(
+            0,
+            if signed {
+                SelectedInstructionKind::ConditionalBranchI64LessThan
+            } else {
+                SelectedInstructionKind::ConditionalBranchU64LessThan
             },
-            SelectedBlock {
-                id: SelectedBlockId(1),
-                source_block: BlockId::new(2).unwrap(),
-                instructions: Vec::new(),
-                terminator: SelectedTerminator::Return {
-                    instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
-                    psi_return_edge: EdgeId::new(3).unwrap(),
+        );
+        let terminator = if signed {
+            SelectedTerminator::ConditionalBranchI64LessThan {
+                instruction: branch_instruction,
+                when_less: successor(1, 1, 2),
+                when_not_less: successor(2, 2, 3),
+            }
+        } else {
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                instruction: branch_instruction,
+                when_less: successor(1, 1, 2),
+                when_not_less: successor(2, 2, 3),
+            }
+        };
+        let function = SelectedFunction {
+            machine: MachineId::new(1).unwrap(),
+            attachment: None,
+            provenance: Default::default(),
+            entry_block: SelectedBlockId(0),
+            virtual_registers: Vec::new(),
+            blocks: vec![
+                SelectedBlock {
+                    id: SelectedBlockId(0),
+                    source_block: BlockId::new(1).unwrap(),
+                    instructions: Vec::new(),
+                    terminator,
                 },
-            },
-            SelectedBlock {
-                id: SelectedBlockId(2),
-                source_block: BlockId::new(3).unwrap(),
-                instructions: Vec::new(),
-                terminator: SelectedTerminator::Return {
-                    instruction: instruction(2, SelectedInstructionKind::ReturnUnit),
-                    psi_return_edge: EdgeId::new(4).unwrap(),
+                SelectedBlock {
+                    id: SelectedBlockId(1),
+                    source_block: BlockId::new(2).unwrap(),
+                    instructions: Vec::new(),
+                    terminator: SelectedTerminator::Return {
+                        instruction: instruction(1, SelectedInstructionKind::ReturnUnit),
+                        psi_return_edge: EdgeId::new(3).unwrap(),
+                    },
                 },
-            },
-        ],
-    };
+                SelectedBlock {
+                    id: SelectedBlockId(2),
+                    source_block: BlockId::new(3).unwrap(),
+                    instructions: Vec::new(),
+                    terminator: SelectedTerminator::Return {
+                        instruction: instruction(2, SelectedInstructionKind::ReturnUnit),
+                        psi_return_edge: EdgeId::new(4).unwrap(),
+                    },
+                },
+            ],
+        };
 
-    let liveness = compute_function(0, &function).unwrap();
-    assert_eq!(liveness.blocks[0].successors.len(), 2);
-    assert_eq!(liveness.blocks[0].successors[0].polarity_ordinal, 0);
-    assert_eq!(liveness.blocks[0].successors[0].target, SelectedBlockId(1));
-    assert_eq!(liveness.blocks[0].successors[1].polarity_ordinal, 1);
-    assert_eq!(liveness.blocks[0].successors[1].target, SelectedBlockId(2));
+        let liveness = compute_function(0, &function).unwrap();
+        assert_eq!(liveness.blocks[0].successors.len(), 2);
+        assert_eq!(liveness.blocks[0].successors[0].polarity_ordinal, 0);
+        assert_eq!(liveness.blocks[0].successors[0].target, SelectedBlockId(1));
+        assert_eq!(liveness.blocks[0].successors[1].polarity_ordinal, 1);
+        assert_eq!(liveness.blocks[0].successors[1].target, SelectedBlockId(2));
+    }
 }
 
 fn function_with_operand(access: RegisterOperandAccess) -> SelectedFunction {

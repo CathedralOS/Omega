@@ -1,4 +1,4 @@
-//! Version-3 post-allocation machine-plan framing and final admission.
+//! Version-4 post-allocation machine-plan framing and final admission.
 //!
 //! The entrance owns the wire marker/version, canonical content boundary,
 //! trailing-byte rejection, and final identity authentication. Ordered content,
@@ -18,7 +18,8 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 3;
+const LEGACY_VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 pub(crate) fn encode_terminal_post_allocation_machine_plan(
     plan: &PostAllocationMachinePlan,
@@ -40,17 +41,22 @@ pub(crate) fn decode_terminal_post_allocation_machine_plan(
         return Err(PostAllocationMachineDecodeError::WrongMagic);
     }
     let version = cursor::u32_field(&mut cursor)?;
-    if version != VERSION {
+    if !matches!(version, LEGACY_VERSION | VERSION) {
         return Err(PostAllocationMachineDecodeError::UnsupportedVersion(
             version,
         ));
     }
     let identity = PostAllocationMachineIdentity::from_bytes(cursor::array(&mut cursor)?);
-    let plan = v3::decode_content(&mut cursor, identity)?;
+    let plan = v3::decode_content(&mut cursor, identity, version == VERSION)?;
     if cursor.remaining() != 0 {
         return Err(PostAllocationMachineDecodeError::TrailingBytes);
     }
-    if plan.identity != post_allocation_machine_identity(&plan) {
+    let expected_identity = if version == LEGACY_VERSION {
+        super::identity::post_allocation_machine_identity_v4_legacy(&plan)
+    } else {
+        post_allocation_machine_identity(&plan)
+    };
+    if plan.identity != expected_identity {
         return Err(PostAllocationMachineDecodeError::InvalidIdentity);
     }
     Ok(plan)

@@ -3,7 +3,7 @@ use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use psi_core::MachineId;
 
 use super::{
-    super::{encode_v4, encode_v6, encode_v7, encode_v8},
+    super::{encode_v4, encode_v6, encode_v7, encode_v8, encode_v9},
     plan,
 };
 
@@ -77,5 +77,33 @@ fn artifact_v9_round_trips_scalar_call_callee_vocabulary() {
     plan.transformed.functions[0].blocks[0].instructions[0].kind =
         SelectedInstructionKind::CallI64 { callee };
 
+    assert_eq!(FixedViewCopyPlan::decode(&encode_v9(&plan)).unwrap(), plan);
+}
+
+#[test]
+fn artifact_v10_round_trips_signed_less_than_terminator_vocabulary() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let terminator = plan.transformed.functions[0].blocks[0].terminator.clone();
+    let SelectedTerminator::ConditionalBranch {
+        mut instruction,
+        when_nonzero,
+        when_zero,
+    } = terminator
+    else {
+        panic!("shared fixture must begin with a conditional branch")
+    };
+    instruction.kind = SelectedInstructionKind::ConditionalBranchI64LessThan;
+    plan.transformed.functions[0].blocks[0].terminator =
+        SelectedTerminator::ConditionalBranchI64LessThan {
+            instruction,
+            when_less: when_nonzero,
+            when_not_less: when_zero,
+        };
+
     assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+
+    assert_eq!(
+        FixedViewCopyPlan::decode(&encode_v9(&plan)),
+        Err(crate::FixedViewCopyDecodeError::UnknownInstructionKind(13))
+    );
 }

@@ -1,6 +1,7 @@
 //! Independent ordered replay, byte validation, and action reconstruction.
 
 use omega_isa_x86_64::{
+    validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
@@ -135,6 +136,21 @@ pub(super) fn replay_trace(
                 };
                 let bytes = [0x72, displacement as i8 as u8];
                 validate_x86_64_selected_u64_less_than_branch_form(
+                    physical,
+                    alternative,
+                    displacement,
+                    &bytes,
+                )
+                .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+                (alternative, bytes)
+            }
+            ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                let alternative = MachineAlternativeKey {
+                    family: MachineAlternativeFamily::ConditionalBranchI64LessThan,
+                    variant: 1,
+                };
+                let bytes = [0x7c, displacement as i8 as u8];
+                validate_x86_64_selected_i64_less_than_branch_form(
                     physical,
                     alternative,
                     displacement,

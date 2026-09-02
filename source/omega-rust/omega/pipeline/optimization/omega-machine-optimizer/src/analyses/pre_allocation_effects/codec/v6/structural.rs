@@ -2,6 +2,7 @@ use super::*;
 
 pub(super) fn decode_structural_function(
     cursor: &mut Cursor<'_>,
+    allow_i64_less_than: bool,
 ) -> Result<StructuralUnitFunctionMachineEffects, PreAllocationMachineEffectDecodeError> {
     let machine = decode_machine(cursor)?;
     let block = SelectedBlockId(cursor.u32()?);
@@ -10,7 +11,7 @@ pub(super) fn decode_structural_function(
         1 => Some(decode_structural_call(cursor)?),
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
-    let return_instruction = decode_instruction(cursor)?;
+    let return_instruction = decode_instruction(cursor, allow_i64_less_than)?;
     let return_effect = decode_effect_link(cursor)?;
     let return_ownership = decode_ownership(cursor)?;
     Ok(StructuralUnitFunctionMachineEffects {

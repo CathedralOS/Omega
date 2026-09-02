@@ -3,8 +3,11 @@
 use std::collections::BTreeMap;
 
 use omega_isa_x86_64::{
-    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
-    encode_x86_64_selected_u64_less_than_branch_form, validate_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_short_nonzero_branch_form,
+    encode_x86_64_selected_u64_less_than_branch_form,
+    validate_x86_64_selected_i64_less_than_branch_form,
+    validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
@@ -51,6 +54,13 @@ pub(super) fn reflow_production_functions(
                     }
                     (ResolvedConditionalBranchPredicate::U64LessThanV1, 2 | 6) => {
                         encode_x86_64_selected_u64_less_than_branch_form(
+                            physical,
+                            row.alternative,
+                            branch.byte_displacement,
+                        )
+                    }
+                    (ResolvedConditionalBranchPredicate::I64LessThanV1, 2 | 6) => {
+                        encode_x86_64_selected_i64_less_than_branch_form(
                             physical,
                             row.alternative,
                             branch.byte_displacement,
@@ -241,6 +251,16 @@ fn replay_branch_bytes(
             bytes.extend_from_slice(&displacement.to_le_bytes());
             bytes
         }
+        (ResolvedConditionalBranchPredicate::I64LessThanV1, 2) => {
+            vec![0x7c, displacement as i8 as u8]
+        }
+        (ResolvedConditionalBranchPredicate::I64LessThanV1, 6) => {
+            let mut bytes = vec![0x0f, 0x8c];
+            let displacement = i32::try_from(displacement)
+                .map_err(|_| OptimizedX86BranchRelaxationError::MalformedBranch(instruction))?;
+            bytes.extend_from_slice(&displacement.to_le_bytes());
+            bytes
+        }
         _ => {
             return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
                 instruction,
@@ -266,6 +286,14 @@ fn replay_branch_bytes(
         }
         ResolvedConditionalBranchPredicate::U64LessThanV1 => {
             validate_x86_64_selected_u64_less_than_branch_form(
+                physical,
+                alternative,
+                displacement,
+                &bytes,
+            )
+        }
+        ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+            validate_x86_64_selected_i64_less_than_branch_form(
                 physical,
                 alternative,
                 displacement,

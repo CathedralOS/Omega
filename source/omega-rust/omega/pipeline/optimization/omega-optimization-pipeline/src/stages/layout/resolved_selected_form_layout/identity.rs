@@ -89,6 +89,7 @@ pub(super) fn layout_identity(
                         hasher.update([match branch.predicate {
                             ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
                             ResolvedConditionalBranchPredicate::U64LessThanV1 => 1,
+                            ResolvedConditionalBranchPredicate::I64LessThanV1 => 2,
                         }]);
                         hasher.update(branch.source_block.0.to_le_bytes());
                         hasher.update(branch.when_taken_edge.get().to_le_bytes());
@@ -216,6 +217,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ReturnUnit => 9,
         Family::CompareI64 => 10,
         Family::ConditionalBranchU64LessThan => 11,
+        Family::ConditionalBranchI64LessThan => 12,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

@@ -221,6 +221,32 @@ fn post_allocation_codec_is_deterministic_and_round_trips_every_field() {
 }
 
 #[test]
+fn post_allocation_v4_round_trips_signed_branch_family_and_v3_rejects_it() {
+    let mut plan = plan();
+    plan.functions[0].blocks[0].instructions[0]
+        .alternative
+        .key
+        .family = MachineAlternativeFamily::ConditionalBranchI64LessThan;
+    plan.identity = post_allocation_machine_identity(&plan);
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&plan.encode()),
+        Ok(plan.clone())
+    );
+
+    plan.identity = super::super::identity::post_allocation_machine_identity_v4_legacy(&plan);
+    let content = super::super::identity::encode_terminal_post_allocation_machine_content(&plan);
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(super::MAGIC);
+    encoded.extend_from_slice(&3_u32.to_le_bytes());
+    encoded.extend_from_slice(&plan.identity.bytes());
+    encoded.extend_from_slice(&content);
+    assert_eq!(
+        PostAllocationMachinePlan::decode(&encoded),
+        Err(PostAllocationMachineDecodeError::InvalidField)
+    );
+}
+
+#[test]
 fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
     let encoded = plan().encode();
     assert_eq!(encoded[TARGET_OFFSET], 1);
@@ -238,10 +264,10 @@ fn post_allocation_codec_rejects_bad_framing_and_closed_field_tags() {
     );
 
     let mut unsupported_version = encoded.clone();
-    unsupported_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+    unsupported_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
     assert_eq!(
         PostAllocationMachinePlan::decode(&unsupported_version),
-        Err(PostAllocationMachineDecodeError::UnsupportedVersion(4))
+        Err(PostAllocationMachineDecodeError::UnsupportedVersion(5))
     );
 
     for offset in [

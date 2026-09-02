@@ -33,6 +33,7 @@ pub enum SelectedFunctionLayoutPolicy {
 pub enum ResolvedConditionalBranchPredicate {
     NonZeroV1,
     U64LessThanV1,
+    I64LessThanV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

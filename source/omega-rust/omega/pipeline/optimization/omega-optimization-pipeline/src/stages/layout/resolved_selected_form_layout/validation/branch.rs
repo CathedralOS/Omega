@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 
 use omega_isa_aarch64::{
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
+    validate_aarch64_selected_i64_less_than_branch_form,
     validate_aarch64_selected_nonzero_branch_form,
     validate_aarch64_selected_u64_less_than_branch_form,
 };
 use omega_isa_x86_64::{
+    validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
 };
@@ -53,6 +55,16 @@ pub(super) fn validate(
             when_not_less,
         } => (
             ResolvedConditionalBranchPredicate::U64LessThanV1,
+            instruction,
+            when_less,
+            when_not_less,
+        ),
+        SelectedTerminator::ConditionalBranchI64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => (
+            ResolvedConditionalBranchPredicate::I64LessThanV1,
             instruction,
             when_less,
             when_not_less,
@@ -160,7 +172,12 @@ fn decode(
                 decoded.footprint().encoded.clone(),
             ));
         }
-        (_, Some(_), ResolvedConditionalBranchPredicate::U64LessThanV1)
+        (
+            _,
+            Some(_),
+            ResolvedConditionalBranchPredicate::U64LessThanV1
+            | ResolvedConditionalBranchPredicate::I64LessThanV1,
+        )
         | (Architecture::X86_64, Some(_), _) => {
             return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
         }
@@ -203,6 +220,30 @@ fn decode(
         }
         (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
             validate_aarch64_selected_u64_less_than_branch_form(
+                physical,
+                machine.alternative.key,
+                displacement,
+                bytes,
+            )
+            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?
+            .footprint()
+            .clone()
+        }
+        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
+            let decoded = validate_x86_64_selected_i64_less_than_branch_form(
+                physical,
+                machine.alternative.key,
+                displacement,
+                bytes,
+            )
+            .map_err(|_| OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)?;
+            return Ok((
+                decoded.footprint().register_reads.clone(),
+                decoded.footprint().encoded.clone(),
+            ));
+        }
+        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
+            validate_aarch64_selected_i64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
                 displacement,

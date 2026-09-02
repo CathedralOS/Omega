@@ -214,6 +214,9 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                         SelectedTerminator::ConditionalBranch { instruction, .. }
                         | SelectedTerminator::ConditionalBranchU64LessThan {
                             instruction, ..
+                        }
+                        | SelectedTerminator::ConditionalBranchI64LessThan {
+                            instruction, ..
                         } => (instruction, None, true),
                         SelectedTerminator::Return {
                             instruction,
@@ -236,13 +239,18 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                     layout_custody,
                     WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
                 ) && matches!(
-                    instruction.kind,
-                    omega_selected_instructions::SelectedInstructionKind::ConditionalBranchU64LessThan
-                ) && machine_instruction.alternative.key.family
-                    == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchU64LessThan
+                    (instruction.kind, machine_instruction.alternative.key.family),
+                    (
+                        omega_selected_instructions::SelectedInstructionKind::ConditionalBranchU64LessThan,
+                        omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchU64LessThan,
+                    ) | (
+                        omega_selected_instructions::SelectedInstructionKind::ConditionalBranchI64LessThan,
+                        omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchI64LessThan,
+                    )
+                )
                     && machine_instruction.alternative.key.variant == 0
                     && resolved_row.alternative.family
-                        == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchU64LessThan
+                        == machine_instruction.alternative.key.family
                     && resolved_row.alternative.variant == 1;
                 if resolved_block.block != block.id
                     || encoding_row.alternative != machine_instruction.alternative.key

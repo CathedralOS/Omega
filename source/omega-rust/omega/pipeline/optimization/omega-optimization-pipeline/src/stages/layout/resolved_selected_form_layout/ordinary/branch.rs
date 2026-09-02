@@ -2,10 +2,12 @@ use std::collections::BTreeMap;
 
 use omega_isa_aarch64::{
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-    encode_aarch64_selected_nonzero_branch_form, encode_aarch64_selected_u64_less_than_branch_form,
+    encode_aarch64_selected_i64_less_than_branch_form, encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_selected_u64_less_than_branch_form,
 };
 use omega_isa_x86_64::{
-    encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_u64_less_than_branch_form,
+    encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
+    encode_x86_64_selected_u64_less_than_branch_form,
 };
 use omega_machine_optimizer::{
     Aarch64CbnzFusionAction, PostAllocationMachineInstruction, QualifiedPhysicalRead,
@@ -53,6 +55,16 @@ pub(super) fn resolve(
             when_not_less,
         } => (
             ResolvedConditionalBranchPredicate::U64LessThanV1,
+            instruction,
+            when_less,
+            when_not_less,
+        ),
+        SelectedTerminator::ConditionalBranchI64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => (
+            ResolvedConditionalBranchPredicate::I64LessThanV1,
             instruction,
             when_less,
             when_not_less,
@@ -163,7 +175,12 @@ fn encode(
                 encoded.footprint().encoded.clone(),
             ))
         }
-        (_, Some(_), ResolvedConditionalBranchPredicate::U64LessThanV1)
+        (
+            _,
+            Some(_),
+            ResolvedConditionalBranchPredicate::U64LessThanV1
+            | ResolvedConditionalBranchPredicate::I64LessThanV1,
+        )
         | (Architecture::X86_64, Some(_), _) => unexpected(instruction),
         (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::NonZeroV1) => {
             let encoded = encode_x86_64_selected_nonzero_branch_form(
@@ -206,6 +223,32 @@ fn encode(
         }
         (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::U64LessThanV1) => {
             let encoded = encode_aarch64_selected_u64_less_than_branch_form(
+                physical,
+                machine.alternative.key,
+                displacement,
+            )
+            .map_err(OptimizedResolvedSelectedFormLayoutError::Aarch64)?;
+            Ok((
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().encoded.clone(),
+            ))
+        }
+        (Architecture::X86_64, None, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
+            let encoded = encode_x86_64_selected_i64_less_than_branch_form(
+                physical,
+                machine.alternative.key,
+                displacement,
+            )
+            .map_err(OptimizedResolvedSelectedFormLayoutError::X86_64)?;
+            Ok((
+                encoded.bytes().to_vec(),
+                encoded.footprint().register_reads.clone(),
+                encoded.footprint().encoded.clone(),
+            ))
+        }
+        (Architecture::Aarch64, None, ResolvedConditionalBranchPredicate::I64LessThanV1) => {
+            let encoded = encode_aarch64_selected_i64_less_than_branch_form(
                 physical,
                 machine.alternative.key,
                 displacement,

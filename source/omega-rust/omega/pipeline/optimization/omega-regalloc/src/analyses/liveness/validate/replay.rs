@@ -38,6 +38,11 @@ pub(super) fn replay_function(
                     when_less,
                     when_not_less,
                     ..
+                }
+                | SelectedTerminator::ConditionalBranchI64LessThan {
+                    when_less,
+                    when_not_less,
+                    ..
                 } => vec![when_less.block, when_not_less.block],
                 SelectedTerminator::Return { .. } => Vec::new(),
             };
@@ -216,6 +221,11 @@ fn replay_block(
             })
             .collect(),
         SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        }
+        | SelectedTerminator::ConditionalBranchI64LessThan {
             instruction,
             when_less,
             when_not_less,

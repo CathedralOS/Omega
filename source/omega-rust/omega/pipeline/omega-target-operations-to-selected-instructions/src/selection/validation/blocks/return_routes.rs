@@ -84,6 +84,7 @@ pub(super) fn validate(
                     | LegalizedCondition::IntegerLessThanParametersV1 { .. }
                     | LegalizedCondition::IntegerLessOrEqualParametersV1 { .. }
                     | LegalizedCondition::IntegerNotEqualParametersV1 { .. }
+                    | LegalizedCondition::I64LessThanParametersV1 { .. }
             ) {
                 [VirtualRegisterId(2), VirtualRegisterId(3)]
             } else {

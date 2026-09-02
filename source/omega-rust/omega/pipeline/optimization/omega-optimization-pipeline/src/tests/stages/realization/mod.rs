@@ -8,4 +8,5 @@ mod runtime_integer_equal_conditional;
 mod runtime_integer_less_or_equal_conditional;
 mod runtime_integer_less_than_conditional;
 mod runtime_integer_not_equal_conditional;
+mod runtime_signed_integer_less_than_conditional;
 mod structural_units;

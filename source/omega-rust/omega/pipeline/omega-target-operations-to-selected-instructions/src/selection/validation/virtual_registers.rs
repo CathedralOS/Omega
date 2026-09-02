@@ -38,6 +38,23 @@ pub(super) fn validate_virtual_registers(
                 )
             })
             .collect(),
+        LegalizedCondition::I64LessThanParametersV1 { left, right, .. } => {
+            let i64_type = ScalarType::Integer(
+                psi_core::IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+            );
+            [left, right]
+                .into_iter()
+                .map(|parameter| {
+                    (
+                        parameter.source_value,
+                        parameter.parameter_index,
+                        parameter.register,
+                        parameter.definition_site,
+                        i64_type,
+                    )
+                })
+                .collect()
+        }
     };
     let mut expected = Vec::new();
     for (source_value, parameter_index, register, definition_site, scalar_type) in

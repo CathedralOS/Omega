@@ -261,6 +261,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

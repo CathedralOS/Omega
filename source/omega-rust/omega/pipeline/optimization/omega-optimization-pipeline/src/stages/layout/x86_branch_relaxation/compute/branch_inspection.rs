@@ -1,6 +1,7 @@
 //! Separate production and replay inspection of one conditional branch form.
 
 use omega_isa_x86_64::{
+    validate_x86_64_selected_i64_less_than_branch_form,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_u64_less_than_branch_form,
@@ -53,6 +54,16 @@ pub(super) fn inspect_production_branch(
         }
         (ResolvedConditionalBranchPredicate::U64LessThanV1, 2 | 6) => {
             validate_x86_64_selected_u64_less_than_branch_form(
+                physical,
+                row.alternative,
+                branch.byte_displacement,
+                &row.bytes,
+            )
+            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+            row.bytes.len() == 2
+        }
+        (ResolvedConditionalBranchPredicate::I64LessThanV1, 2 | 6) => {
+            validate_x86_64_selected_i64_less_than_branch_form(
                 physical,
                 row.alternative,
                 branch.byte_displacement,
@@ -150,6 +161,34 @@ pub(super) fn replay_inspect_branch(
             if row.bytes.len() == 6 =>
         {
             validate_x86_64_selected_u64_less_than_branch_form(
+                physical,
+                row.alternative,
+                branch.byte_displacement,
+                &row.bytes,
+            )
+            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+            false
+        }
+        (ResolvedConditionalBranchPredicate::I64LessThanV1, [0x7c, displacement]) => {
+            let decoded = i64::from(*displacement as i8);
+            if decoded != branch.byte_displacement {
+                return Err(OptimizedX86BranchRelaxationError::MalformedBranch(
+                    row.instruction,
+                ));
+            }
+            validate_x86_64_selected_i64_less_than_branch_form(
+                physical,
+                row.alternative,
+                decoded,
+                &row.bytes,
+            )
+            .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+            true
+        }
+        (ResolvedConditionalBranchPredicate::I64LessThanV1, [0x0f, 0x8c, ..])
+            if row.bytes.len() == 6 =>
+        {
+            validate_x86_64_selected_i64_less_than_branch_form(
                 physical,
                 row.alternative,
                 branch.byte_displacement,

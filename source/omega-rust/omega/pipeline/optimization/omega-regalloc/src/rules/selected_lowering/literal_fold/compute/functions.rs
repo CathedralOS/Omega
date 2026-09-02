@@ -80,6 +80,7 @@ fn validate_dense_identifiers(
                 .chain(std::iter::once(match &block.terminator {
                     SelectedTerminator::ConditionalBranch { instruction, .. }
                     | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+                    | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. } => instruction.id.0,
                 }))
         })

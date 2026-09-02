@@ -20,6 +20,7 @@ pub(super) fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlter
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     encode_applicability(bytes, alternative.applicability);

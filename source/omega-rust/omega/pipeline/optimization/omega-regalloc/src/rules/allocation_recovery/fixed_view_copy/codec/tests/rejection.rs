@@ -34,10 +34,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&10_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&11_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(10))
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(11))
     );
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -73,8 +73,8 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::UnknownFixedSite(9))
     );
     assert_eq!(
-        decode_kind(&mut Cursor::new(&[13])),
-        Err(FixedViewCopyDecodeError::UnknownInstructionKind(13))
+        decode_kind(&mut Cursor::new(&[14])),
+        Err(FixedViewCopyDecodeError::UnknownInstructionKind(14))
     );
 }
 

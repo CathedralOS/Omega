@@ -1,4 +1,4 @@
-//! Independent shared envelope replay for ordered U64 parameter comparisons.
+//! Independent shared envelope replay for ordered integer parameter comparisons.
 
 use super::*;
 
@@ -7,6 +7,7 @@ pub(super) enum Kind {
     Equal,
     LessThan,
     LessOrEqual,
+    I64LessThan,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -60,7 +61,7 @@ pub(super) fn replay<'a>(
                 when_true,
                 when_false,
             },
-            Kind::LessThan,
+            Kind::LessThan | Kind::I64LessThan,
         )
         | (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
@@ -121,10 +122,23 @@ pub(super) fn replay<'a>(
                 },
                 Kind::LessOrEqual,
             ) => (operation, result_definition_site, fuel, left, right),
+            (
+                LegalizedCondition::I64LessThanParametersV1 {
+                    operation,
+                    result_definition_site,
+                    fuel,
+                    left,
+                    right,
+                },
+                Kind::I64LessThan,
+            ) => (operation, result_definition_site, fuel, left, right),
             _ => return Err(Error::NonCanonicalLegalizedPlan),
         };
-    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
-    if *condition_type != u64_type {
+    let parameter_type = match kind {
+        Kind::I64LessThan => IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+        _ => IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+    };
+    if *condition_type != parameter_type {
         return Err(Error::UnsupportedCondition { function });
     }
     for (expression, proposed_parameter) in
@@ -137,7 +151,7 @@ pub(super) fn replay<'a>(
             proposed_parameter,
             abstracted,
             optimized,
-            u64_type,
+            parameter_type,
         )?;
     }
     if proposed_left.parameter_index == proposed_right.parameter_index {
@@ -168,7 +182,7 @@ pub(super) fn replay<'a>(
                     left,
                     right,
                 },
-                Kind::LessThan,
+                Kind::LessThan | Kind::I64LessThan,
             )
             | (
                 AbstractOperation::IntegerLessOrEqual {
@@ -213,6 +227,7 @@ pub(super) fn replay<'a>(
         Kind::Equal => ScalarConditionShape::IntegerEqualU64Parameters,
         Kind::LessThan => ScalarConditionShape::IntegerLessThanU64Parameters,
         Kind::LessOrEqual => ScalarConditionShape::IntegerLessOrEqualU64Parameters,
+        Kind::I64LessThan => ScalarConditionShape::IntegerLessThanI64Parameters,
     };
     Ok(ReplayedCondition {
         source: *condition_source,

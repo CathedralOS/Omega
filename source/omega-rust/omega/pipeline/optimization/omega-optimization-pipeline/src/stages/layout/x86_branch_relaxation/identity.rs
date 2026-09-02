@@ -137,6 +137,7 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                         hasher.update([match branch.predicate {
                             ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
                             ResolvedConditionalBranchPredicate::U64LessThanV1 => 1,
+                            ResolvedConditionalBranchPredicate::I64LessThanV1 => 2,
                         }]);
                         hasher.update(branch.source_block.0.to_le_bytes());
                         hasher.update(branch.when_taken_edge.get().to_le_bytes());
@@ -168,6 +169,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

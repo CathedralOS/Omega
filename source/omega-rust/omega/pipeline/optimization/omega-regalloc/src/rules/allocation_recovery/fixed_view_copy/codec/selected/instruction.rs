@@ -93,6 +93,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::CallI64 { .. } => 12,
+        SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     };
     bytes.push(tag);
     match kind {
@@ -172,6 +173,7 @@ pub(in crate::rules::allocation_recovery::fixed_view_copy::codec) fn decode_kind
         12 => SelectedInstructionKind::CallI64 {
             callee: decode_id(cursor, MachineId::new)?,
         },
+        13 => SelectedInstructionKind::ConditionalBranchI64LessThan,
         tag => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(tag)),
     })
 }
@@ -217,6 +219,21 @@ mod tests {
         assert_eq!(
             decode_kind(&mut cursor).unwrap(),
             SelectedInstructionKind::CallI64 { callee }
+        );
+    }
+
+    #[test]
+    fn conditional_branch_i64_less_than_uses_append_only_tag_thirteen() {
+        let mut bytes = Vec::new();
+        encode_kind(
+            &mut bytes,
+            SelectedInstructionKind::ConditionalBranchI64LessThan,
+        );
+        assert_eq!(bytes, [13]);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(
+            decode_kind(&mut cursor).unwrap(),
+            SelectedInstructionKind::ConditionalBranchI64LessThan
         );
     }
 }

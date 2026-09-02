@@ -54,6 +54,7 @@ pub(in super::super) fn instructions(block: &SelectedBlock) -> Vec<&SelectedInst
         .chain(std::iter::once(match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .collect()

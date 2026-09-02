@@ -12,7 +12,8 @@ pub(super) fn prove_none(
         for row in &block.instructions {
             match row.alternative.family {
                 MachineAlternativeFamily::ConditionalBranchNonZero
-                | MachineAlternativeFamily::ConditionalBranchU64LessThan => {
+                | MachineAlternativeFamily::ConditionalBranchU64LessThan
+                | MachineAlternativeFamily::ConditionalBranchI64LessThan => {
                     let Some(branch) = row.branch.as_deref() else {
                         return Err(
                             RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
@@ -34,6 +35,9 @@ pub(super) fn prove_none(
                         }
                         MachineAlternativeFamily::ConditionalBranchU64LessThan => {
                             FunctionFragmentConditionalBranchPredicate::U64LessThanV1
+                        }
+                        MachineAlternativeFamily::ConditionalBranchI64LessThan => {
+                            FunctionFragmentConditionalBranchPredicate::I64LessThanV1
                         }
                         _ => unreachable!("branch family matched above"),
                     };

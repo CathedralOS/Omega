@@ -497,4 +497,45 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
         legalized_operation_plan_identity_v15_legacy(&plan),
         legalized_operation_plan_identity(&plan)
     );
+
+    let mut signed = plan.clone();
+    signed.functions[0].recipe = LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1;
+    let LegalizedCondition::IntegerLessThanParametersV1 {
+        operation,
+        result_definition_site,
+        fuel,
+        left,
+        right,
+    } = signed.functions[0].condition.clone()
+    else {
+        panic!("strict less-than fixture")
+    };
+    signed.functions[0].condition = LegalizedCondition::I64LessThanParametersV1 {
+        operation,
+        result_definition_site,
+        fuel,
+        left,
+        right,
+    };
+    let signed_identity = legalized_operation_plan_identity(&signed);
+    assert_ne!(signed_identity, identity);
+    let mut signed_reversed = signed.clone();
+    let LegalizedCondition::I64LessThanParametersV1 { left, right, .. } =
+        &mut signed_reversed.functions[0].condition
+    else {
+        panic!("signed strict less-than fixture")
+    };
+    std::mem::swap(left, right);
+    assert_ne!(
+        legalized_operation_plan_identity(&signed_reversed),
+        signed_identity
+    );
+    assert_eq!(
+        legalized_operation_plan_identity_v17_legacy(&plan),
+        legalized_operation_plan_identity_v17_legacy(&plan.clone())
+    );
+    assert_ne!(
+        legalized_operation_plan_identity_v17_legacy(&plan),
+        legalized_operation_plan_identity(&plan)
+    );
 }

@@ -444,30 +444,33 @@ those joins. The crate-level `lib.rs` is only the responsibility map between
 the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for all eighteen forms: thirteen scalar, one plain Unit, and four
-structural Unit. Each row names its typed recipe, producer matcher kind, exact
-source-shape constraints, non-authoritative structural cost, and independent
-validator kind. `source/matchers/` walks that catalog to recognize a form;
-`replay/validators/` reconstructs membership without calling producer code.
-Removing a row disables the form, and missing or ambiguous recipe lookup fails
-closed. The Unit recipe families are retained in the current legalized-plan
-identity. Structural selected-form validation separately reconstructs ABI
-layout and call constraints without importing selection construction helpers.
+inventory for all twenty forms: fourteen scalar, one scalar-call Unit, one
+plain Unit, and four structural Unit. Each row names its typed recipe, producer
+matcher kind, exact source-shape constraints, non-authoritative structural
+cost, and independent validator kind. `source/matchers/` walks that catalog to
+recognize a form; `replay/validators/` reconstructs membership without calling
+producer code. Removing a row disables the form, and missing or ambiguous
+recipe lookup fails closed. The Unit recipe families are retained in the
+current legalized-plan identity. Structural selected-form validation
+separately reconstructs ABI layout and call constraints without importing
+selection construction helpers.
 
 The runtime comparison vertical is deliberately narrower than the recursive
-target-expression vocabulary. Its four exact candidates are three-block
+target-expression vocabulary. Four exact candidates are three-block
 unsigned-`U64` functions with two distinct entry parameters and either
 `[IntegerEqual, Conditional]`, `[IntegerLessThan, Conditional]`, or
 `[IntegerLessOrEqual, Conditional]`, or the composite
-`[IntegerEqual, BooleanNot, Conditional]` in the entry block, plus one `U64`
-immediate return in each leaf. Legalization represents the condition as a
-closed choice among the established direct Boolean parameter, three ordered
-comparisons, and exact integer inequality. Each simple comparison leaf retains
-its operation, result definition, exact parameter values, locations and
-definitions, provenance, and fuel through mirrored producer and replay rungs.
-The inequality leaf additionally retains the equality result consumed by
-Boolean-not, both result-definition sites, and independent operation,
-provenance, and fuel custody for both source operations.
+`[IntegerEqual, BooleanNot, Conditional]` in the entry block. A fifth exact
+candidate has two signed-`I64` entry parameters and
+`[IntegerLessThan, Conditional]`. Every candidate has one `U64` immediate
+return in each leaf. Legalization represents unsigned and signed ordering as
+distinct closed condition variants rather than inferring signedness from
+machine bits. Each simple comparison leaf retains its operation, result
+definition, exact parameter values, types, locations and definitions,
+provenance, and fuel through mirrored producer and replay rungs. The inequality
+leaf additionally retains the equality result consumed by Boolean-not, both
+result-definition sites, and independent operation, provenance, and fuel
+custody for both source operations.
 
 Selected construction lowers each comparison to one two-register compare
 and retains four virtual registers. Equality reuses the existing nonzero
@@ -488,9 +491,14 @@ misnaming every branch as nonzero. For the ordered predicate, x86 baseline
 layout emits `JB rel32`; only the explicit branch-relaxation rule may change
 its alternative and bytes to `JB rel8`, while AArch64 emits `B.LO`. Equality
 and inequality retain the existing x86 `JNE` and AArch64 `B.NE` family with
-opposite successor mappings. The compare-zero/CBNZ fusion remains
-inapplicable to all two-register forms because its exact producer still
-requires `CompareI64Zero` and nonzero control.
+opposite successor mappings. Signed strict less-than instead owns
+`ConditionalBranchI64LessThan`; it retains authored operand order and the same
+true/less successor mapping while x86 emits `JL rel32` (or `JL rel8` only
+through explicit relaxation) and AArch64 emits `B.LT`. Signed and unsigned
+predicates have distinct selected, machine-effect, layout, encoding, and
+fragment identities. The compare-zero/CBNZ fusion remains inapplicable to all
+two-register forms because its exact producer still requires
+`CompareI64Zero` and nonzero control.
 
 Scalar source-leaf construction enters through a sub-100-line `derive_leaf`
 coordinator. It admits the common node and return envelope, visibly routes

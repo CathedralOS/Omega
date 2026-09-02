@@ -12,14 +12,15 @@ pub use legalization::{
     LegalizationError, LegalizationValidationReceipt,
     ProjectedStructuralCallReturnLegalizationError,
     ProjectedStructuralCallReturnLegalizationReceipt, ValidatedLegalizedOperations,
-    legalization_validator_identity, legalize_target_operations, validate_legalized_operations,
+    legalization_validator_identity, legalization_validator_identity_v17_legacy,
+    legalize_target_operations, validate_legalized_operations,
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
     select_instructions, selected_instruction_plan_identity,
     selected_instruction_plan_identity_v11_legacy, selected_instruction_plan_identity_v13_legacy,
     selected_instruction_plan_identity_v14_legacy, selected_instruction_plan_identity_v15_legacy,
-    validate_selected_instructions,
+    selected_instruction_plan_identity_v16_legacy, validate_selected_instructions,
 };
 
 #[cfg(test)]

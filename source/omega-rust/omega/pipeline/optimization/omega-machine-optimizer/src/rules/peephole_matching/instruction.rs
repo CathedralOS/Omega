@@ -234,6 +234,9 @@ fn semantic(kind: &SelectedInstructionKind) -> MachineSemanticKind {
         SelectedInstructionKind::ConditionalBranchU64LessThan => {
             MachineSemanticKind::ConditionalBranchU64LessThan
         }
+        SelectedInstructionKind::ConditionalBranchI64LessThan => {
+            MachineSemanticKind::ConditionalBranchI64LessThan
+        }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallI64 { .. } => {

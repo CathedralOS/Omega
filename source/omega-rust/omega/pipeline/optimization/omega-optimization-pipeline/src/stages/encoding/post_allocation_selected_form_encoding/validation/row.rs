@@ -92,7 +92,8 @@ pub(super) fn validate(
         ),
         (
             SelectedInstructionKind::ConditionalBranchNonZero
-            | SelectedInstructionKind::ConditionalBranchU64LessThan,
+            | SelectedInstructionKind::ConditionalBranchU64LessThan
+            | SelectedInstructionKind::ConditionalBranchI64LessThan,
             materialization,
         ) if materialization.is_none_or(MaterializationDisposition::is_retained) => {
             if row.state

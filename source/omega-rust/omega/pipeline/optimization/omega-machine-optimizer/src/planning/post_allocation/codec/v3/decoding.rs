@@ -28,6 +28,7 @@ use super::super::{
 pub(in crate::planning::post_allocation::codec) fn decode_content(
     mut cursor: &mut effect_codec::Cursor<'_>,
     identity: PostAllocationMachineIdentity,
+    allow_i64_less_than: bool,
 ) -> Result<PostAllocationMachinePlan, PostAllocationMachineDecodeError> {
     let selected = SelectedInstructionPlanIdentity::from_bytes(array(&mut cursor)?);
     let effects = PreAllocationMachineEffectIdentity::from_bytes(array(&mut cursor)?);
@@ -57,7 +58,7 @@ pub(in crate::planning::post_allocation::codec) fn decode_content(
             let instruction_count = length(&mut cursor)?;
             let mut instructions = Vec::with_capacity(instruction_count.min(cursor.remaining()));
             for _ in 0..instruction_count {
-                instructions.push(decode_instruction(&mut cursor)?);
+                instructions.push(decode_instruction(&mut cursor, allow_i64_less_than)?);
             }
             blocks.push(PostAllocationMachineBlock {
                 block,
@@ -78,7 +79,7 @@ pub(in crate::planning::post_allocation::codec) fn decode_content(
             1 => Some(effect_codec::decode_structural_call(&mut cursor).map_err(map_field_error)?),
             _ => return Err(PostAllocationMachineDecodeError::InvalidField),
         };
-        let return_instruction = decode_instruction(&mut cursor)?;
+        let return_instruction = decode_instruction(&mut cursor, allow_i64_less_than)?;
         let return_provenance =
             effect_codec::decode_provenance(&mut cursor).map_err(map_field_error)?;
         let return_effect =

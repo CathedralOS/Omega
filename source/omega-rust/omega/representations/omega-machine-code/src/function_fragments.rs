@@ -137,6 +137,7 @@ pub enum FunctionFragmentControlProvenance {
 pub enum FunctionFragmentConditionalBranchPredicate {
     NonZeroV1,
     U64LessThanV1,
+    I64LessThanV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -410,6 +411,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }
@@ -421,6 +423,7 @@ fn encode_branch_predicate(
     hasher.update([match predicate {
         FunctionFragmentConditionalBranchPredicate::NonZeroV1 => 0,
         FunctionFragmentConditionalBranchPredicate::U64LessThanV1 => 1,
+        FunctionFragmentConditionalBranchPredicate::I64LessThanV1 => 2,
     }]);
 }
 

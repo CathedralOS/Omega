@@ -28,7 +28,10 @@ pub(super) fn derive(
         && selected.functions.iter().all(|function| {
             matches!(
                 function.blocks.first().map(|block| &block.terminator),
-                Some(SelectedTerminator::ConditionalBranchU64LessThan { .. })
+                Some(
+                    SelectedTerminator::ConditionalBranchU64LessThan { .. }
+                        | SelectedTerminator::ConditionalBranchI64LessThan { .. }
+                )
             )
         })
     {
