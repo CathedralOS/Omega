@@ -1,6 +1,7 @@
 use super::super::SemanticLadder;
 
 mod callee_save_storage;
+mod fixed_precolored_split_requirements;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
@@ -342,6 +343,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/fixed_precolored_intervals/validate.rs",
         ],
     },
+    fixed_precolored_split_requirements::PRODUCTION,
+    fixed_precolored_split_requirements::COVERAGE,
     SemanticLadder {
         family: "post-allocation manifest mutation custody tests",
         paths: &[

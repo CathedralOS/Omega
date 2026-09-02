@@ -313,6 +313,28 @@ an abstract spill-area origin. This grants neither final frame layout nor
 machine spill/reload insertion authority, keeping frame, ABI, unwind, and
 publication decisions at later explicit boundaries.
 
+Fixed-register pressure now has a separate source-topology requirement
+boundary rather than being hidden inside home assignment. The
+`fixed_precolored_split_requirements` entrance consumes exact ranges, legality,
+and fixed point intervals. Its tiny entrance exposes named `compute` and
+`replay` coordinators; each descends through function indexing, source
+topology, fixed-cut authentication, domain partitioning, and work accounting.
+Direct positional production and keyed replay independently form maximal
+source segments with nonempty exact-view intersections. V1 accepts a
+one-block range or an exact single-entry fanout in which every later fragment
+has one connector directly from the source fragment. Only an incompatible
+authenticated fixed `Use` may open a later segment, and that opening records
+an `IncompatibleFixedUseDomainBoundaryV1` fact. Disjoint exact-view domains do
+not by themselves prove that physical movement is required because distinct
+views may alias. The artifact therefore does not choose exact-view
+qualification, copy, rematerialization, spill/reload, or another recovery
+strategy, and is not a segmented home map or transformed liveness result.
+Other CFG shapes, ties, any early-clobber participant, fixed Def/UseDef
+transitions, ambiguous fixed cuts, and unexplained domain breaks reject in V1.
+A later recovery decision must choose homes and strategy, introduce any new
+VReg/instruction phases, and rerun the complete liveness/range/legality chain
+before executable or publication authority exists.
+
 Two more explicit compiler-private boundaries continue that descent. Abstract
 spill insertion joins the validated logical operations and slot coloring into
 one independently replayed store/reload/rewrite schedule; it still contains no
