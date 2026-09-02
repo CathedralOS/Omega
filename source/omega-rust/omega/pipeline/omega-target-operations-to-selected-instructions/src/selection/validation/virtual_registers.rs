@@ -23,7 +23,8 @@ pub(super) fn validate_virtual_registers(
             *definition_site,
             ScalarType::Boolean,
         )],
-        LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. } => vec![(
+        LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. }
+        | LegalizedCondition::U64NotEqualZeroParameterV1 { parameter, .. } => vec![(
             parameter.source_value,
             parameter.parameter_index,
             parameter.register,

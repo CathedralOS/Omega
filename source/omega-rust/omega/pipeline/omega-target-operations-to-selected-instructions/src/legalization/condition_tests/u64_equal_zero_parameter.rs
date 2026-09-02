@@ -262,7 +262,7 @@ fn source_rejects_signed_attached_and_block_parameter_grammar() {
 }
 
 #[test]
-fn source_rejects_nested_boolean_control_grammar() {
+fn source_rejects_boolean_control_nested_beyond_the_admitted_not_equal_form() {
     let mut nested = fixture();
     let intermediate = id::<ValueId>(97);
     let boolean_not = id::<OperationId>(98);
@@ -340,15 +340,22 @@ fn source_rejects_nested_boolean_control_grammar() {
         successors: Vec::new(),
         ownership: Vec::new(),
     });
-    assert!(
-        source::derive_condition_for_test(
-            0,
-            &nested.target,
-            &nested.abstracted,
-            &nested.optimized,
-        )
-        .is_err()
-    );
+    let TargetOperation::ReturnIntegerExpressionConditionalControl { condition, .. } =
+        &mut nested.target.operation
+    else {
+        unreachable!("not-equal-zero target")
+    };
+    *condition = TargetBooleanExpression::Not {
+        psi_operation: id(99),
+        operand: Box::new(condition.clone()),
+    };
+    assert!(source::derive_condition_for_test(
+        0,
+        &nested.target,
+        &nested.abstracted,
+        &nested.optimized,
+    )
+    .is_err());
 }
 
 #[test]

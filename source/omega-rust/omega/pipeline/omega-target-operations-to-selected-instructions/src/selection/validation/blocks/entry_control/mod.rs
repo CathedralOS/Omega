@@ -7,6 +7,7 @@ mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
 mod integer_not_equal_parameters;
+mod not_equal_zero_parameter;
 
 use crate::selection::shared::*;
 
@@ -23,6 +24,9 @@ pub(super) fn validate(
         }
         LegalizedCondition::U64EqualZeroParameterV1 { .. } => {
             equal_zero_parameter::validate(function_index, source, function, keys, catalog)
+        }
+        LegalizedCondition::U64NotEqualZeroParameterV1 { .. } => {
+            not_equal_zero_parameter::validate(function_index, source, function, keys, catalog)
         }
         LegalizedCondition::IntegerEqualParametersV1 { .. } => {
             integer_equal_parameters::validate(function_index, source, function, keys, catalog)

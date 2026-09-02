@@ -41,7 +41,8 @@ pub(crate) fn selection_constraints(
                     );
                 }
             }
-            LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. } => push_fixed_input(
+            LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. }
+            | LegalizedCondition::U64NotEqualZeroParameterV1 { parameter, .. } => push_fixed_input(
                 &mut fixed_inputs,
                 environment,
                 function.machine,

@@ -220,6 +220,20 @@ pub(crate) fn conditional_u64_equal_zero_parameter_artifact() -> (Vec<u8>, Vec<u
     )
 }
 
+pub(crate) fn conditional_u64_not_equal_zero_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = conditional_u64_not_equal_zero_parameter_machine(20_100, [7, 9]);
+    let module = conditional_immediate_module(machine.id, vec![machine]);
+    let proof = ProofBundle {
+        recursive_components: Vec::new(),
+        evidence_producers: Vec::new(),
+        evidence: Vec::new(),
+    };
+    (
+        psi_terminal_codec::encode_module(&module).unwrap(),
+        psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+    )
+}
+
 pub(crate) fn conditional_u64_integer_less_than_parameters_artifact() -> (Vec<u8>, Vec<u8>) {
     let machine = conditional_u64_integer_less_than_parameters_machine(19_200, [7, 9]);
     let module = conditional_immediate_module(machine.id, vec![machine]);
@@ -452,6 +466,28 @@ pub(crate) fn conditional_u64_equal_zero_parameter_machine(
             },
         },
     );
+    machine
+}
+
+pub(crate) fn conditional_u64_not_equal_zero_parameter_machine(
+    base: u64,
+    literals: [u128; 2],
+) -> TerminalMachine {
+    let mut machine = conditional_u64_equal_zero_parameter_machine(base, literals);
+    let equality = ValueId::new(base + 7).unwrap();
+    let not_equal = ValueId::new(base + 21).unwrap();
+    machine.blocks[0].operations.push(Operation {
+        id: OperationId::new(base + 20).unwrap(),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: not_equal,
+            scalar_type: ScalarType::Boolean,
+        }),
+        kind: OperationKind::BooleanNot { operand: equality },
+    });
+    let Terminator::Conditional { condition, .. } = &mut machine.blocks[0].terminator else {
+        unreachable!("shared equal-zero fixture must end in conditional control")
+    };
+    *condition = not_equal;
     machine
 }
 

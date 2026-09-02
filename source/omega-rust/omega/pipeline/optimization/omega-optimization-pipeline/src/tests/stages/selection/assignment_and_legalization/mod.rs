@@ -10,5 +10,6 @@ mod runtime_integer_less_or_equal_conditional;
 mod runtime_integer_less_than_conditional;
 mod runtime_integer_not_equal_conditional;
 mod runtime_u64_equal_zero_parameter;
+mod runtime_u64_not_equal_zero_parameter;
 mod widened_exact_add;
 mod widened_exact_subtract;

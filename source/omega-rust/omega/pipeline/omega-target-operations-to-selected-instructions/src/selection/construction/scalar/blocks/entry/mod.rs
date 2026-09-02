@@ -7,6 +7,7 @@ mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
 mod integer_not_equal_parameters;
+mod not_equal_zero_parameter;
 
 use crate::selection::shared::*;
 
@@ -18,6 +19,9 @@ pub(in crate::selection::construction::scalar) fn condition(
     match &context.source.condition {
         LegalizedCondition::DirectParameter { .. } => direct_parameter::build(context),
         LegalizedCondition::U64EqualZeroParameterV1 { .. } => equal_zero_parameter::build(context),
+        LegalizedCondition::U64NotEqualZeroParameterV1 { .. } => {
+            not_equal_zero_parameter::build(context)
+        }
         LegalizedCondition::IntegerEqualParametersV1 { .. } => {
             integer_equal_parameters::build(context)
         }

@@ -165,9 +165,10 @@ profiles. Initially the physical pipeline admits only explicitly implemented
 compositions and rejects all others.
 
 Mandatory lowering may expose a machine-rule candidate without authorizing the
-rewrite. The exact unsigned-`U64` parameter-equals-zero conditional family, for
-example, lowers its authored zero and equality to `CompareI64Zero` plus
-nonzero control. AArch64 still publishes baseline `CMP`/`B.NE` when that
+rewrite. The exact unsigned-`U64` parameter zero-comparison families, for
+example, lower their authored zero and equality to `CompareI64Zero` plus
+nonzero control; the inequality form also retains its source Boolean-not as
+branch provenance. AArch64 still publishes baseline `CMP`/`B.NE` when that
 machine rule is absent; only the separately named
 `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` selection may replace that
 pair with `CBNZ`. This distinction lets source coverage grow without silently

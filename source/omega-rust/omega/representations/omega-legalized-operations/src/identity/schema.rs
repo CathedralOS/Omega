@@ -13,6 +13,7 @@ pub(super) enum IdentitySchema {
     V17,
     V18,
     V19,
+    V20,
 }
 
 pub(super) fn identity(
@@ -62,6 +63,11 @@ pub(super) fn identity(
         ),
         IdentitySchema::V19 => (
             b"omega.terminal-legalized-operations.v19\0".as_slice(),
+            true,
+            true,
+        ),
+        IdentitySchema::V20 => (
+            b"omega.terminal-legalized-operations.v20\0".as_slice(),
             true,
             true,
         ),

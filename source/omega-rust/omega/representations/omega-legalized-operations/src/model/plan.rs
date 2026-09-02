@@ -80,6 +80,10 @@ pub enum LegalizationRecipe {
     /// Equality of one U64 entry parameter with an exact authored U64 zero
     /// controls two immediate U64 return arms.
     ReturnU64EqualZeroParameterConditionalV1,
+    /// Inequality of one U64 entry parameter with an exact authored U64 zero,
+    /// expressed as equality followed by Boolean negation, controls two
+    /// immediate U64 return arms.
+    ReturnU64NotEqualZeroParameterConditionalV1,
 }
 
 /// Closed identity legalization admitted for a value-less Unit function.

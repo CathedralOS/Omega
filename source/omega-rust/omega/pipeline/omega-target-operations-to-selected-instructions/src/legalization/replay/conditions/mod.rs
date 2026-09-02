@@ -10,6 +10,7 @@ mod integer_parameter_comparison;
 mod integer_parameter_not_equal;
 mod model;
 mod u64_equal_zero_parameter;
+mod u64_not_equal_zero_parameter;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
@@ -30,13 +31,7 @@ pub(super) fn replay<'a>(
             TargetOperation::ReturnIntegerConditionalControl { .. },
             LegalizedCondition::DirectParameter { .. },
         ) => direct_parameter::replay,
-        (
-            TargetOperation::ReturnIntegerExpressionConditionalControl {
-                condition: TargetBooleanExpression::IntegerEqual { .. },
-                ..
-            },
-            LegalizedCondition::U64EqualZeroParameterV1 { .. },
-        ) => u64_equal_zero_parameter::replay,
+        (_, LegalizedCondition::U64EqualZeroParameterV1 { .. }) => u64_equal_zero_parameter::replay,
         (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition: TargetBooleanExpression::IntegerEqual { .. },
@@ -67,6 +62,9 @@ pub(super) fn replay<'a>(
             },
             LegalizedCondition::IntegerLessOrEqualParametersV1 { .. },
         ) => integer_less_or_equal_parameters::replay,
+        (_, LegalizedCondition::U64NotEqualZeroParameterV1 { .. }) => {
+            u64_not_equal_zero_parameter::replay
+        }
         (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition: TargetBooleanExpression::Not { operand, .. },

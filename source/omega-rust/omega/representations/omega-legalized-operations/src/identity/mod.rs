@@ -17,6 +17,13 @@ use shared::*;
 pub fn legalized_operation_plan_identity(
     plan: &LegalizedOperationPlan,
 ) -> LegalizedOperationPlanIdentity {
+    identity(plan, IdentitySchema::V20)
+}
+
+#[doc(hidden)]
+pub fn legalized_operation_plan_identity_v19_legacy(
+    plan: &LegalizedOperationPlan,
+) -> LegalizedOperationPlanIdentity {
     identity(plan, IdentitySchema::V19)
 }
 
