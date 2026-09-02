@@ -6,7 +6,7 @@ mod pipeline;
 
 pub use compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileOutputKind, CompileReport, CompileRequest,
-    Compiler, ExecutablePublicationDestination, ExecutablePublicationReceipt,
+    Compiler, ExecutablePublicationDestination, ExecutablePublicationReceipt, ExplicitTargetSet,
     FinalRealizationEvidenceError, OptimizationRollback, OptimizationRollbackInputError,
     OptimizationRollbackReceipt, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RequestedCompileProduct,

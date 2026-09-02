@@ -2,6 +2,9 @@ use crate::compiler::{ArtifactEmissionPolicy, CompileOptions, OptimizationRollba
 use crate::pipeline::PackageCompilationInputs;
 use psi_diagnostics::Diagnostic;
 
+mod targets;
+pub use targets::ExplicitTargetSet;
+
 /// The semantic product requested from the production compiler pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestedCompileProduct {
