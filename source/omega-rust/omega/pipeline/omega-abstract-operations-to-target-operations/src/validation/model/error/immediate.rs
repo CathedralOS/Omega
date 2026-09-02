@@ -232,6 +232,27 @@ pub enum StraightLineWrappingIntegerRemainderImmediateOperandsTranslationError {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StraightLineSaturatingIntegerDivideImmediateOperandsTranslationError {
+    SourceParameters,
+    SourceStructuralParameters,
+    SourceResult,
+    SourceEntryClaims,
+    SourcePublishedServices,
+    SourceBlockRoster,
+    SourceOperationRoster,
+    SourceDefinitionRoster,
+    SourceConstantType,
+    SourceIntegerType,
+    SourceConstantOutsideType,
+    SourceDivideOperands,
+    SourceDivideUndefined,
+    SourceResultLink,
+    SourceCleanup,
+    TargetProvenance,
+    TargetOperation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StraightLineSaturatingIntegerAddImmediateTranslationError {
     SourceParameters,
     SourceStructuralParameters,

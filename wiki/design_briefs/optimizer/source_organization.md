@@ -875,13 +875,16 @@ fixture, corruption, and optimized-custody leaves cover 160 direct and 160
 optimized cases, while the architecture ladder prevents this proof-preserving
 family from collapsing into the parameter or result-immediate siblings.
 The wrapping-remainder sibling follows the same visible descent under
-`straight_line_wrapping_integer_remainder_immediate_operands/`, with its own
-tiny entrance, exact grammar, independent replay, typed receipt, catalog row,
-and direct/optimized custody leaves. Only the test-side reconstruction of the
-canonical nonzero certificate is shared at
-`arithmetic/wrapping_nonzero_immediate_operands.rs`; 20-line divide and
-remainder wrappers select the authored policy explicitly. This keeps proof
-construction centralized without turning either semantic entrance into a
+`straight_line_wrapping_integer_remainder_immediate_operands/`, while
+saturating divide owns the parallel
+`straight_line_saturating_integer_divide_immediate_operands/` descent. Each has
+its own tiny entrance, exact grammar, independent replay, typed receipt,
+catalog row, and direct/optimized custody leaves. Only the
+test-side reconstruction of the canonical nonzero certificate is shared at
+`arithmetic/nonzero_divisor_immediate_operands.rs`; tiny wrapping-divide,
+wrapping-remainder, and saturating-divide wrappers select the authored policy
+explicitly. This keeps proof construction centralized without turning any
+semantic entrance into a
 mode switch or duplicating a two-hundred-line fixture.
 
 Projected structural call/return custody follows a plan taxonomy because no

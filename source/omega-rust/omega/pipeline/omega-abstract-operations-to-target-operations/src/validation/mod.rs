@@ -29,6 +29,7 @@ pub(crate) mod straight_line_nearest_ieee_float_fused_multiply_add_unit_return;
 pub(crate) mod straight_line_parameter;
 pub(crate) mod straight_line_port_write_unit_return;
 pub(crate) mod straight_line_saturating_integer_add_immediate;
+pub(crate) mod straight_line_saturating_integer_divide_immediate_operands;
 pub(crate) mod straight_line_saturating_integer_multiply_immediate;
 pub(crate) mod straight_line_saturating_integer_subtract_immediate;
 pub(crate) mod straight_line_scalar_crash;

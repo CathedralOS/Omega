@@ -297,6 +297,14 @@ including signed negative remainder and `MIN % -1`. The divide and remainder
 fixtures use one shared canonical nonzero certificate constructor behind tiny
 policy-specific wrappers; immediate proof erasure and all adjacent policies
 fail closed independently.
+Proof-bearing saturating divide over two constants owns a third exact catalog
+row over the same fixed-integer and nonzero-divisor boundary. Replay retains the
+authored saturating-divide expression, obligation, provenance, return edge, and
+ordered immediate children; the receipt recomputes the quotient only as
+evidence. Eight fixed types cross four ordered boundary pairs on all five
+targets at direct and optimized custody (160 cases each), with signed
+`MIN / -1 -> MAX` explicitly distinguished from wrapping division's `MIN`.
+Immediate proof erasure and adjacent policy substitutions fail closed.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers
