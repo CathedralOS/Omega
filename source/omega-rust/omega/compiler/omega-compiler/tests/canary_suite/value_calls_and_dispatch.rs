@@ -1143,6 +1143,97 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_local_named_dyn_mutable_pass_through_exit_canary_runs() {
+    let canary = pass_canary("traits/runtime_local_named_dyn_mutable_pass_through_exit");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let checked = compile_to_checked(&canary.join("main.omg"), Some(target))
+            .expect("mutable forwarded fixture should reach checked descriptor custody");
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_dispatch
+                .transfers
+                .len(),
+            1
+        );
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_dispatch
+                .rebound_scalar_calls
+                .len(),
+            1
+        );
+        let permission_policy =
+            omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+                checked
+                    .selected_provider_plans()
+                    .plans()
+                    .iter()
+                    .flat_map(|plan| {
+                        plan.rows.iter().filter_map(move |row| {
+                            matches!(
+                                row.binding,
+                                omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                                    ..
+                                }
+                            )
+                            .then(|| {
+                                omega_terminal_psi_to_native_artifact::TerminalAuthorityPermissionPolicyRow::new(
+                                    plan.schema.identity_digest(),
+                                    row.requirement_identity.clone(),
+                                    omega_effects::TerminalAuthorityDisposition::from_classes([
+                                        omega_effects::TerminalAuthorityClass::ProcessTermination,
+                                    ]),
+                                )
+                            })
+                        })
+                    })
+                    .collect(),
+            )
+            .expect("exact Console exit permission policy");
+        compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
+            &canary,
+            target,
+            permission_policy,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "{target} should retain mutable descriptor custody through its exact adapter:\n{}",
+                diagnostics
+                    .iter()
+                    .map(|diagnostic| diagnostic.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-runtime-local-named-dyn-mutable-pass-through-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+
+        let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+            .expect("a mutable forwarded descriptor should emit its exact private table function");
+        assert_native_exit_code(
+            &compilation,
+            70,
+            "mutable forwarded named dynamic descriptor canary",
+            "the indirect slot must preserve exclusive access and select the rebound Item instance",
+        );
+
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
+#[test]
 fn runtime_local_named_dyn_rebound_direct_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_local_named_dyn_rebound_direct_exit");
     for target in ["linux_x86_64", "linux_arm64"] {

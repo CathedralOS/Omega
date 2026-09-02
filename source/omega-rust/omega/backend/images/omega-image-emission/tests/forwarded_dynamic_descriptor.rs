@@ -151,3 +151,60 @@ fn object_construction_rejects_forwarded_adapter_byte_drift() {
         })
     );
 }
+
+#[test]
+fn object_construction_rejects_forwarded_scalar_result_custody_drift() {
+    fn assert_rejected(plan: &omega_machine_code::MachineCodePlan) {
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let call = caller
+            .forwarded_dynamic_descriptor_calls
+            .first()
+            .expect("forwarded descriptor call");
+        assert_eq!(
+            build_object_artifact(plan),
+            Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
+                caller: caller.machine,
+                operation: call.psi_operation,
+            })
+        );
+    }
+
+    let original = machine_plan(NativeTarget::linux_x64());
+
+    let mut drifted = original.clone();
+    let caller = drifted
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == drifted.entry)
+        .expect("entry caller");
+    caller.forwarded_dynamic_descriptor_calls[0]
+        .result
+        .home
+        .source_value = psi_core::ValueId::new(999).unwrap();
+    assert_rejected(&drifted);
+
+    let mut drifted = original.clone();
+    let caller = drifted
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == drifted.entry)
+        .expect("entry caller");
+    let result_offset = caller.forwarded_dynamic_descriptor_calls[0]
+        .result
+        .code_offset;
+    caller.bytes[result_offset] ^= 1;
+    assert_rejected(&drifted);
+
+    let mut drifted = original;
+    let caller = drifted
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == drifted.entry)
+        .expect("entry caller");
+    caller.unit_scalar_homes.clear();
+    assert_rejected(&drifted);
+}

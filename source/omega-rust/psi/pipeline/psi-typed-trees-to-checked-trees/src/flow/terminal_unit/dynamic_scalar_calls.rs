@@ -306,7 +306,6 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                 };
                 if parameter.is_self
                     || parameter.is_const
-                    || parameter.is_mutable
                     || !parameter.symbol.is_valid()
                     || parameter.symbol != transfer.parameter
                     || transfer.parameter_position != 0

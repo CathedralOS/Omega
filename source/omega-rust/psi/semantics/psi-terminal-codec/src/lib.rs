@@ -1012,8 +1012,11 @@ fn validate_operation_foundation(
             if !matches!(
                 parameter.multiplicity,
                 StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || parameter.access != psi_terminal::StructuralAccess::SharedBorrow
-                || !parameter.qualifications.is_empty()
+            ) || !matches!(
+                parameter.access,
+                psi_terminal::StructuralAccess::SharedBorrow
+                    | psi_terminal::StructuralAccess::MutableBorrow
+            ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || machine
                     .entry_claims

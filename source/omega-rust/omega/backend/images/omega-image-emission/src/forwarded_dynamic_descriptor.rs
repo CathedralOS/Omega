@@ -81,6 +81,7 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
             {
                 return Err(invalid());
             }
+            validate_scalar_result(target, function, call, operation_end).ok_or_else(invalid)?;
             let argument = &call.dynamic_arguments[0];
             if !argument.custody.has_complete_custody(
                 function.machine,
@@ -136,6 +137,62 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
         }
     }
     Ok(applications)
+}
+
+fn validate_scalar_result(
+    target: NativeTarget,
+    function: &MachineCodeFunction,
+    call: &omega_machine_code::ForwardedDynamicDescriptorCallRecord,
+    operation_end: usize,
+) -> Option<()> {
+    let psi_core::ScalarType::Integer(result_type) = call.semantic_result.scalar_type else {
+        return None;
+    };
+    let result_shape = super::unit_scalar_call_custody::integer_shape(result_type)?;
+    let pointer = ValueShape::integer(
+        u16::try_from(target.pointer_size).ok()?,
+        u16::try_from(target.pointer_alignment).ok()?,
+    );
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer; 2],
+            result: Some(result_shape),
+        },
+    )
+    .ok()?;
+    let result = &call.result;
+    let direct_call_end = call
+        .direct_call_offset
+        .checked_add(call.direct_call_byte_count)?;
+    let expected_result_offset = if let Some(outbound) = call.unit_stack.outbound {
+        let allocation_end = outbound
+            .allocation_offset
+            .checked_add(outbound.allocation_byte_count)?;
+        if allocation_end > call.direct_call_offset || outbound.release_offset != direct_call_end {
+            return None;
+        }
+        outbound
+            .release_offset
+            .checked_add(outbound.release_byte_count)?
+    } else {
+        direct_call_end
+    };
+    let expected_bytes =
+        super::unit_scalar_call_custody::expected_unit_scalar_result_bytes(target, result)?;
+    let result_end = result.code_offset.checked_add(result.byte_count)?;
+    (call.call_plan == expected_call_plan
+        && call.call_plan.result.as_ref() == Some(&result.source)
+        && result.home.defining_operation == call.psi_operation
+        && result.home.source_value == call.semantic_result.value
+        && result.home.scalar_type == result_type
+        && result.home.shape == result_shape
+        && function.unit_scalar_homes.contains(&result.home)
+        && result.code_offset == expected_result_offset
+        && result.byte_count == expected_bytes.len()
+        && result_end == operation_end
+        && function.bytes.get(result.code_offset..result_end) == Some(expected_bytes.as_slice()))
+    .then_some(())
 }
 
 fn validate_parameter_dispatches(

@@ -1550,6 +1550,13 @@ pub(super) fn emit_unit_body(
                                 AssignedUnitScalarArgumentSource::Home(source),
                             ) => *result_home == source,
                             (
+                                AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+                                    result_home,
+                                    ..
+                                },
+                                AssignedUnitScalarArgumentSource::Home(source),
+                            ) => *result_home == source,
+                            (
                                 AssignedUnitOperation::NormalizedForeignCall {
                                     result_home: Some(result_home),
                                     ..

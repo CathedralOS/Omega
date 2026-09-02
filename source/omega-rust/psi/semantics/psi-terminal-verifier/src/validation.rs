@@ -1047,10 +1047,13 @@ fn validate_boolean_structural_field(
             .iter()
             .any(|parameter| parameter.scalar_type == ScalarType::Boolean)
         && affine_cleanup::every_scalar_return_nominally_cleans(machine, source);
-    let unrestricted_shared_observation = parameter.multiplicity
+    let unrestricted_borrowed_observation = parameter.multiplicity
         == StructuralMultiplicity::Unrestricted
-        && parameter.access == StructuralAccess::SharedBorrow;
-    if (!affine_entry_observation && !unrestricted_shared_observation)
+        && matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        );
+    if (!affine_entry_observation && !unrestricted_borrowed_observation)
         || machine
             .entry_claims
             .iter()

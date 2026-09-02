@@ -92,8 +92,10 @@ fn lower_integer_read(
     if !matches!(
         source.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || source.access != StructuralAccess::SharedBorrow
-        || !has_empty_structural_custody(machine, source.place)
+    ) || !matches!(
+        source.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || !has_empty_structural_custody(machine, source.place)
         || !matches!(result.scalar_type, ScalarType::Integer(_))
         || direct_relevant_scalar_field(structural_types, source.structural_type, field)
             != Some(result.scalar_type)

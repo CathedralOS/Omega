@@ -161,7 +161,11 @@ fn lower_dynamic_parameter_return(
         || parameter != &dynamic_dispatch.parameter
         || parameter.owner != function.machine
         || parameter.ordinal != 0
-        || parameter.access != psi_terminal::StructuralAccess::SharedBorrow
+        || !matches!(
+            parameter.access,
+            psi_terminal::StructuralAccess::SharedBorrow
+                | psi_terminal::StructuralAccess::MutableBorrow
+        )
         || dispatch.owner != function.machine
         || dispatch.operation != *psi_operation
         || dispatch.parameter_ordinal != parameter.ordinal

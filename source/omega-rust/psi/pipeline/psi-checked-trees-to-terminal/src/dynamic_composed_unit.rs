@@ -546,9 +546,14 @@ fn validate_exact_dynamic_plan(
         || (store.is_some()
             && plan.caller_parameter_access != CheckedStructuralAccess::MutableBorrow)
         || (store.is_some() && plan.caller_multiplicity != Multiplicity::Unrestricted)
-        || plan.source_access != CheckedStructuralAccess::SharedBorrow
+        || !matches!(
+            plan.source_access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
+        || (plan.source_access == CheckedStructuralAccess::MutableBorrow
+            && plan.caller_parameter_access != CheckedStructuralAccess::MutableBorrow)
     {
-        return unsupported("direct dynamic source must be an exact shared field subloan");
+        return unsupported("direct dynamic source must be an exact borrowed field subloan");
     }
     let [CheckedUnitStructuralPathSegment::Field(_)] = plan.source_path.as_slice() else {
         return unsupported("direct dynamic source must be one exact attachment field");
@@ -668,9 +673,14 @@ fn validate_and_lower_selection_source(
             }
         || !caller_self.is_self
         || caller_self.multiplicity != terminal_structural_multiplicity(plan.caller_multiplicity)
-        || plan.source_access != CheckedStructuralAccess::SharedBorrow
+        || !matches!(
+            plan.source_access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
+        || (plan.source_access == CheckedStructuralAccess::MutableBorrow
+            && caller_self.access != StructuralAccess::MutableBorrow)
     {
-        return unsupported("direct dynamic caller self does not license a shared field subloan");
+        return unsupported("direct dynamic caller self does not license the field subloan");
     }
     let attachment_id = lookup_type_id(type_ids, &plan.caller_attachment_type_identity)?;
     let source_type = lookup_type_id(type_ids, source_type_identity)?;
@@ -699,7 +709,11 @@ fn validate_and_lower_selection_source(
     Ok(StructuralArgument {
         place: caller_self.place,
         path: lower_structural_path(source_path),
-        access: StructuralAccess::SharedBorrow,
+        access: match plan.source_access {
+            CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+            CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+            _ => unreachable!("borrowed dynamic source access was validated"),
+        },
     })
 }
 
@@ -814,7 +828,7 @@ fn lower_dynamic_call_custody(
                     ordinal: 0,
                     source_position: 0,
                     trait_identity: application.trait_identity.clone(),
-                    access: StructuralAccess::SharedBorrow,
+                    access: latest_source.access,
                     requirements,
                 });
                 catalog.arguments.push(TerminalDynamicDescriptorArgument {
@@ -1268,7 +1282,11 @@ fn materialize_dynamic_realizations(
                 is_self: true,
                 structural_type: source_type,
                 multiplicity: terminal_projected_source_multiplicity(plan),
-                access: StructuralAccess::SharedBorrow,
+                access: match plan.source_access {
+                    CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                    CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+                    _ => unreachable!("borrowed dynamic source access was validated"),
+                },
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             };

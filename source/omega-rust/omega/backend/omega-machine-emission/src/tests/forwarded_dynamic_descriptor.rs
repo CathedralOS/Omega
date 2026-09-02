@@ -79,6 +79,19 @@ fn emits_forwarded_descriptor_materializations_and_direct_helper_call() {
             panic!("one descriptor argument expected")
         };
         assert_eq!(call.call_plan.parameters.len(), 2);
+        assert_eq!(call.call_plan.result.as_ref(), Some(&call.result.source));
+        assert_eq!(caller.unit_scalar_homes, [call.result.home]);
+        assert_eq!(call.result.home.defining_operation, call.psi_operation);
+        assert_eq!(call.result.home.source_value, call.semantic_result.value);
+        let result_end = call.result.code_offset + call.result.byte_count;
+        assert_eq!(result_end, call.code_offset + call.byte_count);
+        let call_end = call.direct_call_offset + call.direct_call_byte_count;
+        assert_eq!(
+            call.result.code_offset,
+            call.unit_stack.outbound.map_or(call_end, |outbound| {
+                outbound.release_offset + outbound.release_byte_count
+            })
+        );
         assert_eq!(argument.instance.destination, call.call_plan.parameters[0]);
         assert_eq!(argument.adapters.len(), 2);
         for (row_index, adapter) in argument.adapters.iter().enumerate() {
