@@ -1,7 +1,7 @@
 # Beta
 
 Beta is the first trusted language above Alpha. It gives Alpha instructions
-human-readable mnemonics, labels, hexadecimal operands, and data spelling while
+human-readable mnemonics, numeric address assertions, hexadecimal operands, and data spelling while
 remaining a deliberately small imperative tape-assembly language.
 
 [`LANGUAGE.md`](LANGUAGE.md) defines the exact deterministic relation from one

@@ -28,12 +28,11 @@ The grammar is:
 
 ```text
 program     := item*
-item        := label-definition | instruction | data
-label-definition := IDENT ':'
+item        := address-assertion | instruction | data
+address-assertion := HEXWORD ':'
 instruction := MNEMONIC operand*
 data        := 'db' WHITESPACE+ STRING
 
-IDENT       := [a-z_][a-z0-9_]*
 REGISTER    := 'r' HEXDIGIT | 'r' HEXDIGIT HEXDIGIT
 HEXWORD     := '0x' HEXDIGIT{1,16}
 HEXDIGIT    := [0-9a-f]
@@ -46,11 +45,12 @@ ESCAPE      := '\\0' | '\\\\' | '\\"'
 Leading zeroes are permitted. A `HEXWORD` denotes one unsigned word in
 `0..2^64-1`. A `REGISTER` denotes one register in `0..255`. Hexadecimal digits
 are lowercase only; uppercase `A..F`, decimal words without `0x`, bare `0x`,
-and words wider than sixteen digits reject. Every label definition is unique
-and every label operand resolves to one definition. A label such as `r100x` is
-an identifier, not a register; only a complete one- or two-digit hexadecimal
-form after `r` is a register. Only whitespace may occur between `db` and its
-opening quote; a comma or comment there rejects.
+and words wider than sixteen digits reject. Only a complete one- or two-digit
+hexadecimal form after `r` is a register. An address assertion emits nothing
+and requires its word to equal the current output length exactly. Human block
+names belong in comments beside assertions and numeric control operands; Beta
+has no symbolic identifiers or resolution. Only whitespace may occur between
+`db` and its opening quote; a comma or comment there rejects.
 
 The decoded string bytes for `\\0`, `\\\\`, and `\\"` are respectively `0`,
 `92`, and `34`. Every other permitted string byte is emitted unchanged. `db`
@@ -64,8 +64,8 @@ audited assembly source.
 
 ## Instructions
 
-Operand kind `r` encodes a hexadecimal register. Operand kind `x` accepts
-either a `HEXWORD` or a label and encodes an eight-byte word/address.
+Operand kind `r` encodes a hexadecimal register. Operand kind `x` accepts one
+`HEXWORD` and encodes it as an eight-byte word/address.
 
 | Mnemonic | Opcode | Operands | Width |
 | --- | ---: | --- | ---: |
@@ -93,37 +93,32 @@ either a `HEXWORD` or a label and encodes an eight-byte word/address.
 
 Each instruction begins with its one-byte opcode. An `r` operand is its
 one-byte register number. An `x` operand is its value as exactly eight bytes,
-least significant byte first. A label operand's value is the absolute byte
-offset of its definition from byte zero of the raw output payload.
+least significant byte first.
 
-## Deterministic two-pass encoding
+## Deterministic one-pass encoding
 
-Pass one starts `pc = 0` and processes items in source order:
+The compiler starts with an empty output and processes items once in source
+order:
 
-1. a label records `labels[name] = pc` and contributes zero bytes;
-2. an instruction advances `pc` by the fixed width in the table; and
-3. `db s` advances `pc` by the number of decoded string bytes.
+1. `a:` requires `a` to equal the current output length and emits nothing;
+2. an instruction appends its opcode and encoded operands; and
+3. `db s` appends the decoded string bytes.
 
-Pass two processes the same item sequence and concatenates:
+Every control target is therefore visible directly in source, and each asserted
+block address is checked against the bytes that precede it. Consequently a
+well-formed source has exactly one encoded payload without a symbol table,
+relocation pass, or fixup relation.
 
-1. no bytes for a label;
-2. the opcode followed by each encoded operand for an instruction; and
-3. the decoded bytes for `db`.
-
-The pass-two output length must equal the final pass-one `pc`. Because label
-names are unique and all references are defined, both the label map and every
-fixup value are unique. Consequently a well-formed source has exactly one
-encoded payload.
-
-Malformed text, unknown mnemonics, invalid operands, duplicate or unresolved
-labels, arithmetic overflow, and implementation capacity exhaustion are not
-assembly programs and produce no `assemble(P) = T` judgment. Tool-level failure
-carriers and private resource profiles are specified separately; accepting a
-malformed input does not extend this language.
+Malformed text, unknown mnemonics, invalid operands, a mismatched address
+assertion, arithmetic overflow, and implementation capacity exhaustion are not
+assembly programs and produce no `assemble(P) = T` judgment. The compiler may
+have written a stdout prefix before discovering a late failure; invocation
+plumbing publishes stdout as an artifact if and only if the compiler returns
+status zero. Accepting a malformed input does not extend this language.
 
 The admitted compiler profile retains at most `0x100000` source bytes,
-`0x10000` label rows, and `0xffffc` output bytes. It checks each extent before
-advancing and returns nonzero without publishing an artifact on exhaustion.
+and emits at most `0xffffc` output bytes. It checks each extent before advancing
+and returns nonzero without publishing an artifact on exhaustion.
 
 ## Canonical assembler reconstruction subject
 
@@ -131,15 +126,14 @@ The current exact subject is small enough for total checked reconstruction:
 
 | Subject fact | Value |
 | --- | ---: |
-| Source bytes | 17,019 |
-| Source lines | 602 |
-| Encoded payload bytes | 2,706 |
+| Source bytes | 16,812 |
+| Source lines | 458 |
+| Encoded payload bytes | 2,135 |
 
 An admission certificate must bind the raw source and tape outside the proof
-producer, partition every source item and output byte exactly once, reconstruct
-every label value, and prove the pass-one extent equals the pass-two extent and
-the persisted tape length. Byte equality then gives identical Alpha initial
-programs under the same input and resource profile. By deterministic Alpha
+producer, partition every source item and output byte exactly once, check every
+address assertion, and prove the persisted tape length. Byte equality then gives
+identical Alpha initial programs under the same input and resource profile. By deterministic Alpha
 semantics, defined output, halt, trap, resource, and divergence observations
 are preserved in lockstep; no stuttering argument is needed for this encoding
 edge.

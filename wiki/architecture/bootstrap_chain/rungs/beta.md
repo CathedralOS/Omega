@@ -9,7 +9,7 @@ relation from Beta source to raw Alpha tape.
 
 The normative contract is
 [`source/beta/LANGUAGE.md`](../../../../source/beta/LANGUAGE.md). The admitted
-2,706-byte compiler tape runs on Alpha, while
+2,135-byte compiler tape runs on Alpha, while
 `source/beta/compiler/beta_compiler.beta` reconstructs that tape
 byte-identically. The compiler differential and strict grammar gates live under
 `tests/beta/compiler/`.

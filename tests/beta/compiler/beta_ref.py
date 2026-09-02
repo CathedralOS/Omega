@@ -8,8 +8,9 @@
 # UNTRUSTED; agreement is diagnostic and does not replace source-to-artifact
 # refinement. The runtime lineage never runs it.
 #
-# Encoding: opcode 1 byte; register operand 1 byte (`rH` or `rHH`); immediate/address operand 8 bytes LE (`0xH...`,
-# or a label resolved to its absolute byte offset in the tape). `db "..."` emits the decoded string bytes.
+# Encoding: opcode 1 byte; register operand 1 byte (`rH` or `rHH`);
+# immediate/address operand 8 bytes LE (`0xH...`). `0xH...:` asserts the
+# current output offset. `db "..."` emits the decoded string bytes.
 # Comments are `;` to end of line (respecting string quotes); commas are whitespace.
 import re
 import sys
@@ -25,8 +26,8 @@ OPS = {
     'read': (0x11, 'r'),  'write': (0x12, 'r'), 'call': (0x13, 'x'), 'ret': (0x14, ''),
 }
 ESC = {'0': 0, '\\': 92, '"': 34}
-IDENT = re.compile(r'[a-z_][a-z0-9_]*\Z')
 HEX_WORD = re.compile(r'0x[0-9a-f]{1,16}\Z')
+ADDRESS_ASSERTION = re.compile(r'0x[0-9a-f]{1,16}:\Z')
 HEX_REGISTER = re.compile(r'r[0-9a-f]{1,2}\Z')
 
 def tokenize(text):
@@ -74,17 +75,14 @@ def decode_str(token):
     return out
 
 def parse(text):
-    """-> list of items: ('label', name) | ('ins', mnem, [operand tokens]) | ('db', bytes)"""
-    items = []; labels = set(); toks = tokenize(text); k = 0
+    """-> list of address assertions, instructions, or byte data."""
+    items = []; toks = tokenize(text); k = 0
     while k < len(toks):
         t = toks[k][0]
         if t.endswith(':'):
-            name = t[:-1]
-            if not IDENT.fullmatch(name):
-                raise SyntaxError(f'beta_ref: malformed label {name!r}')
-            if name in labels:
-                raise SyntaxError(f'beta_ref: duplicate label {name!r}')
-            labels.add(name); items.append(('label', name)); k += 1; continue
+            if not ADDRESS_ASSERTION.fullmatch(t):
+                raise SyntaxError(f'beta_ref: malformed address assertion {t!r}')
+            items.append(('assert', int(t[2:-1], 16))); k += 1; continue
         if t == 'db':
             if k + 1 >= len(toks):
                 raise SyntaxError('beta_ref: db requires one quoted string')
@@ -102,7 +100,7 @@ def parse(text):
     return items
 
 def size(item):
-    if item[0] == 'label':
+    if item[0] == 'assert':
         return 0
     if item[0] == 'db':
         return len(item[1])
@@ -117,16 +115,13 @@ def assemble(text):
                 f'beta_ref: invalid source byte at offset {offset}'
             )
     items = parse(text)
-    # pass 1: label -> byte offset
-    labels = {}; off = 0
-    for it in items:
-        if it[0] == 'label':
-            labels[it[1]] = off
-        off += size(it)
-    # pass 2: emit
     out = bytearray()
     for it in items:
-        if it[0] == 'label':
+        if it[0] == 'assert':
+            if it[1] != len(out):
+                raise SyntaxError(
+                    f'beta_ref: address assertion {it[1]:#x} at {len(out):#x}'
+                )
             continue
         if it[0] == 'db':
             out += it[1]; continue
@@ -141,10 +136,8 @@ def assemble(text):
             else:
                 if HEX_WORD.fullmatch(tok):
                     v = int(tok[2:], 16)
-                elif IDENT.fullmatch(tok) and tok in labels:
-                    v = labels[tok]
                 else:
-                    raise SyntaxError(f'beta_ref: malformed or unresolved word {tok!r}')
+                    raise SyntaxError(f'beta_ref: malformed word {tok!r}')
                 out += v.to_bytes(8, 'little')
     return out
 
