@@ -1,8 +1,15 @@
 use crate::context::*;
 use psi_checked_trees::CheckedEvidenceTerm;
+mod contract_entailment;
 mod contracts;
 mod float_meaning;
 mod obligations;
+
+pub(crate) use contract_entailment::build_contract_entailment_assumption_discharges;
+pub use contract_entailment::{
+    CheckedContractEntailmentAssumptionDischargeRecheckError,
+    recheck_contract_entailment_assumption_discharge,
+};
 
 pub(crate) use contracts::machine_parameter_evidence_signatures;
 use contracts::{

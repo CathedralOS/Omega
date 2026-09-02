@@ -1,3 +1,4 @@
+mod contract_entailment;
 mod contracts;
 mod float_meaning;
 mod lemmas;
@@ -5,6 +6,7 @@ mod obligations;
 mod propositions;
 mod roots;
 
+pub use contract_entailment::*;
 pub use contracts::*;
 pub use float_meaning::*;
 pub use lemmas::*;

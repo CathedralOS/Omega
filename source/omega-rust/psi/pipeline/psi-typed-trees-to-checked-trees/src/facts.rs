@@ -143,6 +143,8 @@ pub(crate) fn build_check_facts(
         &operators,
         &validation_facts.exact_integer_casts,
     )?;
+    proof.contract_entailment_assumption_discharges =
+        crate::proof::build_contract_entailment_assumption_discharges(program, &contract_plans)?;
     let nominal_machine_uses =
         build_nominal_machine_use_facts(program, nominal_machine_uses, &contract_plans)?;
     // CRY1: materialize the effective structural policy once in the checked

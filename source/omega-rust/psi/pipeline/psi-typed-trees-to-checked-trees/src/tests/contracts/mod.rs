@@ -1,6 +1,7 @@
 use super::*;
 
 mod assembly;
+mod contract_entailment_certificates;
 mod fact_call_projections;
 mod indexing;
 mod instantiation;
