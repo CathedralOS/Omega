@@ -1,0 +1,35 @@
+// A hosted Unit helper combines one whole owned affine generic operand with
+// one fixed-width scalar literal. Main establishes and transfers the only
+// structural local; the selected realization returns the literal unchanged.
+
+data Buffer<Element, const Count: u64> {}
+
+data Indexing {}
+
+boundary operator [] Indexing::index<Element, const Count: u64>(
+    items: Buffer<Element, Count>,
+    offset: i32
+) -> i32
+requires Count == Count;
+
+data IndexingProvider {}
+
+machine IndexingProvider::index<Value, const Length: u64>(
+    items: Buffer<Value, Length>,
+    offset: i32
+) -> i32
+satisfies Indexing::index
+{
+    offset
+}
+
+machine consume(items: Buffer<i32, 4>) {
+    let selected: i32 = items[(11 as i32)];
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let items: Buffer<i32, 4> = Buffer {};
+    consume(items);
+}
