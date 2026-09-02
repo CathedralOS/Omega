@@ -17,8 +17,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         )
         .unwrap_or_else(|error| panic!("{package} source closure should resolve: {error}"));
         let reviews = compile_resolved_package_candidate_reviews(
-            &closure,
-            "windows_x86_64",
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &cache.join("compiler-build"),
         )
         .unwrap_or_else(|error| panic!("{package} package reviews should close: {error:#?}"));
@@ -222,7 +221,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
         assert_fixture_evidence(package, root_review.projection());
         let initial_conflicts = compare_review_only_initial_capabilities(
             &reviews,
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             ReviewOnlyCapabilityConflictLimits::default(),
         )
         .unwrap_or_else(|error| panic!("{package} initial conflicts should close: {error}"));
@@ -454,14 +453,14 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                     compare_review_only_capabilities_from_baseline(
                         &reopened,
                         &reviews,
-                        &closure,
+                        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
                         ReviewOnlyCapabilityConflictLimits::default(),
                     )
                     .expect("reopened baseline comparison"),
                     compare_review_only_capabilities(
                         &reviews,
                         &reviews,
-                        &closure,
+                        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
                         ReviewOnlyCapabilityConflictLimits::default(),
                     )
                     .expect("live baseline comparison")
@@ -615,8 +614,7 @@ fn process_exit_fixture_retains_closed_exit_and_unresolved_console_siblings() {
     .expect("process-exit source closure should resolve");
 
     let reviews = compile_resolved_package_candidate_reviews(
-        &closure,
-        "linux_x86_64",
+        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
         &cache.join("compiler-build"),
     )
     .expect(

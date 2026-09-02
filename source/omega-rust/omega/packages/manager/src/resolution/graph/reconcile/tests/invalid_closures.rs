@@ -89,7 +89,6 @@ fn enforces_package_request_and_depth_ceilings() {
         let error = resolve_package_source_closure_with_limits(
             git_root_request(&root),
             root.clone(),
-            omega_target::TargetProfile::CrossPlatformCli,
             limits,
             fake_adapter(packages.clone()),
         )

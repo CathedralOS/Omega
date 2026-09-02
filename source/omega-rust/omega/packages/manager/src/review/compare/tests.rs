@@ -152,8 +152,11 @@ fn commitment(
     reviews: &[TestReview],
 ) -> ReviewOnlyCandidateClosureCommitment {
     let review_refs = reviews.iter().collect::<Vec<_>>();
-    derive_candidate_closure_commitment(closure, &review_refs)
-        .expect("derive candidate closure commitment")
+    derive_candidate_closure_commitment(
+        &closure.for_exact_target(omega_target::TargetProfile::CrossPlatformCli),
+        &review_refs,
+    )
+    .expect("derive candidate closure commitment")
 }
 
 #[test]
@@ -167,7 +170,6 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
     let closure = resolve_external_local_package_closure(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-review-evidence"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -228,28 +230,18 @@ fn candidate_closure_binds_the_selected_target_profile() {
     let root = temp_root("target-profile");
     let cache = temp_root("target-profile-cache");
     write_package(&root, "profile-probe", None);
-    let source_context = ExternalSourceContext::derive(b"candidate-closure-target-profile");
-    let windows = resolve_external_local_package_closure(
+    let closure = resolve_external_local_package_closure(
         &root,
-        source_context.clone(),
-        omega_target::TargetProfile::WindowsX64,
+        ExternalSourceContext::derive(b"candidate-closure-target-profile"),
         &cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
-    .expect("resolve Windows closure");
-    let linux = resolve_external_local_package_closure(
-        &root,
-        source_context,
-        omega_target::TargetProfile::LinuxX64,
-        &cache,
-        LocalSourceLimits::default(),
-        PackageSourceClosureLimits::default(),
-    )
-    .expect("resolve Linux closure");
-    assert_eq!(windows.graph(), linux.graph());
+    .expect("resolve source closure once");
+    let windows = closure.for_exact_target(omega_target::TargetProfile::WindowsX64);
+    let linux = closure.for_exact_target(omega_target::TargetProfile::LinuxX64);
 
-    let reviews = windows
+    let reviews = closure
         .graph()
         .packages()
         .iter()
@@ -266,10 +258,11 @@ fn candidate_closure_binds_the_selected_target_profile() {
             rows: Vec::new(),
         })
         .collect::<Vec<_>>();
+    let review_refs = reviews.iter().collect::<Vec<_>>();
 
     assert_ne!(
-        commitment(&windows, &reviews),
-        commitment(&linux, &reviews),
+        derive_candidate_closure_commitment(&windows, &review_refs).expect("commit Windows child"),
+        derive_candidate_closure_commitment(&linux, &review_refs).expect("commit Linux child"),
         "review identity must bind the package closure's selected profile"
     );
 
@@ -285,7 +278,6 @@ fn candidate_closure_and_directional_review_bind_the_exact_root_role() {
     let closure = resolve_external_local_package_closure(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-root-role"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

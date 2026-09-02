@@ -12,7 +12,6 @@ use crate::resolution::source::{
 use omega_package_source::{
     GitSourceRequest, LocalSourceLimits, ResolvedGitSource, SourceResolverStorage,
 };
-use omega_target::TargetProfile;
 use std::collections::BTreeMap;
 #[cfg(test)]
 use std::path::Path;
@@ -26,7 +25,6 @@ use std::path::Path;
 #[cfg(test)]
 pub(crate) fn resolve_git_package_closure(
     request: &GitSourceRequest,
-    target_profile: TargetProfile,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -34,18 +32,11 @@ pub(crate) fn resolve_git_package_closure(
     let storage = SourceResolverStorage::for_hardened_base(cache_dir).map_err(|error| {
         ResolveGitPackageClosureError::Root(ResolvePackageSourceError::Source(error))
     })?;
-    resolve_git_package_closure_with_storage(
-        request,
-        target_profile,
-        &storage,
-        source_limits,
-        closure_limits,
-    )
+    resolve_git_package_closure_with_storage(request, &storage, source_limits, closure_limits)
 }
 
 fn resolve_git_package_closure_from_lanes(
     request: &GitPackageSourceRequest,
-    target_profile: TargetProfile,
     workspace_cache: SourceCacheLane<'_>,
     git_cache: SourceCacheLane<'_>,
     local_cache: SourceCacheLane<'_>,
@@ -82,7 +73,6 @@ fn resolve_git_package_closure_from_lanes(
     resolve_registered_package_closure(
         PackageRootSourceRequest::Git(request.clone()),
         root.into_custody(),
-        target_profile,
         closure_limits,
         workspace_cache,
         git_cache,
@@ -99,14 +89,12 @@ fn resolve_git_package_closure_from_lanes(
 /// Resolve a Git closure beneath the manager-owned private source root.
 pub fn resolve_git_package_closure_with_storage(
     request: &GitSourceRequest,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
     resolve_selected_git_package_closure_with_storage(
         &GitPackageSourceRequest::root(request.clone()),
-        target_profile,
         storage,
         source_limits,
         closure_limits,
@@ -117,14 +105,12 @@ pub fn resolve_git_package_closure_with_storage(
 /// or application; every dependency remains package-only.
 pub fn resolve_git_project_closure_with_storage(
     request: &GitSourceRequest,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
 ) -> Result<ResolvedPackageSourceClosure, ResolveGitPackageClosureError> {
     resolve_selected_git_project_closure_with_storage(
         &GitPackageSourceRequest::root(request.clone()),
-        target_profile,
         storage,
         source_limits,
         closure_limits,
@@ -134,7 +120,6 @@ pub fn resolve_git_project_closure_with_storage(
 /// Resolve one explicitly selected package from a Git repository and its closure.
 pub fn resolve_selected_git_package_closure_with_storage(
     request: &GitPackageSourceRequest,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -144,7 +129,6 @@ pub fn resolve_selected_git_package_closure_with_storage(
     })?;
     let result = resolve_git_package_closure_from_lanes(
         request,
-        target_profile,
         SourceCacheLane::Retained(storage.workspace_members()),
         SourceCacheLane::Retained(storage.git_sources()),
         SourceCacheLane::Retained(storage.external_local_sources()),
@@ -162,7 +146,6 @@ pub fn resolve_selected_git_package_closure_with_storage(
 /// may be packages or applications at this root boundary.
 pub fn resolve_selected_git_project_closure_with_storage(
     request: &GitPackageSourceRequest,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -172,7 +155,6 @@ pub fn resolve_selected_git_project_closure_with_storage(
     })?;
     let result = resolve_git_package_closure_from_lanes(
         request,
-        target_profile,
         SourceCacheLane::Retained(storage.workspace_members()),
         SourceCacheLane::Retained(storage.git_sources()),
         SourceCacheLane::Retained(storage.external_local_sources()),

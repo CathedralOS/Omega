@@ -205,7 +205,6 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
 
         let closure = resolve_git_package_closure_with_storage(
             &request,
-            omega_target::TargetProfile::CrossPlatformCli,
             &storage,
             LocalSourceLimits::default(),
             PackageSourceClosureLimits::default(),
@@ -231,13 +230,16 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         assert_eq!(custody.resolution(), declared.resolution());
 
         let compiler_build = cache.join("compiler-build");
-        let reviews = compile_resolved_package_reviews(&closure, "windows_x86_64", &compiler_build)
-            .unwrap_or_else(|error| {
-                panic!(
-                    "remote fixture {} should compile through package-aware review: {error:#?}",
-                    pin.package
-                )
-            });
+        let reviews = compile_resolved_package_reviews(
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &compiler_build,
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "remote fixture {} should compile through package-aware review: {error:#?}",
+                pin.package
+            )
+        });
         let issued = reviews
             .review(&expected_key)
             .expect("compiler review must retain the exact normalized root package key");

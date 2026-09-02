@@ -49,9 +49,11 @@ impl ExactCompilerRowScenario {
             PackageSourceClosureLimits::default(),
         )
         .expect("resolve baseline custody");
-        let baseline_reviews =
-            compile_resolved_package_reviews(&baseline_sources, "windows_x86_64", &build_root)
-                .expect("compile baseline review");
+        let baseline_reviews = compile_resolved_package_reviews(
+            &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &build_root,
+        )
+        .expect("compile baseline review");
 
         write_package(
             &live,
@@ -71,8 +73,7 @@ pub proposition ready();
         )
         .expect("resolve alternate baseline custody");
         let stale_baseline_reviews = compile_resolved_package_reviews(
-            &stale_baseline_sources,
-            "windows_x86_64",
+            &stale_baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &build_root,
         )
         .expect("compile alternate baseline review");
@@ -95,9 +96,11 @@ pub proposition settled();
             PackageSourceClosureLimits::default(),
         )
         .expect("resolve candidate custody");
-        let candidate_reviews =
-            compile_resolved_package_reviews(&candidate_sources, "windows_x86_64", &build_root)
-                .expect("compile candidate review");
+        let candidate_reviews = compile_resolved_package_reviews(
+            &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
+            &build_root,
+        )
+        .expect("compile candidate review");
 
         Self {
             live,

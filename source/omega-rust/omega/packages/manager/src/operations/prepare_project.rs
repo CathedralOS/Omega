@@ -33,7 +33,6 @@ pub enum PrepareLocalProjectError {
         entry: PathBuf,
         project_root: PathBuf,
     },
-    InvalidTarget(String),
     Storage(SourceResolveError),
     Closure(ResolveExternalLocalPackageClosureError),
     MissingRootCustody,
@@ -52,7 +51,6 @@ impl fmt::Display for PrepareLocalProjectError {
                 entry.display(),
                 project_root.display(),
             ),
-            Self::InvalidTarget(diagnostic) => diagnostic.fmt(formatter),
             Self::Storage(error) => {
                 write!(
                     formatter,
@@ -84,11 +82,11 @@ impl std::error::Error for PrepareLocalProjectError {}
 /// project with a sibling `build.omg`.
 ///
 /// A standalone Omega source returns `Ok(None)`. The workflow owns storage,
-/// target selection, source closure resolution, root relocation, and compiler
-/// input assembly so the command-line binary does not reproduce package policy.
+/// source closure resolution, root relocation, and compiler input assembly so
+/// the command-line binary does not reproduce package policy. Target choice is
+/// deliberately later than this target-independent preparation.
 pub fn prepare_local_project(
     entry_path: &Path,
-    target_name: Option<&str>,
 ) -> Result<Option<PreparedLocalProject>, PrepareLocalProjectError> {
     let project_root = entry_path
         .parent()
@@ -109,8 +107,6 @@ pub fn prepare_local_project(
                 project_root: project_root.clone(),
             })?
     };
-    let target_profile = omega_target::TargetProfile::from_omega_target_name(target_name)
-        .map_err(|diagnostic| PrepareLocalProjectError::InvalidTarget(diagnostic.to_string()))?;
     let canonical_project_root = project_root.canonicalize().map_err(|error| {
         PrepareLocalProjectError::Storage(SourceResolveError::Io {
             path: project_root.clone(),
@@ -124,7 +120,6 @@ pub fn prepare_local_project(
     let closure = resolve_external_local_project_closure_with_storage(
         &project_root,
         ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
-        target_profile,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -165,7 +160,7 @@ mod tests {
         let entry = root.join("main.omg");
         std::fs::write(&entry, "machine main() {}\n").expect("write standalone source");
 
-        let prepared = prepare_local_project(&entry, None).expect("inspect standalone source");
+        let prepared = prepare_local_project(&entry).expect("inspect standalone source");
 
         assert!(prepared.is_none());
         std::fs::remove_dir_all(root).expect("remove standalone source root");

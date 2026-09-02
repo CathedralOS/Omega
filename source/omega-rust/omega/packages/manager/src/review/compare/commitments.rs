@@ -8,7 +8,7 @@ use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, DependencyRequestPath,
-    ResolvedPackageClosure, ResolvedPackageSourceClosure,
+    ExactTargetPackageSourceClosure, ResolvedPackageClosure,
 };
 use crate::review::candidate::{PackageReviewEvidence, ReviewOnlySourceConsumptionCommitment};
 use omega_package_evidence::record::{
@@ -83,16 +83,16 @@ pub(super) fn derive_conflict_fingerprint<C: PackageReviewEvidence>(
 }
 
 pub(super) fn derive_candidate_closure_commitment<C: PackageReviewEvidence>(
-    closure: &ResolvedPackageSourceClosure,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     candidate_reviews: &[&C],
 ) -> Result<ReviewOnlyCandidateClosureCommitment, ReviewOnlyCapabilityConflictError> {
     let source_closure = CanonicalSourceClosureSubject::from_resolved(
-        closure,
+        target_closure,
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .map_err(|_| ReviewOnlyCapabilityConflictError::InvalidCandidateSourceClosure)?;
     derive_candidate_graph_commitment_with_source(
-        closure.graph(),
+        target_closure.source_closure().graph(),
         Some(source_closure.canonical_bytes()),
         candidate_reviews,
     )

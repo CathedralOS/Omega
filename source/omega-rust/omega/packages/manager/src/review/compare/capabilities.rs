@@ -6,7 +6,7 @@ use super::commitments::{
 use super::model::*;
 use super::resources::{ComparisonInputBudget, account_review_resources};
 use crate::declarations::PackageKey;
-use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
+use crate::resolution::graph::{DependencyRequestPath, ExactTargetPackageSourceClosure};
 use crate::review::candidate::validation::{
     ReviewOnlyClosureValidationError, ReviewOnlySetValidationError, validate_review_only_closure,
     validate_review_only_records,
@@ -21,7 +21,7 @@ use std::cmp::Ordering;
 pub fn compare_review_only_capabilities(
     baseline: &CompilerIssuedPackageReviewSet,
     candidate: &CompilerIssuedPackageReviewSet,
-    candidate_sources: &ResolvedPackageSourceClosure,
+    candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
     compare_review_only_capability_records(baseline.reviews(), candidate, candidate_sources, limits)
@@ -31,7 +31,7 @@ pub fn compare_review_only_capabilities(
 /// against an explicit empty admission baseline.
 pub fn compare_review_only_initial_capabilities(
     candidate: &CompilerIssuedPackageReviewSet,
-    candidate_sources: &ResolvedPackageSourceClosure,
+    candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
     compare_review_only_capability_records::<CompilerIssuedPackageReview>(
@@ -45,16 +45,17 @@ pub fn compare_review_only_initial_capabilities(
 pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
     baseline: &[B],
     candidate: &CompilerIssuedPackageReviewSet,
-    candidate_sources: &ResolvedPackageSourceClosure,
+    candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
+    let source_closure = candidate_sources.source_closure();
     let mut input_budget = ComparisonInputBudget::default();
     account_review_resources(baseline, limits, &mut input_budget)?;
     let baseline_by_key = validate_review_only_records(baseline)
         .map_err(|error| map_set_validation_error(ReviewSetRole::Baseline, error))?
         .into_reviews_by_key();
     account_review_resources(candidate.reviews(), limits, &mut input_budget)?;
-    let candidate_by_key = validate_review_only_closure(candidate_sources, candidate)
+    let candidate_by_key = validate_review_only_closure(source_closure, candidate)
         .map_err(map_candidate_closure_validation_error)?
         .into_reviews_by_key();
     let candidate_closure =
@@ -77,7 +78,7 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
                 package: Box::new(key.clone()),
             });
         }
-        let dependency_path = candidate_sources.dependency_path(key).ok_or_else(|| {
+        let dependency_path = source_closure.dependency_path(key).ok_or_else(|| {
             ReviewOnlyCapabilityConflictError::MissingDependencyPath {
                 package: Box::new(key.clone()),
             }
@@ -138,7 +139,7 @@ pub(crate) fn compare_review_only_capability_records<B: PackageReviewEvidence>(
             continue;
         }
         let key = candidate_review.key();
-        let dependency_path = candidate_sources.dependency_path(key).ok_or_else(|| {
+        let dependency_path = source_closure.dependency_path(key).ok_or_else(|| {
             ReviewOnlyCapabilityConflictError::MissingDependencyPath {
                 package: Box::new(key.clone()),
             }

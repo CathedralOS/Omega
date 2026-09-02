@@ -245,12 +245,12 @@ explicitly.
 
 - [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
   semantics begin.**
+  - [x] resolve and retain one target-independent immutable package source
+    closure, then require review and production consumers to project an exact-
+    target child whose profile cannot disagree with its canonical subject;
   - consume the landed compiler-owned `ExplicitTargetSet` at the orchestration
-    boundary, then acquire and retain one immutable source snapshot and reuse
-    parsing, flat build facts, and every other target-independent stage result;
-  - project one independently valid exact-target child at the first
-    target-sensitive stage, preserving the same child subject and identity as
-    a standalone invocation;
+    boundary and reuse parsing, flat build facts, and every other target-
+    independent stage result across those children;
   - reuse an identical checked/Terminal Psi or PCC product across target
     children only after exact strong-identity equality, then supply each native
     branch with its own target and lowering-authority inputs;
@@ -301,7 +301,8 @@ explicitly.
       parameter; a staged by-value copy is not a realization of that identity;
     - the named-`dyn`/Console ordinary-package native canary, needing accepted
       Console semantic-binding replay from the lock and multi-block target
-      continuation;
+      continuation; the existing `consumer_scoped_console_binding_survives_review_and_fresh_admission`
+      regression currently reaches this seam as `FusedServiceEstablishmentDrift`;
     - two build/runtime float twins whose exact named-operator identity now
       survives early build-time selection and call-closure authority, but whose
       runtime entries still lack a Terminal composed-Unit plan for scalar

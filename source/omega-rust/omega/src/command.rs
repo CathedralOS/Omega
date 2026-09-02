@@ -79,7 +79,6 @@ pub(crate) fn run() {
     };
     let package_inputs = match omega_package_manager::operations::prepare_local_project(
         &options.root_path,
-        options.target_name.as_deref(),
     ) {
         Ok(Some(prepared)) => {
             let (entry_path, package_inputs) = prepared.into_parts();

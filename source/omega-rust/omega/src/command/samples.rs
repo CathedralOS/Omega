@@ -39,7 +39,6 @@ pub(super) fn refresh(samples_root: &Path) -> ! {
                         .join("build");
                     let prepared = match omega_package_manager::operations::prepare_local_project(
                         &main_path,
-                        Some(&target_name),
                     ) {
                         Ok(Some(prepared)) => prepared,
                         Ok(None) => {

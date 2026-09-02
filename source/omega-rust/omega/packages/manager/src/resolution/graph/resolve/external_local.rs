@@ -13,7 +13,6 @@ use crate::declarations::PackageKey;
 use crate::resolution::source::ResolvePackageSourceError;
 use omega_package_source::{ExternalSourceContext, SourceLineage};
 use omega_package_source::{LocalSourceLimits, SourceResolverStorage};
-use omega_target::TargetProfile;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -29,7 +28,6 @@ use std::path::{Path, PathBuf};
 pub(crate) fn resolve_external_local_package_closure(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    target_profile: TargetProfile,
     cache_dir: impl AsRef<Path>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -40,7 +38,6 @@ pub(crate) fn resolve_external_local_package_closure(
     resolve_external_local_package_closure_with_storage(
         live_root,
         source_context,
-        target_profile,
         &storage,
         source_limits,
         closure_limits,
@@ -51,7 +48,6 @@ pub(crate) fn resolve_external_local_package_closure(
 pub fn resolve_external_local_package_closure_with_storage(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -59,7 +55,6 @@ pub fn resolve_external_local_package_closure_with_storage(
     resolve_external_local_declared_closure_with_storage(
         live_root.as_ref(),
         source_context,
-        target_profile,
         storage,
         source_limits,
         closure_limits,
@@ -73,7 +68,6 @@ pub fn resolve_external_local_package_closure_with_storage(
 pub fn resolve_external_local_project_closure_with_storage(
     live_root: impl AsRef<Path>,
     source_context: ExternalSourceContext,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -81,7 +75,6 @@ pub fn resolve_external_local_project_closure_with_storage(
     resolve_external_local_declared_closure_with_storage(
         live_root.as_ref(),
         source_context,
-        target_profile,
         storage,
         source_limits,
         closure_limits,
@@ -92,7 +85,6 @@ pub fn resolve_external_local_project_closure_with_storage(
 fn resolve_external_local_declared_closure_with_storage(
     live_root: &Path,
     source_context: ExternalSourceContext,
-    target_profile: TargetProfile,
     storage: &SourceResolverStorage,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
@@ -104,7 +96,6 @@ fn resolve_external_local_declared_closure_with_storage(
     let result = resolve_external_local_declared_closure_from_lanes(
         live_root,
         source_context,
-        target_profile,
         SourceCacheLane::Retained(storage.external_local_sources()),
         SourceCacheLane::Retained(storage.workspace_members()),
         SourceCacheLane::Retained(storage.git_sources()),
@@ -122,7 +113,6 @@ fn resolve_external_local_declared_closure_with_storage(
 fn resolve_external_local_declared_closure_from_lanes(
     live_root: &Path,
     source_context: ExternalSourceContext,
-    target_profile: TargetProfile,
     local_cache: SourceCacheLane<'_>,
     workspace_cache: SourceCacheLane<'_>,
     git_cache: SourceCacheLane<'_>,
@@ -169,7 +159,6 @@ fn resolve_external_local_declared_closure_from_lanes(
     resolve_registered_package_closure(
         root_request,
         root.into_custody(),
-        target_profile,
         closure_limits,
         workspace_cache,
         git_cache,

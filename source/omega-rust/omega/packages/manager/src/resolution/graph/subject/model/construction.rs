@@ -7,7 +7,7 @@ use super::{
     SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION, SOURCE_CLOSURE_SUBJECT_MAGIC,
 };
 use crate::declarations::dependencies::read::ProjectedDependencies;
-use crate::resolution::graph::{ResolvedPackageSourceClosure, ResolvedSourceIdentity};
+use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 use crate::resolution::source::PackageSourceNavigation;
 use omega_target::TargetProfile;
 
@@ -20,9 +20,10 @@ use super::super::validation::{canonical_root_request, validate_subject};
 
 impl CanonicalSourceClosureSubject {
     pub fn from_resolved(
-        closure: &ResolvedPackageSourceClosure,
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<Self, CanonicalSourceClosureSubjectError> {
+        let closure = target_closure.source_closure();
         let root_view = closure.source_requests().root();
         let root = CanonicalRootSourceSelection {
             request: canonical_root_request(root_view.request()),
@@ -73,7 +74,7 @@ impl CanonicalSourceClosureSubject {
                 .then(left.dependency_index.cmp(&right.dependency_index))
         });
         Self::finish_with_projections(
-            closure.target_profile(),
+            target_closure.target_profile(),
             root,
             packages,
             package_navigations,
@@ -146,10 +147,10 @@ impl CanonicalSourceClosureSubject {
     /// enough for this comparison.
     pub fn matches_resolved(
         &self,
-        closure: &ResolvedPackageSourceClosure,
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
         limits: CanonicalSourceClosureSubjectLimits,
     ) -> Result<bool, CanonicalSourceClosureSubjectError> {
-        Ok(self == &Self::from_resolved(closure, limits)?)
+        Ok(self == &Self::from_resolved(target_closure, limits)?)
     }
 
     pub(super) fn finish_with_projections(

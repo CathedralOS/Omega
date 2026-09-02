@@ -14,8 +14,8 @@ pub use model::{
     PackageSourceClosureLimits, PackageSourceClosureResolutionError,
 };
 pub use resolved_closure::{
-    ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
-    ResolvedRootPackageSourceRequest,
+    ExactTargetPackageSourceClosure, ResolvedDependencySourceRequest, ResolvedPackageSourceClosure,
+    ResolvedPackageSourceRequestSet, ResolvedRootPackageSourceRequest,
 };
 
 #[cfg(test)]

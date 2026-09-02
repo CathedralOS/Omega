@@ -14,7 +14,6 @@ use crate::declarations::dependencies::read::DependencySourceRequest;
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::source::PackageSourceCustody;
-use omega_target::TargetProfile;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -52,7 +51,6 @@ where
     resolve_package_source_closure_with_limits(
         root_request,
         root,
-        TargetProfile::CrossPlatformCli,
         PackageSourceClosureLimits::default(),
         resolve_dependency,
     )
@@ -63,7 +61,6 @@ where
 pub(crate) fn resolve_package_source_closure_with_limits<E, F>(
     root_request: PackageRootSourceRequest,
     root: PackageSourceCustody,
-    target_profile: TargetProfile,
     limits: PackageSourceClosureLimits,
     mut resolve_dependency: F,
 ) -> Result<ResolvedPackageSourceClosure, PackageSourceClosureResolutionError<E>>
@@ -220,7 +217,6 @@ where
 
     Ok(ResolvedPackageSourceClosure {
         root_request,
-        target_profile,
         graph,
         custodies,
         custody_indices,

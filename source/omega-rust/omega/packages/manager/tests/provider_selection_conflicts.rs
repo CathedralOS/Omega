@@ -84,15 +84,13 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let baseline_sources = resolve_external_local_package_closure_with_storage(
         &live,
         context.clone(),
-        omega_target::TargetProfile::WindowsX64,
         &baseline_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve baseline provider custody");
     let baseline_reviews = compile_resolved_package_reviews(
-        &baseline_sources,
-        "windows_x86_64",
+        &baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &tree.path("compiler-workspace"),
     )
     .expect("compile baseline provider evidence");
@@ -103,15 +101,13 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let candidate_sources = resolve_external_local_package_closure_with_storage(
         &live,
         context,
-        omega_target::TargetProfile::WindowsX64,
         &candidate_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve candidate provider custody");
     let candidate_reviews = compile_resolved_package_reviews(
-        &candidate_sources,
-        "windows_x86_64",
+        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &tree.path("compiler-workspace"),
     )
     .expect("compile candidate provider evidence");
@@ -148,7 +144,7 @@ fn provider_selection_update_becomes_an_exact_forced_review_conflict() {
     let conflicts = compare_review_only_capabilities(
         &baseline_reviews,
         &candidate_reviews,
-        &candidate_sources,
+        &candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare compiler-owned provider rows");

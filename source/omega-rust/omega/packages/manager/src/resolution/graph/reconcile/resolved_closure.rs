@@ -17,10 +17,31 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedPackageSourceClosure {
     pub(super) root_request: PackageRootSourceRequest,
-    pub(super) target_profile: TargetProfile,
     pub(super) graph: ResolvedPackageClosure,
     pub(super) custodies: Vec<PackageSourceCustody>,
     pub(super) custody_indices: BTreeMap<PackageKey, usize>,
+}
+
+/// One target-specific child view over an already resolved source closure.
+///
+/// Source acquisition and dependency reconciliation happen once in the parent.
+/// Target-conditioned build activation, checking, review, and production must
+/// consume an explicit child so source custody cannot be confused with target
+/// identity.
+#[derive(Debug, Clone, Copy)]
+pub struct ExactTargetPackageSourceClosure<'a> {
+    source_closure: &'a ResolvedPackageSourceClosure,
+    target_profile: TargetProfile,
+}
+
+impl<'a> ExactTargetPackageSourceClosure<'a> {
+    pub const fn source_closure(&self) -> &'a ResolvedPackageSourceClosure {
+        self.source_closure
+    }
+
+    pub const fn target_profile(&self) -> TargetProfile {
+        self.target_profile
+    }
 }
 
 /// One exact root request joined to the source identity it selected.
@@ -136,8 +157,14 @@ impl ResolvedPackageSourceClosure {
         ResolvedPackageSourceRequestSet { closure: self }
     }
 
-    pub const fn target_profile(&self) -> TargetProfile {
-        self.target_profile
+    pub const fn for_exact_target(
+        &self,
+        target_profile: TargetProfile,
+    ) -> ExactTargetPackageSourceClosure<'_> {
+        ExactTargetPackageSourceClosure {
+            source_closure: self,
+            target_profile,
+        }
     }
 
     pub fn graph(&self) -> &ResolvedPackageClosure {

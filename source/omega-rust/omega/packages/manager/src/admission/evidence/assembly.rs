@@ -2,7 +2,7 @@ use super::{
     AcceptedOrdinaryClosureEvidence, AcceptedOrdinaryEvidenceError,
     AcceptedOrdinaryEvidenceSchemaIdentity, AcceptedOrdinaryPackageEvidence,
 };
-use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{
     CanonicalPackageReconstructionQuestionLimits, CompilerIssuedPackageReviewSet,
     ReviewOnlyCapabilityConflictLimits, ReviewOnlyRootPolicyResolution,
@@ -17,15 +17,16 @@ use std::collections::BTreeMap;
 /// compiler review, and root decisions, then independently reruns every
 /// implemented admission join.
 pub fn accept_ordinary_closure_evidence(
-    closure: &ResolvedPackageSourceClosure,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     reviews: &CompilerIssuedPackageReviewSet,
     reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
     conflict_limits: ReviewOnlyCapabilityConflictLimits,
     root_policy: Option<&ReviewOnlyRootPolicyResolution>,
 ) -> Result<AcceptedOrdinaryClosureEvidence, AcceptedOrdinaryEvidenceError> {
+    let closure = target_closure.source_closure();
     super::validation::revalidate_source_custody(closure)?;
     let acceptance = bind_fresh_package_root_policy(
-        closure,
+        target_closure,
         reviews,
         reconstruction_limits,
         conflict_limits,

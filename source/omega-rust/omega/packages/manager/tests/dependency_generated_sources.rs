@@ -46,7 +46,6 @@ fn resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         source_limits,
         closure_limits,
@@ -70,8 +69,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
 
     assert!(matches!(
         compile_resolved_package_candidate_for_production(
-            &closure,
-            "windows_x86_64",
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &temporary.join("invalid-native-production"),
         ),
         Err(
@@ -83,8 +81,7 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
     ));
 
     let reviews = compile_resolved_package_reviews(
-        &closure,
-        "windows_x86_64",
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &temporary.join("compiler-build"),
     )
     .expect("dependency generated source should enter consumer compilation");

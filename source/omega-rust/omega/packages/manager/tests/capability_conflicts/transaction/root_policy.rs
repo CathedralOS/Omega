@@ -439,7 +439,9 @@ end_root_policy_resolution\n",
     let stale_conflicts = compare_review_only_capabilities(
         &scenario.stale_baseline_reviews,
         &scenario.candidate_reviews,
-        &scenario.candidate_sources,
+        &scenario
+            .candidate_sources
+            .for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare same candidate against alternate baseline");

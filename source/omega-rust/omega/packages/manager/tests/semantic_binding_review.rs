@@ -140,15 +140,13 @@ invokes console;
     let closure = resolve_external_local_project_closure_with_storage(
         &application,
         ExternalSourceContext::derive(b"consumer-scoped-console-binding"),
-        omega_target::TargetProfile::LinuxX64,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve ordinary Console closure");
     let preliminary = compile_resolved_package_reviews(
-        &closure,
-        "linux_x86_64",
+        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
     )
     .expect("compile Console candidate without consumer authority");
@@ -206,8 +204,7 @@ invokes console;
     );
     assert!(matches!(
         compile_resolved_package_reviews_with_semantic_bindings(
-            &closure,
-            "linux_x86_64",
+            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
             &temporary.0.join("absent-consumer-build"),
             &[ConsumerScopedSemanticBindingReviewInput::new(
                 absent_consumer.clone(),
@@ -221,8 +218,7 @@ invokes console;
     ));
     assert!(matches!(
         compile_resolved_package_reviews_with_semantic_bindings(
-            &closure,
-            "linux_x86_64",
+            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
             &temporary.0.join("duplicate-binding-build"),
             &[binding_input.clone(), binding_input.clone()],
         ),
@@ -236,8 +232,7 @@ invokes console;
 
     let production_candidate =
         compile_resolved_package_candidate_for_production_with_semantic_bindings(
-            &closure,
-            "linux_x86_64",
+            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
             &temporary.0.join("accepted-build"),
             std::slice::from_ref(&binding_input),
         )
@@ -267,8 +262,12 @@ invokes console;
     );
 
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
-    let conflicts = compare_review_only_initial_capabilities(&reviews, &closure, conflict_limits)
-        .expect("derive complete fresh conflicts");
+    let conflicts = compare_review_only_initial_capabilities(
+        &reviews,
+        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
+        conflict_limits,
+    )
+    .expect("derive complete fresh conflicts");
     let permission_conflicts = conflicts
         .packages()
         .iter()
@@ -289,7 +288,7 @@ invokes console;
     );
     assert!(matches!(
         bind_fresh_package_root_policy(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             conflict_limits,
@@ -318,7 +317,7 @@ invokes console;
     let root_policy = resolve_review_only_root_policy_decisions(&conflicts, &decisions)
         .expect("accept every exact blocking row");
     let evidence = accept_ordinary_closure_evidence(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         conflict_limits,
@@ -692,15 +691,13 @@ invokes console;
     let windows_closure = resolve_external_local_project_closure_with_storage(
         &application,
         ExternalSourceContext::derive(b"target-independent-console-binding"),
-        omega_target::TargetProfile::WindowsX64,
         &windows_storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
     )
     .expect("resolve ordinary Windows Console closure");
     let windows_reviews = compile_resolved_package_candidate_reviews(
-        &windows_closure,
-        "windows_x86_64",
+        &windows_closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &temporary.0.join("windows-build"),
     )
     .expect("bind target-independent Console semantics on Windows");

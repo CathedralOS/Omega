@@ -33,14 +33,13 @@ ensures result == 0;
     )
     .expect("resolve accepted-claim baseline");
     let accepted_claim_baseline_reviews = compile_resolved_package_reviews(
-        &accepted_claim_baseline_sources,
-        "windows_x86_64",
+        &accepted_claim_baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &scenario.build_root,
     )
     .expect("compile accepted-claim baseline");
     let initial_claim_conflicts = compare_review_only_initial_capabilities(
         &accepted_claim_baseline_reviews,
-        &accepted_claim_baseline_sources,
+        &accepted_claim_baseline_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare accepted claim with empty admission baseline");
@@ -81,15 +80,14 @@ ensures result == 1;
     )
     .expect("resolve changed accepted claim");
     let accepted_claim_candidate_reviews = compile_resolved_package_reviews(
-        &accepted_claim_candidate_sources,
-        "windows_x86_64",
+        &accepted_claim_candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &scenario.build_root,
     )
     .expect("compile changed accepted claim");
     let accepted_claim_conflicts = compare_review_only_capabilities(
         &accepted_claim_baseline_reviews,
         &accepted_claim_candidate_reviews,
-        &accepted_claim_candidate_sources,
+        &accepted_claim_candidate_sources.for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare changed accepted claim");

@@ -62,7 +62,6 @@ fn resolve_workspace_package_closure(
         workspace_root_source,
         root_member_path,
         live_workspace_root,
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         source_limits,
         closure_limits,
@@ -77,7 +76,6 @@ fn resolve_external_closure(
     resolve_external_local_package_closure_with_storage(
         live_root,
         ExternalSourceContext::derive(b"open-claim-composition"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -105,13 +103,12 @@ fn graph_workbench_question() -> (
     )
     .expect("resolve graph-workbench source closure");
     let reviews = compile_resolved_package_candidate_reviews(
-        &closure,
-        "windows_x86_64",
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &temporary.join("build"),
     )
     .expect("compile graph-workbench package reviews");
     let question = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
     )
@@ -152,7 +149,9 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         );
     }
     let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
-        &closure, &reviews, limits,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &reviews,
+        limits,
     )
     .expect("compose graph-workbench open obligations");
     let dangerous_authorities = composed
@@ -186,12 +185,16 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     assert_eq!(recovered.fingerprint(), question.fingerprint());
     assert!(
         recovered
-            .matches_resolved_and_reviews(&closure, &reviews, limits)
+            .matches_resolved_and_reviews(
+                &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+                &reviews,
+                limits
+            )
             .expect("fresh source and review reconstruction should succeed")
     );
     let conflicts = compare_review_only_initial_capabilities(
         &reviews,
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("derive graph-workbench fresh conflicts");
@@ -221,7 +224,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
         resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
             .expect("resolve every graph-workbench blocker");
     let accepted = bind_fresh_package_root_policy(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         limits,
         ReviewOnlyCapabilityConflictLimits::default(),
@@ -230,7 +233,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     .expect("every exact graph-workbench blocker is accepted");
     assert_eq!(accepted.root_policy(), Some(&accepted_policy));
     let evidence = accept_ordinary_closure_evidence(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         limits,
         ReviewOnlyCapabilityConflictLimits::default(),
@@ -281,11 +284,13 @@ machine build(builder: &mut Build) {
         .expect("write claim-free source");
 
     let closure = resolve_external_closure(&root, temporary.join("cache"));
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
-            .expect("compile claim-free package");
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &temporary.join("build"),
+    )
+    .expect("compile claim-free package");
     let accepted = bind_fresh_package_root_policy(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         ReviewOnlyCapabilityConflictLimits::default(),
@@ -309,7 +314,7 @@ machine build(builder: &mut Build) {
             .is_none()
     );
     let evidence = accept_ordinary_closure_evidence(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         ReviewOnlyCapabilityConflictLimits::default(),
@@ -349,9 +354,11 @@ machine build(builder: &mut Build) {
         .expect("write custody-canary source");
 
     let closure = resolve_external_closure(&root, temporary.join("cache"));
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
-            .expect("compile custody-canary review");
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &temporary.join("build"),
+    )
+    .expect("compile custody-canary review");
     let selected_root = closure.graph().root().clone();
     let snapshot_main = closure
         .source_root(&selected_root)
@@ -367,7 +374,7 @@ machine build(builder: &mut Build) {
 
     assert!(matches!(
         accept_ordinary_closure_evidence(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
@@ -421,11 +428,13 @@ machine build(builder: &mut Build) {
         .expect("write claim consumer source");
 
     let closure = resolve_external_closure(&root, temporary.join("cache"));
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
-            .expect("compile two-package claim closure");
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &temporary.join("build"),
+    )
+    .expect("compile two-package claim closure");
     let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
     )
@@ -462,7 +471,7 @@ machine build(builder: &mut Build) {
 
     let conflicts = compare_review_only_initial_capabilities(
         &reviews,
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("derive exact fresh-admission conflicts");
@@ -482,7 +491,7 @@ machine build(builder: &mut Build) {
 
     assert!(matches!(
         accept_ordinary_closure_evidence(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
@@ -504,7 +513,7 @@ machine build(builder: &mut Build) {
             .expect("complete rejecting policy");
     assert!(matches!(
         accept_ordinary_closure_evidence(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
@@ -525,7 +534,7 @@ machine build(builder: &mut Build) {
         resolve_review_only_root_policy_decisions(&conflicts, &[accepted_decision])
             .expect("complete accepting policy");
     let accepted = bind_fresh_package_root_policy(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         ReviewOnlyCapabilityConflictLimits::default(),
@@ -551,14 +560,13 @@ ensures result == 1;
     .expect("change accepted claim");
     let changed_closure = resolve_external_closure(&root, temporary.join("changed-cache"));
     let changed_reviews = compile_resolved_package_reviews(
-        &changed_closure,
-        "windows_x86_64",
+        &changed_closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &temporary.join("changed-build"),
     )
     .expect("compile changed claim closure");
     assert!(matches!(
         accept_ordinary_closure_evidence(
-            &changed_closure,
+            &changed_closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &changed_reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
@@ -617,11 +625,13 @@ machine build(builder: &mut Build) {
         .expect("write external-supply consumer source");
 
     let closure = resolve_external_closure(&root, temporary.join("cache"));
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
-            .expect("compile external-supply closure");
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &temporary.join("build"),
+    )
+    .expect("compile external-supply closure");
     let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
     )
@@ -665,13 +675,13 @@ machine build(builder: &mut Build) {
 
     let conflicts = compare_review_only_initial_capabilities(
         &reviews,
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("derive exact fresh external-supply conflicts");
     assert!(matches!(
         bind_fresh_package_root_policy(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             CanonicalPackageReconstructionQuestionLimits::default(),
             ReviewOnlyCapabilityConflictLimits::default(),
@@ -702,7 +712,7 @@ machine build(builder: &mut Build) {
         resolve_review_only_root_policy_decisions(&conflicts, &accepted_decisions)
             .expect("resolve complete external-supply policy");
     let accepted = bind_fresh_package_root_policy(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         CanonicalPackageReconstructionQuestionLimits::default(),
         ReviewOnlyCapabilityConflictLimits::default(),
@@ -767,13 +777,15 @@ machine build(builder: &mut Build) {
         .expect("write contract consumer source");
 
     let closure = resolve_external_closure(&root, temporary.join("cache"));
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &temporary.join("build"))
-            .expect("compile unresolved contract-entailment closure");
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &temporary.join("build"),
+    )
+    .expect("compile unresolved contract-entailment closure");
     let reconstruction_limits = CanonicalPackageReconstructionQuestionLimits::default();
     let conflict_limits = ReviewOnlyCapabilityConflictLimits::default();
     let composed = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
-        &closure,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         reconstruction_limits,
     )
@@ -810,8 +822,12 @@ machine build(builder: &mut Build) {
         PackageReviewCanonicalRowRisk::Blocking
     );
 
-    let conflicts = compare_review_only_initial_capabilities(&reviews, &closure, conflict_limits)
-        .expect("derive exact fresh contract-entailment conflicts");
+    let conflicts = compare_review_only_initial_capabilities(
+        &reviews,
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        conflict_limits,
+    )
+    .expect("derive exact fresh contract-entailment conflicts");
     assert!(conflicts.packages().iter().any(|package| {
         package.conflicts().iter().any(|conflict| {
             conflict.kind() == PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation
@@ -820,7 +836,7 @@ machine build(builder: &mut Build) {
     }));
     assert!(matches!(
         bind_fresh_package_root_policy(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             reconstruction_limits,
             conflict_limits,
@@ -853,7 +869,7 @@ machine build(builder: &mut Build) {
             .expect("resolve complete contract-entailment policy");
     assert!(matches!(
         bind_fresh_package_root_policy(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             reconstruction_limits,
             conflict_limits,
@@ -865,7 +881,7 @@ machine build(builder: &mut Build) {
     ));
     assert!(matches!(
         accept_ordinary_closure_evidence(
-            &closure,
+            &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
             &reviews,
             reconstruction_limits,
             conflict_limits,
@@ -898,7 +914,7 @@ fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh
     )
     .expect("resolve the same source through alternate exact request spelling");
     let alternate = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
-        &alternate_closure,
+        &alternate_closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
         &reviews,
         limits,
     )
@@ -921,7 +937,11 @@ fn exact_nested_source_request_changes_question_with_identical_ledgers_and_fresh
     assert_ne!(question.fingerprint(), alternate.fingerprint());
     assert!(
         !question
-            .matches_resolved_and_reviews(&alternate_closure, &reviews, limits)
+            .matches_resolved_and_reviews(
+                &alternate_closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+                &reviews,
+                limits
+            )
             .expect("alternate fresh reconstruction remains structurally valid"),
         "fresh match must reject a different exact source question"
     );
