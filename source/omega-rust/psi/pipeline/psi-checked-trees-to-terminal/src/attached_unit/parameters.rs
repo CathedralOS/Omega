@@ -137,15 +137,13 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             );
         }
         for (position, source) in source_parameters.iter().enumerate() {
-            let carrier = psi_typed_trees::service::classify_exact_bound_service_carrier(
-                checked,
-                source.type_reference,
-            )
-            .map_err(|_| {
-                LoweringError::Unsupported(
-                    "typed Unit parameter has an invalid routed Service carrier",
-                )
-            })?;
+            let carrier = checked
+                .bound_service_parameter_carrier(source.type_reference)
+                .map_err(|_| {
+                    LoweringError::Unsupported(
+                        "typed Unit parameter has an invalid routed Service carrier",
+                    )
+                })?;
             let matches = plan
                 .structural_parameters
                 .iter()
@@ -188,10 +186,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                 || parameter.access != psi_checked_trees::CheckedStructuralAccess::Owned
                 || receipt.source_parameter != source.symbol
                 || receipt.requirement != carrier.requirement
-                || receipt.carrier_type_identity
-                    != checked
-                        .normalized_type_identity(source.type_reference)
-                        .into_string()
+                || receipt.carrier_type_identity != carrier.carrier_type_identity
             {
                 return unsupported(
                     "fused Service parameter receipt does not rejoin its exact owned affine typed source",
@@ -205,8 +200,8 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             if authorization.provider_plan_digest != receipt.provider_plan_digest {
                 return unsupported("fused Service parameter substituted its provider-plan digest");
             }
-            let (base_identity, mut qualifications) =
-                fused_service_parameter_base_and_qualifications(checked, source.type_reference);
+            let base_identity = carrier.base_type_identity;
+            let mut qualifications = carrier.qualifications;
             qualifications.sort_by_key(|domain| domain.0);
             qualifications.dedup();
             if parameter.type_identity != base_identity
@@ -236,39 +231,6 @@ pub(crate) fn lower_unit_scalar_parameter_types(
         .map(|parameter| terminal_scalar_type(parameter.primitive_type))
         .collect()
 }
-
-fn fused_service_parameter_base_and_qualifications(
-    checked: &CheckedTrees,
-    mut type_reference: psi_typed_trees::types::TypeReferenceHandle,
-) -> (String, Vec<SemanticDomainId>) {
-    let mut qualifications = Vec::new();
-    while let psi_typed_trees::types::TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = checked.type_reference_table.type_reference(type_reference)
-    {
-        qualifications.extend(
-            checked
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .filter_map(|constraint| match constraint {
-                    psi_typed_trees::types::TypeConstraintNode::Domain(domain) => {
-                        Some(domain.semantic_id)
-                    }
-                    _ => None,
-                }),
-        );
-        type_reference = *base_type;
-    }
-    (
-        checked
-            .normalized_type_identity(type_reference)
-            .into_string(),
-        qualifications,
-    )
-}
-
 pub(crate) fn lower_unit_parameters(
     parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
