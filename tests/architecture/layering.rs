@@ -37,6 +37,8 @@ use serde_json::Value;
 mod callee_save_storage;
 #[path = "layering/fixed_precolored_split_requirements.rs"]
 mod fixed_precolored_split_requirements;
+#[path = "layering/fixed_precolored_segment_homes.rs"]
+mod fixed_precolored_segment_homes;
 
 /// Architectural layers, lowest rank first. A crate may depend on crates whose
 /// rank is `<=` its own; depending on a strictly higher rank is "upward" and

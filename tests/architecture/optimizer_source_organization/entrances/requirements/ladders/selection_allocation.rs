@@ -1,6 +1,7 @@
 use super::super::SemanticLadder;
 
 mod callee_save_storage;
+mod fixed_precolored_segment_homes;
 mod fixed_precolored_split_requirements;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
@@ -345,6 +346,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     },
     fixed_precolored_split_requirements::PRODUCTION,
     fixed_precolored_split_requirements::COVERAGE,
+    fixed_precolored_segment_homes::PRODUCTION,
+    fixed_precolored_segment_homes::COVERAGE,
     SemanticLadder {
         family: "post-allocation manifest mutation custody tests",
         paths: &[

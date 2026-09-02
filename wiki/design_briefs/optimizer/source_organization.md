@@ -297,6 +297,20 @@ both production and test ladders while preventing replay from importing the
 producer. This is fixed-constraint evidence, not home selection, copy
 insertion, range splitting, or a selectable optimization.
 
+The fixed-use descent continues through two equally explicit entrances.
+`omega-regalloc/src/analyses/fixed_precolored_split_requirements/mod.rs` joins
+the positional `compute/` ladder to the independently keyed `replay/` ladder;
+their named function, topology, cut, partition, and work leaves own factual
+source segmentation. Beside it,
+`omega-regalloc/src/allocation/fixed_precolored_segment_homes/mod.rs` joins a
+64-line assignment entrance to independent replay. Both sides descend through
+separate domain, conflict, placement, and work leaves, while producer-only root
+and function mechanics and replay-only indexes remain obvious one rung lower.
+The mirrored pipeline tests live under
+`register_allocation/fixed_precolored_{split_requirements,segment_homes}/`.
+Neither boundary adds a selectable rule or hides copy/recovery strategy inside
+allocation mechanics.
+
 Logical spill planning is deliberately absent from this rule table. It is a
 non-selectable allocation decision below
 `omega-regalloc/src/allocation/logical_spill_operations/mod.rs`. That small
