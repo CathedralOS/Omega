@@ -2,18 +2,20 @@
 //!
 //! This module serializes only address-free section payloads. The primary
 //! contracts are the System V ABI [64-bit data types], [data encoding],
-//! [Elf64_Sym], and [symbol hash] layout plus the LSB [symbol versioning]
+//! [Elf64_Sym], and [System V symbol hash] layout, the original GNU
+//! [`DT_GNU_HASH` implementation], plus the LSB [symbol versioning]
 //! structures.
 //!
 //! [64-bit data types]: https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types
 //! [data encoding]: https://gabi.xinuos.com/elf/02-eheader.html#data-encoding
 //! [Elf64_Sym]: https://gabi.xinuos.com/elf/05-symtab.html#symbol-table-entry
-//! [symbol hash]: https://gabi.xinuos.com/elf/08-dynamic.html#hash-table
+//! [System V symbol hash]: https://gabi.xinuos.com/elf/08-dynamic.html#hash-table
+//! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
 use crate::bytes::{write_u16, write_u32, write_u64};
 use crate::dynamic_sections::{
-    ElfDynamicSectionContents, ElfDynamicSymbol, ElfSysvHash, ElfVersionNeed,
+    ElfDynamicSectionContents, ElfDynamicSymbol, ElfGnuHash, ElfSysvHash, ElfVersionNeed,
     ElfVersionNeedAuxiliary, ValidatedElfDynamicSectionPlan,
 };
 use psi_diagnostics::Diagnostic;
@@ -56,6 +58,10 @@ impl ValidatedElfDynamicSectionPayloads {
 
     pub fn system_v_hash_byte_count(&self) -> usize {
         self.payloads.sysv_hash.len()
+    }
+
+    pub fn gnu_hash_byte_count(&self) -> usize {
+        self.payloads.gnu_hash.len()
     }
 
     pub fn symbol_version_byte_count(&self) -> usize {
@@ -120,6 +126,7 @@ pub(crate) struct ElfDynamicSectionPayloadBytes {
     pub(crate) dynstr: Vec<u8>,
     pub(crate) dynsym: Vec<u8>,
     pub(crate) sysv_hash: Vec<u8>,
+    pub(crate) gnu_hash: Vec<u8>,
     pub(crate) versym: Vec<u8>,
     pub(crate) verneed: Vec<u8>,
 }
@@ -208,6 +215,49 @@ fn encode_payloads(
         write_u32(&mut sysv_hash, *word);
     }
 
+    let gnu_hash_bloom_size = checked_product(
+        contents.gnu_hash.bloom.len(),
+        8,
+        "GNU hash bloom payload size",
+    )?;
+    let gnu_hash_bucket_size = checked_product(
+        contents.gnu_hash.buckets.len(),
+        4,
+        "GNU hash bucket payload size",
+    )?;
+    let gnu_hash_chain_size = checked_product(
+        contents.gnu_hash.chains.len(),
+        4,
+        "GNU hash chain payload size",
+    )?;
+    let gnu_hash_size = checked_add(16, gnu_hash_bloom_size, "GNU hash bloom payload end")?;
+    let gnu_hash_size = checked_add(
+        gnu_hash_size,
+        gnu_hash_bucket_size,
+        "GNU hash bucket payload end",
+    )?;
+    let gnu_hash_size = checked_add(
+        gnu_hash_size,
+        gnu_hash_chain_size,
+        "GNU hash chain payload end",
+    )?;
+    let mut gnu_hash = Vec::with_capacity(gnu_hash_size);
+    write_u32(&mut gnu_hash, contents.gnu_hash.bucket_count);
+    write_u32(&mut gnu_hash, contents.gnu_hash.symbol_offset);
+    write_u32(&mut gnu_hash, contents.gnu_hash.bloom_count);
+    write_u32(&mut gnu_hash, contents.gnu_hash.bloom_shift);
+    for word in &contents.gnu_hash.bloom {
+        write_u64(&mut gnu_hash, *word);
+    }
+    for word in contents
+        .gnu_hash
+        .buckets
+        .iter()
+        .chain(&contents.gnu_hash.chains)
+    {
+        write_u32(&mut gnu_hash, *word);
+    }
+
     let mut versym = Vec::with_capacity(checked_product(
         contents.versym.len(),
         2,
@@ -248,6 +298,7 @@ fn encode_payloads(
         dynstr: contents.dynstr.clone(),
         dynsym,
         sysv_hash,
+        gnu_hash,
         versym,
         verneed,
     })
@@ -312,6 +363,11 @@ fn validate_payloads(
     require(
         sysv_hash == contents.sysv_hash && sysv_hash.chain_count as usize == dynsym.len(),
         "decoded System V hash drifted from the validated dynamic symbols",
+    )?;
+    let gnu_hash = decode_gnu_hash(&payloads.gnu_hash, dynsym.len())?;
+    require(
+        gnu_hash == contents.gnu_hash,
+        "decoded GNU hash drifted from the validated dynamic symbols",
     )?;
     let versym = decode_versym(&payloads.versym, contents.versym.len())?;
     require(
@@ -421,6 +477,97 @@ fn decode_sysv_hash(bytes: &[u8]) -> Result<ElfSysvHash, Diagnostic> {
     Ok(ElfSysvHash {
         bucket_count,
         chain_count,
+        buckets,
+        chains,
+    })
+}
+
+fn decode_gnu_hash(bytes: &[u8], dynamic_symbol_count: usize) -> Result<ElfGnuHash, Diagnostic> {
+    let bucket_count = read_u32(bytes, 0, "GNU hash nbuckets")?;
+    let symbol_offset = read_u32(bytes, 4, "GNU hash symoffset")?;
+    let bloom_count = read_u32(bytes, 8, "GNU hash bloom_size")?;
+    let bloom_shift = read_u32(bytes, 12, "GNU hash bloom_shift")?;
+    require(
+        bucket_count > 0 && bloom_count > 0 && symbol_offset > 0,
+        "GNU hash payload has a zero table count or symbol offset",
+    )?;
+    let symbol_offset = symbol_offset as usize;
+    require(
+        symbol_offset <= dynamic_symbol_count,
+        "GNU hash symbol offset exceeds the dynamic symbol count",
+    )?;
+    let chain_count = dynamic_symbol_count - symbol_offset;
+    let bloom_bytes =
+        checked_product(bloom_count as usize, 8, "GNU hash decoded bloom byte count")?;
+    let bucket_bytes = checked_product(
+        bucket_count as usize,
+        4,
+        "GNU hash decoded bucket byte count",
+    )?;
+    let chain_bytes = checked_product(chain_count, 4, "GNU hash decoded chain byte count")?;
+    let expected_size = checked_add(16, bloom_bytes, "GNU hash decoded bloom end")?
+        .checked_add(bucket_bytes)
+        .and_then(|size| size.checked_add(chain_bytes))
+        .ok_or_else(|| Diagnostic::error("GNU hash decoded payload size overflow"))?;
+    require(
+        bytes.len() == expected_size,
+        "GNU hash counts do not consume the exact payload bytes",
+    )?;
+
+    let mut offset = 16usize;
+    let mut bloom = Vec::with_capacity(bloom_count as usize);
+    for _ in 0..bloom_count {
+        bloom.push(read_u64(bytes, offset, "GNU hash bloom word")?);
+        offset += 8;
+    }
+    let mut buckets = Vec::with_capacity(bucket_count as usize);
+    for _ in 0..bucket_count {
+        buckets.push(read_u32(bytes, offset, "GNU hash bucket")?);
+        offset += 4;
+    }
+    let mut chains = Vec::with_capacity(chain_count);
+    for _ in 0..chain_count {
+        chains.push(read_u32(bytes, offset, "GNU hash chain")?);
+        offset += 4;
+    }
+    require(
+        buckets.iter().all(|index| {
+            *index == 0
+                || ((*index as usize) >= symbol_offset && (*index as usize) < dynamic_symbol_count)
+        }),
+        "GNU hash bucket contains an out-of-range dynamic symbol index",
+    )?;
+    for bucket in buckets.iter().copied().filter(|bucket| *bucket != 0) {
+        let mut symbol_index = bucket as usize;
+        let mut steps = 0usize;
+        loop {
+            let chain_index = symbol_index - symbol_offset;
+            let chain = *chains.get(chain_index).ok_or_else(|| {
+                Diagnostic::error("GNU hash chain exceeds the dynamic symbol domain")
+            })?;
+            steps += 1;
+            require(
+                steps <= chains.len(),
+                "GNU hash chain lacks a bounded terminator",
+            )?;
+            if chain & 1 != 0 {
+                break;
+            }
+            symbol_index = symbol_index
+                .checked_add(1)
+                .ok_or_else(|| Diagnostic::error("GNU hash dynamic symbol index overflow"))?;
+            require(
+                symbol_index < dynamic_symbol_count,
+                "GNU hash chain lacks a terminator before the symbol-table end",
+            )?;
+        }
+    }
+    Ok(ElfGnuHash {
+        bucket_count,
+        symbol_offset: symbol_offset as u32,
+        bloom_count,
+        bloom_shift,
+        bloom,
         buckets,
         chains,
     })
@@ -606,7 +753,7 @@ fn non_authoritative_payload_compatibility_fingerprint(
     payloads: &ElfDynamicSectionPayloadBytes,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-payloads.v1");
+    hash.bytes(b"omega.elf-dynamic-section-payloads.v2");
     hash.bytes(b"ELFCLASS64");
     hash.bytes(b"ELFDATA2LSB");
     hash.bytes(
@@ -619,6 +766,7 @@ fn non_authoritative_payload_compatibility_fingerprint(
         (b".dynstr".as_slice(), payloads.dynstr.as_slice()),
         (b".dynsym".as_slice(), payloads.dynsym.as_slice()),
         (b".hash".as_slice(), payloads.sysv_hash.as_slice()),
+        (b".gnu.hash".as_slice(), payloads.gnu_hash.as_slice()),
         (b".gnu.version".as_slice(), payloads.versym.as_slice()),
         (b".gnu.version_r".as_slice(), payloads.verneed.as_slice()),
     ] {
@@ -825,6 +973,23 @@ mod tests {
                 words(&payloads.sysv_hash),
                 [4, 5, 0, 3, 1, 0, 0, 2, 0, 4, 0]
             );
+            assert_eq!(payloads.gnu_hash.len(), 44);
+            assert_eq!(
+                words(&payloads.gnu_hash),
+                [
+                    1,
+                    1,
+                    1,
+                    5,
+                    0x0090_2200,
+                    0x0000_0102,
+                    1,
+                    0xf204_f288,
+                    0xf204_f288,
+                    0x7c94_89a0,
+                    0x0f7d_eae9,
+                ]
+            );
             assert_eq!(payloads.versym, [0, 0, 2, 0, 3, 0, 2, 0, 4, 0]);
             assert_eq!(payloads.verneed.len(), 80);
             assert_eq!(read_u16(&payloads.verneed, 0, "version").unwrap(), 1);
@@ -842,6 +1007,7 @@ mod tests {
             assert_eq!(serialized.dynamic_string_byte_count(), 64);
             assert_eq!(serialized.dynamic_symbol_byte_count(), 120);
             assert_eq!(serialized.system_v_hash_byte_count(), 44);
+            assert_eq!(serialized.gnu_hash_byte_count(), 44);
             assert_eq!(serialized.symbol_version_byte_count(), 10);
             assert_eq!(serialized.version_requirement_byte_count(), 80);
             assert_ne!(
@@ -932,6 +1098,18 @@ mod tests {
                 candidate.payloads.sysv_hash[28..32].copy_from_slice(&1u32.to_le_bytes())
             }),
             Box::new(|candidate| {
+                candidate.payloads.gnu_hash.pop();
+            }),
+            Box::new(|candidate| candidate.payloads.gnu_hash.push(0)),
+            Box::new(|candidate| candidate.payloads.gnu_hash[..4].fill(0)),
+            Box::new(|candidate| candidate.payloads.gnu_hash[4..8].fill(0)),
+            Box::new(|candidate| candidate.payloads.gnu_hash[8..12].fill(0xff)),
+            Box::new(|candidate| candidate.payloads.gnu_hash[12..16].fill(0xff)),
+            Box::new(|candidate| candidate.payloads.gnu_hash[16] ^= 1),
+            Box::new(|candidate| candidate.payloads.gnu_hash[24..28].fill(0xff)),
+            Box::new(|candidate| candidate.payloads.gnu_hash[28] ^= 2),
+            Box::new(|candidate| candidate.payloads.gnu_hash[40] &= !1),
+            Box::new(|candidate| {
                 candidate.payloads.versym.pop();
             }),
             Box::new(|candidate| candidate.payloads.versym.push(0)),
@@ -986,6 +1164,22 @@ mod tests {
         ]
         .concat();
         assert!(decode_sysv_hash(&cyclic_hash).is_err());
+
+        for bytes in [
+            Vec::new(),
+            vec![0; 15],
+            vec![0xff; 16],
+            vec![0; 20],
+            vec![0; 44],
+        ] {
+            assert!(decode_gnu_hash(&bytes, 5).is_err());
+        }
+        let mut out_of_range_gnu = candidate(TargetProfile::LinuxX64).payloads.gnu_hash;
+        out_of_range_gnu[24..28].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(decode_gnu_hash(&out_of_range_gnu, 5).is_err());
+        let mut unterminated_gnu = candidate(TargetProfile::LinuxX64).payloads.gnu_hash;
+        unterminated_gnu[40] &= !1;
+        assert!(decode_gnu_hash(&unterminated_gnu, 5).is_err());
 
         for bytes in [Vec::new(), vec![0; 15], vec![0xff; 16], vec![0; 32]] {
             assert!(decode_verneed(&bytes, 1).is_err());

@@ -193,12 +193,19 @@ fail closed. The first complete address-free table plan now consumes that
 preflight and independently replays an exact NUL-terminated `PT_INTERP`
 payload, canonical raw-byte `.dynstr`, the reserved undefined `.dynsym` row
 plus one sorted undefined global function row per import, one concrete System V
-`.hash`, parallel `.gnu.version`, grouped `.gnu.version_r`, private import-to-
-symbol/version indexes, and the exact `DT_NEEDED` string-index roster. Shared
+`.hash`, one address-free `.gnu.hash`, parallel `.gnu.version`, grouped
+`.gnu.version_r`, private import-to-symbol/version indexes, and the exact
+`DT_NEEDED` string-index roster. Shared
 strings, objects, and object/version requirements deduplicate by exact bytes;
 permuted import insertion cannot change the table contents or their
-deterministic identity. The selected System V hash is sufficient for this
-first table plan; a GNU-hash bloom/bucket policy remains separate.
+deterministic identity. The GNU-hash carrier preserves the canonical dynamic-
+symbol order with `symoffset == 1`, one bucket, one 64-bit bloom word, shift
+five, and one exact bounded chain. Independent replay rejects header, bloom,
+bucket, chain, or terminator drift. Its layout, two-bit bloom lookup, low-bit
+chain terminator, and DJB-derived symbol hash follow the original GNU
+[`DT_GNU_HASH` implementation](https://sourceware.org/pipermail/binutils/2006-July/048074.html);
+the adjacent GABI hash rules below govern only the distinct System V `.hash`
+table.
 
 The table invariants follow the primary [System V ABI program-header
 rules](https://gabi.xinuos.com/elf/07-pheader.html), [string-table
@@ -208,9 +215,10 @@ rules](https://gabi.xinuos.com/elf/08-dynamic.html#hash-table), together with
 the [LSB symbol-version requirement
 format](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html).
 The plan still grants no loader, layout, publication, or runnable-image
-authority. The next sealed rung serializes its contents as six exact ELF64
+authority. The next sealed rung serializes its contents as seven exact ELF64
 `ELFDATA2LSB` payloads: `.interp`, `.dynstr`, 24-byte `Elf64_Sym` rows in
-`.dynsym`, the word-oriented `.hash`, half-word `.gnu.version` rows, and
+`.dynsym`, the word-oriented `.hash`, the GNU-hash header/bloom/bucket/chains,
+half-word `.gnu.version` rows, and
 16-byte `Elf64_Verneed`/`Elf64_Vernaux` chains in `.gnu.version_r`. A distinct
 bounds-checked decoder replays exact lengths, rows, hash indexes, linked
 version offsets, dynamic-string references, and section-kind boundaries before
@@ -222,7 +230,7 @@ alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
 and [least-significant-byte-first
 encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
 
-A following sealed descriptor rung binds those six payloads to six
+A following sealed descriptor rung still binds the original six payloads to six
 address-free semantic section kinds with their exact ABI type, flags, payload
 size, alignment, entry size, semantic link, and `sh_info` meaning. Independent
 validation replays every name, payload relationship, symbol/version count,
@@ -294,7 +302,8 @@ count. Seven typed zero-address obligations target `.got.plt`, `.hash`,
 without assigning a pointer or numeric index. Independent replay checks raw
 library-name offsets and significant order, exact tag multiplicity/order,
 relocation closure, the target-specific future-`.dynamic` GOT policy, every
-literal/obligation, identity, and descriptor custody. General RELA, GNU-hash,
+literal/obligation, identity, and descriptor custody. General RELA,
+`DT_GNU_HASH` plus `.gnu.hash` section/roster/layout integration,
 bind-now, text-relocation, init/fini, runpath, soname, and target-optional tags
 remain absent because the sealed inputs own none of those meanings. A further
 serialization carrier consumes the plan into exact 16-byte ELF64-LSB
@@ -505,8 +514,9 @@ drifted source/type/value/home/index/register/byte/plan/stack custody rejects.
 General runtime expressions, non-fixed-integer, float, aggregate, and indirect
 result shapes, the external-root
 `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment, optional
-`.gnu.hash`, and general external-admission ownership remain open engineering
-work. An owned direct `[u8; N]` destination now contextually copies a quoted
+`.gnu.hash` section/tag/layout/final-image integration beyond its address-free
+carrier and serializer, and general external-admission ownership remain open
+engineering work. An owned direct `[u8; N]` destination now contextually copies a quoted
 literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
 or unresolved/mismatched widths reject, and hermetic evaluation observes the

@@ -9962,11 +9962,22 @@ reach or trust, and private proof improvements do not change public identity.
   emission, object/image validation, and installation replay retain the common
   length-eighteen root and exact seventeen-operation/one-edge fuel ordinals.
   Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
-  artifact mutations reject; `[T; 19]` and wider prefixes remain fail closed
+  artifact mutations reject; other prefix drift remains fail closed
+  without runtime liveness state or a loop.
+
+  The following bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 19]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]` and ordinary
+  cleanup `[17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-nineteen root and exact eighteen-operation/one-edge fuel ordinals.
+  Missing, reordered, redirected-root, wrong-length, index, cleanup-order, and
+  artifact mutations reject; `[T; 20]` and wider prefixes remain fail closed
   without runtime liveness state or a loop.
 
   Extend recursive coverage beyond the exact `[[T; 8]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 18]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 19]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
@@ -10954,9 +10965,19 @@ Remaining N6/N8 work:
   interchangeable even when their raw value IDs coincide. Unknown or foreign
   owners, locals, block/operation values, duplicate tuples, and format
   substitution reject. This adds no runtime operation, value production, fuel,
-  interpreter behavior, or native lowering. Still open are carriers for nested
-  state, call, and operation results, arbitrary Terminal values, structural
-  float leaves, plus production proof-ledger discharge. The ordinary exit
+  interpreter behavior, or native lowering. The next Terminal-only artifact
+  carrier is now live for one direct scalar non-call operation result. Its exact
+  source-free coordinate is `(owner MachineId, producer OperationId, result
+  ValueId, format)`. Terminal format 65 / vocabulary 68 encode that source;
+  independent replay requires the unique producer to occur in the named owner
+  and declare the exact primitive `f32`/`f64` scalar result. Wrong owners,
+  producers, values, formats, call/Unit/structural results,
+  parameter/result-class substitution, and duplicate tuples reject.
+  Checked/source production remains
+  transitional because no expression-to-Terminal-operation correspondence is
+  yet retained. Still open are carriers for nested state and call results,
+  arbitrary Terminal values, structural float leaves, plus production
+  proof-ledger discharge. The ordinary exit
   checker now discharges the direct owning-result reflexivity form without a
   label shortcut: the current `ensures` expression must rejoin its exact
   checked `FloatMeaningEqual` row, both operands must be the same canonical
@@ -11117,20 +11138,27 @@ boundary without its corresponding checked law.
   consumes that preflight and independently validates an exact NUL-terminated
   `PT_INTERP` payload, canonical raw-byte `.dynstr`, the reserved undefined
   `.dynsym` row plus one sorted undefined global function row per import, one
-  concrete System V `.hash`, parallel `.gnu.version`, grouped
-  `.gnu.version_r`, private import-to-symbol/version indexes, and the exact
+  concrete System V `.hash`, one address-free `.gnu.hash`, parallel
+  `.gnu.version`, grouped `.gnu.version_r`, private import-to-symbol/version
+  indexes, and the exact
   `DT_NEEDED` string-index roster. Exact byte deduplication and stable sorting
   make table contents and their fingerprint independent of import insertion
-  order. Its invariants come from the primary System V ABI [program-header
-  rules](https://gabi.xinuos.com/elf/07-pheader.html), [string-table
+  order. The GNU-hash policy preserves that canonical symbol order with
+  `symoffset == 1`, one bucket, one 64-bit bloom word, shift five, and an exact
+  bounded chain; independent replay rejects header, bloom, bucket, chain, or
+  terminator drift. The layout and lookup law follow the original GNU
+  [`DT_GNU_HASH` implementation](https://sourceware.org/pipermail/binutils/2006-July/048074.html).
+  Its other invariants come from the primary System V ABI
+  [program-header rules](https://gabi.xinuos.com/elf/07-pheader.html), [string-table
   rules](https://gabi.xinuos.com/elf/04-strtab.html), [symbol-table
   rules](https://gabi.xinuos.com/elf/05-symtab.html), and [dynamic-hash
   rules](https://gabi.xinuos.com/elf/08-dynamic.html#hash-table), plus the [LSB
   symbol-version requirement
   format](https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html).
-  The next sealed rung now serializes those structures into six exact ELF64
+  The next sealed rung now serializes those structures into seven exact ELF64
   `ELFDATA2LSB` payloads: `.interp`, `.dynstr`, 24-byte `Elf64_Sym` rows in
-  `.dynsym`, the word-oriented `.hash`, half-word `.gnu.version` rows, and
+  `.dynsym`, the word-oriented `.hash`, the GNU-hash header/bloom/bucket/chains,
+  half-word `.gnu.version` rows, and
   16-byte `Elf64_Verneed`/`Elf64_Vernaux` chains in `.gnu.version_r`. A
   separate bounds-checked decoder replays every row, exact length, hash index,
   linked version offset, dynamic-string reference, and section-kind boundary
@@ -11141,8 +11169,8 @@ boundary without its corresponding checked law.
   alignment](https://gabi.xinuos.com/elf/01-intro.html#sixty-four-bit-data-types)
   and [least-significant-byte-first
   encoding](https://gabi.xinuos.com/elf/02-eheader.html#data-encoding).
-  A following sealed descriptor rung now binds those six payloads to six
-  address-free semantic section-kind rows with their exact ABI type, flags,
+  A following sealed descriptor rung still binds the original six payloads to
+  six address-free semantic section-kind rows with their exact ABI type, flags,
   payload size, alignment, entry size, semantic link, and `sh_info` meaning.
   It independently replays every name, payload relationship, symbol/version
   count, System V hash chain count, and version-need object count before
@@ -11208,7 +11236,8 @@ boundary without its corresponding checked law.
   independently replays tag order/multiplicity, raw library-name offsets,
   relocation closure, target-specific future-`.dynamic` GOT policy, every
   literal and obligation, deterministic identity, and exact descriptor
-  custody. General RELA, GNU-hash, bind-now, text-relocation, init/fini,
+  custody. General RELA, `DT_GNU_HASH` plus `.gnu.hash` section/roster/layout
+  integration, bind-now, text-relocation, init/fini,
   runpath, soname, and target-optional tags remain absent because the sealed
   inputs own none of those meanings. The following serialization rung now
   consumes that plan into exact 16-byte ELF64-LSB `Elf64_Dyn` rows: signed
@@ -11402,8 +11431,9 @@ boundary without its corresponding checked law.
   byte/plan/stack custody rejects. General runtime expressions, non-fixed-
   integer, float, aggregate, and
   indirect result shapes, complete task-stack-
-  budget composition, optional `.gnu.hash`, and general admission-owner
-  integration remain engineering work. A first externally admitted, zero-
+  budget composition, optional `.gnu.hash` section/tag/layout/final-image
+  integration beyond its address-free carrier and serializer, and general
+  admission-owner integration remain engineering work. A first externally admitted, zero-
   argument Mach-O source-evaluated lane is complete below.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
@@ -11748,7 +11778,8 @@ checked-result arithmetic decision listed below.
   The descriptor-parameter semantic ABI is now defined and executable.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
-  each descriptor transfer. Terminal format 64 / vocabulary 67 can retain
+  each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
+  and retained by current format 65 / vocabulary 68, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation

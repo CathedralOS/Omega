@@ -9,13 +9,13 @@ use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, DirectMachineFloatParameter,
-    DirectMachineFloatResult, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
-    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
-    ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
-    StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
+    DirectMachineFloatResult, DirectOperationFloatResult, EvidenceContractLane,
+    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
+    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
+    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
     StructuralDomainDeclaration, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule, TerminalPlacedViewInput,
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
@@ -668,6 +668,14 @@ fn encode_raw_for_result_paths(
         module.float_meaning_projections.len(),
     )?;
     for projection in &module.float_meaning_projections {
+        if result_path_format == ResultPathWireFormat::LegacyWithoutResultPaths
+            && matches!(
+                projection.source,
+                FloatMeaningSource::DirectOperationResult(_)
+            )
+        {
+            return Err(CodecError::InvalidTag("legacy FloatMeaningSource", 6));
+        }
         writer.u32(projection.result.id.0);
         writer.u8(match projection.result.value_type {
             ProofOnlyValueType::FloatMeaning => 1,
@@ -693,6 +701,16 @@ fn encode_raw_for_result_paths(
             FloatMeaningSource::DirectMachineResult(result) => {
                 writer.u8(5);
                 writer.id(result.owner);
+                writer.id(result.result);
+                writer.u8(match result.format {
+                    IeeeFloatFormat::Binary32 => 1,
+                    IeeeFloatFormat::Binary64 => 2,
+                });
+            }
+            FloatMeaningSource::DirectOperationResult(result) => {
+                writer.u8(6);
+                writer.id(result.owner);
+                writer.id(result.producer);
                 writer.id(result.result);
                 writer.u8(match result.format {
                     IeeeFloatFormat::Binary32 => 1,
@@ -1090,6 +1108,18 @@ pub(super) fn decode_module_body(
                         tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
                     },
                 }),
+                6 if result_path_format == ResultPathWireFormat::Current => {
+                    FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
+                        owner: reader.id("float-meaning direct operation-result owner")?,
+                        producer: reader.id("float-meaning direct operation-result producer")?,
+                        result: reader.id("float-meaning direct operation-result value")?,
+                        format: match reader.u8()? {
+                            1 => IeeeFloatFormat::Binary32,
+                            2 => IeeeFloatFormat::Binary64,
+                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                        },
+                    })
+                }
                 tag => return Err(CodecError::InvalidTag("FloatMeaningSource", tag)),
             },
             operation: match reader.u8()? {

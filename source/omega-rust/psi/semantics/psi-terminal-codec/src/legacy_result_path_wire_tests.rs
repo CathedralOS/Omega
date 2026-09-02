@@ -1,7 +1,11 @@
-use psi_core::{BlockId, ContractId, EdgeId, MachineId, PsiSemanticId};
+use psi_core::{
+    BlockId, ContractId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PsiSemanticId, ValueId,
+};
 use psi_terminal::{
-    Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    VocabularyMarker,
+    Block, DirectMachineFloatResult, DirectOperationFloatResult, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatMeaningSource, MachineContract, ProofOnlyValueType,
+    ProofValueDeclaration, ProofValueId, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, VocabularyMarker,
 };
 
 use super::{decode_module, encode_module};
@@ -78,10 +82,63 @@ fn v56_v59_reconstructs_absent_result_path_rosters_as_current_empty_rows() {
     assert_eq!(decode_module(&legacy), Ok(module.clone()));
 
     let current = encode_module(&module).expect("current result-path bytes");
-    assert_eq!(&current[8..10], &64_u16.to_le_bytes());
-    assert_eq!(&current[10..12], &67_u16.to_le_bytes());
+    assert_eq!(&current[8..10], &65_u16.to_le_bytes());
+    assert_eq!(&current[10..12], &68_u16.to_le_bytes());
 
     let mut crossed_pair = legacy;
-    crossed_pair[10..12].copy_from_slice(&67_u16.to_le_bytes());
+    crossed_pair[10..12].copy_from_slice(&68_u16.to_le_bytes());
     assert!(decode_module(&crossed_pair).is_err());
+}
+
+#[test]
+fn v56_v59_rejects_the_current_direct_operation_result_source() {
+    let operation = psi_numerics::float_projection::FloatProjectionOperation::Meaning32;
+    let contract = operation.contract_identity();
+    let contract = psi_terminal::FloatProjectionContractIdentity {
+        format: contract.format,
+        operation: contract.operation,
+        declaration: contract.declaration,
+        catalog_version: contract.catalog_version,
+        commitment: contract.commitment,
+    };
+    let mut module = unit_module();
+    module.float_meaning_projections = vec![FloatMeaningProjection {
+        result: ProofValueDeclaration {
+            id: ProofValueId(0),
+            value_type: ProofOnlyValueType::FloatMeaning,
+        },
+        source: FloatMeaningSource::DirectMachineResult(DirectMachineFloatResult {
+            owner: id::<MachineId>(1),
+            result: id::<ValueId>(1),
+            format: IeeeFloatFormat::Binary32,
+        }),
+        operation: FloatMeaningProjectionOperation::Meaning32,
+        contract,
+    }];
+    let mut legacy = encode_legacy_result_path_raw(&module).expect("legacy direct result bytes");
+    let source_prefix = [0, 0, 0, 0, 1, 5];
+    let source_offset = legacy
+        .windows(source_prefix.len())
+        .position(|window| window == source_prefix)
+        .expect("legacy direct result source is unique");
+    legacy[source_offset + 5] = 6;
+    assert_eq!(
+        decode_module(&legacy),
+        Err(super::CodecError::InvalidTag("FloatMeaningSource", 6))
+    );
+
+    module.float_meaning_projections[0].source =
+        FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
+            owner: id::<MachineId>(1),
+            producer: id::<OperationId>(1),
+            result: id::<ValueId>(1),
+            format: IeeeFloatFormat::Binary32,
+        });
+    assert_eq!(
+        encode_legacy_result_path_raw(&module),
+        Err(super::CodecError::InvalidTag(
+            "legacy FloatMeaningSource",
+            6
+        ))
+    );
 }

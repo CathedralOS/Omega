@@ -331,6 +331,7 @@ fn exact_construction_prefix(
         15 => 16,
         16 => 17,
         17 => 18,
+        18 => 19,
         _ => return false,
     };
     construction_locals.len() == locals.len()

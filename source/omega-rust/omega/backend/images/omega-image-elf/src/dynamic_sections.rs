@@ -1,16 +1,19 @@
 //! Address-free contents for the first complete ELF dynamic-section plan.
 //!
-//! The plan selects the System V symbol hash defined by the generic ABI and
-//! the GNU version-requirement format specified by the LSB. It deliberately
+//! The plan selects the System V symbol hash defined by the generic ABI, an
+//! address-free GNU symbol hash, and the GNU version-requirement format
+//! specified by the LSB. It deliberately
 //! stops before section placement, program headers, dynamic addresses,
 //! relocation lowering, image mutation, or runnable-image authority.
 //!
 //! Primary format contracts: [System V string tables], [System V symbol
-//! tables], [System V dynamic hash tables], and [LSB symbol versioning].
+//! tables], [System V dynamic hash tables], the original GNU
+//! [`DT_GNU_HASH` implementation], and [LSB symbol versioning].
 //!
 //! [System V string tables]: https://gabi.xinuos.com/elf/04-strtab.html
 //! [System V symbol tables]: https://gabi.xinuos.com/elf/05-symtab.html
 //! [System V dynamic hash tables]: https://gabi.xinuos.com/elf/08-dynamic.html#hash-table
+//! [`DT_GNU_HASH` implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 //! [LSB symbol versioning]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/symversion.html
 
 use crate::dynamic_link::PlannedElfDynamicLinkInputs;
@@ -23,6 +26,11 @@ const SHN_UNDEF: u16 = 0;
 const VER_NEED_CURRENT: u16 = 1;
 const FIRST_REQUIRED_VERSION: u16 = 2;
 const VERSION_INDEX_MASK: u16 = 0x7fff;
+const GNU_HASH_BUCKET_COUNT: u32 = 1;
+const GNU_HASH_SYMBOL_OFFSET: u32 = 1;
+const GNU_HASH_BLOOM_COUNT: u32 = 1;
+const GNU_HASH_BLOOM_SHIFT: u32 = 5;
+const GNU_HASH_WORD_BITS: u32 = u64::BITS;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -119,6 +127,7 @@ pub(crate) struct ElfDynamicSectionContents {
     pub(crate) dynstr: Vec<u8>,
     pub(crate) dynsym: Vec<ElfDynamicSymbol>,
     pub(crate) sysv_hash: ElfSysvHash,
+    pub(crate) gnu_hash: ElfGnuHash,
     pub(crate) versym: Vec<u16>,
     pub(crate) verneed: Vec<ElfVersionNeed>,
     pub(crate) needed: Vec<u32>,
@@ -140,6 +149,17 @@ pub(crate) struct ElfDynamicSymbol {
 pub(crate) struct ElfSysvHash {
     pub(crate) bucket_count: u32,
     pub(crate) chain_count: u32,
+    pub(crate) buckets: Vec<u32>,
+    pub(crate) chains: Vec<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ElfGnuHash {
+    pub(crate) bucket_count: u32,
+    pub(crate) symbol_offset: u32,
+    pub(crate) bloom_count: u32,
+    pub(crate) bloom_shift: u32,
+    pub(crate) bloom: Vec<u64>,
     pub(crate) buckets: Vec<u32>,
     pub(crate) chains: Vec<u32>,
 }
@@ -193,9 +213,10 @@ struct CandidateValidationError {
 /// table plan and independently replay every table relationship before sealing
 /// it.
 ///
-/// This chooses a System V `.hash` table and GNU `.gnu.version` /
-/// `.gnu.version_r` requirements. It does not encode `.dynamic`, choose a GNU
-/// hash policy, lower relocations, assign addresses, mutate image bytes, or
+/// This chooses System V `.hash`, address-free GNU `.gnu.hash`, and GNU
+/// `.gnu.version` / `.gnu.version_r` requirements. It does not encode
+/// `.dynamic`, integrate GNU hash into the semantic section roster, lower
+/// relocations, assign addresses, mutate image bytes, or
 /// grant publication, admission, or runnable-image authority.
 pub fn plan_elf_dynamic_sections(
     inputs: PlannedElfDynamicLinkInputs,
@@ -265,6 +286,7 @@ fn derive_contents(
         .map(|import| import.symbol)
         .collect::<Vec<_>>();
     let sysv_hash = build_sysv_hash(&symbol_names)?;
+    let gnu_hash = build_gnu_hash(&symbol_names)?;
     let objects = canonical_objects(&ordered);
     let needed = objects
         .iter()
@@ -277,6 +299,7 @@ fn derive_contents(
         dynstr,
         dynsym,
         sysv_hash,
+        gnu_hash,
         versym,
         verneed,
         needed,
@@ -441,6 +464,34 @@ fn build_sysv_hash(symbol_names: &[&[u8]]) -> Result<ElfSysvHash, Diagnostic> {
     })
 }
 
+fn build_gnu_hash(symbol_names: &[&[u8]]) -> Result<ElfGnuHash, Diagnostic> {
+    require_equal(
+        !symbol_names.is_empty(),
+        "GNU hash planning requires at least one dynamic symbol after the reserved row",
+    )?;
+    let mut bloom = vec![0u64; GNU_HASH_BLOOM_COUNT as usize];
+    let mut chains = Vec::with_capacity(symbol_names.len());
+    for name in symbol_names {
+        let hash = gnu_hash(name);
+        let first_bit = hash % GNU_HASH_WORD_BITS;
+        let second_bit = (hash >> GNU_HASH_BLOOM_SHIFT) % GNU_HASH_WORD_BITS;
+        bloom[0] |= (1u64 << first_bit) | (1u64 << second_bit);
+        chains.push(hash & !1);
+    }
+    if let Some(last) = chains.last_mut() {
+        *last |= 1;
+    }
+    Ok(ElfGnuHash {
+        bucket_count: GNU_HASH_BUCKET_COUNT,
+        symbol_offset: GNU_HASH_SYMBOL_OFFSET,
+        bloom_count: GNU_HASH_BLOOM_COUNT,
+        bloom_shift: GNU_HASH_BLOOM_SHIFT,
+        bloom,
+        buckets: vec![GNU_HASH_SYMBOL_OFFSET],
+        chains,
+    })
+}
+
 fn build_version_needs(
     objects: &[Vec<u8>],
     pairs: &[(Vec<u8>, Vec<u8>)],
@@ -575,6 +626,11 @@ fn validate_contents(
         "System V symbol hash buckets or chains are not canonical",
     )?;
     validate_hash_reachability(&contents.sysv_hash, &names)?;
+    require_equal(
+        contents.gnu_hash == build_gnu_hash(&names)?,
+        "GNU symbol hash header, bloom, buckets, or chains are not canonical",
+    )?;
+    validate_gnu_hash_reachability(&contents.gnu_hash, &names)?;
 
     let objects = canonical_objects(&ordered);
     let expected_needed = objects
@@ -625,6 +681,37 @@ fn validate_hash_reachability(hash: &ElfSysvHash, names: &[&[u8]]) -> Result<(),
     Ok(())
 }
 
+fn validate_gnu_hash_reachability(hash: &ElfGnuHash, names: &[&[u8]]) -> Result<(), Diagnostic> {
+    require_equal(
+        hash.bucket_count == GNU_HASH_BUCKET_COUNT
+            && hash.symbol_offset == GNU_HASH_SYMBOL_OFFSET
+            && hash.bloom_count == GNU_HASH_BLOOM_COUNT
+            && hash.bloom_shift == GNU_HASH_BLOOM_SHIFT
+            && hash.bloom.len() == hash.bloom_count as usize
+            && hash.buckets.len() == hash.bucket_count as usize
+            && hash.chains.len() == names.len()
+            && hash.buckets.first() == Some(&GNU_HASH_SYMBOL_OFFSET),
+        "GNU hash counts or canonical one-bucket symbol domain drifted",
+    )?;
+    let bloom_word = hash.bloom[0];
+    for (index, name) in names.iter().enumerate() {
+        let symbol_hash = gnu_hash(name);
+        let first_bit = symbol_hash % GNU_HASH_WORD_BITS;
+        let second_bit = (symbol_hash >> hash.bloom_shift) % GNU_HASH_WORD_BITS;
+        require_equal(
+            bloom_word & (1u64 << first_bit) != 0 && bloom_word & (1u64 << second_bit) != 0,
+            "GNU hash bloom filter cannot admit one exact dynamic symbol",
+        )?;
+        let is_last = index + 1 == names.len();
+        let expected_chain = (symbol_hash & !1) | u32::from(is_last);
+        require_equal(
+            hash.chains.get(index) == Some(&expected_chain),
+            "GNU hash chain does not preserve an exact symbol hash or terminator",
+        )?;
+    }
+    Ok(())
+}
+
 fn require_equal(condition: bool, message: &'static str) -> Result<(), Diagnostic> {
     condition
         .then_some(())
@@ -648,12 +735,18 @@ fn elf_hash(bytes: &[u8]) -> u32 {
     hash
 }
 
+fn gnu_hash(bytes: &[u8]) -> u32 {
+    bytes.iter().fold(5381u32, |hash, byte| {
+        hash.wrapping_mul(33).wrapping_add(u32::from(*byte))
+    })
+}
+
 fn non_authoritative_content_compatibility_fingerprint(
     inputs: &PlannedElfDynamicLinkInputs,
     contents: &ElfDynamicSectionContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-plan.v1");
+    hash.bytes(b"omega.elf-dynamic-section-plan.v2");
     hash.bytes(inputs.interpreter().target().target_name().as_bytes());
     hash.bytes(
         &inputs
@@ -678,6 +771,21 @@ fn non_authoritative_content_compatibility_fingerprint(
         .buckets
         .iter()
         .chain(&contents.sysv_hash.chains)
+    {
+        hash.bytes(&value.to_le_bytes());
+    }
+    hash.bytes(&contents.gnu_hash.bucket_count.to_le_bytes());
+    hash.bytes(&contents.gnu_hash.symbol_offset.to_le_bytes());
+    hash.bytes(&contents.gnu_hash.bloom_count.to_le_bytes());
+    hash.bytes(&contents.gnu_hash.bloom_shift.to_le_bytes());
+    for value in &contents.gnu_hash.bloom {
+        hash.bytes(&value.to_le_bytes());
+    }
+    for value in contents
+        .gnu_hash
+        .buckets
+        .iter()
+        .chain(&contents.gnu_hash.chains)
     {
         hash.bytes(&value.to_le_bytes());
     }
@@ -911,6 +1019,16 @@ mod tests {
                 contents.sysv_hash.chain_count as usize,
                 contents.dynsym.len()
             );
+            assert_eq!(contents.gnu_hash.bucket_count, 1);
+            assert_eq!(contents.gnu_hash.symbol_offset, 1);
+            assert_eq!(contents.gnu_hash.bloom_count, 1);
+            assert_eq!(contents.gnu_hash.bloom_shift, 5);
+            assert_eq!(contents.gnu_hash.bloom, [0x0000_0102_0090_2200]);
+            assert_eq!(contents.gnu_hash.buckets, [1]);
+            assert_eq!(
+                contents.gnu_hash.chains,
+                [0xf204_f288, 0xf204_f288, 0x7c94_89a0, 0x0f7d_eae9]
+            );
             assert_eq!(contents.needed.len(), 2);
             assert_eq!(contents.needed, [36, 51]);
             assert_eq!(contents.verneed.len(), 2);
@@ -945,6 +1063,7 @@ mod tests {
         assert_eq!(forward.contents.dynstr, reverse.contents.dynstr);
         assert_eq!(forward.contents.dynsym, reverse.contents.dynsym);
         assert_eq!(forward.contents.sysv_hash, reverse.contents.sysv_hash);
+        assert_eq!(forward.contents.gnu_hash, reverse.contents.gnu_hash);
         assert_eq!(forward.contents.versym, reverse.contents.versym);
         assert_eq!(forward.contents.verneed, reverse.contents.verneed);
         assert_eq!(forward.contents.needed, reverse.contents.needed);
@@ -1022,6 +1141,14 @@ mod tests {
             Box::new(|contents| contents.dynsym[1].name = 0),
             Box::new(|contents| contents.sysv_hash.buckets[0] = u32::MAX),
             Box::new(|contents| contents.sysv_hash.chains[1] = u32::MAX),
+            Box::new(|contents| contents.gnu_hash.bucket_count = 0),
+            Box::new(|contents| contents.gnu_hash.symbol_offset = 0),
+            Box::new(|contents| contents.gnu_hash.bloom_count = 0),
+            Box::new(|contents| contents.gnu_hash.bloom_shift += 1),
+            Box::new(|contents| contents.gnu_hash.bloom[0] ^= 1u64 << 9),
+            Box::new(|contents| contents.gnu_hash.buckets[0] = u32::MAX),
+            Box::new(|contents| contents.gnu_hash.chains[0] ^= 2),
+            Box::new(|contents| contents.gnu_hash.chains[3] &= !1),
             Box::new(|contents| contents.versym[1] = 1),
             Box::new(|contents| contents.verneed[0].count += 1),
             Box::new(|contents| contents.verneed[0].auxiliary_offset = 0),
@@ -1052,6 +1179,38 @@ mod tests {
         assert_eq!(elf_hash(b"exit"), 0x0006_cf04);
         assert_eq!(elf_hash(b"printf"), 0x0779_05a6);
         assert_eq!(elf_hash(b"memcpy"), 0x073c_3a79);
+    }
+
+    #[test]
+    fn gnu_hash_matches_known_vectors_and_exact_canonical_chain() {
+        assert_eq!(gnu_hash(b""), 0x0000_1505);
+        assert_eq!(gnu_hash(b"exit"), 0x7c96_7e3f);
+        assert_eq!(gnu_hash(b"printf"), 0x156b_2bb8);
+        assert_eq!(gnu_hash(b"memcpy"), 0x0d82_7590);
+
+        let hash = build_gnu_hash(&[
+            b"alpha\xfe".as_slice(),
+            b"alpha\xfe".as_slice(),
+            b"beta".as_slice(),
+            b"gamma".as_slice(),
+        ])
+        .expect("canonical GNU hash");
+        assert_eq!(hash.bloom, [0x0000_0102_0090_2200]);
+        assert_eq!(hash.buckets, [1]);
+        assert_eq!(
+            hash.chains,
+            [0xf204_f288, 0xf204_f288, 0x7c94_89a0, 0x0f7d_eae9]
+        );
+        validate_gnu_hash_reachability(
+            &hash,
+            &[
+                b"alpha\xfe".as_slice(),
+                b"alpha\xfe".as_slice(),
+                b"beta".as_slice(),
+                b"gamma".as_slice(),
+            ],
+        )
+        .expect("exact GNU hash reachability");
     }
 
     #[test]
@@ -1103,5 +1262,16 @@ mod tests {
             validate_hash_reachability(&cyclic, &[b"first".as_slice(), b"second".as_slice()],)
                 .is_err()
         );
+
+        let names = [b"symbol".as_slice()];
+        let mut malformed_gnu = build_gnu_hash(&names).expect("valid GNU hash");
+        malformed_gnu.bloom.clear();
+        assert!(validate_gnu_hash_reachability(&malformed_gnu, &names).is_err());
+        let mut malformed_gnu = build_gnu_hash(&names).expect("valid GNU hash");
+        malformed_gnu.buckets[0] = u32::MAX;
+        assert!(validate_gnu_hash_reachability(&malformed_gnu, &names).is_err());
+        let mut malformed_gnu = build_gnu_hash(&names).expect("valid GNU hash");
+        malformed_gnu.chains[0] &= !1;
+        assert!(validate_gnu_hash_reachability(&malformed_gnu, &names).is_err());
     }
 }

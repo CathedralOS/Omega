@@ -1701,11 +1701,17 @@ binary64 format. Authored projection occurrence and source span remain separate
 diagnostic/provenance facts. Dense `ProofValueId` and projection-input numbers
 are canonical encoding coordinates only.
 
-Implementation currently realizes the exact-bit-literal form without a
-producer coordinate. Raw binary32/binary64 bits cross checked lowering,
-Terminal encoding, and independent verifier reconstruction directly; equal
-tuples deduplicate, signed-zero bits remain distinct, and NaN payloads erase
-only when the verifier reconstructs the public meaning. Other landed source
+Implementation realizes the exact-bit-literal form without a producer
+coordinate. Raw binary32/binary64 bits cross checked lowering, Terminal
+encoding, and independent verifier reconstruction directly; equal tuples
+deduplicate, signed-zero bits remain distinct, and NaN payloads erase only when
+the verifier reconstructs the public meaning. Direct owning-machine parameter
+and result carriers rejoin their exact artifact declarations. A Terminal-only
+non-call operation-result carrier additionally retains exact owner, producer
+operation, declared scalar result, and format identity and is independently
+rejoined to the operation table. Call results remain a distinct source class.
+Its checked/source producer remains transitional until an
+expression-to-Terminal-operation correspondence exists. Other landed source
 forms remain explicitly transitional until their artifact-relative carriers
 exist.
 
