@@ -205,6 +205,12 @@ source terms require an explicit theorem and never coalesce by spelling,
 fingerprint, ordinary IEEE comparison, or coincident value. The entire carrier
 is PCC metadata and has no runtime representation.
 
+Nested-state completion does not create another proof source. Authored states
+admit arrival requirements but no exit guarantees, and their normal completion
+produces the owning machine's declared result. D40 therefore uses the existing
+direct-machine-result carrier and canonicalizes that value by machine result
+identity, without a state-, block-, or exit-scoped tag.
+
 The same semantic function is consumed by proof checking, build-time folding,
 the interpreter, checked software realizations, and target-validation tools.
 This replaces the current folder path that can evaluate landed `f32` operations

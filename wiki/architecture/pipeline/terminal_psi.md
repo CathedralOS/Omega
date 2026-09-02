@@ -1542,8 +1542,20 @@ discards them as
 the verifier, codec, interpreter, Omega lowering, native emission, object/image
 replay, and installation encoding retain the common root plus exact twenty-one
 fuel units. Missing/reordered operations or cleanup, changed indices/root
-length, and length-twenty-two or wider prefixes reject; no runtime liveness
-bitmap or cleanup loop is introduced.
+length, and other prefix drift reject; no runtime liveness bitmap or cleanup
+loop is introduced.
+
+The next bounded carrier admits the same shape at length twenty-two with
+establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]`.
+Terminal publishes twenty-one ordered zero-ABI local places, the Unit return
+discards them as
+`[20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`,
+and the verifier, codec, interpreter, Omega lowering, native emission,
+object/image replay, and installation encoding retain the common root plus
+exact twenty-two fuel units. Missing/reordered operations or cleanup, changed
+indices/root length, and length-twenty-three or wider prefixes reject; no
+runtime liveness bitmap or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
 finite nonempty list of claim-free, unqualified affine parameters whose records
@@ -3749,8 +3761,11 @@ scalar, dynamic-descriptor scalar, dynamic-parameter scalar, and boundary call
 operations, while rejecting non-call producers, Unit/structural calls, wrong
 result classes, and coordinate or format substitution. Source production stays
 transitional until an expression-to-Terminal-call-operation correspondence is
-retained. Nested-state results, other arbitrary Terminal values, structural
-leaves, and every other nonliteral source remain transitional.
+retained. A nested state has no distinct result carrier: it admits arrival
+requirements only, and normal completion produces the owning machine's declared
+result. The existing direct-machine-result source covers that value without a
+state- or exit-scoped tag. Other arbitrary Terminal values, structural leaves,
+and every other nonliteral source remain transitional engineering work.
 The source-side exit checker admits the owning direct-result reflexivity form
 only after the exact authored `ensures` expression rejoins the checked
 `FloatMeaningEqual` row, both operands share one canonical proof value, and
