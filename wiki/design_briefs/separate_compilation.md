@@ -56,12 +56,14 @@ downgrades, and provenance substitutions reject.
 
 The first executable parameter slice is intentionally smaller than the source
 language surface: one direct owned affine carrier on a nongeneric,
-lifetime-free, one-state attached Unit machine may make one direct boundary
-call. Its checked receipt retains the typed parameter symbol and authored
+lifetime-free, one-state attached Unit machine may make a nonempty ordered
+sequence of direct boundary calls to the carrier's one exact requirement. Its
+checked receipt retains the typed parameter symbol and authored
 position in addition to the carrier/base identities, requirement, `Bound`
 domain, and selected-plan digest. Both raw Terminal lowering and final compiler
 custody rejoin those coordinates. Borrowing, nesting, internal forwarding,
-multiple carrier calls, composed control, scalar-bearing/free executable
+multiple carriers, mixed receiver requirements, composed control,
+scalar-bearing/free executable
 helpers, root establishment, and Independent mode remain closed rather than
 being represented as fused.
 

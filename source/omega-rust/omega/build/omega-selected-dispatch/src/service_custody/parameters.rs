@@ -287,18 +287,18 @@ fn validate_receipt(
                     .iter()
                     .any(|signature| signature.symbol == call.target_symbol)
         })
+        .map(|call| (call.statement_index, call.call_ordinal, call.target_symbol))
         .collect::<Vec<_>>();
-    let [call] = calls.as_slice() else {
+    if calls.is_empty() {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service parameter `{label}` reaches {} exact direct boundary calls; the first rung requires one",
-            calls.len(),
+            "checked routed Service parameter `{label}` reaches no exact direct boundary calls; the direct-call rung requires one or more",
         )));
         return;
-    };
-    let operation_matches = plan
+    }
+    let operations = plan
         .operations
         .iter()
-        .filter(|operation| match operation {
+        .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall {
                 coordinate,
                 target_state,
@@ -308,17 +308,25 @@ fn validate_receipt(
                 coordinate,
                 target_state,
                 ..
-            } => {
-                usize::try_from(coordinate.statement_index).ok() == Some(call.statement_index)
-                    && usize::try_from(coordinate.call_ordinal).ok() == Some(call.call_ordinal)
-                    && *target_state == call.target_symbol
+            } if checked
+                .trait_machine_signatures(requirement_definition)
+                .iter()
+                .any(|signature| signature.symbol == *target_state) =>
+            {
+                Some((
+                    usize::try_from(coordinate.statement_index).ok()?,
+                    usize::try_from(coordinate.call_ordinal).ok()?,
+                    *target_state,
+                ))
             }
-            _ => false,
+            _ => None,
         })
-        .count();
-    if operation_matches != 1 {
+        .collect::<Vec<_>>();
+    if operations != calls {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service parameter `{label}` rejoins {operation_matches} exact checked boundary operations; expected one",
+            "checked routed Service parameter `{label}` reaches {} exact direct boundary calls but rejoins {} exact checked boundary operations; expected one ordered operation per call",
+            calls.len(),
+            operations.len(),
         )));
     }
 }

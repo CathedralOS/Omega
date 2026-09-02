@@ -134,9 +134,12 @@ typed parameter symbol and authored position to the normalized
 `Service<R> in Bound` identity, `Bound` domain, requirement, and selected-plan
 digest. The raw producer rechecks typed receipt custody; the compiler's final
 gate additionally rejoins exact Fused selection provenance. Only one direct
-owned affine parameter making one direct boundary call in a one-state attached
-Unit machine is admitted. Transfers, projections, borrows, multiple calls,
-composed control, scalar-bearing/free helpers, initial root establishment, and
+owned affine parameter making a nonempty ordered sequence of direct calls to
+its one exact requirement in a one-state attached Unit machine is admitted.
+Final custody requires an exact ordered call/checked-operation bijection;
+removal, insertion, reordering, or target substitution rejects. Transfers,
+projections, borrows, multiple carriers, mixed receiver requirements, composed
+control, scalar-bearing/free helpers, initial root establishment, and
 Independent execution remain absent from Terminal rather than being guessed.
 
 Preservation is not realization. Omega target lowering currently accepts the
