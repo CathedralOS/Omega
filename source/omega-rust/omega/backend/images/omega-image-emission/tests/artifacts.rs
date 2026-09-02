@@ -380,6 +380,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             entry: machine,
             functions: vec![MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -583,6 +584,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         entry: machine,
         functions: vec![MachineCodeFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
             internal_unit_scalar_calls: Vec::new(),
@@ -2224,6 +2226,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             entry: machine,
             functions: vec![MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -2328,13 +2331,14 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     assert!(record.selected_provider_plans().is_empty());
     let bytes = encode_installation_record(&record).expect("canonical bytes");
     assert_eq!(&bytes[..8], b"PSIINST\0");
+    assert_eq!(u16::from_le_bytes(bytes[8..10].try_into().unwrap()), 55);
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "e6ada42fae9b53f720e1202b660ed3f54393872dff404c0957df99924d5f5fd7"
+        "1ef0d00d01a6b6461c640b11d2897d2410351d3578c172884770f8eca3cbe108"
     );
 
     let mut changed_plan = plan;
@@ -2523,6 +2527,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         entry: machine_id(1),
         functions: vec![MachineCodeFunction {
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
             internal_unit_scalar_calls: Vec::new(),
@@ -2709,6 +2714,7 @@ fn two_function_plan() -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -2749,6 +2755,7 @@ fn two_function_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -2837,6 +2844,7 @@ fn semantic_x86_fma_plan(profile: TargetProfile) -> MachineCodePlan {
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: operations.to_vec(),
                 edges: vec![edge],
@@ -2950,6 +2958,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -2990,6 +2999,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -3269,6 +3279,7 @@ fn shared_three_leaf_cleanup_plan(target: NativeTarget) -> MachineCodePlan {
             machine: machine_id(1),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: (1..=5).chain(10..=12).map(edge_id).collect(),
@@ -3832,6 +3843,7 @@ fn account_x86_unit_call(plan: &mut MachineCodePlan) {
         result: None,
         semantic_result: None,
         structural_result: None,
+        scalar_arguments: Vec::new(),
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 0,
@@ -4048,6 +4060,7 @@ fn account_aarch64_unit_call(plan: &mut MachineCodePlan) {
         result: None,
         semantic_result: None,
         structural_result: None,
+        scalar_arguments: Vec::new(),
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 0,
@@ -4133,6 +4146,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         result: None,
         semantic_result: None,
         structural_result: None,
+        scalar_arguments: Vec::new(),
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 0,
@@ -4146,6 +4160,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -4199,6 +4214,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -4249,6 +4265,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
@@ -4308,6 +4325,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     result: None,
                     semantic_result: None,
                     structural_result: None,
+                    scalar_arguments: Vec::new(),
                     arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     operation_ordinal: 0,
@@ -4408,6 +4426,7 @@ fn two_call_edge_owned_cleanup_plan() -> MachineCodePlan {
         result: None,
         semantic_result: None,
         structural_result: None,
+        scalar_arguments: Vec::new(),
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
         operation_ordinal: 1,

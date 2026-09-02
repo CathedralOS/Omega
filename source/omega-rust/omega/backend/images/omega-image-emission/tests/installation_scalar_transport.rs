@@ -73,6 +73,7 @@ fn scalar_transport_plan() -> TargetOperationPlan {
                 machine: caller,
                 attachment: Some(StructuralTypeId::new(1).expect("attachment")),
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![constant_operation, call_operation],
                     edges: vec![EdgeId::new(1).expect("caller return")],
@@ -127,6 +128,7 @@ fn scalar_transport_plan() -> TargetOperationPlan {
                 machine: callee,
                 attachment: None,
                 fixed_integer_scalar_abi: Some(abi),
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![EdgeId::new(2).expect("callee return")],

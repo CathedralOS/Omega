@@ -685,6 +685,7 @@ dependencies = [
  "iced-x86",
  "omega-abstract-operations",
  "omega-abstract-operations-to-target-operations",
+ "omega-assigned-target-operations",
  "omega-calling-conventions",
  "omega-executable-installation",
  "omega-function-identity",
