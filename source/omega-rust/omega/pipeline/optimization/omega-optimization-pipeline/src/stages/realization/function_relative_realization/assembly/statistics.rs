@@ -71,6 +71,20 @@ pub(crate) fn function_relative_statistics(
                 .checked_add(1)
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
+    let ordinary_internal_machine_fixups = layout
+        .functions()
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| instruction.internal_machine_fixup.is_some())
+        .try_fold(0_u64, |total, _| {
+            total
+                .checked_add(1)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let unresolved_internal_machine_fixups = ordinary_internal_machine_fixups
+        .checked_add(structural_call_templates)
+        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
     Ok(FunctionRelativeOptimizationRealizationStatistics {
         functions,
         blocks,
@@ -81,7 +95,7 @@ pub(crate) fn function_relative_statistics(
         structural_unit_blocks,
         structural_unit_instructions,
         structural_unit_bytes,
-        unresolved_internal_machine_fixups: structural_call_templates,
+        unresolved_internal_machine_fixups,
     })
 }
 

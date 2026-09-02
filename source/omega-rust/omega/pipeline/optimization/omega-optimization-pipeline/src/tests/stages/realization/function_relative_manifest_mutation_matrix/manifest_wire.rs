@@ -19,7 +19,7 @@ fn assert_decode_error(
 }
 
 #[test]
-fn function_relative_v9_wire_rejects_every_closed_axis_and_envelope_mutation() {
+fn function_relative_v10_wire_rejects_every_closed_axis_and_envelope_mutation() {
     let staged = direct_rel8_realization();
     let encoded = staged.manifest().record().encode();
     let offsets = wire_offsets(&encoded);
