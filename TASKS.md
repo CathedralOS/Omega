@@ -11803,17 +11803,38 @@ checked-result arithmetic decision listed below.
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Cross-architecture canaries cover two-row tables and reject
-  adapter-byte drift. The older direct and caller-local rebound lanes remain
-  disjoint and unchanged.
+  adapter-byte drift. Forwarded fixed-integer scalar results now receive the
+  same durable attached-Unit home as other scalar calls. Target lowering,
+  assignment, machine emission, object replay, and final-image replay retain
+  and rejoin the defining operation, value, integer type, shape, ABI result
+  placement, frame home, and exact normalization/store byte interval. A later
+  bounded conditional consumes that home rather than an emitter-local result.
+  The ordinary authority review treats the transparent helper as the exact
+  internal edge while the parameter-slot call adds no private service reach.
+  Both supported architectures replay the result path, and corruption of its
+  home, bytes, or roster fails closed.
+
+  The same bounded pass-through now preserves `&mut dyn Trait` access from an
+  exact mutable field subloan through both selections, the descriptor
+  parameter, the slot dispatch, and the private `&mut self` scalar
+  realization. An authored shared-borrow host canary and a distinct mutable-
+  borrow host canary select the rebound instance, consume the forwarded result,
+  and execute the expected Linux x86-64 exit; both also cross-link on AArch64.
+  The older direct and caller-local rebound lanes remain disjoint and
+  unchanged.
 
   Remaining work:
 
-  - add an AArch64 result-execution replay canary; object, final-image, and
-    installation custody are complete on both architectures, and the existing
-    Linux x86-64 full-pipeline canary executes the forwarded adapter and checks
-    the selected instance through exit status;
-  - extend the v1 shared-borrow/scalar-call surface when Unit results, mutable
-    custody, or additional call forms have exact semantic and physical rules;
+  - add an AArch64 result-execution replay canary; object and final-image
+    custody are complete on both architectures, and the existing Linux x86-64
+    full-pipeline canary executes the forwarded adapter and checks the selected
+    instance through exit status;
+  - extend the installed forwarded-call projection beyond its current
+    call/application span so it independently binds the forwarded scalar
+    producer to the already transported generic Unit-home row;
+  - extend the v1 borrowed surface to Unit-returning requirements, mutation-
+    bearing `&mut self` realization bodies, and additional call forms when
+    their exact semantic and physical rules are settled;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
