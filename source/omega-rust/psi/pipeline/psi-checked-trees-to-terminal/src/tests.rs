@@ -1275,6 +1275,67 @@ fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
 }
 
 #[test]
+fn affine_i64_record_literal_crosses_source_codec_and_verification() {
+    let checked = checked_source(
+        r#"
+        data Packet { value: i64; }
+
+        data Sink {}
+        machine Sink::accept(packet: Packet) {}
+
+        data Root {}
+        machine Root::enter() {
+            let packet: Packet = Packet { value: 7 };
+            Sink::accept(move packet);
+        }
+        "#,
+    );
+    let lowered = lower_machine(&checked, "Root::enter").expect("lower affine scalar record");
+    let module = &lowered.semantic_module;
+    let caller = module.machines.first().expect("caller machine");
+    let [establish, call] = caller.blocks[0].operations.as_slice() else {
+        panic!("record establishment followed by owned call")
+    };
+    let result = establish
+        .result
+        .structural()
+        .expect("constructor establishes one structural result");
+    assert_eq!(result.multiplicity, StructuralMultiplicity::Affine);
+    assert!(result.qualifications.is_empty());
+    assert!(result.projected_qualifications.is_empty());
+    assert!(result.claims.is_empty());
+    assert!(matches!(
+        establish.kind,
+        OperationKind::EstablishAffineScalarRecord {
+            value: IntegerValue::Signed(7),
+            ..
+        }
+    ));
+    assert!(matches!(
+        &call.kind,
+        OperationKind::CallUnit { structural_arguments, .. }
+            if matches!(structural_arguments.as_slice(), [argument]
+                if argument.place == result.place
+                    && argument.path.is_empty()
+                    && argument.access == StructuralAccess::Owned)
+    ));
+
+    let encoded = psi_terminal_codec::encode_module(module).expect("encode affine scalar record");
+    let decoded = psi_terminal_codec::decode_module(&encoded).expect("decode affine scalar record");
+    assert_eq!(&decoded, module);
+    psi_terminal_verifier::validate_module(&decoded).expect("verify affine scalar record");
+
+    let mut forged = decoded;
+    let OperationKind::EstablishAffineScalarRecord { value, .. } =
+        &mut forged.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *value = IntegerValue::Unsigned(7);
+    assert!(psi_terminal_verifier::validate_module(&forged).is_err());
+}
+
+#[test]
 fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
     let source = r#"
         data Sink {}

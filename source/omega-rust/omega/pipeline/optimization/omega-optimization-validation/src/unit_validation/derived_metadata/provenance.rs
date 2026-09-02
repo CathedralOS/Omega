@@ -32,6 +32,7 @@ pub(crate) fn expected_provenance(
         | O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
+        | O::EstablishAffineScalarRecord { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
         | O::CallStructuralScalar { psi_operation, .. }
         | O::CallStructuralScalarWithDynamicArguments { psi_operation, .. }

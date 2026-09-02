@@ -4,6 +4,15 @@ use super::*;
 
 mod service_forward;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct AffineScalarRecordLocal {
+    pub(super) declaration_ordinal: u32,
+    pub(super) type_identity: String,
+    pub(super) field_identity: String,
+    pub(super) value: CheckedScalarExpression,
+    pub(super) symbol: SymbolHandle,
+}
+
 pub(super) fn build_unit_trivial_affine_locals(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -128,6 +137,159 @@ pub(super) fn build_unit_trivial_affine_locals(
             ))
         })
         .collect()
+}
+
+/// Recognize the first nontrivial affine local construction admitted by the
+/// attached-Unit path: one whole direct record with one relevant `i64` field
+/// initialized by an authored, already-landed integer literal. Ownership
+/// facts must show one establishment followed by one whole-root transfer.
+pub(super) fn build_unit_affine_scalar_record_local(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    statements: &[StatementNode],
+) -> Option<AffineScalarRecordLocal> {
+    let StatementNode::LocalData(local) = statements.first()? else {
+        return None;
+    };
+    if local.is_mutable
+        || !local.initial_value.is_valid()
+        || crate::checks::type_multiplicity(program, local.type_reference) != Multiplicity::Affine
+        || !parameter_qualifications(program, shapes, local.type_reference, binders)?.is_empty()
+        || type_graph_requires_nominal_drop(program, local.type_reference)
+    {
+        return None;
+    }
+    let TypeReferenceNode::Named {
+        symbol: record_symbol,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    let record = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *record_symbol)?;
+    let [DataMember::Field(field)] = program.data_members(record) else {
+        return None;
+    };
+    if field.relevance.is_erased()
+        || program.primitive_type_reference(field.type_reference) != Some(PrimitiveType::I64)
+    {
+        return None;
+    }
+    let ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    let [literal_field] = program.expression_table.struct_fields(literal.fields) else {
+        return None;
+    };
+    if literal.case_name.is_some()
+        || literal.type_symbol != *record_symbol
+        || literal_field.field_symbol != field.symbol
+    {
+        return None;
+    }
+    let ExpressionNode::Integer(value) = program.expression_table.expression(literal_field.value)
+    else {
+        return None;
+    };
+    let value = match value.landing() {
+        Some(landing) if landing.landed_type == psi_numerics::literals::LandedIntegerType::I64 => {
+            value.clone()
+        }
+        None => value.with_landing(psi_numerics::literals::IntegerLanding {
+            landed_type: psi_numerics::literals::LandedIntegerType::I64,
+            domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+        }),
+        Some(_) => return None,
+    };
+    if value.value_i64().is_none() {
+        return None;
+    }
+    let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
+    let field_identity = terminal_field_identity(program, field.symbol)?;
+    if !matches!(
+        shapes.types.get(&type_identity).map(|shape| &shape.shape),
+        Some(CheckedUnitStructuralTypeShape::Record { fields })
+            if matches!(fields.as_slice(), [candidate]
+                if candidate.identity == field_identity
+                    && candidate.relevance == psi_language_core::BindingRelevance::Relevant
+                    && candidate.field_type
+                        == CheckedUnitStructuralFieldType::Scalar(PrimitiveType::I64))
+    ) {
+        return None;
+    }
+    let local_events = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.root == psi_facts::PlaceRoot::Symbol(local.symbol)
+        })
+        .map(|(_, event)| event)
+        .collect::<Vec<_>>();
+    let [establishment, settlement] = local_events.as_slice() else {
+        return None;
+    };
+    let establishment_source = PermissionEventSource::Statement { statement_index: 0 };
+    let provenance = psi_language_semantics::PermissionProvenance::Established {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        source: establishment_source,
+    };
+    if establishment.source != establishment_source
+        || establishment.kind != PermissionEventKind::Establish
+        || establishment.multiplicity != Multiplicity::Affine
+        || establishment.access != PermissionAccess::Owned
+        || establishment.claim_identity != PermissionClaimIdentity::Unknown
+        || establishment.provenance != provenance
+        || establishment.obligation_live
+        || !facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(establishment.segments)
+            .is_empty()
+        || !matches!(
+            (settlement.source, settlement.kind),
+            (
+                PermissionEventSource::Call { .. },
+                PermissionEventKind::Transfer
+            )
+        )
+        || settlement.multiplicity != Multiplicity::Affine
+        || settlement.access != PermissionAccess::Owned
+        || settlement.claim_identity != PermissionClaimIdentity::Unknown
+        || settlement.provenance != provenance
+        || settlement.obligation_live
+        || !facts
+            .flow
+            .ownership
+            .segments
+            .span_or_empty(settlement.segments)
+            .is_empty()
+    {
+        return None;
+    }
+    Some(AffineScalarRecordLocal {
+        declaration_ordinal: 0,
+        type_identity,
+        field_identity,
+        value: CheckedScalarExpression::IntegerLiteral { literal: value },
+        symbol: local.symbol,
+    })
 }
 
 pub(super) fn build_affine_array_construction_prefix(
@@ -427,6 +589,7 @@ pub(super) fn build_call_operation(
     state: &psi_typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    caller_affine_scalar_record_locals: &[AffineScalarRecordLocal],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
@@ -761,6 +924,7 @@ pub(super) fn build_call_operation(
         state,
         caller_parameters,
         caller_trivial_affine_locals,
+        caller_affine_scalar_record_locals,
         target_machine,
         target_state,
         &call_site,
@@ -1423,6 +1587,7 @@ pub(super) fn structural_call_arguments(
     caller_state: &psi_typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+    caller_affine_scalar_record_locals: &[AffineScalarRecordLocal],
     target_machine: &psi_typed_trees::machine::Machine,
     target_state: &psi_typed_trees::state::State,
     call_site: &crate::CallSite<'_>,
@@ -1557,6 +1722,50 @@ pub(super) fn structural_call_arguments(
             }
             output.push(CheckedUnitStructuralArgumentPlan {
                 source: CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+                    declaration_ordinal: local.declaration_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: target_identity,
+                access: CheckedStructuralAccess::Owned,
+            });
+            continue;
+        }
+        if let Some(local) = caller_affine_scalar_record_locals
+            .iter()
+            .find(|local| local.symbol == source_symbol)
+        {
+            let exact_transfer = facts.flow.ownership.permissions.iter().any(|(_, event)| {
+                event.machine_symbol == caller_machine.symbol
+                    && event.state_symbol == caller_state.symbol
+                    && event.source
+                        == PermissionEventSource::Call {
+                            statement_index: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                            target_symbol: call.target_symbol,
+                        }
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.multiplicity == Multiplicity::Affine
+                    && event.access == PermissionAccess::Owned
+                    && event.claim_identity == PermissionClaimIdentity::Unknown
+                    && !event.obligation_live
+                    && event.root == psi_facts::PlaceRoot::Symbol(source_symbol)
+                    && facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments)
+                        .is_empty()
+            });
+            if !place.segments.is_empty()
+                || local.type_identity != target_identity
+                || structural_access_for_type_reference(program, target.type_reference)?
+                    != CheckedStructuralAccess::Owned
+                || !exact_transfer
+            {
+                return None;
+            }
+            output.push(CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
                     declaration_ordinal: local.declaration_ordinal,
                 },
                 path: Vec::new(),
@@ -1992,7 +2201,10 @@ pub(super) fn call_claim_transfers(
         }
         let source_parameter_index = argument.source_parameter_index();
         if source_parameter_index.is_none() {
-            if argument.source_local_declaration_ordinal().is_none()
+            if (argument.source_local_declaration_ordinal().is_none()
+                && argument
+                    .source_affine_scalar_record_local_declaration_ordinal()
+                    .is_none())
                 || !argument.path.is_empty()
                 || argument.access != CheckedStructuralAccess::Owned
             {

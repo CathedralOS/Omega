@@ -137,6 +137,19 @@ pub(super) fn assign(
             place: place.clone(),
             structural_type: structural_type.clone(),
         },
+        TargetUnitOperation::EstablishAffineScalarRecord {
+            psi_operation,
+            result,
+            field,
+            value,
+            shape,
+        } => AssignedUnitOperation::EstablishAffineScalarRecord {
+            psi_operation: *psi_operation,
+            result: result.clone(),
+            field: *field,
+            value: *value,
+            shape: *shape,
+        },
         TargetUnitOperation::Call {
             psi_operation,
             callee,
@@ -156,7 +169,7 @@ pub(super) fn assign(
                         && parameter.shape == argument.source.shape
                         && parameter.placement == argument.source
                 });
-                let local_source = preceding_operations
+                let trivial_local_source = preceding_operations
                     .iter()
                     .filter_map(|preceding| match preceding {
                         TargetUnitOperation::EstablishTrivialAffineLocal {
@@ -169,7 +182,7 @@ pub(super) fn assign(
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                let exact_local = matches!(local_source.as_slice(), [(establishment, place, structural_type)]
+                let exact_trivial_local = matches!(trivial_local_source.as_slice(), [(establishment, place, structural_type)]
                     if argument.path.is_empty()
                         && argument.access == psi_terminal::StructuralAccess::Owned
                         && argument.root_structural_type == structural_type.id
@@ -203,7 +216,50 @@ pub(super) fn assign(
                             _ => false,
                         })
                         && *establishment != *psi_operation);
-                !parameter_source && !exact_local
+                let affine_scalar_record_source = preceding_operations
+                    .iter()
+                    .filter_map(|preceding| match preceding {
+                        TargetUnitOperation::EstablishAffineScalarRecord {
+                            psi_operation,
+                            result,
+                            field,
+                            value,
+                            shape,
+                        } if result.place == argument.place => {
+                            Some((*psi_operation, result, *field, *value, *shape))
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                let exact_affine_scalar_record = matches!(
+                    affine_scalar_record_source.as_slice(),
+                    [(establishment, result, _, _, shape)]
+                        if argument.path.is_empty()
+                            && argument.access == psi_terminal::StructuralAccess::Owned
+                            && argument.root_structural_type == result.structural_type
+                            && argument.structural_type == result.structural_type
+                            && argument.shape == ValueShape::integer(8, 8)
+                            && *shape == argument.shape
+                            && argument.source.shape == argument.shape
+                            && argument.source.locations.is_empty()
+                            && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.claims.is_empty()
+                            && !preceding_operations.iter().any(|preceding| match preceding {
+                                TargetUnitOperation::Call { arguments, .. }
+                                | TargetUnitOperation::StructuralScalarCall { arguments, .. } => {
+                                    arguments.iter().any(|candidate| {
+                                        candidate.place == argument.place
+                                            && candidate.path.is_empty()
+                                            && candidate.access == psi_terminal::StructuralAccess::Owned
+                                    })
+                                }
+                                _ => false,
+                            })
+                            && *establishment != *psi_operation
+                );
+                !parameter_source && !exact_trivial_local && !exact_affine_scalar_record
             }) {
                 return Err(invalid());
             }

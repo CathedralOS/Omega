@@ -45,6 +45,17 @@ use super::{
     stack_adjustment_pair, x86_unit_register,
 };
 
+type EstablishedAffineScalarRecords = std::collections::BTreeMap<
+    psi_core::PlaceId,
+    (
+        OperationId,
+        psi_terminal::StructuralOperationResult,
+        psi_core::StructuralFieldId,
+        psi_core::IntegerValue,
+        ValueShape,
+    ),
+>;
+
 pub(super) struct UnitEmission {
     pub(super) bytes: Vec<u8>,
     pub(super) internal_calls: Vec<InternalCallRelocation>,
@@ -58,6 +69,8 @@ pub(super) struct UnitEmission {
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
     pub(super) integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub(super) affine_scalar_records:
+        Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub(super) structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
     pub(super) x86_scalar_fma: Vec<omega_machine_code::X86ScalarFmaFragment>,
     pub(super) x86_scalar_fma_occurrences: Vec<X86ScalarFmaOccurrenceRecord>,
@@ -729,6 +742,7 @@ pub(super) fn emit_unit_body(
     let mut dynamic_scalar_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
+    let mut unit_affine_scalar_records = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
@@ -896,6 +910,7 @@ pub(super) fn emit_unit_body(
     let mut established_affine_locals = Vec::new();
     let mut established_byte_sequences = std::collections::BTreeMap::new();
     let mut established_integer_constants = std::collections::BTreeMap::new();
+    let mut established_affine_scalar_records = std::collections::BTreeMap::new();
     let mut established_ieee_float_constants = std::collections::BTreeMap::new();
     let mut pending_conditional: Option<(usize, usize, u8)> = None;
     for (operation_ordinal, operation) in body.operations.iter().enumerate() {
@@ -1088,6 +1103,59 @@ pub(super) fn emit_unit_body(
                 operation_site = Some(*psi_operation);
                 established_affine_locals.push((*psi_operation, *place, structural_type.clone()));
             }
+            AssignedUnitOperation::EstablishAffineScalarRecord {
+                psi_operation,
+                result,
+                field,
+                value,
+                shape,
+            } => {
+                operation_site = Some(*psi_operation);
+                let exact_type = body.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            &declaration.shape,
+                            psi_terminal::StructuralTypeShape::Record { fields }
+                                if matches!(fields.as_slice(), [candidate]
+                                    if candidate.id == *field
+                                        && candidate.relevance
+                                            == psi_terminal::BindingRelevance::Relevant
+                                        && matches!(candidate.field_type,
+                                            psi_terminal::StructuralFieldType::Scalar(
+                                                psi_core::ScalarType::Integer(integer)
+                                            ) if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                                && integer.sign() == psi_core::IntegerSign::Signed
+                                                && integer.bits() == 64))
+                        )
+                });
+                let exact_value = matches!(value, psi_core::IntegerValue::Signed(value) if i64::try_from(*value).is_ok());
+                if *shape != ValueShape::integer(8, 8)
+                    || result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                    || !exact_type
+                    || !exact_value
+                    || established_affine_scalar_records
+                        .insert(
+                            result.place,
+                            (*psi_operation, result.clone(), *field, *value, *shape),
+                        )
+                        .is_some()
+                {
+                    return Err(EmissionError::UnsupportedAggregatePlacement);
+                }
+                unit_affine_scalar_records.push(
+                    omega_machine_code::UnitAffineScalarRecordEstablishmentRecord {
+                        psi_operation: *psi_operation,
+                        result: result.clone(),
+                        field: *field,
+                        value: *value,
+                        shape: *shape,
+                        operation_ordinal,
+                    },
+                );
+            }
             AssignedUnitOperation::Call {
                 psi_operation,
                 callee,
@@ -1106,6 +1174,7 @@ pub(super) fn emit_unit_body(
                         target,
                         &x86_homes,
                         &established_affine_locals,
+                        &established_affine_scalar_records,
                         &mut internal_calls,
                     )?,
                     Architecture::Aarch64 => emit_aarch64_unit_call(
@@ -1115,6 +1184,7 @@ pub(super) fn emit_unit_body(
                         copies,
                         &aarch64_homes,
                         &established_affine_locals,
+                        &established_affine_scalar_records,
                         &mut internal_calls,
                     )?,
                 };
@@ -2106,6 +2176,7 @@ pub(super) fn emit_unit_body(
                                     target,
                                     &x86_homes,
                                     &established_affine_locals,
+                                    &established_affine_scalar_records,
                                     &mut internal_calls,
                                 )?;
                             }
@@ -2117,6 +2188,7 @@ pub(super) fn emit_unit_body(
                                     &[],
                                     &aarch64_homes,
                                     &established_affine_locals,
+                                    &established_affine_scalar_records,
                                     &mut internal_calls,
                                 )?;
                             }
@@ -2207,6 +2279,7 @@ pub(super) fn emit_unit_body(
         forwarded_dynamic_descriptor_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
+        affine_scalar_records: unit_affine_scalar_records,
         structural_scalar_field_stores: unit_structural_scalar_field_stores,
         x86_scalar_fma,
         x86_scalar_fma_occurrences,
@@ -2406,6 +2479,64 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
         )
 }
 
+fn affine_scalar_record_bits(value: psi_core::IntegerValue) -> Result<u64, EmissionError> {
+    let psi_core::IntegerValue::Signed(value) = value else {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    };
+    let value = i64::try_from(value).map_err(|_| EmissionError::UnsupportedAggregatePlacement)?;
+    Ok(u64::from_le_bytes(value.to_le_bytes()))
+}
+
+fn emit_x86_64_affine_scalar_record_argument(
+    bytes: &mut Vec<u8>,
+    copy: &AssignedAggregateCopy,
+    value: psi_core::IntegerValue,
+) -> Result<(), EmissionError> {
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = copy.destination.locations.as_slice()
+    else {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    };
+    let register = x86_unit_register(*register)?;
+    bytes.push(0x48 | ((register >> 3) & 1));
+    bytes.push(0xb8 | (register & 7));
+    bytes.extend_from_slice(&affine_scalar_record_bits(value)?.to_le_bytes());
+    Ok(())
+}
+
+fn emit_aarch64_affine_scalar_record_argument(
+    instructions: &mut Vec<u32>,
+    copy: &AssignedAggregateCopy,
+    value: psi_core::IntegerValue,
+) -> Result<(), EmissionError> {
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = copy.destination.locations.as_slice()
+    else {
+        return Err(EmissionError::UnsupportedAggregatePlacement);
+    };
+    let register = aarch64_unit_register(*register)?;
+    let bits = affine_scalar_record_bits(value)?;
+    for chunk in 0..4 {
+        let immediate = ((bits >> (chunk * 16)) & 0xffff) as u32;
+        if chunk == 0 || immediate != 0 {
+            let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
+            instructions
+                .push(base | ((chunk as u32) << 21) | (immediate << 5) | u32::from(register));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn emit_x86_64_unit_call(
     bytes: &mut Vec<u8>,
     owner: CallSiteOwner,
@@ -2418,6 +2549,7 @@ pub(super) fn emit_x86_64_unit_call(
         psi_terminal::StructuralPlaceDeclaration,
         psi_terminal::StructuralTypeDeclaration,
     )],
+    established_affine_scalar_records: &EstablishedAffineScalarRecords,
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
@@ -2446,6 +2578,32 @@ pub(super) fn emit_x86_64_unit_call(
     for copy in copies {
         let copy_offset = bytes.len();
         let Some(home) = homes.iter().find(|home| home.place == copy.place) else {
+            if let Some((_, result, _, value, shape)) =
+                established_affine_scalar_records.get(&copy.place)
+            {
+                if copy.path.is_empty()
+                    && copy.access == psi_terminal::StructuralAccess::Owned
+                    && copy.source_byte_offset == 0
+                    && copy.root_structural_type == result.structural_type
+                    && copy.structural_type == result.structural_type
+                    && copy.shape == *shape
+                    && copy.source.shape == *shape
+                    && copy.source.locations.is_empty()
+                    && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+                {
+                    emit_x86_64_affine_scalar_record_argument(bytes, copy, *value)?;
+                    argument_intervals.push((
+                        copy_offset,
+                        bytes.len() - copy_offset,
+                        0,
+                        call_stack_bytes,
+                    ));
+                    continue;
+                }
+            }
             let local = established_affine_locals
                 .iter()
                 .find(|(_, place, _)| place.id == copy.place)
@@ -2514,6 +2672,7 @@ pub(super) fn emit_aarch64_unit_call(
         psi_terminal::StructuralPlaceDeclaration,
         psi_terminal::StructuralTypeDeclaration,
     )],
+    established_affine_scalar_records: &EstablishedAffineScalarRecords,
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
@@ -2533,6 +2692,32 @@ pub(super) fn emit_aarch64_unit_call(
     for copy in copies {
         let instruction_offset = instructions.len();
         let Some(home) = homes.iter().find(|home| home.place == copy.place) else {
+            if let Some((_, result, _, value, shape)) =
+                established_affine_scalar_records.get(&copy.place)
+            {
+                if copy.path.is_empty()
+                    && copy.access == psi_terminal::StructuralAccess::Owned
+                    && copy.source_byte_offset == 0
+                    && copy.root_structural_type == result.structural_type
+                    && copy.structural_type == result.structural_type
+                    && copy.shape == *shape
+                    && copy.source.shape == *shape
+                    && copy.source.locations.is_empty()
+                    && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+                {
+                    emit_aarch64_affine_scalar_record_argument(&mut instructions, copy, *value)?;
+                    argument_intervals.push((
+                        bytes.len() + instruction_offset * 4,
+                        (instructions.len() - instruction_offset) * 4,
+                        0,
+                        call_stack_bytes,
+                    ));
+                    continue;
+                }
+            }
             let local = established_affine_locals
                 .iter()
                 .find(|(_, place, _)| place.id == copy.place)

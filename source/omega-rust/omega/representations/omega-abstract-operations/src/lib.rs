@@ -520,6 +520,15 @@ pub enum AbstractOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
+    /// Atomically establish one complete owned-affine record from its exact
+    /// fixed-width scalar field. The operation-result place remains semantic
+    /// custody; target lowering must assign a physical home before use.
+    EstablishAffineScalarRecord {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        field: psi_core::StructuralFieldId,
+        value: IntegerValue,
+    },
     CallUnit {
         psi_operation: OperationId,
         callee: MachineId,

@@ -47,6 +47,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::EstablishPayloadlessCase { .. }
         | AbstractOperation::EstablishByteSequenceLiteral { .. }
         | AbstractOperation::EstablishTrivialAffineLocal { .. }
+        | AbstractOperation::EstablishAffineScalarRecord { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }

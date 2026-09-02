@@ -68,6 +68,7 @@ pub(super) fn lower_operation(
             });
         }
         AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+        | AbstractOperation::EstablishAffineScalarRecord { psi_operation, .. }
         | AbstractOperation::CallUnit { psi_operation, .. }
         | AbstractOperation::PortWrite { psi_operation, .. } => {
             return Err(LoweringError::UnitOperationInScalarFunction {

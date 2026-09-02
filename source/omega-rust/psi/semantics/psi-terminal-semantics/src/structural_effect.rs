@@ -1,8 +1,8 @@
 //! Exact structural/effect leaf schemas and their local observations.
 
 use psi_core::{
-    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseSubject,
-    StructuralFieldId, ValueId,
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, PlaceId, Proposition, ScalarTerm,
+    ScalarType, ServiceId, StructuralCaseSubject, StructuralFieldId, ValueId,
 };
 use psi_terminal::{Operation, OperationKind, OperationResult};
 
@@ -25,6 +25,7 @@ pub enum StructuralEffectCustody {
     ExactLiveIntegerField,
     ExactPublishedService,
     ExactEmptyAffineLocal,
+    ExactAffineScalarRecord,
     ExactPayloadlessCase,
 }
 
@@ -37,6 +38,7 @@ pub enum StructuralEffectAction {
     ReadIntegerField,
     EmitPortWrite,
     EstablishAffinePlace,
+    EstablishAffineScalarRecord,
     EstablishPayloadlessCase,
 }
 
@@ -125,7 +127,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self {
             tag: OperationSemanticTag::WriteOnlyPrimitiveStore,
             schema: structural_effect_leaf(
@@ -206,6 +208,16 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectFrontierPolicy::AddsAffinePlace,
             ),
         },
+        Self {
+            tag: OperationSemanticTag::EstablishAffineScalarRecord,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactAffineScalarRecord,
+                StructuralEffectAction::EstablishAffineScalarRecord,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::AddsAffinePlace,
+            ),
+        },
     ];
 
     pub const fn tag(self) -> OperationSemanticTag {
@@ -228,6 +240,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
             | OperationSemanticTag::EstablishTrivialAffineLocal
+            | OperationSemanticTag::EstablishAffineScalarRecord
     )
 }
 
@@ -277,6 +290,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
         OperationSemanticTag::EstablishTrivialAffineLocal,
+        OperationSemanticTag::EstablishAffineScalarRecord,
     ] {
         let row = exact_structural_effect_semantic_row_in(tag, rows)?
             .expect("the requested tag belongs to the structural/effect cohort");
@@ -314,6 +328,10 @@ pub enum StructuralEffectObservation {
     AffinePlaceEstablished {
         destination: PlaceId,
     },
+    AffineScalarRecordEstablished {
+        destination: PlaceId,
+        equation: Proposition,
+    },
     PayloadlessCaseEstablished(Proposition),
 }
 
@@ -321,7 +339,11 @@ impl StructuralEffectObservation {
     pub fn local_equation(&self) -> Option<&Proposition> {
         match self {
             Self::BooleanFieldEquation(proposition)
-            | Self::PayloadlessCaseEstablished(proposition) => Some(proposition),
+            | Self::PayloadlessCaseEstablished(proposition)
+            | Self::AffineScalarRecordEstablished {
+                equation: proposition,
+                ..
+            } => Some(proposition),
             Self::PrimitiveStored { .. }
             | Self::ScalarFieldStored { .. }
             | Self::ByteSequencePlaceEstablished { .. }
@@ -349,6 +371,9 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EmitPortWrite => OperationSemanticTag::PortWrite,
         StructuralEffectAction::EstablishAffinePlace => {
             OperationSemanticTag::EstablishTrivialAffineLocal
+        }
+        StructuralEffectAction::EstablishAffineScalarRecord => {
+            OperationSemanticTag::EstablishAffineScalarRecord
         }
         StructuralEffectAction::EstablishPayloadlessCase => {
             OperationSemanticTag::EstablishPayloadlessCase
@@ -399,6 +424,12 @@ fn validate_structural_effect_schema(
             StructuralEffectAction::EstablishAffinePlace => {
                 schema.result == StructuralEffectResultShape::Unit
                     && schema.custody == StructuralEffectCustody::ExactEmptyAffineLocal
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
+            }
+            StructuralEffectAction::EstablishAffineScalarRecord => {
+                schema.result == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactAffineScalarRecord
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
             }
@@ -542,6 +573,28 @@ pub fn structural_effect_leaf_observation_in(
         ) => StructuralEffectObservation::AffinePlaceEstablished {
             destination: *destination,
         },
+        (
+            StructuralEffectAction::EstablishAffineScalarRecord,
+            OperationKind::EstablishAffineScalarRecord { field, value },
+        ) => {
+            let result = operation
+                .result
+                .structural()
+                .expect("validated affine scalar-record structural result");
+            let integer_type = IntegerType::new(IntegerSign::Signed, 64)
+                .expect("signed i64 is a valid fixed integer type");
+            let field_term = ScalarTerm::integer_field_path(
+                result.place,
+                vec![CanonicalStructuralPathSegment::Field(*field)],
+                integer_type,
+            );
+            let literal_term = ScalarTerm::integer(integer_type, *value)
+                .map_err(OperationSemanticError::InvalidProposition)?;
+            StructuralEffectObservation::AffineScalarRecordEstablished {
+                destination: result.place,
+                equation: Proposition::Equal(field_term, literal_term),
+            }
+        }
         _ => {
             return Err(OperationSemanticError::StructuralEffectActionShapeMismatch(
                 tag,
@@ -583,6 +636,7 @@ mod tests {
                 OperationSemanticTag::IntegerStructuralField,
                 OperationSemanticTag::PortWrite,
                 OperationSemanticTag::EstablishTrivialAffineLocal,
+                OperationSemanticTag::EstablishAffineScalarRecord,
             ]),
         );
         let boolean = structural_effect_semantic_row(&OperationKind::BooleanStructuralField {

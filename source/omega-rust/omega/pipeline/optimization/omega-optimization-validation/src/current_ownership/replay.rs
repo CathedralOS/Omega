@@ -278,9 +278,9 @@ pub(super) fn validate_current_ownership_cfg(
             }
 
             let structural_result = match &node.operation {
-                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
-                    Some(result)
-                }
+                O::EstablishPayloadlessCase { result, .. }
+                | O::EstablishAffineScalarRecord { result, .. }
+                | O::CallStructural { result, .. } => Some(result),
                 _ => None,
             };
             if let Some(result) = structural_result {

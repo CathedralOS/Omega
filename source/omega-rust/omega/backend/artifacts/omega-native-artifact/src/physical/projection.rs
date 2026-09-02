@@ -254,6 +254,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
         | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+        | AbstractOperation::EstablishAffineScalarRecord { psi_operation, .. }
         | AbstractOperation::CallUnit { psi_operation, .. }
         | AbstractOperation::CallStructuralScalar { psi_operation, .. }
         | AbstractOperation::CallStructuralScalarWithDynamicArguments { psi_operation, .. }

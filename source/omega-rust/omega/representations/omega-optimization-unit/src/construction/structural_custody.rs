@@ -11,7 +11,9 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | O::EstablishTrivialAffineLocal { place, .. } => {
             places.insert(place.id);
         }
-        O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
+        O::EstablishPayloadlessCase { result, .. }
+        | O::EstablishAffineScalarRecord { result, .. }
+        | O::CallStructural { result, .. } => {
             places.insert(result.place);
         }
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
@@ -54,6 +56,11 @@ pub(super) fn collect_operation_structural_places(
 ) {
     match operation {
         AbstractOperation::EstablishPayloadlessCase {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::EstablishAffineScalarRecord {
             psi_operation,
             result,
             ..

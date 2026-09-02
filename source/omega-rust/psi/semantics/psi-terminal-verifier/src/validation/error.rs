@@ -462,6 +462,13 @@ pub enum ModuleError {
         structural_type: psi_core::StructuralTypeId,
         result_case: psi_core::StructuralCaseId,
     },
+    AffineScalarRecordResultMismatch(OperationId),
+    AffineScalarRecordRequiresSingleI64Field {
+        operation: OperationId,
+        structural_type: StructuralTypeId,
+        field: StructuralFieldId,
+    },
+    AffineScalarRecordValueOutsideI64(OperationId),
     WriteOnlyPrimitiveStoreDestinationMismatch {
         operation: OperationId,
         place: PlaceId,

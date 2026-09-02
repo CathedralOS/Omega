@@ -45,20 +45,6 @@ stop the item on one precise owner question before adding machinery.
     single-instantiation scalar-helper, nested-expression, and
     selected-provider-chain cohort only as another concrete language form
     requires it;
-  - finish the rooted/package D32 settlement for the fixed-token
-    structural-result lane. Exact native custody is now landed from Terminal
-    through Abstract, native ABI lowering, assignment, machine emission,
-    object/image replay, and installation encoding on Linux x86-64 and
-    AArch64. It binds one fixed-width scalar prefix, one whole owned-affine
-    direct 8-byte integer record, the claim-free affine result placement, and
-    mandatory caller discard; corruption tests reject slot substitution,
-    injected claims, and removed cleanup. D32 recognizes the distinct Terminal
-    operation as the emitted internal call. The remaining proof is a rooted
-    `NativeArtifact` canary with a supported source ingress for that nontrivial
-    affine operand. Do not broaden hosted `ProgramEntry` authority or call the
-    source-to-installation harness D32 merely to close the test. Projections,
-    borrows, services, content evidence, wider layouts, and wider cleanup
-    shapes remain fail-closed;
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed normalized-import

@@ -171,6 +171,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishAffineScalarRecord { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }

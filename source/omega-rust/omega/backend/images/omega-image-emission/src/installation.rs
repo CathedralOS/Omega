@@ -89,7 +89,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 60;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 61;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -468,6 +468,8 @@ pub struct InstalledFunction {
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub unit_affine_scalar_records:
+        Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
     pub scalar_structural_scalar_field_store:
@@ -713,6 +715,7 @@ where
                 unit_parameter_homes: function.unit_parameter_homes.clone(),
                 unit_scalar_homes: function.unit_scalar_homes.clone(),
                 unit_integer_constants: function.unit_integer_constants.clone(),
+                unit_affine_scalar_records: function.unit_affine_scalar_records.clone(),
                 unit_structural_scalar_field_stores: function
                     .unit_structural_scalar_field_stores
                     .clone(),
@@ -1197,6 +1200,7 @@ pub fn validate_installation_record(
                     || installed.unit_parameter_homes != emitted.unit_parameter_homes
                     || installed.unit_scalar_homes != emitted.unit_scalar_homes
                     || installed.unit_integer_constants != emitted.unit_integer_constants
+                    || installed.unit_affine_scalar_records != emitted.unit_affine_scalar_records
                     || installed.unit_structural_scalar_field_stores
                         != emitted.unit_structural_scalar_field_stores
                     || installed.scalar_structural_scalar_field_store
@@ -4113,6 +4117,8 @@ pub enum InstallationError {
     TooManyScalarCallPlanRegisters,
     TooManyUnitScalarHomes,
     TooManyUnitIntegerConstants,
+    TooManyUnitAffineScalarRecords,
+    InvalidUnitAffineScalarRecord,
     TooManyUnitStructuralScalarFieldStores,
     TooManyUnitStructuralScalarFieldStoreBytes,
     TooManyStructuralReturnParameters,
@@ -4324,6 +4330,7 @@ mod resource_tests {
             unit_parameter_homes: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
             scalar_structural_scalar_field_store: None,
             unit_affine_cleanup: None,

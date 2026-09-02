@@ -25,3 +25,10 @@ scope is bound into artifact identity. Unsupported D29/D41 roles and later
 optimization phases yield no D32 evidence while the underlying native artifact
 remains usable. Consumers requiring final-realization evidence must reject that
 absence.
+
+The rooted fixed-token structural-result cohort includes one claim-free affine
+record with one relevant signed 64-bit integer field. Source construction,
+single owned Unit-call transfer, mixed-input structural return, mandatory caller
+discard, native argument materialization, object/image replay, and installation
+transport are exact on Linux x86-64 and AArch64. Wider records, projections,
+borrows, services, and content evidence remain outside this cohort.

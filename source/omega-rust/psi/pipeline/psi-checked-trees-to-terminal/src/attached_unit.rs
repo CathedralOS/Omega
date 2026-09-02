@@ -491,6 +491,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
@@ -902,6 +903,7 @@ pub(super) fn lower_attached_unit_closure_including(
         let mut next_literal_argument = 0usize;
         let mut next_value_identity = next_value;
         let mut scalar_result_values = scalar_parameters.clone();
+        let mut affine_scalar_record_places = Vec::<StructuralPlaceDeclaration>::new();
         let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let mut source_call = None;
@@ -933,6 +935,81 @@ pub(super) fn lower_attached_unit_closure_including(
                         destination: local.id,
                     }
                 }
+                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                    declaration_ordinal,
+                    type_identity,
+                    field_identity,
+                    value,
+                    ..
+                } => {
+                    if usize::try_from(*declaration_ordinal).ok()
+                        != Some(affine_scalar_record_places.len())
+                    {
+                        return unsupported("Unit affine scalar-record local ordinal is not dense");
+                    }
+                    let structural_type = lookup_type_id(&type_ids, type_identity)?;
+                    let declaration = structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit affine scalar-record local type is absent",
+                        ))?;
+                    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                        return unsupported(
+                            "Unit affine scalar-record local is not a direct record",
+                        );
+                    };
+                    let [field] = fields.as_slice() else {
+                        return unsupported(
+                            "Unit affine scalar-record local does not have exactly one field",
+                        );
+                    };
+                    let expected_scalar_type = terminal_scalar_type(PrimitiveType::I64)?;
+                    if field.identity != *field_identity
+                        || field.relevance != psi_terminal::BindingRelevance::Relevant
+                        || field.field_type != StructuralFieldType::Scalar(expected_scalar_type)
+                    {
+                        return unsupported(
+                            "Unit affine scalar-record field drifted from checked custody",
+                        );
+                    }
+                    let CheckedScalarExpression::IntegerLiteral { literal } = value else {
+                        return unsupported(
+                            "Unit affine scalar-record value is not an integer literal",
+                        );
+                    };
+                    if integer_landing_scalar_type(literal)? != expected_scalar_type {
+                        return unsupported(
+                            "Unit affine scalar-record value is not an exact signed i64",
+                        );
+                    }
+                    let operation_id = operations.allocate();
+                    let result_place = place_id(allocate_dense(&mut next_place)?);
+                    let result_declaration = StructuralPlaceDeclaration {
+                        id: result_place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: operation_id,
+                            structural_type,
+                        },
+                    };
+                    operations.push(Operation {
+                        id: operation_id,
+                        result: OperationResult::Structural(StructuralOperationResult {
+                            place: result_place,
+                            structural_type,
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        }),
+                        kind: OperationKind::EstablishAffineScalarRecord {
+                            field: field.id,
+                            value: integer_value(literal, expected_scalar_type)?,
+                        },
+                    });
+                    affine_scalar_record_places.push(result_declaration);
+                    continue;
+                }
                 CheckedUnitEffectOperationPlan::CallUnit {
                     coordinate,
                     target_machine,
@@ -947,6 +1024,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         claim_transfers,
                         parameters,
                         &local_places,
+                        &affine_scalar_record_places,
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -960,6 +1038,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                         parameters,
                         &local_places,
+                        &affine_scalar_record_places,
                         &[],
                     )?;
                     let target_parameters = lowered_machine_parameters
@@ -997,6 +1076,7 @@ pub(super) fn lower_attached_unit_closure_including(
                                         argument,
                                         parameters,
                                         &local_places,
+                                        &affine_scalar_record_places,
                                         &structural_types,
                                     )?,
                                 ),
@@ -1262,6 +1342,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         &[],
                         parameters,
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1301,8 +1382,13 @@ pub(super) fn lower_attached_unit_closure_including(
                             ))
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
-                    let arguments =
-                        lower_structural_arguments(structural_arguments, parameters, &[], &[])?;
+                    let arguments = lower_structural_arguments(
+                        structural_arguments,
+                        parameters,
+                        &[],
+                        &[],
+                        &[],
+                    )?;
                     let value = ValueDeclaration {
                         id: value_id(next_value_identity),
                         scalar_type: terminal_scalar_type(result.primitive_type)?,
@@ -1380,6 +1466,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         &[],
                         parameters,
                         &[],
+                        &[],
                         std::slice::from_ref(&target.structural_parameter),
                         &type_ids,
                         &structural_types,
@@ -1419,8 +1506,13 @@ pub(super) fn lower_attached_unit_closure_including(
                             ))
                         })
                         .collect::<Result<Vec<_>, LoweringError>>()?;
-                    let arguments =
-                        lower_structural_arguments(structural_arguments, parameters, &[], &[])?;
+                    let arguments = lower_structural_arguments(
+                        structural_arguments,
+                        parameters,
+                        &[],
+                        &[],
+                        &[],
+                    )?;
                     let operation_id = operations.allocate();
                     let result_place = place_id(allocate_dense(&mut next_place)?);
                     let result_type = lookup_type_id(&type_ids, &result.type_identity)?;
@@ -1613,6 +1705,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         completion_receipts,
                         parameters,
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1676,6 +1769,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &[],
                             &call_literal_places,
                         )?,
@@ -1744,6 +1838,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         completion_receipts,
                         parameters,
                         &[],
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1807,6 +1902,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &[],
                             &call_literal_places,
                         )?,
@@ -2085,6 +2181,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 })
                 .chain(provider_places.iter().cloned())
                 .chain(local_places.iter().cloned())
+                .chain(affine_scalar_record_places.iter().cloned())
                 .chain(literal_places.iter().cloned())
                 .chain(
                     structural_result_places

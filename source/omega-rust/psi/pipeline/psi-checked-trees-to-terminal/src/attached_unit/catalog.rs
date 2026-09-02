@@ -137,6 +137,10 @@ pub(super) fn lower_unit_structural_types(
         }
         for operation in &machine.operations {
             match operation {
+                CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                    type_identity,
+                    ..
+                } => roots.push(type_identity.clone()),
                 CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                     realization_machine,
                     realization_state,
@@ -608,6 +612,7 @@ pub(super) fn lower_unit_services(
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}

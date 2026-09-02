@@ -190,9 +190,9 @@ fn structural_operation_result_contract(
         .flat_map(|block| &block.nodes)
         .find_map(|node| {
             let result = match &node.operation {
-                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
-                    result
-                }
+                O::EstablishPayloadlessCase { result, .. }
+                | O::EstablishAffineScalarRecord { result, .. }
+                | O::CallStructural { result, .. } => result,
                 _ => return None,
             };
             (result.place == place).then_some(StructuralSourceContract {

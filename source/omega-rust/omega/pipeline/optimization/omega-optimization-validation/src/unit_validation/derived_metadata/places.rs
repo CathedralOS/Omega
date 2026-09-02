@@ -36,7 +36,9 @@ pub(crate) fn reconstruct_declared_places(
                 | O::EstablishTrivialAffineLocal { place, .. } => {
                     known_places.insert(place.id);
                 }
-                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
+                O::EstablishPayloadlessCase { result, .. }
+                | O::EstablishAffineScalarRecord { result, .. }
+                | O::CallStructural { result, .. } => {
                     known_places.insert(result.place);
                 }
                 _ => {}
@@ -65,7 +67,9 @@ pub(crate) fn validate_operation_places(
         }
     };
     match operation {
-        O::EstablishByteSequenceLiteral { .. } | O::EstablishTrivialAffineLocal { .. } => {}
+        O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishAffineScalarRecord { .. } => {}
         O::WriteOnlyPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {
             require(destination.place, known)?;

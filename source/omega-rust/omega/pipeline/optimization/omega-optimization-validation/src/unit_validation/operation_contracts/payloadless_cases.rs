@@ -1,5 +1,54 @@
 use super::*;
 
+pub(crate) fn affine_scalar_record_establishment_matches(
+    function: &PsiOptimizationFunction,
+    operation: &O,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let O::EstablishAffineScalarRecord {
+        psi_operation,
+        result,
+        field,
+        value,
+    } = operation
+    else {
+        return false;
+    };
+    let place_matches = function.structural_places.iter().any(|place| {
+        place.id == result.place
+            && matches!(
+                place.kind,
+                StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } if producer == *psi_operation && structural_type == result.structural_type
+            )
+    });
+    let exact_i64_field = types.get(&result.structural_type).is_some_and(|declaration| {
+        matches!(
+            &declaration.shape,
+            psi_terminal::StructuralTypeShape::Record { fields }
+                if matches!(fields.as_slice(), [candidate]
+                    if candidate.id == *field
+                        && candidate.relevance == psi_terminal::BindingRelevance::Relevant
+                        && matches!(candidate.field_type,
+                            psi_terminal::StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                                if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                    && integer.sign() == psi_core::IntegerSign::Signed
+                                    && integer.bits() == 64))
+        )
+    });
+    let i64_type =
+        psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 64).expect("signed i64 is valid");
+    place_matches
+        && result.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && exact_i64_field
+        && i64_type.admits(*value)
+}
+
 pub(crate) fn payloadless_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,

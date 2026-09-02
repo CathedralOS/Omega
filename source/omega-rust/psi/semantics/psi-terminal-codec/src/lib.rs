@@ -89,8 +89,8 @@ use module_wire::{decode_module_body, encode_raw};
 
 use proposition_wire::{decode_proposition, encode_proposition};
 use psi_core::{
-    ClaimId, ObligationId, PropositionError, PsiSemanticId, ScalarType, ServiceId,
-    StructuralPlaceKind, StructuralTypeId,
+    ClaimId, IntegerSign, IntegerValue, ObligationId, PropositionError, PsiSemanticId, ScalarType,
+    ServiceId, StructuralPlaceKind, StructuralTypeId,
 };
 use psi_terminal::{
     NominalAffineCleanup, Operation, OperationKind, OperationResult, StructuralAffineDiscard,
@@ -106,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 69;
+const FORMAT_MARKER: u16 = 70;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -1499,6 +1499,55 @@ fn validate_operation_foundation(
                 StructuralTypeShape::Record { fields } if fields.is_empty()
             ) {
                 return malformed("trivial affine local must have an empty record type");
+            }
+        }
+        OperationKind::EstablishAffineScalarRecord { field, value } => {
+            let Some(result) = operation.result.structural() else {
+                return malformed("affine scalar record has no structural result");
+            };
+            let Some(StructuralPlaceDeclaration {
+                kind:
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    },
+                ..
+            }) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == result.place)
+            else {
+                return malformed("affine scalar record has no operation-result declaration");
+            };
+            if *producer != operation.id
+                || *structural_type != result.structural_type
+                || result.multiplicity != StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return malformed("affine scalar record result custody is noncanonical");
+            }
+            let Some(declaration) = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+            else {
+                return malformed("affine scalar record has an unknown structural type");
+            };
+            if !matches!(
+                &declaration.shape,
+                StructuralTypeShape::Record { fields }
+                    if matches!(fields.as_slice(), [candidate]
+                        if candidate.id == *field
+                            && candidate.relevance == psi_terminal::BindingRelevance::Relevant
+                            && matches!(candidate.field_type,
+                                StructuralFieldType::Scalar(ScalarType::Integer(integer_type))
+                                    if integer_type.sign() == IntegerSign::Signed
+                                        && integer_type.bits() == 64))
+            ) || !matches!(value, IntegerValue::Signed(value) if i64::try_from(*value).is_ok())
+            {
+                return malformed("affine scalar record is not one exact signed-i64 field");
             }
         }
         OperationKind::Call { .. } => {

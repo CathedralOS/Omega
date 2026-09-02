@@ -1,8 +1,13 @@
 //! Canonical transport for fixed-width integer identities, durable Unit homes,
 //! and zero-code Unit integer definitions.
 
-use omega_machine_code::{UnitIntegerConstantRecord, UnitScalarHomeRecord};
-use psi_core::{IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
+use omega_machine_code::{
+    UnitAffineScalarRecordEstablishmentRecord, UnitIntegerConstantRecord, UnitScalarHomeRecord,
+};
+use psi_core::{
+    IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType, StructuralFieldId,
+    StructuralTypeId, ValueId,
+};
 
 use super::{
     InstallationError, Reader, push_u16, push_u32, push_u64, push_u128,
@@ -213,11 +218,118 @@ pub(super) fn decode_unit_integer_constants(
     Ok(constants)
 }
 
+pub(super) fn encode_unit_affine_scalar_records(
+    bytes: &mut Vec<u8>,
+    records: &[UnitAffineScalarRecordEstablishmentRecord],
+) -> Result<(), InstallationError> {
+    push_u32(
+        bytes,
+        u32::try_from(records.len())
+            .map_err(|_| InstallationError::TooManyUnitAffineScalarRecords)?,
+    );
+    for record in records {
+        if record.result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+            || !record.result.qualifications.is_empty()
+            || !record.result.projected_qualifications.is_empty()
+            || !record.result.claims.is_empty()
+            || record.shape != omega_calling_conventions::ValueShape::integer(8, 8)
+            || !matches!(record.value, IntegerValue::Signed(value) if i64::try_from(value).is_ok())
+        {
+            return Err(InstallationError::InvalidUnitAffineScalarRecord);
+        }
+        push_u64(bytes, record.psi_operation.get());
+        push_u64(bytes, record.result.place.get());
+        push_u64(bytes, record.result.structural_type.get());
+        push_u64(bytes, record.field.get());
+        encode_integer_value(bytes, record.value);
+        encode_shape(bytes, record.shape)?;
+        push_u64(
+            bytes,
+            u64::try_from(record.operation_ordinal)
+                .map_err(|_| InstallationError::InstalledScalarOffsetNotRepresentable)?,
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn decode_unit_affine_scalar_records(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<UnitAffineScalarRecordEstablishmentRecord>, InstallationError> {
+    let count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyUnitAffineScalarRecords)?;
+    if count > reader.remaining() / 64 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut records = Vec::with_capacity(count);
+    for _ in 0..count {
+        let record = UnitAffineScalarRecordEstablishmentRecord {
+            psi_operation: OperationId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidUnitAffineScalarRecord)?,
+            result: psi_terminal::StructuralOperationResult {
+                place: PlaceId::new(reader.u64()?)
+                    .ok_or(InstallationError::InvalidUnitAffineScalarRecord)?,
+                structural_type: StructuralTypeId::new(reader.u64()?)
+                    .ok_or(InstallationError::InvalidUnitAffineScalarRecord)?,
+                multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            field: StructuralFieldId::new(reader.u64()?)
+                .ok_or(InstallationError::InvalidUnitAffineScalarRecord)?,
+            value: decode_integer_value(reader)?,
+            shape: decode_shape(reader)?,
+            operation_ordinal: usize::try_from(reader.u64()?)
+                .map_err(|_| InstallationError::InstalledScalarOffsetNotRepresentable)?,
+        };
+        if record.shape != omega_calling_conventions::ValueShape::integer(8, 8)
+            || !matches!(record.value, IntegerValue::Signed(value) if i64::try_from(value).is_ok())
+        {
+            return Err(InstallationError::InvalidUnitAffineScalarRecord);
+        }
+        records.push(record);
+    }
+    Ok(records)
+}
+
 #[cfg(test)]
 mod tests {
     use omega_calling_conventions::ValueShape;
 
     use super::*;
+
+    fn record() -> UnitAffineScalarRecordEstablishmentRecord {
+        UnitAffineScalarRecordEstablishmentRecord {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: psi_terminal::StructuralOperationResult {
+                place: PlaceId::new(2).unwrap(),
+                structural_type: StructuralTypeId::new(3).unwrap(),
+                multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            field: StructuralFieldId::new(4).unwrap(),
+            value: IntegerValue::Signed(7),
+            shape: omega_calling_conventions::ValueShape::integer(8, 8),
+            operation_ordinal: 5,
+        }
+    }
+
+    #[test]
+    fn affine_scalar_record_round_trips_and_rejects_unsigned_forgery() {
+        let expected = vec![record()];
+        let mut bytes = Vec::new();
+        encode_unit_affine_scalar_records(&mut bytes, &expected).unwrap();
+        let decoded = decode_unit_affine_scalar_records(&mut Reader::new(&bytes)).unwrap();
+        assert_eq!(decoded, expected);
+
+        bytes[36] = 2;
+        assert_eq!(
+            decode_unit_affine_scalar_records(&mut Reader::new(&bytes)),
+            Err(InstallationError::InvalidUnitAffineScalarRecord)
+        );
+    }
 
     #[test]
     fn boolean_home_round_trips_and_noncanonical_tags_reject() {

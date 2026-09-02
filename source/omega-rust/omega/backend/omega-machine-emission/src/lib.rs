@@ -376,6 +376,7 @@ fn emit_function(
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
+    let mut unit_affine_scalar_records = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
     let mut scalar_structural_scalar_field_store = None;
     let mut x86_scalar_fma = Vec::new();
@@ -448,6 +449,7 @@ fn emit_function(
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            unit_affine_scalar_records = emitted.affine_scalar_records;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
             semantic_code_attribution = emitted.semantic_code_attribution;
             port_effects = emitted.port_effects;
@@ -487,6 +489,7 @@ fn emit_function(
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            unit_affine_scalar_records = emitted.affine_scalar_records;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
             semantic_code_attribution = emitted.semantic_code_attribution;
             unit_stack = Some(emitted.stack);
@@ -693,6 +696,7 @@ fn emit_function(
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
+            unit_affine_scalar_records = emitted.affine_scalar_records;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
             x86_scalar_fma = emitted.x86_scalar_fma;
             x86_scalar_fma_occurrences = emitted.x86_scalar_fma_occurrences;
@@ -1155,6 +1159,7 @@ fn emit_function(
         forwarded_dynamic_descriptor_calls,
         unit_scalar_homes,
         unit_integer_constants,
+        unit_affine_scalar_records,
         unit_structural_scalar_field_stores,
         scalar_structural_scalar_field_store,
         unit_affine_cleanup,

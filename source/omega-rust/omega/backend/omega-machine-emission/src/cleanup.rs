@@ -172,6 +172,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
                     target,
                     &[],
                     &[],
+                    &Default::default(),
                     &mut emitted.internal_calls,
                 )?;
             }
@@ -183,6 +184,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
                     &[],
                     &[],
                     &[],
+                    &Default::default(),
                     &mut emitted.internal_calls,
                 )?;
             }
@@ -529,6 +531,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         forwarded_dynamic_descriptor_calls: Vec::new(),
         unit_scalar_homes: Vec::new(),
         unit_integer_constants: Vec::new(),
+        unit_affine_scalar_records: Vec::new(),
         unit_structural_scalar_field_stores: Vec::new(),
         scalar_structural_scalar_field_store: None,
         unit_affine_cleanup: None,
@@ -826,6 +829,7 @@ fn emit_boolean_cleanup_leaf(
                     target,
                     &[],
                     &[],
+                    &Default::default(),
                     &mut internal_calls,
                 )?;
             }
@@ -837,6 +841,7 @@ fn emit_boolean_cleanup_leaf(
                     &[],
                     &[],
                     &[],
+                    &Default::default(),
                     &mut internal_calls,
                 )?;
             }

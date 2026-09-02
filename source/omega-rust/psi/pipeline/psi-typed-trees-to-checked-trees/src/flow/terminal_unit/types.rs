@@ -43,6 +43,7 @@ pub(super) fn return_unit_affine_discards(
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
             | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();

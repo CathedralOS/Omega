@@ -188,7 +188,7 @@ pub(super) fn lower_structural_call_return_machine(
     }
 
     let structural_arguments =
-        lower_structural_arguments(&plan.call.structural_arguments, &parameters, &[], &[])?;
+        lower_structural_arguments(&plan.call.structural_arguments, &parameters, &[], &[], &[])?;
     let caller = TerminalMachine {
         id: machine_id(1),
         attachment: Some(attachment),

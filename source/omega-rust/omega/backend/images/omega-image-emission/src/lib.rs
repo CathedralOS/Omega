@@ -94,6 +94,7 @@ use unit_affine_cleanup::validate_unit_affine_cleanup;
 use unit_call_custody::{
     expected_projected_copy_bytes, structural_result_matches_return,
     validate_internal_unit_call_custody, validate_mixed_structural_scalar_abi,
+    validate_unit_affine_scalar_records,
 };
 use unit_scalar_call_custody::validate_internal_unit_scalar_calls;
 use unit_stack::{
@@ -285,6 +286,8 @@ pub struct ObjectFunction {
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
+    pub unit_affine_scalar_records:
+        Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
     pub scalar_structural_scalar_field_store:
@@ -1278,6 +1281,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 fully_consumed_affine_pair,
             )?;
         }
+        validate_unit_affine_scalar_records(function)?;
         validate_internal_unit_scalar_calls(
             plan.target,
             function,
@@ -2074,6 +2078,7 @@ fn build_object_artifact_with_x86_feature_profile(
             forwarded_dynamic_descriptor_calls: function.forwarded_dynamic_descriptor_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
+            unit_affine_scalar_records: function.unit_affine_scalar_records.clone(),
             unit_structural_scalar_field_stores: function
                 .unit_structural_scalar_field_stores
                 .clone(),

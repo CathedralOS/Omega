@@ -210,6 +210,11 @@ pub(super) fn validate_unit_operation_sequence(
                 statement_index,
                 declaration_ordinal,
                 ..
+            }
+            | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                statement_index,
+                declaration_ordinal,
+                ..
             } => psi_checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,
                 call_ordinal: *declaration_ordinal,

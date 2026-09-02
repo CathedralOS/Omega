@@ -29,9 +29,9 @@ pub(crate) fn validate_structural_place_availability(
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let place = match &node.operation {
-                O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
-                    Some(result.place)
-                }
+                O::EstablishPayloadlessCase { result, .. }
+                | O::EstablishAffineScalarRecord { result, .. }
+                | O::CallStructural { result, .. } => Some(result.place),
                 O::EstablishByteSequenceLiteral { place, .. }
                 | O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),
                 _ => None,
@@ -430,6 +430,11 @@ pub(crate) fn validate_structural_root_operations(
                                 .flat_map(|block| &block.nodes)
                                 .find_map(|node| match &node.operation {
                                     O::EstablishPayloadlessCase {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    }
+                                    | O::EstablishAffineScalarRecord {
                                         psi_operation,
                                         result,
                                         ..

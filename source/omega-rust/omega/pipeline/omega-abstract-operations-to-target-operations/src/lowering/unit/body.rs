@@ -182,6 +182,70 @@ pub(super) fn lower_unit_body(
                 });
                 provenance.operations.push(*psi_operation);
             }
+            AbstractOperation::EstablishAffineScalarRecord {
+                psi_operation,
+                result,
+                field,
+                value,
+            } => {
+                let declaration = structural_types
+                    .get(&result.structural_type)
+                    .copied()
+                    .ok_or(LoweringError::UnknownStructuralType(result.structural_type))?;
+                let shape = structural_shape(
+                    result.structural_type,
+                    structural_types,
+                    &mut shape_cache,
+                    &mut active,
+                )?;
+                let exact_i64_record = matches!(
+                    &declaration.shape,
+                    StructuralTypeShape::Record { fields }
+                        if matches!(fields.as_slice(), [candidate]
+                            if candidate.id == *field
+                                && candidate.relevance == psi_terminal::BindingRelevance::Relevant
+                                && matches!(candidate.field_type,
+                                    StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                                        if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                                            && integer.sign() == psi_core::IntegerSign::Signed
+                                            && integer.bits() == 64))
+                );
+                let i64_type = IntegerType::new(psi_core::IntegerSign::Signed, 64)
+                    .expect("signed i64 is valid");
+                if !exact_i64_record
+                    || shape != ValueShape::integer(8, 8)
+                    || result.multiplicity != StructuralMultiplicity::Affine
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !result.claims.is_empty()
+                    || !i64_type.admits(*value)
+                    || established_affine_local_sources
+                        .insert(
+                            result.place,
+                            StructuralCallLocalSource {
+                                structural_type: result.structural_type,
+                                shape,
+                                placement: ValuePlacement {
+                                    shape,
+                                    locations: Vec::new(),
+                                },
+                            },
+                        )
+                        .is_some()
+                {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
+                operations.push(TargetUnitOperation::EstablishAffineScalarRecord {
+                    psi_operation: *psi_operation,
+                    result: result.clone(),
+                    field: *field,
+                    value: *value,
+                    shape,
+                });
+                provenance.operations.push(*psi_operation);
+            }
             AbstractOperation::CallUnit { .. } => lower_structural_unit_call(
                 operation,
                 function,

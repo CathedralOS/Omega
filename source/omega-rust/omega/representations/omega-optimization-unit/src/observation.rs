@@ -416,6 +416,7 @@ fn operation_observations(
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishAffineScalarRecord { .. }
         | O::BooleanStructuralField { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }
