@@ -27,6 +27,14 @@ pub(crate) fn build_checked_structural_return_plans(
             build_payloadless_case_return_machine(program, facts, &mut shapes, machine)
         })
         .collect::<Vec<_>>();
+    let claim_free_affine_machines = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter_map(|machine| {
+            build_claim_free_affine_structural_return_machine(program, facts, &mut shapes, machine)
+        })
+        .collect::<Vec<_>>();
     let retained = machines
         .iter()
         .flat_map(|plan| {
@@ -46,6 +54,13 @@ pub(crate) fn build_checked_structural_return_plans(
         .chain(payloadless_case_machines.iter().flat_map(|plan| {
             [
                 plan.attachment_type_identity.as_str(),
+                plan.result.type_identity.as_str(),
+            ]
+        }))
+        .chain(claim_free_affine_machines.iter().flat_map(|plan| {
+            [
+                plan.attachment_type_identity.as_str(),
+                plan.structural_parameter.type_identity.as_str(),
                 plan.result.type_identity.as_str(),
             ]
         }))
@@ -69,8 +84,127 @@ pub(crate) fn build_checked_structural_return_plans(
         structural_types: shapes.types.into_values().collect(),
         structural_domains: shapes.domains,
         machines,
+        claim_free_affine_machines,
         payloadless_case_machines,
     }
+}
+
+fn build_claim_free_affine_structural_return_machine(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+) -> Option<CheckedClaimFreeAffineStructuralReturnMachinePlan> {
+    let [state] = program.machine_states(machine) else {
+        return None;
+    };
+    let [StatementNode::Expression(return_expression)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    if !program.machine_contracts(machine).is_empty()
+        || !program.state_contracts(state).is_empty()
+        || machine_has_content_evidence(facts, machine.symbol, state.symbol)
+    {
+        return None;
+    }
+    let binders = machine_binders(program, machine);
+    let (attachment_type_identity, structural_parameters, scalar_parameters) =
+        structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+    let [structural_parameter] = structural_parameters.as_slice() else {
+        return None;
+    };
+    if structural_parameter.is_self
+        || structural_parameter.multiplicity != Multiplicity::Affine
+        || structural_parameter.access != CheckedStructuralAccess::Owned
+        || !structural_parameter.qualifications.is_empty()
+        || structural_parameter.fused_service_erasure.is_some()
+        || scalar_parameters.is_empty()
+        || scalar_parameters.iter().any(|parameter| {
+            !matches!(
+                parameter.primitive_type,
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+            )
+        })
+    {
+        return None;
+    }
+    let source_parameters = program.state_parameters(state);
+    let source_parameter = source_parameters.get(structural_parameter.position as usize)?;
+    let ExpressionNode::Name(path) = program.expression_table.expression(*return_expression) else {
+        return None;
+    };
+    if path.symbol != source_parameter.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || crate::checks::type_multiplicity(program, state.return_type) != Multiplicity::Affine
+    {
+        return None;
+    }
+    let result_type_identity = shapes.add_type(state.return_type, &binders, &[])?;
+    if result_type_identity != structural_parameter.type_identity
+        || !parameter_qualifications(program, shapes, state.return_type, &binders)?.is_empty()
+        || !matches!(
+            &shapes.types.get(&result_type_identity)?.shape,
+            CheckedUnitStructuralTypeShape::Record { fields }
+                if matches!(
+                    fields.as_slice(),
+                    [field]
+                        if matches!(
+                            &field.field_type,
+                            CheckedUnitStructuralFieldType::Scalar(
+                                PrimitiveType::I64 | PrimitiveType::U64
+                            )
+                        )
+                )
+        )
+    {
+        return None;
+    }
+    let flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let checked_entry_claims = entry_claims(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        &structural_parameters,
+        source_parameters,
+    )?;
+    if !facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow.calls)
+        .is_empty()
+        || !service_reach_is_empty(facts, flow.service_reach)
+        || !checked_entry_claims.is_empty()
+    {
+        return None;
+    }
+    Some(CheckedClaimFreeAffineStructuralReturnMachinePlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        attachment_type_identity,
+        structural_parameter: structural_parameter.clone(),
+        scalar_parameters,
+        result: CheckedStructuralResultPlan {
+            type_identity: result_type_identity,
+            multiplicity: Multiplicity::Affine,
+            qualifications: Vec::new(),
+        },
+        return_statement_ordinal: 0,
+    })
 }
 
 fn build_payloadless_case_return_machine(

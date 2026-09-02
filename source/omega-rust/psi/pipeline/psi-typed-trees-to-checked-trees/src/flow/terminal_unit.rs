@@ -3,16 +3,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use psi_checked_trees::{
     CheckFacts, CheckedAffineConstructionElementPlan, CheckedBooleanExpression,
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedBoundaryScalarReturnPlans, CheckedComposedUnitControlMachinePlan,
-    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedIntegerBinaryKind, CheckedNominalAffineUnitCleanupMachinePlan,
-    CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessCaseReturnMachinePlan,
-    CheckedPayloadlessGuardedCallEvidencePlan, CheckedPayloadlessGuardedCallEvidenceUsePlan,
-    CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
-    CheckedStructuralAccess, CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
+    CheckedBoundaryScalarReturnPlans, CheckedClaimFreeAffineStructuralReturnMachinePlan,
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedIntegerBinaryKind,
+    CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
+    CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
+    CheckedPayloadlessCaseReturnMachinePlan, CheckedPayloadlessGuardedCallEvidencePlan,
+    CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedSelectedOperatorStructuralScalarReturnMachinePlan, CheckedStructuralAccess,
+    CheckedStructuralCallPlan, CheckedStructuralCallReturnMachinePlan,
     CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
@@ -31,8 +32,9 @@ use psi_checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
     CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
+    ContractProofFactOwner,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{
@@ -233,6 +235,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 // execution before this plan was minted.
                 CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
                 | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => true,
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
@@ -328,30 +331,55 @@ pub(crate) fn build_checked_unit_effect_plans(
         )
         .collect::<BTreeSet<_>>();
     for operation in candidates.iter().flat_map(|plan| &plan.operations) {
-        let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-            realization_machine,
-            realization_state,
-            ..
-        } = operation
-        else {
-            continue;
-        };
-        let Some(realization) = facts
-            .flow
-            .terminal_structural_scalar_returns
-            .machines
-            .iter()
-            .find(|plan| plan.machine == *realization_machine && plan.state == *realization_state)
-        else {
-            continue;
-        };
-        retained_type_identities.insert(realization.attachment_type_identity.as_str());
-        retained_type_identities.extend(
-            realization
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity.as_str()),
-        );
+        match operation {
+            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                realization_machine,
+                realization_state,
+                ..
+            } => {
+                let Some(realization) = facts
+                    .flow
+                    .terminal_structural_scalar_returns
+                    .machines
+                    .iter()
+                    .find(|plan| {
+                        plan.machine == *realization_machine && plan.state == *realization_state
+                    })
+                else {
+                    continue;
+                };
+                retained_type_identities.insert(realization.attachment_type_identity.as_str());
+                retained_type_identities.extend(
+                    realization
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                );
+            }
+            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                realization_machine,
+                realization_state,
+                result,
+                ..
+            } => {
+                let Some(realization) = facts
+                    .flow
+                    .terminal_structural_returns
+                    .claim_free_affine_machines
+                    .iter()
+                    .find(|plan| {
+                        plan.machine == *realization_machine && plan.state == *realization_state
+                    })
+                else {
+                    continue;
+                };
+                retained_type_identities.insert(realization.attachment_type_identity.as_str());
+                retained_type_identities
+                    .insert(realization.structural_parameter.type_identity.as_str());
+                retained_type_identities.insert(result.type_identity.as_str());
+            }
+            _ => {}
+        }
     }
     shapes.retain_transitive(&retained_type_identities);
 

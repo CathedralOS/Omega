@@ -433,6 +433,11 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                     )?;
                 }
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. } => {
+                    return unsupported(
+                        "selected structural-result Unit operator awaits its Terminal carrier",
+                    );
+                }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
@@ -1786,6 +1791,11 @@ pub(super) fn lower_attached_unit_closure_including(
                 }
                 CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
                     return unsupported("Unit return is not the final checked operation");
+                }
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. } => {
+                    return unsupported(
+                        "selected structural-result Unit operator awaits its Terminal carrier",
+                    );
                 }
             };
             let id = operations.allocate();

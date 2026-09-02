@@ -753,6 +753,100 @@ fn specialized_mixed_structural_fixed_operator_arguments_are_exact() {
 }
 
 #[test]
+fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
+    let canary =
+        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("hosted mixed structural-result selection should check");
+    let consume = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "consume")
+        .expect("mixed structural-result Unit helper");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(consume.symbol)
+        .expect("checked mixed structural-result helper plan");
+    let [
+        psi_checked_trees::CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+            result,
+            realization_machine,
+            realization_state,
+            scalar_arguments,
+            structural_arguments,
+            discard_result_on_return,
+            ..
+        },
+        psi_checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("one selected structural-result call and one Unit return")
+    };
+    assert_eq!(result.statement_index, 0);
+    assert_eq!(result.binding_ordinal, 0);
+    assert_eq!(
+        result.multiplicity,
+        psi_language_semantics::Multiplicity::Affine
+    );
+    assert!(*discard_result_on_return);
+    assert!(trivial_affine_discards.is_empty());
+    assert!(matches!(
+        scalar_arguments.as_slice(),
+        [psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }]
+            if literal.value_i64() == Some(11)
+                && literal.landing().is_some_and(|landing|
+                    landing.landed_type
+                        == psi_numerics::literals::LandedIntegerType::I32)
+    ));
+    assert!(matches!(
+        structural_arguments.as_slice(),
+        [argument]
+            if argument.path.is_empty()
+                && argument.access == psi_checked_trees::CheckedStructuralAccess::Owned
+                && argument.source_parameter_index() == Some(0)
+    ));
+
+    let realization = checked
+        .facts
+        .flow
+        .terminal_structural_returns
+        .claim_free_affine_machines
+        .iter()
+        .find(|candidate| {
+            candidate.machine == *realization_machine && candidate.state == *realization_state
+        })
+        .expect("selected claim-free affine structural realization");
+    assert_eq!(realization.structural_parameter.position, 0);
+    assert_eq!(
+        realization.structural_parameter.multiplicity,
+        psi_language_semantics::Multiplicity::Affine
+    );
+    assert_eq!(
+        realization.structural_parameter.access,
+        psi_checked_trees::CheckedStructuralAccess::Owned
+    );
+    assert!(realization.structural_parameter.qualifications.is_empty());
+    assert_eq!(realization.scalar_parameters.len(), 1);
+    assert_eq!(realization.scalar_parameters[0].source_position, 1);
+    assert_eq!(
+        realization.scalar_parameters[0].primitive_type,
+        psi_typed_trees::types::PrimitiveType::I32
+    );
+    assert_eq!(realization.result.type_identity, result.type_identity);
+    assert_eq!(
+        realization.result.multiplicity,
+        psi_language_semantics::Multiplicity::Affine
+    );
+    assert!(realization.result.qualifications.is_empty());
+}
+
+#[test]
 fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
     #[derive(Clone, Copy, Debug)]
     enum Drift {

@@ -943,6 +943,17 @@ pub(super) fn build_checked_machine(
         statements,
         selected_operator_applications,
     );
+    let selected_structural_result_local = selected_operator_structural_result_local(
+        program,
+        shapes,
+        machine,
+        state,
+        statements,
+        selected_operator_applications,
+    );
+    let selected_structural_result_symbol = selected_structural_result_local
+        .as_ref()
+        .map(|(_, _, symbol)| *symbol);
     let binders = machine_binders(program, machine);
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         psi_typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
@@ -960,7 +971,10 @@ pub(super) fn build_checked_machine(
                 let (structural, scalar) =
                     free_fused_service_scalar_signature(program, shapes, state, &binders)?;
                 (None, structural, scalar)
-            } else if selected_scalar_result_local.is_some() && !carries_scalar_parameter {
+            } else if (selected_scalar_result_local.is_some()
+                || selected_structural_result_local.is_some())
+                && !carries_scalar_parameter
+            {
                 let structural =
                     free_selected_operator_structural_signature(program, shapes, state, &binders)?;
                 (None, structural, Vec::new())
@@ -1012,15 +1026,24 @@ pub(super) fn build_checked_machine(
         statements,
         selected_ieee_float_fma_applications,
     );
-    if selected_scalar_result_local.is_some() && selected_ieee_float_fma_result_locals.is_some() {
+    if (selected_scalar_result_local.is_some() || selected_structural_result_local.is_some())
+        && selected_ieee_float_fma_result_locals.is_some()
+    {
         return None;
     }
     let scalar_result_local = (selected_scalar_result_local.is_none()
+        && selected_structural_result_local.is_none()
         && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
     let scalar_result_local_count = selected_ieee_float_fma_result_locals.as_ref().map_or_else(
-        || usize::from(scalar_result_local.is_some() || selected_scalar_result_local.is_some()),
+        || {
+            usize::from(
+                scalar_result_local.is_some()
+                    || selected_scalar_result_local.is_some()
+                    || selected_structural_result_local.is_some(),
+            )
+        },
         Vec::len,
     );
     let has_scalar_result_local = scalar_result_local_count != 0;
@@ -1141,10 +1164,11 @@ pub(super) fn build_checked_machine(
         .iter()
         .map(|(plan, _)| plan.clone())
         .collect::<Vec<_>>();
-    let admitted_local_symbols = local_rows
+    let mut admitted_local_symbols = local_rows
         .iter()
         .map(|(_, symbol)| *symbol)
         .collect::<Vec<_>>();
+    admitted_local_symbols.extend(selected_structural_result_symbol);
 
     let mut operations = trivial_affine_locals
         .iter()
@@ -1182,6 +1206,19 @@ pub(super) fn build_checked_machine(
                         )
                     })?;
             operations.push(operation);
+            0
+        } else if let Some((application, result, _)) = selected_structural_result_local {
+            operations.push(build_selected_operator_structural_call(
+                program,
+                facts,
+                shapes,
+                machine,
+                state,
+                &mut structural_parameters,
+                &entry_claims,
+                application,
+                result,
+            )?);
             0
         } else if let Some(locals) = selected_ieee_float_fma_result_locals {
             for (application, result) in locals {
@@ -1277,6 +1314,10 @@ pub(super) fn build_checked_machine(
                 ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 structural_arguments,
                 ..
             } => structural_arguments

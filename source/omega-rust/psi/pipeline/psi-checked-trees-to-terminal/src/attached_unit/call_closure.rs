@@ -251,6 +251,23 @@ pub(super) fn validate_unit_operation_sequence(
                         ))?;
                 *coordinate
             }
+            CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return,
+                ..
+            } => {
+                if result.statement_index != coordinate.statement_index
+                    || coordinate.call_ordinal != 0
+                    || result.binding_ordinal != 0
+                    || !discard_result_on_return
+                {
+                    return unsupported(
+                        "Unit structural result local or call coordinate is not canonical",
+                    );
+                }
+                *coordinate
+            }
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index, ..
             } => psi_checked_trees::CheckedUnitCallCoordinate {

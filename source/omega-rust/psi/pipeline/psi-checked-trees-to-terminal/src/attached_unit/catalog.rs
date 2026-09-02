@@ -574,6 +574,10 @@ pub(super) fn lower_unit_services(
                     service_reach,
                     ..
                 }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    service_reach,
+                    ..
+                }
                 | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }

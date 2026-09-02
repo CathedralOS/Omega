@@ -689,6 +689,11 @@ pub struct CheckedStructuralReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub machines: Vec<CheckedStructuralReturnMachinePlan>,
+    /// Exact whole, claim-free owned-affine returns used by selected
+    /// fixed-token realizations. This stays distinct from the linear
+    /// claim-transfer family above: an absent claim is not a degenerate
+    /// transferred claim.
+    pub claim_free_affine_machines: Vec<CheckedClaimFreeAffineStructuralReturnMachinePlan>,
     /// Exact zero-input constructors for one payload-less case of a closed
     /// unrestricted sum. These remain separate from claim-bearing whole-root
     /// transfers so downstream consumers cannot confuse construction with a
@@ -712,6 +717,29 @@ impl CheckedStructuralReturnPlans {
             .iter()
             .find(|plan| plan.machine == machine)
     }
+
+    pub fn claim_free_affine_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedClaimFreeAffineStructuralReturnMachinePlan> {
+        self.claim_free_affine_machines
+            .iter()
+            .find(|plan| plan.machine == machine)
+    }
+}
+
+/// Source-handle-free checked plan for one exact whole owned-affine parameter
+/// returned without claims, projections, services, or cleanup. Fixed-width
+/// scalar parameters retain their authored positions for mixed ABI planning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedClaimFreeAffineStructuralReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub structural_parameter: CheckedUnitStructuralParameterPlan,
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    pub result: CheckedStructuralResultPlan,
+    pub return_statement_ordinal: u32,
 }
 
 /// Source-handle-free checked plan for the first exact nominal sum-case
@@ -1233,6 +1261,17 @@ pub struct CheckedUnitScalarResultBindingPlan {
     pub primitive_type: PrimitiveType,
 }
 
+/// Exact immutable local that receives one whole structural operation result.
+/// The first admitted family is claim-free owned-affine and therefore carries
+/// neither a fabricated claim binding nor a projected path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitStructuralResultBindingPlan {
+    pub statement_index: u32,
+    pub binding_ordinal: u32,
+    pub type_identity: String,
+    pub multiplicity: Multiplicity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitEffectOperationPlan {
     EstablishTrivialAffineLocal {
@@ -1316,6 +1355,27 @@ pub enum CheckedUnitEffectOperationPlan {
         service_reach: ServiceReachSummary,
         scalar_arguments: Vec<CheckedScalarExpression>,
         structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+    },
+    /// Call the exact checked mixed structural machine selected for one
+    /// authored boundary-operator use and bind its whole structural result.
+    /// This first family admits only a claim-free owned-affine result and
+    /// whole claim-free owned-affine arguments.
+    SelectedOperatorStructuralCall {
+        coordinate: CheckedUnitCallCoordinate,
+        result: CheckedUnitStructuralResultBindingPlan,
+        requirement_operator: SymbolHandle,
+        provider_plan_report_fingerprint: u64,
+        provider_plan_commitment: crate::CheckedProviderPlanCommitment,
+        realization_machine: SymbolHandle,
+        realization_state: SymbolHandle,
+        realization_contract_report_fingerprint: u64,
+        realization_contract_commitment: crate::MachineContractCommitment,
+        service_reach: ServiceReachSummary,
+        scalar_arguments: Vec<CheckedScalarExpression>,
+        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+        /// The bounded Unit carrier admits this result only as the final local
+        /// initializer and settles its affine custody on the following return.
+        discard_result_on_return: bool,
     },
     /// Execute one exact nearest-even IEEE fused multiply-add selected from a
     /// compiler-intrinsic ProviderPlan. Unlike a checked-body adapter this has
