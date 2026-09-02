@@ -67,6 +67,13 @@ fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bo
             .all(|claim| claim.input.root != place)
 }
 
+fn has_readable_structural_access(access: StructuralAccess) -> bool {
+    matches!(
+        access,
+        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    )
+}
+
 pub(super) fn structural_scalar_field_store_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -115,10 +122,8 @@ pub(super) fn validate_integer_structural_field(
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !matches!(
-        parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || !has_empty_structural_custody(machine, source)
+    ) || !has_readable_structural_access(parameter.access)
+        || !has_empty_structural_custody(machine, source)
         || machine
             .blocks
             .iter()
@@ -165,10 +170,8 @@ pub(super) fn validate_boolean_structural_field(
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !matches!(
-        parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || !has_empty_structural_custody(machine, source)
+    ) || !has_readable_structural_access(parameter.access)
+        || !has_empty_structural_custody(machine, source)
         || machine
             .blocks
             .iter()
