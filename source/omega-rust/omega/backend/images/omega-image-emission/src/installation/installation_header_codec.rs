@@ -1,4 +1,4 @@
-//! Canonical installation format-50 header codec.
+//! Canonical installation format-52 header codec.
 //!
 //! The parent retains validation and all count conversions so extraction does
 //! not change encode error precedence. This module owns the fixed header bytes.
@@ -23,6 +23,7 @@ pub(super) struct DecodedInstallationHeader {
     pub(super) profile_decision: ProfileDecisionId,
     pub(super) component_progress: Option<super::InstalledComponentProgress>,
     pub(super) image: ImageFingerprint,
+    pub(super) image_sections: super::InstalledImageSections,
     pub(super) compiler_text_validation: CompilerTextValidationEvidence,
 }
 
@@ -58,6 +59,20 @@ pub(super) fn encode_installation_header(
         push_u64(bytes, progress.acceptance_identity());
     }
     bytes.extend_from_slice(record.image.as_bytes());
+    push_u64(bytes, record.image_sections.layout.text_address);
+    push_u64(bytes, record.image_sections.layout.data_address);
+    push_u64(bytes, record.image_sections.layout.bss_address);
+    push_u64(
+        bytes,
+        u64::try_from(record.image_sections.text_byte_count)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+    );
+    push_u64(
+        bytes,
+        u64::try_from(record.image_sections.data_byte_count)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+    );
+    bytes.extend_from_slice(record.image_sections.final_data_fingerprint.as_bytes());
     bytes.extend_from_slice(
         record
             .compiler_text_validation
@@ -168,6 +183,18 @@ pub(super) fn decode_installation_header(
         })
         .transpose()?;
     let image = ImageFingerprint(reader.array()?);
+    let image_sections = super::InstalledImageSections {
+        layout: omega_image::FinalImageLayout {
+            text_address: reader.u64()?,
+            data_address: reader.u64()?,
+            bss_address: reader.u64()?,
+        },
+        text_byte_count: usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+        data_byte_count: usize::try_from(reader.u64()?)
+            .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+        final_data_fingerprint: super::InitializedDataFingerprint(reader.array()?),
+    };
     let encoded_text_digest = EncodedCompilerTextDigest::from_digest(reader.array()?);
     let final_compiler_text_digest = FinalCompilerTextDigest::from_digest(reader.array()?);
     let relocation_envelope_digest =
@@ -198,6 +225,7 @@ pub(super) fn decode_installation_header(
         profile_decision,
         component_progress,
         image,
+        image_sections,
         compiler_text_validation: CompilerTextValidationEvidence {
             encoded_text_digest,
             final_compiler_text_digest,

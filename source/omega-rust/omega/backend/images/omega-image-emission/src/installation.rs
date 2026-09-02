@@ -11,11 +11,11 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, MachineRegister, ValueClass, ValueLocation, ValuePlacement,
     ValueShape, evaluate_call_plan,
 };
-use omega_image::CompilerTextValidationEvidence;
+use omega_image::{CompilerTextValidationEvidence, FinalImageLayout};
 use omega_machine_code::{SemanticCodeSite, StructuralReturnRecord};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::{BoundaryRealization, CallSiteOwner};
-use psi_core::{MachineId, OperationId, ProfileDecisionId, StructuralTypeId};
+use psi_core::{MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralTypeId};
 use psi_terminal::{
     StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, TerminalPsiIdentity,
 };
@@ -24,6 +24,7 @@ mod boundary_result_scalar_codec;
 mod boundary_settlement_codec;
 mod call_site_owner_codec;
 mod completion_custody_codec;
+mod dynamic_conformance_codec;
 mod fingerprint_codec;
 mod fixed_integer_scalar_abi_codec;
 mod function_affine_cleanup_codec;
@@ -53,7 +54,12 @@ mod unit_structural_scalar_field_store_codec;
 mod value_placement_codec;
 mod wire_codec;
 use boundary_settlement_codec::{decode_boundary_settlements, encode_boundary_settlements};
-use fingerprint_codec::{fingerprint_image, fingerprint_record, write_hex};
+use dynamic_conformance_codec::{
+    decode_dynamic_conformance_custody, encode_dynamic_conformance_custody,
+};
+use fingerprint_codec::{
+    fingerprint_image, fingerprint_initialized_data, fingerprint_record, write_hex,
+};
 use function_codec::{decode_functions, encode_functions};
 use installation_header_codec::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
@@ -80,7 +86,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 51;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 52;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -214,10 +220,13 @@ pub struct InstallationRecord {
     structural_returns: Vec<InstalledStructuralReturn>,
     internal_unit_calls: Vec<InstalledInternalUnitCall>,
     internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
+    dynamic_conformance_tables: Vec<InstalledDynamicConformanceTable>,
+    dynamic_scalar_calls: Vec<InstalledDynamicScalarCall>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
     image: ImageFingerprint,
+    image_sections: InstalledImageSections,
     compiler_text_validation: CompilerTextValidationEvidence,
 }
 
@@ -273,6 +282,14 @@ impl InstallationRecord {
         &self.internal_unit_scalar_calls
     }
 
+    pub fn dynamic_conformance_tables(&self) -> &[InstalledDynamicConformanceTable] {
+        &self.dynamic_conformance_tables
+    }
+
+    pub fn dynamic_scalar_calls(&self) -> &[InstalledDynamicScalarCall] {
+        &self.dynamic_scalar_calls
+    }
+
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
         &self.semantic_code_attribution
     }
@@ -285,9 +302,59 @@ impl InstallationRecord {
         self.image
     }
 
+    pub const fn image_sections(&self) -> InstalledImageSections {
+        self.image_sections
+    }
+
     pub const fn compiler_text_validation(&self) -> CompilerTextValidationEvidence {
         self.compiler_text_validation
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InitializedDataFingerprint([u8; 32]);
+
+impl InitializedDataFingerprint {
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledImageSections {
+    pub layout: FinalImageLayout,
+    pub text_byte_count: usize,
+    pub data_byte_count: usize,
+    pub final_data_fingerprint: InitializedDataFingerprint,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledDynamicConformanceTable {
+    pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub application_report_fingerprint: u64,
+    pub data_offset: usize,
+    pub byte_count: usize,
+    pub slots: Vec<InstalledDynamicConformanceSlot>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledDynamicConformanceSlot {
+    pub row_index: u32,
+    pub target: Option<MachineId>,
+    pub data_offset: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledDynamicScalarCall {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub initial_source: PlaceId,
+    pub rebound_source: PlaceId,
+    pub selected_table_byte_offset: u32,
+    pub realization: MachineId,
+    pub text_offset: usize,
+    pub byte_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -459,9 +526,6 @@ pub fn build_installation_record_with_selected_provider_plans_and_evidence<'exec
 where
     Execution: omega_installation_evidence::ProviderExecutionEvidence + ?Sized + 'execution,
 {
-    if !image.dynamic_conformance_tables().is_empty() {
-        return Err(InstallationError::DynamicConformanceInstallationPending);
-    }
     let compiler_text_validation = image
         .output()
         .compiler_text_validation
@@ -624,10 +688,13 @@ where
                     })
             })
             .collect(),
+        dynamic_conformance_tables: installed_dynamic_conformance_tables(image),
+        dynamic_scalar_calls: installed_dynamic_scalar_calls(image)?,
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
         image: fingerprint_image(&image.output().bytes),
+        image_sections: installed_image_sections(image),
         compiler_text_validation,
     };
     validate_record_shape(&record)?;
@@ -850,6 +917,11 @@ pub fn encode_installation_record(
         internal_unit_scalar_call_count,
         &record.internal_unit_scalar_calls,
     )?;
+    encode_dynamic_conformance_custody(
+        &mut bytes,
+        &record.dynamic_conformance_tables,
+        &record.dynamic_scalar_calls,
+    )?;
     encode_semantic_code_attributions(
         &mut bytes,
         semantic_code_attribution_count,
@@ -869,6 +941,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         profile_decision,
         component_progress,
         image,
+        image_sections,
         compiler_text_validation,
     } = decode_installation_header(&mut reader)?;
     let selected_provider_plans = decode_provider_plans(&mut reader)?;
@@ -877,6 +950,8 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let internal_unit_scalar_calls = decode_internal_unit_scalar_calls(&mut reader)?;
+    let (dynamic_conformance_tables, dynamic_scalar_calls) =
+        decode_dynamic_conformance_custody(&mut reader)?;
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
@@ -896,10 +971,13 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         structural_returns,
         internal_unit_calls,
         internal_unit_scalar_calls,
+        dynamic_conformance_tables,
+        dynamic_scalar_calls,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
         image,
+        image_sections,
         compiler_text_validation,
     };
     validate_record_shape(&record)?;
@@ -923,7 +1001,10 @@ pub fn validate_installation_record(
         || record.target != image.target()
         || record.subsystem != image.subsystem()
         || record.image != fingerprint_image(&image.output().bytes)
+        || record.image_sections != installed_image_sections(image)
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
+        || record.dynamic_conformance_tables != installed_dynamic_conformance_tables(image)
+        || record.dynamic_scalar_calls != installed_dynamic_scalar_calls(image)?
         || record.semantic_code_attribution != image.semantic_code_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
@@ -1014,6 +1095,66 @@ pub fn validate_installation_record(
     Ok(())
 }
 
+fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {
+    InstalledImageSections {
+        layout: image.output().final_image_layout,
+        text_byte_count: image.output().final_text_bytes.len(),
+        data_byte_count: image.output().final_data_bytes.len(),
+        final_data_fingerprint: fingerprint_initialized_data(&image.output().final_data_bytes),
+    }
+}
+
+fn installed_dynamic_conformance_tables(
+    image: &ExecutableImage,
+) -> Vec<InstalledDynamicConformanceTable> {
+    image
+        .dynamic_conformance_tables()
+        .iter()
+        .map(|table| InstalledDynamicConformanceTable {
+            application_commitment: table.application.commitment,
+            application_report_fingerprint: table.application.report_fingerprint,
+            data_offset: table.data_offset,
+            byte_count: table.byte_count,
+            slots: table
+                .slots
+                .iter()
+                .map(|slot| InstalledDynamicConformanceSlot {
+                    row_index: slot.row_index,
+                    target: slot.target,
+                    data_offset: slot.data_offset,
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+fn installed_dynamic_scalar_calls(
+    image: &ExecutableImage,
+) -> Result<Vec<InstalledDynamicScalarCall>, InstallationError> {
+    image
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            function.dynamic_scalar_calls.iter().map(|call| {
+                call.code_offset
+                    .checked_add(function.text_offset)
+                    .map(|text_offset| InstalledDynamicScalarCall {
+                        machine: function.machine,
+                        operation: call.psi_operation,
+                        application_commitment: call.dynamic_dispatch.application.commitment,
+                        initial_source: call.initial_instance.source.place,
+                        rebound_source: call.rebound_instance.source.place,
+                        selected_table_byte_offset: call.selected_table_byte_offset,
+                        realization: call.dynamic_dispatch.dispatch.realization,
+                        text_offset,
+                        byte_count: call.byte_count,
+                    })
+                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)
+            })
+        })
+        .collect()
+}
+
 fn installed_compiler_private_function(
     emitted: &crate::ObjectCompilerPrivateFunction,
 ) -> Result<InstalledCompilerPrivateFunction, InstallationError> {
@@ -1082,6 +1223,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
     if !can_emit_executable_image(record.target) {
         return Err(InstallationError::UnsupportedTarget(record.target));
     }
+    validate_installed_dynamic_conformance(record)?;
     match record.target.object_format {
         ObjectFormat::Coff if record.subsystem.is_none() => {
             return Err(InstallationError::MissingCoffSubsystem);
@@ -1195,6 +1337,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && record.structural_returns.is_empty()
                 && record.internal_unit_calls.is_empty()
                 && record.internal_unit_scalar_calls.is_empty()
+                && record.dynamic_conformance_tables.is_empty()
+                && record.dynamic_scalar_calls.is_empty()
                 && record.port_effects.is_empty()
                 && record.boundary_settlements.is_empty()
                 && record.semantic_code_attribution.len() == 9
@@ -1269,6 +1413,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .filter(|argument| argument.path.is_empty())
                 .map(|argument| argument.place)
                 .collect::<std::collections::BTreeSet<_>>();
+            let dynamic_borrowed_roots = record
+                .dynamic_scalar_calls
+                .iter()
+                .filter(|call| call.machine == function.machine)
+                .flat_map(|call| [call.initial_source, call.rebound_source])
+                .collect::<std::collections::BTreeSet<_>>();
             let expected_parameter_discards = function
                 .unit_parameter_homes
                 .iter()
@@ -1276,6 +1426,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .filter(|home| {
                     home.multiplicity == StructuralMultiplicity::Affine
                         && !transferred_roots.contains(&home.place)
+                        && !dynamic_borrowed_roots.contains(&home.place)
                         && !fully_consumed_affine_pair
                 })
                 .map(|home| home.place)
@@ -1675,6 +1826,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         expected_text_offset = expected_text_offset
             .checked_add(private.byte_count)
             .ok_or(InstallationError::CompilerPrivateFunctionOffsetNotRepresentable)?;
+    }
+    if expected_text_offset != record.image_sections.text_byte_count {
+        return Err(InstallationError::InvalidImageSectionLayout);
     }
     let function_by_machine = record
         .functions
@@ -2480,6 +2634,143 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
     Ok(())
 }
 
+fn validate_installed_dynamic_conformance(
+    record: &InstallationRecord,
+) -> Result<(), InstallationError> {
+    let sections = record.image_sections;
+    if sections.text_byte_count == 0
+        || sections.layout.text_address == 0
+        || sections.final_data_fingerprint.as_bytes() == &[0; 32]
+        || (sections.data_byte_count == 0
+            && sections.final_data_fingerprint != fingerprint_initialized_data(&[]))
+    {
+        return Err(InstallationError::InvalidImageSectionLayout);
+    }
+    if sections.data_byte_count == 0 {
+        if !record.dynamic_conformance_tables.is_empty() || !record.dynamic_scalar_calls.is_empty()
+        {
+            return Err(InstallationError::InvalidImageSectionLayout);
+        }
+        return Ok(());
+    }
+    let text_end = sections
+        .layout
+        .text_address
+        .checked_add(
+            u64::try_from(sections.text_byte_count)
+                .map_err(|_| InstallationError::InvalidImageSectionLayout)?,
+        )
+        .ok_or(InstallationError::InvalidImageSectionLayout)?;
+    if sections.layout.data_address < text_end
+        || sections.layout.data_address % 8 != 0
+        || record.dynamic_conformance_tables.is_empty()
+        || record.dynamic_scalar_calls.is_empty()
+    {
+        return Err(InstallationError::InvalidImageSectionLayout);
+    }
+
+    let functions = record
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut commitments = std::collections::BTreeSet::new();
+    let mut expected_data_offset = 0usize;
+    for table in &record.dynamic_conformance_tables {
+        let table_byte_count = table
+            .slots
+            .len()
+            .checked_mul(8)
+            .ok_or(InstallationError::InvalidDynamicConformanceTable)?;
+        if table.application_commitment.is_zero()
+            || table.application_report_fingerprint == 0
+            || !commitments.insert(table.application_commitment)
+            || table.data_offset != expected_data_offset
+            || table.byte_count != table_byte_count
+            || table.slots.is_empty()
+        {
+            return Err(InstallationError::InvalidDynamicConformanceTable);
+        }
+        for (row_index, slot) in table.slots.iter().enumerate() {
+            let slot_offset = table
+                .data_offset
+                .checked_add(
+                    row_index
+                        .checked_mul(8)
+                        .ok_or(InstallationError::InvalidDynamicConformanceTable)?,
+                )
+                .ok_or(InstallationError::InvalidDynamicConformanceTable)?;
+            if usize::try_from(slot.row_index) != Ok(row_index)
+                || slot.data_offset != slot_offset
+                || slot
+                    .target
+                    .is_some_and(|target| !functions.contains_key(&target))
+            {
+                return Err(InstallationError::InvalidDynamicConformanceTable);
+            }
+        }
+        expected_data_offset = expected_data_offset
+            .checked_add(table.byte_count)
+            .ok_or(InstallationError::InvalidDynamicConformanceTable)?;
+    }
+    if expected_data_offset != sections.data_byte_count {
+        return Err(InstallationError::InvalidDynamicConformanceTable);
+    }
+
+    let mut previous_call = None;
+    let mut call_sites = std::collections::BTreeSet::new();
+    let mut referenced_commitments = std::collections::BTreeSet::new();
+    for call in &record.dynamic_scalar_calls {
+        let function = functions
+            .get(&call.machine)
+            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+        let call_end = call
+            .text_offset
+            .checked_add(call.byte_count)
+            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+        let function_end = function
+            .text_offset
+            .checked_add(function.byte_count)
+            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+        let table = record
+            .dynamic_conformance_tables
+            .iter()
+            .find(|table| table.application_commitment == call.application_commitment)
+            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+        referenced_commitments.insert(call.application_commitment);
+        let selected_index = usize::try_from(call.selected_table_byte_offset / 8)
+            .map_err(|_| InstallationError::InvalidDynamicScalarCall(call.machine))?;
+        let selected = table
+            .slots
+            .get(selected_index)
+            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+        let order = (call.text_offset, call.machine, call.operation);
+        if call.byte_count == 0
+            || call.selected_table_byte_offset % 8 != 0
+            || call.text_offset < function.text_offset
+            || call_end > function_end
+            || selected.target != Some(call.realization)
+            || !function
+                .unit_parameter_homes
+                .iter()
+                .any(|home| home.place == call.initial_source)
+            || !function
+                .unit_parameter_homes
+                .iter()
+                .any(|home| home.place == call.rebound_source)
+            || previous_call.is_some_and(|previous| previous >= order)
+            || !call_sites.insert((call.machine, call.operation))
+        {
+            return Err(InstallationError::InvalidDynamicScalarCall(call.machine));
+        }
+        previous_call = Some(order);
+    }
+    if referenced_commitments != commitments {
+        return Err(InstallationError::InvalidDynamicConformanceTable);
+    }
+    Ok(())
+}
+
 fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
     (!path.is_empty()
         && path.iter().all(|segment| {
@@ -2836,7 +3127,6 @@ fn decode_structural_types(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallationError {
-    DynamicConformanceInstallationPending,
     InvalidMagic,
     UnsupportedFormatMarker(u16),
     UnsupportedVocabularyMarker(u16),
@@ -2869,6 +3159,9 @@ pub enum InstallationError {
     TooManyStructuralReturns,
     TooManyInternalUnitCalls,
     TooManyInternalUnitScalarCalls,
+    TooManyDynamicConformanceTables,
+    TooManyDynamicConformanceSlots,
+    TooManyDynamicScalarCalls,
     TooManyInternalUnitCallArguments,
     TooManyInternalUnitScalarCallArguments,
     TooManyInternalUnitCallClaims,
@@ -2953,6 +3246,9 @@ pub enum InstallationError {
     InvalidStructuralReturn(MachineId),
     InvalidInternalUnitCall(MachineId),
     InvalidInternalUnitScalarCall(MachineId),
+    InvalidImageSectionLayout,
+    InvalidDynamicConformanceTable,
+    InvalidDynamicScalarCall(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),

@@ -289,9 +289,6 @@ explicitly.
     - the named-`dyn`/Console ordinary-package native canary, needing accepted
       Console semantic-binding replay from the lock and multi-block target
       continuation;
-    - the rebound-dynamic native path, needing exact installed-data placement
-      and relocation replay before runtime installation may accept its private
-      conformance table;
     - two build/runtime float twins lacking exact early named-operator callable
       identity;
     - six nested/repeated wire roots whose generated codec source loses

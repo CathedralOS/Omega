@@ -24,6 +24,8 @@ image_evidence_digest!(CompilerFunctionValidationDigest);
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImageOutput {
     pub bytes: Vec<u8>,
+    /// Exact target virtual placement used while applying final relocations.
+    pub final_image_layout: crate::FinalImageLayout,
     /// Exact relocated `.text` bytes before container padding/signing.
     pub final_text_bytes: Vec<u8>,
     /// Exact relocated initialized-data bytes before container padding/signing.
@@ -42,6 +44,7 @@ pub struct ExecutableImageOutput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmittedImageOutput {
     pub bytes: Vec<u8>,
+    pub final_image_layout: crate::FinalImageLayout,
     pub final_text_bytes: Vec<u8>,
     pub final_data_bytes: Vec<u8>,
     /// Compact reporting coordinate. Exact callback-placement rows are replayed
@@ -478,6 +481,7 @@ pub enum ImageOutputKind {
 pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> EmittedImageOutput {
     EmittedImageOutput {
         bytes: output.bytes,
+        final_image_layout: output.final_image_layout,
         final_text_bytes: output.final_text_bytes,
         final_data_bytes: output.final_data_bytes,
         callback_placement_identity_report_fingerprint: 0,

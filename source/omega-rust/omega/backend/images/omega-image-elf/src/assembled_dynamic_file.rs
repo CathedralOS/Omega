@@ -277,6 +277,7 @@ fn derive_executable_output(
     let executable_regions = place_executable_regions(image, load.final_image_layout())?;
     Ok(ExecutableImageOutput {
         bytes: assembled.bytes().to_vec(),
+        final_image_layout: load.final_image_layout(),
         final_text_bytes: image.memory.text.clone(),
         final_data_bytes: image.memory.data.clone(),
         file_name: "omega-program".to_owned(),

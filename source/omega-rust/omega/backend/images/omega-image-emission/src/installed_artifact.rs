@@ -107,6 +107,133 @@ impl std::fmt::Display for InstalledArtifactBindingError {
 
 impl std::error::Error for InstalledArtifactBindingError {}
 
+/// Exact logical text/data image consumed by the normalized installation
+/// ladder. The section gap is retained as canonical zero padding so a single
+/// frozen placement can reproduce the target addresses used by final
+/// relocation replay without erasing section boundaries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledArtifactMemoryImages {
+    layout: omega_image::FinalImageLayout,
+    data_offset: Option<usize>,
+    encoded: Vec<u8>,
+    materialized: Vec<u8>,
+}
+
+impl InstalledArtifactMemoryImages {
+    pub const fn layout(&self) -> omega_image::FinalImageLayout {
+        self.layout
+    }
+
+    pub const fn data_offset(&self) -> Option<usize> {
+        self.data_offset
+    }
+
+    pub fn encoded(&self) -> &[u8] {
+        &self.encoded
+    }
+
+    pub fn materialized(&self) -> &[u8] {
+        &self.materialized
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledArtifactMemoryProjectionError(String);
+
+impl InstalledArtifactMemoryProjectionError {
+    pub fn diagnostic(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for InstalledArtifactMemoryProjectionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl std::error::Error for InstalledArtifactMemoryProjectionError {}
+
+/// Reconstruct the exact pre/post-relocation section images expected by the
+/// installation provider. Mutable initialized data and BSS remain outside this
+/// bounded immutable-table lane.
+pub fn project_installed_artifact_memory_images(
+    object: &ObjectArtifact,
+    image: &ExecutableImage,
+) -> Result<InstalledArtifactMemoryImages, InstalledArtifactMemoryProjectionError> {
+    if object.psi() != image.psi() || object.target() != image.target() {
+        return Err(InstalledArtifactMemoryProjectionError(
+            "terminal object and image identity differ".into(),
+        ));
+    }
+    crate::validate_executable_image(object, image).map_err(|diagnostic| {
+        InstalledArtifactMemoryProjectionError(format!(
+            "terminal executable image replay failed: {diagnostic}"
+        ))
+    })?;
+    let output = image.output();
+    if output.final_text_bytes.len() != object.text_bytes().len()
+        || output.final_data_bytes.len() != object.data_bytes().len()
+        || output.final_image_layout.text_address == 0
+    {
+        return Err(InstalledArtifactMemoryProjectionError(
+            "terminal object/image section byte counts or text placement differ".into(),
+        ));
+    }
+    let data_offset = if object.data_bytes().is_empty() {
+        None
+    } else {
+        let offset = output
+            .final_image_layout
+            .data_address
+            .checked_sub(output.final_image_layout.text_address)
+            .and_then(|offset| usize::try_from(offset).ok())
+            .filter(|offset| *offset >= object.text_bytes().len())
+            .ok_or_else(|| {
+                InstalledArtifactMemoryProjectionError(
+                    "terminal initialized-data placement overlaps text or is not representable"
+                        .into(),
+                )
+            })?;
+        Some(offset)
+    };
+    let encoded =
+        flatten_installed_sections(object.text_bytes(), object.data_bytes(), data_offset)?;
+    let materialized = flatten_installed_sections(
+        &output.final_text_bytes,
+        &output.final_data_bytes,
+        data_offset,
+    )?;
+    Ok(InstalledArtifactMemoryImages {
+        layout: output.final_image_layout,
+        data_offset,
+        encoded,
+        materialized,
+    })
+}
+
+fn flatten_installed_sections(
+    text: &[u8],
+    data: &[u8],
+    data_offset: Option<usize>,
+) -> Result<Vec<u8>, InstalledArtifactMemoryProjectionError> {
+    let Some(data_offset) = data_offset else {
+        if !data.is_empty() {
+            return Err(InstalledArtifactMemoryProjectionError(
+                "initialized data has no retained placement".into(),
+            ));
+        }
+        return Ok(text.to_vec());
+    };
+    let total = data_offset.checked_add(data.len()).ok_or_else(|| {
+        InstalledArtifactMemoryProjectionError("installed section extent overflows".into())
+    })?;
+    let mut bytes = vec![0; total];
+    bytes[..text.len()].copy_from_slice(text);
+    bytes[data_offset..].copy_from_slice(data);
+    Ok(bytes)
+}
+
 /// Exact attribution of one already-admitted entry to one compiler-private
 /// function in one installed artifact occurrence.
 ///
@@ -324,27 +451,19 @@ pub fn bind_installed_artifact(
             "installed code architecture differs from the terminal artifact target".into(),
         );
     }
-    let Some(final_compiler_text) = image
-        .output()
-        .final_text_bytes
-        .get(..object.text_bytes().len())
-    else {
-        return reject(
-            object,
-            image,
-            installation,
-            installed,
-            "terminal executable image truncates the compiler-authored object text".into(),
-        );
+    let memory = match project_installed_artifact_memory_images(&object, &image) {
+        Ok(memory) => memory,
+        Err(error) => {
+            return reject(object, image, installation, installed, error.to_string());
+        }
     };
-    if !installed.binds_exact_materialized_artifact_bytes(object.text_bytes(), final_compiler_text)
-    {
+    if !installed.binds_exact_materialized_artifact_bytes(memory.encoded(), memory.materialized()) {
         return reject(
             object,
             image,
             installation,
             installed,
-            "installed code does not contain the exact unrelocated and materialized terminal text"
+            "installed code does not contain the exact unrelocated and materialized terminal text/data sections"
                 .into(),
         );
     }

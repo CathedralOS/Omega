@@ -2,13 +2,18 @@
 
 use sha2::{Digest, Sha256};
 
-use super::{ImageFingerprint, InstallationFingerprint};
+use super::{ImageFingerprint, InitializedDataFingerprint, InstallationFingerprint};
 
 const IMAGE_DOMAIN: &[u8] = b"omega-installed-image\0";
+const INITIALIZED_DATA_DOMAIN: &[u8] = b"omega-installed-initialized-data\0";
 const RECORD_DOMAIN: &[u8] = b"omega-installation-record\0";
 
 pub(super) fn fingerprint_image(bytes: &[u8]) -> ImageFingerprint {
     ImageFingerprint(hash(IMAGE_DOMAIN, bytes))
+}
+
+pub(super) fn fingerprint_initialized_data(bytes: &[u8]) -> InitializedDataFingerprint {
+    InitializedDataFingerprint(hash(INITIALIZED_DATA_DOMAIN, bytes))
 }
 
 pub(super) fn fingerprint_record(bytes: &[u8]) -> InstallationFingerprint {
