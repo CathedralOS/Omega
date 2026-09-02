@@ -84,6 +84,7 @@ pub(super) fn emit(
             ],
         },
         None,
+        None,
         target,
         functions,
         &[],

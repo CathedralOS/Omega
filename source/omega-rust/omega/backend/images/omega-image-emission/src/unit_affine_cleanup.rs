@@ -89,6 +89,7 @@ pub(super) fn validate_unit_affine_cleanup(
     attribution: &[SemanticCodeAttribution],
     parameter_homes: &[UnitParameterHomeRecord],
     internal_unit_calls: &[InternalUnitCallRecord],
+    borrowed_roots: &std::collections::BTreeSet<psi_core::PlaceId>,
     attachments: &std::collections::BTreeMap<MachineId, Option<StructuralTypeId>>,
     functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
     cleanup: &UnitAffineCleanupRecord,
@@ -122,6 +123,7 @@ pub(super) fn validate_unit_affine_cleanup(
         .filter(|home| {
             home.multiplicity == psi_terminal::StructuralMultiplicity::Affine
                 && !transferred_roots.contains(&home.place)
+                && !borrowed_roots.contains(&home.place)
                 && !fully_consumed_affine_pair
         })
         .map(|home| home.place)

@@ -16,6 +16,7 @@
 mod boundary_results;
 mod byte_sequence_custody;
 mod completion_receipts;
+mod dynamic_conformance;
 mod dynamic_elf;
 mod final_image_validation;
 mod fully_consumed_affine_pair;
@@ -70,6 +71,7 @@ pub use stack_demand::{derive_stack_demand, derive_unit_stack_demand};
 use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
+use dynamic_conformance::validate_dynamic_scalar_calls;
 use fully_consumed_affine_pair::{
     exact_fully_consumed_affine_pair, exact_partially_consumed_affine_array,
 };
@@ -117,6 +119,8 @@ pub struct ObjectArtifact {
     object: ObjectPlan,
     relocations: RelocationPlan,
     text_bytes: Vec<u8>,
+    data_bytes: Vec<u8>,
+    dynamic_conformance_tables: Vec<ObjectDynamicConformanceTable>,
     functions: Vec<ObjectFunction>,
     private_functions: Vec<ObjectCompilerPrivateFunction>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
@@ -158,6 +162,14 @@ impl ObjectArtifact {
 
     pub fn text_bytes(&self) -> &[u8] {
         &self.text_bytes
+    }
+
+    pub fn data_bytes(&self) -> &[u8] {
+        &self.data_bytes
+    }
+
+    pub fn dynamic_conformance_tables(&self) -> &[ObjectDynamicConformanceTable] {
+        &self.dynamic_conformance_tables
     }
 
     pub fn functions(&self) -> &[ObjectFunction] {
@@ -235,6 +247,7 @@ pub struct ObjectFunction {
     pub scalar_call_stacks: Vec<ObjectScalarCallStack>,
     pub internal_unit_calls: Vec<omega_machine_code::InternalUnitCallRecord>,
     pub internal_unit_scalar_calls: Vec<omega_machine_code::InternalUnitScalarCallRecord>,
+    pub dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
     pub unit_scalar_homes: Vec<omega_machine_code::UnitScalarHomeRecord>,
     pub unit_integer_constants: Vec<omega_machine_code::UnitIntegerConstantRecord>,
     pub unit_structural_scalar_field_stores:
@@ -254,6 +267,24 @@ pub struct ObjectFunction {
     /// Byte-validated structural custody returned by this function, when the
     /// complete one-fragment slice applies.
     pub structural_return: Option<StructuralReturnRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectDynamicConformanceTable {
+    pub application: psi_terminal::ClosedConformanceApplication,
+    pub symbol: ObjectSymbolHandle,
+    pub data_offset: usize,
+    pub byte_count: usize,
+    pub slots: Vec<ObjectDynamicConformanceSlot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObjectDynamicConformanceSlot {
+    pub row_index: u32,
+    pub realization_callable_identity: Option<String>,
+    pub target: Option<MachineId>,
+    pub target_symbol: Option<ObjectSymbolHandle>,
+    pub data_offset: usize,
 }
 
 impl ObjectFunction {
@@ -575,6 +606,22 @@ pub fn build_admitted_x86_fma_object_artifact(
         Some(provider.profile()),
         Some(provider),
     )
+}
+
+fn same_dynamic_table_application(
+    left: &psi_terminal::ClosedConformanceApplication,
+    right: &psi_terminal::ClosedConformanceApplication,
+) -> bool {
+    left.commitment == right.commitment
+        && left.declaration_identity == right.declaration_identity
+        && left.telescope == right.telescope
+        && left.subject_identity == right.subject_identity
+        && left.trait_identity == right.trait_identity
+        && left.trait_lifetime_arguments == right.trait_lifetime_arguments
+        && left.trait_arguments == right.trait_arguments
+        && left.realization_callables == right.realization_callables
+        && left.rows == right.rows
+        && left.report_fingerprint == right.report_fingerprint
 }
 
 fn build_object_artifact_with_x86_feature_profile(
@@ -1104,7 +1151,26 @@ fn build_object_artifact_with_x86_feature_profile(
             validated_function_stack.as_ref(),
             &validated_call_stacks,
         )?;
+        let dynamic_peak = validate_dynamic_scalar_calls(
+            plan.target,
+            function,
+            &machine_functions,
+            validated_function_stack.as_ref(),
+        )?;
+        if let Some(stack) = validated_function_stack.as_mut() {
+            stack.local_peak_bytes = stack.local_peak_bytes.max(dynamic_peak);
+        }
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
+        let dynamic_borrowed_roots = function
+            .dynamic_scalar_calls
+            .iter()
+            .flat_map(|call| {
+                [
+                    call.initial_instance.source.place,
+                    call.rebound_instance.source.place,
+                ]
+            })
+            .collect::<std::collections::BTreeSet<_>>();
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
                 function.machine,
@@ -1113,6 +1179,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.semantic_code_attribution,
                 &function.unit_parameter_homes,
                 &function.internal_unit_calls,
+                &dynamic_borrowed_roots,
                 &attachments,
                 &machine_functions,
                 cleanup,
@@ -1140,6 +1207,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.semantic_code_attribution,
                 &function.scalar_structural_parameter_homes,
                 &function.internal_unit_calls,
+                &std::collections::BTreeSet::new(),
                 &attachments,
                 &machine_functions,
                 cleanup,
@@ -1174,6 +1242,7 @@ fn build_object_artifact_with_x86_feature_profile(
                     &function.semantic_code_attribution,
                     &function.scalar_structural_parameter_homes,
                     &function.internal_unit_calls,
+                    &std::collections::BTreeSet::new(),
                     &attachments,
                     &machine_functions,
                     &record.cleanup,
@@ -1245,6 +1314,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 stack,
                 &function.internal_calls,
                 &function.foreign_calls,
+                &function.dynamic_scalar_calls,
                 &inline_data,
             )?;
         }
@@ -1569,6 +1639,25 @@ fn build_object_artifact_with_x86_feature_profile(
             .ok_or(ObjectError::TextSizeOverflow)?;
     }
 
+    let mut dynamic_applications = Vec::<psi_terminal::ClosedConformanceApplication>::new();
+    for application in plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.dynamic_scalar_calls)
+        .map(|call| &call.dynamic_dispatch.application)
+    {
+        if let Some(existing) = dynamic_applications
+            .iter()
+            .find(|existing| existing.commitment == application.commitment)
+        {
+            if !same_dynamic_table_application(existing, application) {
+                return Err(ObjectError::DynamicConformanceCommitmentCollision);
+            }
+        } else {
+            dynamic_applications.push(application.clone());
+        }
+    }
+
     let foreign_call_count = plan
         .functions
         .iter()
@@ -1578,7 +1667,8 @@ fn build_object_artifact_with_x86_feature_profile(
         .functions
         .len()
         .saturating_add(private_functions.len())
-        .saturating_add(foreign_call_count);
+        .saturating_add(foreign_call_count)
+        .saturating_add(dynamic_applications.len());
     let mut object = if private_functions.is_empty() {
         ObjectPlan::with_capacity(plan.target, 1, symbol_capacity)
     } else {
@@ -1589,6 +1679,23 @@ fn build_object_artifact_with_x86_feature_profile(
         size: text_size,
         alignment: 16,
     });
+    let dynamic_data_size = dynamic_applications
+        .iter()
+        .try_fold(0usize, |size, application| {
+            application
+                .rows
+                .len()
+                .checked_mul(8)
+                .and_then(|bytes| size.checked_add(bytes))
+                .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)
+        })?;
+    if dynamic_data_size != 0 {
+        object.layout.sections.insert(SectionPlan {
+            kind: SectionKind::Data,
+            size: dynamic_data_size,
+            alignment: 8,
+        });
+    }
 
     let mut text_bytes = Vec::with_capacity(text_size);
     let mut functions = Vec::with_capacity(plan.functions.len());
@@ -1762,6 +1869,7 @@ fn build_object_artifact_with_x86_feature_profile(
             scalar_call_stacks,
             internal_unit_calls: function.internal_unit_calls.clone(),
             internal_unit_scalar_calls: function.internal_unit_scalar_calls.clone(),
+            dynamic_scalar_calls: function.dynamic_scalar_calls.clone(),
             unit_scalar_homes: function.unit_scalar_homes.clone(),
             unit_integer_constants: function.unit_integer_constants.clone(),
             unit_structural_scalar_field_stores: function
@@ -1776,6 +1884,86 @@ fn build_object_artifact_with_x86_feature_profile(
             scalar_structural_parameter_homes: function.scalar_structural_parameter_homes.clone(),
             ranked_u32_countdown: function.ranked_u32_countdown.clone(),
             structural_return: function.structural_return.clone(),
+        });
+    }
+
+    let mut data_bytes = Vec::with_capacity(dynamic_data_size);
+    let mut dynamic_conformance_tables = Vec::with_capacity(dynamic_applications.len());
+    for (table_index, application) in dynamic_applications.into_iter().enumerate() {
+        if application.rows.is_empty() {
+            return Err(ObjectError::InvalidDynamicConformanceTable);
+        }
+        let data_offset = data_bytes.len();
+        let byte_count = application
+            .rows
+            .len()
+            .checked_mul(8)
+            .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?;
+        data_bytes.resize(
+            data_bytes
+                .len()
+                .checked_add(byte_count)
+                .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?,
+            0,
+        );
+        let symbol = object.layout.symbols.insert(SymbolPlan {
+            name: format!(
+                "omega_dynamic_conformance_table_{table_index}_{}",
+                application.report_fingerprint
+            ),
+            section: SymbolSection::Section(SectionKind::Data),
+            offset: data_offset,
+            size: byte_count,
+            kind: SymbolKind::Object,
+            import_library: String::new(),
+        });
+        let slots = application
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(row_index, row)| {
+                let (target, target_symbol) = match &row.realization_callable_identity {
+                    Some(callable_identity) => {
+                        let matching = application
+                            .realization_callables
+                            .iter()
+                            .filter(|callable| {
+                                callable.source_callable_identity == *callable_identity
+                            })
+                            .collect::<Vec<_>>();
+                        let [callable] = matching.as_slice() else {
+                            return Err(ObjectError::InvalidDynamicConformanceTable);
+                        };
+                        let target_symbol =
+                            symbols_by_machine.get(&callable.machine).copied().ok_or(
+                                ObjectError::UnknownDynamicConformanceTarget(callable.machine),
+                            )?;
+                        (Some(callable.machine), Some(target_symbol))
+                    }
+                    None => (None, None),
+                };
+                Ok(ObjectDynamicConformanceSlot {
+                    row_index: u32::try_from(row_index)
+                        .map_err(|_| ObjectError::DynamicConformanceDataSizeOverflow)?,
+                    realization_callable_identity: row.realization_callable_identity.clone(),
+                    target,
+                    target_symbol,
+                    data_offset: data_offset
+                        .checked_add(
+                            row_index
+                                .checked_mul(8)
+                                .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?,
+                        )
+                        .ok_or(ObjectError::DynamicConformanceDataSizeOverflow)?,
+                })
+            })
+            .collect::<Result<Vec<_>, ObjectError>>()?;
+        dynamic_conformance_tables.push(ObjectDynamicConformanceTable {
+            application,
+            symbol,
+            data_offset,
+            byte_count,
+            slots,
         });
     }
 
@@ -1862,11 +2050,93 @@ fn build_object_artifact_with_x86_feature_profile(
             omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
         })
         .sum::<usize>();
+    let dynamic_table_relocation_count = dynamic_conformance_tables
+        .iter()
+        .flat_map(|table| &table.slots)
+        .filter(|slot| slot.target_symbol.is_some())
+        .count();
+    let dynamic_address_relocation_count = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.dynamic_scalar_calls)
+        .map(|call| match call.table_address.encoding {
+            omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 { .. } => 1,
+            omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress { .. } => 2,
+        })
+        .sum::<usize>();
     let mut relocations = RelocationPlan::with_record_capacity(
         plan.target,
-        ordinary_relocation_count.saturating_add(callback_relocation_count),
+        ordinary_relocation_count
+            .saturating_add(callback_relocation_count)
+            .saturating_add(dynamic_table_relocation_count)
+            .saturating_add(dynamic_address_relocation_count),
     );
+    for table in &dynamic_conformance_tables {
+        for slot in &table.slots {
+            let Some(target_symbol) = slot.target_symbol else {
+                continue;
+            };
+            relocations.push_record(RelocationRecord {
+                origin: RelocationOrigin::Materialization {
+                    object_symbol_handle: table.symbol,
+                },
+                section: SectionKind::Data,
+                offset: slot.data_offset,
+                byte_width: 8,
+                symbol_handle: target_symbol,
+                addend: 0,
+                kind: RelocationKind::Absolute64,
+            });
+        }
+    }
     for (function, emitted) in plan.functions.iter().zip(&functions) {
+        for call in &function.dynamic_scalar_calls {
+            let table = dynamic_conformance_tables
+                .iter()
+                .find(|table| {
+                    table.application.commitment == call.dynamic_dispatch.application.commitment
+                        && same_dynamic_table_application(
+                            &table.application,
+                            &call.dynamic_dispatch.application,
+                        )
+                })
+                .ok_or(ObjectError::InvalidDynamicConformanceTable)?;
+            let origin = RelocationOrigin::SemanticOperation {
+                function_symbol_handle: emitted.symbol,
+                operation_identity: call.psi_operation.get(),
+            };
+            let mut push_address =
+                |local_offset: usize, kind: RelocationKind| -> Result<(), ObjectError> {
+                    relocations.push_record(RelocationRecord {
+                        origin,
+                        section: SectionKind::Text,
+                        offset: emitted
+                            .text_offset
+                            .checked_add(local_offset)
+                            .ok_or(ObjectError::TextSizeOverflow)?,
+                        byte_width: 4,
+                        symbol_handle: table.symbol,
+                        addend: 0,
+                        kind,
+                    });
+                    Ok(())
+                };
+            match call.table_address.encoding {
+                omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                    relocation_offset,
+                } => push_address(relocation_offset, RelocationKind::X86_64Relative32)?,
+                omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => {
+                    push_address(page_relocation_offset, RelocationKind::Aarch64Page21)?;
+                    push_address(
+                        page_offset_relocation_offset,
+                        RelocationKind::Aarch64PageOffset12,
+                    )?;
+                }
+            }
+        }
         for call in &function.internal_calls {
             let target_symbol = symbols_by_machine.get(&call.target).copied().ok_or(
                 ObjectError::UnknownInternalCallTarget {
@@ -2023,6 +2293,8 @@ fn build_object_artifact_with_x86_feature_profile(
         object,
         relocations,
         text_bytes,
+        data_bytes,
+        dynamic_conformance_tables,
         functions,
         private_functions: object_private_functions,
         semantic_code_attribution,
@@ -2062,6 +2334,7 @@ fn validate_private_functions<'plan>(
             || !private.function.foreign_calls.is_empty()
             || !private.function.internal_unit_calls.is_empty()
             || !private.function.internal_unit_scalar_calls.is_empty()
+            || !private.function.dynamic_scalar_calls.is_empty()
             || !private.function.x86_scalar_fma.is_empty()
             || !private.function.x86_scalar_fma_occurrences.is_empty()
             || private.function.x86_floating_control.is_some()
@@ -2086,6 +2359,7 @@ fn validate_private_functions<'plan>(
         if !replayed.object.layout.normalized_imports.is_empty()
             || replayed.relocations.record_count() != 0
             || replayed.text_bytes != private.function.bytes
+            || !replayed.data_bytes.is_empty()
         {
             return Err(ObjectError::InvalidPrivateFunctionBody);
         }
@@ -2999,6 +3273,10 @@ fn expected_foreign_scalar_argument_bytes(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObjectError {
     EmptyPlan,
+    DynamicConformanceCommitmentCollision,
+    DynamicConformanceDataSizeOverflow,
+    InvalidDynamicConformanceTable,
+    UnknownDynamicConformanceTarget(MachineId),
     NonCanonicalFunctionOrder {
         previous: MachineId,
         current: MachineId,
@@ -3062,6 +3340,10 @@ pub enum ObjectError {
     InvalidForeignCallArgument {
         caller: MachineId,
         owner: CallSiteOwner,
+    },
+    InvalidDynamicScalarCallEvidence {
+        caller: MachineId,
+        operation: psi_core::OperationId,
     },
     InvalidCallbackAddressCustody {
         caller: MachineId,

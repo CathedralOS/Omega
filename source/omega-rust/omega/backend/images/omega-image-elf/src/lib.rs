@@ -210,6 +210,7 @@ fn emit_elf_executable(
 
     Ok(ExecutableImageOutput {
         final_text_bytes: image.memory.text.clone(),
+        final_data_bytes: image.memory.data.clone(),
         bytes,
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),

@@ -337,6 +337,7 @@ mod tests {
                 },
                 &machine,
                 &psi_terminal::TerminalDynamicDispatchCatalog::default(),
+                &[],
             )
             .unwrap();
             let (requirements, crashes) = match lowered {

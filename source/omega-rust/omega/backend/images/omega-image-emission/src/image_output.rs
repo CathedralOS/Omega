@@ -71,7 +71,7 @@ pub fn emit_object_container(artifact: &ObjectArtifact) -> ObjectContainer {
             object: &artifact.object,
             relocations: &artifact.relocations,
             text_bytes: &artifact.text_bytes,
-            data_bytes: &[],
+            data_bytes: artifact.data_bytes(),
         }),
     }
 }
@@ -118,7 +118,7 @@ pub fn emit_executable_image(
         object: &artifact.object,
         relocations: &artifact.relocations,
         text_bytes: &artifact.text_bytes,
-        data_bytes: &[],
+        data_bytes: artifact.data_bytes(),
     });
     let final_image_symbol_digest = omega_image::final_image_symbol_digest(&image);
     let output = match (artifact.target.object_format, artifact.target.architecture) {
@@ -157,6 +157,7 @@ pub fn emit_executable_image(
         subsystem: matches!(artifact.target.object_format, ObjectFormat::Coff).then_some(subsystem),
         functions: artifact.functions.clone(),
         private_functions: artifact.private_functions.clone(),
+        dynamic_conformance_tables: artifact.dynamic_conformance_tables.clone(),
         semantic_code_attribution: artifact.semantic_code_attribution.clone(),
         port_effects: artifact.port_effects.clone(),
         boundary_settlements: artifact.boundary_settlements.clone(),
@@ -182,6 +183,7 @@ pub fn validate_executable_image(
         || artifact.x86_scalar_fma_provider() != image.x86_scalar_fma_provider()
         || artifact.functions() != image.functions()
         || artifact.private_functions() != image.private_functions()
+        || artifact.dynamic_conformance_tables() != image.dynamic_conformance_tables()
         || artifact.semantic_code_attribution() != image.semantic_code_attribution()
         || artifact.port_effects() != image.port_effects()
         || artifact.boundary_settlements() != image.boundary_settlements()
@@ -196,7 +198,7 @@ pub fn validate_executable_image(
         object: artifact.object(),
         relocations: artifact.relocations(),
         text_bytes: artifact.text_bytes(),
-        data_bytes: &[],
+        data_bytes: artifact.data_bytes(),
     });
     if image.final_image_symbol_digest
         != omega_image::final_image_symbol_digest(&replayed_final_image)
@@ -309,7 +311,7 @@ pub fn emit_scalar_call_reference_linux_x86_64_image(
         object: &object,
         relocations: &relocations,
         text_bytes: &text_bytes,
-        data_bytes: &[],
+        data_bytes: artifact.data_bytes(),
     });
     let output = omega_image_elf::emit_elf_x86_64_executable(image)?;
     let mut output = emitted_direct_executable_output(output);
@@ -337,6 +339,7 @@ pub struct ExecutableImage {
     subsystem: Option<u16>,
     functions: Vec<ObjectFunction>,
     private_functions: Vec<ObjectCompilerPrivateFunction>,
+    dynamic_conformance_tables: Vec<super::ObjectDynamicConformanceTable>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -384,6 +387,10 @@ impl ExecutableImage {
 
     pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
         &self.private_functions
+    }
+
+    pub fn dynamic_conformance_tables(&self) -> &[super::ObjectDynamicConformanceTable] {
+        &self.dynamic_conformance_tables
     }
 
     pub fn port_effects(&self) -> &[ObjectPortEffect] {

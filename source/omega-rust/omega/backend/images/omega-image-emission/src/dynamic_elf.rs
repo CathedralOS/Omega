@@ -204,7 +204,7 @@ pub fn emit_dynamic_elf_image(
         object: artifact.object(),
         relocations: artifact.relocations(),
         text_bytes: artifact.text_bytes(),
-        data_bytes: &[],
+        data_bytes: artifact.data_bytes(),
     });
     let inputs = plan_elf_dynamic_link_inputs(image, interpreter)
         .map_err(|error| Box::new(DynamicElfOrchestrationError::LinkInputs(error)))?;
@@ -332,7 +332,7 @@ fn derive_output(
         object: artifact.object(),
         relocations: artifact.relocations(),
         text_bytes: artifact.text_bytes(),
-        data_bytes: &[],
+        data_bytes: artifact.data_bytes(),
     });
     let symbol_digest = final_image_symbol_digest(&replayed_image);
     let mut output = emitted_direct_executable_output(admitted.output().clone());

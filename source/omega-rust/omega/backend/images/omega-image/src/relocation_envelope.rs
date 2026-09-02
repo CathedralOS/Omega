@@ -6,6 +6,75 @@ use omega_object_file::{RelocationKind, RelocationPlan, SectionKind};
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 
+/// Prove that final initialized data preserves every encoded byte except the
+/// exact eight-byte slots named by checked absolute data relocations.
+pub fn validate_final_initialized_data_relocation_envelope(
+    encoded_data_bytes: &[u8],
+    final_data_bytes: &[u8],
+    relocations: &RelocationPlan,
+) -> Result<(), Diagnostic> {
+    if final_data_bytes.len() != encoded_data_bytes.len() {
+        return Err(Diagnostic::error(format!(
+            "relocated initialized data has {} byte(s), expected exactly {}",
+            final_data_bytes.len(),
+            encoded_data_bytes.len()
+        )));
+    }
+
+    let mut mutable_bytes = vec![false; encoded_data_bytes.len()];
+    for (_, relocation) in relocations.records() {
+        if relocation.section != SectionKind::Data {
+            continue;
+        }
+        if relocation.kind != RelocationKind::Absolute64 || relocation.byte_width != 8 {
+            return Err(Diagnostic::error(format!(
+                "initialized-data relocation at byte {} must be an Absolute64 width-8 slot",
+                relocation.offset
+            )));
+        }
+        if relocation.offset % 8 != 0 {
+            return Err(Diagnostic::error(format!(
+                "initialized-data Absolute64 relocation at byte {} is not eight-byte aligned",
+                relocation.offset
+            )));
+        }
+        let end = relocation
+            .offset
+            .checked_add(8)
+            .filter(|end| *end <= mutable_bytes.len())
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "initialized-data relocation at byte {} exceeds encoded data",
+                    relocation.offset
+                ))
+            })?;
+        if mutable_bytes[relocation.offset..end]
+            .iter()
+            .any(|mutable| *mutable)
+        {
+            return Err(Diagnostic::error(format!(
+                "initialized-data relocation at byte {} overlaps another relocation slot",
+                relocation.offset
+            )));
+        }
+        mutable_bytes[relocation.offset..end].fill(true);
+    }
+
+    for (offset, ((encoded, final_byte), mutable)) in encoded_data_bytes
+        .iter()
+        .zip(final_data_bytes)
+        .zip(&mutable_bytes)
+        .enumerate()
+    {
+        if !mutable && encoded != final_byte {
+            return Err(Diagnostic::error(format!(
+                "final initialized-data byte {offset} changed outside a declared Absolute64 relocation slot"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Prove that final `.text` preserves every encoded bit except the exact
 /// immediate fields named by checked relocation records.
 pub fn validate_final_text_relocation_envelope(
@@ -184,4 +253,129 @@ fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     digest.update((bytes.len() as u64).to_le_bytes());
     digest.update(bytes);
     digest.finalize().into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_final_initialized_data_relocation_envelope;
+    use omega_object_file::{
+        ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
+        SectionKind,
+    };
+    use omega_target::NativeTarget;
+
+    fn data_relocation(offset: usize) -> RelocationRecord {
+        RelocationRecord {
+            origin: RelocationOrigin::Materialization {
+                object_symbol_handle: ObjectSymbolHandle::invalid(),
+            },
+            section: SectionKind::Data,
+            offset,
+            byte_width: 8,
+            symbol_handle: ObjectSymbolHandle::invalid(),
+            addend: 0,
+            kind: RelocationKind::Absolute64,
+        }
+    }
+
+    #[test]
+    fn initialized_data_envelope_accepts_only_declared_slot_mutation() {
+        let encoded = vec![0x5a; 24];
+        let mut final_data = encoded.clone();
+        final_data[0..8].copy_from_slice(&0x1122_3344_5566_7788u64.to_le_bytes());
+        final_data[16..24].copy_from_slice(&0x8877_6655_4433_2211u64.to_le_bytes());
+        let mut relocations = RelocationPlan::with_target(NativeTarget::host());
+        relocations.push_record(data_relocation(0));
+        relocations.push_record(data_relocation(16));
+
+        validate_final_initialized_data_relocation_envelope(&encoded, &final_data, &relocations)
+            .expect("exact declared data slots may change");
+
+        final_data[8] ^= 1;
+        assert!(
+            validate_final_initialized_data_relocation_envelope(
+                &encoded,
+                &final_data,
+                &relocations,
+            )
+            .is_err(),
+            "mutation outside a declared slot must be rejected"
+        );
+    }
+
+    #[test]
+    fn initialized_data_envelope_preserves_empty_data_behavior_and_exact_length() {
+        let relocations = RelocationPlan::with_target(NativeTarget::host());
+        validate_final_initialized_data_relocation_envelope(&[], &[], &relocations)
+            .expect("empty initialized data remains valid");
+        assert!(
+            validate_final_initialized_data_relocation_envelope(&[], &[0], &relocations).is_err()
+        );
+        assert!(
+            validate_final_initialized_data_relocation_envelope(&[0], &[], &relocations).is_err()
+        );
+    }
+
+    #[test]
+    fn initialized_data_envelope_rejects_malformed_or_overlapping_slots() {
+        let encoded = vec![0; 24];
+
+        let mut wrong_kind = RelocationPlan::with_target(NativeTarget::host());
+        let mut relocation = data_relocation(0);
+        relocation.kind = RelocationKind::X86_64Relative32;
+        wrong_kind.push_record(relocation);
+        assert!(
+            validate_final_initialized_data_relocation_envelope(&encoded, &encoded, &wrong_kind,)
+                .is_err()
+        );
+
+        let mut wrong_width = RelocationPlan::with_target(NativeTarget::host());
+        let mut relocation = data_relocation(0);
+        relocation.byte_width = 4;
+        wrong_width.push_record(relocation);
+        assert!(
+            validate_final_initialized_data_relocation_envelope(&encoded, &encoded, &wrong_width,)
+                .is_err()
+        );
+
+        let mut misaligned = RelocationPlan::with_target(NativeTarget::host());
+        misaligned.push_record(data_relocation(1));
+        assert!(
+            validate_final_initialized_data_relocation_envelope(&encoded, &encoded, &misaligned,)
+                .is_err()
+        );
+
+        let mut overlapping = RelocationPlan::with_target(NativeTarget::host());
+        overlapping.push_record(data_relocation(8));
+        overlapping.push_record(data_relocation(8));
+        assert!(
+            validate_final_initialized_data_relocation_envelope(&encoded, &encoded, &overlapping,)
+                .is_err()
+        );
+
+        let mut out_of_bounds = RelocationPlan::with_target(NativeTarget::host());
+        out_of_bounds.push_record(data_relocation(24));
+        assert!(
+            validate_final_initialized_data_relocation_envelope(
+                &encoded,
+                &encoded,
+                &out_of_bounds,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn initialized_data_envelope_ignores_text_relocation_fields() {
+        let encoded = vec![0x5a; 8];
+        let mut relocations = RelocationPlan::with_target(NativeTarget::host());
+        let mut relocation = data_relocation(0);
+        relocation.section = SectionKind::Text;
+        relocation.kind = RelocationKind::X86_64Relative32;
+        relocation.byte_width = 4;
+        relocations.push_record(relocation);
+
+        validate_final_initialized_data_relocation_envelope(&encoded, &encoded, &relocations)
+            .expect("text relocation fields belong to the text envelope");
+    }
 }

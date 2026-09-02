@@ -26,6 +26,8 @@ pub struct ExecutableImageOutput {
     pub bytes: Vec<u8>,
     /// Exact relocated `.text` bytes before container padding/signing.
     pub final_text_bytes: Vec<u8>,
+    /// Exact relocated initialized-data bytes before container padding/signing.
+    pub final_data_bytes: Vec<u8>,
     pub file_name: String,
     pub format: String,
     pub text_bytes: usize,
@@ -41,6 +43,7 @@ pub struct ExecutableImageOutput {
 pub struct EmittedImageOutput {
     pub bytes: Vec<u8>,
     pub final_text_bytes: Vec<u8>,
+    pub final_data_bytes: Vec<u8>,
     /// Compact reporting coordinate. Exact callback-placement rows are replayed
     /// before image emission; this value does not recreate that authority.
     pub callback_placement_identity_report_fingerprint: u64,
@@ -60,6 +63,22 @@ pub struct EmittedImageOutput {
     pub compiler_function_validation: Option<CompilerFunctionValidationEvidence>,
     pub compiler_entry_region_binding: Option<CompilerEntryRegionBindingEvidence>,
     pub compiler_entry_footprint_binding: Option<CompilerEntryFootprintBindingEvidence>,
+}
+
+impl EmittedImageOutput {
+    /// Prove that this output's exact final initialized data differs from its
+    /// encoded input only at checked absolute data relocation slots.
+    pub fn validate_final_initialized_data_relocation_envelope(
+        &self,
+        encoded_data_bytes: &[u8],
+        relocations: &omega_object_file::RelocationPlan,
+    ) -> Result<(), psi_diagnostics::Diagnostic> {
+        crate::relocation_envelope::validate_final_initialized_data_relocation_envelope(
+            encoded_data_bytes,
+            &self.final_data_bytes,
+            relocations,
+        )
+    }
 }
 
 /// Exact final-region custody for the object entry's compiler-private
@@ -460,6 +479,7 @@ pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> Emitte
     EmittedImageOutput {
         bytes: output.bytes,
         final_text_bytes: output.final_text_bytes,
+        final_data_bytes: output.final_data_bytes,
         callback_placement_identity_report_fingerprint: 0,
         file_name: output.file_name,
         format: output.format,

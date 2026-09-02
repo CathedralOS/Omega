@@ -9,7 +9,7 @@ mod x86_fma;
 pub use function_fragments::*;
 pub use x86_fma::*;
 
-use omega_abstract_operations::RankedU32CountdownCustody;
+use omega_abstract_operations::{AbstractReboundDynamicScalarDispatch, RankedU32CountdownCustody};
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_target_operations::{
@@ -107,6 +107,11 @@ pub struct MachineCodeFunction {
     /// calls because scalar values have `ValueId` homes rather than `PlaceId`
     /// projections.
     pub internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
+    /// Complete descriptor, table-address, receiver-copy, and indirect-call
+    /// custody for rebound named-dynamic scalar calls in attached Unit bodies.
+    /// The table contents remain semantic demands until object construction
+    /// binds every canonical row to an exact function symbol.
+    pub dynamic_scalar_calls: Vec<DynamicScalarCallRecord>,
     /// Complete ordered durable scalar homes in an attached Unit frame.
     pub unit_scalar_homes: Vec<UnitScalarHomeRecord>,
     /// Complete ordered zero-code integer definitions available to attached
@@ -218,6 +223,74 @@ pub struct CallbackAddressMaterialization {
     pub code_offset: usize,
     pub byte_count: usize,
     pub encoding: CallbackAddressEncoding,
+}
+
+/// Target-resolved two-word dynamic-trait descriptor geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DynamicTraitDescriptorAbiRecord {
+    pub instance_byte_offset: u32,
+    pub table_byte_offset: u32,
+    pub word_byte_size: u32,
+    pub total_byte_size: u32,
+    pub byte_alignment: u32,
+}
+
+/// Architecture-native address materialization for one object-private
+/// conformance table. Offsets identify only mutable relocation fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DynamicTableAddressEncoding {
+    X86_64Relative32 {
+        relocation_offset: usize,
+    },
+    Aarch64PageAddress {
+        page_relocation_offset: usize,
+        page_offset_relocation_offset: usize,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicTableAddressMaterialization {
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub encoding: DynamicTableAddressEncoding,
+}
+
+/// One initializer or rebound source installed into the descriptor's instance
+/// word. `source_home_*` binds the emitted address back to the independently
+/// retained caller-frame home.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicInstanceMaterializationRecord {
+    pub selection_ordinal: u32,
+    pub source: omega_target_operations::TargetStructuralArgument,
+    pub source_home_byte_offset: u32,
+    pub source_home_indirect: bool,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// Exact physical custody for one rebound descriptor call. Object replay must
+/// derive the selected slot from `dynamic_dispatch.application`, validate the
+/// immutable bytes around every symbolic field, and materialize the complete
+/// table rather than only the selected row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicScalarCallRecord {
+    pub psi_operation: OperationId,
+    pub dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+    pub call_plan: CallPlan,
+    pub result: InternalUnitScalarCallResultRecord,
+    pub descriptor_abi: DynamicTraitDescriptorAbiRecord,
+    pub descriptor_home_byte_offset: u32,
+    pub initial_instance: DynamicInstanceMaterializationRecord,
+    pub table_address: DynamicTableAddressMaterialization,
+    pub rebound_instance: DynamicInstanceMaterializationRecord,
+    pub argument: InternalUnitCallArgumentRecord,
+    pub selected_table_byte_offset: u32,
+    pub indirect_call_offset: usize,
+    pub indirect_call_byte_count: usize,
+    pub unit_stack: UnitCallStackEvidence,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
 }
 
 /// Per-call proof that one returning AArch64 foreign boundary preserved the

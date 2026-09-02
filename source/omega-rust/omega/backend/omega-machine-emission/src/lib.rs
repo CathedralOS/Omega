@@ -208,6 +208,7 @@ fn emit_function(
     let mut foreign_calls = Vec::new();
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
+    let mut dynamic_scalar_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
@@ -242,6 +243,7 @@ fn emit_function(
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            dynamic_scalar_calls = emitted.dynamic_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
@@ -260,6 +262,7 @@ fn emit_function(
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            dynamic_scalar_calls = emitted.dynamic_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
@@ -453,6 +456,7 @@ fn emit_function(
         AssignedOperation::UnitBody(body) => {
             let emitted = emit_unit_body(
                 body,
+                Some(function.machine),
                 function.attachment,
                 target,
                 functions,
@@ -462,6 +466,7 @@ fn emit_function(
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
+            dynamic_scalar_calls = emitted.dynamic_scalar_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
             unit_structural_scalar_field_stores = emitted.structural_scalar_field_stores;
@@ -855,6 +860,7 @@ fn emit_function(
         foreign_calls,
         internal_unit_calls,
         internal_unit_scalar_calls,
+        dynamic_scalar_calls,
         unit_scalar_homes,
         unit_integer_constants,
         unit_structural_scalar_field_stores,
@@ -1095,7 +1101,6 @@ pub enum EmissionError {
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidDynamicScalarCallCustody(psi_core::OperationId),
-    DynamicScalarTableMaterializationPending(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,
     AggregatePlacementCoverageMismatch,

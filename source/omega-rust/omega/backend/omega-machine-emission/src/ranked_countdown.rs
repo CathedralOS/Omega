@@ -110,6 +110,7 @@ pub(super) fn emit(
         foreign_calls: Vec::new(),
         internal_unit_calls: Vec::new(),
         internal_unit_scalar_calls: Vec::new(),
+        dynamic_scalar_calls: Vec::new(),
         unit_scalar_homes: Vec::new(),
         unit_integer_constants: Vec::new(),
         unit_structural_scalar_field_stores: Vec::new(),

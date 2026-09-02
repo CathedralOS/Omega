@@ -258,6 +258,7 @@ pub fn admit_elf_dynamic_executable(
     } = assembled;
     let mut image = recover_retained_image(resolved_linkage);
     image.memory.text = output.final_text_bytes.clone();
+    image.memory.data = output.final_data_bytes.clone();
     debug_assert_eq!(image, expected_image);
 
     Ok(ValidatedElfDynamicExecutable {
@@ -277,6 +278,7 @@ fn derive_executable_output(
     Ok(ExecutableImageOutput {
         bytes: assembled.bytes().to_vec(),
         final_text_bytes: image.memory.text.clone(),
+        final_data_bytes: image.memory.data.clone(),
         file_name: "omega-program".to_owned(),
         format: format.to_owned(),
         text_bytes: image.memory.text.len(),

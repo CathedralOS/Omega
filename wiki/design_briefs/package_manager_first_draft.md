@@ -1338,6 +1338,15 @@ normalized foreign calls, admitted native providers, and other unsupported
 executable roles produce no partial D32 evidence; admitted-provider parents
 remain open.
 
+The separate service-free, straight-line rebound-dynamic lane now reaches
+machine code, object construction, and direct executable-image emission with
+exact descriptor, private conformance-table, indirect-call, and final-data
+replay. It does not yet publish a D32 package-native artifact: runtime
+installation rejects the data-bearing table until installation records and the
+loader retain exact multi-section placement and relocation custody. That
+rejection is the current boundary, not evidence that the table was erased or
+that the call was devirtualized.
+
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-
 fact rows, and domains are absent from trust reports. Exact selected-provider
