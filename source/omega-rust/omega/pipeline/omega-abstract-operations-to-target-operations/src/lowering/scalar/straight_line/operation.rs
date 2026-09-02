@@ -15,6 +15,7 @@ pub(super) fn lower_operation(
     returned: &mut Option<TargetOperation>,
 ) -> Result<(), LoweringError> {
     match operation {
+        AbstractOperation::DynamicDescriptorParameter { .. } => {}
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
             return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
                 machine: function.machine,

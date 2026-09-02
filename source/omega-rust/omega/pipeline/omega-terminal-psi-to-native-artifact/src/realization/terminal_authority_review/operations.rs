@@ -29,7 +29,8 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         }
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { .. } => AuthorityEdge::UnsupportedCheckedPhysical,
-        AbstractOperation::WriteOnlyPrimitiveStore { .. }
+        AbstractOperation::DynamicDescriptorParameter { .. }
+        | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::EstablishPayloadlessCase { .. }
         | AbstractOperation::EstablishByteSequenceLiteral { .. }

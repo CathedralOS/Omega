@@ -21,7 +21,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. } => structural::encode(bytes, operation),
 
-        O::CallUnit { .. }
+        O::DynamicDescriptorParameter { .. }
+        | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }

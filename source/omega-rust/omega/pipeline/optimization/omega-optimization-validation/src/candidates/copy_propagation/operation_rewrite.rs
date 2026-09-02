@@ -99,7 +99,8 @@ pub(crate) fn rewrite_block_parameter_operation(
             }
         }
         O::Return { value, .. } => replace(value),
-        O::EstablishPayloadlessCase { .. }
+        O::DynamicDescriptorParameter { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }

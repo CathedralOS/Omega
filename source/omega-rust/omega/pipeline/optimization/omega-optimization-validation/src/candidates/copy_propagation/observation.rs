@@ -167,7 +167,8 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
             normalize_bindings(when_false.target, &mut when_false.bindings)?;
         }
         O::Return { value, .. } => replace(value),
-        O::EstablishPayloadlessCase { .. }
+        O::DynamicDescriptorParameter { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }

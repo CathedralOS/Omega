@@ -77,7 +77,8 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             rewrite_bindings(&mut when_false.bindings);
         }
         O::Return { value, .. } => replace(value),
-        O::EstablishPayloadlessCase { .. }
+        O::DynamicDescriptorParameter { .. }
+        | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnit { .. }

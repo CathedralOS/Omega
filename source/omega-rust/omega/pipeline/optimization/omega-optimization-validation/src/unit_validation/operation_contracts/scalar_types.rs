@@ -18,6 +18,20 @@ pub(crate) fn operation_scalar_types_match(
         integer(left, expected) && integer(right, expected)
     };
     match operation {
+        O::DynamicDescriptorParameter { parameter } => {
+            parameter.owner == function.machine
+                && !parameter.trait_identity.is_empty()
+                && !parameter.requirements.is_empty()
+                && parameter
+                    .requirements
+                    .iter()
+                    .enumerate()
+                    .all(|(slot, requirement)| {
+                        u32::try_from(slot) == Ok(requirement.slot)
+                            && !requirement.declaring_trait_identity.is_empty()
+                            && !requirement.public_requirement_identity.is_empty()
+                    })
+        }
         O::WriteOnlyPrimitiveStore { value, .. } | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
         }
@@ -294,6 +308,19 @@ pub(crate) fn operation_scalar_types_match(
                 && !dynamic_arguments.is_empty()
                 && dynamic_arguments.iter().all(|argument| {
                     argument.has_complete_custody(function.machine, *psi_operation, callee.machine)
+                        && callee
+                            .blocks
+                            .iter()
+                            .find(|block| block.id == callee.entry)
+                            .is_some_and(|entry| {
+                                entry.nodes.iter().any(|node| {
+                                    matches!(
+                                        &node.operation,
+                                        O::DynamicDescriptorParameter { parameter }
+                                            if parameter == &argument.target
+                                    )
+                                })
+                            })
                 })
                 && dynamic_arguments
                     .windows(2)

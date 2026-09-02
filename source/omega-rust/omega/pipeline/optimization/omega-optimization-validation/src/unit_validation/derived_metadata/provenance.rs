@@ -7,7 +7,7 @@ pub(crate) fn expected_provenance(
 ) -> Vec<PsiProvenance> {
     use omega_abstract_operations::AbstractOperation as O;
     match operation {
-        O::Jump { .. } | O::Conditional { .. } => Vec::new(),
+        O::DynamicDescriptorParameter { .. } | O::Jump { .. } | O::Conditional { .. } => Vec::new(),
         O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
             vec![PsiProvenance::Edge(*psi_edge)]
         }
@@ -88,7 +88,11 @@ pub(crate) fn provenance_matches_operation(
 ) -> bool {
     let expected = expected_provenance(operation);
     if expected.is_empty() {
-        matches!(operation, O::Jump { .. } | O::Conditional { .. }) || provenance.is_empty()
+        match operation {
+            O::DynamicDescriptorParameter { .. } => provenance.is_empty(),
+            O::Jump { .. } | O::Conditional { .. } => true,
+            _ => provenance.is_empty(),
+        }
     } else {
         provenance.starts_with(&expected)
     }

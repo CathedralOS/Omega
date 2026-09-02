@@ -469,6 +469,13 @@ impl AbstractFunctionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractOperation {
+    /// Zero-code declaration of one existential descriptor in the current
+    /// function's runtime interface. Keeping the complete Terminal row in the
+    /// entry block prevents an unused parameter from disappearing before a
+    /// receiving lowerer selects its physical `{data, table}` ABI.
+    DynamicDescriptorParameter {
+        parameter: TerminalDynamicDescriptorParameter,
+    },
     /// One verifier-approved non-observing replacement through an exact
     /// whole-root write-only structural parameter. The complete parameter row
     /// keeps access, multiplicity, nominal type, and signature position from

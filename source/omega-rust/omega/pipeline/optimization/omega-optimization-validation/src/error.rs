@@ -207,6 +207,7 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: Option<BlockId>,
     },
+    DynamicDescriptorParameterMismatch(MachineId),
     DuplicateEdge(EdgeId),
     DuplicateProvenance(PsiProvenance),
     CoExecutableProvenanceOccurrences(PsiProvenance),

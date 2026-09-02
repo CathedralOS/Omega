@@ -489,7 +489,8 @@ pub(super) fn conditional_provenance(
             AbstractOperation::SaturatingIntegerRemainder { psi_operation, .. } => {
                 Some(*psi_operation)
             }
-            AbstractOperation::Jump { .. }
+            AbstractOperation::DynamicDescriptorParameter { .. }
+            | AbstractOperation::Jump { .. }
             | AbstractOperation::Conditional { .. }
             | AbstractOperation::Return { .. }
             | AbstractOperation::ReturnUnit { .. }

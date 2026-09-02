@@ -11760,11 +11760,15 @@ checked-result arithmetic decision listed below.
   identity of ordinary structural calls. Each caller argument retains its
   target parameter and either complete rebound-application custody or exact
   incoming-parameter interface; each helper dispatch retains the parameter,
-  requirement slot, and scalar result. Optimization identity v19 binds those
-  rows, validation rejects missing or substituted custody, call/effect replay
-  retains every table realization, and the ordinary-call identity remains a
-  separate stable encoding. Native target realization deliberately remains
-  the next boundary: descriptor-bearing calls and
+  requirement slot, and scalar result. Optimization identity v20 now also
+  retains every descriptor parameter as an ordered zero-code declaration
+  prefix in the callee entry block, including parameters with no dispatch use.
+  Validation rejoins forwarded arguments and parameter-slot dispatches to that
+  exact declaration roster and rejects missing, duplicated, reordered,
+  substituted, or misplaced custody. Call/effect replay retains every table
+  realization, and the ordinary-call identity remains a separate stable
+  encoding. Native target realization deliberately remains the next boundary:
+  descriptor-bearing calls and
   `CallDynamicParameterScalar` both fail closed before physical planning, so
   no target pretends to implement a descriptor-parameter ABI yet. The older
   direct and caller-local rebound lanes still cross target lowering,
@@ -11774,9 +11778,14 @@ checked-result arithmetic decision listed below.
 
   - lower the retained descriptor parameter/argument/slot model through target
     calling plans, assignment, relocation, object replay, and x86-64/AArch64
-    execution, retaining each function's complete descriptor-parameter
-    signature even when a parameter is unused, with one physical ABI selected
-    by each receiving lowerer rather than embedded in Terminal;
+    execution. The receiving lowerer must select one conventional erased
+    `{data pointer, table pointer}` ABI and generate one role-identified adapter
+    thunk per table slot: the forwarded helper does not know the concrete
+    subject layout, so its vtable cannot point directly at a realization whose
+    ABI still expects that concrete structural value. Adapter identity, table
+    content, call placement, relocation, and emitted bytes must rejoin the
+    Terminal application/slot/realization; no source-era `StateKey` may be
+    fabricated for this source-free private function;
   - extend the v1 shared-borrow/scalar-call surface when Unit results, mutable
     custody, or additional call forms have exact semantic and physical rules;
   - extend custody to changed-conformance, stored/joined/escaping,

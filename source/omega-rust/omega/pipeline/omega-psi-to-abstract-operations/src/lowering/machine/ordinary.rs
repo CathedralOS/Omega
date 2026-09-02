@@ -74,6 +74,16 @@ pub(super) fn lower_ordinary_machine(
                 .collect(),
             operation_offset: operations.len(),
         });
+        if block.id == machine.entry {
+            operations.extend(
+                dynamic_dispatch
+                    .parameters
+                    .iter()
+                    .filter(|parameter| parameter.owner == machine.id)
+                    .cloned()
+                    .map(|parameter| AbstractOperation::DynamicDescriptorParameter { parameter }),
+            );
+        }
         for operation in &block.operations {
             lower_operation(
                 operation,

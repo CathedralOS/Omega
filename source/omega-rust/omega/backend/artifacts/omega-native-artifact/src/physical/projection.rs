@@ -300,7 +300,8 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::SaturatingIntegerMultiply { psi_operation, .. } => {
             Some(*psi_operation)
         }
-        AbstractOperation::Jump { .. }
+        AbstractOperation::DynamicDescriptorParameter { .. }
+        | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. }
         | AbstractOperation::Return { .. }
         | AbstractOperation::ReturnUnit { .. }
