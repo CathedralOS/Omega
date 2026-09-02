@@ -18,7 +18,7 @@ pub(super) fn validate_scalar_structural_scalar_field_stores(
         return Ok(());
     };
     let invalid = || ObjectError::InvalidScalarStructuralScalarFieldStoreEvidence(function.machine);
-    if stores.len() > 2 {
+    if stores.len() > 3 {
         return Err(invalid());
     }
     let parameter_index = usize::try_from(anchor.destination.position).map_err(|_| invalid())?;

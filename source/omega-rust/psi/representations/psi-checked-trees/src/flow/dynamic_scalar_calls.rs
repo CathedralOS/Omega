@@ -213,7 +213,7 @@ pub struct CheckedDynamicRealizationCallablePlan {
     pub realization_identity: String,
     pub result_type: psi_typed_trees::types::PrimitiveType,
     /// Exact ordered primitive-field mutations performed before the return.
-    /// The bounded body shape admits at most two distinct literal stores
+    /// The bounded body shape admits at most three distinct literal stores
     /// through mutable `self`; downstream lowering must not rediscover them
     /// from source.
     pub structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,

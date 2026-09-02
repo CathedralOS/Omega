@@ -25,7 +25,7 @@ pub(super) fn lower_operation(
             });
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
-            if structural_scalar_field_stores.len() >= 2 {
+            if structural_scalar_field_stores.len() >= 3 {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,
                 ));

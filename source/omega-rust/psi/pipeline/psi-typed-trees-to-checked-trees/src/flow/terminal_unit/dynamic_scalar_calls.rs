@@ -1420,7 +1420,7 @@ fn checked_realization_scalar_body(
         .statement_table
         .statements(realization_state.statement_nodes);
     let (statement, prefix) = statements.split_last()?;
-    if prefix.len() > 2 {
+    if prefix.len() > 3 {
         return None;
     }
     let mut stores_with_paths = Vec::with_capacity(prefix.len());

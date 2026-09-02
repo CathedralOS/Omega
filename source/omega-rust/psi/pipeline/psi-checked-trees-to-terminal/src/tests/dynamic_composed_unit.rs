@@ -63,12 +63,14 @@ const MUTATING_REALIZATION_SOURCE: &str = r#"
     data Item [copy] {
         value: i32;
         enabled: bool;
+        attempts: u16;
     }
 
     Primary: Item satisfies Measure {
         machine measure(&mut self) -> i32 {
             self.value = 23;
             self.enabled = true;
+            self.attempts = 257;
             transition { _ -> self.value }
         }
     }
@@ -1340,7 +1342,7 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
 fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
     let checked = checked_source(MUTATING_REALIZATION_SOURCE);
     let plan = direct_plan(&checked);
-    assert_eq!(plan.realization_structural_scalar_field_stores.len(), 2);
+    assert_eq!(plan.realization_structural_scalar_field_stores.len(), 3);
 
     let lowered = lower_machine(&checked, "Main::run").expect("mutating realization lowers");
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
@@ -1368,6 +1370,14 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
             },
             psi_terminal::Operation {
                 kind: OperationKind::BooleanConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::StructuralScalarFieldStore { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
                 ..
             },
             psi_terminal::Operation {
@@ -1471,6 +1481,21 @@ fn rejects_mutating_realization_store_order_drift() {
     direct_plan_mut(&mut checked)
         .realization_structural_scalar_field_stores
         .swap(0, 1);
+
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic selected body drifted from checked custody"
+    );
+}
+
+#[test]
+fn rejects_third_mutating_realization_store_identity_drift() {
+    let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    direct_plan_mut(&mut checked)
+        .realization_structural_scalar_field_stores
+        .get_mut(2)
+        .expect("third checked realization field store")
+        .field_identity = "enabled".into();
 
     assert_eq!(
         unsupported_message(&checked),

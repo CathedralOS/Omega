@@ -799,8 +799,8 @@ bytes on x86-64 and AArch64. Installation format 63 retains the same semantic
 result and physical result/home carrier, and independently rejoins the
 producer to the generic Unit-home roster, ABI result placement, and exact
 local result interval. A first mutation-bearing realization body is admitted
-through checked and Terminal form when `&mut self` receives one or two distinct
-ordered primitive-field literal stores, either directly or below exact finite
+through checked and Terminal form when `&mut self` receives one, two, or three
+distinct ordered primitive-field literal stores, either directly or below exact finite
 paths of relevant named record fields, and then returns an exact scalar self
 field. The callable row retains every write separately from the return, and
 Terminal emits the stores before the read. Direct Boolean and signed or unsigned
@@ -816,7 +816,7 @@ first Boolean store returns an independent `i32` field through the existing
 fixed-integer result-home lane. A Boolean-returning forwarded call instead
 uses an exact one-byte Boolean home and branches directly on that value after
 the indirect call. Indexed/case projections, address and IEEE-float literals,
-computed values, repeated destinations, and a third store remain outside this
+computed values, repeated destinations, and a fourth store remain outside this
 bounded rung. An
 operation-free, argument-free Unit-returning requirement may now be retained
 at the checked layer for a terminal direct or once-rebound local descriptor
