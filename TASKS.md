@@ -11735,17 +11735,20 @@ checked-result arithmetic decision listed below.
 
   The first pass-through baseline is also live. Checked custody distinguishes
   a local dispatch from one reached through an exact transparent scalar
-  helper, binds the caller's selected descriptor to the helper's dynamic
-  parameter and sole dispatch, and composes that unobservable internal call
-  before Terminal publication. The resulting descriptor/table call remains
-  indirect and crosses the same Terminal, target, assignment, object-replay,
-  and x86-64/AArch64 machine-code path. Cross-target compilation and Linux
-  execution select the rebound instance rather than a same-type decoy. The
-  direct rebound continuation likewise carries its exact three-block
-  equality/exit diamond while retaining Terminal operation and edge ordinals.
-  These are deliberately bounded control and transparent-helper families, not
-  a claim that arbitrary Unit CFG or general descriptor-parameter ABI lowering
-  is complete.
+  helper. Checked Psi now publishes the exact caller/callee coordinate,
+  dense runtime-parameter position, bare trait, source binding, and selected
+  conformance for that descriptor transfer; transparent composition consumes
+  this retained transfer rather than rediscovering the outer argument and
+  selection. It then binds the helper's parameter and sole dispatch and
+  composes that unobservable internal call before Terminal publication. The
+  resulting descriptor/table call remains indirect and crosses the same
+  Terminal, target, assignment, object-replay, and x86-64/AArch64 machine-code
+  path. Cross-target compilation and Linux execution select the rebound
+  instance rather than a same-type decoy. The direct rebound continuation
+  likewise carries its exact three-block equality/exit diamond while retaining
+  Terminal operation and edge ordinals. These are deliberately bounded control
+  and transparent-helper families, not a claim that arbitrary Unit CFG or
+  general descriptor-parameter ABI lowering is complete.
 
   Remaining work:
 

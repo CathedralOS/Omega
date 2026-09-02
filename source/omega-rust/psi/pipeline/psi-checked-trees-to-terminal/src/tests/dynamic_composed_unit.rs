@@ -260,19 +260,32 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
 fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody() {
     let mut checked = checked_source(FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE);
     let catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [transfer] = catalog.transfers.as_slice() else {
+        panic!("one checked dynamic descriptor transfer expected, got {catalog:#?}")
+    };
     let [plan] = catalog.rebound_scalar_calls.as_slice() else {
         panic!("one forwarded rebound dynamic plan expected, got {catalog:#?}")
     };
-    assert!(matches!(
-        plan.latest.origin,
-        psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-            coordinate: psi_checked_trees::CheckedUnitCallCoordinate {
-                statement_index: 0,
-                call_ordinal: 0,
-            },
-            ..
-        }
-    ));
+    let psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
+        machine,
+        state,
+        coordinate,
+        parameter,
+    } = plan.latest.origin
+    else {
+        panic!("forwarded origin expected")
+    };
+    assert_eq!(coordinate.statement_index, 0);
+    assert_eq!(coordinate.call_ordinal, 0);
+    assert_eq!(transfer.caller_machine, plan.latest.caller_machine);
+    assert_eq!(transfer.caller_state, plan.latest.caller_state);
+    assert_eq!(transfer.coordinate, plan.latest.coordinate);
+    assert_eq!(transfer.target_machine, machine);
+    assert_eq!(transfer.target_state, state);
+    assert_eq!(transfer.parameter, parameter);
+    assert_eq!(transfer.parameter_position, 0);
+    assert_eq!(transfer.source_binding, plan.latest.receiver_binding);
+    assert_eq!(transfer.selection, plan.latest.selection);
 
     let lowered =
         lower_machine(&checked, "Main::run").expect("transparent forwarded dynamic call lowers");

@@ -26,6 +26,7 @@ fn build_checked_dynamic_scalar_call_transaction(
 ) -> Option<psi_checked_trees::CheckedDynamicDispatchPlans> {
     let binding_facts = facts.dynamic_conformances.binding_facts();
     let mut plans = psi_checked_trees::CheckedDynamicDispatchPlans::default();
+    plans.transfers = build_checked_dynamic_descriptor_transfers(program, facts, &binding_facts);
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -86,6 +87,144 @@ fn build_checked_dynamic_scalar_call_transaction(
     Some(plans)
 }
 
+fn build_checked_dynamic_descriptor_transfers(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    binding_facts: &psi_checked_trees::DynamicConformanceBindingFacts,
+) -> Vec<psi_checked_trees::CheckedDynamicDescriptorTransferPlan> {
+    let mut transfers = Vec::new();
+    for caller in program.machines() {
+        for caller_state in program.machine_states(caller) {
+            let Some(flow) = state_flow(facts, caller.symbol, caller_state.symbol) else {
+                continue;
+            };
+            for call in facts.flow.control.calls.span_or_empty(flow.calls) {
+                let Some(call_site) = crate::find_call_site(
+                    program,
+                    caller.symbol,
+                    caller_state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                ) else {
+                    continue;
+                };
+                let Some(target_state) = crate::find_state(program, call.target_symbol) else {
+                    continue;
+                };
+                let Some(target_machine) = program.machines().iter().find(|machine| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == target_state.symbol)
+                }) else {
+                    continue;
+                };
+                let arguments = crate::call_site_argument_expressions(program, &call_site);
+                let parameters = program
+                    .state_parameters(target_state)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self)
+                    .collect::<Vec<_>>();
+                if arguments.len() != parameters.len() {
+                    continue;
+                }
+                for (parameter_position, (parameter, argument)) in
+                    parameters.into_iter().zip(arguments).enumerate()
+                {
+                    let Some(target_trait) =
+                        bare_dynamic_parameter_trait(program, parameter.type_reference)
+                    else {
+                        continue;
+                    };
+                    let ExpressionNode::Name(source_path) =
+                        program.expression_table.expression(*argument)
+                    else {
+                        continue;
+                    };
+                    let [source_name] = program
+                        .expression_table
+                        .name_path_members(source_path.members)
+                    else {
+                        continue;
+                    };
+                    let mut selections = binding_facts
+                        .selections
+                        .iter()
+                        .filter(|selection| {
+                            selection.machine == caller.symbol
+                                && selection.state == caller_state.symbol
+                                && selection.binding == source_path.symbol
+                                && selection.binding_name == *source_name
+                                && selection.statement_index < call.statement_index
+                                && selection.target_trait == target_trait
+                        })
+                        .collect::<Vec<_>>();
+                    selections.sort_by_key(|selection| selection.statement_index);
+                    let Some(selection) = selections.last() else {
+                        continue;
+                    };
+                    transfers.push(psi_checked_trees::CheckedDynamicDescriptorTransferPlan {
+                        caller_machine: caller.symbol,
+                        caller_state: caller_state.symbol,
+                        coordinate: CheckedUnitCallCoordinate {
+                            statement_index: match u32::try_from(call.statement_index) {
+                                Ok(index) => index,
+                                Err(_) => continue,
+                            },
+                            call_ordinal: match u32::try_from(call.call_ordinal) {
+                                Ok(ordinal) => ordinal,
+                                Err(_) => continue,
+                            },
+                        },
+                        target_machine: target_machine.symbol,
+                        target_state: target_state.symbol,
+                        parameter_position: match u32::try_from(parameter_position) {
+                            Ok(position) => position,
+                            Err(_) => continue,
+                        },
+                        parameter: parameter.symbol,
+                        target_trait,
+                        source_binding: source_path.symbol,
+                        selection: (*selection).clone(),
+                    });
+                }
+            }
+        }
+    }
+    transfers.sort_by_key(|transfer| {
+        (
+            transfer.caller_machine.arena_index(),
+            transfer.caller_machine.generation(),
+            transfer.caller_state.arena_index(),
+            transfer.caller_state.generation(),
+            transfer.coordinate.statement_index,
+            transfer.coordinate.call_ordinal,
+            transfer.parameter_position,
+        )
+    });
+    transfers
+}
+
+fn bare_dynamic_parameter_trait(
+    program: &TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            bare_dynamic_parameter_trait(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            bare_dynamic_parameter_trait(program, *base_type)
+        }
+        TypeReferenceNode::DynamicTrait {
+            symbol,
+            conformance: None,
+            ..
+        } if symbol.is_valid() => Some(*symbol),
+        _ => None,
+    }
+}
+
 fn build_checked_forwarded_dynamic_scalar_calls(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -106,6 +245,29 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                 if outer_call.has_receiver || outer_call.call_ordinal != 0 {
                     continue;
                 }
+                let Ok(statement_index) = u32::try_from(outer_call.statement_index) else {
+                    continue;
+                };
+                let Ok(call_ordinal) = u32::try_from(outer_call.call_ordinal) else {
+                    continue;
+                };
+                let coordinate = CheckedUnitCallCoordinate {
+                    statement_index,
+                    call_ordinal,
+                };
+                let matching_transfers = plans
+                    .transfers
+                    .iter()
+                    .filter(|transfer| {
+                        transfer.caller_machine == machine.symbol
+                            && transfer.caller_state == state.symbol
+                            && transfer.coordinate == coordinate
+                    })
+                    .collect::<Vec<_>>();
+                let [transfer] = matching_transfers.as_slice() else {
+                    continue;
+                };
+                let transfer = (*transfer).clone();
                 let Some(outer_site) = crate::find_call_site(
                     program,
                     machine.symbol,
@@ -118,43 +280,24 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                 let crate::CallSite::Expression { call, .. } = &outer_site else {
                     continue;
                 };
-                let [argument] = program.expression_table.expression_handles(call.arguments) else {
-                    continue;
-                };
-                let ExpressionNode::Name(argument_path) =
-                    program.expression_table.expression(*argument)
-                else {
-                    continue;
-                };
-                let [argument_name] = program
+                if program
                     .expression_table
-                    .name_path_members(argument_path.members)
-                else {
-                    continue;
-                };
-                let matching_selections = binding_facts
-                    .selections
-                    .iter()
-                    .filter(|selection| {
-                        selection.machine == machine.symbol
-                            && selection.state == state.symbol
-                            && selection.binding == argument_path.symbol
-                            && selection.statement_index < outer_call.statement_index
-                    })
-                    .count();
-                if matching_selections != 2 {
+                    .expression_handles(call.arguments)
+                    .len()
+                    != 1
+                {
                     continue;
                 }
 
-                let Some(target_state) = crate::find_state(program, outer_call.target_symbol)
-                else {
+                let Some(target_state) = crate::find_state(program, transfer.target_state) else {
                     continue;
                 };
                 let Some(target_machine) = program.machines().iter().find(|candidate| {
-                    program
-                        .machine_states(candidate)
-                        .iter()
-                        .any(|candidate_state| candidate_state.symbol == target_state.symbol)
+                    candidate.symbol == transfer.target_machine
+                        && program
+                            .machine_states(candidate)
+                            .iter()
+                            .any(|candidate_state| candidate_state.symbol == target_state.symbol)
                 }) else {
                     continue;
                 };
@@ -165,6 +308,8 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                     || parameter.is_const
                     || parameter.is_mutable
                     || !parameter.symbol.is_valid()
+                    || parameter.symbol != transfer.parameter
+                    || transfer.parameter_position != 0
                     || !program.state_contracts(target_state).is_empty()
                 {
                     continue;
@@ -235,8 +380,7 @@ fn build_checked_forwarded_dynamic_scalar_calls(
                     state: target_state,
                     flow_call: inner_call,
                     call_site: inner_site,
-                    selection_binding: argument_path.symbol,
-                    selection_name: argument_name.clone(),
+                    transfer,
                 };
                 let Some(CheckedDynamicScalarCall::Rebound(plan)) =
                     build_checked_dynamic_scalar_call(
@@ -266,8 +410,7 @@ struct ForwardedDynamicCall<'program, 'facts> {
     state: &'program psi_typed_trees::state::State,
     flow_call: &'facts psi_checked_trees::FlowCallFact,
     call_site: crate::CallSite<'program>,
-    selection_binding: SymbolHandle,
-    selection_name: Identifier,
+    transfer: psi_checked_trees::CheckedDynamicDescriptorTransferPlan,
 }
 
 enum CheckedDynamicScalarCall {
@@ -324,6 +467,9 @@ fn build_checked_dynamic_scalar_call(
         statement_index: u32::try_from(flow_call.statement_index).ok()?,
         call_ordinal: u32::try_from(flow_call.call_ordinal).ok()?,
     };
+    let forwarded_selection = forwarded
+        .as_ref()
+        .map(|forwarded| forwarded.transfer.selection.clone());
     let (
         dispatch_state,
         dispatch_flow_call,
@@ -336,12 +482,18 @@ fn build_checked_dynamic_scalar_call(
             let crate::CallSite::Expression { call, .. } = forwarded.call_site else {
                 return None;
             };
+            if forwarded.transfer.target_machine != forwarded.machine.symbol
+                || forwarded.transfer.target_state != forwarded.state.symbol
+                || forwarded.transfer.parameter != forwarded.flow_call.receiver_symbol
+            {
+                return None;
+            }
             (
                 forwarded.state,
                 forwarded.flow_call,
                 call,
-                forwarded.selection_binding,
-                forwarded.selection_name,
+                forwarded.transfer.source_binding,
+                forwarded.transfer.selection.binding_name.clone(),
                 psi_checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
                     machine: forwarded.machine.symbol,
                     state: forwarded.state.symbol,
@@ -452,6 +604,11 @@ fn build_checked_dynamic_scalar_call(
         [initial, rebound] => (Some(*initial), *rebound),
         _ => return None,
     };
+    if let Some(forwarded_selection) = forwarded_selection.as_ref()
+        && selection != forwarded_selection
+    {
+        return None;
+    }
     if binding_selections
         .windows(2)
         .any(|pair| pair[0].statement_index >= pair[1].statement_index)

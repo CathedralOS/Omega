@@ -114,6 +114,16 @@ fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
 fn sole_direct_dynamic_plan(
     checked: &psi_checked_trees::CheckedTrees,
 ) -> &psi_checked_trees::CheckedDynamicScalarCallPlan {
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .transfers
+            .is_empty(),
+        "a receiver-local dynamic call must not invent a cross-call descriptor transfer"
+    );
     let plans = &checked
         .facts
         .flow
@@ -129,6 +139,16 @@ fn sole_direct_dynamic_plan(
 fn sole_rebound_dynamic_plan(
     checked: &psi_checked_trees::CheckedTrees,
 ) -> &psi_checked_trees::CheckedReboundDynamicScalarCallPlan {
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .transfers
+            .is_empty(),
+        "a receiver-local rebound call must not invent a cross-call descriptor transfer"
+    );
     assert!(
         checked
             .facts
