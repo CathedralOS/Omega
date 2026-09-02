@@ -38,6 +38,8 @@ pub use x86_fma::{EmittedX86ScalarFmaFragment, emit_feature_required_x86_scalar_
 
 mod ranked_countdown;
 
+mod dynamic_parameter;
+
 mod structural_result;
 mod structural_scalar;
 
@@ -209,6 +211,7 @@ fn emit_function(
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
     let mut dynamic_scalar_calls = Vec::new();
+    let mut dynamic_parameter_scalar_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
@@ -257,11 +260,24 @@ fn emit_function(
             emitted.bytes
         }
         AssignedOperation::ReturnDynamicParameterScalarCall {
-            psi_operation, ..
+            ..
         } => {
-            return Err(EmissionError::DynamicDescriptorEmissionUnsupported(
-                *psi_operation,
-            ));
+            let emitted = dynamic_parameter::emit(&function.operation, function.machine, target)?;
+            scalar_stack_eligible = true;
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Operation(emitted.record.psi_operation),
+                operation_ordinal: emitted.record.operation_ordinal,
+                code_offset: emitted.record.code_offset,
+                byte_count: emitted.record.byte_count,
+            });
+            semantic_code_attribution.push(SemanticCodeAttribution {
+                site: SemanticCodeSite::Edge(emitted.record.psi_edge),
+                operation_ordinal: 1,
+                code_offset: emitted.return_offset,
+                byte_count: emitted.return_byte_count,
+            });
+            dynamic_parameter_scalar_calls.push(emitted.record);
+            emitted.bytes
         }
         operation @ AssignedOperation::ReturnStructuralCall { .. } => {
             let emitted = structural_result::emit(operation, target, functions)?;
@@ -868,6 +884,7 @@ fn emit_function(
         internal_unit_calls,
         internal_unit_scalar_calls,
         dynamic_scalar_calls,
+        dynamic_parameter_scalar_calls,
         unit_scalar_homes,
         unit_integer_constants,
         unit_structural_scalar_field_stores,
@@ -1108,7 +1125,7 @@ pub enum EmissionError {
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidDynamicScalarCallCustody(psi_core::OperationId),
-    DynamicDescriptorEmissionUnsupported(psi_core::OperationId),
+    InvalidDynamicParameterScalarCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,
     AggregatePlacementCoverageMismatch,

@@ -112,6 +112,11 @@ pub struct MachineCodeFunction {
     /// The table contents remain semantic demands until object construction
     /// binds every canonical row to an exact function symbol.
     pub dynamic_scalar_calls: Vec<DynamicScalarCallRecord>,
+    /// Complete semantic, ABI, register, slot, stack, and byte custody for
+    /// scalar calls through an existential descriptor received as a function
+    /// parameter. Unlike `dynamic_scalar_calls`, these rows do not materialize
+    /// or relocate a table: the caller supplies both descriptor words.
+    pub dynamic_parameter_scalar_calls: Vec<DynamicParameterScalarCallRecord>,
     /// Complete ordered durable scalar homes in an attached Unit frame.
     pub unit_scalar_homes: Vec<UnitScalarHomeRecord>,
     /// Complete ordered zero-code integer definitions available to attached
@@ -290,6 +295,46 @@ pub struct DynamicScalarCallRecord {
     pub indirect_call_offset: usize,
     pub indirect_call_byte_count: usize,
     pub unit_stack: UnitCallStackEvidence,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+}
+
+/// Architecture-native indirect-call mechanism selected for one forwarded
+/// existential descriptor. The tag is part of physical evidence; replay never
+/// infers it from bytes or from the target architecture alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DynamicParameterCallMechanismRecord {
+    X86MemoryIndirect {
+        table: omega_target_operations::MachineRegister,
+    },
+    Aarch64LoadedIndirect {
+        table: omega_target_operations::MachineRegister,
+        target: omega_target_operations::MachineRegister,
+    },
+}
+
+/// Exact physical custody for a scalar call through one descriptor parameter.
+/// The callee-facing plan describes the helper's two-word entry while the
+/// dispatch plan describes the erased-data adapter ABI held in the selected
+/// table slot. Concrete realization layout is intentionally absent here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DynamicParameterScalarCallRecord {
+    pub psi_edge: EdgeId,
+    pub psi_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: psi_core::ScalarType,
+    pub parameter: psi_terminal::TerminalDynamicDescriptorParameter,
+    pub requirement: psi_terminal::TerminalDynamicRequirement,
+    pub function_call_plan: CallPlan,
+    pub dispatch_call_plan: CallPlan,
+    pub instance: omega_target_operations::MachineRegister,
+    pub table: omega_target_operations::MachineRegister,
+    pub table_slot_byte_offset: u32,
+    pub mechanism: DynamicParameterCallMechanismRecord,
+    pub indirect_call_offset: usize,
+    pub indirect_call_byte_count: usize,
+    pub call_stack: ScalarCallStackEvidence,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,
