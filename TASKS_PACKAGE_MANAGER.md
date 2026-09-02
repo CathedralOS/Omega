@@ -289,10 +289,11 @@ explicitly.
       canaries additionally depend on `OWNER_QUESTIONS.md` Q2 because the
       mutation must remain observable through the caller's mutable structural
       parameter; a staged by-value copy is not a realization of that identity;
-    - the named-`dyn`/Console ordinary-package native canary, needing accepted
-      Console semantic-binding replay from the lock and multi-block target
-      continuation; the existing `consumer_scoped_console_binding_survives_review_and_fresh_admission`
-      regression currently reaches this seam as `FusedServiceEstablishmentDrift`;
+    - the named-`dyn`/Console ordinary-package native canary, still needing
+      accepted Console semantic-binding replay from the future lock and
+      multi-block target continuation. The existing consumer-scoped Console
+      admission path now crosses package-qualified Fused root establishment
+      into a validated unpublished native artifact;
     - two build/runtime float twins whose exact named-operator identity now
       survives early build-time selection and call-closure authority, but whose
       runtime entries still lack a Terminal composed-Unit plan for scalar
