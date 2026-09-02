@@ -77,17 +77,19 @@ tracked_compiler_sources=$(find \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
 expected_compiler_sources='source/beta/compiler/beta_compiler.beta
 source/epsilon/compiler/epsilon_compiler.delta
+source/gamma/compiler/gamma_compiler.gamma
 source/omega/omega_compiler.epsilon'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
-  fail "compiler source exists outside the implemented selected edges"
+  fail "compiler source exists outside selected edges or declared experiments"
 
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA" \
   -type f -name '*compiler*.tape' | sed "s#^$OMEGA_REPO_ROOT/##" | sort || true)
-expected_compiler_tapes='source/beta/compiler/beta_compiler_bytecode.tape'
+expected_compiler_tapes='source/beta/compiler/beta_compiler_bytecode.tape
+source/gamma/compiler/gamma_compiler_bytecode.tape'
 [ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
-  fail "compiler tapes differ from implemented selected edges"
+  fail "compiler tapes differ from selected edges or declared experiments"
 
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
@@ -103,6 +105,8 @@ for bootstrap_source in \
   "$OMEGA_PATH_BETA/LANGUAGE.md" \
   "$OMEGA_PATH_GAMMA/LANGUAGE.md" \
   "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
+  "$OMEGA_PATH_GAMMA/compiler/gamma_compiler.gamma" \
+  "$OMEGA_PATH_GAMMA/reconstruction/gamma_evaluator_reconstructor.gamma" \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
   "$OMEGA_PATH_EPSILON_COMPILER_SOURCE" \
   "$OMEGA_PATH_OMEGA_COMPILER_SOURCE"

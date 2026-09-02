@@ -31,4 +31,5 @@ No host interpreter stands in for either edge.
 | `LANGUAGE.md` | Exact Gamma syntax and evaluation relation. | Replace only with a versioned contract and synchronized evaluator and customer gates. |
 | `EVALUATOR_PROFILE.md` | Exact request, observation, resource, publication, and private-representation contract for the first Beta-authored evaluator. | Replace only with a versioned profile and synchronized evaluator and gates. |
 | `evaluator/` | Beta source for the Gamma evaluator and its eventual Alpha tape. | Replace only atomically with the admitted Beta-to-Gamma edge. |
+| `compiler/` | Experimental Gamma-written native compiler and its byte-identical fixed-point tape. | Delete if the fixed-point experiment is rejected; do not treat it as an admitted edge. |
 | `reconstruction/` | Diagnostic Gamma program reproducing the evaluator tape from canonical Beta source. | Delete when a stronger non-embedded Gamma fixed point replaces it. |

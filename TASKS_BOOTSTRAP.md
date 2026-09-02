@@ -46,6 +46,9 @@ Delta, and the former Delta is Epsilon.
   and explicit tail CFG transfers. A 213-line Gamma reconstructor emits the
   exact 4,289-byte evaluator tape from canonical Beta source. Tape admission and
   the complete conformance suite remain absent.
+- [x] A 372-line experimental Gamma-written native compiler reaches an exact
+  13,834-byte fixed point and agrees across seeded/native Delta0 compilation.
+  It remains a diagnostic side artifact, not an admitted bootstrap edge.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
