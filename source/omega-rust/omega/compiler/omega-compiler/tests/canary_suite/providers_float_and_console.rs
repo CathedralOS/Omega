@@ -713,6 +713,43 @@ fn fused_service_parameter_plan_mut(
         .expect("checked Service fixture has no fused parameter machine")
 }
 
+fn unit_effect_plan_named<'a>(
+    checked: &'a CheckedCompilation,
+    name: &str,
+) -> &'a psi_checked_trees::CheckedUnitEffectMachinePlan {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .unwrap_or_else(|| panic!("checked Service fixture has no `{name}` machine"));
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine.symbol)
+        .unwrap_or_else(|| panic!("checked Service fixture has no `{name}` Unit plan"))
+}
+
+fn unit_effect_plan_named_mut<'a>(
+    checked: &'a mut CheckedCompilation,
+    name: &str,
+) -> &'a mut psi_checked_trees::CheckedUnitEffectMachinePlan {
+    let symbol = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .unwrap_or_else(|| panic!("checked Service fixture has no `{name}` machine"))
+        .symbol;
+    checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .find(|plan| plan.machine == symbol)
+        .unwrap_or_else(|| panic!("checked Service fixture has no `{name}` Unit plan"))
+}
+
 #[test]
 fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     let canary = pass_canary("providers/service_fused_erasure_compile");
@@ -1117,6 +1154,191 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .message
             .contains("lacks compiler-owned Fused erasure authority")
     }));
+}
+
+#[test]
+fn fused_service_parameter_moves_through_one_exact_internal_hop() {
+    let canary = pass_canary("providers/service_fused_erasure_compile");
+    let baseline = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("one-hop fused Service fixture should reach checked trees");
+    let provenance = baseline.selected_provider_provenance().to_vec();
+    omega_selected_dispatch::validate_fused_service_terminal_custody(&baseline, &provenance)
+        .expect("one exact whole-root Service hop should retain final Fused custody");
+    for fenced in ["forwarding_twice", "forwarding_scalar_once"] {
+        let symbol = baseline
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == fenced)
+            .unwrap_or_else(|| panic!("fixture should retain `{fenced}` source"))
+            .symbol;
+        assert!(
+            baseline
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(symbol)
+                .is_none(),
+            "`{fenced}` must remain outside the bounded checked forwarding rung"
+        );
+        assert!(
+            psi_checked_trees_to_terminal::lower_machine(&baseline, fenced).is_err(),
+            "`{fenced}` must remain outside Terminal rather than dropping custody"
+        );
+    }
+
+    let caller = unit_effect_plan_named(&baseline, "forwarding_once");
+    let target = unit_effect_plan_named(&baseline, "forwarding_terminal");
+    let [caller_parameter] = caller.structural_parameters.as_slice() else {
+        panic!("forwarding caller should retain one structural parameter")
+    };
+    let [target_parameter] = target.structural_parameters.as_slice() else {
+        panic!("forwarding target should retain one structural parameter")
+    };
+    let caller_receipt = caller_parameter
+        .fused_service_erasure
+        .as_ref()
+        .expect("forwarding caller should retain exact Service custody");
+    let target_receipt = target_parameter
+        .fused_service_erasure
+        .as_ref()
+        .expect("forwarding target should retain exact Service custody");
+    assert_eq!(caller.attachment_type_identity, None);
+    assert_eq!(target.attachment_type_identity, None);
+    assert!(caller.scalar_parameters.is_empty());
+    assert!(target.scalar_parameters.is_empty());
+    assert_eq!(
+        (
+            &caller_receipt.carrier_type_identity,
+            caller_receipt.requirement,
+            caller_receipt.provider_plan_digest,
+        ),
+        (
+            &target_receipt.carrier_type_identity,
+            target_receipt.requirement,
+            target_receipt.provider_plan_digest,
+        ),
+    );
+    let [
+        psi_checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+            target_machine,
+            target_state,
+            structural_arguments,
+            claim_transfers,
+            ..
+        },
+        psi_checked_trees::CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = caller.operations.as_slice()
+    else {
+        panic!("forwarding caller should retain one internal call and return")
+    };
+    assert_eq!(
+        (*target_machine, *target_state),
+        (target.machine, target.state)
+    );
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("forwarding caller should retain one structural argument")
+    };
+    assert_eq!(argument.source_parameter_index, 0);
+    assert!(argument.path.is_empty());
+    assert_eq!(
+        argument.access,
+        psi_checked_trees::CheckedStructuralAccess::Owned
+    );
+    assert!(claim_transfers.is_empty());
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&baseline, "forwarding_once")
+        .expect("one exact whole-root Service hop should lower to Terminal Psi");
+    assert!(
+        lowered.semantic_module.machines.len() >= 2,
+        "Terminal closure should retain the forwarding caller and helper"
+    );
+    let terminal_caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("forwarding caller should remain the Terminal entry");
+    assert_eq!(terminal_caller.attachment, None);
+    let terminal_target = terminal_caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            psi_terminal::OperationKind::CallUnit { callee, .. } => Some(*callee),
+            _ => None,
+        })
+        .expect("forwarding caller should retain one Terminal internal call");
+    let terminal_target = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal_target)
+        .expect("forwarding target should remain in the Terminal closure");
+    assert_eq!(terminal_target.attachment, None);
+    assert!(terminal_target.blocks.iter().any(|block| {
+        block.operations.iter().any(|operation| {
+            matches!(
+                &operation.kind,
+                psi_terminal::OperationKind::BoundaryCall { .. }
+            )
+        })
+    }));
+
+    let assert_rejects = |mutated: &CheckedCompilation, label: &str| {
+        let Err(diagnostics) =
+            omega_selected_dispatch::validate_fused_service_terminal_custody(mutated, &provenance)
+        else {
+            panic!("{label} should reject final Fused custody")
+        };
+        assert!(!diagnostics.is_empty());
+        let Err(_) = psi_checked_trees_to_terminal::lower_machine(mutated, "forwarding_once")
+        else {
+            panic!("{label} should reject raw Terminal lowering")
+        };
+    };
+
+    let mut wrong_source = baseline.clone();
+    let psi_checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut unit_effect_plan_named_mut(&mut wrong_source, "forwarding_once").operations[0]
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].source_parameter_index = 1;
+    assert_rejects(&wrong_source, "a substituted forwarding source index");
+
+    let mut projected = baseline.clone();
+    let psi_checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut unit_effect_plan_named_mut(&mut projected, "forwarding_once").operations[0]
+    else {
+        unreachable!()
+    };
+    structural_arguments[0]
+        .path
+        .push(psi_checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "forged".to_owned(),
+        ));
+    assert_rejects(&projected, "a projected forwarding carrier");
+
+    let mut digest_drift = baseline.clone();
+    unit_effect_plan_named_mut(&mut digest_drift, "forwarding_terminal").structural_parameters
+        [0]
+    .fused_service_erasure
+    .as_mut()
+    .expect("target receipt")
+    .provider_plan_digest[0] ^= 1;
+    assert_rejects(&digest_drift, "a target selected-plan substitution");
+
+    let mut duplicate = baseline.clone();
+    let forwarding_call =
+        unit_effect_plan_named(&duplicate, "forwarding_once").operations[0].clone();
+    unit_effect_plan_named_mut(&mut duplicate, "forwarding_once")
+        .operations
+        .insert(1, forwarding_call);
+    assert_rejects(&duplicate, "a second forwarding edge");
 }
 
 #[test]

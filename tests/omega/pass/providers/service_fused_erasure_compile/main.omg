@@ -32,3 +32,35 @@ machine ParameterHarness::run(service: Service<Ping> in Bound, value: i32) {
     service.ping_value(value);
     service.ping_value(value);
 }
+
+// The first forwarding rung moves one whole owned carrier into one internal
+// helper. The helper terminates the route with direct calls; forwarding a
+// scalar, projecting or borrowing the carrier, or forwarding again remains
+// outside this cohort.
+machine forwarding_terminal(service: Service<Ping> in Bound) {
+    service.ping();
+}
+
+machine forwarding_once(service: Service<Ping> in Bound) {
+    forwarding_terminal(service);
+}
+
+// These declarations remain valid Omega but deliberately have no checked
+// Terminal Unit plan in this rung.
+machine forwarding_twice(service: Service<Ping> in Bound) {
+    forwarding_once(service);
+}
+
+machine forwarding_scalar_terminal(
+    service: Service<Ping> in Bound,
+    value: i32
+) {
+    service.ping_value(value);
+}
+
+machine forwarding_scalar_once(
+    service: Service<Ping> in Bound,
+    value: i32
+) {
+    forwarding_scalar_terminal(service, value);
+}
