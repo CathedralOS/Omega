@@ -948,6 +948,11 @@ fn receiver_trait_symbol(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<psi_symbols::SymbolHandle> {
+    if let Some(requirement) =
+        psi_typed_trees::service::exact_bound_service_requirement(program, type_reference)
+    {
+        return Some(requirement);
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => receiver_trait_symbol(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {

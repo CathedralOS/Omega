@@ -1,0 +1,4 @@
+use omega::language::core::service;
+
+data Main { value: i32 in Bound; }
+machine Main::main(&mut self) { }

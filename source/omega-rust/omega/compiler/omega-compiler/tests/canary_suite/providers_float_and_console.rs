@@ -664,6 +664,205 @@ fn runtime_selected_provider_adapter_exit_canary_runs() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+fn fused_service_field_mut(
+    checked: &mut CheckedCompilation,
+) -> &mut psi_checked_trees::CheckedUnitStructuralFieldType {
+    for structural_type in &mut checked.facts.flow.terminal_unit_effects.structural_types {
+        let psi_checked_trees::CheckedUnitStructuralTypeShape::Record { fields } =
+            &mut structural_type.shape
+        else {
+            continue;
+        };
+        for field in fields {
+            if matches!(
+                field.field_type,
+                psi_checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+            ) {
+                return &mut field.field_type;
+            }
+        }
+    }
+    panic!("checked Service fixture has no fused structural field")
+}
+
+#[test]
+fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
+    let canary = pass_canary("providers/service_fused_erasure_compile");
+    let baseline = compile_to_checked(&canary.join("main.omg"), None)
+        .expect("fused Service fixture should reach checked trees");
+    let provenance = baseline.selected_provider_provenance().to_vec();
+    omega_selected_dispatch::validate_fused_service_terminal_custody(&baseline, &provenance)
+        .expect("exact typed Service, Fused provenance, and selected plan should rejoin");
+    psi_checked_trees_to_terminal::lower_machine(&baseline, "Main::main")
+        .expect("authorized fused Service carrier should erase during Terminal lowering");
+
+    let mut classifier_twins = baseline.clone();
+    let service_field_type = {
+        let main = classifier_twins
+            .typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == "Main")
+            .expect("fixture should retain Main");
+        classifier_twins
+            .typed
+            .data_members(main)
+            .iter()
+            .find_map(|member| match member {
+                psi_typed_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == "service" =>
+                {
+                    Some(field.type_reference)
+                }
+                _ => None,
+            })
+            .expect("fixture should retain Main.service")
+    };
+    let (service_base, bound_constraints) = match classifier_twins
+        .typed
+        .type_reference_table
+        .type_reference(service_field_type)
+        .clone()
+    {
+        psi_typed_trees::types::TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => (base_type, constraints),
+        other => panic!("Service fixture should retain its Bound shell, got {other:?}"),
+    };
+    let reference_base = classifier_twins.typed.type_reference_table.insert(
+        psi_typed_trees::types::TypeReferenceNode::Reference {
+            referee: service_base,
+            access: psi_language_core::ReferenceAccess::Shared,
+            lifetime: None,
+        },
+    );
+    let reference_wrapped = classifier_twins.typed.type_reference_table.insert(
+        psi_typed_trees::types::TypeReferenceNode::Constrained {
+            base_type: reference_base,
+            constraints: bound_constraints,
+        },
+    );
+    let reference_error = psi_typed_trees::service::classify_exact_bound_service_carrier(
+        &classifier_twins.typed,
+        reference_wrapped,
+    )
+    .expect_err("a reference-wrapped Service false twin must reject");
+    assert!(reference_error.contains("routes only a closed `Service<R>` carrier"));
+
+    let mut constraints = classifier_twins
+        .typed
+        .type_reference_table
+        .constraints(bound_constraints)
+        .to_vec();
+    constraints.push(psi_typed_trees::types::TypeConstraintNode::Named(
+        psi_typed_trees::name::Identifier::generated_static("extra"),
+    ));
+    let constraints = classifier_twins
+        .typed
+        .type_reference_table
+        .insert_constraints(constraints);
+    let extra_constraint = classifier_twins.typed.type_reference_table.insert(
+        psi_typed_trees::types::TypeReferenceNode::Constrained {
+            base_type: service_base,
+            constraints,
+        },
+    );
+    let constraint_error = psi_typed_trees::service::classify_exact_bound_service_carrier(
+        &classifier_twins.typed,
+        extra_constraint,
+    )
+    .expect_err("a Service carrier with an extra constraint must reject");
+    assert!(constraint_error.contains("may carry only the exact toolchain-owned `Bound` domain"));
+
+    let mut downgraded = baseline.clone();
+    let provider_type_identity = match fused_service_field_mut(&mut downgraded) {
+        psi_checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked {
+            provider_type_identity,
+            ..
+        } => provider_type_identity.clone(),
+        _ => unreachable!(),
+    };
+    *fused_service_field_mut(&mut downgraded) =
+        psi_checked_trees::CheckedUnitStructuralFieldType::ProviderBacked {
+            provider_type_identity,
+        };
+    let downgrade =
+        omega_selected_dispatch::validate_fused_service_terminal_custody(&downgraded, &provenance)
+            .expect_err("a fused-to-legacy field downgrade must reject");
+    assert!(downgrade.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("lost its exact Fused erasure settlement")
+    }));
+
+    let mut digest_substitution = baseline.clone();
+    let (requirement, substituted_digest) = match fused_service_field_mut(&mut digest_substitution)
+    {
+        psi_checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked {
+            erasure, ..
+        } => {
+            erasure.provider_plan_digest[0] ^= 1;
+            (erasure.requirement, erasure.provider_plan_digest)
+        }
+        _ => unreachable!(),
+    };
+    digest_substitution
+        .typed
+        .fused_service_erasures
+        .iter_mut()
+        .find(|authorization| authorization.requirement == requirement)
+        .expect("fixture should retain one matching Fused authorization")
+        .provider_plan_digest = substituted_digest;
+    let digest_error = omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &digest_substitution,
+        &provenance,
+    )
+    .expect_err("a jointly substituted receipt and authorization digest must reject");
+    assert!(digest_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("rejoins 0 exact Fused selected-provider plans")
+    }));
+
+    let mut requirement_substitution = baseline.clone();
+    let other = requirement_substitution
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Other")
+        .expect("fixture should retain the valid false-twin boundary")
+        .symbol;
+    match fused_service_field_mut(&mut requirement_substitution) {
+        psi_checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked {
+            erasure, ..
+        } => erasure.requirement = other,
+        _ => unreachable!(),
+    }
+    let requirement_error = omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &requirement_substitution,
+        &provenance,
+    )
+    .expect_err("a valid-boundary requirement substitution must reject");
+    assert!(requirement_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("substituted its boundary requirement")
+    }));
+
+    let mut missing_authority = baseline.clone();
+    missing_authority.typed.fused_service_erasures.clear();
+    let authority_error = omega_selected_dispatch::validate_fused_service_terminal_custody(
+        &missing_authority,
+        &provenance,
+    )
+    .expect_err("a missing compiler-owned Fused authorization must reject");
+    assert!(authority_error.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("lacks compiler-owned Fused erasure authority")
+    }));
+}
+
 #[test]
 fn provider_type_target_default_canary_selects_target_default() {
     let canary = pass_canary("providers/provider_type_target_default");

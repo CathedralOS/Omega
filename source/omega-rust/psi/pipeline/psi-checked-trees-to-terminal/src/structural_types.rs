@@ -47,7 +47,8 @@ pub(super) fn lower_mixed_fields(
                 CheckedUnitStructuralFieldType::Structural { type_identity } => {
                     StructuralFieldType::Structural(lookup_type_id(type_ids, type_identity)?)
                 }
-                CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
                     return unsupported(
                         "provider-backed fields are outside mixed structural lowering",
                     );
@@ -281,7 +282,8 @@ pub(super) fn retain_additional_structural_types(
                                     type_identity,
                                 )?)
                             }
-                            CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                            CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                            | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
                                 return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
                             }
                             CheckedUnitStructuralFieldType::Erased { type_identity } => {
@@ -348,7 +350,8 @@ pub(super) fn retain_additional_structural_types(
                                                 &type_ids,
                                                 type_identity,
                                             )?),
-                                            CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                            CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                                            | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
                                                 return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
                                             }
                                             CheckedUnitStructuralFieldType::Erased {
@@ -458,7 +461,8 @@ pub(super) fn lower_structural_type_plans(
                                         type_identity,
                                     )?)
                                 }
-                                CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                                | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
                                     return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
                                 }
                                 CheckedUnitStructuralFieldType::Erased { type_identity } => {
@@ -525,7 +529,8 @@ pub(super) fn lower_structural_type_plans(
                                                 } => StructuralFieldType::Structural(
                                                     lookup_type_id(&type_ids, type_identity)?,
                                                 ),
-                                                CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                                CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                                                | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
                                                     return unsupported("provider-backed attachment fields are valid only in attached Unit lowering");
                                                 }
                                                 CheckedUnitStructuralFieldType::Erased {

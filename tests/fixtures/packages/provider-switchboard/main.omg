@@ -1,4 +1,6 @@
 // Checked provider-selection fixture; foreign-table bindings are not component dispatch.
+use omega::language::core::service;
+
 pub boundary trait ClockHost {
     machine ticks() -> u64;
 }
@@ -12,7 +14,7 @@ satisfies ClockHost::ticks
 }
 
 pub data Switchboard {
-    clock: ClockHost;
+    clock: Service<ClockHost> in Bound;
 }
 
 pub machine Switchboard::read_ticks(&mut self) -> u64

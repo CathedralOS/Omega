@@ -521,10 +521,16 @@ fn extend_invoked_binding_services(
             crate::InvocationTarget::Parameter(index) => parameters
                 .get(index as usize)
                 .map(|parameter| {
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference)
-                        .type_symbol(&program.type_reference_table)
+                    psi_typed_trees::service::exact_bound_service_requirement(
+                        program,
+                        parameter.type_reference,
+                    )
+                    .unwrap_or_else(|| {
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference)
+                            .type_symbol(&program.type_reference_table)
+                    })
                 })
                 .unwrap_or_else(SymbolHandle::invalid),
             crate::InvocationTarget::Service(symbol) => symbol,

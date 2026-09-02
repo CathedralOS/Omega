@@ -290,6 +290,13 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     type_parameters: &[TypeParameter],
     lifetime_parameters: &[psi_typed_trees::name::Identifier],
 ) {
+    if let Err(error) =
+        psi_typed_trees::service::classify_exact_bound_service_carrier(program, type_reference)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} uses an invalid routed service carrier: {error}"
+        )));
+    }
     // `range-constraints-require-exact-domain`: a range constraint under a
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested

@@ -43,6 +43,10 @@ pub(super) fn admit(
         checked,
         checked.selected_provider_plans(),
     )?;
+    omega_selected_dispatch::validate_fused_service_terminal_custody(
+        checked,
+        checked.selected_provider_provenance(),
+    )?;
     Ok(NativeOptimizationAdmission {
         program_entry,
         target,

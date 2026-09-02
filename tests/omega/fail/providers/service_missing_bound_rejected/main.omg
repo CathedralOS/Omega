@@ -1,0 +1,8 @@
+use omega::language::core::service;
+
+pub boundary trait Ping { machine ping(); }
+data PingProvider { }
+machine PingProvider::ping() satisfies Ping::ping { }
+
+data Main { service: Service<Ping>; }
+machine Main::main(&mut self) { self.service.ping(); }

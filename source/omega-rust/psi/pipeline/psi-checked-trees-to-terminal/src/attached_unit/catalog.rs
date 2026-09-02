@@ -277,7 +277,20 @@ pub(crate) fn lower_unit_structural_type_roots(
                     }
                     CheckedUnitStructuralFieldType::ProviderBacked {
                         provider_type_identity,
+                    } => (field.relevance, StructuralFieldType::Erased {
+                        type_identity: provider_type_identity.clone(),
+                    }),
+                    CheckedUnitStructuralFieldType::FusedServiceBacked {
+                        provider_type_identity,
+                        erasure,
                     } => {
+                        if !erasure.requirement.is_valid()
+                            || erasure.provider_plan_digest == [0; 32]
+                        {
+                            return unsupported(
+                                "fused Service erasure lacks an exact requirement or selected-provider-plan receipt",
+                            );
+                        }
                         (field.relevance, StructuralFieldType::Erased {
                             type_identity: provider_type_identity.clone(),
                         })
@@ -347,7 +360,8 @@ pub(crate) fn lower_unit_structural_type_roots(
                                                 &type_ids,
                                                 type_identity,
                                             )?),
-                                            CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
+                                            CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                                            | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => {
                                                 return unsupported("provider-backed attachment fields are valid only on records");
                                             }
                                             CheckedUnitStructuralFieldType::Erased {

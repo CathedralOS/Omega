@@ -1,0 +1,22 @@
+// The first routed-service rung must retain an exact Fused selection receipt
+// before lowering may erase the affine carrier into provider-backed dispatch.
+use omega::language::core::service;
+
+pub boundary trait Ping {
+    machine ping();
+}
+
+pub boundary trait Other {
+    machine other();
+}
+
+data PingProvider { }
+machine PingProvider::ping() satisfies Ping::ping { }
+
+data Main {
+    service: Service<Ping> in Bound;
+}
+
+machine Main::main(&mut self) {
+    self.service.ping();
+}

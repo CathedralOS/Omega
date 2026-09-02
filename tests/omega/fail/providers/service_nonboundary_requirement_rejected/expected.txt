@@ -1,0 +1,1 @@
+requires a boundary trait; ordinary traits are local interfaces

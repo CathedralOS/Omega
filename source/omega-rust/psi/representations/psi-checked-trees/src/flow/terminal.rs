@@ -931,12 +931,26 @@ pub enum CheckedUnitStructuralFieldType {
     ProviderBacked {
         provider_type_identity: String,
     },
+    /// An exact `Service<R> in Bound` carrier authorized for erasure by the
+    /// matching Fused selected-provider plan. Keeping this separate from the
+    /// transitional bare-trait form makes receipt removal a rejecting
+    /// corruption rather than a downgrade to legacy behavior.
+    FusedServiceBacked {
+        provider_type_identity: String,
+        erasure: CheckedFusedServiceErasureReceipt,
+    },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
     /// checkable in terminal Psi.
     Erased {
         type_identity: String,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedFusedServiceErasureReceipt {
+    pub requirement: SymbolHandle,
+    pub provider_plan_digest: [u8; 32],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

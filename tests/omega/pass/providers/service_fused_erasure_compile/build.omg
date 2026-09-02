@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("service-fused-erasure-compile");
+    builder.select_provider<Ping, PingProvider>();
+}
