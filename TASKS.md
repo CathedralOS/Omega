@@ -12220,7 +12220,14 @@ checked-result arithmetic decision listed below.
   - the first direct owned-parameter rung is live for a nongeneric,
     lifetime-free, one-state attached Unit machine making a nonempty ordered
     sequence of direct boundary calls through one affine
-    `Service<R> in Bound` parameter. Checked trees
+    `Service<R> in Bound` parameter. The same checked plan now admits a finite
+    authored-order partition of ordinary immutable primitive inputs alongside
+    that carrier; scalar expressions may pass those values to Unit-returning
+    boundary calls without recasting them as structural custody. Ordinary
+    scalar-bearing attached Unit provider bodies use the same Terminal scalar
+    namespace, and provider-candidate verification compares the boundary and
+    candidate scalar signatures already present at those two endpoints rather
+    than adding a duplicate conformance encoding. Checked trees
     retain the exact typed parameter symbol, authored position, normalized
     carrier/base identities, exact `Bound` domain, requirement, and selected
     Fused plan digest. Adapter settlement consumes only that receipt; raw
@@ -12231,8 +12238,8 @@ checked-result arithmetic decision listed below.
     returns, trait/requirement signatures, and operators. Internal
     Service-to-Service forwarding, projected or borrowed arguments, multiple
     carrier parameters, mixed receiver requirements, composed control,
-    scalar-bearing executable
-    helpers, free-machine Terminal lowering, root establishment, and
+    free-machine Terminal lowering, native installed-provider scalar ABI
+    realization, root establishment, and
     Independent execution remain separately fenced. Multiple distinct
     carriers are **DEPENDENCY-BLOCKED**, not language-design-blocked: Terminal
     structural qualifications currently key one domain plan only by
@@ -12241,7 +12248,7 @@ checked-result arithmetic decision listed below.
     `Service<B>` in one machine. Land an exact domain-application identity
     before removing that fence; do not collapse the carrier identities;
   - final Fused custody is split by source responsibility: the 304-line field
-    owner rejoins routed record fields, while a private 438-line parameter
+    owner rejoins routed record fields, while a private 471-line parameter
     owner independently rejoins direct machine parameters and rejects receipts
     in every unsupported Terminal plan family. The public custody gate and
     diagnostic contract remain unchanged;
@@ -12313,7 +12320,10 @@ checked-result arithmetic decision listed below.
   The `process-exit` package's public `terminate` helper now also exposes
   `Service<Console> in Bound`; package review preserves its exact Console reach
   and parameter-zero invocation identity. That free helper's additional scalar
-  input remains outside the executable Terminal parameter rung above.
+  input is no longer independently representation-blocked: the attached rung
+  now proves the exact Terminal scalar parameter shape. The helper remains
+  outside that rung solely because it is a free machine, whose Terminal lowering
+  is still separately fenced.
   Provider-internal nested fields and all other boundary-bearing parameters
   remain transitional until their separately fenced carrier rungs land; do not
   broaden either custody proof by name.

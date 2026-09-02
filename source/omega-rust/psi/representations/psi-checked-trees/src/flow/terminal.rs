@@ -1299,6 +1299,9 @@ pub struct CheckedUnitEffectMachinePlan {
     pub state: SymbolHandle,
     pub attachment_type_identity: String,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
+    /// Primitive parameters in authored order after removing structural
+    /// parameters into their independent custody namespace.
+    pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     /// Exact boundary requirements replacing one authored provider-backed
     /// attachment field. Empty means no attachment specialization occurred.
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,

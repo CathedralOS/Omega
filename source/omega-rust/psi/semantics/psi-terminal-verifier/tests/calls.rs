@@ -745,12 +745,11 @@ fn boundary_scalar_arguments_fail_closed_on_arity_definedness_and_type() {
 }
 
 #[test]
-fn provider_candidates_remain_a_zero_scalar_argument_subset() {
+fn provider_candidates_bind_the_exact_scalar_signature() {
     let mut module = provider_candidate_module();
-    validate_module(&module).expect("zero-scalar provider candidate remains admitted");
+    validate_module(&module).expect("matching scalar provider candidate remains admitted");
 
-    module.boundary_machines[0].scalar_parameters = vec![ScalarType::Boolean];
-    *boundary_arguments_mut(&mut module) = vec![value_id(1)];
+    module.machines[1].parameters.clear();
     assert_eq!(
         validate_module(&module).unwrap_err(),
         ModuleError::InvalidProviderCandidate {
@@ -856,8 +855,6 @@ fn boundary_arguments_mut(module: &mut TerminalModule) -> &mut Vec<ValueId> {
 
 fn provider_candidate_module() -> TerminalModule {
     let mut module = boundary_call_module();
-    module.boundary_machines[0].scalar_parameters.clear();
-    boundary_arguments_mut(&mut module).clear();
     let provider_type = psi_core::StructuralTypeId::new(1).unwrap();
     module.structural_types.push(StructuralTypeDeclaration {
         id: provider_type,
@@ -887,7 +884,7 @@ fn provider_candidate_module() -> TerminalModule {
         structural_parameters: Vec::new(),
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
-        parameters: Vec::new(),
+        parameters: vec![boolean_declaration(value_id(2))],
         ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: Vec::new(),

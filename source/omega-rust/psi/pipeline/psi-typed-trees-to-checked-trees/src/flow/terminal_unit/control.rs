@@ -936,8 +936,26 @@ pub(super) fn build_checked_machine(
         return None;
     }
     let binders = machine_binders(program, machine);
-    let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders)?;
+    let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
+        psi_typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
+            .is_some()
+    });
+    let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
+        !parameter.is_self
+            && program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+    });
+    let (attachment_type_identity, structural_parameters, scalar_parameters) =
+        if carries_fused_service_parameter {
+            fused_service_scalar_signature(program, shapes, machine, state, &binders)?
+        } else if carries_scalar_parameter {
+            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
+        } else {
+            let (attachment, structural) =
+                structural_signature(program, shapes, machine, state, &binders)?;
+            (attachment, structural, Vec::new())
+        };
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters) {
         return None;
     }
@@ -1259,6 +1277,7 @@ pub(super) fn build_checked_machine(
         state: state.symbol,
         attachment_type_identity,
         structural_parameters,
+        scalar_parameters,
         provider_attachment_requirements,
         trivial_affine_locals,
         entry_claims,

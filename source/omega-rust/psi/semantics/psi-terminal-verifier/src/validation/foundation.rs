@@ -405,10 +405,16 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
                 candidate_index: u32::try_from(index).unwrap_or(u32::MAX),
             })
             .collect::<Vec<_>>();
+        let scalar_signature_matches = boundary.scalar_parameters.len()
+            == candidate.parameters.len()
+            && boundary
+                .scalar_parameters
+                .iter()
+                .zip(&candidate.parameters)
+                .all(|(boundary, candidate)| *boundary == candidate.scalar_type);
         if attachment.identity.is_empty()
-            || !boundary.scalar_parameters.is_empty()
+            || !scalar_signature_matches
             || boundary.result.is_some()
-            || !candidate.parameters.is_empty()
             || candidate.result != TerminalMachineResult::Unit
             || row.signature.parameters != boundary_signature
             || row.signature.parameters != candidate_signature

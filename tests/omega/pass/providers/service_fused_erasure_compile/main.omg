@@ -4,6 +4,7 @@ use omega::language::core::service;
 
 pub boundary trait Ping {
     machine ping();
+    machine ping_value(value: i32);
 }
 
 pub boundary trait Other {
@@ -12,6 +13,7 @@ pub boundary trait Other {
 
 data PingProvider { }
 machine PingProvider::ping() satisfies Ping::ping { }
+machine PingProvider::ping_value(value: i32) satisfies Ping::ping_value { }
 
 data Main {
     service: Service<Ping> in Bound;
@@ -22,10 +24,11 @@ machine Main::main(&mut self) {
 }
 
 // The direct parameter rung retains one owned affine carrier across an ordered
-// sequence of calls to the same exact Fused requirement, with no forwarding,
-// borrowing, nesting, or return transport.
+// sequence of calls to the same exact Fused requirement. Its independent
+// scalar namespace retains an ordinary immutable input without forwarding,
+// borrowing, nesting, or return transport of the affine carrier.
 data ParameterHarness { }
-machine ParameterHarness::run(service: Service<Ping> in Bound) {
-    service.ping();
-    service.ping();
+machine ParameterHarness::run(service: Service<Ping> in Bound, value: i32) {
+    service.ping_value(value);
+    service.ping_value(value);
 }

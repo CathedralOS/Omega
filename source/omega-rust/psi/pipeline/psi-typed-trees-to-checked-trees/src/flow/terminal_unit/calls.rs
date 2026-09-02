@@ -1952,7 +1952,24 @@ pub(super) fn structural_signature(
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
-    structural_signature_with_affine_pair(program, shapes, machine, state, binders, false)
+    let (attachment, structural, scalar) = structural_signature_with_affine_pair(
+        program, shapes, machine, state, binders, false, false,
+    )?;
+    scalar.is_empty().then_some((attachment, structural))
+}
+
+pub(super) fn fused_service_scalar_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<(
+    String,
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    structural_signature_with_affine_pair(program, shapes, machine, state, binders, false, true)
 }
 
 pub(super) fn partial_affine_pair_structural_signature(
@@ -1962,7 +1979,10 @@ pub(super) fn partial_affine_pair_structural_signature(
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
-    structural_signature_with_affine_pair(program, shapes, machine, state, binders, true)
+    let (attachment, structural, scalar) = structural_signature_with_affine_pair(
+        program, shapes, machine, state, binders, true, false,
+    )?;
+    scalar.is_empty().then_some((attachment, structural))
 }
 
 fn structural_signature_with_affine_pair(
@@ -1972,7 +1992,12 @@ fn structural_signature_with_affine_pair(
     state: &psi_typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     allow_affine_pair: bool,
-) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
+    allow_scalar_parameters: bool,
+) -> Option<(
+    String,
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
     let parameters = program.state_parameters(state);
     let attached_name = machine.attached_data.as_ref()?;
     let attached = program
@@ -2014,6 +2039,7 @@ fn structural_signature_with_affine_pair(
         })
         .flatten();
     let mut structural_parameters = Vec::new();
+    let mut scalar_parameters = Vec::new();
     let mut fused_service_parameter_count = 0_usize;
     for (position, parameter) in parameters.iter().enumerate() {
         if parameter.is_const {
@@ -2036,12 +2062,18 @@ fn structural_signature_with_affine_pair(
         // Primitive values remain in the scalar namespace. A reference to a
         // primitive may become a structural place only for the bounded
         // write-only store/call closure or the exact two-shared-observer leaf.
-        if !parameter.is_self
-            && program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        {
-            return None;
+        if !parameter.is_self {
+            if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
+            {
+                if !allow_scalar_parameters || parameter.is_mutable {
+                    return None;
+                }
+                scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                    source_position: u32::try_from(position).ok()?,
+                    primitive_type,
+                });
+                continue;
+            }
         }
         if parameter.is_self && is_reference(program, parameter.type_reference) {
             continue;
@@ -2070,6 +2102,8 @@ fn structural_signature_with_affine_pair(
                 binders,
             )?;
             (identity, Some(receipt))
+        } else if allow_scalar_parameters {
+            return None;
         } else if allow_affine_pair {
             (
                 shapes.add_partial_affine_array_type(parameter.type_reference, binders)?,
@@ -2119,7 +2153,16 @@ fn structural_signature_with_affine_pair(
             fused_service_erasure,
         });
     }
-    Some((attachment_type_identity, structural_parameters))
+    if allow_scalar_parameters
+        && (fused_service_parameter_count != 1 || structural_parameters.len() != 1)
+    {
+        return None;
+    }
+    Some((
+        attachment_type_identity,
+        structural_parameters,
+        scalar_parameters,
+    ))
 }
 
 pub(super) fn structural_scalar_signature(

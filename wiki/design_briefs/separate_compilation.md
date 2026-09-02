@@ -61,11 +61,17 @@ sequence of direct boundary calls to the carrier's one exact requirement. Its
 checked receipt retains the typed parameter symbol and authored
 position in addition to the carrier/base identities, requirement, `Bound`
 domain, and selected-plan digest. Both raw Terminal lowering and final compiler
-custody rejoin those coordinates. Borrowing, nesting, internal forwarding,
-multiple carriers, mixed receiver requirements, composed control,
-scalar-bearing/free executable
-helpers, root establishment, and Independent mode remain closed rather than
-being represented as fused. Multiple distinct carriers specifically wait on a
+custody rejoin those coordinates. A finite authored-order partition of
+ordinary immutable primitive inputs may accompany that carrier and flow
+through direct scalar expressions into Unit-returning boundary calls. The same
+Terminal parameter namespace admits ordinary scalar-bearing attached Unit
+provider bodies. Provider conformance compares the scalar types already owned
+by the boundary declaration and candidate machine; it does not duplicate them
+inside the structural refinement row. Borrowing, nesting, internal forwarding,
+multiple carriers, mixed receiver requirements, composed control, free-machine
+lowering, native installed-provider scalar ABI realization, root establishment,
+and Independent mode remain closed rather than being represented as fused.
+Multiple distinct carriers specifically wait on a
 Terminal domain-application identity: the current structural-domain table keys
 only `SemanticDomainId` while binding one carrier identity, so one `Bound` row
 cannot represent both `Service<A>` and `Service<B>` without an unsound carrier
