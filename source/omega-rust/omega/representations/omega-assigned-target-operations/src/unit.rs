@@ -1,8 +1,9 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
-    AbstractReboundDynamicScalarDispatch, AbstractResult, BoundaryByteSequenceArgument,
-    BoundaryRealization, BoundaryScalarArgument, CompletionClaimSource, MachineRegister,
-    ProviderExecutionBinding, RankedU32CountdownCustody, TargetStructuralParameter,
+    AbstractDynamicDescriptorArgument, AbstractReboundDynamicScalarDispatch, AbstractResult,
+    BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
+    CompletionClaimSource, MachineRegister, ProviderExecutionBinding, RankedU32CountdownCustody,
+    TargetStructuralParameter,
 };
 use psi_core::{
     BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -35,6 +36,26 @@ pub struct AssignedUnitBody {
     pub call_plan: CallPlan,
     pub parameters: Vec<TargetStructuralParameter>,
     pub operations: Vec<AssignedUnitOperation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedDynamicDescriptorInstanceArgument {
+    pub place: PlaceId,
+    pub access: psi_terminal::StructuralAccess,
+    pub path: Vec<StructuralPathSegment>,
+    pub root_structural_type: StructuralTypeId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub source_byte_offset: u32,
+    pub source: ValuePlacement,
+    pub destination: MachineRegister,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedDynamicDescriptorArgument {
+    pub custody: AbstractDynamicDescriptorArgument,
+    pub instance: AssignedDynamicDescriptorInstanceArgument,
+    pub table_destination: MachineRegister,
 }
 
 /// One exact raw-bit IEEE FMA operand after physical XMM assignment.
@@ -245,6 +266,17 @@ pub enum AssignedUnitOperation {
         callee: MachineId,
         call_plan: CallPlan,
         copies: Vec<AssignedAggregateCopy>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    StructuralScalarCallWithDynamicArguments {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        call_plan: CallPlan,
+        copies: Vec<AssignedAggregateCopy>,
+        dynamic_arguments: Vec<AssignedDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,

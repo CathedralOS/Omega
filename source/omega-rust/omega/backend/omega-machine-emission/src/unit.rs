@@ -1142,6 +1142,14 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
+            AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+                psi_operation,
+                ..
+            } => {
+                return Err(EmissionError::InvalidDynamicDescriptorCallCustody(
+                    *psi_operation,
+                ));
+            }
             AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
                 dynamic_scalar_calls.push(emit_dynamic_scalar_call(

@@ -251,3 +251,164 @@ pub(super) fn lower_structural_scalar_call(
     provenance.operations.push(*psi_operation);
     Ok(())
 }
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn lower_dynamic_argument_scalar_call(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let AbstractOperation::CallStructuralScalarWithDynamicArguments {
+        psi_operation,
+        result,
+        callee,
+        structural_arguments,
+        dynamic_arguments,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = operation
+    else {
+        unreachable!("dynamic-argument scalar lowering receives only its exact role")
+    };
+    let invalid = || LoweringError::InvalidDynamicScalarDispatch {
+        machine: function.machine,
+        operation: *psi_operation,
+    };
+    if function.attachment.is_none()
+        || !structural_arguments.is_empty()
+        || dynamic_arguments.is_empty()
+    {
+        return Err(invalid());
+    }
+    let callee_function = functions
+        .get(callee)
+        .copied()
+        .ok_or(LoweringError::UnknownCallTarget(*callee))?;
+    let callee_result = callee_function.result.scalar().ok_or_else(invalid)?;
+    let callee_dynamic_parameters = callee_function
+        .operations
+        .iter()
+        .take_while(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        .filter_map(|operation| match operation {
+            AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if !callee_function.parameters.is_empty()
+        || !callee_function.structural_parameters.is_empty()
+        || !callee_function.published_service_ceiling.is_empty()
+        || callee_result.scalar_type != result.scalar_type
+        || callee_dynamic_parameters.len() != dynamic_arguments.len()
+        || dynamic_arguments
+            .iter()
+            .enumerate()
+            .any(|(ordinal, argument)| {
+                argument.target != *callee_dynamic_parameters[ordinal]
+                    || argument.target.ordinal != u32::try_from(ordinal).unwrap_or(u32::MAX)
+                    || argument.target.source_position != u32::try_from(ordinal).unwrap_or(u32::MAX)
+                    || !argument.has_complete_custody(function.machine, *psi_operation, *callee)
+            })
+    {
+        return Err(invalid());
+    }
+    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
+    let descriptor_parameter_count = dynamic_arguments.len().checked_mul(2).ok_or_else(invalid)?;
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer_shape; descriptor_parameter_count],
+            result: Some(result_shape),
+        },
+    )
+    .map_err(LoweringError::AbiPlan)?;
+    if call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
+        || call_plan.parameters.len() != descriptor_parameter_count
+    {
+        return Err(invalid());
+    }
+    let target_dynamic_arguments = dynamic_arguments
+        .iter()
+        .enumerate()
+        .map(|(ordinal, custody)| {
+            let AbstractDynamicDescriptorSource::Rebound { rebound, .. } = &custody.source else {
+                return Err(invalid());
+            };
+            let root = parameters_by_place
+                .get(&rebound.source.place)
+                .copied()
+                .ok_or_else(invalid)?;
+            if custody.target.access != rebound.source.access
+                || rebound.source.path.is_empty()
+                || rebound
+                    .source
+                    .path
+                    .iter()
+                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+            {
+                return Err(invalid());
+            }
+            let (projected_type, projected_shape, source_byte_offset) =
+                resolve_structural_field_path(
+                    root.structural_type,
+                    &rebound.source.path,
+                    structural_types,
+                    shape_cache,
+                    active,
+                )
+                .map_err(|_| invalid())?;
+            if source_byte_offset
+                .checked_add(u32::from(projected_shape.byte_size))
+                .is_none_or(|end| end > u32::from(root.shape.byte_size))
+            {
+                return Err(invalid());
+            }
+            let instance_index = ordinal.checked_mul(2).ok_or_else(invalid)?;
+            Ok(TargetDynamicDescriptorArgument {
+                custody: custody.clone(),
+                instance: TargetDynamicDescriptorInstanceArgument {
+                    place: rebound.source.place,
+                    access: rebound.source.access,
+                    path: rebound.source.path.clone(),
+                    root_structural_type: root.structural_type,
+                    structural_type: projected_type,
+                    shape: projected_shape,
+                    source_byte_offset,
+                    source: root.placement.clone(),
+                    destination: call_plan.parameters[instance_index].clone(),
+                },
+                table_destination: call_plan.parameters[instance_index + 1].clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    operations.push(
+        TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
+            psi_operation: *psi_operation,
+            result: *result,
+            callee: *callee,
+            call_plan,
+            structural_arguments: Vec::new(),
+            dynamic_arguments: target_dynamic_arguments,
+            claim_transfers: claim_transfers.clone(),
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        },
+    );
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}
