@@ -1095,6 +1095,17 @@ must close its component graph, retain symbolic requirement imports and
 exports, publish entry/leave and resource demands, and satisfy installation and
 replacement obligations. Provider source cannot select this mode for itself.
 
+The source spelling accepts either no value argument or one exact
+compiler-owned `CompositionMode` case. Omission and explicit `Fused` are
+identical. `Independent` is root-build authority; target defaults and unique
+automatic selections remain fused, conflicting modes for one slot reject, and
+one operator-family selection cannot split modes across coordinates. The
+compiler currently carries the chosen mode into selected-plan provenance and
+then rejects every selected independent edge before checked-product or package-
+review publication. That fence remains until the exact closed service-slot
+application, component closure, and `Service<R> in Bound` carrier are present;
+no fallback may silently compile the request through the fused path.
+
 The exact closed requirement application is the stable slot identity. A family
 of independently selectable slots uses ordinary closed static arguments with
 nominal or declared-domain identity; it never uses an authored ordinal, string,

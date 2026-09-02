@@ -231,8 +231,13 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
             }
 
             // PRV4c PROVIDER SLOT SELECTION:
-            // `b.select_provider<BoundaryTrait, ProviderType>();` is a
-            // build-declaration marker, not a runtime generic machine call.
+            // `b.select_provider<BoundaryTrait, ProviderType>();` and
+            // `b.select_provider<BoundaryTrait, ProviderType>(
+            //     CompositionMode::Independent
+            // );` are build-declaration markers, not runtime generic machine
+            // calls. Omission means fused composition. The build evaluator
+            // validates an explicit argument against the exact compiler-owned
+            // `CompositionMode` declaration.
             // The shared static-argument carrier preserves each path and its
             // source span until ordinary symbol resolution assigns the exact
             // trait/data identity. Build harvesting validates the two kinds;
@@ -258,12 +263,14 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     );
                 }
                 let after_open = path_input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-                if !after_open.at_punctuation(PunctuationKind::RightParen) {
-                    return Err(after_open.error_here(
-                        "`select_provider` takes a boundary-trait type and provider type in angle brackets and no value arguments: `b.select_provider<Console, TestConsole>();`",
+                let ((arguments, evidence_arguments), rest) =
+                    parse_argument_list_after_open_paren_handle(syntax_trees, after_open)?;
+                if arguments.len() > 1 || !evidence_arguments.is_empty() {
+                    return Err(rest.error_here(
+                        "`select_provider` takes zero value arguments for fused composition or one compiler-owned `CompositionMode` value",
                     ));
                 }
-                input = after_open.take_punctuation(PunctuationKind::RightParen, ")")?;
+                input = rest;
                 expression =
                     syntax_trees
                         .expressions
@@ -271,8 +278,8 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                             receiver: expression,
                             target: member,
                             machine_arguments,
-                            arguments: HandleSpan::empty(),
-                            evidence_arguments: Box::default(),
+                            arguments,
+                            evidence_arguments,
                             operational_acknowledgement: Default::default(),
                         }));
                 continue;

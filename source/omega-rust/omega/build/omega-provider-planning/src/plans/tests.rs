@@ -192,6 +192,7 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
             canonical_path: derived.plan.provider_type.clone(),
             authored_path: "LapicCompletion".to_owned(),
         },
+        composition_mode: crate::CompositionMode::Fused,
         selecting_machine: psi_symbols::SymbolHandle::invalid(),
         source_span: psi_source::SourceSpan::default(),
     };
@@ -296,6 +297,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
             canonical_path: derived.plan.provider_type.clone(),
             authored_path: "LinuxCompletion".to_owned(),
         },
+        composition_mode: crate::CompositionMode::Fused,
         selecting_machine: psi_symbols::SymbolHandle::invalid(),
         source_span: psi_source::SourceSpan::default(),
     };
@@ -1050,6 +1052,38 @@ fn package_selection(
     subject.package = Some(boundary_package);
     selection.provider_type.package = Some(provider_package);
     selection
+}
+
+#[test]
+fn selected_provider_provenance_retains_owner_controlled_composition_mode() {
+    let fused = crate::ProviderSelection::exact_for_test("ClockHost", "MonotonicClock");
+    assert_eq!(
+        super::ProviderSelectionProvenance::BuildOverride(vec![fused])
+            .composition_mode()
+            .expect("omitted mode remains fused"),
+        crate::CompositionMode::Fused,
+    );
+
+    let mut independent = crate::ProviderSelection::exact_for_test("ClockHost", "MonotonicClock");
+    independent.composition_mode = crate::CompositionMode::Independent;
+    assert_eq!(
+        super::ProviderSelectionProvenance::BuildOverride(vec![independent.clone()])
+            .composition_mode()
+            .expect("root build owns the independent request"),
+        crate::CompositionMode::Independent,
+    );
+    assert!(
+        super::ProviderSelectionProvenance::TargetDefault(vec![independent])
+            .composition_mode()
+            .expect_err("target defaults cannot componentize themselves")
+            .contains("owner-controlled build")
+    );
+    assert_eq!(
+        super::ProviderSelectionProvenance::UniqueCoveringCandidate
+            .composition_mode()
+            .expect("automatic selection remains fused"),
+        crate::CompositionMode::Fused,
+    );
 }
 
 fn selected_plan_names(plans: &[ProviderPlan]) -> Vec<String> {

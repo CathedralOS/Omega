@@ -35,6 +35,22 @@ builder.select_provider<ClockHost, MonotonicClock>(
 );
 ```
 
+Omitting the value argument is exactly `CompositionMode::Fused`; spelling
+`CompositionMode::Fused` explicitly has the same meaning. `CompositionMode`
+is compiler-owned build vocabulary, so an authored same-named or same-shaped
+value cannot choose composition policy. Target defaults and unique automatic
+provider selection are necessarily fused. Only the owner-controlled root build
+may request `Independent`, and every coordinate in an operator-family
+selection shares that one mode.
+
+The current compiler retains this mode through exact provider selection and
+selected-plan provenance. It deliberately rejects a selected independent edge
+at the componentization fence before checked facts or package-review evidence
+are published: exact closed slot applications, component closure, and the
+`Service<R>` carrier must land before `Independent` can become executable.
+This is a fail-closed implementation stage, not permission to model an
+independent request as fused.
+
 The exact API spelling may evolve, but the authority split does not. Provider
 source declares what it satisfies; it cannot make itself independently
 loadable, select itself for a deployment, widen an installation envelope, or

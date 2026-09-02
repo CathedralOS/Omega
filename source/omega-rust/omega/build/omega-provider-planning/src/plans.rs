@@ -1400,6 +1400,46 @@ pub enum ProviderSelectionProvenance {
     UniqueCoveringCandidate,
 }
 
+impl ProviderSelectionProvenance {
+    /// Reconstruct the one build-owned composition choice retained by this
+    /// selected plan. Automatic unique selection and target defaults are
+    /// always fused: provider packages cannot independently componentize
+    /// themselves.
+    pub fn composition_mode(&self) -> Result<crate::CompositionMode, String> {
+        match self {
+            Self::UniqueCoveringCandidate => Ok(crate::CompositionMode::Fused),
+            Self::TargetDefault(declarations) => {
+                if declarations.iter().any(|declaration| {
+                    declaration.composition_mode != crate::CompositionMode::Fused
+                }) {
+                    return Err(
+                        "target-provider defaults cannot request independent composition; only the owner-controlled build may create that deployment cut"
+                            .into(),
+                    );
+                }
+                Ok(crate::CompositionMode::Fused)
+            }
+            Self::BuildOverride(declarations) => {
+                let Some(first) = declarations.first() else {
+                    return Err(
+                        "selected provider plan has a build override without a declaration".into(),
+                    );
+                };
+                if declarations
+                    .iter()
+                    .any(|declaration| declaration.composition_mode != first.composition_mode)
+                {
+                    return Err(
+                        "selected provider plan has conflicting build-owned composition modes"
+                            .into(),
+                    );
+                }
+                Ok(first.composition_mode)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProviderPlanWithProvenance {
     pub derived: DerivedProviderPlan,
@@ -1464,6 +1504,19 @@ pub fn selected_provider_plan_facts_with_provenance(
     for selected_plan in &selected {
         let plan = &selected_plan.derived.plan;
         let provenance = &selected_plan.derived.provenance;
+        let composition_mode = match selected_plan.selected_by.composition_mode() {
+            Ok(mode) => mode,
+            Err(reason) => {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(reason));
+                continue;
+            }
+        };
+        if composition_mode == crate::CompositionMode::Independent {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(format!(
+                "selected provider plan `{}` retains independent composition, but its checked component closure and Service carrier have not yet been constructed; refusing to treat the edge as fused",
+                plan.name,
+            )));
+        }
         let schema_symbol = provenance.schema.symbol();
         if plan.target != retained_target {
             diagnostics.push(psi_diagnostics::Diagnostic::error(format!(

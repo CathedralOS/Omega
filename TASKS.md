@@ -12159,6 +12159,21 @@ checked-result arithmetic decision listed below.
 
 - **COMPONENT-SUBSTRATE:** implement the settled independently selected
   provider path, keeping Cathedral update policy outside the compiler:
+  - the first composition-authority prerequisite is live. The exact
+    toolchain-owned `CompositionMode::{Fused, Independent}` value now enters
+    `Build::select_provider<Slot, Provider>(...)`; omission and explicit
+    `Fused` are identical, mode conflicts reject, operator-family mode remains
+    atomic across its coordinates, and only the root build may request
+    `Independent`. Target defaults and unique automatic selection are always
+    fused. Selected-plan provenance retains the mode. Until the compiler can
+    construct the exact closed slot, component closure, and `Service<R>`
+    carrier, every selected independent request rejects at one downstream
+    componentization fence before checked facts or package-review evidence can
+    misrepresent it as fused. Authored `CompositionMode` lookalikes reject;
+  - next, land the fused affine `Service<R> in Bound` carrier and exact fused
+    selection/erasure join. Keep generic or lifetime-parametric `R` fenced
+    until a closed slot application is represented rather than inferred from a
+    provider conformance;
   - replace transitional bare boundary-trait runtime values with the explicit
     affine `Service<R> in Bound` carrier and routed installation/publication
     establishment; fused selection may erase it, while independent calls

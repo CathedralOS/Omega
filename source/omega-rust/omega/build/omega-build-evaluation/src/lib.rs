@@ -4833,6 +4833,7 @@ pub fn harvest_provider_selections(
     let mut diagnostics = Vec::new();
     let mut record = |target: &str,
                       arguments: &[psi_typed_trees::expression::StaticMachineArgument],
+                      value_arguments: &[psi_typed_trees::expression::ExpressionHandle],
                       source_span: psi_source::SourceSpan| {
         if target != "select_provider" {
             return;
@@ -4859,6 +4860,13 @@ pub fn harvest_provider_selections(
         };
         let boundary_identity = project_identity(boundary_argument);
         let provider_type = project_identity(provider_argument);
+        let composition_mode = match provider_selection_composition_mode(typed, value_arguments) {
+            Ok(mode) => mode,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                return;
+            }
+        };
         let subject = if boundary_identity.symbol.is_valid()
             && typed.symbols.get(boundary_identity.symbol).kind == SymbolKind::Trait
             && typed.traits().iter().any(|definition| {
@@ -4973,10 +4981,21 @@ pub fn harvest_provider_selections(
                 )));
                 return;
             }
+            if existing.composition_mode != composition_mode {
+                diagnostics.push(Diagnostic::error(format!(
+                    "build selects provider `{}` for slot `{}` with conflicting composition modes {:?} and {:?}",
+                    provider_type.canonical_path,
+                    subject.canonical_path(),
+                    existing.composition_mode,
+                    composition_mode,
+                )));
+                return;
+            }
         }
         selections.push(ProviderSelection {
             subject,
             provider_type,
+            composition_mode,
             selecting_machine: machine.symbol,
             source_span,
         });
@@ -4991,6 +5010,7 @@ pub fn harvest_provider_selections(
                         record(
                             call.target.as_str(),
                             &call.machine_arguments,
+                            typed.expression_table.expression_handles(call.arguments),
                             typed.expression_table.source_span(*expression),
                         );
                     }
@@ -4999,6 +5019,7 @@ pub fn harvest_provider_selections(
                     record(
                         call.target.as_str(),
                         &call.machine_arguments,
+                        typed.statement_table.expression_handles(call.arguments),
                         call.source_span,
                     );
                 }
@@ -5011,6 +5032,69 @@ pub fn harvest_provider_selections(
     } else {
         Err(diagnostics)
     }
+}
+
+fn provider_selection_composition_mode(
+    typed: &TypedTrees,
+    arguments: &[psi_typed_trees::expression::ExpressionHandle],
+) -> Result<omega_provider_planning::CompositionMode, Diagnostic> {
+    let [] = arguments else {
+        let [argument] = arguments else {
+            return Err(Diagnostic::error(
+                "provider selection must retain zero arguments for fused composition or one exact compiler-owned CompositionMode value",
+            ));
+        };
+        let psi_typed_trees::expression::ExpressionNode::Name(path) =
+            typed.expression_table.expression(*argument)
+        else {
+            return Err(Diagnostic::error(
+                "provider selection composition mode must be the exact compiler-owned CompositionMode::Fused or CompositionMode::Independent case",
+            ));
+        };
+        let exact_modes = typed
+            .data_definitions()
+            .iter()
+            .filter(|definition| {
+                is_exact_toolchain_build_prelude_data(typed, definition.symbol, "CompositionMode")
+            })
+            .collect::<Vec<_>>();
+        let [modes] = exact_modes.as_slice() else {
+            return Err(Diagnostic::error(
+                "explicit provider composition mode requires exactly one compiler-owned CompositionMode declaration",
+            ));
+        };
+        let selected = typed
+            .data_members(modes)
+            .iter()
+            .filter_map(|member| match member {
+                psi_typed_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == path.symbol
+                        && typed.symbols.get(variant.symbol).parent == modes.symbol =>
+                {
+                    Some(variant)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [selected] = selected.as_slice() else {
+            return Err(Diagnostic::error(
+                "provider selection composition mode does not name an exact compiler-owned CompositionMode case",
+            ));
+        };
+        if !typed.data_payload_fields(selected).is_empty() {
+            return Err(Diagnostic::error(
+                "provider selection composition mode case unexpectedly carries a payload",
+            ));
+        }
+        return match selected.name.as_str() {
+            "Fused" => Ok(omega_provider_planning::CompositionMode::Fused),
+            "Independent" => Ok(omega_provider_planning::CompositionMode::Independent),
+            other => Err(Diagnostic::error(format!(
+                "compiler-owned CompositionMode contains unsupported case `{other}`"
+            ))),
+        };
+    };
+    Ok(omega_provider_planning::CompositionMode::Fused)
 }
 
 /// The static grant harvest: every `accept_boundary#<path>` marker call in

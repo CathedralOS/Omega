@@ -3648,7 +3648,7 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
     builder.package("root");
-    builder.select_provider<Pair, Provider>();
+    builder.select_provider<Pair, Provider>(CompositionMode::Fused);
 }
 "#,
     );
@@ -3693,6 +3693,171 @@ machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
         Some(identity(2))
     );
     assert_eq!(plan.origin_package, "");
+}
+
+fn compile_provider_mode_fixture(
+    marker: u8,
+    package_name: &str,
+    extra_source: &str,
+    selections: &str,
+) -> Result<omega_compiler::CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
+    let tree = TempTree::new();
+    let root = tree.package(package_name);
+
+    TempTree::write(
+        root.join("main.omg"),
+        &format!(
+            r#"pub boundary trait Pair {{ machine first(); }}
+pub data Provider {{ first: addr; }}
+machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
+{extra_source}
+"#
+        ),
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        &format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.package("{package_name}");
+{selections}
+}}
+"#
+        ),
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        identity(marker),
+        vec![PackageSourceBinding::new(
+            identity(marker),
+            "root",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("one-package provider graph");
+
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+}
+
+#[test]
+fn independent_provider_selection_reaches_the_componentization_fence() {
+    let diagnostics = compile_provider_mode_fixture(
+        61,
+        "independent-provider",
+        "",
+        "    builder.select_provider<Pair, Provider>(CompositionMode::Independent);",
+    )
+    .expect_err("independent mode must never fall through as fused");
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("retains independent composition")
+                && diagnostic
+                    .message
+                    .contains("refusing to treat the edge as fused")
+        }),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn provider_selection_rejects_an_authored_composition_mode_lookalike() {
+    let diagnostics = compile_provider_mode_fixture(
+        62,
+        "lookalike-composition-mode",
+        "data LocalCompositionMode [copy] { case Independent; }",
+        "    builder.select_provider<Pair, Provider>(LocalCompositionMode::Independent);",
+    )
+    .expect_err("an authored lookalike cannot select composition mode");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("does not name an exact compiler-owned CompositionMode case")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn provider_selection_rejects_an_arbitrary_composition_expression() {
+    let diagnostics = compile_provider_mode_fixture(
+        63,
+        "arbitrary-composition-expression",
+        "",
+        "    builder.select_provider<Pair, Provider>(true);",
+    )
+    .expect_err("an arbitrary expression cannot select composition mode");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("must be the exact compiler-owned CompositionMode::Fused or CompositionMode::Independent case")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn provider_selection_rejects_conflicting_composition_modes() {
+    let diagnostics = compile_provider_mode_fixture(
+        64,
+        "conflicting-composition-modes",
+        "",
+        r#"    builder.select_provider<Pair, Provider>(CompositionMode::Fused);
+    builder.select_provider<Pair, Provider>(CompositionMode::Independent);"#,
+    )
+    .expect_err("one slot cannot have two composition modes");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("with conflicting composition modes Fused and Independent")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn target_provider_default_cannot_request_independent_composition() {
+    let tree = TempTree::new();
+    let root = tree.package("independent-target-default");
+    let package = identity(65);
+    TempTree::write(
+        root.join("main.omg"),
+        r#"boundary trait Pair { machine first(); }
+data Provider { first: addr; }
+machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
+
+data TargetProviders { }
+linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
+    defaults.select_provider<Pair, Provider>(CompositionMode::Independent);
+}
+
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+    );
+    TempTree::write(
+        root.join("build.omg"),
+        r#"target linux_x86_64 { }
+machine build(builder: &mut Build) {
+    builder.application("independent-target-default");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(package, "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("one-package target-default graph");
+
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), Some("linux_x86_64"), inputs)
+            .expect_err("target defaults cannot authorize a deployment cut");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("only the owner-controlled build may create that deployment cut")),
+        "unexpected diagnostics: {diagnostics:#?}"
+    );
 }
 
 #[test]
