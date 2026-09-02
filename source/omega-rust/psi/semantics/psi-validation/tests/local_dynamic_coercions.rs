@@ -154,3 +154,25 @@ fn records_initializer_and_reassignment_selections_in_statement_order() {
     assert_eq!(selections[0].binding, selections[1].binding);
     assert_eq!(selections[0].conformance, selections[1].conformance);
 }
+
+#[test]
+fn rejects_boundary_trait_as_local_dynamic_descriptor() {
+    let diagnostics = validate(
+        r#"
+        boundary trait Console {
+            machine write(value: i32) reaches Console;
+        }
+
+        data Reader {}
+
+        machine Reader::read(console: &dyn Console) {}
+        "#,
+    )
+    .expect_err("a replaceable component boundary must not become a local dynamic table");
+
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("local dynamic descriptors cannot cross a replaceable component boundary")
+    }));
+}

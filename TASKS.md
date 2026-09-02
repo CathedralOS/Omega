@@ -12346,8 +12346,12 @@ checked-result arithmetic decision listed below.
     literal stores only when each wider body has an exact semantic and physical
     rule; computed values, indexed/case projections, repeated destinations, and
     a fourth write still has no native carrier;
-  - extend descriptors to stored/joined/escaping, aggregate-erased, and
-    component-crossing forms.
+  - extend descriptors to within-artifact stored/joined/escaping and
+    aggregate-erased forms. Do not extend local descriptor tables across a
+    replaceable component boundary: that is a settled rejection, enforced by
+    type-reference validation. Component calls use the selected boundary
+    `CallPlan`/`StatePlan`; a consumer that needs a local dynamic interface
+    owns a local proxy.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
   realizations.** Complete hermetic evaluation with crash refinement, target
   capsule, separate result/usage identities, deterministic progress, and
