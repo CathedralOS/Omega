@@ -2,12 +2,13 @@
 // product compiler closure and imported only by the parser acceptance gate.
 
 use omega_language_std::console;
+use omega::language::core::service;
 use psi::lex::lexer;
 use psi::parse::parser;
 use psi::syntax::syntax;
 
 pub data ParserHarness {
-    console: Console;
+    console: Service<Console> in Bound;
     lexer: Lexer;
     parser: Parser;
     token_wire: TokenWireCoordinates;
