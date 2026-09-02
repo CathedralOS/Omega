@@ -2906,3 +2906,33 @@ binds the readable trusted-language subject to the admitted Alpha tape. The
 source-to-tape relation, Alpha behavior, independent differential, and exact
 reconstruction remain separate obligations. No compatibility aliases or
 duplicate old owners are retained; Git records D62's abandoned topology.
+
+## D64 — Beta minimizes by shared structure, not compressed authority
+
+The admitted Beta compiler is minimized from a 6,418-byte hex-only baseline to
+a 2,706-byte Alpha tape while preserving a readable two-pass assembler. Its
+17,019-byte, 602-line Beta source reconstructs that tape byte-identically.
+
+The selected reductions remove duplicated mechanisms rather than encode hidden
+knowledge: both passes share one scanner; source bytes are validated while
+loaded into a bounded region; persistent compiler state uses a documented high-
+register ABI; labels occupy bounded contiguous exact-name rows; duplicate and
+reference lookup share one linear byte comparison; words and registers share
+one lowercase hexadecimal parser; `db` shares mnemonic recognition; and each
+NUL-terminated mnemonic row carries the NUL-terminated list of operand widths
+consumed by both passes.
+
+The language narrows to lowercase hexadecimal words/registers, lowercase label
+identifiers `[a-z_][a-z0-9_]*`, and printable `db` strings with only `\\0`,
+`\\\\`, and `\\"` escapes. Only whitespace may separate `db` from its string.
+These forms cover every retained Beta customer. The admitted implementation
+checks its 1-MiB source region, 65,536-row label region, and Alpha raw-tape
+output ceiling before advancement.
+
+The experiment rejects one-pass fixup chains, label hashes, compact name
+identities, removal of conventional commas/comments/ASCII whitespace, and an
+explicit mnemonic control-flow trie. They either enlarge proof invariants,
+weaken readability, or save too little. New Alpha compare-immediate opcodes
+would save about 380 Beta tape bytes and more in later Beta programs, but do not
+yet justify revising both native seeds, Alpha semantics, listings, and
+conformance. That option remains measurable rather than selected.

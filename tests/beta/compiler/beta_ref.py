@@ -8,7 +8,7 @@
 # UNTRUSTED; agreement is diagnostic and does not replace source-to-artifact
 # refinement. The runtime lineage never runs it.
 #
-# Encoding: opcode 1 byte; register operand 1 byte (`rN`); immediate/address operand 8 bytes LE (a decimal,
+# Encoding: opcode 1 byte; register operand 1 byte (`rH` or `rHH`); immediate/address operand 8 bytes LE (`0xH...`,
 # or a label resolved to its absolute byte offset in the tape). `db "..."` emits the decoded string bytes.
 # Comments are `;` to end of line (respecting string quotes); commas are whitespace.
 import re
@@ -24,10 +24,10 @@ OPS = {
     'jlt': (0x0F, 'rrx'), 'jeq': (0x10, 'rrx'),
     'read': (0x11, 'r'),  'write': (0x12, 'r'), 'call': (0x13, 'x'), 'ret': (0x14, ''),
 }
-MASK = (1 << 64) - 1
-ESC = {'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92, "'": 39, '"': 34}
-IDENT = re.compile(r'[A-Za-z_.$][A-Za-z0-9_.$]*\Z')
-DECIMAL = re.compile(r'[0-9]+\Z')
+ESC = {'0': 0, '\\': 92, '"': 34}
+IDENT = re.compile(r'[a-z_][a-z0-9_]*\Z')
+HEX_WORD = re.compile(r'0x[0-9a-f]{1,16}\Z')
+HEX_REGISTER = re.compile(r'r[0-9a-f]{1,2}\Z')
 
 def tokenize(text):
     """Lex the byte-preserving Latin-1 view of the complete source stream."""
@@ -47,13 +47,13 @@ def tokenize(text):
                 j += 2 if text[j] == '\\' else 1
             if j >= n:
                 raise SyntaxError('beta_ref: unterminated db string')
-            toks.append(text[i:j + 1]); i = j + 1
+            toks.append((text[i:j + 1], i, j + 1)); i = j + 1
         else:
             j = i
             while (j < n and text[j] not in ' \t\r\n' and
                    text[j] not in ',;'):
                 j += 1
-            toks.append(text[i:j]); i = j
+            toks.append((text[i:j], i, j)); i = j
     return toks
 
 def decode_str(token):
@@ -77,7 +77,7 @@ def parse(text):
     """-> list of items: ('label', name) | ('ins', mnem, [operand tokens]) | ('db', bytes)"""
     items = []; labels = set(); toks = tokenize(text); k = 0
     while k < len(toks):
-        t = toks[k]
+        t = toks[k][0]
         if t.endswith(':'):
             name = t[:-1]
             if not IDENT.fullmatch(name):
@@ -88,11 +88,14 @@ def parse(text):
         if t == 'db':
             if k + 1 >= len(toks):
                 raise SyntaxError('beta_ref: db requires one quoted string')
-            items.append(('db', decode_str(toks[k + 1]))); k += 2; continue
+            gap = text[toks[k][2]:toks[k + 1][1]]
+            if not gap or any(c not in ' \t\r\n' for c in gap):
+                raise SyntaxError('beta_ref: db requires whitespace before its string')
+            items.append(('db', decode_str(toks[k + 1][0]))); k += 2; continue
         if t not in OPS:
             raise SyntaxError(f'beta_ref: unknown mnemonic {t!r}')
         kinds = OPS[t][1]
-        operands = toks[k + 1:k + 1 + len(kinds)]
+        operands = [token[0] for token in toks[k + 1:k + 1 + len(kinds)]]
         if len(operands) != len(kinds):
             raise SyntaxError(f'beta_ref: missing operand for {t!r}')
         items.append(('ins', t, operands)); k += 1 + len(kinds)
@@ -131,18 +134,13 @@ def assemble(text):
         out.append(op)
         for kd, tok in zip(kinds, it[2]):
             if kd == 'r':
-                if (len(tok) < 2 or tok[0] != 'r' or
-                        not DECIMAL.fullmatch(tok[1:])):
+                if not HEX_REGISTER.fullmatch(tok):
                     raise SyntaxError(f'beta_ref: malformed register {tok!r}')
-                value = int(tok[1:])
-                if value > 255:
-                    raise SyntaxError(f'beta_ref: register out of range {tok!r}')
+                value = int(tok[1:], 16)
                 out.append(value)
             else:
-                if DECIMAL.fullmatch(tok):
-                    v = int(tok)
-                    if v > MASK:
-                        raise SyntaxError(f'beta_ref: word out of range {tok!r}')
+                if HEX_WORD.fullmatch(tok):
+                    v = int(tok[2:], 16)
                 elif IDENT.fullmatch(tok) and tok in labels:
                     v = labels[tok]
                 else:
