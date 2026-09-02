@@ -44,12 +44,13 @@ pub(super) fn validate_selected_unit_application(
     checked: &CheckedTrees,
     rewrite: &OperatorAdapterRewrite,
 ) -> Result<(), Diagnostic> {
+    let origin = enclosing_statement_origin(checked, rewrite.origin)?;
     let CheckedValueOrigin::StateStatement {
         machine_symbol,
         state_symbol,
         statement_index,
         role: CheckedValueStatementRole::LocalInitializer,
-    } = rewrite.origin
+    } = origin
     else {
         return Ok(());
     };
@@ -138,6 +139,73 @@ pub(super) fn validate_selected_unit_application(
         )));
     }
     Ok(())
+}
+
+pub(super) fn validate_selected_unit_source_shape(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+    origin: CheckedValueOrigin,
+) -> Result<(), Diagnostic> {
+    if !matches!(origin, CheckedValueOrigin::NestedExpression { .. }) {
+        return Ok(());
+    }
+    let CheckedValueOrigin::StateStatement {
+        machine_symbol,
+        state_symbol,
+        role: CheckedValueStatementRole::LocalInitializer,
+        ..
+    } = enclosing_statement_origin(checked, origin)?
+    else {
+        return Ok(());
+    };
+    let source_is_unit = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .and_then(|machine| {
+            checked
+                .typed
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)
+        })
+        .is_some_and(|state| is_unit_return(&checked.typed, state.return_type));
+    if source_is_unit {
+        return Err(Diagnostic::error(format!(
+            "selected operator expression {expression:?} is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained",
+        )));
+    }
+    Ok(())
+}
+
+fn enclosing_statement_origin(
+    checked: &CheckedTrees,
+    mut origin: CheckedValueOrigin,
+) -> Result<CheckedValueOrigin, Diagnostic> {
+    let mut visited = Vec::new();
+    while let CheckedValueOrigin::NestedExpression { parent } = origin {
+        if visited.contains(&parent) {
+            return Err(Diagnostic::error(
+                "selected operator expression has a cyclic checked parent chain",
+            ));
+        }
+        visited.push(parent);
+        let origins = checked
+            .facts
+            .values
+            .expression_values(parent)
+            .map(|(_, value)| value.origin)
+            .collect::<Vec<_>>();
+        let [parent_origin] = origins.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "selected operator nested parent {parent:?} retained {} checked origins",
+                origins.len(),
+            )));
+        };
+        origin = *parent_origin;
+    }
+    Ok(origin)
 }
 
 fn is_unit_return(

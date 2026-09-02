@@ -59,6 +59,7 @@ pub(crate) mod control;
 mod dynamic_scalar_calls;
 mod providers;
 pub(crate) mod returns;
+mod scalar_locals;
 mod selected_ieee_float;
 pub(super) mod selected_operator;
 pub(crate) mod shared_convergence;
@@ -71,6 +72,7 @@ use control::*;
 use dynamic_scalar_calls::*;
 use providers::*;
 use returns::*;
+use scalar_locals::*;
 use selected_ieee_float::*;
 use selected_operator::*;
 use shared_convergence::checked_shared_boolean_convergence;
@@ -241,6 +243,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => true,
             })
         });

@@ -510,6 +510,11 @@ fn resolve_operator_adapter_call(
     operator_use: &psi_checked_trees::CheckedNamedOperatorUseFact,
     plan: &omega_effects::provider_plan::ProviderPlan,
 ) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
+    unit::validate_selected_unit_source_shape(
+        checked,
+        operator_use.expression,
+        operator_use.origin,
+    )?;
     let operator = exact_operator_definition(
         checked,
         operator_use.expression,
@@ -884,8 +889,8 @@ mod tests {
         operator_use: psi_checked_trees::CheckedNamedOperatorUseFact,
     }
 
-    fn fixture() -> Fixture {
-        let tokens = psi_source_files_to_tokens::Lexer::new(SOURCE)
+    fn fixture_from_source(source: &str) -> Fixture {
+        let tokens = psi_source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("tokenize checked-operator dispatch fixture");
         let syntax = psi_tokens_to_syntax_trees::parse_syntax_trees(&tokens)
@@ -941,21 +946,17 @@ mod tests {
         }
     }
 
-    fn settled_attached_unit_fixture() -> (
-        Arc<CheckedTrees>,
+    fn fixture() -> Fixture {
+        fixture_from_source(SOURCE)
+    }
+
+    fn select_operator_use(
+        fixture: &mut Fixture,
+        matches_origin: impl Fn(CheckedValueOrigin) -> bool,
+    ) -> (
         omega_effects::SelectedProviderPlanFacts,
         psi_checked_trees::CheckedNamedOperatorUseFact,
     ) {
-        let mut fixture = fixture();
-        let main = fixture
-            .checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Main::main")
-            .expect("Unit fixture machine");
-        let main_symbol = main.symbol;
-        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
         let (use_handle, mut operator_use) = fixture
             .checked
             .facts
@@ -963,18 +964,8 @@ mod tests {
             .named_uses
             .iter()
             .map(|(handle, operator_use)| (handle, *operator_use))
-            .find(|(_, operator_use)| {
-                matches!(
-                    operator_use.origin,
-                    CheckedValueOrigin::StateStatement {
-                        machine_symbol,
-                        state_symbol,
-                        statement_index: 0,
-                        role: CheckedValueStatementRole::LocalInitializer,
-                    } if machine_symbol == main_symbol && state_symbol == main_state
-                )
-            })
-            .expect("selected operator local in Unit fixture");
+            .find(|(_, operator_use)| matches_origin(operator_use.origin))
+            .expect("selected operator use");
         operator_use.provider_plan_report_fingerprint = fixture.checked_plan.report_fingerprint();
         operator_use.provider_plan_commitment =
             psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
@@ -991,6 +982,35 @@ mod tests {
             std::slice::from_ref(&fixture.checked_plan.name),
         )
         .expect("select exact checked-operator plan");
+        (selected, operator_use)
+    }
+
+    fn settled_attached_unit_fixture() -> (
+        Arc<CheckedTrees>,
+        omega_effects::SelectedProviderPlanFacts,
+        psi_checked_trees::CheckedNamedOperatorUseFact,
+    ) {
+        let mut fixture = fixture();
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (selected, operator_use) = select_operator_use(&mut fixture, |origin| {
+            matches!(
+                origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                } if machine_symbol == main_symbol && state_symbol == main_state
+            )
+        });
         let mut settled = Arc::new(fixture.checked);
         settle_selected_operator_adapter_dispatch(&mut settled, &selected)
             .expect("selected Unit operator application settles");
@@ -1393,41 +1413,17 @@ mod tests {
             .expect("Unit fixture machine");
         let main_symbol = main.symbol;
         let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
-        let (use_handle, mut operator_use) = fixture
-            .checked
-            .facts
-            .operators
-            .named_uses
-            .iter()
-            .map(|(handle, operator_use)| (handle, *operator_use))
-            .find(|(_, operator_use)| {
-                matches!(
-                    operator_use.origin,
-                    CheckedValueOrigin::StateStatement {
-                        machine_symbol,
-                        state_symbol,
-                        statement_index: 0,
-                        role: CheckedValueStatementRole::LocalInitializer,
-                    } if machine_symbol == main_symbol && state_symbol == main_state
-                )
-            })
-            .expect("selected operator local in Unit fixture");
-        operator_use.provider_plan_report_fingerprint = fixture.checked_plan.report_fingerprint();
-        operator_use.provider_plan_commitment =
-            psi_checked_trees::CheckedProviderPlanCommitment::from_digest(
-                *fixture.checked_plan.identity_digest().as_bytes(),
-            );
-        *fixture
-            .checked
-            .facts
-            .operators
-            .named_uses
-            .get_mut(use_handle) = operator_use;
-        let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
-            std::slice::from_ref(&fixture.checked_plan),
-            std::slice::from_ref(&fixture.checked_plan.name),
-        )
-        .expect("select exact checked-operator plan");
+        let (selected, operator_use) = select_operator_use(&mut fixture, |origin| {
+            matches!(
+                origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                } if machine_symbol == main_symbol && state_symbol == main_state
+            )
+        });
         let mut settled = Arc::new(fixture.checked);
 
         settle_selected_operator_adapter_dispatch(&mut settled, &selected)
@@ -1474,6 +1470,145 @@ mod tests {
             "unexpected diagnostic: {}",
             missing[0].message,
         );
+    }
+
+    #[test]
+    fn selected_local_result_retains_dependent_branch_free_scalar_local() {
+        let source = SOURCE.replace(
+            "let result: i32 = CheckedMath::offset_zero(70);",
+            "let selected: i32 = CheckedMath::offset_zero(70);\n            let result: i32 = selected + 0i32;",
+        );
+        let mut fixture = fixture_from_source(&source);
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (selected, _) = select_operator_use(&mut fixture, |origin| {
+            matches!(
+                origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                } if machine_symbol == main_symbol && state_symbol == main_state
+            )
+        });
+        let mut settled = Arc::new(fixture.checked);
+
+        settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect("selected call and dependent scalar local settle");
+
+        let operations = &settled
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| {
+                settled
+                    .typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == plan.machine)
+                    .is_some_and(|machine| machine.name.as_str() == "Main::main")
+            })
+            .expect("selected Unit plan")
+            .operations;
+        let [
+            CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
+                result: selected, ..
+            },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] = operations.as_slice()
+        else {
+            panic!("selected Unit plan did not retain the exact scalar-local sequence")
+        };
+        assert_eq!(selected.binding_ordinal, 0);
+        assert_eq!(result.binding_ordinal, 1);
+        assert!(matches!(
+            value,
+            psi_checked_trees::CheckedScalarExpression::IntegerBinary {
+                kind: psi_checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+                left,
+                right,
+                ..
+            } if matches!(
+                left.as_ref(),
+                psi_checked_trees::CheckedScalarExpression::Local { position: 0, .. }
+            ) && matches!(
+                right.as_ref(),
+                psi_checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+            )
+        ));
+    }
+
+    #[test]
+    fn nested_selected_unit_call_remains_fenced() {
+        let source = SOURCE.replace(
+            "let result: i32 = CheckedMath::offset_zero(70);",
+            "let result: i32 = CheckedMath::offset_zero(70) + 0i32;",
+        );
+        let mut fixture = fixture_from_source(&source);
+        let (selected, _) = select_operator_use(&mut fixture, |origin| {
+            matches!(origin, CheckedValueOrigin::NestedExpression { .. })
+        });
+        let mut settled = Arc::new(fixture.checked);
+
+        let diagnostics = settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect_err("nested selected Unit call must remain fenced");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("nested inside a Unit local initializer")
+            }),
+            "unexpected diagnostics: {diagnostics:#?}",
+        );
+    }
+
+    #[test]
+    fn selected_unit_scalar_local_short_circuit_remains_fenced() {
+        let source = SOURCE.replace(
+            "let result: i32 = CheckedMath::offset_zero(70);",
+            "let selected: i32 = CheckedMath::offset_zero(70);\n            let result: bool = selected == 70 && true;",
+        );
+        let mut fixture = fixture_from_source(&source);
+        let main = fixture
+            .checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Main::main")
+            .expect("Unit fixture machine");
+        let main_symbol = main.symbol;
+        let main_state = fixture.checked.typed.machine_states(main)[0].symbol;
+        let (selected, _) = select_operator_use(&mut fixture, |origin| {
+            matches!(
+                origin,
+                CheckedValueOrigin::StateStatement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index: 0,
+                    role: CheckedValueStatementRole::LocalInitializer,
+                } if machine_symbol == main_symbol && state_symbol == main_state
+            )
+        });
+        let mut settled = Arc::new(fixture.checked);
+
+        let diagnostics = settle_selected_operator_adapter_dispatch(&mut settled, &selected)
+            .expect_err("short-circuit scalar local must remain fenced");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("retained 0 exact Unit realization applications")
+        }));
     }
 
     #[test]

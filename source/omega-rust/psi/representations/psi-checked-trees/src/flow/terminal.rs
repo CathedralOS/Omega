@@ -1306,6 +1306,15 @@ pub enum CheckedUnitEffectOperationPlan {
         field_identity: String,
         value: CheckedScalarExpression,
     },
+    /// Establish one immutable primitive local from a retained, branch-free
+    /// checked scalar expression. The result coordinate names the
+    /// same dense scalar namespace used by result-bearing calls; later
+    /// consumers may therefore refer to either kind without reconstructing a
+    /// source expression.
+    EstablishScalarLocal {
+        result: CheckedUnitScalarResultBindingPlan,
+        value: CheckedScalarExpression,
+    },
     CallUnit {
         coordinate: CheckedUnitCallCoordinate,
         target_machine: SymbolHandle,

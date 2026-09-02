@@ -15,7 +15,7 @@ fn checked_adapter_identity(
         .identity()
 }
 
-fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
+fn assert_selected_operator_terminal_call(canary: &Path, label: &str, through_scalar_local: bool) {
     let root_path = canary.join("main.omg");
     let package_inputs =
         reviewed_repository_fixture_package_inputs(&root_path, Some("linux_x86_64"))
@@ -107,12 +107,34 @@ fn assert_selected_operator_terminal_call(canary: &Path, label: &str) {
                         else {
                             return false;
                         };
-                        block.operations[call_index + 1..].iter().any(|consumer| {
-                            matches!(
-                                &consumer.kind,
-                                psi_terminal::OperationKind::BoundaryCall { arguments, .. }
-                                    if arguments == &[result.id]
-                            )
+                        let consumed_result = if through_scalar_local {
+                            block.operations[call_index + 1..]
+                                .iter()
+                                .find_map(|dependent| {
+                                    let psi_terminal::OperationKind::ExactIntegerAdd {
+                                        left, ..
+                                    } = dependent.kind
+                                    else {
+                                        return None;
+                                    };
+                                    let psi_terminal::OperationResult::Scalar(dependent_result) =
+                                        dependent.result
+                                    else {
+                                        return None;
+                                    };
+                                    (left == result.id).then_some(dependent_result.id)
+                                })
+                        } else {
+                            Some(result.id)
+                        };
+                        consumed_result.is_some_and(|consumed_result| {
+                            block.operations[call_index + 1..].iter().any(|consumer| {
+                                matches!(
+                                    &consumer.kind,
+                                    psi_terminal::OperationKind::BoundaryCall { arguments, .. }
+                                        if arguments == &[consumed_result]
+                                )
+                            })
                         })
                     })
             })
@@ -285,7 +307,7 @@ fn checked_boundary_operator_dispatch_exit_canary_runs() {
         outcome.error,
     );
 
-    assert_selected_operator_terminal_call(&canary, "checked boundary-operator canary");
+    assert_selected_operator_terminal_call(&canary, "checked boundary-operator canary", true);
 }
 
 #[test]
@@ -300,7 +322,7 @@ fn checked_fixed_operator_dispatch_exit_canary_runs() {
         "interpreter dispatches the selected fixed-token operator body; error: {:?}",
         outcome.error,
     );
-    assert_selected_operator_terminal_call(&canary, "checked fixed-token operator canary");
+    assert_selected_operator_terminal_call(&canary, "checked fixed-token operator canary", false);
 }
 
 #[test]
