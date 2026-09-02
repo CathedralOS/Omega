@@ -290,7 +290,7 @@ pub(super) fn fixed_integer_shape(
     Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
 }
 
-fn validate_placement_registers(
+pub(super) fn validate_placement_registers(
     value: ValueId,
     placement: &omega_calling_conventions::ValuePlacement,
     target: NativeTarget,

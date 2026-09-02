@@ -158,6 +158,7 @@ fn structural_scalar_field_module() -> TerminalModule {
                             }),
                             kind: OperationKind::CallStructuralScalar {
                                 callee: realization,
+                                arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {
                                     place: caller_self,
                                     path: vec![StructuralPathSegment::Field("item".into())],

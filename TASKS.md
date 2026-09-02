@@ -11736,7 +11736,7 @@ checked-result arithmetic decision listed below.
   The descriptor-parameter semantic ABI is now defined and executable.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
-  each descriptor transfer. Terminal format 63 / vocabulary 66 can retain
+  each descriptor transfer. Terminal format 64 / vocabulary 67 can retain
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation
@@ -11787,7 +11787,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 54 retains compact strong-identity
+  relocation. Canonical installation format 55 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Cross-architecture canaries cover two-row tables and reject

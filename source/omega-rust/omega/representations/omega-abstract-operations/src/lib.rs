@@ -532,6 +532,7 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: AbstractResult,
         callee: MachineId,
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,

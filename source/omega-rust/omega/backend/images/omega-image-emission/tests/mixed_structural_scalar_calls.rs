@@ -282,6 +282,21 @@ fn object_rejects_mixed_scalar_roster_and_abi_drift() {
         build_object_artifact(&interval),
         Err(ObjectError::InvalidInternalUnitCallEvidence(caller))
     );
+
+    let callee = MachineId::new(9921).unwrap();
+    let mut structural_roster = emitted(NativeTarget::linux_x64());
+    structural_roster.functions[1].scalar_structural_parameter_homes[0].source = structural_roster
+        .functions[1]
+        .mixed_structural_scalar_abi
+        .as_ref()
+        .unwrap()
+        .call_plan
+        .parameters[0]
+        .clone();
+    assert_eq!(
+        build_object_artifact(&structural_roster),
+        Err(ObjectError::InvalidInternalUnitCallEvidence(callee))
+    );
 }
 
 #[test]

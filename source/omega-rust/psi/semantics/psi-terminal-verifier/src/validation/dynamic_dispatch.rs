@@ -170,6 +170,7 @@ pub(super) fn validate_dynamic_dispatches(
             (
                 OperationKind::CallStructuralScalar {
                     callee,
+                    arguments,
                     structural_arguments,
                     claim_transfers,
                     requirement_obligations,
@@ -178,6 +179,7 @@ pub(super) fn validate_dynamic_dispatches(
                 OperationResult::Scalar(operation_result),
                 TerminalMachineResult::Scalar(callable_result),
             ) if *callee == dispatch.realization
+                && arguments.is_empty()
                 && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
                 && operation_result.scalar_type == callable_result.scalar_type
                 && claim_transfers.is_empty()

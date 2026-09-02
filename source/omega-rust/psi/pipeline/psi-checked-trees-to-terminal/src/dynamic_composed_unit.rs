@@ -766,6 +766,7 @@ fn lower_dynamic_call_custody(
                 },
                 OperationKind::CallStructuralScalar {
                     callee: realization_machine,
+                    arguments: Vec::new(),
                     structural_arguments: vec![latest_source],
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
@@ -832,6 +833,7 @@ fn lower_dynamic_call_custody(
                     });
                 OperationKind::CallStructuralScalar {
                     callee: helper.machine,
+                    arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),

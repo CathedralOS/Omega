@@ -1220,14 +1220,16 @@ composite object, manifest, and custody. Provider projection, machine routes,
 artifact assembly, semantic replay, object validation, models, codecs, and
 diagnostics descend into named leaves.
 
-The first non-scalar D29 Terminal lane retains one selected fixed-token
-type+const application whose checked caller and specialized realization join
-an exact all-affine whole-structural operand permutation and one scalar result.
-It emits `CallStructuralScalar` and retains the authored operation coordinate;
-private source and substituted-generic type spellings are reconciled only when
-their independently checked structural shapes agree. Mixed structural/scalar
-arguments, structural results, and native physical-child publication remain
-outside this lane.
+The non-scalar D29 Terminal lane retains one selected fixed-token type+const
+application whose checked caller and specialized realization join fixed-width
+integer scalar operands, an exact all-affine whole-structural operand
+permutation, and one scalar result. It emits `CallStructuralScalar` with
+separate scalar and structural argument rows and retains the authored operation
+coordinate; private source and substituted-generic type spellings are
+reconciled only when their independently checked structural shapes agree. The
+hosted fixed-integer/empty-record subset continues through native D32 physical
+custody. Structural results, projected or borrowed roots, nontrivial layouts,
+and broader effects remain outside this lane.
 
 D32 requires this physical composition to issue one child receipt for every
 settled boundary occurrence surviving the validated optimization projection.

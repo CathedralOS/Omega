@@ -1168,7 +1168,9 @@ fn build_object_artifact_with_x86_feature_profile(
                     | BoundaryRealization::LinuxExitGroupI32(_)
             )
         });
-        let scalar_custody = scalar_cleanup_custody || scalar_boundary_custody;
+        let scalar_custody = scalar_cleanup_custody
+            || scalar_boundary_custody
+            || function.mixed_structural_scalar_abi.is_some();
         let parameter_homes = if scalar_custody {
             function.scalar_structural_parameter_homes.as_slice()
         } else {

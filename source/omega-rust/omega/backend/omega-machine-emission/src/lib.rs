@@ -154,8 +154,7 @@ fn validate_mixed_structural_scalar_abi(
     if row.scalar_parameters.is_empty() || row.structural_parameters.is_empty() {
         return Err(invalid());
     }
-    let Some((source_value, result_type)) = assigned_direct_integer_result(&function.operation)
-    else {
+    let Some((_, result_type)) = assigned_direct_integer_result(&function.operation) else {
         return Err(invalid());
     };
     let scalar_shapes = row
@@ -184,7 +183,6 @@ fn validate_mixed_structural_scalar_abi(
     .map_err(|_| invalid())?;
     let scalar_count = row.scalar_parameters.len();
     if function.fixed_integer_scalar_abi.is_some()
-        || source_value != row.result.value
         || result_type != row.result.scalar_type
         || expected_plan != row.call_plan
         || row.call_plan.parameters.len() != scalar_count + row.structural_parameters.len()
@@ -1003,6 +1001,37 @@ fn emit_function(
         for call in &mut internal_calls {
             call.scalar_stack = None;
         }
+    }
+    if let Some(abi) = function.mixed_structural_scalar_abi.as_ref()
+        && scalar_structural_parameters.is_empty()
+        && scalar_structural_parameter_homes.is_empty()
+    {
+        scalar_structural_parameters = abi
+            .structural_parameters
+            .iter()
+            .map(|parameter| omega_machine_code::UnitParameterRecord {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
+                shape: parameter.shape,
+            })
+            .collect();
+        scalar_structural_parameter_homes = abi
+            .structural_parameters
+            .iter()
+            .map(|parameter| omega_machine_code::UnitParameterHomeRecord {
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
+                shape: parameter.shape,
+                source: parameter.placement.clone(),
+                byte_offset: 0,
+                indirect: matches!(
+                    parameter.placement.locations.as_slice(),
+                    [ValueLocation::Indirect { .. }]
+                ),
+            })
+            .collect();
     }
     Ok(MachineCodeFunction {
         machine: function.machine,

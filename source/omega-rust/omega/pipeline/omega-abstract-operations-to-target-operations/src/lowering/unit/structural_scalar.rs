@@ -2,6 +2,7 @@
 //! attached Unit body.
 
 use super::super::scalar::scalar_shape;
+use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::shared::*;
 use super::super::structural_layout::{
     direct_integer_field_offset, resolve_structural_field_path, structural_shape,
@@ -115,6 +116,7 @@ pub(super) fn lower_structural_scalar_call(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -124,6 +126,7 @@ pub(super) fn lower_structural_scalar_call(
         psi_operation,
         result,
         callee,
+        arguments: scalar_argument_values,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
@@ -144,9 +147,9 @@ pub(super) fn lower_structural_scalar_call(
     let Some(callee_result) = callee_function.result.scalar() else {
         return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
     };
-    if !callee_function.parameters.is_empty()
-        || callee_result.scalar_type != result.scalar_type
+    if callee_result.scalar_type != result.scalar_type
         || !callee_function.published_service_ceiling.is_empty()
+        || scalar_argument_values.len() != callee_function.parameters.len()
         || structural_arguments.len() != callee_function.structural_parameters.len()
     {
         return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
@@ -192,6 +195,17 @@ pub(super) fn lower_structural_scalar_call(
             function.machine,
         ));
     }
+    let scalar_shapes = callee_function
+        .parameters
+        .iter()
+        .map(|parameter| {
+            let ScalarType::Integer(integer_type) = parameter.scalar_type else {
+                return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+            };
+            fixed_native_integer_shape(integer_type)
+                .ok_or(LoweringError::UnitCallTargetKindMismatch(*callee))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let callee_shapes = callee_function
         .structural_parameters
         .iter()
@@ -208,7 +222,11 @@ pub(super) fn lower_structural_scalar_call(
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: callee_shapes.clone(),
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(callee_shapes.iter().copied())
+                .collect(),
             result: Some(result_shape),
         },
     )
@@ -216,11 +234,41 @@ pub(super) fn lower_structural_scalar_call(
     if call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape) {
         return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
     }
+    let scalar_arguments = scalar_argument_values
+        .iter()
+        .zip(&callee_function.parameters)
+        .zip(&scalar_shapes)
+        .zip(&call_plan.parameters)
+        .enumerate()
+        .map(
+            |(parameter_index, (((source_value, parameter), expected_shape), placement))| {
+                let known = scalar_values
+                    .get(source_value)
+                    .copied()
+                    .ok_or(LoweringError::UnknownValue(*source_value))?;
+                let ScalarType::Integer(parameter_type) = parameter.scalar_type else {
+                    return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+                };
+                if known.scalar_type() != parameter_type || placement.shape != *expected_shape {
+                    return Err(LoweringError::CallArgumentTypeMismatch {
+                        callee: *callee,
+                        argument: *source_value,
+                    });
+                }
+                Ok(TargetUnitScalarCallArgument {
+                    parameter_index: u32::try_from(parameter_index)
+                        .map_err(|_| LoweringError::UnitCallTargetKindMismatch(*callee))?,
+                    source: known.into_target_source(*source_value),
+                    placement: placement.clone(),
+                })
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
     let arguments = structural_arguments
         .iter()
         .zip(&callee_function.structural_parameters)
         .zip(callee_shapes)
-        .zip(&call_plan.parameters)
+        .zip(call_plan.parameters.iter().skip(scalar_arguments.len()))
         .map(|(((argument, callee_parameter), shape), destination)| {
             let source = parameters_by_place.get(&argument.place).copied().ok_or(
                 LoweringError::UnknownStructuralArgumentPlace {
@@ -289,6 +337,7 @@ pub(super) fn lower_structural_scalar_call(
         result: *result,
         callee: *callee,
         call_plan,
+        scalar_arguments,
         arguments,
         claim_transfers: claim_transfers.clone(),
         requirement_obligations: requirement_obligations.clone(),

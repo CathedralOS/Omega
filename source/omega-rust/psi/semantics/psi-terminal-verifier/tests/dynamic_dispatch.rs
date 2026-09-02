@@ -206,6 +206,7 @@ fn dynamic_dispatch_module() -> TerminalModule {
                         }),
                         kind: OperationKind::CallStructuralScalar {
                             callee: realization,
+                            arguments: Vec::new(),
                             structural_arguments: vec![source],
                             claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),
@@ -334,6 +335,7 @@ fn parameter_dynamic_dispatch_module() -> TerminalModule {
     }];
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
         callee: helper,
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),

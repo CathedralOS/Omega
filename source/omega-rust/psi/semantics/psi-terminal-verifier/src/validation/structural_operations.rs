@@ -435,6 +435,7 @@ pub(super) fn validate_unit_operation_static(
         }
         OperationKind::CallStructuralScalar {
             callee,
+            arguments: _,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -449,7 +450,7 @@ pub(super) fn validate_unit_operation_static(
                 })?;
             let expected = callee.result.scalar().map(|result| result.scalar_type);
             let actual = operation.result.scalar().map(|result| result.scalar_type);
-            if !callee.parameters.is_empty() || expected.is_none() || actual != expected {
+            if expected.is_none() || actual != expected {
                 return Err(ModuleError::StructuralScalarCallTargetMismatch {
                     operation: operation.id,
                     callee: callee.id,

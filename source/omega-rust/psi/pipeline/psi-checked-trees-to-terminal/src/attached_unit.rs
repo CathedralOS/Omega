@@ -413,6 +413,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     realization_contract_report_fingerprint,
                     realization_contract_commitment,
                     service_reach,
+                    scalar_arguments,
                     structural_arguments,
                 } => {
                     validate_selected_operator_structural_scalar_call(
@@ -428,6 +429,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         *realization_contract_report_fingerprint,
                         *realization_contract_commitment,
                         *service_reach,
+                        scalar_arguments,
                         structural_arguments,
                     )?;
                 }
@@ -1165,6 +1167,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     result,
                     realization_machine,
                     realization_state,
+                    scalar_arguments,
                     structural_arguments,
                     ..
                 } => {
@@ -1203,6 +1206,40 @@ pub(super) fn lower_attached_unit_closure_including(
                         &structural_types,
                         &[],
                     )?;
+                    if scalar_arguments.len() != target.scalar_parameters.len() {
+                        return unsupported(
+                            "selected structural Unit operator scalar argument count disagrees with its realization",
+                        );
+                    }
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let scalar_arguments = scalar_arguments
+                        .iter()
+                        .zip(&target.scalar_parameters)
+                        .map(|(argument, target)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if direct_expression_contains_short_circuit(&argument) {
+                                return unsupported(
+                                    "selected structural Unit operator arguments do not yet admit short-circuit control",
+                                );
+                            }
+                            let target_type = terminal_scalar_type(target.primitive_type)?;
+                            if argument.scalar_type() != target_type {
+                                return unsupported(
+                                    "selected structural Unit operator scalar argument type disagrees with its realization",
+                                );
+                            }
+                            validate_direct_parameter_types(&argument, &source_types)?;
+                            Ok(emit_direct_expression(
+                                &argument,
+                                &scalar_result_values,
+                                &mut next_value_identity,
+                                &mut operations,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
                     let arguments =
                         lower_structural_arguments(structural_arguments, parameters, &[], &[])?;
                     let value = ValueDeclaration {
@@ -1241,6 +1278,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         result: OperationResult::Scalar(value),
                         kind: OperationKind::CallStructuralScalar {
                             callee: lookup_machine_id(&machine_ids, *realization_machine)?,
+                            arguments: scalar_arguments,
                             structural_arguments: arguments,
                             claim_transfers: Vec::new(),
                             requirement_obligations: Vec::new(),

@@ -131,6 +131,7 @@ pub(super) fn encode_block_for_result_paths(
             }
             OperationKind::CallStructuralScalar {
                 callee,
+                arguments,
                 structural_arguments,
                 claim_transfers,
                 requirement_obligations,
@@ -138,6 +139,10 @@ pub(super) fn encode_block_for_result_paths(
             } => {
                 writer.u8(39);
                 writer.id(callee);
+                writer.len("structural-scalar-call scalar arguments", arguments.len())?;
+                for argument in arguments {
+                    writer.id(argument);
+                }
                 encode_structural_arguments(writer, &structural_arguments)?;
                 writer.len(
                     "structural-scalar-call claim transfers",
@@ -908,6 +913,7 @@ pub(super) fn decode_block_for_result_paths(
             },
             39 => OperationKind::CallStructuralScalar {
                 callee: reader.id("MachineId")?,
+                arguments: decode_ids(reader, "ValueId")?,
                 structural_arguments: decode_structural_arguments(reader)?,
                 claim_transfers: decode_counted(reader, |reader| {
                     Ok(ClaimTransfer {
@@ -1106,8 +1112,9 @@ mod tests {
     use psi_terminal::{
         Block, EvidenceInterfaceIdentity, Operation, OperationKind, OperationResult,
         OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity, OutcomeSpecificGuard,
-        StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
-        StructuralResultClaimBinding, StructuralResultClaimTransfer, Terminator, ValueDeclaration,
+        StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+        StructuralPathSegment, StructuralResultClaimBinding, StructuralResultClaimTransfer,
+        Terminator, ValueDeclaration,
     };
 
     use super::{decode_block, encode_block};
@@ -1280,6 +1287,47 @@ mod tests {
             &id::<StructuralFieldId>(11).get().to_le_bytes(),
         );
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(read));
+    }
+
+    #[test]
+    fn structural_scalar_call_round_trips_scalar_arguments() {
+        let block = Block {
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: id::<OperationId>(2),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: id::<ValueId>(3),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::CallStructuralScalar {
+                    callee: id::<MachineId>(4),
+                    arguments: vec![id::<ValueId>(5)],
+                    structural_arguments: vec![StructuralArgument {
+                        place: id::<PlaceId>(6),
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(7),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("mixed structural scalar call encodes");
+        let bytes = writer.finish();
+        let decoded = decode_block(&mut Reader::new(&bytes)).expect("mixed call decodes");
+        let OperationKind::CallStructuralScalar { arguments, .. } = &decoded.operations[0].kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(arguments, &[id::<ValueId>(5)]);
+        assert_eq!(decoded, block);
     }
 
     #[test]

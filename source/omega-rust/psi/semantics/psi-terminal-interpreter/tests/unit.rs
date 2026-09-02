@@ -3203,6 +3203,7 @@ fn structural_scalar_field_call_module() -> TerminalModule {
             }),
             kind: OperationKind::CallStructuralScalar {
                 callee: machine_id(96),
+                arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
                     place: caller_place,
                     path: vec![StructuralPathSegment::Field("item".into())],
@@ -3395,6 +3396,7 @@ fn parameter_dynamic_scalar_call_module() -> TerminalModule {
     }];
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
         callee: helper,
+        arguments: Vec::new(),
         structural_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),

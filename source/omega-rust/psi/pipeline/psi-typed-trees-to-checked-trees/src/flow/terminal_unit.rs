@@ -58,7 +58,7 @@ mod dynamic_scalar_calls;
 mod providers;
 pub(crate) mod returns;
 mod selected_ieee_float;
-mod selected_operator;
+pub(super) mod selected_operator;
 pub(crate) mod shared_convergence;
 pub(super) mod types;
 

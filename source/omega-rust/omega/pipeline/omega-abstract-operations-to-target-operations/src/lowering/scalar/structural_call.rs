@@ -33,6 +33,7 @@ pub(super) fn lower_direct_return(
             psi_operation,
             result: call_result,
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
@@ -54,6 +55,7 @@ pub(super) fn lower_direct_return(
         || *scalar_type != function_result.scalar_type
         || call_result.scalar_type != function_result.scalar_type
         || !cleanup_actions.is_empty()
+        || !arguments.is_empty()
         || structural_arguments.is_empty()
         || structural_arguments
             .iter()

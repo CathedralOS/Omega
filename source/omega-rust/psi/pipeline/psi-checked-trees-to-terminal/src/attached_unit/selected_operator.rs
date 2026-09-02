@@ -20,7 +20,7 @@ pub(super) fn validate_selected_operator_scalar_call(
     realization_contract_commitment: psi_checked_trees::MachineContractCommitment,
     service_reach: psi_language_semantics::ServiceReachSummary,
     scalar_argument_count: usize,
-) -> Result<(), LoweringError> {
+) -> Result<psi_checked_trees::expression::ExpressionHandle, LoweringError> {
     let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol: machine.machine,
         state_symbol: machine.state,
@@ -40,24 +40,27 @@ pub(super) fn validate_selected_operator_scalar_call(
                 && operator_use.provider_plan_report_fingerprint == provider_plan_report_fingerprint
                 && operator_use.provider_plan_commitment == provider_plan_commitment
         })
-        .count()
-        + checked
-            .facts
-            .operators
-            .uses
-            .iter()
-            .filter(|(_, operator_use)| {
-                operator_use.origin == origin
-                    && operator_use.selected_operator_symbol == requirement_operator
-                    && operator_use.provider_plan_report_fingerprint
-                        == provider_plan_report_fingerprint
-                    && operator_use.provider_plan_commitment == provider_plan_commitment
-            })
-            .count();
+        .map(|(_, operator_use)| operator_use.expression)
+        .chain(
+            checked
+                .facts
+                .operators
+                .uses
+                .iter()
+                .filter(|(_, operator_use)| {
+                    operator_use.origin == origin
+                        && operator_use.selected_operator_symbol == requirement_operator
+                        && operator_use.provider_plan_report_fingerprint
+                            == provider_plan_report_fingerprint
+                        && operator_use.provider_plan_commitment == provider_plan_commitment
+                })
+                .map(|(_, operator_use)| operator_use.expression),
+        )
+        .collect::<Vec<_>>();
     if coordinate.call_ordinal != 0
         || provider_plan_report_fingerprint == 0
         || provider_plan_commitment.is_empty()
-        || exact_uses != 1
+        || exact_uses.len() != 1
     {
         return unsupported(
             "selected Unit operator application does not rejoin one exact checked authored use",
@@ -138,7 +141,7 @@ pub(super) fn validate_selected_operator_scalar_call(
             "selected scalar realization with services requires terminal scalar service lowering",
         );
     }
-    Ok(())
+    Ok(exact_uses[0])
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -155,9 +158,10 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
     realization_contract_report_fingerprint: u64,
     realization_contract_commitment: psi_checked_trees::MachineContractCommitment,
     service_reach: psi_language_semantics::ServiceReachSummary,
+    scalar_arguments: &[psi_checked_trees::CheckedScalarExpression],
     structural_arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
 ) -> Result<(), LoweringError> {
-    validate_selected_operator_scalar_call(
+    let authored_expression = validate_selected_operator_scalar_call(
         checked,
         machine,
         coordinate,
@@ -170,7 +174,7 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
         realization_contract_report_fingerprint,
         realization_contract_commitment,
         service_reach,
-        structural_arguments.len(),
+        scalar_arguments.len() + structural_arguments.len(),
     )?;
     let realizations = checked
         .facts
@@ -185,8 +189,8 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
             "selected structural Unit operator does not rejoin one checked realization",
         );
     };
-    if !realization.scalar_parameters.is_empty()
-        || realization.result_type != result.primitive_type
+    if realization.result_type != result.primitive_type
+        || realization.scalar_parameters.len() != scalar_arguments.len()
         || realization.structural_parameters.len() != structural_arguments.len()
         || !machine.entry_claims.is_empty()
         || machine.structural_parameters.len() != structural_arguments.len()
@@ -200,6 +204,52 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
     {
         return unsupported(
             "selected structural Unit operator exceeds claim-free owned affine custody",
+        );
+    }
+    for (argument, target) in scalar_arguments.iter().zip(&realization.scalar_parameters) {
+        if lower_checked_scalar_expression(argument)?.scalar_type()
+            != terminal_scalar_type(target.primitive_type)?
+        {
+            return unsupported(
+                "selected structural Unit operator scalar operands drifted from their realization",
+            );
+        }
+    }
+    let origin = psi_checked_trees::CheckedValueOrigin::StateStatement {
+        machine_symbol: machine.machine,
+        state_symbol: machine.state,
+        statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
+            LoweringError::Unsupported("selected operator statement coordinate exceeds usize")
+        })?,
+        role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
+    };
+    let rederived =
+        psi_typed_trees_to_checked_trees::rederive_selected_operator_structural_scalar_arguments(
+            checked,
+            authored_expression,
+            origin,
+            realization_machine,
+            realization_state,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "selected structural Unit operator arguments cannot be rederived from authored source",
+        ))?;
+    let retained_structural_source_positions = structural_arguments
+        .iter()
+        .map(|argument| {
+            let index = usize::try_from(argument.source_parameter_index()?).ok()?;
+            machine
+                .structural_parameters
+                .get(index)
+                .map(|parameter| parameter.position)
+        })
+        .collect::<Option<Vec<_>>>();
+    if rederived.scalar_arguments != scalar_arguments
+        || retained_structural_source_positions.as_deref()
+            != Some(rederived.structural_source_parameter_positions.as_slice())
+    {
+        return unsupported(
+            "selected structural Unit operator operands drifted from authored source",
         );
     }
     let mut sources = BTreeSet::new();
