@@ -196,6 +196,7 @@ pub fn realize_retained_terminal_artifact_with_source_evaluated_imports_and_poli
     let program_entry = omega_terminal_psi_to_native_artifact::NativeProgramEntrySettlement::new(
         proposal.program_entry().source_signature(),
         calling_plans,
+        proposal.program_entry().fused_service_establishments(),
     );
     omega_terminal_psi_to_native_artifact::realize_native_artifact_with_checked_boundary_operator_scope(
         artifact,

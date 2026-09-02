@@ -95,6 +95,12 @@ field. It binds the source signature and target slot, source receiver and
 Terminal attachment, field and carrier/base/`Bound` identities, exact service
 schema digest, and selected Fused plan digest. Terminal proposal replay checks
 the canonical entry attachment, erased field, and unique selected plan again.
+The ordinary and optimized compiler realization entrances then pass that same
+sorted roster into native entry settlement. Native replay binds it once more
+to source/target custody, the canonical Terminal attachment and erased field,
+and the exact selected plan before retaining owned rows; omission cannot be
+replaced by an empty physical carrier, and duplicate/reordered or substituted
+rows reject.
 No row is produced for targetless checking, free entries, or an identical
 non-root owner. This closes semantic establishment for the generated bridge;
 it does not claim runtime publication or Independent component execution.

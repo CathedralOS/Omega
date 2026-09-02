@@ -11,6 +11,8 @@ pub struct NativeProgramEntrySettlement<'entry> {
         Option<&'entry omega_calling_conventions::BoundaryEntryPlan>,
     pub(crate) storage_entry:
         Option<&'entry omega_program_entry_plan::SelectedProgramStorageEntryPlan>,
+    pub(crate) fused_service_establishments:
+        &'entry [omega_program_entry_plan::ProgramEntryFusedServiceEstablishment],
 }
 
 impl<'entry> NativeProgramEntrySettlement<'entry> {
@@ -20,6 +22,9 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             &'entry omega_calling_conventions::BoundaryEntryPlan,
             &'entry omega_program_entry_plan::SelectedProgramStorageEntryPlan,
         )>,
+        fused_service_establishments: &'entry [
+            omega_program_entry_plan::ProgramEntryFusedServiceEstablishment
+        ],
     ) -> Self {
         let (semantic_boundary_entry_plan, storage_entry) = match calling_plans {
             Some((semantic, storage)) => (Some(semantic), Some(storage)),
@@ -29,6 +34,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             source,
             semantic_boundary_entry_plan,
             storage_entry,
+            fused_service_establishments,
         }
     }
 
@@ -50,6 +56,12 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
         self.storage_entry
     }
 
+    pub const fn fused_service_establishments(
+        self,
+    ) -> &'entry [omega_program_entry_plan::ProgramEntryFusedServiceEstablishment] {
+        self.fused_service_establishments
+    }
+
     pub(crate) fn validate_for_target(
         self,
         target: omega_target::NativeTarget,
@@ -61,6 +73,7 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
                 slot.owner.target_name(),
             ));
         }
+        self.validate_fused_service_establishments_for_target()?;
         let declares_two_surfaces = slot.boundary_schema.is_some()
             || slot.physical_arrival_requirement.is_some()
             || slot.physical_contract_package.is_some()
@@ -81,6 +94,27 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
             ),
         }
     }
+
+    pub(crate) fn validate_fused_service_establishments_for_target(self) -> Result<(), String> {
+        let source_identity = self.source.identity();
+        let slot = self.source.target_slot();
+        let receiver_identity = self.source.receiver().normalized_type_identity();
+        let mut previous_field = None;
+        for establishment in self.fused_service_establishments {
+            if establishment.source_signature_identity() != source_identity
+                || establishment.target_slot() != slot
+                || receiver_identity
+                    .is_none_or(|receiver| establishment.receiver_type_identity() != receiver)
+                || previous_field.is_some_and(|field| field >= establishment.field_identity())
+            {
+                return Err(
+                    "Fused root establishments drifted from canonical ProgramEntry custody".into(),
+                );
+            }
+            previous_field = Some(establishment.field_identity());
+        }
+        Ok(())
+    }
 }
 
 /// Owned, independently replayed source-entry settlement for one canonical
@@ -94,6 +128,8 @@ pub struct ValidatedNativeProgramEntrySettlement {
     pub(crate) source: omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     pub(crate) semantic_boundary_entry_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
     pub(crate) storage_entry: Option<omega_program_entry_plan::SelectedProgramStorageEntryPlan>,
+    pub(crate) fused_service_establishments:
+        Vec<omega_program_entry_plan::ProgramEntryFusedServiceEstablishment>,
 }
 
 impl ValidatedNativeProgramEntrySettlement {
@@ -120,6 +156,12 @@ impl ValidatedNativeProgramEntrySettlement {
     ) -> Option<&omega_program_entry_plan::SelectedProgramStorageEntryPlan> {
         self.storage_entry.as_ref()
     }
+
+    pub fn fused_service_establishments(
+        &self,
+    ) -> &[omega_program_entry_plan::ProgramEntryFusedServiceEstablishment] {
+        &self.fused_service_establishments
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,6 +174,7 @@ pub enum NativeProgramEntrySettlementError {
     TerminalPsiSubstitution,
     TerminalEntrySubstitution,
     TerminalEntryMultiplicity(usize),
+    FusedServiceEstablishmentDrift,
 }
 
 impl std::fmt::Display for NativeProgramEntrySettlementError {

@@ -170,6 +170,13 @@ attachment, erased Terminal field, and unique selected plan. Targetless
 checking, free entries, and same-shaped non-root owners produce no row. This
 proves that generated entry provisioning supplies the erased authority; it is
 not a runtime slot, publication, era, or service-handle representation.
+Both compiler realization entrances must carry the proposal's exact sorted
+roster into `NativeProgramEntrySettlement`. Native realization independently
+replays source/target custody, the canonical Terminal attachment and erased
+field, and one exact selected plan before retaining owned rows in the validated
+settlement. Duplicate/reordered fields or source, carrier, attachment, and plan
+substitution reject; native lowering cannot reconstruct or omit the authority
+from zero-payload layout.
 
 Preservation is not realization. Omega target lowering currently accepts the
 one exact Linux `exit_process(i32) -> Unit` migration shape through import-free

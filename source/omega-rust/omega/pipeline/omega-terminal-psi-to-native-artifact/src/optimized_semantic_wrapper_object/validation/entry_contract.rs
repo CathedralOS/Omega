@@ -20,7 +20,11 @@ pub(crate) fn replay_settlement(
     let replayed = validate_native_program_entry_settlement(
         source.terminal(),
         settlement.checked_entry(),
-        NativeProgramEntrySettlement::new(settlement.source(), calling_plans),
+        NativeProgramEntrySettlement::new(
+            settlement.source(),
+            calling_plans,
+            settlement.fused_service_establishments(),
+        ),
         settlement.target(),
     )
     .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Settlement)?;
