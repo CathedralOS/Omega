@@ -4,5 +4,6 @@
 mod allocation;
 mod corruption;
 mod custody;
+mod encoding_layout;
 mod fixture;
 mod machine_effects;

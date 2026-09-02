@@ -31,6 +31,31 @@ pub enum DeferredControlEncodingReason {
     RequiresResolvedBranchLayout,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedFormInternalMachineFixupKind {
+    X86Relative32FromNextInstructionToInternalMachineV1,
+    Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedFormInternalMachineFixupState {
+    UnresolvedZeroFieldV1,
+}
+
+/// Row-relative unresolved internal-call patch. Layout may translate these
+/// coordinates into function-relative custody but may not resolve the patch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelectedFormInternalMachineFixup {
+    pub kind: SelectedFormInternalMachineFixupKind,
+    pub state: SelectedFormInternalMachineFixupState,
+    pub callee: MachineId,
+    pub opcode_row_offset: u16,
+    pub patch_row_offset: u16,
+    pub reference_row_offset: u16,
+    pub patch_byte_width: u8,
+    pub addend: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFormDecodedFootprint {
     pub register_reads: Vec<RegisterViewId>,
@@ -48,6 +73,11 @@ pub enum SelectedFormEncodingState {
     },
     DeferredControl {
         reason: DeferredControlEncodingReason,
+    },
+    UnresolvedInternalMachineCall {
+        bytes: Vec<u8>,
+        footprint: Box<SelectedFormDecodedFootprint>,
+        fixup: SelectedFormInternalMachineFixup,
     },
 }
 
@@ -99,6 +129,9 @@ pub struct SelectedStructuralUnitFunctionEncoding {
 pub struct SelectedFormEncodingCounts {
     pub ordinary_encoded: u64,
     pub ordinary_deferred_control: u64,
+    pub ordinary_encoded_call_templates: u64,
+    pub ordinary_deferred_internal_control: u64,
+    pub ordinary_internal_fixups: u64,
     pub structural_encoded_call_templates: u64,
     pub structural_encoded_returns: u64,
     pub structural_deferred_internal_control: u64,

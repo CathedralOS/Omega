@@ -6,7 +6,7 @@ use omega_selected_instructions::{
     MachineAlternativeKey, MachineEncodedEffects, MachineSizeKnowledge, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind,
 };
-use omega_target::Architecture;
+use omega_target::{Architecture, NativeTarget};
 
 use super::{
     DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
@@ -15,18 +15,20 @@ use super::{
 };
 
 mod aarch64_movn;
+mod scalar_call;
 mod x86_mov_r32_imm32;
 mod x86_mov_r64_imm32_sign_extended;
 mod x86_xor_zero;
 
 pub(super) fn encode_row(
-    architecture: Architecture,
+    target: NativeTarget,
     selected: &SelectedInstruction,
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     machine_disposition: SelectedFormMachineDisposition,
     materialization: Option<MaterializationDisposition<'_>>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
+    let architecture = target.architecture;
     validate_machine_disposition(
         architecture,
         selected,
@@ -36,6 +38,9 @@ pub(super) fn encode_row(
     )?;
     let alternative = machine.alternative.key;
     let state = match (selected.kind, materialization) {
+        (kind @ SelectedInstructionKind::CallI64 { .. }, None) => {
+            scalar_call::encode(target, selected.id, kind, machine, physical)?
+        }
         (
             kind @ SelectedInstructionKind::MaterializeI64 { .. },
             Some(MaterializationDisposition::Aarch64Movn(disposition)),

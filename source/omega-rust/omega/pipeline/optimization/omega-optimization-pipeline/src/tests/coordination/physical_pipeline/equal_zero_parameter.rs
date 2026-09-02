@@ -270,6 +270,9 @@ fn explicit_aarch64_cbnz_selection_crosses_allocation_and_elides_the_compare() {
                     ..
                 } => when_taken.fuel.len() + when_fallthrough.fuel.len(),
                 omega_machine_code::FunctionFragmentControlProvenance::None
+                | omega_machine_code::FunctionFragmentControlProvenance::DirectInternalCall {
+                    ..
+                }
                 | omega_machine_code::FunctionFragmentControlProvenance::Return { .. } => 0,
             };
             (span.provenance.fuel.len() + control_fuel) as u64

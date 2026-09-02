@@ -13,7 +13,6 @@ use omega_selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedOperand, VirtualRegisterId,
 };
-use omega_target::Architecture;
 use psi_core::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
@@ -106,7 +105,7 @@ fn fixture() -> (
 fn xor_zero_admission_reconstructs_canonical_bytes_and_transformed_flags() {
     let (physical, selected, machine, disposition) = fixture();
     let row = encode_row(
-        Architecture::X86_64,
+        omega_target::NativeTarget::linux_x64(),
         &selected,
         &machine,
         &physical,
@@ -167,7 +166,7 @@ fn xor_zero_admission_rejects_baseline_destination_count_and_flag_corruption() {
     for (machine, disposition) in corruptions {
         assert!(
             encode_row(
-                Architecture::X86_64,
+                omega_target::NativeTarget::linux_x64(),
                 &selected,
                 &machine,
                 &physical,

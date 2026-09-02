@@ -161,7 +161,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                     }
                 };
                 row::validate(
-                    selected_plan.target.architecture,
+                    selected_plan.target,
                     selected_instruction,
                     machine_instruction,
                     physical,

@@ -32,7 +32,8 @@ pub(super) fn derive<'a>(
                 when_zero,
                 ..
             },
-            SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
+            SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1
+            | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
         ) => (when_nonzero, when_zero),
         (
             SelectedTerminator::ConditionalBranchU64LessThan {
@@ -45,7 +46,8 @@ pub(super) fn derive<'a>(
                 when_not_less,
                 ..
             },
-            SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1,
+            SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1
+            | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
         ) if fusion.is_none() => (when_less, when_not_less),
         _ => return unsupported(function),
     };

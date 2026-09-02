@@ -138,6 +138,7 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
         .unwrap();
     let encoded_len = |row: &SelectedFormEncodingRow| match &row.state {
         SelectedFormEncodingState::Encoded { bytes, .. } => bytes.len(),
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, .. } => bytes.len(),
         SelectedFormEncodingState::DeferredControl { .. } => 0,
     };
     assert_eq!(

@@ -79,5 +79,5 @@ pub(super) fn compute(
         structural_unit_functions: Vec::new(),
     };
     fragments.identity = fragments.recomputed_identity();
-    manifest::seal_relocation_free(fragments, source_manifest, source_kind::of(source))
+    manifest::seal_ordinary(fragments, source_manifest, source_kind::of(source))
 }

@@ -168,6 +168,8 @@ pub(super) fn render_manifest(
                 "structural-unit-call-then-return-single-entry-block-v1",
             SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 =>
                 "entry-then-not-less-fallthrough-then-less-v1",
+            SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 =>
+                "per-function-canonical-shape-v1",
         }
     )
     .unwrap();

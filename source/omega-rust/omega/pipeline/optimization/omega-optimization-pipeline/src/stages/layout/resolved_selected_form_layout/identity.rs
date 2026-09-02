@@ -17,8 +17,12 @@ use super::model::{
     ResolvedSelectedFunctionLayout, ResolvedStructuralUnitFunctionLayout,
     SelectedFunctionLayoutPolicy,
 };
+use crate::{
+    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState,
+};
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v8";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v9";
 
 pub(super) fn layout_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
@@ -65,6 +69,7 @@ pub(super) fn layout_identity(
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,
         SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 => 2,
         SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 3,
+        SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1 => 4,
     }]);
     hasher.update((functions.len() as u64).to_le_bytes());
     for function in functions {
@@ -103,6 +108,7 @@ pub(super) fn layout_identity(
                         encode_effects(&mut hasher, &branch.decoded_effects);
                     }
                 }
+                encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup);
             }
         }
     }
@@ -135,6 +141,27 @@ pub(super) fn layout_identity(
         hasher.update([0]);
     }
     ResolvedSelectedFormLayoutIdentity(hasher.finalize().into())
+}
+
+fn encode_internal_fixup(hasher: &mut Sha256, fixup: Option<SelectedFormInternalMachineFixup>) {
+    let Some(fixup) = fixup else {
+        hasher.update([0]);
+        return;
+    };
+    hasher.update([1]);
+    hasher.update([match fixup.kind {
+        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
+        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
+    }]);
+    hasher.update([match fixup.state {
+        SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1 => 0,
+    }]);
+    hasher.update(fixup.callee.get().to_le_bytes());
+    hasher.update(fixup.opcode_row_offset.to_le_bytes());
+    hasher.update(fixup.patch_row_offset.to_le_bytes());
+    hasher.update(fixup.reference_row_offset.to_le_bytes());
+    hasher.update([fixup.patch_byte_width]);
+    hasher.update(fixup.addend.to_le_bytes());
 }
 
 fn encode_structural_footprint(

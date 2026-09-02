@@ -13,11 +13,12 @@ use crate::PostAllocationMachineOptimizationCustody;
 
 use super::{
     DeferredControlEncodingReason, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
-    SelectedStructuralUnitFunctionEncoding,
+    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormInternalMachineFixup,
+    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
+    SelectedFormMachineDisposition, SelectedStructuralUnitFunctionEncoding,
 };
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v9";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v10";
 
 pub(super) fn encoding_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
@@ -93,7 +94,38 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
                 DeferredControlEncodingReason::RequiresResolvedBranchLayout => 0,
             }]);
         }
+        SelectedFormEncodingState::UnresolvedInternalMachineCall {
+            bytes,
+            footprint,
+            fixup,
+        } => {
+            hasher.update([2]);
+            hasher.update((bytes.len() as u64).to_le_bytes());
+            hasher.update(bytes);
+            encode_views(hasher, &footprint.register_reads);
+            encode_views(hasher, &footprint.register_writes);
+            encode_units(hasher, &footprint.implicit_defs);
+            encode_units(hasher, &footprint.implicit_clobbers);
+            encode_effects(hasher, &footprint.encoded);
+            encode_internal_fixup(hasher, *fixup);
+        }
     }
+}
+
+pub(super) fn encode_internal_fixup(hasher: &mut Sha256, fixup: SelectedFormInternalMachineFixup) {
+    hasher.update([match fixup.kind {
+        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
+        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
+    }]);
+    hasher.update([match fixup.state {
+        SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1 => 0,
+    }]);
+    hasher.update(fixup.callee.get().to_le_bytes());
+    hasher.update(fixup.opcode_row_offset.to_le_bytes());
+    hasher.update(fixup.patch_row_offset.to_le_bytes());
+    hasher.update(fixup.reference_row_offset.to_le_bytes());
+    hasher.update([fixup.patch_byte_width]);
+    hasher.update(fixup.addend.to_le_bytes());
 }
 
 fn encode_structural_footprint(
@@ -158,6 +190,9 @@ fn encode_counts(hasher: &mut Sha256, counts: SelectedFormEncodingCounts) {
     for count in [
         counts.ordinary_encoded,
         counts.ordinary_deferred_control,
+        counts.ordinary_encoded_call_templates,
+        counts.ordinary_deferred_internal_control,
+        counts.ordinary_internal_fixups,
         counts.structural_encoded_call_templates,
         counts.structural_encoded_returns,
         counts.structural_deferred_internal_control,

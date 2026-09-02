@@ -6,6 +6,7 @@ use omega_machine_optimizer::{
 use omega_register_model::ValidatedPhysicalRegisterModel;
 use omega_selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind,
 };
 use omega_target::Architecture;
 use psi_core::MachineId;
@@ -46,7 +47,23 @@ pub(super) fn validate(
             SelectedFormMachineDisposition::RetainedV1,
             SelectedFormEncodingState::Encoded { bytes, .. },
         ) => {
-            if candidate.bytes != *bytes || candidate.branch.is_some() {
+            if candidate.bytes != *bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
+            {
+                return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+            }
+            Ok(())
+        }
+        (
+            SelectedFormMachineDisposition::RetainedV1,
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, fixup, .. },
+        ) => {
+            if !matches!(instruction.kind, SelectedInstructionKind::CallI64 { callee } if callee == fixup.callee)
+                || candidate.bytes != *bytes
+                || candidate.branch.is_some()
+                || candidate.internal_machine_fixup != Some(*fixup)
+            {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
             Ok(())
@@ -81,6 +98,7 @@ pub(super) fn validate(
                 || action.branch != *consumer
                 || !candidate.bytes.is_empty()
                 || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }
@@ -125,6 +143,7 @@ pub(super) fn validate(
                 || action.consumer != *consumer
                 || !candidate.bytes.is_empty()
                 || candidate.branch.is_some()
+                || candidate.internal_machine_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

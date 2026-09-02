@@ -63,6 +63,9 @@ pub(super) fn verify_structural_call_encoding_and_layout(homes: &StagedOptimized
         SelectedFormEncodingCounts {
             ordinary_encoded: 0,
             ordinary_deferred_control: 0,
+            ordinary_encoded_call_templates: 0,
+            ordinary_deferred_internal_control: 0,
+            ordinary_internal_fixups: 0,
             structural_encoded_call_templates: 1,
             structural_encoded_returns: 2,
             structural_deferred_internal_control: 1,

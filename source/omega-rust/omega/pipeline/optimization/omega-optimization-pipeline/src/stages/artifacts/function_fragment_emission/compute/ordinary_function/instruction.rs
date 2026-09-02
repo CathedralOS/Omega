@@ -1,10 +1,16 @@
 use omega_machine_code::{
     FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
-    FunctionFragmentInstructionSpan,
+    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixup,
+    FunctionFragmentInternalMachineFixupKind, FunctionFragmentInternalMachineFixupState,
 };
-use omega_selected_instructions::{SelectedBlock, SelectedInstruction, SelectedTerminator};
+use omega_selected_instructions::{
+    SelectedBlock, SelectedInstruction, SelectedInstructionKind, SelectedTerminator,
+};
 
-use crate::ResolvedSelectedFormRow;
+use crate::{
+    ResolvedSelectedFormRow, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState,
+};
 
 use super::super::super::FunctionFragmentEmissionError;
 use super::control;
@@ -20,7 +26,8 @@ pub(super) fn emit(
         return Err(FunctionFragmentEmissionError::RootMismatch);
     }
     let instruction = selected(block, row)?;
-    let control = control::provenance(block, instruction.id);
+    let control = control::provenance(block, instruction);
+    let internal_machine_fixup = translate_fixup(row, instruction)?;
     bytes.extend_from_slice(&row.bytes);
     Ok(FunctionFragmentInstructionSpan {
         instruction: row.instruction,
@@ -52,9 +59,49 @@ pub(super) fn emit(
                 decoded_effects: branch.decoded_effects.clone(),
             })
         }),
+        internal_machine_fixup,
         provenance: instruction.provenance.clone(),
         control,
     })
+}
+
+fn translate_fixup(
+    row: &ResolvedSelectedFormRow,
+    instruction: &SelectedInstruction,
+) -> Result<Option<FunctionFragmentInternalMachineFixup>, FunctionFragmentEmissionError> {
+    let Some(fixup) = row.internal_machine_fixup else {
+        if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        return Ok(None);
+    };
+    let SelectedInstructionKind::CallI64 { callee } = instruction.kind else {
+        return Err(FunctionFragmentEmissionError::RootMismatch);
+    };
+    if fixup.state != SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1
+        || fixup.callee != callee
+        || row.branch.is_some()
+    {
+        return Err(FunctionFragmentEmissionError::RootMismatch);
+    }
+    let translate = |offset: u16| {
+        row.offset
+            .checked_add(u64::from(offset))
+            .ok_or(FunctionFragmentEmissionError::OffsetOverflow)
+    };
+    Ok(Some(FunctionFragmentInternalMachineFixup {
+        kind: match fixup.kind {
+            SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
+            SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => FunctionFragmentInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
+        },
+        state: FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1,
+        callee,
+        opcode_function_offset: translate(fixup.opcode_row_offset)?,
+        patch_function_offset: translate(fixup.patch_row_offset)?,
+        reference_function_offset: translate(fixup.reference_row_offset)?,
+        patch_byte_width: fixup.patch_byte_width,
+        addend: fixup.addend,
+    }))
 }
 
 fn selected<'a>(
@@ -74,4 +121,122 @@ fn selected<'a>(
         .ok_or(FunctionFragmentEmissionError::MissingInstruction(
             row.instruction,
         ))
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_register_model::{RegisterConstraintFamily, RegisterConstraintKey};
+    use omega_selected_instructions::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionId,
+        SelectedInstructionProvenance,
+    };
+    use psi_core::MachineId;
+
+    use super::*;
+    use crate::{SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind};
+
+    fn selected_call(callee: MachineId) -> SelectedInstruction {
+        SelectedInstruction {
+            id: SelectedInstructionId(17),
+            kind: SelectedInstructionKind::CallI64 { callee },
+            constraint: RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 0,
+            },
+            operands: Vec::new(),
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+            provenance: SelectedInstructionProvenance::default(),
+        }
+    }
+
+    fn row(bytes: Vec<u8>, fixup: SelectedFormInternalMachineFixup) -> ResolvedSelectedFormRow {
+        ResolvedSelectedFormRow {
+            instruction: SelectedInstructionId(17),
+            alternative: MachineAlternativeKey {
+                family: MachineAlternativeFamily::CallI64,
+                variant: 0,
+            },
+            offset: 37,
+            bytes,
+            branch: None,
+            internal_machine_fixup: Some(fixup),
+        }
+    }
+
+    #[test]
+    fn row_relative_call_fixups_become_function_relative_without_resolution() {
+        let callee = MachineId::new(29).unwrap();
+        for (kind, bytes, opcode, patch, reference) in [
+            (
+                SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
+                vec![0xe8, 0, 0, 0, 0],
+                0,
+                1,
+                5,
+            ),
+            (
+                SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
+                0x9400_0000_u32.to_le_bytes().to_vec(),
+                0,
+                0,
+                0,
+            ),
+        ] {
+            let selected = selected_call(callee);
+            let translated = translate_fixup(
+                &row(
+                    bytes,
+                    SelectedFormInternalMachineFixup {
+                        kind,
+                        state: SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1,
+                        callee,
+                        opcode_row_offset: opcode,
+                        patch_row_offset: patch,
+                        reference_row_offset: reference,
+                        patch_byte_width: 4,
+                        addend: 0,
+                    },
+                ),
+                &selected,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(translated.callee, callee);
+            assert_eq!(translated.opcode_function_offset, 37 + u64::from(opcode));
+            assert_eq!(translated.patch_function_offset, 37 + u64::from(patch));
+            assert_eq!(
+                translated.reference_function_offset,
+                37 + u64::from(reference)
+            );
+            assert_eq!(
+                translated.state,
+                FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
+            );
+        }
+    }
+
+    #[test]
+    fn call_fixup_translation_rejects_detached_callee_and_missing_custody() {
+        let callee = MachineId::new(29).unwrap();
+        let selected = selected_call(callee);
+        let detached = row(
+            vec![0xe8, 0, 0, 0, 0],
+            SelectedFormInternalMachineFixup {
+                kind: SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
+                state: SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1,
+                callee: MachineId::new(30).unwrap(),
+                opcode_row_offset: 0,
+                patch_row_offset: 1,
+                reference_row_offset: 5,
+                patch_byte_width: 4,
+                addend: 0,
+            },
+        );
+        assert!(translate_fixup(&detached, &selected).is_err());
+        let mut missing = detached;
+        missing.internal_machine_fixup = None;
+        assert!(translate_fixup(&missing, &selected).is_err());
+    }
 }

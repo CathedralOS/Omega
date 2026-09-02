@@ -13,6 +13,17 @@ pub(super) fn validate(
             SelectedFormEncodingState::DeferredControl { .. } => {
                 &mut counts.ordinary_deferred_control
             }
+            SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
+                counts.ordinary_encoded_call_templates = counts
+                    .ordinary_encoded_call_templates
+                    .checked_add(1)
+                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+                counts.ordinary_deferred_internal_control = counts
+                    .ordinary_deferred_internal_control
+                    .checked_add(1)
+                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
+                &mut counts.ordinary_internal_fixups
+            }
         };
         *count = count
             .checked_add(1)

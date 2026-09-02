@@ -23,6 +23,9 @@ pub enum SelectedFunctionLayoutPolicy {
     EntryThenZeroFallthroughThenNonzeroV1,
     EntryThenNotLessFallthroughThenLessV1,
     SingleEntryBlockV1,
+    /// The module contains more than one admitted canonical function shape;
+    /// each function derives its own exact block order from its terminator.
+    PerFunctionCanonicalShapeV1,
     /// A separate zero-VReg structural roster. Every function has one entry
     /// block containing either `ReturnUnit`, or one unresolved whole-root
     /// `CallUnit` template followed by `ReturnUnit`.
@@ -73,6 +76,7 @@ pub struct ResolvedSelectedFormRow {
     pub offset: u64,
     pub bytes: Vec<u8>,
     pub branch: Option<Box<ResolvedConditionalBranchEvidence>>,
+    pub internal_machine_fixup: Option<crate::SelectedFormInternalMachineFixup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

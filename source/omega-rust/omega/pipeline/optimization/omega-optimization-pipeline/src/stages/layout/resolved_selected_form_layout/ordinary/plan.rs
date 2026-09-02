@@ -97,6 +97,13 @@ fn instruction_size(
     match &row.state {
         SelectedFormEncodingState::Encoded { bytes, .. } => u64::try_from(bytes.len())
             .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow),
+        SelectedFormEncodingState::UnresolvedInternalMachineCall { bytes, .. } => {
+            if !matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
+                return unexpected(instruction);
+            }
+            u64::try_from(bytes.len())
+                .map_err(|_| OptimizedResolvedSelectedFormLayoutError::OffsetOverflow)
+        }
         SelectedFormEncodingState::DeferredControl {
             reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
         } => {
