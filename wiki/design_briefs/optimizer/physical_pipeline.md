@@ -1071,17 +1071,21 @@ physical pipeline may omit only an occurrence whose verified optimization
 proof establishes elimination.
 
 The admitted-provider child lane remains intentionally narrow: an unoptimized
-normalized import with only fixed-width 8-, 16-, 32-, or 64-bit integer scalar
-arguments and either Unit or one fixed-width integer scalar result. Its complete
+normalized import with fixed-width 8-, 16-, 32-, or 64-bit integer scalar
+arguments, either Unit or one fixed-width integer scalar result, and at most
+the one direct compiler-private callback parameter already closed by the
+callback lane. Its complete
 D41 parent binds exact provider execution, selected plan, locator, boundary-
 entry plan, and same-stack admission. Its child independently rejoins exact
-Terminal values and types to object-retained scalar materializations, then binds
-the complete semantic-code attribution interval, contained unresolved import
-relocation, machine/object/image bytes, and final image-symbol identity.
-Structural values, callbacks, ranked control, port effects, and optimized
-foreign calls remain fail-closed. Source production exercises both Unit calls
-with scalar arguments and fixed-integer scalar-result calls returning to an
-attached Unit body.
+Terminal values and types to object-retained scalar materializations and, when
+present, the exact registrar occurrence, callback context, private-function
+identity, and closed x86 rel32 or AArch64 page-address relocation set. It then
+binds the complete semantic-code attribution interval, contained unresolved
+import relocation, machine/object/image bytes, and final image-symbol identity.
+Structural values, ranked control, port effects, additional callback shapes,
+and optimized foreign calls remain fail-closed. Source production exercises
+Unit calls with scalar arguments, fixed-integer scalar-result calls returning
+to an attached Unit body, and the direct callback registrar lane.
 
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;

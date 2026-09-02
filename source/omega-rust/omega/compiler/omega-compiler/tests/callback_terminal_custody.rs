@@ -876,6 +876,53 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         }
     );
     assert_eq!(object.relocations().record_count(), 2);
+    let physical = artifact
+        .physical_evidence()
+        .expect("direct callback registrar retains D32 physical evidence");
+    let callback_children = physical
+        .children()
+        .iter()
+        .filter_map(|child| {
+            let omega_terminal_psi_to_native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+                foreign,
+            ) = child.relocation()
+            else {
+                return None;
+            };
+            foreign.callback().map(|callback| (child, foreign, callback))
+        })
+        .collect::<Vec<_>>();
+    let [(physical_child, physical_foreign, physical_callback)] = callback_children.as_slice()
+    else {
+        panic!("one direct callback registrar D32 child expected")
+    };
+    let omega_terminal_psi_to_native_artifact::NormalizedForeignCallbackRelocations::X86_64Relative32 {
+        callback_function,
+        relocation: physical_callback_relocation,
+    } = physical_callback
+    else {
+        panic!("Windows x64 D32 callback custody must retain one rel32 row")
+    };
+    assert_eq!(*callback_function, callback_identity);
+    assert_eq!(physical_callback_relocation.object_symbol(), private_symbol);
+    assert_eq!(physical_callback_relocation.origin(), relocation.origin);
+    assert_eq!(physical_callback_relocation.offset(), relocation.offset);
+    assert_eq!(
+        physical_callback_relocation.byte_width(),
+        relocation.byte_width
+    );
+    assert_eq!(physical_callback_relocation.addend(), relocation.addend);
+    assert_eq!(physical_callback_relocation.kind(), relocation.kind);
+    assert_ne!(physical_foreign.object_symbol(), private_symbol);
+    let physical_end =
+        physical_child.object_span().offset() + physical_child.object_span().byte_count();
+    for physical_offset in [
+        physical_foreign.offset(),
+        physical_callback_relocation.offset(),
+    ] {
+        assert!(physical_child.object_span().offset() <= physical_offset);
+        assert!(physical_offset + 4 <= physical_end);
+    }
     let final_text = &artifact.image().output().final_text_bytes;
     let displacement = final_text
         .get(relocation_offset..relocation_offset + 4)

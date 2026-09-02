@@ -637,12 +637,6 @@ fn derive_normalized_foreign_child(
         || !structural_arguments.is_empty()
         || !completion_receipts.is_empty()
         || !declaration.structural_parameters.is_empty()
-        || foreign.callback_address.is_some()
-        || !foreign
-            .boundary_entry_plan
-            .call
-            .callback_materializations
-            .is_empty()
     {
         return Ok(None);
     }
@@ -691,16 +685,105 @@ fn derive_normalized_foreign_child(
         }
         _ => return Err("normalized foreign D41 child changed its scalar result custody"),
     };
+    let callback = match (
+        foreign.callback_address.as_ref(),
+        foreign
+            .boundary_entry_plan
+            .call
+            .callback_materializations
+            .as_slice(),
+    ) {
+        (None, []) => None,
+        (Some(callback), [_]) => Some(callback),
+        _ => return Err("normalized foreign D41 child changed its callback-plan custody"),
+    };
+    let callback_ordinal = callback
+        .map(|callback| usize::try_from(callback.target.application.native_ordinal))
+        .transpose()
+        .map_err(|_| "normalized foreign D41 callback ordinal does not fit this target")?;
+    if callback_ordinal.is_some_and(|ordinal| ordinal > parameter_shapes.len()) {
+        return Err("normalized foreign D41 callback ordinal is outside its native signature");
+    }
+    let mut native_parameter_shapes = parameter_shapes;
+    if let (Some(callback), Some(ordinal)) = (callback, callback_ordinal) {
+        native_parameter_shapes.insert(ordinal, callback.target.application.shape);
+    }
     let signature = omega_calling_conventions::CallSignature {
-        parameters: parameter_shapes,
+        parameters: native_parameter_shapes,
         result: result_shape,
     };
 
-    let validated_plan = omega_calling_conventions::validate_boundary_entry_plan(
-        foreign.boundary_entry_plan.clone(),
-        &signature,
-    )
-    .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?;
+    let validated_plan = match callback {
+        Some(callback) => {
+            let callback_ordinal = callback_ordinal
+                .expect("callback custody establishes one native parameter ordinal");
+            let pointer_shape = omega_calling_conventions::ValueShape::integer(
+                u16::try_from(target.pointer_size)
+                    .map_err(|_| "normalized foreign D41 pointer size does not fit its ABI")?,
+                u16::try_from(target.pointer_alignment)
+                    .map_err(|_| "normalized foreign D41 pointer alignment does not fit its ABI")?,
+            );
+            let expected_placement = match callback.destination {
+                omega_machine_code::CallbackAddressDestination::Register(register) => {
+                    omega_calling_conventions::ValuePlacement {
+                        shape: callback.target.application.shape,
+                        locations: vec![omega_calling_conventions::ValueLocation::Register {
+                            register,
+                            value_byte_offset: 0,
+                            byte_size: callback.target.application.shape.byte_size,
+                        }],
+                    }
+                }
+                omega_machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                    omega_calling_conventions::ValuePlacement {
+                        shape: callback.target.application.shape,
+                        locations: vec![omega_calling_conventions::ValueLocation::Stack {
+                            stack_byte_offset: byte_offset,
+                            value_byte_offset: 0,
+                            byte_size: callback.target.application.shape.byte_size,
+                            alignment: callback.target.application.shape.alignment,
+                        }],
+                    }
+                }
+            };
+            if callback.target.terminal_operation != occurrence.operation()
+                || callback.target.registrar_boundary_entry_plan != foreign.boundary_entry_plan
+                || callback
+                    .target
+                    .callback_function
+                    .callback_thunk_placement_index()
+                    != Some(callback.target.placement_index)
+                || callback.target.registrar_application_commitment == [0; 32]
+                || callback.target.application.shape != pointer_shape
+                || callback.target.application.placement != expected_placement
+                || foreign
+                    .boundary_entry_plan
+                    .call
+                    .parameters
+                    .get(callback_ordinal)
+                    != Some(&callback.target.application.placement)
+                || foreign.boundary_entry_plan.call.callback_materializations[0].destination
+                    != omega_calling_conventions::NativePlace::Parameter(
+                        callback.target.application.parameter,
+                    )
+            {
+                return Err("normalized foreign D41 child changed its callback target custody");
+            }
+            omega_calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
+                foreign.boundary_entry_plan.clone(),
+                &signature,
+                &callback.target.registrar_context,
+            )
+            .map_err(
+                |_| "normalized foreign D41 child contains an invalid callback boundary entry plan",
+            )?
+        }
+        None => omega_calling_conventions::validate_boundary_entry_plan(
+            foreign.boundary_entry_plan.clone(),
+            &signature,
+        )
+        .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?,
+    };
     let boundary_plan_identity = validated_plan.contract_commitment_digest();
     if validated_plan.plan() != &foreign.boundary_entry_plan
         || foreign.locator.target().native_target() != target
@@ -830,28 +913,114 @@ fn derive_normalized_foreign_child(
                 )
         })
         .collect::<Vec<_>>();
-    let [relocation] = overlapping_relocations.as_slice() else {
-        return Err("normalized foreign D41 child does not contain one exact import relocation");
-    };
     let expected_origin = RelocationOrigin::SemanticOperation {
         function_symbol_handle: function.symbol,
         operation_identity: occurrence.operation().get(),
     };
-    if relocation.origin != expected_origin
-        || relocation.offset != foreign.text_offset
-        || relocation.byte_width != 4
-        || relocation.symbol_handle != import.symbol
-        || relocation.addend != 0
-        || relocation.kind != expected_kind
-        || relocation.offset < object_offset
-        || relocation
-            .offset
-            .checked_add(relocation.byte_width)
-            .is_none_or(|end| end > object_end)
-    {
+    let matching_import_relocations = overlapping_relocations
+        .iter()
+        .copied()
+        .filter(|relocation| {
+            relocation.origin == expected_origin
+                && relocation.offset == foreign.text_offset
+                && relocation.byte_width == 4
+                && relocation.symbol_handle == import.symbol
+                && relocation.addend == 0
+                && relocation.kind == expected_kind
+        })
+        .collect::<Vec<_>>();
+    let [relocation] = matching_import_relocations.as_slice() else {
         return Err(
             "normalized foreign D41 child changed import owner, symbol, addend, kind, or span",
         );
+    };
+    let callback_relocations = match callback {
+        None => None,
+        Some(callback) => {
+            let (callback_symbol, _) = omega_object_file::object_function_symbol(
+                object.object(),
+                callback.target.callback_function,
+            )
+            .ok_or("normalized foreign D41 callback lost its private object symbol")?;
+            let callback_end = callback
+                .code_offset
+                .checked_add(callback.byte_count)
+                .ok_or("normalized foreign D41 callback materialization span overflow")?;
+            if callback.code_offset < object_offset || callback_end > object_end {
+                return Err(
+                    "normalized foreign D41 callback materialization left its operation interval",
+                );
+            }
+            let exact_callback_relocation =
+                |offset: usize, kind: RelocationKind| -> Result<_, &'static str> {
+                    let matching = overlapping_relocations
+                        .iter()
+                        .copied()
+                        .filter(|candidate| {
+                            candidate.origin == expected_origin
+                                && candidate.offset == offset
+                                && candidate.byte_width == 4
+                                && candidate.symbol_handle == callback_symbol
+                                && candidate.addend == 0
+                                && candidate.kind == kind
+                        })
+                        .collect::<Vec<_>>();
+                    let [matching] = matching.as_slice() else {
+                        return Err(
+                            "normalized foreign D41 callback changed a private-function relocation",
+                        );
+                    };
+                    Ok(normalized_foreign_callback_relocation(
+                        matching.symbol_handle,
+                        matching.origin,
+                        matching.offset,
+                        matching.byte_width,
+                        matching.addend,
+                        matching.kind,
+                    ))
+                };
+            Some(match callback.encoding {
+                omega_machine_code::CallbackAddressEncoding::X86_64Relative32 {
+                    relocation_offset,
+                } => NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                    callback_function: callback.target.callback_function,
+                    relocation: exact_callback_relocation(
+                        relocation_offset,
+                        RelocationKind::X86_64Relative32,
+                    )?,
+                },
+                omega_machine_code::CallbackAddressEncoding::Aarch64PageAddress {
+                    page_relocation_offset,
+                    page_offset_relocation_offset,
+                } => NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+                    callback_function: callback.target.callback_function,
+                    page: exact_callback_relocation(
+                        page_relocation_offset,
+                        RelocationKind::Aarch64Page21,
+                    )?,
+                    page_offset: exact_callback_relocation(
+                        page_offset_relocation_offset,
+                        RelocationKind::Aarch64PageOffset12,
+                    )?,
+                },
+            })
+        }
+    };
+    let expected_relocation_count = 1 + match callback_relocations {
+        None => 0,
+        Some(NormalizedForeignCallbackRelocations::X86_64Relative32 { .. }) => 1,
+        Some(NormalizedForeignCallbackRelocations::Aarch64PageAddress { .. }) => 2,
+    };
+    if overlapping_relocations.len() != expected_relocation_count
+        || overlapping_relocations.iter().any(|relocation| {
+            relocation.offset < object_offset
+                || relocation
+                    .offset
+                    .checked_add(relocation.byte_width)
+                    .is_none_or(|end| end > object_end)
+        })
+    {
+        return Err("normalized foreign D41 child contains an unowned or out-of-span relocation");
     }
 
     let machine_span = native_byte_span(code_offset, byte_count);
@@ -863,23 +1032,33 @@ fn derive_normalized_foreign_child(
     if machine_bytes != object_bytes {
         return Err("normalized foreign D41 child changed before object custody");
     }
-    let mutable_start = relocation
-        .offset
-        .checked_sub(object_offset)
-        .ok_or("normalized foreign D41 relocation precedes its call span")?;
-    let mutable_end = mutable_start
-        .checked_add(relocation.byte_width)
-        .ok_or("normalized foreign D41 relocation span overflow")?;
-    if mutable_end > byte_count
-        || object_bytes
-            .iter()
-            .zip(final_image_bytes)
-            .enumerate()
-            .any(|(index, (before, after))| {
-                (index < mutable_start || index >= mutable_end) && before != after
-            })
+    let mutable_intervals = overlapping_relocations
+        .iter()
+        .map(|relocation| {
+            let start = relocation
+                .offset
+                .checked_sub(object_offset)
+                .ok_or("normalized foreign D41 relocation precedes its operation span")?;
+            let end = start
+                .checked_add(relocation.byte_width)
+                .ok_or("normalized foreign D41 relocation span overflow")?;
+            (end <= byte_count)
+                .then_some((start, end))
+                .ok_or("normalized foreign D41 relocation exceeds its operation span")
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if object_bytes
+        .iter()
+        .zip(final_image_bytes)
+        .enumerate()
+        .any(|(index, (before, after))| {
+            before != after
+                && !mutable_intervals
+                    .iter()
+                    .any(|(start, end)| index >= *start && index < *end)
+        })
     {
-        return Err("normalized foreign D41 bytes changed outside the exact import relocation");
+        return Err("normalized foreign D41 bytes changed outside its exact relocation set");
     }
 
     let realization = NormalizedForeignCallBinding {
@@ -922,6 +1101,7 @@ fn derive_normalized_foreign_child(
             relocation.byte_width,
             relocation.addend,
             relocation.kind,
+            callback_relocations,
             *image.final_image_symbol_digest().as_bytes(),
         ),
     );
@@ -1078,6 +1258,27 @@ fn physical_child_identity(
         digest.update(canonical_usize(relocation.byte_width()));
         digest.update(relocation.addend().to_le_bytes());
         digest.update([relocation_kind_tag(relocation.kind())]);
+        match relocation.callback() {
+            None => digest.update([0]),
+            Some(NormalizedForeignCallbackRelocations::X86_64Relative32 {
+                callback_function,
+                relocation,
+            }) => {
+                digest.update([1]);
+                hash_machine_function_identity(&mut digest, callback_function);
+                hash_callback_relocation(&mut digest, relocation);
+            }
+            Some(NormalizedForeignCallbackRelocations::Aarch64PageAddress {
+                callback_function,
+                page,
+                page_offset,
+            }) => {
+                digest.update([2]);
+                hash_machine_function_identity(&mut digest, callback_function);
+                hash_callback_relocation(&mut digest, page);
+                hash_callback_relocation(&mut digest, page_offset);
+            }
+        }
         digest.update(relocation.final_image_symbol_identity());
     }
     digest.finalize().into()
@@ -1145,6 +1346,42 @@ fn hash_object_symbol(digest: &mut Sha256, symbol: omega_object_file::ObjectSymb
     digest.update([u8::from(symbol.is_valid())]);
     digest.update(u64::from(symbol.arena_index()).to_le_bytes());
     digest.update(u64::from(symbol.generation()).to_le_bytes());
+}
+
+fn hash_machine_function_identity(
+    digest: &mut Sha256,
+    identity: omega_function_identity::MachineFunctionIdentity,
+) {
+    let (tag, continuation, coordinate) = if let Some(source) = identity.source_key() {
+        (1, source, 0)
+    } else if let Some(continuation) = identity.program_storage_entry_continuation() {
+        (2, continuation, 0)
+    } else {
+        (
+            3,
+            identity.associated_source_continuation(),
+            identity
+                .callback_thunk_placement_index()
+                .expect("machine function identity has one closed role"),
+        )
+    };
+    digest.update([tag]);
+    for symbol in [continuation.machine, continuation.state] {
+        digest.update([u8::from(symbol.is_valid())]);
+        digest.update(u64::from(symbol.arena_index()).to_le_bytes());
+        digest.update(u64::from(symbol.generation()).to_le_bytes());
+    }
+    digest.update(canonical_usize(continuation.segment_index));
+    digest.update(canonical_usize(coordinate));
+}
+
+fn hash_callback_relocation(digest: &mut Sha256, relocation: NormalizedForeignCallbackRelocation) {
+    hash_object_symbol(digest, relocation.object_symbol());
+    hash_relocation_origin(digest, relocation.origin());
+    digest.update(canonical_usize(relocation.offset()));
+    digest.update(canonical_usize(relocation.byte_width()));
+    digest.update(relocation.addend().to_le_bytes());
+    digest.update([relocation_kind_tag(relocation.kind())]);
 }
 
 fn hash_relocation_origin(digest: &mut Sha256, origin: RelocationOrigin) {

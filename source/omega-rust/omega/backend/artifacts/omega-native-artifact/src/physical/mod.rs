@@ -9,6 +9,7 @@ pub use model::{
     NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
     NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
     NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallRelocation,
+    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
     OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
     PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };

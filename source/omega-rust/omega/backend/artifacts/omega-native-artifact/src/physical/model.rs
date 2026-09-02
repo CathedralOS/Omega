@@ -300,7 +300,76 @@ pub struct NormalizedForeignCallRelocation {
     byte_width: usize,
     addend: i64,
     kind: omega_object_file::RelocationKind,
+    callback: Option<NormalizedForeignCallbackRelocations>,
     final_image_symbol_identity: [u8; 32],
+}
+
+/// Exact private-function relocation custody for the one direct callback
+/// shape admitted by normalized foreign calls. The closed variants mirror the
+/// two architecture-native encodings; no open-ended mutable relocation list
+/// can be smuggled into D32 evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NormalizedForeignCallbackRelocations {
+    X86_64Relative32 {
+        callback_function: omega_function_identity::MachineFunctionIdentity,
+        relocation: NormalizedForeignCallbackRelocation,
+    },
+    Aarch64PageAddress {
+        callback_function: omega_function_identity::MachineFunctionIdentity,
+        page: NormalizedForeignCallbackRelocation,
+        page_offset: NormalizedForeignCallbackRelocation,
+    },
+}
+
+/// One exact object relocation targeting a compiler-private callback
+/// function. Construction remains derivation-owned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NormalizedForeignCallbackRelocation {
+    object_symbol: omega_object_file::ObjectSymbolHandle,
+    origin: omega_object_file::RelocationOrigin,
+    offset: usize,
+    byte_width: usize,
+    addend: i64,
+    kind: omega_object_file::RelocationKind,
+}
+
+impl NormalizedForeignCallbackRelocation {
+    pub const fn object_symbol(&self) -> omega_object_file::ObjectSymbolHandle {
+        self.object_symbol
+    }
+
+    pub const fn origin(&self) -> omega_object_file::RelocationOrigin {
+        self.origin
+    }
+
+    pub const fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub const fn byte_width(&self) -> usize {
+        self.byte_width
+    }
+
+    pub const fn addend(&self) -> i64 {
+        self.addend
+    }
+
+    pub const fn kind(&self) -> omega_object_file::RelocationKind {
+        self.kind
+    }
+}
+
+impl NormalizedForeignCallbackRelocations {
+    pub const fn callback_function(&self) -> omega_function_identity::MachineFunctionIdentity {
+        match self {
+            Self::X86_64Relative32 {
+                callback_function, ..
+            }
+            | Self::Aarch64PageAddress {
+                callback_function, ..
+            } => *callback_function,
+        }
+    }
 }
 
 impl NormalizedForeignCallRelocation {
@@ -334,6 +403,10 @@ impl NormalizedForeignCallRelocation {
 
     pub const fn kind(&self) -> omega_object_file::RelocationKind {
         self.kind
+    }
+
+    pub const fn callback(&self) -> Option<NormalizedForeignCallbackRelocations> {
+        self.callback
     }
 
     pub const fn final_image_symbol_identity(&self) -> &[u8; 32] {
@@ -546,6 +619,7 @@ pub(super) fn normalized_foreign_call_relocation(
     byte_width: usize,
     addend: i64,
     kind: omega_object_file::RelocationKind,
+    callback: Option<NormalizedForeignCallbackRelocations>,
     final_image_symbol_identity: [u8; 32],
 ) -> NormalizedForeignCallRelocation {
     NormalizedForeignCallRelocation {
@@ -557,7 +631,26 @@ pub(super) fn normalized_foreign_call_relocation(
         byte_width,
         addend,
         kind,
+        callback,
         final_image_symbol_identity,
+    }
+}
+
+pub(super) fn normalized_foreign_callback_relocation(
+    object_symbol: omega_object_file::ObjectSymbolHandle,
+    origin: omega_object_file::RelocationOrigin,
+    offset: usize,
+    byte_width: usize,
+    addend: i64,
+    kind: omega_object_file::RelocationKind,
+) -> NormalizedForeignCallbackRelocation {
+    NormalizedForeignCallbackRelocation {
+        object_symbol,
+        origin,
+        offset,
+        byte_width,
+        addend,
+        kind,
     }
 }
 
