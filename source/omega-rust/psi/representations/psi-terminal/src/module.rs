@@ -29,7 +29,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        70
+        71
     }
 }
 
@@ -1855,6 +1855,20 @@ pub enum OperationKind {
         /// rows. Each is valid only beneath its matching result-case refinement
         /// and has no runtime representation or fuel cost.
         selected_evidence: Vec<OutcomeSpecificCallEvidence>,
+    },
+    /// Invoke one in-module structural-result machine with independently
+    /// retained positional scalar and structural arguments. The first
+    /// admitted producer is claim-free and owned-affine; keeping this role
+    /// distinct avoids changing the established claim-bearing
+    /// `CallStructural` contract or wire identity.
+    CallStructuralWithScalarArguments {
+        callee: MachineId,
+        arguments: Vec<ValueId>,
+        structural_arguments: Vec<StructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        requirement_obligations: Vec<ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// Invoke one exact bodyless boundary machine. Completion receipts
     /// name every live caller claim consumed by the successful invocation at

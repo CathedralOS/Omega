@@ -601,7 +601,10 @@ fn validate_dynamic_descriptor_arguments(
             let (callee, admits_dynamic_arguments) = match operation.kind {
                 OperationKind::Call { callee, .. }
                 | OperationKind::CallUnit { callee, .. }
-                | OperationKind::CallStructural { callee, .. } => (callee, false),
+                | OperationKind::CallStructural { callee, .. }
+                | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
+                    (callee, false)
+                }
                 OperationKind::CallStructuralScalar { callee, .. } => (callee, true),
                 _ => continue,
             };

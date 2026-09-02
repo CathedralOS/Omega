@@ -337,6 +337,7 @@ operation_semantic_rows! {
     CallDynamicScalar => ("algebra:call:call-dynamic-scalar", CallComposition, None),
     CallDynamicParameterScalar => ("algebra:call:call-dynamic-parameter-scalar", CallComposition, None),
     CallStructural => ("algebra:call:call-structural", CallComposition, None),
+    CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
     BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
     PortWrite => ("schema:operation:port-write", LeafDenotation, None),
     IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,
@@ -714,7 +715,7 @@ mod tests {
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
         assert_eq!(OperationSemanticTag::ALL.len(), 49);
-        assert_eq!(OperationSemanticRow::ALL.len(), 49);
+        assert_eq!(OperationSemanticRow::ALL.len(), 50);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()

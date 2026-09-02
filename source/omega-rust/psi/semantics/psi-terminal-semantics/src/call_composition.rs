@@ -23,6 +23,7 @@ pub enum CallResultRule {
 pub enum CallArgumentRule {
     ScalarPositionalArguments,
     StructuralPositionalArguments,
+    ScalarAndStructuralPositionalArguments,
     DynamicDescriptorSource,
     BoundaryScalarAndStructuralPositionalArguments,
 }
@@ -138,7 +139,7 @@ pub struct CallCompositionSemanticRow {
 }
 
 impl CallCompositionSemanticRow {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self {
             tag: OperationSemanticTag::Call,
             schema: CallCompositionSchema {
@@ -230,6 +231,21 @@ impl CallCompositionSemanticRow {
             },
         },
         Self {
+            tag: OperationSemanticTag::CallStructuralWithScalarArguments,
+            schema: CallCompositionSchema {
+                target: CallTargetRule::ExactModuleMachine,
+                result: CallResultRule::StructuralCalleeResult,
+                arguments: CallArgumentRule::ScalarAndStructuralPositionalArguments,
+                requirements: CallRequirementRule::EnumerateStructuralRequires,
+                transfers: CallTransferRule::ExactClaimAndStructuralResultTransfers,
+                outcomes: CallOutcomeRule::ImportStructuralEnsures,
+                crash: CallCrashRule::ComposeStructuralCrashRoutes,
+                evidence: CallEvidenceRule::SameUnitOrCertifiedStructuralEvidence,
+                fuel: CallFuelPolicy::ConsumeOne,
+                frontier: CallFrontierRule::TransfersStructuralFrontier,
+            },
+        },
+        Self {
             tag: OperationSemanticTag::BoundaryCall,
             schema: CallCompositionSchema {
                 target: CallTargetRule::ExactBoundaryMachine,
@@ -264,6 +280,7 @@ const fn is_call_composition_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::CallDynamicScalar
             | OperationSemanticTag::CallDynamicParameterScalar
             | OperationSemanticTag::CallStructural
+            | OperationSemanticTag::CallStructuralWithScalarArguments
             | OperationSemanticTag::BoundaryCall
     )
 }
@@ -309,6 +326,7 @@ pub fn validate_call_composition_semantic_rows(
         OperationSemanticTag::CallDynamicScalar,
         OperationSemanticTag::CallDynamicParameterScalar,
         OperationSemanticTag::CallStructural,
+        OperationSemanticTag::CallStructuralWithScalarArguments,
         OperationSemanticTag::BoundaryCall,
     ] {
         let row = exact_call_composition_semantic_row_in(tag, rows)?
@@ -377,7 +395,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_exposes_every_independent_axis() {
-        assert_eq!(CallCompositionSemanticRow::ALL.len(), 7);
+        assert_eq!(CallCompositionSemanticRow::ALL.len(), 8);
         assert_eq!(
             CallCompositionSemanticRow::ALL
                 .iter()
@@ -390,6 +408,7 @@ mod tests {
                 OperationSemanticTag::CallDynamicScalar,
                 OperationSemanticTag::CallDynamicParameterScalar,
                 OperationSemanticTag::CallStructural,
+                OperationSemanticTag::CallStructuralWithScalarArguments,
                 OperationSemanticTag::BoundaryCall,
             ]),
         );

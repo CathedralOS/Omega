@@ -106,7 +106,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use wire::{Reader, Writer};
 
 const MAGIC: &[u8; 8] = b"PSITERM\0";
-const FORMAT_MARKER: u16 = 67;
+const FORMAT_MARKER: u16 = 68;
 const LEGACY_RESULT_PATH_FORMAT_MARKER: u16 = 56;
 const LEGACY_RESULT_PATH_VOCABULARY_MARKER: u16 = 59;
 const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -1172,6 +1172,72 @@ fn validate_operation_foundation(
                 claim_transfers
                     .iter()
                     .map(|transfer| (transfer.claim, transfer.argument_index)),
+            )?;
+        }
+        OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let Some(callee) = module
+                .machines
+                .iter()
+                .find(|candidate| candidate.id == *callee)
+            else {
+                return malformed("mixed structural-result call references an unknown callee");
+            };
+            let Some(expected_result) = callee.result.structural() else {
+                return malformed(
+                    "mixed structural-result call references a non-structural-result callee",
+                );
+            };
+            let Some(actual_result) = operation.result.structural() else {
+                return malformed("mixed structural-result call has no structural result");
+            };
+            if arguments.len() != callee.parameters.len()
+                || structural_arguments.len() != callee.structural_parameters.len()
+                || actual_result.structural_type != expected_result.structural_type
+                || actual_result.multiplicity != expected_result.multiplicity
+                || actual_result.qualifications != expected_result.qualifications
+                || !actual_result.projected_qualifications.is_empty()
+                || !actual_result.claims.is_empty()
+                || !claim_transfers.is_empty()
+                || !returned_claim_transfers.is_empty()
+                || !requirement_obligations.is_empty()
+                || !crash_continuations.is_empty()
+            {
+                return malformed("mixed structural-result call exceeds its bounded signature");
+            }
+            let Some(StructuralPlaceDeclaration {
+                kind:
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    },
+                ..
+            }) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == actual_result.place)
+            else {
+                return malformed(
+                    "mixed structural-result call result has no operation-result declaration",
+                );
+            };
+            if *producer != operation.id || *structural_type != actual_result.structural_type {
+                return malformed(
+                    "mixed structural-result call result disagrees with its producer",
+                );
+            }
+            validate_structural_arguments(
+                module,
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
             )?;
         }
         OperationKind::CallStructural {

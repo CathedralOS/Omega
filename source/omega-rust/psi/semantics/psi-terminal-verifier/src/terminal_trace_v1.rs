@@ -206,6 +206,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallDynamicParameterScalar { .. }
         | OperationKind::CallStructural { .. }
+        | OperationKind::CallStructuralWithScalarArguments { .. }
         | OperationKind::IntegerConstant { .. }
         | OperationKind::BooleanConstant { .. }
         | OperationKind::IeeeFloatConstant { .. }

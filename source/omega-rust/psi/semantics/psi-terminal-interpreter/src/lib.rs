@@ -1129,6 +1129,129 @@ impl TerminalExecution {
         Ok(())
     }
 
+    fn begin_structural_result_call(
+        &mut self,
+        callee_id: MachineId,
+        result: StructuralOperationResult,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_arguments: &[StructuralArgument],
+        claim_transfers: &[ClaimTransfer],
+        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+    ) -> Result<(), TerminalInterpretError> {
+        let callee = self
+            .machines
+            .get(&callee_id)
+            .cloned()
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        let Some(callee_result) = callee.result.structural() else {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        };
+        let exact_payloadless_call = scalar_arguments.is_empty()
+            && structural_arguments.is_empty()
+            && callee.parameters.is_empty()
+            && callee.structural_parameters.is_empty()
+            && callee.entry_claims.is_empty()
+            && callee.content_entry_claims.is_empty()
+            && claim_transfers.is_empty()
+            && returned_claim_transfers.is_empty()
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.qualifications.is_empty()
+            && result.claims.is_empty();
+        if structural_arguments
+            .iter()
+            .any(|argument| !argument.path.is_empty())
+            || result.structural_type != callee_result.structural_type
+            || result.multiplicity != callee_result.multiplicity
+            || result.qualifications != callee_result.qualifications
+            || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                && !exact_payloadless_call)
+            || self.structural_values.contains_key(&result.place)
+            || self.payloadless_case_values.contains_key(&result.place)
+        {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let values = bind_arguments(&callee.parameters, scalar_arguments)?;
+        let arguments = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            structural_arguments,
+        )?;
+        let structural_values =
+            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
+        let callee_affine_frontier =
+            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        let (remaining_claims, live_claims) = transfer_claims(
+            &self.live_claims,
+            &self.structural_values,
+            structural_arguments,
+            claim_transfers,
+            &callee.structural_parameters,
+            &callee.entry_claims,
+            &callee.content_entry_claims,
+            &structural_values,
+        )?;
+
+        let mut caller_affine_frontier = self.live_affine_frontier.clone();
+        for (argument, parameter) in structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+        {
+            if parameter.multiplicity == StructuralMultiplicity::Affine
+                && argument.access == StructuralAccess::Owned
+            {
+                consume_affine_projection(
+                    &self.structural_types,
+                    &self.structural_values,
+                    &mut caller_affine_frontier,
+                    argument,
+                )?;
+            }
+        }
+        let mut caller_structural_values = self.structural_values.clone();
+        for (argument, _parameter) in structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+            .filter(|(argument, parameter)| {
+                argument.path.is_empty()
+                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            })
+        {
+            if caller_structural_values.remove(&argument.place).is_none() {
+                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                    argument.place,
+                ));
+            }
+        }
+
+        self.next_operation += 1;
+        self.call_stack.push(SuspendedCall {
+            blocks: std::mem::take(&mut self.blocks),
+            values: std::mem::take(&mut self.values),
+            structural_values: caller_structural_values,
+            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            live_affine_frontier: caller_affine_frontier,
+            live_claims: remaining_claims,
+            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
+            current_machine: self.current_machine,
+            current: self.current,
+            next_operation: self.next_operation,
+            result: SuspendedCallResult::Structural {
+                result,
+                returned_claim_transfers,
+            },
+        });
+        self.blocks = callee.blocks;
+        self.values = values;
+        self.structural_values = structural_values;
+        self.live_affine_frontier = callee_affine_frontier;
+        self.live_claims = live_claims;
+        self.dynamic_parameters = BTreeMap::new();
+        self.current_machine = callee_id;
+        self.current = callee.entry;
+        self.next_operation = 0;
+        Ok(())
+    }
+
     fn begin_runtime_dynamic_scalar_call(
         &mut self,
         callee_id: MachineId,
@@ -1426,125 +1549,46 @@ impl TerminalExecution {
                             .structural()
                             .cloned()
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        let callee_id = callee;
-                        let callee =
-                            self.machines.get(&callee_id).cloned().ok_or(
-                                TerminalInterpretError::VerifiedCallTargetMissing(callee_id),
-                            )?;
-                        let Some(callee_result) = callee.result.structural() else {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        };
-                        let exact_payloadless_call = structural_arguments.is_empty()
-                            && callee.structural_parameters.is_empty()
-                            && callee.entry_claims.is_empty()
-                            && callee.content_entry_claims.is_empty()
-                            && claim_transfers.is_empty()
-                            && returned_claim_transfers.is_empty()
-                            && result.multiplicity == StructuralMultiplicity::Unrestricted
-                            && result.qualifications.is_empty()
-                            && result.claims.is_empty();
-                        if !callee.parameters.is_empty()
-                            || structural_arguments
-                                .iter()
-                                .any(|argument| !argument.path.is_empty())
-                            || result.structural_type != callee_result.structural_type
-                            || result.multiplicity != callee_result.multiplicity
-                            || result.qualifications != callee_result.qualifications
-                            || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                                && !exact_payloadless_call)
-                            || self.structural_values.contains_key(&result.place)
-                            || self.payloadless_case_values.contains_key(&result.place)
-                        {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-                        }
-                        let arguments = resolve_structural_arguments(
-                            &self.structural_types,
-                            &self.structural_values,
-                            &structural_arguments,
-                        )?;
-                        let structural_values =
-                            bind_structural_arguments(&callee.structural_parameters, &arguments)?;
-                        let callee_affine_frontier = bind_affine_frontier(
-                            &callee.structural_parameters,
-                            &structural_values,
-                        )?;
-                        let (remaining_claims, live_claims) = transfer_claims(
-                            &self.live_claims,
-                            &self.structural_values,
+                        self.begin_structural_result_call(
+                            callee,
+                            result,
+                            &[],
                             &structural_arguments,
                             &claim_transfers,
-                            &callee.structural_parameters,
-                            &callee.entry_claims,
-                            &callee.content_entry_claims,
-                            &structural_values,
+                            returned_claim_transfers,
                         )?;
-
-                        let mut caller_affine_frontier = self.live_affine_frontier.clone();
-                        for (argument, parameter) in structural_arguments
+                        continue;
+                    }
+                    OperationKind::CallStructuralWithScalarArguments {
+                        callee,
+                        arguments,
+                        structural_arguments,
+                        claim_transfers,
+                        returned_claim_transfers,
+                        ..
+                    } => {
+                        let result = operation
+                            .result
+                            .structural()
+                            .cloned()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let scalar_arguments = arguments
                             .iter()
-                            .zip(&callee.structural_parameters)
-                        {
-                            if parameter.multiplicity == StructuralMultiplicity::Affine
-                                && argument.access == StructuralAccess::Owned
-                            {
-                                consume_affine_projection(
-                                    &self.structural_types,
-                                    &self.structural_values,
-                                    &mut caller_affine_frontier,
-                                    argument,
-                                )?;
-                            }
-                        }
-                        let mut caller_structural_values = self.structural_values.clone();
-                        for (argument, _parameter) in structural_arguments
-                            .iter()
-                            .zip(&callee.structural_parameters)
-                            .filter(|(argument, parameter)| {
-                                argument.path.is_empty()
-                                    && parameter.multiplicity
-                                        != StructuralMultiplicity::Unrestricted
+                            .map(|argument| {
+                                self.values
+                                    .get(argument)
+                                    .copied()
+                                    .ok_or(TerminalInterpretError::VerifiedValueMissing(*argument))
                             })
-                        {
-                            if caller_structural_values.remove(&argument.place).is_none() {
-                                return Err(
-                                    TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                                        argument.place,
-                                    ),
-                                );
-                            }
-                        }
-
-                        // Invocation commits only after the operation charge and every
-                        // structural/claim preflight succeeds. A suspended callee owns
-                        // the transferred inputs; the caller result is still absent.
-                        self.next_operation += 1;
-                        self.call_stack.push(SuspendedCall {
-                            blocks: std::mem::take(&mut self.blocks),
-                            values: std::mem::take(&mut self.values),
-                            structural_values: caller_structural_values,
-                            payloadless_case_values: std::mem::take(
-                                &mut self.payloadless_case_values,
-                            ),
-                            live_affine_frontier: caller_affine_frontier,
-                            live_claims: remaining_claims,
-                            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
-                            current_machine: self.current_machine,
-                            current: self.current,
-                            next_operation: self.next_operation,
-                            result: SuspendedCallResult::Structural {
-                                result,
-                                returned_claim_transfers,
-                            },
-                        });
-                        self.blocks = callee.blocks;
-                        self.values = BTreeMap::new();
-                        self.structural_values = structural_values;
-                        self.live_affine_frontier = callee_affine_frontier;
-                        self.live_claims = live_claims;
-                        self.dynamic_parameters = BTreeMap::new();
-                        self.current_machine = callee_id;
-                        self.current = callee.entry;
-                        self.next_operation = 0;
+                            .collect::<Result<Vec<_>, _>>()?;
+                        self.begin_structural_result_call(
+                            callee,
+                            result,
+                            &scalar_arguments,
+                            &structural_arguments,
+                            &claim_transfers,
+                            returned_claim_transfers,
+                        )?;
                         continue;
                     }
                     OperationKind::BoundaryCall {

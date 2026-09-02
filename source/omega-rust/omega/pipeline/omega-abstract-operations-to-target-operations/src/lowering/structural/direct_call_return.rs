@@ -32,6 +32,7 @@ pub(in crate::lowering) fn lower_direct_return(
             psi_operation,
             result: operation_result,
             callee,
+            arguments,
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
@@ -69,6 +70,7 @@ pub(in crate::lowering) fn lower_direct_return(
         return Ok(None);
     };
     if !function.parameters.is_empty()
+        || !arguments.is_empty()
         || !function.published_service_ceiling.is_empty()
         || parameter.position != 0
         || parameter.is_self
@@ -205,7 +207,7 @@ pub(in crate::lowering) fn lower_direct_return(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: None,
-mixed_structural_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance {
             operations: vec![*psi_operation],
             edges: vec![*psi_edge],

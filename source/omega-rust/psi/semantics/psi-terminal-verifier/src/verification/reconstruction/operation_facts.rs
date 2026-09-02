@@ -140,6 +140,7 @@ pub(super) fn append_operation(
         | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallDynamicParameterScalar { .. }
         | OperationKind::CallStructural { .. }
+        | OperationKind::CallStructuralWithScalarArguments { .. }
         | OperationKind::BoundaryCall { .. } => {
             unreachable!("call rows return before specialized reconstruction")
         }
