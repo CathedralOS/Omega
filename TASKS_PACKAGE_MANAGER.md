@@ -48,7 +48,12 @@ stop the item on one precise owner question before adding machinery.
     one free Unit body whose selected call consumes an exact permutation of
     whole claim-free owned affine parameters; it rejects paths, borrows,
     services, content evidence, mixed operands, and structural results. Do not
-    mint D32 physical evidence until the hosted closure exists. Then extend
+    mint D32 physical evidence until the hosted closure exists. Seed that
+    closure through checked local affine construction with explicit
+    checked/Terminal local-source custody: `ProgramEntry` provisions an
+    exclusive `&mut self` loan, not an owned receiver, and moving affine fields
+    out of that loan or admitting an owned entry receiver would weaken the
+    existing ownership and entry contracts. Then extend
     fixed-token applications to mixed structural/scalar operands and
     structural results;
   - extend the landed verified Psi-phase D32 non-identity projection through
