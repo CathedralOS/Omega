@@ -111,7 +111,7 @@
 0x231: ; parse_definition_loop:
         call 0xb36 ; -> next_token:
         jlt r0, r90, 0x34c ; -> parse_definitions_done:
-        imm r0, 0x1034
+        imm r0, 0x1038
         imm r1, 0x1
         call 0xd9b ; -> token_equals:
         jz r0, 0x1000 ; -> invalid:
@@ -130,7 +130,7 @@
 0x2be: ; parse_definition_body:
         call 0xb36 ; -> next_token:
         jlt r0, r90, 0x1000 ; -> invalid:
-        imm r0, 0x1035
+        imm r0, 0x1040
         imm r1, 0x1
         call 0xd9b ; -> token_equals:
         jz r0, 0x2be ; -> parse_definition_body:
@@ -272,7 +272,7 @@
         jlt r0, r1, 0x6b3 ; -> op_output_byte_ok:
         jmp 0x100c ; -> authored_trap:
 0x6b3: ; op_output_byte_ok:
-        imm r1, 0xffffc
+        imm r1, 0x1000000
         jeq r8c, r1, 0x1018 ; -> incomplete:
         write r0
         add r8c, r91
@@ -282,7 +282,7 @@
         mov r5, r8c
         imm r6, 0x8
         add r5, r6
-        imm r7, 0xffffc
+        imm r7, 0x1000000
         jlt r7, r5, 0x1018 ; -> incomplete:
         imm r4, 0xd000000
         store r4, r0
@@ -670,10 +670,10 @@
 
 ; Returns one-based builtin ordinal or zero.
 0xf39: ; parse_builtin:
-        imm r8, 0x1036
+        imm r8, 0x1048
         imm r9, 0x1
 0xf4d: ; parse_builtin_row:
-        imm r0, 0x10c1
+        imm r0, 0x10d3
         jlt r8, r0, 0xf66 ; -> parse_builtin_compare_start:
         mov r0, r90
         ret
@@ -726,13 +726,28 @@
         halt r0
 
 0x1030: ; main_name:
-        db "main"
-0x1034: ; colon_token:
-        db ":"
-0x1035: ; semicolon_token:
-        db ";"
-0x1036: ; builtin_table:
-        db "input-length\0input-get\0output-byte\0output-word\0output-position\0"
-        db "assert-equal\0cell-get\0cell-set\0dup\0swap\0over\0drop\0"
-        db "+\0-\0*\0/\0%\0<\0=\0jump\0branch\0"
-0x10c1: ; builtin_table_end:
+        dw 0x000000006e69616d ; main....
+0x1038: ; colon_token:
+        dw 0x000000000000003a ; :.......
+0x1040: ; semicolon_token:
+        dw 0x000000000000003b ; ;.......
+0x1048: ; builtin_table:
+        dw 0x656c2d7475706e69 ; input-le
+        dw 0x706e69006874676e ; ngth.inp
+        dw 0x6f007465672d7475 ; ut-get.o
+        dw 0x79622d7475707475 ; utput-by
+        dw 0x757074756f006574 ; te.outpu
+        dw 0x6f0064726f772d74 ; t-word.o
+        dw 0x6f702d7475707475 ; utput-po
+        dw 0x61006e6f69746973 ; sition.a
+        dw 0x71652d7472657373 ; ssert-eq
+        dw 0x6c6c6563006c6175 ; ual.cell
+        dw 0x6c6563007465672d ; -get.cel
+        dw 0x7564007465732d6c ; l-set.du
+        dw 0x6f00706177730070 ; p.swap.o
+        dw 0x706f726400726576 ; ver.drop
+        dw 0x2f002a002d002b00 ; .+.-.*./
+        dw 0x6a003d003c002500 ; .%.<.=.j
+        dw 0x6e61726200706d75 ; ump.bran
+        dw 0x0000000000006863 ; ch......
+0x10d8: ; builtin_table_storage_end; logical end is 0x10d3

@@ -13,7 +13,7 @@ array Opens word 16
 array FrameNodes word 48
 array FrameNexts word 48
 
-machine main ignored word result word
+machine main 1 ignored word result word
 local current word
 local offset word
 local node_count word

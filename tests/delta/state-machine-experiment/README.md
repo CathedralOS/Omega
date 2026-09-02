@@ -3,9 +3,8 @@
 This experiment asks whether Gamma can implement the expensive core of a Delta
 state-machine compiler without an intervening functional language.
 
-The latest compiler implementation is retained at
-[`../../../source/delta/compiler/experiments/state_machine/delta_compiler.gamma`](../../../source/delta/compiler/experiments/state_machine/delta_compiler.gamma).
-This test owner retains only the customer, executable gate, and measurements.
+The latest compiler implementation is retained here as `compiler.gamma`, beside
+its customers, executable gate, and measurements.
 
 It is not the normative Delta language or canonical compiler edge. The current
 functional Delta contract remains unchanged while this evidence is compared.
@@ -18,7 +17,7 @@ The whitespace-tokenized source admits:
 sum TYPE CASE+ end
 record TYPE (FIELD TYPE)+ end
 array TYPE ELEMENT_TYPE LENGTH
-machine NAME PARAM TYPE RESULT TYPE
+machine NAME ARITY (PARAM TYPE){ARITY} RESULT TYPE
   (local NAME TYPE)*
   (state NAME | statement)*
 end
@@ -45,7 +44,7 @@ index-field-get DEST ARRAY INDEX_VARIABLE FIELD
 copy DEST SOURCE
 read DEST
 write SOURCE
-call DEST MACHINE ARG
+call DEST MACHINE ARITY ARG{ARITY}
 return SOURCE
 goto STATE
 brzero CONDITION ZERO_STATE NONZERO_STATE
@@ -54,10 +53,14 @@ switch VALUE SUM (CASE STATE)+ endswitch
 halt SOURCE
 ```
 
-The implementation deliberately uses one exact global namespace, exactly
-one-word array elements, statically allocated machine variables, and
-nonrecursive machine calls. These restrictions keep the experiment finite;
-they are not proposed Delta semantics.
+Top-level types and machines use the global namespace. Cases and fields are
+scoped to their nominal owner; parameters, the result, locals, and states are
+scoped to their machine. Duplicate spellings reject only within the same owner.
+Calls admit at most thirteen one-word parameters and one one-word result.
+Fixed-size software frames grow upward from Delta's 1 MiB static base while a
+shadow of Alpha's return stack grows downward. A call halts with status 2 before
+the two extents collide. Aggregate call arguments, closures, heap allocation,
+and ambient unbounded recursion remain outside this experiment.
 
 ## Expensive essentials exercised
 
@@ -66,9 +69,11 @@ they are not proposed Delta semantics.
 - nominal sums, records, and fixed arrays;
 - typed parameters, results, locals, fields, and array elements;
 - machine-local variable and state ownership;
+- owner-local member names and repeated spellings across owners;
 - constructor/family agreement;
 - exhaustive declaration-order sum transitions;
-- machine calls and returns;
+- typed zero-through-thirteen-argument calls, returns, and direct recursion;
+- deterministic software-frame and return-stack collision refusal;
 - explicit state jumps and conditional transitions;
 - direct Alpha address assignment and emission; and
 - deterministic rejection of unknown syntax, names, types, bounds, and control.
@@ -77,35 +82,38 @@ they are not proposed Delta semantics.
 
 | Subject | Size |
 | --- | ---: |
-| Gamma-written experiment compiler | 709 lines / 28,913 bytes |
-| Native compiler produced by Gamma | 25,104 bytes |
-| Representative Delta source | 38 lines / 733 bytes |
-| Generated Alpha tape | 523 bytes |
-| Nested-scope parser source | 109 lines / 2,312 bytes |
-| Nested-scope parser Alpha tape | 1,919 bytes |
-| Recursive AST transform source | 427 lines / 10,774 bytes |
-| Recursive AST transform Alpha tape | 9,563 bytes |
-| Symbolic Alpha encoder source | 552 lines / 13,869 bytes |
-| Symbolic Alpha encoder tape | 12,610 bytes |
+| Gamma-written experiment compiler | 815 lines / 32,916 bytes |
+| Native compiler produced by Gamma | 29,105 bytes |
+| Pre-call-frame compiler baseline | 709 lines / 28,913 bytes |
+| Pre-call-frame native baseline | 25,104 bytes |
+| Representative Delta source | 57 lines / 1,224 bytes |
+| Generated Alpha tape | 1,357 bytes |
+| Epsilon parser-helper source | 71 lines / 1,658 bytes |
+| Epsilon parser-helper code only | 48 lines / 10 states |
+| Corresponding Functional Delta helpers | 9 lines |
+| Epsilon parser-helper Alpha tape | 1,802 bytes |
+| Exact scalar recursion counterpart | 29 lines / 771 tape bytes |
+| Nested-scope parser source | 109 lines / 2,314 bytes |
+| Nested-scope parser Alpha tape | 2,278 bytes |
+| Recursive AST transform source | 427 lines / 10,776 bytes |
+| Recursive AST transform Alpha tape | 11,038 bytes |
+| Symbolic Alpha encoder source | 552 lines / 13,879 bytes |
+| Symbolic Alpha encoder tape | 14,505 bytes |
 | Retained functional Alpha backend declarations/implementation | 834 lines / 39,426 bytes |
 
-The compiler line spend is approximately:
+The scoped-call increment over the 709-line baseline is:
 
-| Concern | Lines |
-| --- | ---: |
-| named compiler state | 69 |
-| tokenizer and exact keyword checks | 75 |
-| identifiers and integers | 37 |
-| symbols and nominal types | 74 |
-| declaration/state census | 78 |
-| statement sizing | 63 |
-| Alpha emitters and type helpers | 40 |
-| typed replay and lowering | 271 |
+| Concern | Source lines | Native bytes |
+| --- | ---: | ---: |
+| owner-scoped lookup | 8 | 362 |
+| arity, frames, recursion, and one-word checks | 98 | 3,639 |
+| total | 106 | 4,001 |
 
 The canonical Gamma evaluator and self-hosted Gamma compiler independently
 execute/compile this Gamma source. Their resulting native Delta compiler agrees
-with interpreted execution on the exact 523-byte state sample, 1,919-byte parser
-sample, 9,563-byte recursive-transform sample, and ten malformed twins,
+with interpreted execution on the exact 1,357-byte state sample, 1,802-byte
+Epsilon helper, 2,278-byte parser, 11,038-byte recursive-transform sample,
+14,505-byte encoder, and malformed twins,
 including identical failure prefixes. The compiled parser passes nested-scope,
 shadowing, duplicate-offset, malformed-scope, and arena-exhaustion cases. The
 transform customer passes mixed and fully folded trees, a surviving conditional,
@@ -115,6 +123,13 @@ exact-ended input, high-bit immediate bytes, labels above 255,
 duplicate/missing/extra labels, undefined targets, malformed records,
 fail-before-output behavior, the exact 1,048,572-byte payload, and adjacent
 oversize rejection.
+
+The call gate additionally executes zero- and thirteen-argument calls, rejects arity
+fourteen, rejects mismatched call arity and aggregate parameters, and runs a
+recursive 80,000,024-byte frame. Three entries fit; the fourth deterministically
+halts at the software/hardware stack boundary. The Epsilon helper accepts
+`123` as byte `0x7b`, rejects a nondigit as `0xff`, and exercises repeated
+`c`, `value`, and `result` spellings in separate machine scopes.
 
 ## Reading the result
 
@@ -131,8 +146,8 @@ last D73 challenge with five nominal node variants, variable-arity child chains,
 explicit postorder traversal, in-place rewrites, and canonical output. Its 105-line
 transform is direct; declarations and parsing dominate at 260 lines.
 
-This result weakens the implementation case for a functional Delta, but does
-not make state-machine syntax free. The complete customer needs 427 lines and
+The earlier result weakened the implementation-necessity case for Functional
+Delta, but did not make state-machine syntax free. The complete customer needs 427 lines and
 80 named states for a deliberately small tree language. A functional challenger
 could compress traversal and reconstruction, at the cost of a larger trusted
 compiler and implicit allocation/recursion machinery. The next decision should
@@ -152,3 +167,12 @@ The customer now carries the full 1,048,572-byte Alpha payload envelope, but it
 does not independently replay emitted bytes. Connecting actual Epsilon lowering
 and deciding whether symbolic prevalidation is sufficient remain required before
 selecting normative Delta.
+
+Scoped bounded calls do not reverse that conclusion. They grow trusted Gamma by
+15 percent and its native artifact by 16 percent, which is material but does not
+erase the implementation-size advantage by itself. The stronger discriminator
+is customer code: the closest representable Epsilon parser kernel expands from
+nine Functional Delta lines to 48 state-machine lines, and the exact immutable
+`Bytes` recursion is not expressible in this slice. State-machine Delta remains
+strong backend evidence, but this call model does not justify replacing the
+normative Functional Delta language.

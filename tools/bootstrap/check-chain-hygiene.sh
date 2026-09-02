@@ -17,6 +17,7 @@ for required in \
   "$OMEGA_PATH_BETA_COMPILER" \
   "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_GAMMA_EVALUATOR" \
+  "$OMEGA_PATH_GAMMA_COMPILER" \
   "$OMEGA_PATH_DELTA" \
   "$OMEGA_PATH_EPSILON" \
   "$OMEGA_PATH_EPSILON_COMPILER" \
@@ -31,6 +32,12 @@ done
   fail "Beta compiler tape is absent"
 [ -f "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" ] ||
   fail "Beta-written Gamma evaluator source is absent"
+[ -f "$OMEGA_PATH_GAMMA_COMPILER_SOURCE" ] ||
+  fail "Gamma-written Gamma-to-Beta compiler source is absent"
+[ -f "$OMEGA_PATH_GAMMA_COMPILER_RECEIPT" ] ||
+  fail "Gamma compiler Beta receipt is absent"
+[ -f "$OMEGA_PATH_GAMMA_COMPILER_TAPE" ] ||
+  fail "Gamma compiler tape is absent"
 [ -x "$OMEGA_REPO_ROOT/tools/bootstrap/check-chain-hygiene.sh" ] ||
   fail "bootstrap topology gate is not executable"
 [ -x "$OMEGA_REPO_ROOT/tests/bootstrap/alpha-beta-edge.sh" ] ||
@@ -76,12 +83,12 @@ tracked_compiler_sources=$(find \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
 expected_compiler_sources='source/beta/compiler/beta_compiler.beta
-source/delta/compiler/experiments/state_machine/delta_compiler.gamma
 source/epsilon/compiler/epsilon_compiler.delta
+source/gamma/compiler/gamma_compiler.beta
 source/gamma/compiler/gamma_compiler.gamma
 source/omega/omega_compiler.epsilon'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
-  fail "compiler source exists outside selected edges or declared experiments"
+  fail "compiler source exists outside selected edges"
 
 tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" "$OMEGA_PATH_DELTA" \
@@ -95,7 +102,7 @@ source/gamma/compiler/gamma_compiler_bytecode.tape'
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
   --exclude=decisions.md --exclude=check-chain-hygiene.sh \
-  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|source/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|gamma_compiler\.beta|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|OMEGA_PATH_GAMMA_COMPILER' \
+  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|source/alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR' \
   "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \
   "$OMEGA_REPO_ROOT/README.md" "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true)
@@ -106,10 +113,9 @@ for bootstrap_source in \
   "$OMEGA_PATH_BETA/LANGUAGE.md" \
   "$OMEGA_PATH_GAMMA/LANGUAGE.md" \
   "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" \
-  "$OMEGA_PATH_GAMMA/compiler/gamma_compiler.gamma" \
-  "$OMEGA_PATH_GAMMA/reconstruction/gamma_evaluator_reconstructor.gamma" \
+  "$OMEGA_PATH_GAMMA_COMPILER_SOURCE" \
+  "$OMEGA_PATH_GAMMA_COMPILER_RECEIPT" \
   "$OMEGA_PATH_DELTA/LANGUAGE.md" \
-  "$OMEGA_PATH_DELTA/compiler/experiments/state_machine/delta_compiler.gamma" \
   "$OMEGA_PATH_EPSILON_COMPILER_SOURCE" \
   "$OMEGA_PATH_OMEGA_COMPILER_SOURCE"
 do

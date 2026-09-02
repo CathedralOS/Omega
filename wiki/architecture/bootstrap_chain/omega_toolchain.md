@@ -9,13 +9,14 @@ after PCC at a canonical Terminal Psi product, which a later interpreter or
 native lowerer consumes under its own realization authority.
 
 ```text
-Delta-written Epsilon compiler -> epsilon_compiler_bytecode.tape
+Delta-written Epsilon compiler -> canonical Delta
+  -> selected lower compilers -> epsilon_compiler_bytecode.tape
 
 Epsilon-written Omega D
-  └─ epsilon_compiler_bytecode.tape ─▶ omega0_compiler_bytecode.tape
+  └─ epsilon_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega0_compiler_bytecode.tape
 
 Omega-written Omega C
-  └─ omega0_compiler_bytecode.tape ─▶ omega_compiler_bytecode.tape
+  └─ omega0_compiler_bytecode.tape ─▶ canonical Epsilon ─▶ omega_compiler_bytecode.tape
 ```
 
 `omega₀` and `omega` are full Omega compilers represented canonically as Alpha

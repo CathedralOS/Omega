@@ -10,8 +10,8 @@
 #
 # Encoding: opcode 1 byte; register operand 1 byte (`rH` or `rHH`);
 # immediate/address operand 8 bytes LE (`0xH...`). `0xH...:` asserts the
-# current output offset. `db "..."` emits the decoded string bytes.
-# Comments are `;` to end of line (respecting string quotes); commas are whitespace.
+# current output offset. `dw 0xH...` emits one eight-byte little-endian word.
+# Comments are `;` to end of line; commas are whitespace.
 import re
 import sys
 
@@ -25,7 +25,6 @@ OPS = {
     'jlt': (0x0F, 'rrx'), 'jeq': (0x10, 'rrx'),
     'read': (0x11, 'r'),  'write': (0x12, 'r'), 'call': (0x13, 'x'), 'ret': (0x14, ''),
 }
-ESC = {'0': 0, '\\': 92, '"': 34}
 HEX_WORD = re.compile(r'0x[0-9a-f]{1,16}\Z')
 ADDRESS_ASSERTION = re.compile(r'0x[0-9a-f]{1,16}:\Z')
 HEX_REGISTER = re.compile(r'r[0-9a-f]{1,2}\Z')
@@ -42,37 +41,12 @@ def tokenize(text):
             while i < n and text[i] not in '\r\n':
                 i += 1
             continue
-        if c == '"':                                   # a quoted string stays one token
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == '\\' else 1
-            if j >= n:
-                raise SyntaxError('beta_ref: unterminated db string')
-            toks.append((text[i:j + 1], i, j + 1)); i = j + 1
-        else:
-            j = i
-            while (j < n and text[j] not in ' \t\r\n' and
-                   text[j] not in ',;'):
-                j += 1
-            toks.append((text[i:j], i, j)); i = j
+        j = i
+        while (j < n and text[j] not in ' \t\r\n' and
+               text[j] not in ',;'):
+            j += 1
+        toks.append((text[i:j], i, j)); i = j
     return toks
-
-def decode_str(token):
-    if len(token) < 2 or token[0] != '"' or token[-1] != '"':
-        raise SyntaxError('beta_ref: db requires one quoted string')
-    inner = token[1:-1]
-    out = bytearray(); i = 0
-    while i < len(inner):
-        if inner[i] == '\\':
-            if i + 1 >= len(inner) or inner[i + 1] not in ESC:
-                raise SyntaxError('beta_ref: unknown db escape')
-            out.append(ESC[inner[i + 1]]); i += 2
-        else:
-            value = ord(inner[i])
-            if not 32 <= value < 127:
-                raise SyntaxError('beta_ref: non-printable raw db byte')
-            out.append(value); i += 1
-    return out
 
 def parse(text):
     """-> list of address assertions, instructions, or byte data."""
@@ -83,13 +57,13 @@ def parse(text):
             if not ADDRESS_ASSERTION.fullmatch(t):
                 raise SyntaxError(f'beta_ref: malformed address assertion {t!r}')
             items.append(('assert', int(t[2:-1], 16))); k += 1; continue
-        if t == 'db':
+        if t == 'dw':
             if k + 1 >= len(toks):
-                raise SyntaxError('beta_ref: db requires one quoted string')
-            gap = text[toks[k][2]:toks[k + 1][1]]
-            if not gap or any(c not in ' \t\r\n' for c in gap):
-                raise SyntaxError('beta_ref: db requires whitespace before its string')
-            items.append(('db', decode_str(toks[k + 1][0]))); k += 2; continue
+                raise SyntaxError('beta_ref: dw requires one word')
+            word = toks[k + 1][0]
+            if not HEX_WORD.fullmatch(word):
+                raise SyntaxError(f'beta_ref: malformed dw operand {word!r}')
+            items.append(('dw', int(word[2:], 16))); k += 2; continue
         if t not in OPS:
             raise SyntaxError(f'beta_ref: unknown mnemonic {t!r}')
         kinds = OPS[t][1]
@@ -102,8 +76,8 @@ def parse(text):
 def size(item):
     if item[0] == 'assert':
         return 0
-    if item[0] == 'db':
-        return len(item[1])
+    if item[0] == 'dw':
+        return 8
     kinds = OPS[item[1]][1]
     return 1 + sum(1 if kd == 'r' else 8 for kd in kinds)
 
@@ -123,8 +97,8 @@ def assemble(text):
                     f'beta_ref: address assertion {it[1]:#x} at {len(out):#x}'
                 )
             continue
-        if it[0] == 'db':
-            out += it[1]; continue
+        if it[0] == 'dw':
+            out += it[1].to_bytes(8, 'little'); continue
         op, kinds = OPS[it[1]]
         out.append(op)
         for kd, tok in zip(kinds, it[2]):

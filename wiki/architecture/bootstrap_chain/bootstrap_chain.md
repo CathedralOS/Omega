@@ -7,10 +7,11 @@ The trust-minimizing lattice is:
 ```text
 audited Alpha VM + admitted Beta compiler tape
   -> Beta-written Gamma evaluator -> gamma_evaluator_bytecode.tape
-  -> Gamma-written Delta compiler -> delta_compiler_bytecode.tape
-  -> Delta-written Epsilon compiler -> epsilon_compiler_bytecode.tape
-  -> Epsilon-written Omega compiler D -> omega0_compiler_bytecode.tape
-  -> Omega-written Omega compiler C -> omega_compiler_bytecode.tape
+  -> Gamma compiler -> canonical Beta -> gamma_compiler_bytecode.tape
+  -> Delta compiler -> canonical Gamma -> canonical Beta -> delta_compiler_bytecode.tape
+  -> Epsilon compiler -> canonical Delta -> ... -> epsilon_compiler_bytecode.tape
+  -> Omega compiler D -> canonical Epsilon -> ... -> omega0_compiler_bytecode.tape
+  -> Omega compiler C -> canonical Epsilon -> ... -> omega_compiler_bytecode.tape
 ```
 
 Alpha is unchanged. Beta is the trusted imperative tape-assembly language whose
@@ -28,23 +29,23 @@ platform. Features require a concrete customer and a favorable whole-chain
 audit.
 
 Beta self-reconstruction binds its readable compiler source to the admitted
-cold-start tape. No later intermediate rung needs self-hosting: Beta evaluates
-Gamma, Gamma compiles Delta, Delta compiles Epsilon, and Epsilon compiles Omega.
+cold-start tape. No later intermediate rung needs self-hosting: each validates
+its successor and emits canonical source for the selected lower compilers.
 Only Omega closes a further self-host edge because `omega0` must compile the
 production Omega-written compiler closure `C`.
 
 ## Edge discipline
 
-Each compiler accepts exactly one source language and emits one
-platform-independent Alpha tape. A lower rung may not parse its successor's
-successor. Host scripts may invoke, stamp, compare, and report; they may not
+Beta alone encodes Alpha. Each higher compiler accepts exactly one source
+language and emits canonical source in the immediately prior rung. A lower rung
+may not parse its successor's successor. Host scripts may invoke, stamp, compare, and report; they may not
 parse source, lower programs, manufacture semantic evidence, or decide trust.
 
 Every accepted edge binds:
 
 ```text
-exact source + exact Alpha tape
-  + source semantics + Alpha semantics
+exact source + canonical prior-rung receipt + exact Alpha tape
+  + adjacent language semantics + Alpha semantics
   + observation/resource profile
   + independently reconstructed obligation + checked certificate
   -> source-to-tape refinement
@@ -56,9 +57,10 @@ their tapes through the immediately preceding trusted language.
 
 ## Current state
 
-Alpha conformance and trusted Beta compiler reconstruction are executable. The
-Beta-written Gamma evaluator has a passing development slice but no admitted
-tape. The Gamma-written Delta compiler is absent. The Delta-written Epsilon
+Alpha conformance, trusted Beta compiler reconstruction, and selected
+Gamma-to-Beta compiler reconstruction are executable. The Beta-written Gamma
+evaluator has a passing development slice but no admitted tape. The full
+Gamma-written Delta compiler is absent. The Delta-written Epsilon
 compiler and Epsilon-written Omega `D` are incomplete and have no canonical
 tapes. Omega-written `C` is also incomplete. No compatibility route fills these
 gaps.

@@ -5,7 +5,7 @@ The authoritative grammar and encoding are fixed by
 [`../LANGUAGE.md`](../LANGUAGE.md).
 
 The admitted cold-start implementation is
-[`beta_compiler_bytecode.tape`](beta_compiler_bytecode.tape), a 2,135-byte
+[`beta_compiler_bytecode.tape`](beta_compiler_bytecode.tape), a 1,792-byte
 platform-independent Alpha program at the first compiler edge. The readable
 [`beta_compiler.beta`](beta_compiler.beta) source is the same assembler expressed in
 Beta; `tests/beta/compiler/reconstruction.sh`
@@ -13,7 +13,7 @@ requires it to reproduce the direct tape byte-for-byte.
 
 The compiler accepts mnemonic opcodes, complete-token lowercase hexadecimal
 registers `rH`/`rHH`, `0x`-prefixed lowercase hexadecimal 64-bit words,
-numeric address assertions, comments, and the closed `db` string encoding. It
+numeric address assertions, comments, and fixed-width `dw` data. It
 emits in one pass; mnemonic rows carry their NUL-terminated operand-width lists;
 and bounded source/output pointers use a documented high-register ABI. It emits
 no host container. Current local build
@@ -25,6 +25,8 @@ absolute bounded pointers, shares one hexadecimal parser, checks every authored
 address assertion against the running output cursor, and drives operands from
 visible NUL-terminated width lists beside each mnemonic. Alpha's specified
 zero-initialized register file supplies named persistent state and constants.
+The source transport admits 16 MiB so readable prior-rung expansions can pass
+through Beta; emitted Alpha remains capped by the exact 1,048,572-byte seed hole.
 There is no symbol table, label identity, relocation pass, hash, fixup chain, or
 compressed name. Comma removal and new Alpha opcodes remain rejected because
 their additional trust cost outweighs the remaining byte savings.

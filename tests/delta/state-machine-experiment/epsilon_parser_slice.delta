@@ -1,0 +1,72 @@
+# Epsilon parser helper slice using scoped names and bounded direct recursion.
+# This ports ascii_between, is_digit, and decimal accumulation from the
+# retained Epsilon compiler. Input replaces its immutable Bytes cursor so the
+# call experiment remains within the state-machine slice's one-word ABI.
+
+machine ascii_between 3 c word low word high word result word
+state compare_low
+brlt c low outside compare_high
+state compare_high
+brlt high c outside inside
+state inside
+const result 1
+return result
+state outside
+const result 0
+return result
+end
+
+machine is_digit 1 c word result word
+local low word
+local high word
+state start
+const low 48
+const high 57
+call result ascii_between 3 c low high
+return result
+end
+
+machine epsilon_number_value 4 remaining word value word ten word ascii_zero word result word
+local c word
+local digit word
+local next_remaining word
+local next_value word
+local one word
+state next
+brzero remaining done read_digit
+state read_digit
+read c
+call digit is_digit 1 c
+brzero digit invalid accumulate
+state accumulate
+const one 1
+sub next_remaining remaining one
+sub digit c ascii_zero
+mul next_value value ten
+add next_value next_value digit
+call result epsilon_number_value 4 next_remaining next_value ten ascii_zero
+return result
+state invalid
+const result 255
+return result
+state done
+copy result value
+return result
+end
+
+machine main 1 ignored word result word
+local remaining word
+local value word
+local ten word
+local ascii_zero word
+state start
+const remaining 3
+const value 0
+const ten 10
+const ascii_zero 48
+call result epsilon_number_value 4 remaining value ten ascii_zero
+write result
+halt ignored
+end
+
+entry main start

@@ -1,0 +1,25 @@
+# canonical scalar Functional Delta expansion
+: frame 0x0 cell-get ;
+: set_frame 0x0 cell-set ;
+: next_frame 0x1 cell-get ;
+: set_next_frame 0x1 cell-set ;
+: f0001 frame next_frame set_frame frame 0x0 + cell-set frame 0x0000000000000003 + set_next_frame frame 0x0000000000000002 + cell-set frame 0x0000000000000001 + cell-set e0004 frame dup set_next_frame 0x0 + cell-get set_frame ;
+: e0004 e0005 branch e0008 e0009 ;
+: e0005 e0006 e0007 = ;
+: e0006 frame 0x0000000000000001 + cell-get ;
+: e0007 0x0000000000000000 ;
+: e0008 frame 0x0000000000000002 + cell-get ;
+: e0009 e000a e000e f0001 ;
+: e000a e000b e000c - ;
+: e000b frame 0x0000000000000001 + cell-get ;
+: e000c 0x0000000000000001 ;
+: e000e e000f e0010 + ;
+: e000f frame 0x0000000000000002 + cell-get ;
+: e0010 frame 0x0000000000000001 + cell-get ;
+: f0012 frame next_frame set_frame frame 0x0 + cell-set frame 0x0000000000000002 + set_next_frame e0014 frame dup set_next_frame 0x0 + cell-get set_frame ;
+: e0014 e0015 frame 0x0000000000000001 + cell-set e0016 ;
+: e0015 0x0000000000000005 ;
+: e0016 e0017 e0019 f0001 ;
+: e0017 frame 0x0000000000000001 + cell-get ;
+: e0019 0x0000000000000000 ;
+: main 0x0000000000000001 set_frame 0x0000000000000002 set_next_frame f0012 0x100 % 0x100 + 0x100 % output-byte ;
