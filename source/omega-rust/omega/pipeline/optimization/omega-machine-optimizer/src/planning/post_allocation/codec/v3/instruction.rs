@@ -15,10 +15,13 @@ use super::super::{
 pub(super) fn decode_instruction(
     cursor: &mut effect_codec::Cursor<'_>,
     allow_i64_less_than: bool,
+    allow_scalar_call: bool,
 ) -> Result<PostAllocationMachineInstruction, PostAllocationMachineDecodeError> {
     let instruction = SelectedInstructionId(u32_field(cursor)?);
-    let alternative = if allow_i64_less_than {
+    let alternative = if allow_scalar_call {
         effect_codec::decode_alternative(cursor)
+    } else if allow_i64_less_than {
+        effect_codec::decode_alternative_without_scalar_call(cursor)
     } else {
         effect_codec::decode_alternative_legacy(cursor)
     }

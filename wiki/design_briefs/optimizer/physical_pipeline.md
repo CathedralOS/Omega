@@ -1401,11 +1401,18 @@ the unrelated second call; liveness retains that call's complete clobber set,
 legality removes every aliasing caller-saved home, and deterministic
 allocation selects a preserved home without spilling on both ISAs. The legal
 and selected representations independently bind the exact three-call grammar,
-callee identities, ABI rows, values, provenance, fuel, and target identity.
-This stops before machine-effect analysis because the current effect
-vocabulary cannot honestly describe x86 call stack/memory behavior. It grants
-no callee-save prologue/epilogue, relocation, encoding, emission, publication,
-or general scalar-call authority.
+callee identities, ABI rows, values, provenance, fuel, and target identity. On
+Linux System V AMD64 and AAPCS64, each `CallI64` now enters exact target-owned
+machine-effect custody. The x86 row records the five-byte direct relative call,
+return-address write below RSP, balanced call/return stack lifecycle,
+architectural-fault behavior, and complete register effects; the AArch64 row
+records the four-byte direct relative call, unchanged SP/memory,
+architectural-fault behavior, and complete X30/PC effects. Current pre- and
+post-allocation formats retain and independently replay those rows, while older
+formats remain decode-only and cannot acquire scalar-call vocabulary. This
+grants no callee-save sequence, x86 call-site alignment adjustment, AArch64
+incoming X30 preservation, selected-fragment relocation, encoding, emission,
+publication, or general scalar-call authority.
 
 Applied selected-lowering publication coverage crosses both exact incoming-u12
 rules with every hosted target: Linux x64, Windows x64, Linux Arm64, and macOS

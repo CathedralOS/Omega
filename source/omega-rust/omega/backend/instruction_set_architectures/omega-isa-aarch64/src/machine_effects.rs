@@ -10,6 +10,10 @@ use omega_selected_instructions::{
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
+mod scalar_call;
+
+use scalar_call::declaration as scalar_call_declaration;
+
 use crate::{
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64, AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT,
     AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64, AARCH64_COMPARE_I64_ZERO,
@@ -51,7 +55,11 @@ pub fn aarch64_machine_effect_catalog(
         structural_unit_call: None,
         declarations: MachineSemanticKind::ALL
             .into_iter()
-            .map(|semantic| declaration(semantic, selected_keys))
+            .filter_map(|semantic| {
+                selected_keys
+                    .for_semantic(semantic)
+                    .map(|_| declaration(semantic, selected_keys, constraints))
+            })
             .collect(),
     })
 }
@@ -113,10 +121,16 @@ fn selected_keys(
 fn declaration(
     semantic: MachineSemanticKind,
     keys: SelectedConstraintKeys,
+    constraints: &ValidatedRegisterConstraintCatalog,
 ) -> MachineEffectDeclaration {
+    if semantic == MachineSemanticKind::CallI64 {
+        return scalar_call_declaration(keys, constraints);
+    }
     MachineEffectDeclaration {
         semantic,
-        constraint: keys.for_semantic(semantic),
+        constraint: keys
+            .for_semantic(semantic)
+            .expect("required AArch64 machine semantic has a constraint"),
         memory: MachineMemoryEffect::NoneV1,
         trap: MachineTrapBehavior::NeverV1,
         barrier: if matches!(
@@ -176,6 +190,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
+        MachineSemanticKind::CallI64 => {
+            panic!("scalar calls use their dedicated declaration")
+        }
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {
         MachineSemanticKind::CompareI64Zero | MachineSemanticKind::CompareI64 => (
@@ -232,6 +249,9 @@ const fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 4,
             maximum_bytes: Some(16),
         },
+        MachineSemanticKind::CallI64 => {
+            panic!("scalar calls use their dedicated declaration")
+        }
         _ => MachineSizeKnowledge::ExactBytes(4),
     }
 }
@@ -318,6 +338,33 @@ mod tests {
                 signed_less_than_branch.alternatives[0].size,
                 MachineSizeKnowledge::ExactBytes(4)
             );
+            let scalar_call = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::CallI64);
+            if target == NativeTarget::linux_arm64() {
+                let scalar_call = scalar_call.expect("AAPCS64 target declares scalar call");
+                assert_eq!(
+                    scalar_call.call,
+                    MachineCallEffect::DirectInternalNormalReturnV1 {
+                        pre_call_stack_alignment: 16,
+                    }
+                );
+                assert_eq!(
+                    scalar_call.alternatives[0].size,
+                    MachineSizeKnowledge::ExactBytes(4)
+                );
+                assert_eq!(
+                    scalar_call.alternatives[0].encoded.control,
+                    MachineEncodedControlEffect::DirectRelativeCallV1
+                );
+                assert_eq!(
+                    scalar_call.alternatives[0].encoded.stack,
+                    MachineEncodedStackEffect::UnchangedV1
+                );
+            } else {
+                assert!(scalar_call.is_none());
+            }
             assert!(validate_aarch64_machine_effect_catalog(target, &constraints, catalog).is_ok());
             let catalog = aarch64_machine_effect_catalog(target, &constraints).unwrap();
             let return_unit = catalog

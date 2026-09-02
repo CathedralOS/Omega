@@ -24,8 +24,11 @@ impl SelectedConstraintKeys {
             .collect()
     }
 
-    pub const fn for_semantic(self, semantic: MachineSemanticKind) -> RegisterConstraintKey {
-        match semantic {
+    pub const fn for_semantic(
+        self,
+        semantic: MachineSemanticKind,
+    ) -> Option<RegisterConstraintKey> {
+        Some(match semantic {
             MachineSemanticKind::CompareI64Zero => self.compare_i64_zero,
             MachineSemanticKind::MaterializeI64 => self.materialize_i64,
             MachineSemanticKind::CopyI64 => self.copy_i64,
@@ -39,6 +42,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::CompareI64 => self.compare_i64,
             MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
             MachineSemanticKind::ConditionalBranchI64LessThan => self.conditional_branch,
-        }
+            MachineSemanticKind::CallI64 => return self.call_i64_2_u64_to_u64,
+        })
     }
 }

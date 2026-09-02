@@ -3,29 +3,48 @@ use super::*;
 pub(super) fn decode_instruction(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
+    allow_scalar_call: bool,
 ) -> Result<InstructionMachineEffects, PreAllocationMachineEffectDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
-    let kind = decode_kind(cursor, allow_i64_less_than)?;
+    let kind = decode_kind(cursor, allow_i64_less_than, allow_scalar_call)?;
     let constraint = decode_constraint_key(cursor)?;
     let unit_uses = decode_units(cursor)?;
     let unit_defs = decode_units(cursor)?;
     let unit_clobbers = decode_units(cursor)?;
-    if cursor.byte()? != 0 || cursor.byte()? != 0 {
-        return Err(PreAllocationMachineEffectDecodeError::InvalidField);
-    }
+    let memory = match cursor.byte()? {
+        0 => MachineMemoryEffect::NoneV1,
+        _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    let trap = match cursor.byte()? {
+        0 => MachineTrapBehavior::NeverV1,
+        1 if allow_scalar_call => MachineTrapBehavior::MayArchitecturalFaultV1,
+        _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
+    };
     let barrier = match cursor.byte()? {
         0 => MachineBarrier::None,
         1 => MachineBarrier::ControlFlow,
+        2 if allow_scalar_call => MachineBarrier::Call,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
-    if cursor.byte()? != 0 || cursor.byte()? != 0 {
+    let call = match cursor.byte()? {
+        0 => MachineCallEffect::NoneV1,
+        1 if allow_scalar_call => MachineCallEffect::DirectInternalNormalReturnV1 {
+            pre_call_stack_alignment: cursor.u16()?,
+        },
+        _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
+    };
+    if cursor.byte()? != 0 {
         return Err(PreAllocationMachineEffectDecodeError::InvalidField);
     }
     let provenance = decode_provenance(cursor)?;
     let alternative_count = cursor.length()?;
     let mut alternatives = Vec::with_capacity(alternative_count.min(cursor.remaining()));
     for _ in 0..alternative_count {
-        alternatives.push(decode_alternative_for_version(cursor, allow_i64_less_than)?);
+        alternatives.push(decode_alternative_for_version(
+            cursor,
+            allow_i64_less_than,
+            allow_scalar_call,
+        )?);
     }
     Ok(InstructionMachineEffects {
         instruction,
@@ -34,10 +53,10 @@ pub(super) fn decode_instruction(
         unit_uses,
         unit_defs,
         unit_clobbers,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
+        memory,
+        trap,
         barrier,
-        call: MachineCallEffect::NoneV1,
+        call,
         cleanup: MachineCleanupEffect::NoneV1,
         provenance,
         alternatives,
@@ -47,6 +66,7 @@ pub(super) fn decode_instruction(
 fn decode_kind(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
+    allow_scalar_call: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
         0 => SelectedInstructionKind::CompareI64Zero,
@@ -78,6 +98,10 @@ fn decode_kind(
         10 => SelectedInstructionKind::CompareI64,
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => SelectedInstructionKind::ConditionalBranchI64LessThan,
+        13 if allow_scalar_call => SelectedInstructionKind::CallI64 {
+            callee: MachineId::new(cursor.u64()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
@@ -130,18 +154,25 @@ pub(crate) fn decode_provenance(
 pub(crate) fn decode_alternative(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, true)
+    decode_alternative_for_version(cursor, true, true)
 }
 
 pub(crate) fn decode_alternative_legacy(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
-    decode_alternative_for_version(cursor, false)
+    decode_alternative_for_version(cursor, false, false)
+}
+
+pub(crate) fn decode_alternative_without_scalar_call(
+    cursor: &mut Cursor<'_>,
+) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
+    decode_alternative_for_version(cursor, true, false)
 }
 
 fn decode_alternative_for_version(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
+    allow_scalar_call: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
         0 => MachineAlternativeFamily::CompareI64Zero,
@@ -157,6 +188,7 @@ fn decode_alternative_for_version(
         10 => MachineAlternativeFamily::CompareI64,
         11 => MachineAlternativeFamily::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => MachineAlternativeFamily::ConditionalBranchI64LessThan,
+        13 if allow_scalar_call => MachineAlternativeFamily::CallI64,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = MachineAlternativeKey {
@@ -210,7 +242,7 @@ fn decode_alternative_for_version(
     if cursor.byte()? != 0 {
         return Err(PreAllocationMachineEffectDecodeError::InvalidField);
     }
-    let encoded = decode_encoded_effects(cursor)?;
+    let encoded = decode_encoded_effects(cursor, allow_scalar_call)?;
     Ok(MachineAlternative {
         key,
         applicability,
@@ -222,6 +254,7 @@ fn decode_alternative_for_version(
 
 fn decode_encoded_effects(
     cursor: &mut Cursor<'_>,
+    allow_scalar_call: bool,
 ) -> Result<MachineEncodedEffects, PreAllocationMachineEffectDecodeError> {
     let external_operand_reads = decode_u16s(cursor)?;
     let external_operand_writes = decode_u16s(cursor)?;
@@ -234,6 +267,12 @@ fn decode_encoded_effects(
             stack_pointer: omega_register_model::RegisterViewId(cursor.u16()?),
             byte_count: cursor.u16()?,
         },
+        2 if allow_scalar_call => {
+            MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                stack_pointer: omega_register_model::RegisterViewId(cursor.u16()?),
+                byte_count: cursor.u16()?,
+            }
+        }
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let stack = match cursor.byte()? {
@@ -241,6 +280,10 @@ fn decode_encoded_effects(
         1 => MachineEncodedStackEffect::PopBytesV1 {
             stack_pointer: omega_register_model::RegisterViewId(cursor.u16()?),
             byte_count: cursor.u16()?,
+        },
+        2 if allow_scalar_call => MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+            stack_pointer: omega_register_model::RegisterViewId(cursor.u16()?),
+            return_address_byte_count: cursor.u16()?,
         },
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -256,6 +299,7 @@ fn decode_encoded_effects(
         3 => MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
             target: omega_register_model::RegisterViewId(cursor.u16()?),
         },
+        4 if allow_scalar_call => MachineEncodedControlEffect::DirectRelativeCallV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     Ok(MachineEncodedEffects {

@@ -324,6 +324,15 @@ Terminal is immutable through optimization; the validated transformed
 projection retains its canonical identity rather than minting a successor
 Terminal.
 
+The first selected scalar-call continuation reaches machine-effect custody on
+Linux System V AMD64 and AAPCS64. Its exact target-owned rows survive current
+pre- and post-allocation persistence and independent replay, including fixed
+operands, complete implicit register effects, direct-relative control,
+architectural-fault behavior, and ISA-specific return-address stack behavior.
+That is not final call placement: callee-save realization, x86 call-site stack
+alignment, AArch64 incoming link-register preservation, internal-call fixups,
+encoded bytes, and D32 publication remain later facts.
+
 Each surviving boundary-operation occurrence receives exactly one physical
 child in `NativeArtifact`. Its role-tagged `PhysicalChildParent` is either an
 `OperatorApplicationCoverageRef` to reconstructible D29 coverage or a retained

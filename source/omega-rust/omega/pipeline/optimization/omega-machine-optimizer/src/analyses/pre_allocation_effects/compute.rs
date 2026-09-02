@@ -223,11 +223,6 @@ fn exact_declaration<'a>(
     instruction: &SelectedInstruction,
     catalog: &'a ValidatedMachineEffectCatalog,
 ) -> Result<&'a MachineEffectDeclaration, MachineEffectError> {
-    if matches!(instruction.kind, SelectedInstructionKind::CallI64 { .. }) {
-        return Err(MachineEffectError::ScalarCallMachineEffectsUnsupported {
-            instruction: instruction.id,
-        });
-    }
     let semantic = semantic(instruction.kind);
     let mut matches = catalog
         .catalog()
@@ -272,8 +267,6 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
-        SelectedInstructionKind::CallI64 { .. } => {
-            unreachable!("scalar calls are refused before semantic lookup")
-        }
+        SelectedInstructionKind::CallI64 { .. } => MachineSemanticKind::CallI64,
     }
 }

@@ -958,9 +958,13 @@ parallel `selection/validation/scalar_call_unit.rs`. The leaf makes every ABI
 bridge visible as `CopyI64 -> CallI64 -> CopyI64`, while the target-owned
 register catalogs alone name fixed argument/result views and call clobbers.
 Mirrored pipeline tests descend through fixture, custody, allocation, and
-corruption leaves. Machine-effect analysis rejects this selected family until
-call stack, memory, trap, callee-preservation, and relocation custody have an
-honest lower taxonomy.
+corruption leaves. Target-owned scalar-call effect declarations live in each
+ISA's discoverable `machine_effects/scalar_call.rs` leaf. Linux System V AMD64
+and AAPCS64 calls retain exact semantic and encoded call, control, trap,
+register, memory, and stack effects through pre- and post-allocation persistence
+and independent replay. This effect custody does not realize callee saves,
+frame alignment, AArch64 link-register preservation, internal-call fixups, or
+bytes; those remain separate lower-stage responsibilities.
 
 The checked-Psi exact-add proof producer uses the same navigability rule
 without pretending to be an optimizer catalog. Its 94-line `direct_add/mod.rs`

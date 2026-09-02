@@ -182,13 +182,5 @@ fn homes_preserve_the_live_result_and_every_fixed_call_operand() {
         let repeated = staged_homes(target);
         assert_eq!(staged.homes(), repeated.homes());
         assert_eq!(staged.custody(), repeated.custody());
-        assert!(matches!(
-            stage_optimized_machine_effects(selected),
-            Err(OptimizedMachineEffectPipelineError::Analysis(
-                omega_machine_optimizer::MachineEffectError::ScalarCallMachineEffectsUnsupported {
-                    instruction: SelectedInstructionId(4)
-                }
-            ))
-        ));
     }
 }

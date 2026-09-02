@@ -12,7 +12,6 @@ mod values;
 
 #[cfg(test)]
 mod tests;
-
 use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
 use instruction::{encode_cfg_instruction, encode_ordinary_instruction};
@@ -22,6 +21,12 @@ pub(crate) use structural::{encode_effect_link, encode_structural_call};
 use values::{encode_len, encode_target};
 
 pub fn pre_allocation_machine_effect_identity(
+    plan: &PreAllocationMachineEffectPlan,
+) -> PreAllocationMachineEffectIdentity {
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v8\0")
+}
+
+pub(crate) fn pre_allocation_machine_effect_identity_v7_legacy(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
     identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v7\0")

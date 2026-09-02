@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v9\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v10\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     let selected_keys = catalog.selected_keys.in_identity_order();
@@ -68,9 +68,7 @@ pub fn machine_effect_catalog_identity(
     for declaration in &catalog.declarations {
         bytes.push(semantic_kind_tag(declaration.semantic));
         encode_constraint_key(&mut bytes, declaration.constraint);
-        // The v1 semantic vocabulary is deliberately closed to effect-free
-        // scalar work plus explicit control-flow barriers. Keep these matches
-        // exhaustive so adding a vocabulary variant cannot silently collide
+        // Keep effect matches exhaustive so additions cannot silently collide
         // with an older catalog identity.
         bytes.push(match declaration.memory {
             crate::MachineMemoryEffect::NoneV1 => 0,
@@ -82,10 +80,17 @@ pub fn machine_effect_catalog_identity(
         bytes.push(match declaration.barrier {
             MachineBarrier::None => 0,
             MachineBarrier::ControlFlow => 1,
+            MachineBarrier::Call => 2,
         });
-        bytes.push(match declaration.call {
-            crate::MachineCallEffect::NoneV1 => 0,
-        });
+        match declaration.call {
+            crate::MachineCallEffect::NoneV1 => bytes.push(0),
+            crate::MachineCallEffect::DirectInternalNormalReturnV1 {
+                pre_call_stack_alignment,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+            }
+        }
         bytes.push(match declaration.cleanup {
             crate::MachineCleanupEffect::NoneV1 => 0,
         });
@@ -186,6 +191,14 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
         }
+        MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+            stack_pointer,
+            byte_count,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
     }
     match effects.stack {
         MachineEncodedStackEffect::UnchangedV1 => bytes.push(0),
@@ -196,6 +209,14 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.push(1);
             bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
             bytes.extend_from_slice(&byte_count.to_le_bytes());
+        }
+        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+            stack_pointer,
+            return_address_byte_count,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&stack_pointer.0.to_le_bytes());
+            bytes.extend_from_slice(&return_address_byte_count.to_le_bytes());
         }
     }
     bytes.push(match effects.trap {
@@ -210,6 +231,7 @@ fn encode_encoded_effects(bytes: &mut Vec<u8>, effects: &MachineEncodedEffects) 
             bytes.push(3);
             bytes.extend_from_slice(&target.0.to_le_bytes());
         }
+        MachineEncodedControlEffect::DirectRelativeCallV1 => bytes.push(4),
     }
 }
 
@@ -275,6 +297,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::CompareI64 => 10,
         MachineSemanticKind::ConditionalBranchU64LessThan => 11,
         MachineSemanticKind::ConditionalBranchI64LessThan => 12,
+        MachineSemanticKind::CallI64 => 13,
     }
 }
 
@@ -293,6 +316,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
         MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
+        MachineAlternativeFamily::CallI64 => 13,
     }
 }
 
@@ -357,7 +381,9 @@ mod tests {
 
     fn declaration(semantic: MachineSemanticKind) -> MachineEffectDeclaration {
         let keys = keys();
-        let constraint = keys.for_semantic(semantic);
+        let constraint = keys
+            .for_semantic(semantic)
+            .expect("test catalog declares every semantic constraint");
         MachineEffectDeclaration {
             semantic,
             constraint,
@@ -372,10 +398,18 @@ mod tests {
                     | MachineSemanticKind::ReturnUnit
             ) {
                 MachineBarrier::ControlFlow
+            } else if semantic == MachineSemanticKind::CallI64 {
+                MachineBarrier::Call
             } else {
                 MachineBarrier::None
             },
-            call: MachineCallEffect::NoneV1,
+            call: if semantic == MachineSemanticKind::CallI64 {
+                MachineCallEffect::DirectInternalNormalReturnV1 {
+                    pre_call_stack_alignment: 16,
+                }
+            } else {
+                MachineCallEffect::NoneV1
+            },
             cleanup: MachineCleanupEffect::NoneV1,
             alternatives: vec![MachineAlternative {
                 key: MachineAlternativeKey {

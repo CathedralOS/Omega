@@ -72,6 +72,11 @@ pub(super) fn prove_none(
                         );
                     }
                 }
+                MachineAlternativeFamily::CallI64 => {
+                    return Err(
+                        RelocationFreeTextSectionPlacementError::UnsupportedRelocationShape,
+                    );
+                }
                 MachineAlternativeFamily::CompareI64Zero
                 | MachineAlternativeFamily::CompareI64
                 | MachineAlternativeFamily::MaterializeI64

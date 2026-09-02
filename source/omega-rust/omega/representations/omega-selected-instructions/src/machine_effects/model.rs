@@ -38,10 +38,11 @@ pub enum MachineSemanticKind {
     CompareI64,
     ConditionalBranchU64LessThan,
     ConditionalBranchI64LessThan,
+    CallI64,
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
@@ -55,6 +56,7 @@ impl MachineSemanticKind {
         Self::CompareI64,
         Self::ConditionalBranchU64LessThan,
         Self::ConditionalBranchI64LessThan,
+        Self::CallI64,
     ];
 }
 
@@ -73,6 +75,7 @@ pub enum MachineAlternativeFamily {
     CompareI64,
     ConditionalBranchU64LessThan,
     ConditionalBranchI64LessThan,
+    CallI64,
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -91,6 +94,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::CompareI64 => Self::CompareI64,
             MachineSemanticKind::ConditionalBranchU64LessThan => Self::ConditionalBranchU64LessThan,
             MachineSemanticKind::ConditionalBranchI64LessThan => Self::ConditionalBranchI64LessThan,
+            MachineSemanticKind::CallI64 => Self::CallI64,
         }
     }
 }
@@ -147,11 +151,13 @@ pub enum MachineTrapBehavior {
 pub enum MachineBarrier {
     None,
     ControlFlow,
+    Call,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineCallEffect {
     NoneV1,
+    DirectInternalNormalReturnV1 { pre_call_stack_alignment: u16 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -262,6 +268,10 @@ pub enum MachineEncodedMemoryEffect {
         stack_pointer: RegisterViewId,
         byte_count: u16,
     },
+    WriteReturnAddressBelowStackPointerV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -270,6 +280,10 @@ pub enum MachineEncodedStackEffect {
     PopBytesV1 {
         stack_pointer: RegisterViewId,
         byte_count: u16,
+    },
+    CallReturnAddressLifecycleV1 {
+        stack_pointer: RegisterViewId,
+        return_address_byte_count: u16,
     },
 }
 
@@ -285,6 +299,7 @@ pub enum MachineEncodedControlEffect {
     ConditionalRelativeBranchV1,
     ReturnFromActivationStackV1,
     ReturnIndirectRegisterV1 { target: RegisterViewId },
+    DirectRelativeCallV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

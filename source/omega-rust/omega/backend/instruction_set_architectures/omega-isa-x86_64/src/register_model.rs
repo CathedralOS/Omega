@@ -618,7 +618,7 @@ pub fn x86_64_register_constraint_catalog(
                 fixed(1, RegisterOperandAccess::Use, "rsi"),
                 fixed(2, RegisterOperandAccess::Def, "rax"),
             ],
-            implicit_uses: rsp_units.clone(),
+            implicit_uses: sorted_units(rsp_units.iter().copied().chain(rip_units.iter().copied())),
             implicit_defs: control_defs.clone(),
             clobbers: call_clobbers(sysv),
         },
