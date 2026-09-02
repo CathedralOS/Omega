@@ -166,6 +166,7 @@ fn fixture() -> Fixture {
         machine,
         attachment: None,
         fixed_integer_scalar_abi: None,
+        mixed_structural_scalar_abi: None,
         provenance: TerminalPsiProvenance::default(),
         operation: TargetOperation::ReturnIntegerExpressionConditionalControl {
             condition_source: condition,

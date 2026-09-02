@@ -562,6 +562,7 @@ pub(crate) fn projected_shared_structural_scalar_call_unit() -> PsiOptimizationU
                             scalar_type: ScalarType::Boolean,
                         },
                         callee,
+                        arguments: Vec::new(),
                         structural_arguments: vec![psi_terminal::StructuralArgument {
                             place: caller_place,
                             path: vec![psi_terminal::StructuralPathSegment::Field(
