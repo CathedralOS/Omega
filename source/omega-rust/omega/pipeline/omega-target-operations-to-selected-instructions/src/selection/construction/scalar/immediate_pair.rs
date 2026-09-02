@@ -13,6 +13,7 @@ pub(super) fn is_candidate(source: &SourceFunction) -> bool {
         LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
             | LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1
             | LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1
+            | LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1
     ) && matches!(source.when_true.value, SourceLeafValue::Immediate { .. })
         && matches!(source.when_false.value, SourceLeafValue::Immediate { .. })
 }

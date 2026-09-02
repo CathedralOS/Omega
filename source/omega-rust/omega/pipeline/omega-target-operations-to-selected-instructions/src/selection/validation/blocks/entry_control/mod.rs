@@ -4,6 +4,7 @@ mod direct_parameter;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
+mod integer_not_equal_parameters;
 
 use crate::selection::shared::*;
 
@@ -32,6 +33,9 @@ pub(super) fn validate(
                 keys,
                 catalog,
             )
+        }
+        LegalizedCondition::IntegerNotEqualParametersV1 { .. } => {
+            integer_not_equal_parameters::validate(function_index, source, function, keys, catalog)
         }
     }
 }

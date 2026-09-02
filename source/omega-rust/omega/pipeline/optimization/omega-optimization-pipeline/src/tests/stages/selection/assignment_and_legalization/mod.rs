@@ -8,5 +8,6 @@ mod projected_structural_call_return;
 mod runtime_integer_equal_conditional;
 mod runtime_integer_less_or_equal_conditional;
 mod runtime_integer_less_than_conditional;
+mod runtime_integer_not_equal_conditional;
 mod widened_exact_add;
 mod widened_exact_subtract;

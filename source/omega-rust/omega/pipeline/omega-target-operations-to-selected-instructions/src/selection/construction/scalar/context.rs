@@ -32,7 +32,8 @@ pub(super) fn reconstruct<'a>(
         )?],
         LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
         | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
-        | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. } => [left, right]
+        | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }
+        | LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } => [left, right]
             .into_iter()
             .map(|parameter| {
                 reconstruct_input(

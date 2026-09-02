@@ -1056,6 +1056,25 @@ decision. Only true language-semantic questions belong in
     operand-order, predicate, compare, and successor corruption; the semantic
     matrix distinguishes less, equal, and greater inputs and covers `0` and
     `U64::MAX` before Linux object and callable publication on both ISAs.
+  - [x] Eliminate one exact runtime Boolean-not comparison chain without
+    expanding machine vocabulary. The admitted source is the same bounded
+    two-parameter, three-block, immediate-leaf grammar, with entry operations
+    exactly `[IntegerEqual, BooleanNot, Conditional]`, block offsets
+    `[0, 3, 5]`, node counts `[3, 2, 2]`, and seven total operations. Target
+    admission requires `Not(IntegerEqual(left, right))` over the ordered
+    unsigned-`U64` entry parameters. Legalization appends recipe tag 12 and a
+    distinct condition discriminator while retaining the equality operation,
+    its result and definition, the Boolean-not operation, its result and
+    definition, and each operation's independent provenance and fuel custody.
+    Selection removes the materialized Boolean-not value: the existing
+    `CompareI64` feeds `ConditionalBranchNonZero`, with source true taken and
+    source false as fallthrough. Compare provenance belongs solely to the
+    equality operation; branch provenance belongs solely to Boolean-not, so
+    the optimization does not blur semantic custody. No selected instruction,
+    constraint, effect, encoder, layout, allocator, or object vocabulary is
+    added. Producer/replay corruption, semantic boundary, cross-target
+    selection, and Linux x64/AArch64 object and callable publication suites
+    pin the exact grammar, custody, compare, and successor mapping.
   - [x] Add constant-widen-to-immediate as its own exact abstract-to-target
     family. Its independently reconstructed source grammar and target replay
     cover all 18 native fixed-integer widening relations and preserve the

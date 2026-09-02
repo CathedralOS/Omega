@@ -51,6 +51,18 @@ pub enum LegalizedCondition {
         left: LegalizedConditionParameter,
         right: LegalizedConditionParameter,
     },
+    IntegerNotEqualParametersV1 {
+        equality_operation: OperationId,
+        equality_result: ValueId,
+        equality_result_definition_site: ValueDefinitionSite,
+        equality_fuel: Vec<FuelSettlement>,
+        boolean_not_operation: OperationId,
+        boolean_not_result: ValueId,
+        boolean_not_result_definition_site: ValueDefinitionSite,
+        boolean_not_fuel: Vec<FuelSettlement>,
+        left: LegalizedConditionParameter,
+        right: LegalizedConditionParameter,
+    },
 }
 
 /// One ordered entry-parameter operand of a legalized condition.

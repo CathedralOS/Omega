@@ -245,7 +245,7 @@ pub(super) fn derive_source_function(
     }
     let expected_provenance = TerminalPsiProvenance {
         operations: condition
-            .provenance_operation
+            .provenance_operations
             .into_iter()
             .chain(source_operations(&when_true.value))
             .chain(source_operations(&when_false.value))

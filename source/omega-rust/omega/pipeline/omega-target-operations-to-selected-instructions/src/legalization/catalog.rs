@@ -97,6 +97,7 @@ pub(super) enum ScalarConditionShape {
     IntegerEqualU64Parameters,
     IntegerLessThanU64Parameters,
     IntegerLessOrEqualU64Parameters,
+    IntegerNotEqualU64Parameters,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,6 +209,38 @@ const fn integer_comparison_scalar_form(
     descriptor
 }
 
+const fn nested_integer_comparison_scalar_form(
+    recipe: LegalizationRecipe,
+    condition: ScalarConditionShape,
+    producer_matcher: ScalarLegalizationMatcherKind,
+    block_offsets: [usize; 3],
+    operation_count: usize,
+    leaf_node_counts: [usize; 2],
+    parameter_count: usize,
+    projected_selected_instruction_count: usize,
+    introduced_temporary_count: usize,
+    validator: ScalarLegalizationValidatorKind,
+) -> LegalizationFormDescriptor {
+    let mut descriptor = integer_comparison_scalar_form(
+        recipe,
+        condition,
+        producer_matcher,
+        block_offsets,
+        operation_count,
+        leaf_node_counts,
+        parameter_count,
+        projected_selected_instruction_count,
+        introduced_temporary_count,
+        validator,
+    );
+    let LegalizationShapeConstraints::Scalar(mut constraints) = descriptor.constraints else {
+        return descriptor;
+    };
+    constraints.entry_node_count = 3;
+    descriptor.constraints = LegalizationShapeConstraints::Scalar(constraints);
+    descriptor
+}
+
 const fn unit_form() -> LegalizationFormDescriptor {
     LegalizationFormDescriptor {
         recipe: LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
@@ -252,7 +285,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 17] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 18] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -382,6 +415,18 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 17] = [
         ScalarLegalizationMatcherKind::Immediate,
         [0, 2, 4],
         6,
+        [2, 2],
+        2,
+        6,
+        0,
+        ScalarLegalizationValidatorKind::Immediate,
+    ),
+    nested_integer_comparison_scalar_form(
+        LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1,
+        ScalarConditionShape::IntegerNotEqualU64Parameters,
+        ScalarLegalizationMatcherKind::Immediate,
+        [0, 3, 5],
+        7,
         [2, 2],
         2,
         6,

@@ -336,8 +336,8 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
             site: PsiProvenance::Operation(comparison),
             units: 1,
         }],
-        left: left_parameter,
-        right: right_parameter,
+        left: left_parameter.clone(),
+        right: right_parameter.clone(),
     };
     let inclusive_identity = legalized_operation_plan_identity(&inclusive);
     assert_ne!(inclusive_identity, identity);
@@ -358,12 +358,83 @@ fn strict_less_than_condition_has_distinct_ordered_identity() {
         inclusive_identity
     );
 
+    let equality_result = id::<ValueId>(36);
+    let boolean_not = id::<OperationId>(37);
+    let mut not_equal = equality.clone();
+    not_equal.functions[0].recipe =
+        LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1;
+    not_equal.functions[0].provenance.operations =
+        vec![comparison, boolean_not, true_constant, false_constant];
+    not_equal.functions[0].condition = LegalizedCondition::IntegerNotEqualParametersV1 {
+        equality_operation: comparison,
+        equality_result,
+        equality_result_definition_site: omega_optimization_unit::ValueDefinitionSite::Node {
+            block: entry,
+            node: 0,
+        },
+        equality_fuel: vec![FuelSettlement {
+            site: PsiProvenance::Operation(comparison),
+            units: 1,
+        }],
+        boolean_not_operation: boolean_not,
+        boolean_not_result: condition,
+        boolean_not_result_definition_site: omega_optimization_unit::ValueDefinitionSite::Node {
+            block: entry,
+            node: 1,
+        },
+        boolean_not_fuel: vec![FuelSettlement {
+            site: PsiProvenance::Operation(boolean_not),
+            units: 1,
+        }],
+        left: left_parameter,
+        right: right_parameter,
+    };
+    let not_equal_identity = legalized_operation_plan_identity(&not_equal);
+    assert_ne!(
+        not_equal_identity,
+        legalized_operation_plan_identity(&equality)
+    );
+    assert_ne!(not_equal_identity, inclusive_identity);
+
+    let mut not_equal_reversed = not_equal.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 { left, right, .. } =
+        &mut not_equal_reversed.functions[0].condition
+    else {
+        panic!("not-equal comparison fixture")
+    };
+    std::mem::swap(left, right);
+    assert_ne!(
+        legalized_operation_plan_identity(&not_equal_reversed),
+        not_equal_identity
+    );
+
+    let mut corrupted_not_result = not_equal.clone();
+    let LegalizedCondition::IntegerNotEqualParametersV1 {
+        boolean_not_result, ..
+    } = &mut corrupted_not_result.functions[0].condition
+    else {
+        panic!("not-equal comparison fixture")
+    };
+    *boolean_not_result = equality_result;
+    assert_ne!(
+        legalized_operation_plan_identity(&corrupted_not_result),
+        not_equal_identity
+    );
+
     assert_eq!(
         legalized_operation_plan_identity_v14_legacy(&plan),
         legalized_operation_plan_identity_v14_legacy(&plan.clone())
     );
     assert_ne!(
         legalized_operation_plan_identity_v14_legacy(&plan),
+        legalized_operation_plan_identity(&plan)
+    );
+    assert_eq!(
+        legalized_operation_plan_identity_v15_legacy(&plan),
+        legalized_operation_plan_identity_v15_legacy(&plan.clone())
+    );
+    assert_ne!(
+        legalized_operation_plan_identity_v15_legacy(&plan),
         legalized_operation_plan_identity(&plan)
     );
 }
