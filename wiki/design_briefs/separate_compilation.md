@@ -65,7 +65,12 @@ custody rejoin those coordinates. Borrowing, nesting, internal forwarding,
 multiple carriers, mixed receiver requirements, composed control,
 scalar-bearing/free executable
 helpers, root establishment, and Independent mode remain closed rather than
-being represented as fused.
+being represented as fused. Multiple distinct carriers specifically wait on a
+Terminal domain-application identity: the current structural-domain table keys
+only `SemanticDomainId` while binding one carrier identity, so one `Bound` row
+cannot represent both `Service<A>` and `Service<B>` without an unsound carrier
+collapse. This is a representation dependency, not an unresolved source-
+language decision.
 
 Selected Independent edges still reject at the componentization fence before
 checked facts or package-review evidence are published. Exact closed slot
