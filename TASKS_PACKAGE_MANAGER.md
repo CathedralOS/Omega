@@ -47,12 +47,11 @@ stop the item on one precise owner question before adding machinery.
     structural/scalar operands, structural results, and native custody;
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
-    Extend admitted-provider D41 custody beyond the landed unoptimized
-    normalized-import lane with fixed-width integer scalar arguments/results
-    and one direct compiler-private callback parameter to structural
-    arguments/results, ranked control, and port-bearing artifacts. Preserve
-    the exact survivor/child bijection and
-    reconstructible D29/D41 parents;
+    Extend admitted-provider D41 custody beyond the landed normalized-import
+    lane with fixed-width integer scalar arguments/results and one direct
+    compiler-private callback parameter to structural arguments/results,
+    ranked control, and port-bearing artifacts. Preserve the exact
+    survivor/child bijection and reconstructible D29/D41 parents;
   - add external realization custody only when independently admitted concrete
     authority exists. Never substitute a self-issued commitment.
 

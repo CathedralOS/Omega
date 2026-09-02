@@ -108,8 +108,12 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::new_named("macho")
+    }
+
+    fn new_named(name: &str) -> Self {
         Self::with_source(
-            "macho",
+            name,
             "macos_arm64",
             r#"use omega::language::core::external_binding;
 
@@ -189,8 +193,12 @@ machine Main::main(&mut self) {
     }
 
     fn new_macos_u32_argument() -> Self {
+        Self::new_macos_u32_argument_named("macho-u32-argument")
+    }
+
+    fn new_macos_u32_argument_named(name: &str) -> Self {
         Self::with_source(
-            "macho-u32-argument",
+            name,
             "macos_arm64",
             r#"use omega::language::core::external_binding;
 
@@ -226,8 +234,12 @@ machine Main::main(&mut self) {
     }
 
     fn new_macos_i32_result() -> Self {
+        Self::new_macos_i32_result_named("macho-i32-result")
+    }
+
+    fn new_macos_i32_result_named(name: &str) -> Self {
         Self::with_source(
-            "macho-i32-result",
+            name,
             "macos_arm64",
             r#"use omega::language::core::external_binding;
 
@@ -976,6 +988,115 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     assert_physical_child_mutation_rejected(&parts, |child| {
         child.final_image_bytes_digest[0] ^= 1;
     });
+}
+
+#[test]
+fn optimized_source_evaluated_import_retains_exact_d32_d41_custody() {
+    for (label, fixture, receipt_identity) in [
+        (
+            "unit",
+            Fixture::new_named("optimized-macho"),
+            0x4d41_4348_5f05,
+        ),
+        (
+            "fixed-u32-argument",
+            Fixture::new_macos_u32_argument_named("optimized-macho-u32-argument"),
+            0x4d41_4348_6f05,
+        ),
+        (
+            "fixed-i32-result",
+            Fixture::new_macos_i32_result_named("optimized-macho-i32-result"),
+            0x4d41_4348_7f05,
+        ),
+    ] {
+        let retained = fixture.compile_terminal();
+        let admission = admit_import(
+            &retained,
+            SameStackContributionAdmissionReceiptId::from_normalized_identity(receipt_identity)
+                .unwrap(),
+        );
+        let policy = terminal_authority_policy(&retained);
+        let permission_policy = terminal_authority_permission_policy(&retained);
+        let optimizations = omega_optimization_core::OptimizationSelections::new([
+            omega_optimization_core::Optimization::ControlFlowCleanup,
+        ])
+        .expect("one verified Psi optimization selection");
+        let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+            retained,
+            &psi_proof_admission::AdmissionProfile::default(),
+            &optimizations,
+            policy,
+            omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+            permission_policy,
+            &[SourceEvaluatedImportSettlement::new(
+                &admission.execution,
+                &admission.same_stack,
+            )],
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "optimized {label} import should retain physical custody:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        artifact
+            .validate()
+            .unwrap_or_else(|error| panic!("optimized {label} artifact must replay: {error}"));
+        assert!(matches!(
+            artifact.physical_evidence_scope(),
+            native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_),
+        ));
+        let physical = artifact
+            .physical_evidence()
+            .unwrap_or_else(|| panic!("optimized {label} import must retain D32 evidence"));
+        let [occurrence] = physical.projection().boundary_occurrences() else {
+            panic!("optimized {label} projection must retain one foreign-call survivor")
+        };
+        let [child] = physical.children() else {
+            panic!("optimized {label} survivor must produce one D41 child")
+        };
+        assert_eq!(
+            child.occurrence(),
+            native::NativePhysicalOccurrence::Boundary(occurrence.identity()),
+        );
+        assert_eq!(child.projection(), physical.projection().identity());
+        let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent() else {
+            panic!("optimized {label} import must retain an admitted-provider D41 parent")
+        };
+        assert!(matches!(
+            parent.role(),
+            native::BoundaryTraitSettlementRole::AdmittedProvider { .. },
+        ));
+        assert_eq!(parent.occurrence().identity(), occurrence.identity());
+        assert_eq!(
+            parent.requirement_identity(),
+            admission.execution.requirement,
+        );
+
+        let mut missing_child = artifact.into_parts();
+        let evidence = missing_child
+            .physical_evidence
+            .take()
+            .expect("optimized normalized import has physical evidence")
+            .into_parts();
+        missing_child.physical_evidence =
+            Some(native::NativePhysicalEvidence::from_replayed_parts(
+                native::NativePhysicalEvidenceParts {
+                    projection: evidence.projection,
+                    children: Vec::new(),
+                    identity: evidence.identity,
+                },
+            ));
+        assert!(
+            native::NativeArtifact::from_replayed_parts(missing_child).is_err(),
+            "optimized {label} replay must reject removal of its exact D41 child",
+        );
+    }
 }
 
 #[test]
