@@ -5,6 +5,8 @@ use super::shared::*;
 use super::structural::lower_structural_function;
 use super::unit::lower_unit_function;
 
+mod native_boundaries;
+
 pub(super) fn lower_function(
     function: &AbstractFunction,
     target: NativeTarget,
@@ -20,57 +22,21 @@ pub(super) fn lower_function(
     ieee_float_fma: &BTreeMap<OperationId, omega_target_operations::TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
-    let has_installed_scalar_call = function.operations.iter().any(|operation| {
-        matches!(operation,
-            AbstractOperation::BoundaryCall {
-                psi_operation,
-                boundary,
-                arguments,
-                ..
-            } if !arguments.is_empty()
-                && installed_calls.contains_key(&(function.machine, *psi_operation, *boundary)))
-    });
-    if !has_installed_scalar_call {
+    if !native_boundaries::has_installed_scalar_call(function, installed_calls) {
         if let Some(lowered) =
             lower_linux_exit_group_i32(function, target, boundary_machines, settlements)?
         {
             return Ok(lowered);
         }
     }
-    if let Some(AbstractOperation::BoundaryCall {
-        psi_operation,
-        boundary,
-        ..
-    }) = function.operations.iter().find(|operation| {
-        matches!(
-            operation,
-            AbstractOperation::BoundaryCall {
-                psi_operation,
-                boundary,
-                arguments,
-                ..
-            } if !arguments.is_empty()
-                && !installed_calls.contains_key(&(
-                    function.machine,
-                    *psi_operation,
-                    *boundary,
-                ))
-                && !matches!(
-                    settlements.get(boundary).map(|binding| &binding.realization),
-                    Some(omega_target_operations::BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::LinuxExitGroupI32(_)
-                    ))
-                        | Some(
-                            omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
-                        )
-                )
-        )
-    }) {
+    if let Some((operation, boundary)) =
+        native_boundaries::unsupported_scalar_call(function, settlements, installed_calls)
+    {
         return Err(
             LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
                 machine: function.machine,
-                operation: *psi_operation,
-                boundary: *boundary,
+                operation,
+                boundary,
             },
         );
     }
