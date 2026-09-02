@@ -1055,9 +1055,9 @@ Terminal values and types to object-retained scalar materializations, then binds
 the complete semantic-code attribution interval, contained unresolved import
 relocation, machine/object/image bytes, and final image-symbol identity.
 Structural values, callbacks, ranked control, port effects, and optimized
-foreign calls remain fail-closed. Source production currently exercises Unit
-calls with scalar arguments; its earlier checked transitive-machine closure
-still fences result-producing attached-Unit calls before this D32 lane.
+foreign calls remain fail-closed. Source production exercises both Unit calls
+with scalar arguments and fixed-integer scalar-result calls returning to an
+attached Unit body.
 
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;

@@ -1335,8 +1335,7 @@ sole normalized-import relocation across machine, object, and image custody.
 Mach-O replay reconstructs the exact image-owned lazy-binding pointer slot
 instead of pretending it was object data; installation projection remains
 bounded to compiler-authored text/data prefixes. Source production exercises
-the scalar-argument/Unit shape; scalar-result source calls remain fenced by the
-earlier checked transitive-machine closure.
+both scalar-argument/Unit and scalar-result/Unit shapes.
 
 Verified Psi-phase optimization also has a bounded non-identity lane. The
 optimizer's validated final abstract plan determines the exact surviving D29
