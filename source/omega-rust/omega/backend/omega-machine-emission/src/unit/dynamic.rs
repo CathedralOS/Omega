@@ -1,10 +1,10 @@
-//! Rebound named-dynamic descriptor and indirect scalar-call emission.
+//! Rebound named-dynamic descriptor and indirect-call emission.
 
 use omega_assigned_target_operations::{
-    AssignedAggregateCopy, AssignedFunction, AssignedUnitOperation, AssignedUnitScalarHome,
+    AssignedAggregateCopy, AssignedFunction, AssignedUnitOperation,
 };
 use omega_machine_code::{
-    DynamicInstanceMaterializationRecord, DynamicScalarCallRecord, DynamicTableAddressEncoding,
+    DynamicCallRecord, DynamicInstanceMaterializationRecord, DynamicTableAddressEncoding,
     DynamicTableAddressMaterialization, DynamicTraitDescriptorAbiRecord,
     InternalUnitCallArgumentRecord, UnitCallStackEvidence,
 };
@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn emit_dynamic_scalar_call(
+pub(super) fn emit_dynamic_call(
     operation: &AssignedUnitOperation,
     owner: psi_core::MachineId,
     target: NativeTarget,
@@ -34,34 +34,70 @@ pub(super) fn emit_dynamic_scalar_call(
     bytes: &mut Vec<u8>,
     operation_ordinal: usize,
     code_offset: usize,
-) -> Result<DynamicScalarCallRecord, EmissionError> {
-    let AssignedUnitOperation::DynamicScalarCall {
+) -> Result<DynamicCallRecord, EmissionError> {
+    let (
         psi_operation,
-        result,
         dynamic_dispatch,
         call_plan,
-        result_home,
+        result,
         descriptor_abi,
         descriptor_home_byte_offset,
         initial_copy,
         rebound_copy,
-        ..
-    } = operation
-    else {
-        unreachable!("dynamic-scalar router supplied another operation")
+    ) = match operation {
+        AssignedUnitOperation::DynamicScalarCall {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            call_plan,
+            result_home,
+            descriptor_abi,
+            descriptor_home_byte_offset,
+            initial_copy,
+            rebound_copy,
+            ..
+        } => (
+            psi_operation,
+            dynamic_dispatch,
+            call_plan,
+            Some((result, result_home)),
+            descriptor_abi,
+            descriptor_home_byte_offset,
+            initial_copy,
+            rebound_copy,
+        ),
+        AssignedUnitOperation::DynamicUnitCall {
+            psi_operation,
+            dynamic_dispatch,
+            call_plan,
+            descriptor_abi,
+            descriptor_home_byte_offset,
+            initial_copy,
+            rebound_copy,
+            ..
+        } => (
+            psi_operation,
+            dynamic_dispatch,
+            call_plan,
+            None,
+            descriptor_abi,
+            descriptor_home_byte_offset,
+            initial_copy,
+            rebound_copy,
+        ),
+        _ => unreachable!("dynamic-call router supplied another operation"),
     };
-    let invalid = || EmissionError::InvalidDynamicScalarCallCustody(*psi_operation);
-    if !matches!(
-        result.scalar_type,
-        psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_)
-    ) {
-        return Err(invalid());
-    }
-    if result.scalar_type != result_home.scalar_type
-        || result.value != result_home.source_value
-        || result_home.defining_operation != *psi_operation
-        || !dynamic_dispatch.has_complete_application_custody(owner, *psi_operation)
-        || call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_home.shape)
+    let invalid = || EmissionError::InvalidDynamicCallCustody(*psi_operation);
+    if result.is_some_and(|(result, result_home)| {
+        !matches!(
+            result.scalar_type,
+            psi_core::ScalarType::Boolean | psi_core::ScalarType::Integer(_)
+        ) || result.scalar_type != result_home.scalar_type
+            || result.value != result_home.source_value
+            || result_home.defining_operation != *psi_operation
+    }) || !dynamic_dispatch.has_complete_application_custody(owner, *psi_operation)
+        || call_plan.result.as_ref().map(|placement| placement.shape)
+            != result.map(|(_, home)| home.shape)
         || call_plan.parameters.as_slice() != std::slice::from_ref(&initial_copy.destination)
         || initial_copy.destination != rebound_copy.destination
         || initial_copy.shape != rebound_copy.shape
@@ -97,6 +133,33 @@ pub(super) fn emit_dynamic_scalar_call(
                     )
         })
         .ok_or_else(invalid)?;
+    let selected_callable = dynamic_dispatch
+        .application
+        .realization_callables
+        .iter()
+        .find(|callable| {
+            callable.machine == dynamic_dispatch.dispatch.realization
+                && callable.source_callable_identity
+                    == dynamic_dispatch.dispatch.realization_callable_identity
+        })
+        .ok_or_else(invalid)?;
+    let emitted_result = result.map(|(result, _)| result.scalar_type);
+    let callable_result_matches = match (selected_callable.result, emitted_result) {
+        (psi_terminal::ClosedConformanceCallableResult::Unit, None) => true,
+        (
+            psi_terminal::ClosedConformanceCallableResult::I32,
+            Some(psi_core::ScalarType::Integer(integer)),
+        ) => psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+            .is_ok_and(|expected| integer == expected),
+        (
+            psi_terminal::ClosedConformanceCallableResult::Bool,
+            Some(psi_core::ScalarType::Boolean),
+        ) => true,
+        _ => false,
+    };
+    if !callable_result_matches {
+        return Err(invalid());
+    }
     if dynamic_dispatch
         .application
         .realization_callables
@@ -148,7 +211,6 @@ pub(super) fn emit_dynamic_scalar_call(
             initial_copy,
             rebound_copy,
             call_plan,
-            *result_home,
             selected_table_byte_offset,
             dynamic_dispatch.initial.ordinal,
             dynamic_dispatch.rebound.ordinal,
@@ -161,21 +223,24 @@ pub(super) fn emit_dynamic_scalar_call(
             initial_copy,
             rebound_copy,
             call_plan,
-            *result_home,
             selected_table_byte_offset,
             dynamic_dispatch.initial.ordinal,
             dynamic_dispatch.rebound.ordinal,
             aarch64_homes,
         )?,
     };
-    let result_record = emit_unit_scalar_result(
-        bytes,
-        target.architecture,
-        *psi_operation,
-        call_plan,
-        *result_home,
-    )?;
-    Ok(DynamicScalarCallRecord {
+    let result_record = result
+        .map(|(_, result_home)| {
+            emit_unit_scalar_result(
+                bytes,
+                target.architecture,
+                *psi_operation,
+                call_plan,
+                *result_home,
+            )
+        })
+        .transpose()?;
+    Ok(DynamicCallRecord {
         psi_operation: *psi_operation,
         dynamic_dispatch: dynamic_dispatch.clone(),
         call_plan: call_plan.clone(),
@@ -224,7 +289,6 @@ fn emit_x86_64_dynamic_call(
     initial: &AssignedAggregateCopy,
     rebound: &AssignedAggregateCopy,
     call_plan: &omega_calling_conventions::CallPlan,
-    _result_home: AssignedUnitScalarHome,
     selected_table_byte_offset: u32,
     initial_selection_ordinal: u32,
     rebound_selection_ordinal: u32,
@@ -305,7 +369,7 @@ fn emit_x86_64_dynamic_call(
         Some((offset, bytes.len() - offset))
     };
     if call_plan.parameters.as_slice() != std::slice::from_ref(&rebound.destination) {
-        return Err(EmissionError::InvalidDynamicScalarCallCustody(operation));
+        return Err(EmissionError::InvalidDynamicCallCustody(operation));
     }
     Ok((
         initial_instance,
@@ -382,7 +446,6 @@ fn emit_aarch64_dynamic_call(
     initial: &AssignedAggregateCopy,
     rebound: &AssignedAggregateCopy,
     call_plan: &omega_calling_conventions::CallPlan,
-    _result_home: AssignedUnitScalarHome,
     selected_table_byte_offset: u32,
     initial_selection_ordinal: u32,
     rebound_selection_ordinal: u32,
@@ -475,7 +538,7 @@ fn emit_aarch64_dynamic_call(
         Some((offset, 4))
     };
     if call_plan.parameters.as_slice() != std::slice::from_ref(&rebound.destination) {
-        return Err(EmissionError::InvalidDynamicScalarCallCustody(operation));
+        return Err(EmissionError::InvalidDynamicCallCustody(operation));
     }
     Ok((
         initial_instance,

@@ -2,7 +2,7 @@
 
 use super::super::shared::*;
 use super::boundary_call::lower_boundary_call;
-use super::dynamic_scalar::lower_dynamic_scalar_call;
+use super::dynamic::lower_dynamic_scalar_call;
 use super::scalar_call::KnownUnitInteger;
 use super::scalar_definitions::lower_integer_constant;
 use super::structural_scalar::lower_dynamic_argument_scalar_call;

@@ -371,7 +371,7 @@ fn emit_function(
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
     let mut installed_provider_unit_scalar_calls = Vec::new();
-    let mut dynamic_scalar_calls = Vec::new();
+    let mut dynamic_calls = Vec::new();
     let mut dynamic_parameter_scalar_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_scalar_homes = Vec::new();
@@ -420,6 +420,7 @@ fn emit_function(
                     place: parameter.place,
                     structural_type: parameter.structural_type,
                     multiplicity: parameter.multiplicity,
+                    access: parameter.access,
                     shape: parameter.shape,
                 })
                 .collect();
@@ -429,6 +430,7 @@ fn emit_function(
                     place: parameter.place,
                     structural_type: parameter.structural_type,
                     multiplicity: parameter.multiplicity,
+                    access: parameter.access,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
                     byte_offset: 0,
@@ -445,7 +447,7 @@ fn emit_function(
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
-            dynamic_scalar_calls = emitted.dynamic_scalar_calls;
+            dynamic_calls = emitted.dynamic_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
@@ -485,7 +487,7 @@ fn emit_function(
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
-            dynamic_scalar_calls = emitted.dynamic_scalar_calls;
+            dynamic_calls = emitted.dynamic_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
@@ -579,6 +581,7 @@ fn emit_function(
                     place: parameter.place,
                     structural_type: parameter.structural_type,
                     multiplicity: parameter.multiplicity,
+                    access: parameter.access,
                     shape: parameter.shape,
                 })
                 .collect();
@@ -588,6 +591,7 @@ fn emit_function(
                     place: parameter.place,
                     structural_type: parameter.structural_type,
                     multiplicity: parameter.multiplicity,
+                    access: parameter.access,
                     shape: parameter.shape,
                     source: parameter.placement.clone(),
                     byte_offset: 0,
@@ -694,7 +698,7 @@ fn emit_function(
             internal_unit_calls = emitted.internal_unit_calls;
             internal_unit_scalar_calls = emitted.internal_unit_scalar_calls;
             installed_provider_unit_scalar_calls = emitted.installed_provider_unit_scalar_calls;
-            dynamic_scalar_calls = emitted.dynamic_scalar_calls;
+            dynamic_calls = emitted.dynamic_calls;
             forwarded_dynamic_descriptor_calls = emitted.forwarded_dynamic_descriptor_calls;
             unit_scalar_homes = emitted.scalar_homes;
             unit_integer_constants = emitted.integer_constants;
@@ -1091,6 +1095,7 @@ fn emit_function(
                 place: parameter.place,
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
+                access: parameter.access,
                 shape: parameter.shape,
             })
             .collect();
@@ -1101,6 +1106,7 @@ fn emit_function(
                 place: parameter.place,
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
+                access: parameter.access,
                 shape: parameter.shape,
                 source: parameter.placement.clone(),
                 byte_offset: 0,
@@ -1156,7 +1162,7 @@ fn emit_function(
         internal_unit_calls,
         internal_unit_scalar_calls,
         installed_provider_unit_scalar_calls,
-        dynamic_scalar_calls,
+        dynamic_calls,
         dynamic_parameter_scalar_calls,
         forwarded_dynamic_descriptor_calls,
         unit_scalar_homes,
@@ -1403,8 +1409,7 @@ pub enum EmissionError {
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),
-    InvalidDynamicScalarCallCustody(psi_core::OperationId),
-    UnsupportedDynamicUnitDispatch(psi_core::OperationId),
+    InvalidDynamicCallCustody(psi_core::OperationId),
     InvalidDynamicParameterScalarCallCustody(psi_core::OperationId),
     UnsupportedUnitScalarType(ValueId),
     UnsupportedAggregatePlacement,

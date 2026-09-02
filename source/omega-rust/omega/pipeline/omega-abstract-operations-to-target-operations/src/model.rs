@@ -180,7 +180,7 @@ pub enum LoweringError {
         result: ValueId,
     },
     UnitScalarCallTargetAbiMismatch(MachineId),
-    InvalidDynamicScalarDispatch {
+    InvalidDynamicDispatch {
         machine: MachineId,
         operation: OperationId,
     },

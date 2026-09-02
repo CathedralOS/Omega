@@ -131,13 +131,13 @@ pub struct MachineCodeFunction {
     /// completion authority survive object replay.
     pub installed_provider_unit_scalar_calls: Vec<InstalledProviderUnitScalarCallRecord>,
     /// Complete descriptor, table-address, receiver-copy, and indirect-call
-    /// custody for rebound named-dynamic scalar calls in attached Unit bodies.
+    /// custody for rebound named-dynamic calls in attached Unit bodies.
     /// The table contents remain semantic demands until object construction
     /// binds every canonical row to an exact function symbol.
-    pub dynamic_scalar_calls: Vec<DynamicScalarCallRecord>,
+    pub dynamic_calls: Vec<DynamicCallRecord>,
     /// Complete semantic, ABI, register, slot, stack, and byte custody for
     /// scalar calls through an existential descriptor received as a function
-    /// parameter. Unlike `dynamic_scalar_calls`, these rows do not materialize
+    /// parameter. Unlike `dynamic_calls`, these rows do not materialize
     /// or relocate a table: the caller supplies both descriptor words.
     pub dynamic_parameter_scalar_calls: Vec<DynamicParameterScalarCallRecord>,
     /// Complete caller-side materialization and direct-call custody for
@@ -322,11 +322,14 @@ pub struct DynamicInstanceMaterializationRecord {
 /// immutable bytes around every symbolic field, and materialize the complete
 /// table rather than only the selected row.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DynamicScalarCallRecord {
+pub struct DynamicCallRecord {
     pub psi_operation: OperationId,
     pub dynamic_dispatch: AbstractReboundDynamicDispatch,
     pub call_plan: CallPlan,
-    pub result: InternalUnitScalarCallResultRecord,
+    /// Present only for scalar-result requirements. Unit requirements retain
+    /// the same descriptor and indirect-call evidence without a synthetic
+    /// result record.
+    pub result: Option<InternalUnitScalarCallResultRecord>,
     pub descriptor_abi: DynamicTraitDescriptorAbiRecord,
     pub descriptor_home_byte_offset: u32,
     pub initial_instance: DynamicInstanceMaterializationRecord,
@@ -524,6 +527,7 @@ pub struct UnitParameterHomeRecord {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub multiplicity: psi_terminal::StructuralMultiplicity,
+    pub access: psi_terminal::StructuralAccess,
     pub shape: ValueShape,
     pub source: ValuePlacement,
     pub byte_offset: u32,
@@ -535,6 +539,7 @@ pub struct UnitParameterRecord {
     pub place: PlaceId,
     pub structural_type: StructuralTypeId,
     pub multiplicity: psi_terminal::StructuralMultiplicity,
+    pub access: psi_terminal::StructuralAccess,
     pub shape: ValueShape,
 }
 

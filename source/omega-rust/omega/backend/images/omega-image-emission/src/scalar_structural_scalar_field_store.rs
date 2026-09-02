@@ -51,10 +51,12 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
         || parameter.place != store.destination.place
         || parameter.structural_type != store.destination.structural_type
         || parameter.multiplicity != store.destination.multiplicity
+        || parameter.access != store.destination.access
         || parameter.shape.class != ValueClass::BorrowedReference
         || home.place != parameter.place
         || home.structural_type != parameter.structural_type
         || home.multiplicity != parameter.multiplicity
+        || home.access != parameter.access
         || home.shape != parameter.shape
         || !home.indirect
         || home.source != store.destination_placement

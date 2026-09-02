@@ -258,6 +258,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
+            access: parameter.access,
             shape: parameter.shape,
         })
         .collect::<Vec<_>>();
@@ -267,6 +268,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
+            access: parameter.access,
             shape: parameter.shape,
             source: parameter.placement.clone(),
             byte_offset: 0,
@@ -476,6 +478,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
+            access: parameter.access,
             shape: parameter.shape,
         })
         .collect::<Vec<_>>();
@@ -485,6 +488,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
             place: parameter.place,
             structural_type: parameter.structural_type,
             multiplicity: parameter.multiplicity,
+            access: parameter.access,
             shape: parameter.shape,
             source: parameter.placement.clone(),
             byte_offset: 0,
@@ -526,7 +530,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         internal_unit_calls: emitted.internal_unit_calls,
         internal_unit_scalar_calls: Vec::new(),
         installed_provider_unit_scalar_calls: Vec::new(),
-        dynamic_scalar_calls: Vec::new(),
+        dynamic_calls: Vec::new(),
         dynamic_parameter_scalar_calls: Vec::new(),
         forwarded_dynamic_descriptor_calls: Vec::new(),
         unit_scalar_homes: Vec::new(),

@@ -658,7 +658,7 @@ fn emit_x86_instance(
             .byte_offset
             .checked_add(argument.instance.source_byte_offset)
             .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-        super::dynamic_scalar::emit_x86_64_stack_address(bytes, register, source)?;
+        super::dynamic::emit_x86_64_stack_address(bytes, register, source)?;
     }
     Ok((
         home.byte_offset,

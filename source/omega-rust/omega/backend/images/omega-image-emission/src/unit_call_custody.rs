@@ -163,10 +163,12 @@ pub(super) fn validate_mixed_structural_scalar_abi(
                 parameter.place != retained.place
                     || parameter.structural_type != retained.structural_type
                     || parameter.multiplicity != retained.multiplicity
+                    || parameter.access != retained.access
                     || parameter.shape != retained.shape
                     || home.place != retained.place
                     || home.structural_type != retained.structural_type
                     || home.multiplicity != retained.multiplicity
+                    || home.access != retained.access
                     || home.shape != retained.shape
                     || home.source != retained.placement
                     || home.byte_offset != 0

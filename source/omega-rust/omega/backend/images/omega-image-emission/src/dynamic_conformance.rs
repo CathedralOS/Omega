@@ -2,7 +2,7 @@
 
 use omega_calling_conventions::ValueLocation;
 use omega_machine_code::{
-    DynamicInstanceMaterializationRecord, DynamicScalarCallRecord, DynamicTableAddressEncoding,
+    DynamicCallRecord, DynamicInstanceMaterializationRecord, DynamicTableAddressEncoding,
     MachineCodeFunction, SemanticCodeSite,
 };
 use omega_target::{Architecture, NativeTarget};
@@ -13,7 +13,7 @@ use super::unit_scalar_call_custody::expected_unit_scalar_result_bytes;
 use super::unit_stack::validate_stack_adjustment_pair;
 use super::{ObjectError, ObjectUnitStack};
 
-pub(super) fn validate_dynamic_scalar_calls(
+pub(super) fn validate_dynamic_calls(
     target: NativeTarget,
     function: &MachineCodeFunction,
     machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
@@ -22,8 +22,8 @@ pub(super) fn validate_dynamic_scalar_calls(
     let mut previous_end = None;
     let mut operations = std::collections::BTreeSet::new();
     let mut peak = function_stack.map_or(0, |stack| stack.frame_bytes);
-    for call in &function.dynamic_scalar_calls {
-        let invalid = || ObjectError::InvalidDynamicScalarCallEvidence {
+    for call in &function.dynamic_calls {
+        let invalid = || ObjectError::InvalidDynamicCallEvidence {
             caller: function.machine,
             operation: call.psi_operation,
         };
@@ -57,11 +57,14 @@ pub(super) fn validate_dynamic_scalar_calls(
             || call.descriptor_abi.total_byte_size != 16
             || call.descriptor_abi.byte_alignment != 8
             || call.descriptor_home_byte_offset % 8 != 0
-            || call.result.home.defining_operation != call.psi_operation
-            || call.call_plan.result.as_ref() != Some(&call.result.source)
+            || call.result.as_ref().is_some_and(|result| {
+                result.home.defining_operation != call.psi_operation
+                    || call.call_plan.result.as_ref() != Some(&result.source)
+                    || !function.unit_scalar_homes.contains(&result.home)
+            })
+            || call.result.is_none() != call.call_plan.result.is_none()
             || call.call_plan.parameters.as_slice()
                 != std::slice::from_ref(&call.argument.destination)
-            || !function.unit_scalar_homes.contains(&call.result.home)
         {
             return Err(invalid());
         }
@@ -92,7 +95,23 @@ pub(super) fn validate_dynamic_scalar_calls(
             .ok()
             .and_then(|row| row.checked_mul(8))
             .ok_or_else(invalid)?;
-        if selected_offset != call.selected_table_byte_offset
+        let selected_callable = call
+            .dynamic_dispatch
+            .application
+            .realization_callables
+            .iter()
+            .find(|callable| {
+                callable.machine == call.dynamic_dispatch.dispatch.realization
+                    && callable.source_callable_identity
+                        == call.dynamic_dispatch.dispatch.realization_callable_identity
+            })
+            .ok_or_else(invalid)?;
+        let result_matches = dynamic_result_matches(
+            selected_callable.result,
+            call.result.as_ref().map(|result| result.home.scalar_type),
+        );
+        if !result_matches
+            || selected_offset != call.selected_table_byte_offset
             || machine_functions
                 .get(&call.dynamic_dispatch.dispatch.realization)
                 .is_none()
@@ -122,19 +141,20 @@ pub(super) fn validate_dynamic_scalar_calls(
         validate_table_address(target, function, call)?;
         validate_argument(target, function, call)?;
         validate_indirect_call(target, function, call)?;
-        let expected_result =
-            expected_unit_scalar_result_bytes(target, &call.result).ok_or_else(invalid)?;
-        let result_end = call
-            .result
-            .code_offset
-            .checked_add(call.result.byte_count)
-            .ok_or_else(invalid)?;
-        if call.result.byte_count != expected_result.len()
-            || function.bytes.get(call.result.code_offset..result_end)
-                != Some(expected_result.as_slice())
-            || result_end != operation_end
-        {
-            return Err(invalid());
+        if let Some(result) = &call.result {
+            let expected_result =
+                expected_unit_scalar_result_bytes(target, result).ok_or_else(invalid)?;
+            let result_end = result
+                .code_offset
+                .checked_add(result.byte_count)
+                .ok_or_else(invalid)?;
+            if result.byte_count != expected_result.len()
+                || function.bytes.get(result.code_offset..result_end)
+                    != Some(expected_result.as_slice())
+                || result_end != operation_end
+            {
+                return Err(invalid());
+            }
         }
         let stack = function_stack.ok_or_else(invalid)?;
         let native_call_end = call
@@ -152,7 +172,10 @@ pub(super) fn validate_dynamic_scalar_calls(
                 outbound,
             )?;
             if outbound.release_offset != native_call_end
-                || call.result.code_offset
+                || call
+                    .result
+                    .as_ref()
+                    .map_or(operation_end, |result| result.code_offset)
                     != outbound
                         .release_offset
                         .checked_add(outbound.release_byte_count)
@@ -162,7 +185,11 @@ pub(super) fn validate_dynamic_scalar_calls(
             }
             outbound.byte_size
         } else if target.architecture == Architecture::Aarch64
-            && call.result.code_offset == native_call_end
+            && call
+                .result
+                .as_ref()
+                .map_or(operation_end, |result| result.code_offset)
+                == native_call_end
         {
             0
         } else {
@@ -187,14 +214,59 @@ pub(super) fn validate_dynamic_scalar_calls(
     Ok(peak)
 }
 
+fn dynamic_result_matches(
+    expected: psi_terminal::ClosedConformanceCallableResult,
+    actual: Option<psi_core::ScalarType>,
+) -> bool {
+    match (expected, actual) {
+        (psi_terminal::ClosedConformanceCallableResult::Unit, None) => true,
+        (
+            psi_terminal::ClosedConformanceCallableResult::I32,
+            Some(psi_core::ScalarType::Integer(integer)),
+        ) => psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+            .is_ok_and(|expected| integer == expected),
+        (
+            psi_terminal::ClosedConformanceCallableResult::Bool,
+            Some(psi_core::ScalarType::Boolean),
+        ) => true,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod result_class_tests {
+    use super::dynamic_result_matches;
+
+    #[test]
+    fn unit_and_scalar_result_classes_are_not_substitutable() {
+        use psi_terminal::ClosedConformanceCallableResult::{Bool, I32, Unit};
+
+        let i32_type = psi_core::ScalarType::Integer(
+            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap(),
+        );
+        assert!(dynamic_result_matches(Unit, None));
+        assert!(dynamic_result_matches(I32, Some(i32_type)));
+        assert!(dynamic_result_matches(
+            Bool,
+            Some(psi_core::ScalarType::Boolean)
+        ));
+        assert!(!dynamic_result_matches(Unit, Some(i32_type)));
+        assert!(!dynamic_result_matches(I32, None));
+        assert!(!dynamic_result_matches(
+            I32,
+            Some(psi_core::ScalarType::Boolean)
+        ));
+    }
+}
+
 fn validate_instance(
     target: NativeTarget,
     function: &MachineCodeFunction,
-    call: &DynamicScalarCallRecord,
+    call: &DynamicCallRecord,
     record: &DynamicInstanceMaterializationRecord,
     selection: &psi_terminal::TerminalDynamicConformanceSelection,
 ) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidDynamicScalarCallEvidence {
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
         caller: function.machine,
         operation: call.psi_operation,
     };
@@ -270,9 +342,9 @@ fn expected_instance_bytes(
 fn validate_table_address(
     target: NativeTarget,
     function: &MachineCodeFunction,
-    call: &DynamicScalarCallRecord,
+    call: &DynamicCallRecord,
 ) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidDynamicScalarCallEvidence {
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
         caller: function.machine,
         operation: call.psi_operation,
     };
@@ -343,9 +415,9 @@ fn validate_table_address(
 fn validate_argument(
     target: NativeTarget,
     function: &MachineCodeFunction,
-    call: &DynamicScalarCallRecord,
+    call: &DynamicCallRecord,
 ) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidDynamicScalarCallEvidence {
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
         caller: function.machine,
         operation: call.psi_operation,
     };
@@ -521,9 +593,9 @@ fn expected_argument_bytes(
 fn validate_indirect_call(
     target: NativeTarget,
     function: &MachineCodeFunction,
-    call: &DynamicScalarCallRecord,
+    call: &DynamicCallRecord,
 ) -> Result<(), ObjectError> {
-    let invalid = || ObjectError::InvalidDynamicScalarCallEvidence {
+    let invalid = || ObjectError::InvalidDynamicCallEvidence {
         caller: function.machine,
         operation: call.psi_operation,
     };

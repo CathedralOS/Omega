@@ -22,14 +22,14 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
 use psi_core::{MachineId, OperationId};
 
+mod dynamic;
 mod dynamic_argument;
-mod dynamic_scalar;
 mod installed_provider;
 mod scalar_call;
 pub(crate) mod structural_scalar;
 
+use dynamic::emit_dynamic_call;
 use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
-use dynamic_scalar::emit_dynamic_scalar_call;
 use installed_provider::emit_installed_provider_scalar_call;
 use scalar_call::emit_unit_scalar_call;
 use structural_scalar::{
@@ -64,7 +64,7 @@ pub(super) struct UnitEmission {
     pub(super) internal_unit_scalar_calls: Vec<InternalUnitScalarCallRecord>,
     pub(super) installed_provider_unit_scalar_calls:
         Vec<omega_machine_code::InstalledProviderUnitScalarCallRecord>,
-    pub(super) dynamic_scalar_calls: Vec<omega_machine_code::DynamicScalarCallRecord>,
+    pub(super) dynamic_calls: Vec<omega_machine_code::DynamicCallRecord>,
     pub(super) forwarded_dynamic_descriptor_calls:
         Vec<omega_machine_code::ForwardedDynamicDescriptorCallRecord>,
     pub(super) scalar_homes: Vec<UnitScalarHomeRecord>,
@@ -739,7 +739,7 @@ pub(super) fn emit_unit_body(
     let mut internal_unit_calls = Vec::new();
     let mut internal_unit_scalar_calls = Vec::new();
     let mut installed_provider_unit_scalar_calls = Vec::new();
-    let mut dynamic_scalar_calls = Vec::new();
+    let mut dynamic_calls = Vec::new();
     let mut forwarded_dynamic_descriptor_calls = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_affine_scalar_records = Vec::new();
@@ -817,6 +817,7 @@ pub(super) fn emit_unit_body(
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity: parameter.multiplicity,
+                        access: parameter.access,
                         shape: parameter.shape,
                         source: parameter.placement.clone(),
                         byte_offset: home.byte_offset,
@@ -889,6 +890,7 @@ pub(super) fn emit_unit_body(
                         place: parameter.place,
                         structural_type: parameter.structural_type,
                         multiplicity: parameter.multiplicity,
+                        access: parameter.access,
                         shape: parameter.shape,
                         source: parameter.placement.clone(),
                         byte_offset: home.byte_offset,
@@ -1318,13 +1320,12 @@ pub(super) fn emit_unit_body(
                     code_offset,
                 )?);
             }
-            AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
+            AssignedUnitOperation::DynamicScalarCall { psi_operation, .. }
+            | AssignedUnitOperation::DynamicUnitCall { psi_operation, .. } => {
                 operation_site = Some(*psi_operation);
-                dynamic_scalar_calls.push(emit_dynamic_scalar_call(
+                dynamic_calls.push(emit_dynamic_call(
                     operation,
-                    owner.ok_or(EmissionError::InvalidDynamicScalarCallCustody(
-                        *psi_operation,
-                    ))?,
+                    owner.ok_or(EmissionError::InvalidDynamicCallCustody(*psi_operation))?,
                     target,
                     functions,
                     &x86_homes,
@@ -1333,11 +1334,6 @@ pub(super) fn emit_unit_body(
                     operation_ordinal,
                     code_offset,
                 )?);
-            }
-            AssignedUnitOperation::DynamicUnitCall { psi_operation, .. } => {
-                return Err(EmissionError::UnsupportedDynamicUnitDispatch(
-                    *psi_operation,
-                ));
             }
             AssignedUnitOperation::ConditionalIntegerEqual {
                 psi_operation,
@@ -2344,7 +2340,7 @@ pub(super) fn emit_unit_body(
         internal_unit_calls,
         internal_unit_scalar_calls,
         installed_provider_unit_scalar_calls,
-        dynamic_scalar_calls,
+        dynamic_calls,
         forwarded_dynamic_descriptor_calls,
         scalar_homes,
         integer_constants: unit_integer_constants,
@@ -2393,6 +2389,7 @@ pub(super) fn emit_unit_body(
                 place: parameter.place,
                 structural_type: parameter.structural_type,
                 multiplicity: parameter.multiplicity,
+                access: parameter.access,
                 shape: parameter.shape,
             })
             .collect(),
@@ -2926,12 +2923,28 @@ fn validate_assigned_unit_frame(
                 descriptor_home_byte_offset,
                 ..
             } => {
-                validate_dynamic_scalar_frame_region(
+                validate_dynamic_frame_region(
                     cursor,
                     *psi_operation,
                     *descriptor_abi,
                     *descriptor_home_byte_offset,
-                    *result_home,
+                    Some(*result_home),
+                    target,
+                )?;
+                None
+            }
+            AssignedUnitOperation::DynamicUnitCall {
+                psi_operation,
+                descriptor_abi,
+                descriptor_home_byte_offset,
+                ..
+            } => {
+                validate_dynamic_frame_region(
+                    cursor,
+                    *psi_operation,
+                    *descriptor_abi,
+                    *descriptor_home_byte_offset,
+                    None,
                     target,
                 )?;
                 None
@@ -2945,7 +2958,7 @@ fn validate_assigned_unit_frame(
         if home.byte_offset != *cursor {
             return Err(match operation {
                 AssignedUnitOperation::DynamicScalarCall { psi_operation, .. } => {
-                    EmissionError::InvalidDynamicScalarCallCustody(*psi_operation)
+                    EmissionError::InvalidDynamicCallCustody(*psi_operation)
                 }
                 _ => EmissionError::InvalidUnitScalarCallCustody(home.defining_operation),
             });
@@ -2957,15 +2970,15 @@ fn validate_assigned_unit_frame(
     Ok(())
 }
 
-fn validate_dynamic_scalar_frame_region(
+fn validate_dynamic_frame_region(
     cursor: &mut u32,
     operation: psi_core::OperationId,
     descriptor_abi: omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi,
     descriptor_home_byte_offset: u32,
-    result_home: AssignedUnitScalarHome,
+    result_home: Option<AssignedUnitScalarHome>,
     target: NativeTarget,
 ) -> Result<(), EmissionError> {
-    let invalid = || EmissionError::InvalidDynamicScalarCallCustody(operation);
+    let invalid = || EmissionError::InvalidDynamicCallCustody(operation);
     let pointer_size = u32::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u32::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let descriptor_size = pointer_size.checked_mul(2).ok_or_else(invalid)?;
@@ -2985,18 +2998,20 @@ fn validate_dynamic_scalar_frame_region(
     *cursor = cursor
         .checked_add(descriptor_size)
         .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
-    *cursor = align_u32(*cursor, 8)?;
-    if result_home.defining_operation != operation || result_home.byte_offset != *cursor {
-        return Err(invalid());
+    if let Some(result_home) = result_home {
+        *cursor = align_u32(*cursor, 8)?;
+        if result_home.defining_operation != operation || result_home.byte_offset != *cursor {
+            return Err(invalid());
+        }
+        *cursor = cursor
+            .checked_add(8)
+            .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     }
-    *cursor = cursor
-        .checked_add(8)
-        .ok_or(EmissionError::UnitCallStackAreaNotEncodable)?;
     Ok(())
 }
 
 #[cfg(test)]
-mod dynamic_scalar_frame_tests {
+mod dynamic_frame_tests {
     use super::*;
 
     fn result_home(operation: psi_core::OperationId, byte_offset: u32) -> AssignedUnitScalarHome {
@@ -3019,17 +3034,32 @@ mod dynamic_scalar_frame_tests {
         );
         let mut cursor = 5;
 
-        validate_dynamic_scalar_frame_region(
+        validate_dynamic_frame_region(
             &mut cursor,
             operation,
             descriptor,
             8,
-            result_home(operation, 24),
+            Some(result_home(operation, 24)),
             target,
         )
         .expect("aligned descriptor and following result home must validate");
 
         assert_eq!(cursor, 32);
+    }
+
+    #[test]
+    fn dynamic_unit_descriptor_occupies_no_result_region() {
+        let operation = psi_core::OperationId::new(1).unwrap();
+        let target = omega_target::NativeTarget::linux_x64();
+        let descriptor = omega_assigned_target_operations::AssignedDynamicTraitDescriptorAbi::new(
+            0, 8, 8, 16, 8,
+        );
+        let mut cursor = 5;
+
+        validate_dynamic_frame_region(&mut cursor, operation, descriptor, 8, None, target)
+            .expect("aligned Unit descriptor must validate without a result region");
+
+        assert_eq!(cursor, 24);
     }
 
     #[test]
@@ -3043,15 +3073,15 @@ mod dynamic_scalar_frame_tests {
         let rejects = |descriptor, descriptor_offset, result| {
             let mut cursor = 5;
             assert_eq!(
-                validate_dynamic_scalar_frame_region(
+                validate_dynamic_frame_region(
                     &mut cursor,
                     operation,
                     descriptor,
                     descriptor_offset,
-                    result,
+                    Some(result),
                     target,
                 ),
-                Err(EmissionError::InvalidDynamicScalarCallCustody(operation))
+                Err(EmissionError::InvalidDynamicCallCustody(operation))
             );
         };
 

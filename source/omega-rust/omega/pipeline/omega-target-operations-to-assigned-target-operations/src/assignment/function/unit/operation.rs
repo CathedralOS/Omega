@@ -1,6 +1,5 @@
 use super::{
-    dynamic_argument, dynamic_scalar, foreign_call, installed_provider, scalar_call,
-    structural_scalar,
+    dynamic, dynamic_argument, foreign_call, installed_provider, scalar_call, structural_scalar,
 };
 use crate::assignment::shared::*;
 
@@ -406,7 +405,7 @@ pub(super) fn assign(
             rebound_argument,
             requirement_obligations,
             crash_continuations,
-        } => dynamic_scalar::assign(
+        } => dynamic::assign(
             machine,
             target,
             *psi_operation,
@@ -429,7 +428,7 @@ pub(super) fn assign(
             rebound_argument,
             requirement_obligations,
             crash_continuations,
-        } => dynamic_scalar::assign_unit(
+        } => dynamic::assign_unit(
             machine,
             target,
             *psi_operation,

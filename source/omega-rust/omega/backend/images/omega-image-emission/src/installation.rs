@@ -90,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 62;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 63;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -225,7 +225,7 @@ pub struct InstallationRecord {
     internal_unit_calls: Vec<InstalledInternalUnitCall>,
     internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
     dynamic_conformance_tables: Vec<InstalledDynamicConformanceTable>,
-    dynamic_scalar_calls: Vec<InstalledDynamicScalarCall>,
+    dynamic_calls: Vec<InstalledDynamicCall>,
     forwarded_dynamic_descriptor_adapters: Vec<InstalledForwardedDynamicDescriptorAdapter>,
     forwarded_dynamic_descriptor_tables: Vec<InstalledForwardedDynamicDescriptorTable>,
     forwarded_dynamic_descriptor_calls: Vec<InstalledForwardedDynamicDescriptorCall>,
@@ -294,8 +294,8 @@ impl InstallationRecord {
         &self.dynamic_conformance_tables
     }
 
-    pub fn dynamic_scalar_calls(&self) -> &[InstalledDynamicScalarCall] {
-        &self.dynamic_scalar_calls
+    pub fn dynamic_calls(&self) -> &[InstalledDynamicCall] {
+        &self.dynamic_calls
     }
 
     pub fn forwarded_dynamic_descriptor_adapters(
@@ -377,7 +377,7 @@ pub struct InstalledDynamicConformanceSlot {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct InstalledDynamicScalarCall {
+pub struct InstalledDynamicCall {
     pub machine: MachineId,
     pub operation: OperationId,
     pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
@@ -784,7 +784,7 @@ where
             })
             .collect(),
         dynamic_conformance_tables: installed_dynamic_conformance_tables(image),
-        dynamic_scalar_calls: installed_dynamic_scalar_calls(image)?,
+        dynamic_calls: installed_dynamic_calls(image)?,
         forwarded_dynamic_descriptor_adapters: installed_forwarded_dynamic_descriptor_adapters(
             image,
         ),
@@ -1021,7 +1021,7 @@ pub fn encode_installation_record(
     encode_dynamic_conformance_custody(
         &mut bytes,
         &record.dynamic_conformance_tables,
-        &record.dynamic_scalar_calls,
+        &record.dynamic_calls,
         &record.forwarded_dynamic_descriptor_adapters,
         &record.forwarded_dynamic_descriptor_tables,
         &record.forwarded_dynamic_descriptor_calls,
@@ -1057,7 +1057,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let internal_unit_scalar_calls = decode_internal_unit_scalar_calls(&mut reader)?;
     let (
         dynamic_conformance_tables,
-        dynamic_scalar_calls,
+        dynamic_calls,
         forwarded_dynamic_descriptor_adapters,
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
@@ -1083,7 +1083,7 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         internal_unit_calls,
         internal_unit_scalar_calls,
         dynamic_conformance_tables,
-        dynamic_scalar_calls,
+        dynamic_calls,
         forwarded_dynamic_descriptor_adapters,
         forwarded_dynamic_descriptor_tables,
         forwarded_dynamic_descriptor_calls,
@@ -1119,7 +1119,7 @@ pub fn validate_installation_record(
         || record.image_sections != installed_image_sections(image)
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
         || record.dynamic_conformance_tables != installed_dynamic_conformance_tables(image)
-        || record.dynamic_scalar_calls != installed_dynamic_scalar_calls(image)?
+        || record.dynamic_calls != installed_dynamic_calls(image)?
         || record.forwarded_dynamic_descriptor_adapters
             != installed_forwarded_dynamic_descriptor_adapters(image)
         || record.forwarded_dynamic_descriptor_tables
@@ -1312,17 +1312,17 @@ fn installed_dynamic_conformance_tables(
         .collect()
 }
 
-fn installed_dynamic_scalar_calls(
+fn installed_dynamic_calls(
     image: &ExecutableImage,
-) -> Result<Vec<InstalledDynamicScalarCall>, InstallationError> {
+) -> Result<Vec<InstalledDynamicCall>, InstallationError> {
     image
         .functions()
         .iter()
         .flat_map(|function| {
-            function.dynamic_scalar_calls.iter().map(|call| {
+            function.dynamic_calls.iter().map(|call| {
                 call.code_offset
                     .checked_add(function.text_offset)
-                    .map(|text_offset| InstalledDynamicScalarCall {
+                    .map(|text_offset| InstalledDynamicCall {
                         machine: function.machine,
                         operation: call.psi_operation,
                         application_commitment: call.dynamic_dispatch.application.commitment,
@@ -1702,7 +1702,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && record.internal_unit_calls.is_empty()
                 && record.internal_unit_scalar_calls.is_empty()
                 && record.dynamic_conformance_tables.is_empty()
-                && record.dynamic_scalar_calls.is_empty()
+                && record.dynamic_calls.is_empty()
                 && record.port_effects.is_empty()
                 && record.boundary_settlements.is_empty()
                 && record.semantic_code_attribution.len() == 9
@@ -1767,10 +1767,12 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                             parameter.place == retained.place
                                 && parameter.structural_type == retained.structural_type
                                 && parameter.multiplicity == retained.multiplicity
+                                && parameter.access == retained.access
                                 && parameter.shape == retained.shape
                                 && home.place == retained.place
                                 && home.structural_type == retained.structural_type
                                 && home.multiplicity == retained.multiplicity
+                                && home.access == retained.access
                                 && home.shape == retained.shape
                                 && home.source == retained.placement
                                 && home.byte_offset == 0
@@ -1806,6 +1808,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     parameter.place != home.place
                         || parameter.structural_type != home.structural_type
                         || parameter.multiplicity != home.multiplicity
+                        || parameter.access != home.access
                         || parameter.shape != home.shape
                 })
             || (!has_scalar_custody
@@ -1819,6 +1822,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     parameter.place != home.place
                         || parameter.structural_type != home.structural_type
                         || parameter.multiplicity != home.multiplicity
+                        || parameter.access != home.access
                         || parameter.shape != home.shape
                 })
         {
@@ -1873,27 +1877,14 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .filter(|argument| argument.path.is_empty())
                 .map(|argument| argument.place)
                 .collect::<std::collections::BTreeSet<_>>();
-            let dynamic_borrowed_roots = record
-                .dynamic_scalar_calls
-                .iter()
-                .filter(|call| call.machine == function.machine)
-                .flat_map(|call| [call.initial_source, call.rebound_source])
-                .chain(
-                    record
-                        .forwarded_dynamic_descriptor_calls
-                        .iter()
-                        .filter(|call| call.machine == function.machine)
-                        .map(|call| call.source),
-                )
-                .collect::<std::collections::BTreeSet<_>>();
             let expected_parameter_discards = function
                 .unit_parameter_homes
                 .iter()
                 .rev()
                 .filter(|home| {
                     home.multiplicity == StructuralMultiplicity::Affine
+                        && home.access == psi_terminal::StructuralAccess::Owned
                         && !transferred_roots.contains(&home.place)
-                        && !dynamic_borrowed_roots.contains(&home.place)
                         && !fully_consumed_affine_pair
                 })
                 .map(|home| home.place)
@@ -3518,7 +3509,7 @@ fn validate_installed_dynamic_conformance(
     }
     if sections.data_byte_count == 0 {
         if !record.dynamic_conformance_tables.is_empty()
-            || !record.dynamic_scalar_calls.is_empty()
+            || !record.dynamic_calls.is_empty()
             || !record.forwarded_dynamic_descriptor_adapters.is_empty()
             || !record.forwarded_dynamic_descriptor_tables.is_empty()
             || !record.forwarded_dynamic_descriptor_calls.is_empty()
@@ -3659,30 +3650,30 @@ fn validate_installed_dynamic_conformance(
     let mut previous_call = None;
     let mut call_sites = std::collections::BTreeSet::new();
     let mut referenced_commitments = std::collections::BTreeSet::new();
-    for call in &record.dynamic_scalar_calls {
+    for call in &record.dynamic_calls {
         let function = functions
             .get(&call.machine)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+            .ok_or(InstallationError::InvalidDynamicCall(call.machine))?;
         let call_end = call
             .text_offset
             .checked_add(call.byte_count)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+            .ok_or(InstallationError::InvalidDynamicCall(call.machine))?;
         let function_end = function
             .text_offset
             .checked_add(function.byte_count)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+            .ok_or(InstallationError::InvalidDynamicCall(call.machine))?;
         let table = record
             .dynamic_conformance_tables
             .iter()
             .find(|table| table.application_commitment == call.application_commitment)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+            .ok_or(InstallationError::InvalidDynamicCall(call.machine))?;
         referenced_commitments.insert(call.application_commitment);
         let selected_index = usize::try_from(call.selected_table_byte_offset / 8)
-            .map_err(|_| InstallationError::InvalidDynamicScalarCall(call.machine))?;
+            .map_err(|_| InstallationError::InvalidDynamicCall(call.machine))?;
         let selected = table
             .slots
             .get(selected_index)
-            .ok_or(InstallationError::InvalidDynamicScalarCall(call.machine))?;
+            .ok_or(InstallationError::InvalidDynamicCall(call.machine))?;
         let order = (call.text_offset, call.machine, call.operation);
         if call.byte_count == 0
             || call.selected_table_byte_offset % 8 != 0
@@ -3700,7 +3691,7 @@ fn validate_installed_dynamic_conformance(
             || previous_call.is_some_and(|previous| previous >= order)
             || !call_sites.insert((call.machine, call.operation))
         {
-            return Err(InstallationError::InvalidDynamicScalarCall(call.machine));
+            return Err(InstallationError::InvalidDynamicCall(call.machine));
         }
         previous_call = Some(order);
     }
@@ -4232,7 +4223,7 @@ pub enum InstallationError {
     InvalidInternalUnitScalarCall(MachineId),
     InvalidImageSectionLayout,
     InvalidDynamicConformanceTable,
-    InvalidDynamicScalarCall(MachineId),
+    InvalidDynamicCall(MachineId),
     InvalidForwardedDynamicDescriptorAdapter,
     InvalidForwardedDynamicDescriptorTable,
     InvalidForwardedDynamicDescriptorCall(MachineId),
