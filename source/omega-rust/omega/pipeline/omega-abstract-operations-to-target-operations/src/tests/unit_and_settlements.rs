@@ -1,6 +1,76 @@
 use super::*;
 
 #[test]
+fn dynamic_unit_dispatch_stops_at_explicit_target_abi_fence() {
+    let machine = MachineId::new(71).unwrap();
+    let block = BlockId::new(72).unwrap();
+    let operation = OperationId::new(73).unwrap();
+    let parameter = psi_terminal::TerminalDynamicDescriptorParameter {
+        owner: machine,
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "test::Touch".into(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![psi_terminal::TerminalDynamicRequirement {
+            slot: 0,
+            declaring_trait_identity: "test::Touch".into(),
+            public_requirement_identity: "test::Touch::touch".into(),
+            result: psi_terminal::ClosedConformanceCallableResult::Unit,
+        }],
+    };
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::DynamicDescriptorParameter {
+                    parameter: parameter.clone(),
+                },
+                AbstractOperation::CallDynamicParameterUnit {
+                    psi_operation: operation,
+                    dynamic_dispatch: omega_abstract_operations::AbstractParameterDynamicDispatch {
+                        parameter,
+                        dispatch: psi_terminal::TerminalParameterDynamicDispatch {
+                            owner: machine,
+                            operation,
+                            parameter_ordinal: 0,
+                            requirement_slot: 0,
+                        },
+                    },
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(74).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+
+    assert_eq!(
+        lower_to_target_operations(&plan, NativeTarget::linux_x64()),
+        Err(LoweringError::UnsupportedDynamicUnitDispatch { machine, operation })
+    );
+}
+
+#[test]
 fn write_only_primitive_store_stops_at_explicit_physical_lowering_fence() {
     let machine = MachineId::new(61).unwrap();
     let block = BlockId::new(62).unwrap();

@@ -28,6 +28,27 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
+        O::CallUnitWithDynamicArguments {
+            psi_operation,
+            callee,
+            structural_arguments,
+            dynamic_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(59);
+            bytes.id(*psi_operation);
+            bytes.id(*callee);
+            bytes.slice(structural_arguments, encode_structural_argument);
+            bytes.slice(dynamic_arguments, encode_dynamic_descriptor_argument);
+            bytes.slice(claim_transfers, |bytes, transfer| {
+                bytes.id(transfer.claim);
+                bytes.u32(transfer.argument_index);
+            });
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
         O::CallStructuralScalar {
             psi_operation,
             result,
@@ -84,31 +105,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(52);
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
-            let encode_selection =
-                |bytes: &mut CanonicalBytes,
-                 selection: &psi_terminal::TerminalDynamicConformanceSelection| {
-                    bytes.id(selection.owner);
-                    bytes.u32(selection.ordinal);
-                    encode_structural_argument(bytes, &selection.source);
-                    bytes.u64(selection.conformance_application_report_fingerprint);
-                    bytes.bytes(&selection.conformance_application_commitment.as_bytes());
-                };
-            encode_selection(bytes, &dynamic_dispatch.initial);
-            encode_selection(bytes, &dynamic_dispatch.rebound);
-            bytes.id(dynamic_dispatch.descriptor.owner);
-            bytes.u32(dynamic_dispatch.descriptor.ordinal);
-            bytes.u32(dynamic_dispatch.descriptor.initial_selection_ordinal);
-            bytes.u32(dynamic_dispatch.descriptor.rebound_selection_ordinal);
-            encode_closed_conformance_application(bytes, &dynamic_dispatch.application);
-            bytes.id(dynamic_dispatch.dispatch.owner);
-            bytes.id(dynamic_dispatch.dispatch.operation);
-            bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
-            bytes.string(&dynamic_dispatch.dispatch.declaring_trait_identity);
-            bytes.string(&dynamic_dispatch.dispatch.public_requirement_identity);
-            bytes.string(&dynamic_dispatch.dispatch.requirement_identity);
-            bytes.string(&dynamic_dispatch.dispatch.realization_identity);
-            bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
-            bytes.id(dynamic_dispatch.dispatch.realization);
+            encode_rebound_dynamic_dispatch(bytes, dynamic_dispatch);
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
@@ -122,11 +119,31 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(53);
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
-            encode_dynamic_descriptor_parameter(bytes, &dynamic_dispatch.parameter);
-            bytes.id(dynamic_dispatch.dispatch.owner);
-            bytes.id(dynamic_dispatch.dispatch.operation);
-            bytes.u32(dynamic_dispatch.dispatch.parameter_ordinal);
-            bytes.u32(dynamic_dispatch.dispatch.requirement_slot);
+            encode_parameter_dynamic_dispatch(bytes, dynamic_dispatch);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
+        O::CallDynamicUnit {
+            psi_operation,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(57);
+            bytes.id(*psi_operation);
+            encode_rebound_dynamic_dispatch(bytes, dynamic_dispatch);
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+        }
+        O::CallDynamicParameterUnit {
+            psi_operation,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            bytes.u8(58);
+            bytes.id(*psi_operation);
+            encode_parameter_dynamic_dispatch(bytes, dynamic_dispatch);
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
@@ -215,6 +232,39 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         }
         _ => unreachable!("operation family routing admitted a non-call operation"),
     }
+}
+
+fn encode_rebound_dynamic_dispatch(
+    bytes: &mut CanonicalBytes,
+    dynamic_dispatch: &omega_abstract_operations::AbstractReboundDynamicDispatch,
+) {
+    encode_dynamic_selection(bytes, &dynamic_dispatch.initial);
+    encode_dynamic_selection(bytes, &dynamic_dispatch.rebound);
+    bytes.id(dynamic_dispatch.descriptor.owner);
+    bytes.u32(dynamic_dispatch.descriptor.ordinal);
+    bytes.u32(dynamic_dispatch.descriptor.initial_selection_ordinal);
+    bytes.u32(dynamic_dispatch.descriptor.rebound_selection_ordinal);
+    encode_closed_conformance_application(bytes, &dynamic_dispatch.application);
+    bytes.id(dynamic_dispatch.dispatch.owner);
+    bytes.id(dynamic_dispatch.dispatch.operation);
+    bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
+    bytes.string(&dynamic_dispatch.dispatch.declaring_trait_identity);
+    bytes.string(&dynamic_dispatch.dispatch.public_requirement_identity);
+    bytes.string(&dynamic_dispatch.dispatch.requirement_identity);
+    bytes.string(&dynamic_dispatch.dispatch.realization_identity);
+    bytes.string(&dynamic_dispatch.dispatch.realization_callable_identity);
+    bytes.id(dynamic_dispatch.dispatch.realization);
+}
+
+fn encode_parameter_dynamic_dispatch(
+    bytes: &mut CanonicalBytes,
+    dynamic_dispatch: &omega_abstract_operations::AbstractParameterDynamicDispatch,
+) {
+    encode_dynamic_descriptor_parameter(bytes, &dynamic_dispatch.parameter);
+    bytes.id(dynamic_dispatch.dispatch.owner);
+    bytes.id(dynamic_dispatch.dispatch.operation);
+    bytes.u32(dynamic_dispatch.dispatch.parameter_ordinal);
+    bytes.u32(dynamic_dispatch.dispatch.requirement_slot);
 }
 
 fn encode_dynamic_descriptor_argument(

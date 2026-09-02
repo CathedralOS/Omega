@@ -173,10 +173,13 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
         | O::CallUnit { .. }
+        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
+        | O::CallDynamicUnit { .. }
+        | O::CallDynamicParameterUnit { .. }
         | O::CallStructural { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }

@@ -47,10 +47,13 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishAffineScalarRecord { .. }
         | O::CallUnit { .. }
+        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
+        | O::CallDynamicUnit { .. }
+        | O::CallDynamicParameterUnit { .. }
         | O::CallStructural { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }

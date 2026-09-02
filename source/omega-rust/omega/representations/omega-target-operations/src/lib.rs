@@ -5,7 +5,7 @@
 
 pub use omega_abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
-    AbstractReboundDynamicScalarDispatch, AbstractResult, CompletionClaimSource,
+    AbstractReboundDynamicDispatch, AbstractResult, CompletionClaimSource,
     RankedU32CountdownCustody,
 };
 use omega_calling_conventions::{BoundaryEntryPlan, CallPlan, ValuePlacement, ValueShape};
@@ -823,7 +823,7 @@ pub enum TargetUnitOperation {
     DynamicScalarCall {
         psi_operation: OperationId,
         result: AbstractResult,
-        dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
         call_plan: CallPlan,
         result_home: TargetUnitScalarHomeRequirement,
         initial_argument: TargetStructuralArgument,

@@ -24,10 +24,13 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
 
         O::DynamicDescriptorParameter { .. }
         | O::CallUnit { .. }
+        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
+        | O::CallDynamicUnit { .. }
+        | O::CallDynamicParameterUnit { .. }
         | O::CallStructural { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }

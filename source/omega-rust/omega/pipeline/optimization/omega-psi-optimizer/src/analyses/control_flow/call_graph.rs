@@ -29,6 +29,11 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                     callee,
                     dynamic_arguments,
                     ..
+                }
+                | O::CallUnitWithDynamicArguments {
+                    callee,
+                    dynamic_arguments,
+                    ..
                 } => {
                     callees.push(*callee);
                     for argument in dynamic_arguments {
@@ -47,6 +52,9 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                     }
                 }
                 O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                }
+                | O::CallDynamicUnit {
                     dynamic_dispatch, ..
                 } => callees.push(dynamic_dispatch.dispatch.realization),
                 _ => {}

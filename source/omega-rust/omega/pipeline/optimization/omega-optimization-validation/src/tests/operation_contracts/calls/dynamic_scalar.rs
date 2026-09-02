@@ -60,7 +60,7 @@ fn dynamic_unit() -> omega_optimization_unit::PsiOptimizationUnit {
 
 fn dynamic_dispatch(
     unit: &mut omega_optimization_unit::PsiOptimizationUnit,
-) -> &mut omega_abstract_operations::AbstractReboundDynamicScalarDispatch {
+) -> &mut omega_abstract_operations::AbstractReboundDynamicDispatch {
     unit.functions
         .iter_mut()
         .find(|function| function.machine == unit.entry)

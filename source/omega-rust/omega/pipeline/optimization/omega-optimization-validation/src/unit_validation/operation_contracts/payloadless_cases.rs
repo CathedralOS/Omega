@@ -103,9 +103,13 @@ pub(crate) fn exact_payloadless_case_return_exits(
                     node.operation,
                     O::Call { .. }
                         | O::CallUnit { .. }
+                        | O::CallUnitWithDynamicArguments { .. }
                         | O::CallStructuralScalar { .. }
                         | O::CallStructuralScalarWithDynamicArguments { .. }
                         | O::CallDynamicScalar { .. }
+                        | O::CallDynamicParameterScalar { .. }
+                        | O::CallDynamicUnit { .. }
+                        | O::CallDynamicParameterUnit { .. }
                         | O::CallStructural { .. }
                         | O::BoundaryCall { .. }
                 )

@@ -1,6 +1,6 @@
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
 use omega_target_operations::{
-    AbstractDynamicDescriptorArgument, AbstractReboundDynamicScalarDispatch, AbstractResult,
+    AbstractDynamicDescriptorArgument, AbstractReboundDynamicDispatch, AbstractResult,
     BoundaryByteSequenceArgument, BoundaryRealization, BoundaryScalarArgument,
     CompletionClaimSource, FixedIntegerScalarAbiValue, MachineRegister, ProviderExecutionBinding,
     RankedU32CountdownCustody, TargetStructuralParameter,
@@ -316,7 +316,7 @@ pub enum AssignedUnitOperation {
     DynamicScalarCall {
         psi_operation: OperationId,
         result: AbstractResult,
-        dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
         call_plan: CallPlan,
         result_home: AssignedUnitScalarHome,
         descriptor_abi: AssignedDynamicTraitDescriptorAbi,

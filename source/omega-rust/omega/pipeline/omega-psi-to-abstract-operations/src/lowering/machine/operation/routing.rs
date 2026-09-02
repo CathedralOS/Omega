@@ -46,6 +46,8 @@ pub(super) fn lower(
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallDynamicParameterScalar { .. }
+        | OperationKind::CallDynamicUnit { .. }
+        | OperationKind::CallDynamicParameterUnit { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. }
         | OperationKind::BoundaryCall { .. } => calls::lower(
@@ -54,9 +56,6 @@ pub(super) fn lower(
             dynamic_dispatch,
             closed_conformance_applications,
         ),
-        OperationKind::CallDynamicUnit { .. } | OperationKind::CallDynamicParameterUnit { .. } => {
-            Err(LoweringError::UnsupportedDynamicUnitCall(operation.id))
-        }
         OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }

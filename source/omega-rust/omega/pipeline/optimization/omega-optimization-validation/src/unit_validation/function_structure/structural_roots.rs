@@ -88,10 +88,6 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             structural_arguments,
             ..
         }
-        | O::CallStructuralScalarWithDynamicArguments {
-            structural_arguments,
-            ..
-        }
         | O::CallStructural {
             structural_arguments,
             ..
@@ -103,7 +99,37 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             .iter()
             .map(|argument| argument.place)
             .collect(),
+        O::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            dynamic_arguments,
+            ..
+        }
+        | O::CallUnitWithDynamicArguments {
+            structural_arguments,
+            dynamic_arguments,
+            ..
+        } => {
+            let mut places = structural_arguments
+                .iter()
+                .map(|argument| argument.place)
+                .collect::<Vec<_>>();
+            for argument in dynamic_arguments {
+                if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    initial,
+                    rebound,
+                    ..
+                } = &argument.source
+                {
+                    places.push(initial.source.place);
+                    places.push(rebound.source.place);
+                }
+            }
+            places
+        }
         O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        }
+        | O::CallDynamicUnit {
             dynamic_dispatch, ..
         } => vec![
             dynamic_dispatch.initial.source.place,

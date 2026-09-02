@@ -9,7 +9,7 @@ pub(super) fn assign(
     target: NativeTarget,
     psi_operation: OperationId,
     result: omega_target_operations::AbstractResult,
-    dynamic_dispatch: &omega_target_operations::AbstractReboundDynamicScalarDispatch,
+    dynamic_dispatch: &omega_target_operations::AbstractReboundDynamicDispatch,
     call_plan: &omega_calling_conventions::CallPlan,
     result_requirement: omega_target_operations::TargetUnitScalarHomeRequirement,
     initial_argument: &omega_target_operations::TargetStructuralArgument,

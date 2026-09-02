@@ -98,6 +98,11 @@ pub(crate) fn validate_operation_places(
             structural_arguments,
             dynamic_arguments,
             ..
+        }
+        | O::CallUnitWithDynamicArguments {
+            structural_arguments,
+            dynamic_arguments,
+            ..
         } => {
             for argument in structural_arguments {
                 require(argument.place, known)?;
@@ -119,6 +124,9 @@ pub(crate) fn validate_operation_places(
         }
         O::IntegerStructuralField { source, .. } => require(source.place, known)?,
         O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        }
+        | O::CallDynamicUnit {
             dynamic_dispatch, ..
         } => {
             require(dynamic_dispatch.initial.source.place, known)?;
