@@ -444,7 +444,7 @@ those joins. The crate-level `lib.rs` is only the responsibility map between
 the two stages, not a hidden third coordinator.
 
 Immediately below the legalization entrance, `catalog.rs` is the sole ordered
-inventory for all twenty forms: fourteen scalar, one scalar-call Unit, one
+inventory for all twenty-one forms: fifteen scalar, one scalar-call Unit, one
 plain Unit, and four structural Unit. Each row names its typed recipe, producer
 matcher kind, exact source-shape constraints, non-authoritative structural
 cost, and independent validator kind. `source/matchers/` walks that catalog to
@@ -462,9 +462,12 @@ unsigned-`U64` functions with two distinct entry parameters and either
 `[IntegerLessOrEqual, Conditional]`, or the composite
 `[IntegerEqual, BooleanNot, Conditional]` in the entry block. A fifth exact
 candidate has two signed-`I64` entry parameters and
-`[IntegerLessThan, Conditional]`. Every candidate has one `U64` immediate
-return in each leaf. Legalization represents unsigned and signed ordering as
-distinct closed condition variants rather than inferring signedness from
+`[IntegerLessThan, Conditional]`. A sixth candidate has one unsigned-`U64`
+entry parameter and entry operations exactly
+`[IntegerConstant(U64, 0), IntegerEqual(parameter, zero), Conditional]`.
+Every candidate has one `U64` immediate return in each leaf. Legalization
+represents unsigned and signed ordering as distinct closed condition variants
+rather than inferring signedness from
 machine bits. Each simple comparison leaf retains its operation, result
 definition, exact parameter values, types, locations and definitions,
 provenance, and fuel through mirrored producer and replay rungs. The inequality
@@ -496,9 +499,17 @@ opposite successor mappings. Signed strict less-than instead owns
 true/less successor mapping while x86 emits `JL rel32` (or `JL rel8` only
 through explicit relaxation) and AArch64 emits `B.LT`. Signed and unsigned
 predicates have distinct selected, machine-effect, layout, encoding, and
-fragment identities. The compare-zero/CBNZ fusion remains inapplicable to all
-two-register forms because its exact producer still requires
-`CompareI64Zero` and nonzero control.
+fragment identities. The parameter-equals-zero family instead retains three
+virtual registers, folds the authored zero into `CompareI64Zero`, and maps
+nonzero to source false and zero to source true through the existing nonzero
+terminator. It adds no selected or ISA vocabulary. The compare-zero/CBNZ fusion
+remains inapplicable to every two-register form, while this exact one-parameter
+form makes it reachable only when
+`Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` is explicitly selected.
+Without that exact selection, AArch64 publication keeps baseline `CMP`/`B.NE`.
+When fusion is selected, the compare row remains a zero-byte semantic span;
+its original provenance and logical fuel settlements are still emitted and
+counted, while the fused branch retains only its own control provenance.
 
 Scalar source-leaf construction enters through a sub-100-line `derive_leaf`
 coordinator. It admits the common node and return envelope, visibly routes

@@ -9,20 +9,12 @@ mod integer_not_equal_parameters;
 mod integer_parameter_comparison;
 mod integer_parameter_not_equal;
 mod model;
+mod u64_equal_zero_parameter;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
+use model::ReplayLeaf;
 pub(in crate::legalization) use model::ReplayedCondition;
-
-type ReplayLeaf = for<'a> fn(
-    usize,
-    omega_target::Architecture,
-    &'a omega_target_operations::TargetFunction,
-    &omega_abstract_operations::AbstractFunction,
-    &omega_optimization_unit::PsiOptimizationFunction,
-    ValueId,
-    &LegalizedCondition,
-) -> Result<ReplayedCondition<'a>, LegalizationError>;
 
 pub(super) fn replay<'a>(
     function: usize,
@@ -38,6 +30,13 @@ pub(super) fn replay<'a>(
             TargetOperation::ReturnIntegerConditionalControl { .. },
             LegalizedCondition::DirectParameter { .. },
         ) => direct_parameter::replay,
+        (
+            TargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition: TargetBooleanExpression::IntegerEqual { .. },
+                ..
+            },
+            LegalizedCondition::U64EqualZeroParameterV1 { .. },
+        ) => u64_equal_zero_parameter::replay,
         (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition: TargetBooleanExpression::IntegerEqual { .. },

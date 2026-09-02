@@ -4,7 +4,9 @@ use super::projected_structural_call_return::encode_projected_structural_call_re
 use super::scalar_call_unit::encode_scalar_call_unit_function;
 use super::{
     plan::encode_structural_unit_function,
-    scalar::{encode_bindings, encode_definition_site, encode_leaf, encode_register},
+    scalar::{
+        encode_bindings, encode_definition_site, encode_immediate, encode_leaf, encode_register,
+    },
     shared::*,
 };
 
@@ -58,6 +60,7 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64IntegerLessOrEqualParametersConditionalV1 => 11,
             LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1 => 12,
             LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1 => 13,
+            LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1 => 14,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         match &function.condition {
@@ -171,6 +174,23 @@ pub(super) fn identity(
                     encode_register(&mut bytes, parameter.register);
                     encode_definition_site(&mut bytes, parameter.definition_site);
                 }
+            }
+            LegalizedCondition::U64EqualZeroParameterV1 {
+                operation,
+                result_definition_site,
+                fuel,
+                parameter,
+                zero,
+            } => {
+                bytes.push(0xfa);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+                encode_definition_site(&mut bytes, *result_definition_site);
+                encode_fuel(&mut bytes, fuel);
+                bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
+                bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
+                encode_register(&mut bytes, parameter.register);
+                encode_definition_site(&mut bytes, parameter.definition_site);
+                encode_immediate(&mut bytes, zero);
             }
         }
         bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());

@@ -1,15 +1,17 @@
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use omega_regalloc::LivenessIdentity;
+use omega_regalloc::{LivenessIdentity, LivenessPlan};
 use omega_register_model::{
     PhysicalRegisterModelIdentity, RegisterClassId, RegisterUnitId, RegisterViewId,
+    ValidatedPhysicalRegisterModel,
 };
 use omega_selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use omega_target::NativeTarget;
 use psi_core::{EdgeId, MachineId};
 
-use crate::PostAllocationMachineIdentity;
+use crate::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Aarch64CbnzFusionIdentity([u8; 32]);
@@ -186,6 +188,16 @@ impl Aarch64CbnzFusionReceipt {
 pub struct ValidatedAarch64CbnzFusion {
     plan: Aarch64CbnzFusionPlan,
     receipt: Aarch64CbnzFusionReceipt,
+}
+
+pub(crate) struct CbnzFusionInputs<'a> {
+    pub selected: &'a SelectedInstructionPlan,
+    pub selected_identity: SelectedInstructionPlanIdentity,
+    pub liveness: &'a LivenessPlan,
+    pub liveness_identity: LivenessIdentity,
+    pub source: &'a PostAllocationMachinePlan,
+    pub source_identity: PostAllocationMachineIdentity,
+    pub physical: &'a ValidatedPhysicalRegisterModel,
 }
 
 impl ValidatedAarch64CbnzFusion {

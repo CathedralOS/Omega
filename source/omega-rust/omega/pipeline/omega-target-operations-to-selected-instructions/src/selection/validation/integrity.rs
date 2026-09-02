@@ -230,6 +230,12 @@ pub(super) fn validate_provenance_partition(
     function: &SelectedFunction,
 ) -> Result<(), SelectedInstructionError> {
     let entry = &function.blocks[0];
+    let equal_zero_fuel = match &source.condition {
+        LegalizedCondition::U64EqualZeroParameterV1 { fuel, zero, .. } => {
+            zero.fuel.iter().chain(fuel).copied().collect::<Vec<_>>()
+        }
+        _ => Vec::new(),
+    };
     let (
         branch,
         first_successor,
@@ -254,6 +260,22 @@ pub(super) fn validate_provenance_partition(
             &[][..],
             source.branch_true_fuel.as_slice(),
             source.branch_false_fuel.as_slice(),
+        ),
+        (
+            LegalizedCondition::U64EqualZeroParameterV1 { .. },
+            SelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            },
+        ) => (
+            instruction,
+            when_nonzero,
+            when_zero,
+            equal_zero_fuel.as_slice(),
+            &[][..],
+            source.branch_false_fuel.as_slice(),
+            source.branch_true_fuel.as_slice(),
         ),
         (
             LegalizedCondition::IntegerEqualParametersV1 { fuel, .. },

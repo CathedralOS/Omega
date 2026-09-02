@@ -164,6 +164,15 @@ Selections remain exact even when rules share a phase. There are no broad
 profiles. Initially the physical pipeline admits only explicitly implemented
 compositions and rejects all others.
 
+Mandatory lowering may expose a machine-rule candidate without authorizing the
+rewrite. The exact unsigned-`U64` parameter-equals-zero conditional family, for
+example, lowers its authored zero and equality to `CompareI64Zero` plus
+nonzero control. AArch64 still publishes baseline `CMP`/`B.NE` when that
+machine rule is absent; only the separately named
+`Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` selection may replace that
+pair with `CBNZ`. This distinction lets source coverage grow without silently
+promoting a physical optimization.
+
 Psi analysis has one exact cyclic admission rather than a broad loop mode. The
 optimizer-only Terminal authority accepts ordinary acyclic input plus the
 existing unsigned-countdown ranked SCC. Verified-context validation separately

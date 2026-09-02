@@ -59,6 +59,7 @@ pub(super) fn validate_initial_roots(
         .map(|source| {
             let condition_inputs = match &source.condition {
                 LegalizedCondition::DirectParameter { .. } => 1,
+                LegalizedCondition::U64EqualZeroParameterV1 { .. } => 1,
                 LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
                 | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. }
                 | LegalizedCondition::IntegerLessOrEqualParametersV1 { left, right, .. }

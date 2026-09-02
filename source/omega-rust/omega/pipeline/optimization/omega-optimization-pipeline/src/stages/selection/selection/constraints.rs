@@ -41,6 +41,14 @@ pub(crate) fn selection_constraints(
                     );
                 }
             }
+            LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. } => push_fixed_input(
+                &mut fixed_inputs,
+                environment,
+                function.machine,
+                parameter.source_value,
+                parameter.parameter_index,
+                parameter.register,
+            ),
         }
         for arm in [&function.when_true, &function.when_false] {
             let LegalizedLeafValue::EntryParameter {

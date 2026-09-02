@@ -4,7 +4,7 @@ use omega_legalized_operations::{
     UnitLegalizationRecipe,
 };
 
-const EXPECTED_RECIPES: [LegalizationFormRecipe; 20] = [
+const EXPECTED_RECIPES: [LegalizationFormRecipe; 21] = [
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ImmediateConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EntryParameterConditionalV1),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1),
@@ -39,6 +39,7 @@ const EXPECTED_RECIPES: [LegalizationFormRecipe; 20] = [
         LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1,
     ),
     LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1),
+    LegalizationFormRecipe::Scalar(LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1),
     LegalizationFormRecipe::ScalarCallUnit(
         ScalarCallUnitLegalizationRecipe::U64EqualityConditionalThreeCallChainThenReturnUnitV1,
     ),
@@ -162,6 +163,60 @@ fn i64_less_than_catalog_row_freezes_the_exact_source_grammar() {
     assert_eq!(constraints.parameter_count, 2);
     assert_ne!(
         super::legalization_validator_identity(),
+        super::legalization_validator_identity_v17_legacy()
+    );
+}
+
+#[test]
+fn u64_equal_zero_catalog_row_freezes_the_exact_source_grammar() {
+    let row = legalization_form_for_recipe(LegalizationFormRecipe::Scalar(
+        LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1,
+    ))
+    .expect("U64 parameter-equals-zero catalog row");
+    let LegalizationShapeConstraints::Scalar(constraints) = row.constraints else {
+        panic!("scalar U64 parameter-equals-zero row")
+    };
+    assert_eq!(
+        constraints.condition,
+        ScalarConditionShape::U64EqualZeroParameter
+    );
+    assert_eq!(constraints.entry_node_count, 3);
+    assert_eq!(constraints.block_offsets, [0, 3, 5]);
+    assert_eq!(constraints.operation_count, 7);
+    assert_eq!(constraints.leaf_node_counts, [2, 2]);
+    assert_eq!(constraints.parameter_count, 1);
+    assert_eq!(
+        row.producer_matcher,
+        LegalizationProducerMatcherKind::Scalar(ScalarLegalizationMatcherKind::Immediate)
+    );
+    assert_eq!(
+        row.validator,
+        LegalizationValidatorKind::Scalar(ScalarLegalizationValidatorKind::Immediate)
+    );
+    assert_eq!(row.cost.projected_selected_instruction_count, 6);
+    assert_eq!(row.cost.introduced_temporary_count, 0);
+
+    let without_equal_zero = LEGALIZATION_FORMS
+        .iter()
+        .copied()
+        .filter(|candidate| candidate.recipe != row.recipe)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        legalization_form_for_recipe_in(&without_equal_zero, row.recipe),
+        None
+    );
+    let mut overlapping = LEGALIZATION_FORMS.to_vec();
+    overlapping.push(*row);
+    assert_eq!(
+        legalization_form_for_recipe_in(&overlapping, row.recipe),
+        None
+    );
+    assert_ne!(
+        super::legalization_validator_identity(),
+        super::legalization_validator_identity_v18_legacy()
+    );
+    assert_ne!(
+        super::legalization_validator_identity_v18_legacy(),
         super::legalization_validator_identity_v17_legacy()
     );
 }

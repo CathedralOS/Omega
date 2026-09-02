@@ -1095,6 +1095,29 @@ decision. Only true language-semantic questions belong in
     added. Producer/replay corruption, semantic boundary, cross-target
     selection, and Linux x64/AArch64 object and callable publication suites
     pin the exact grammar, custody, compare, and successor mapping.
+  - [x] Add exact unsigned-`U64` parameter-equals-zero conditional lowering
+    as the first real source route into compare-zero optimization. The admitted
+    grammar has one unqualified `U64` entry parameter; entry operations exactly
+    `[IntegerConstant(U64, 0), IntegerEqual(parameter, zero), Conditional]`;
+    and two `[IntegerConstant(U64), Return]` leaves. Legalization retains the
+    authored zero, equality definition, parameter ABI placement, provenance,
+    and independent fuel custody in recipe tag 14 and a distinct condition;
+    reversed operands, nonzero constants, signed values, attachments, block
+    parameters, nested expressions, and extra operations fail closed. Selected
+    construction removes the zero materialization and emits the established
+    `CompareI64Zero` plus `ConditionalBranchNonZero`, mapping nonzero to source
+    false and zero to source true, with three virtual registers and six
+    instructions. No selected, constraint, effect, allocator, layout, encoder,
+    object, or callable vocabulary changes. With no post-allocation machine
+    selection, AArch64 keeps baseline `CMP`/`B.NE`; only the existing named
+    `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` rule may produce `CBNZ`.
+    Fusion retains the elided compare as a zero-byte semantic span, so its
+    authored-zero/equality fuel settlements remain authenticated and counted
+    rather than being dropped or moved onto branch provenance.
+    Producer/replay, corruption, identity, cross-target selection, semantic
+    boundaries, and Linux object/callable publication cover the exact route;
+    legalized-plan and legalization-replay domains advance to V19 with V18
+    legacy identities retained.
   - [x] Add constant-widen-to-immediate as its own exact abstract-to-target
     family. Its independently reconstructed source grammar and target replay
     cover all 18 native fixed-integer widening relations and preserve the

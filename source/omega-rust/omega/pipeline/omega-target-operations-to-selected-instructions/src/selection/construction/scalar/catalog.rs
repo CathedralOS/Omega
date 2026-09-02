@@ -5,8 +5,8 @@ use crate::selection::shared::*;
 use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::{
     active_resident_exact_add_bridge_chain, active_resident_exact_add_chain,
-    active_resident_exact_add_original_victim_chain, comparison_immediate_pair, exact_binary_pair,
-    immediate_pair, parameter_pair,
+    active_resident_exact_add_original_victim_chain, comparison_immediate_pair,
+    equal_zero_immediate_pair, exact_binary_pair, immediate_pair, parameter_pair,
 };
 
 type CandidateClassifier = fn(&SourceFunction) -> bool;
@@ -22,6 +22,11 @@ struct ScalarFamilyDescriptor {
 }
 
 const SCALAR_FAMILIES: &[ScalarFamilyDescriptor] = &[
+    ScalarFamilyDescriptor::new(
+        "equal-zero-immediate-pair",
+        equal_zero_immediate_pair::is_candidate,
+        equal_zero_immediate_pair::build,
+    ),
     ScalarFamilyDescriptor::new(
         "comparison-immediate-pair",
         comparison_immediate_pair::is_candidate,
@@ -120,6 +125,22 @@ fn unique_match<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn catalog_keeps_equal_zero_distinct_and_first() {
+        let names = SCALAR_FAMILIES
+            .iter()
+            .map(|descriptor| descriptor.name)
+            .collect::<Vec<_>>();
+        assert_eq!(names[0], "equal-zero-immediate-pair");
+        assert_eq!(
+            names
+                .iter()
+                .filter(|name| **name == "equal-zero-immediate-pair")
+                .count(),
+            1
+        );
+    }
 
     #[test]
     fn omission_and_overlap_fail_closed() {

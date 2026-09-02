@@ -25,6 +25,7 @@ use super::catalog::ScalarConditionShape;
 use super::{LegalizationError, replay, source};
 
 mod i64_less_than;
+mod u64_equal_zero_parameter;
 
 struct Fixture {
     target: TargetFunction,
