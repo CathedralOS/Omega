@@ -18,4 +18,6 @@ Beta-authored evaluator covers the core in a 29-case focused gate. An 81-line
 Gamma compiler emits and runs an exact 35-byte addressed-CFG customer.
 A 213-line Gamma reconstructor independently reproduces the evaluator's exact
 4,289-byte tape from its addressed Beta source. Tape admission and complete
-conformance closure remain open.
+conformance closure remain open. Separately, a 372-line experimental
+Gamma-written compiler reproduces its own 13,834-byte native tape exactly; this
+fixed point is capability evidence, not a selected chain edge.

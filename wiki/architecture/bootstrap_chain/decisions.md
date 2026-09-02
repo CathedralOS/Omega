@@ -3088,3 +3088,34 @@ incorrect high bytes. The evaluator now stores the raw word in reserved scratch
 memory and emits eight `loadb` results. A full-width all-ones regression pins the
 behavior. That repair reduced the evaluator to 738 Beta lines and 4,289 tape
 bytes while making exact self-reconstruction possible.
+
+## D69 — Gamma reaches an experimental native compiler fixed point
+
+The actual self-host experiment is retained separately from D68's evaluator
+reconstruction. `source/gamma/compiler/gamma_compiler.gamma` is a 372-line,
+11,968-byte Gamma program that compiles concatenative Gamma directly to Alpha.
+The current evaluator compiles that source to a 13,834-byte tape `T0`; running
+`T0` on the same source produces `T1`, and the executable gate requires
+`T0 == T1` byte-for-byte.
+
+The compiler uses two source passes. Pass one records exact source-name spans
+and assigns one native address per word. Pass two emits a fixed 1,122-byte
+runtime prefix and direct code: literals become `imm` plus stack push, builtins
+call fixed helpers, user words use Alpha `call`, `jump` becomes Alpha `jmp`,
+`branch yes no` becomes pop plus `jnz yes` and `jmp no`, and word ends become
+`ret`. Runtime bytes are visible as `output-word` constants in the Gamma source;
+the startup call operand is patched from the measured `main` address.
+
+The fixed point is not only self-comparison. Evaluator-seeded and native `T0`
+compilation of the 81-line Delta0 customer both produce the same 3,399-byte
+native compiler. That compiler still emits the exact 35-byte Alpha countdown
+tape. Representative native tests cover forward calls, branches, cells, sealed
+input, and a 100,000-step tail loop.
+
+This experiment demonstrates that Gamma can implement its own translation job
+in fewer source lines than the 738-line Beta evaluator. It does not replace the
+evaluator: the native compiler tape is more than three times larger, embeds a
+runtime prefix, and does not yet claim every profile-v2 malformed-source or
+resource observation. It remains a diagnostic side artifact until complete
+compiler conformance and whole-chain trust cost favor a compiler edge over the
+smaller evaluator edge.

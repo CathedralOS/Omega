@@ -1,0 +1,372 @@
+# Gamma-to-Alpha direct compiler fixed-point experiment.
+# Cells 0 cursor, 1 token start, 2 token length, 3 native pc, 4 row end,
+# 5 hash index, 6 hash, 7/8/9 numeric index/end/value.
+# Definition rows start at cell 0x100: name start, name length, native address.
+
+: cursor 0x0 cell-get ;
+: advance cursor + 0x0 cell-set ;
+: token_start 0x1 cell-get ;
+: token_length 0x2 cell-get ;
+: token_char token_start + input-get ;
+
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_char ;
+: no_token 0x0 ;
+: skip_char cursor input-get dup 0x21 < branch skip_space skip_hash ;
+: skip_space drop 0x1 advance jump skip ;
+: skip_hash 0x23 = branch skip_comment token_begin ;
+: skip_comment 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_char ;
+: comment_char cursor input-get dup 0xa = branch comment_end comment_cr ;
+: comment_cr dup 0xd = branch comment_end comment_advance ;
+: comment_end drop 0x1 advance jump skip ;
+: comment_advance drop 0x1 advance jump comment_loop ;
+: token_begin cursor 0x1 cell-set jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body ;
+: token_body cursor input-get dup 0x21 < branch token_delimiter token_hash_test ;
+: token_hash_test 0x23 = branch token_done token_advance ;
+: token_delimiter drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done cursor token_start - 0x2 cell-set 0x1 ;
+: need_token next 0x1 assert-equal ;
+
+: token_hash 0x0 0x5 cell-set 0x0 0x6 cell-set jump hash_loop ;
+: hash_loop 0x5 cell-get token_length = branch hash_done hash_byte ;
+: hash_byte
+  0x6 cell-get 0x83 * 0x5 cell-get token_char + 0x6 cell-set
+  0x5 cell-get 0x1 + 0x5 cell-set jump hash_loop
+;
+: hash_done 0x6 cell-get ;
+
+: nibble dup 0x3a < branch nibble_decimal nibble_alpha ;
+: nibble_decimal 0x30 - ;
+: nibble_alpha 0x57 - ;
+: parse_hex
+  token_length 0x3 < branch parse_fail parse_width
+;
+: parse_width token_length 0x13 < branch parse_prefix parse_fail ;
+: parse_prefix
+  0x0 token_char 0x30 =
+  0x1 token_char 0x78 = *
+  0x0 = branch parse_fail parse_begin
+;
+: parse_begin
+  0x2 0x7 cell-set token_length 0x8 cell-set 0x0 0x9 cell-set
+  jump parse_loop
+;
+: parse_loop 0x7 cell-get 0x8 cell-get = branch parse_done parse_digit ;
+: parse_digit
+  0x9 cell-get 0x10 * 0x7 cell-get token_char nibble + 0x9 cell-set
+  0x7 cell-get 0x1 + 0x7 cell-set jump parse_loop
+;
+: parse_done 0x9 cell-get 0x1 ;
+: parse_fail 0x0 0x0 ;
+
+: row_address 0x3 * 0x100 + ;
+: row_count 0x4 cell-get ;
+: find_word
+  0x0 0xa cell-set jump find_loop
+;
+: find_loop 0xa cell-get row_count = branch find_absent find_row ;
+: find_row
+  0xa cell-get row_address dup cell-get 0xc cell-set
+  0x1 + cell-get token_length = branch find_compare_begin find_next
+;
+: find_compare_begin 0x0 0xd cell-set jump find_compare ;
+: find_compare
+  0xd cell-get token_length = branch find_present find_compare_byte
+;
+: find_compare_byte
+  0xc cell-get 0xd cell-get + input-get
+  0xd cell-get token_char = branch find_compare_next find_next
+;
+: find_compare_next 0xd cell-get 0x1 + 0xd cell-set jump find_compare ;
+: find_next 0xa cell-get 0x1 + 0xa cell-set jump find_loop ;
+: find_present 0xa cell-get row_address 0x2 + cell-get 0x1 ;
+: find_absent 0x0 0x0 ;
+
+: pc 0x3 cell-get ;
+: add_pc pc + 0x3 cell-set ;
+: pass_one
+  0x0 0x0 cell-set 0x462 0x3 cell-set 0x0 0x4 cell-set 0x0 0xb cell-set
+  jump census
+;
+: census next 0x0 = branch census_done census_colon ;
+: census_colon token_hash 0x3a = branch census_name bad ;
+: census_name
+  need_token
+  row_count row_address
+  token_start over cell-set
+  token_length over 0x1 + cell-set
+  pc swap 0x2 + cell-set
+  token_hash 0xeb4a791 = branch census_main census_next
+;
+: census_main pc 0xb cell-set jump census_next ;
+: census_next
+  row_count 0x1 + 0x4 cell-set
+  jump count_body
+;
+: count_body need_token token_hash dup 0x3b = branch count_end count_jump ;
+: count_jump dup 0xe52fd82 = branch count_jump_item count_branch ;
+: count_jump_item drop need_token 0x9 add_pc jump count_body ;
+: count_branch 0x37826dc7ac2 = branch count_branch_item count_normal ;
+: count_branch_item need_token need_token 0x1c add_pc jump count_body ;
+: count_normal
+  token_start token_length parse_hex 0x1 = branch count_literal count_name
+;
+: count_literal drop 0x13 add_pc jump count_body ;
+: count_name drop 0x9 add_pc jump count_body ;
+: count_end drop 0x1 add_pc jump census ;
+: census_done
+  0xb cell-get 0x0 = branch bad census_ready
+;
+: census_ready 0x0 0x0 cell-set ;
+
+: emit_runtime
+  0x9001 output-word
+  0x191010000 output-word
+  0x800100000000 output-word
+  0x8102000000000010 output-word
+  0x900000000180 output-word
+  0x52008110000000 output-word
+  0x111000000000000 output-word
+  0x6890010f output-word
+  0x8103018109000000 output-word
+  0x210c91 output-word
+  0x6890010f01110000 output-word
+  0xc00000000000000 output-word
+  0x44a output-word
+  0x11000008701 output-word
+  0x0 output-byte
+  0x0 output-byte
+  0x2 output-byte
+  0x83 output-byte
+  0x90 output-byte
+  0x13 output-byte
+  0xb cell-get output-word
+  0x1010000900002 output-word
+  0x1000000000021000 output-word
+  0x44a0187 output-word
+  0x8010100870b0000 output-word
+  0x300000000000000 output-word
+  0x1000000101140187 output-word
+  0x187100000000001 output-word
+  0x43e output-word
+  0x80101 output-word
+  0x87000a0187040000 output-word
+  0xa91314 output-word
+  0xa9130009020000 output-word
+  0x802000000000000 output-word
+  0x43e090d1400 output-word
+  0x100000000 output-word
+  0x810800000000000 output-word
+  0x10800 output-word
+  0xffffffff00011400 output-word
+  0x3e000910ffffffff output-word
+  0x1400000000000004 output-word
+  0xa913 output-word
+  0x43e90000f00 output-word
+  0x10100000000 output-word
+  0xf00000000013e output-word
+  0x15001 output-word
+  0x43e0c00 output-word
+  0x801010000 output-word
+  0x101000500000000 output-word
+  0x210000001 output-word
+  0x8100021401000300 output-word
+  0x8313800004 output-word
+  0xa9131400000000 output-word
+  0xf000000000000 output-word
+  0x43e90 output-word
+  0xf80040300040200 output-word
+  0x1a98104 output-word
+  0x43e0c0000 output-word
+  0x8313040008000000 output-word
+  0x1400000000000000 output-word
+  0xa913 output-word
+  0x43e90000f00 output-word
+  0x100010100000000 output-word
+  0xf000000000000 output-word
+  0x1e801 output-word
+  0x43e0c00 output-word
+  0xffffc01010000 output-word
+  0x4a01831000000000 output-word
+  0x1200000000000004 output-word
+  0xa9131491830300 output-word
+  0x502000000000000 output-word
+  0x8060183 output-word
+  0x701060503000000 output-word
+  0xffffc output-word
+  0x44a05070f output-word
+  0x401000000 output-word
+  0x40b000000000d output-word
+  0x9104030012040008 output-word
+  0x60e910604918303 output-word
+  0x23e output-word
+  0x831383000214 output-word
+  0xa913140000000000 output-word
+  0x200000000000000 output-word
+  0xa9130004 output-word
+  0x28d040010000000 output-word
+  0x3e0c000000000000 output-word
+  0x1400000000000004 output-word
+  0x11e13 output-word
+  0x831300000a00 output-word
+  0x1e13140000000000 output-word
+  0x200000000000001 output-word
+  0xa9130004 output-word
+  0x131400040b000000 output-word
+  0xa9 output-word
+  0x8313000402 output-word
+  0x1304000200000000 output-word
+  0x83 output-word
+  0xa91314 output-word
+  0xa9130004020000 output-word
+  0x502000000000000 output-word
+  0x831304000200 output-word
+  0x500020000000000 output-word
+  0x8313 output-word
+  0xa9131400 output-word
+  0xa913000402000000 output-word
+  0x200000000000000 output-word
+  0x83130005 output-word
+  0x8313040002000000 output-word
+  0x200000000000000 output-word
+  0x83130500 output-word
+  0xa91314000000 output-word
+  0xcf13140000000000 output-word
+  0x300000000000000 output-word
+  0x83130800020908 output-word
+  0x1314000000000000 output-word
+  0xcf output-word
+  0x8313080002090804 output-word
+  0x1400000000000000 output-word
+  0xcf13 output-word
+  0x1308000209080500 output-word
+  0x83 output-word
+  0xcf1314 output-word
+  0xe8130000 output-word
+  0x2090806000000 output-word
+  0x831308 output-word
+  0xcf13140000 output-word
+  0xe81300000000 output-word
+  0x908070000000000 output-word
+  0x8313080002 output-word
+  0xcf131400000000 output-word
+  0x80f000000000000 output-word
+  0x42509 output-word
+  0x831390000200 output-word
+  0xcf13140000000000 output-word
+  0x1000000000000000 output-word
+  0x4250908 output-word
+  0x83139000020000 output-word
+  0x214000000000000 output-word
+  0x83139100 output-word
+  0x1000114000000 output-word
+  0x0 output-word
+  0x20001 output-word
+  0x3000100000000 output-word
+  0x0 output-word
+  0x40001 output-word
+  0x0 output-byte
+  0x0 output-byte
+  0x0 output-byte
+  0x0 output-byte
+;
+
+: emit_call 0x13 output-byte output-word ;
+: emit_jump 0xc output-byte output-word ;
+: emit_literal
+  0x1 output-byte 0x0 output-byte output-word
+  0x83 emit_call
+;
+: emit_branch
+  0xa9 emit_call
+  swap
+  0xe output-byte 0x0 output-byte output-word
+  emit_jump
+;
+
+: builtin_address
+  token_hash dup 0x2be3534e677ac58d = branch b_input_length b_input_get
+;
+: b_input_length drop 0x16b 0x1 ;
+: b_input_get dup 0x7f6627f891c22bf7 = branch b_input_get_yes b_output_byte ;
+: b_input_get_yes drop 0x17b 0x1 ;
+: b_output_byte dup 0xa7d3a7a2b05a4f28 = branch b_output_byte_yes b_output_word ;
+: b_output_byte_yes drop 0x1b6 0x1 ;
+: b_output_word dup 0xa7d3a7a2b3280d7e = branch b_output_word_yes b_output_position ;
+: b_output_word_yes drop 0x203 0x1 ;
+: b_output_position dup 0xb59794d814d155c1 = branch b_output_position_yes b_assert_equal ;
+: b_output_position_yes drop 0x257 0x1 ;
+: b_assert_equal dup 0x67cb47f9a7664181 = branch b_assert_equal_yes b_cell_get ;
+: b_assert_equal_yes drop 0x264 0x1 ;
+: b_cell_get dup 0xeab02b008c508f = branch b_cell_get_yes b_cell_set ;
+: b_cell_get_yes drop 0x28e 0x1 ;
+: b_cell_set dup 0xeab02b008f74fb = branch b_cell_set_yes b_dup ;
+: b_cell_set_yes drop 0x2a4 0x1 ;
+: b_dup dup 0x1a6bd3 = branch b_dup_yes b_swap ;
+: b_dup_yes drop 0x2bd 0x1 ;
+: b_swap dup 0xf8837e3 = branch b_swap_yes b_over ;
+: b_swap_yes drop 0x2df 0x1 ;
+: b_over dup 0xefec07c = branch b_over_yes b_drop ;
+: b_over_yes drop 0x310 0x1 ;
+: b_drop dup 0xd8463cb = branch b_drop_yes b_add ;
+: b_drop_yes drop 0x34a 0x1 ;
+: b_add dup 0x2b = branch b_add_yes b_sub ;
+: b_add_yes drop 0x354 0x1 ;
+: b_sub dup 0x2d = branch b_sub_yes b_mul ;
+: b_sub_yes drop 0x36d 0x1 ;
+: b_mul dup 0x2a = branch b_mul_yes b_div ;
+: b_mul_yes drop 0x386 0x1 ;
+: b_div dup 0x2f = branch b_div_yes b_mod ;
+: b_div_yes drop 0x39f 0x1 ;
+: b_mod dup 0x25 = branch b_mod_yes b_less ;
+: b_mod_yes drop 0x3c1 0x1 ;
+: b_less dup 0x3c = branch b_less_yes b_equal ;
+: b_less_yes drop 0x3e3 0x1 ;
+: b_equal 0x3d = branch b_equal_yes b_absent ;
+: b_equal_yes 0x404 0x1 ;
+: b_absent 0x0 0x0 ;
+
+: pass_two
+  0x0 0x0 cell-set jump emit_definitions
+;
+: emit_definitions next 0x0 = branch emit_done emit_colon ;
+: emit_colon token_hash 0x3a = branch emit_name bad ;
+: emit_name
+  need_token find_word 0x1 assert-equal
+  output-position assert-equal
+  jump emit_body
+;
+: emit_body need_token token_hash dup 0x3b = branch emit_ret emit_jump_test ;
+: emit_jump_test dup 0xe52fd82 = branch emit_jump_item emit_branch_test ;
+: emit_jump_item
+  drop need_token find_word 0x1 assert-equal emit_jump jump emit_body
+;
+: emit_branch_test dup 0x37826dc7ac2 = branch emit_branch_item emit_normal ;
+: emit_branch_item
+  drop need_token find_word 0x1 assert-equal
+  need_token find_word 0x1 assert-equal
+  emit_branch jump emit_body
+;
+: emit_normal
+  drop token_start token_length parse_hex
+  0x1 = branch emit_literal_item emit_name_item
+;
+: emit_literal_item emit_literal jump emit_body ;
+: emit_name_item
+  builtin_address 0x1 = branch emit_builtin emit_user
+;
+: emit_builtin emit_call jump emit_body ;
+: emit_user find_word 0x1 assert-equal emit_call jump emit_body ;
+: emit_ret drop 0x14 output-byte jump emit_definitions ;
+: emit_done ;
+
+: bad input-length input-get ;
+: main
+  pass_one
+  # Runtime call operand begins at 0x76; runtime emission inserts main address.
+  emit_runtime
+  pass_two
+;
