@@ -40,6 +40,8 @@ index-set ARRAY CONSTANT_INDEX SOURCE
 index-get DEST ARRAY CONSTANT_INDEX
 index-set-dyn ARRAY INDEX_VARIABLE SOURCE
 index-get-dyn DEST ARRAY INDEX_VARIABLE
+index-field-set ARRAY INDEX_VARIABLE FIELD SOURCE
+index-field-get DEST ARRAY INDEX_VARIABLE FIELD
 copy DEST SOURCE
 read DEST
 write SOURCE
@@ -75,16 +77,16 @@ they are not proposed Delta semantics.
 
 | Subject | Size |
 | --- | ---: |
-| Gamma-written experiment compiler | 661 lines / 26,802 bytes |
-| Native compiler produced by Gamma | 23,403 bytes |
+| Gamma-written experiment compiler | 709 lines / 28,913 bytes |
+| Native compiler produced by Gamma | 25,104 bytes |
 | Representative Delta source | 38 lines / 733 bytes |
 | Generated Alpha tape | 523 bytes |
 | Nested-scope parser source | 109 lines / 2,312 bytes |
 | Nested-scope parser Alpha tape | 1,919 bytes |
 | Recursive AST transform source | 427 lines / 10,774 bytes |
 | Recursive AST transform Alpha tape | 9,563 bytes |
-| Symbolic Alpha encoder source | 574 lines / 13,602 bytes |
-| Symbolic Alpha encoder tape | 11,772 bytes |
+| Symbolic Alpha encoder source | 552 lines / 13,869 bytes |
+| Symbolic Alpha encoder tape | 12,610 bytes |
 | Retained functional Alpha backend declarations/implementation | 834 lines / 39,426 bytes |
 
 The compiler line spend is approximately:
@@ -92,13 +94,13 @@ The compiler line spend is approximately:
 | Concern | Lines |
 | --- | ---: |
 | named compiler state | 69 |
-| tokenizer and exact keyword checks | 73 |
+| tokenizer and exact keyword checks | 75 |
 | identifiers and integers | 37 |
 | symbols and nominal types | 74 |
-| declaration/state census | 77 |
-| statement sizing | 60 |
+| declaration/state census | 78 |
+| statement sizing | 63 |
 | Alpha emitters and type helpers | 40 |
-| typed replay and lowering | 229 |
+| typed replay and lowering | 271 |
 
 The canonical Gamma evaluator and self-hosted Gamma compiler independently
 execute/compile this Gamma source. Their resulting native Delta compiler agrees
@@ -138,12 +140,14 @@ compare those whole-edge costs against the actual Epsilon compiler rather than
 adding richer values speculatively.
 
 The symbolic backend supplies that first actual-customer comparison. The
-state-machine encoder is 574 lines and 106 states; the corresponding retained
+state-machine encoder is 552 lines and 106 states; the corresponding retained
 functional declarations and implementation occupy 834 lines. The smaller
 version also avoids a persistent trie and balanced byte rope because it uses
 fixed indexed item/label arenas and streams only after complete validation.
-Fourteen full-profile arenas consume 117,440,064 bytes; with Delta's 1 MiB
-static base they end at byte 118,488,640, below Alpha's 256 MiB memory bound.
+One twelve-word item row arena and one two-word label row arena consume
+117,440,064 bytes; with Delta's 1 MiB static base they end at byte 118,488,640,
+below Alpha's 256 MiB memory bound. Row fields carry nominal owner/type checks
+instead of relying on fourteen parallel-array conventions.
 The customer now carries the full 1,048,572-byte Alpha payload envelope, but it
 does not independently replay emitted bytes. Connecting actual Epsilon lowering
 and deciding whether symbolic prevalidation is sufficient remain required before

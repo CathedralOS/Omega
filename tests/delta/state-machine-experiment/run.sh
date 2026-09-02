@@ -54,9 +54,9 @@ native_delta = subprocess.run(
 )
 if native_delta.returncode != 0:
     raise SystemExit(f"native Gamma compilation exited {native_delta.returncode}")
-if len(native_delta.stdout) != 23403:
+if len(native_delta.stdout) != 25104:
     raise SystemExit(f"native Delta compiler is {len(native_delta.stdout)} bytes")
-if hashlib.sha256(native_delta.stdout).hexdigest() != "cd8fa38de56f9d019bfc72defbf18118419a07e376405316fc12aa7e54f18a2b":
+if hashlib.sha256(native_delta.stdout).hexdigest() != "43fb7bb6700f8a16899995d1e7d62b903d440b077744b7b66dcd58b2efc1bdad":
     raise SystemExit("native Delta compiler identity changed")
 (temporary / "delta-compiler.tape").write_bytes(native_delta.stdout)
 '
@@ -93,12 +93,12 @@ def native(subject: str):
         stdout=subprocess.PIPE,
     )
 
-expected_hash = "0bb738bae6ab3edca36fe27483dcbaec0d1d85f50d2024af6165344eb284a456"
+expected_hash = "2c632c1a7e4094d3935b92c322b855bf41c3b93fcd0fc57a97ddd82d23487131"
 left = interpreted(sample)
 right = native(sample)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("interpreted/native successful compilation disagrees")
-if len(left.stdout) != 523 or hashlib.sha256(left.stdout).hexdigest() != expected_hash:
+if len(left.stdout) != 533 or hashlib.sha256(left.stdout).hexdigest() != expected_hash:
     raise SystemExit("representative output identity changed")
 (temporary / "sample.tape").write_bytes(left.stdout)
 
@@ -138,9 +138,9 @@ left = interpreted(parser)
 right = native(parser)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("nested parser interpreted/native compilation disagrees")
-if len(left.stdout) != 1919:
+if len(left.stdout) != 1929:
     raise SystemExit(f"nested parser tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "e5fa32384acdf04a5e956500142a92088229ba8f65e88e0596d90606bdaa9343":
+if hashlib.sha256(left.stdout).hexdigest() != "9b8b21a6cd886fc5ac21a85c545b73781e5ebe5fa4195c1082ffe6b9dff9e326":
     raise SystemExit("nested parser tape identity changed")
 (temporary / "parser.tape").write_bytes(left.stdout)
 
@@ -148,9 +148,9 @@ left = interpreted(transform)
 right = native(transform)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("AST transform interpreted/native compilation disagrees")
-if len(left.stdout) != 9563:
+if len(left.stdout) != 9573:
     raise SystemExit(f"AST transform tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "20ee64218fb14140b1a88bd50191175beab76c4ffaff05e157f43c41f3b3ba27":
+if hashlib.sha256(left.stdout).hexdigest() != "1195b249b010341176565d60ab2d44036fac02163032e5842733400e71e6722c":
     raise SystemExit("AST transform tape identity changed")
 (temporary / "transform.tape").write_bytes(left.stdout)
 
@@ -168,11 +168,21 @@ left = interpreted(encoder)
 right = native(encoder)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("Alpha encoder interpreted/native compilation disagrees")
-if len(left.stdout) != 11772:
+if len(left.stdout) != 12610:
     raise SystemExit(f"Alpha encoder tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "c67d25e2a4a9d87062cf0dcf7f4eb6b59afb044fed95f11b69cc2c7af6635142":
+if hashlib.sha256(left.stdout).hexdigest() != "0faeaec52f877cf6da1904b92ec63aae1ac0ef955c1c648633811c458af1a0c0":
     raise SystemExit("Alpha encoder tape identity changed")
 (temporary / "encoder.tape").write_bytes(left.stdout)
+
+ill_typed_encoder = encoder.replace(
+    "index-field-set items item_count item_kind pending_kind",
+    "index-field-set items item_count item_kind a",
+    1,
+)
+left = interpreted(ill_typed_encoder)
+right = native(ill_typed_encoder)
+if left.returncode != 2 or right.returncode != 2 or left.stdout != right.stdout:
+    raise SystemExit("row field mismatch was not rejected identically")
 '
 
 stamp_seed "$TMP/sample.tape" "$OMEGA_PATH_ALPHA/$ALPHA_SEED" "$TMP/sample" >/dev/null
@@ -295,4 +305,4 @@ for name, data, expected_status, expected_output in cases:
         )
 '
 
-echo "Delta state-machine experiment: 661-line Gamma compiler produced identical 23,403-byte native compiler; recursive AST and full-profile Alpha encoder customers pass"
+echo "Delta state-machine experiment: 709-line Gamma compiler produced identical 25,104-byte native compiler; recursive AST and full-profile Alpha encoder customers pass"

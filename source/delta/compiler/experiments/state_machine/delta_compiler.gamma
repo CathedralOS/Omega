@@ -139,6 +139,8 @@
 : is_write 0x6574697277 0x0 0x5 token_exact ;
 : is_index_set_dyn 0x65732d7865646e69 0x6e79642d74 0xd token_exact ;
 : is_index_get_dyn 0x65672d7865646e69 0x6e79642d74 0xd token_exact ;
+: is_index_field_set 0x69662d7865646e69 0x7465732d646c65 0xf token_exact ;
+: is_index_field_get 0x69662d7865646e69 0x7465672d646c65 0xf token_exact ;
 
 : require_name
   token_length 0x0 = branch bad name_first
@@ -247,7 +249,7 @@
 ;
 
 : initialize
-  0x0 set_cursor 0x0 set_symbol_count 0x51 set_pc 0x100000 set_variable_next
+  0x0 set_cursor 0x0 set_symbol_count 0x5b set_pc 0x100000 set_variable_next
   0x0 set_current_machine 0x0 set_entry_address
 ;
 
@@ -282,6 +284,7 @@
 ;
 : collect_field_name
   prepare_symbol need_token resolve_type set_temp_two set_temp_one
+  temp_two 0x1 assert-equal
   0x4 set_pending_kind current_type set_pending_owner
   member_count set_pending_aux0 temp_one set_pending_aux1 temp_two set_pending_aux2
   add_saved drop member_count 0x1 + set_member_count jump collect_field
@@ -293,11 +296,11 @@
 
 : collect_array
   need_token prepare_symbol need_token resolve_type set_temp_two set_temp_one
-  temp_two 0x1 assert-equal
   need_token parse_nat dup 0x0 = branch bad collect_array_ready
 ;
 : collect_array_ready
-  0x5 set_pending_kind temp_one set_pending_aux0 dup set_pending_aux1 set_pending_aux2
+  0x5 set_pending_kind temp_one set_pending_aux0
+  dup set_pending_aux1 temp_two * set_pending_aux2
   add_saved drop jump p1_top
 ;
 
@@ -352,7 +355,9 @@
 : count_read_test is_read branch count_read count_write_test ;
 : count_write_test is_write branch count_write count_index_set_dyn_test ;
 : count_index_set_dyn_test is_index_set_dyn branch count_dynamic_index count_index_get_dyn_test ;
-: count_index_get_dyn_test is_index_get_dyn branch count_dynamic_index bad ;
+: count_index_get_dyn_test is_index_get_dyn branch count_dynamic_index count_index_field_set_test ;
+: count_index_field_set_test is_index_field_set branch count_index_field count_index_field_get_test ;
+: count_index_field_get_test is_index_field_get branch count_index_field bad ;
 : count_binary need_token need_token need_token 0x2a add_pc jump p1_machine_body ;
 : count_construct need_token need_token need_token 0x17 add_pc jump p1_machine_body ;
 : count_memory need_token need_token need_token 0x1a add_pc jump p1_machine_body ;
@@ -366,6 +371,7 @@
 : count_read need_token 0xf add_pc jump p1_machine_body ;
 : count_write need_token 0xf add_pc jump p1_machine_body ;
 : count_dynamic_index need_token need_token need_token 0x3a add_pc jump p1_machine_body ;
+: count_index_field need_token need_token need_token need_token 0x51 add_pc jump p1_machine_body ;
 : count_switch
   need_token need_token 0x0 set_switch_count jump count_switch_arm
 ;
@@ -430,15 +436,16 @@
 
 : pass_two
   0x0 set_cursor 0x0 set_current_machine
+  0x8 0x4 alpha_imm
   entry_address alpha_call 0x0 alpha_halt
   0x2 0x0 alpha_imm 0x0 alpha_halt
-  0x0 0x4 alpha_imm
-  0xb 0x4 0x1 alpha_jlt
-  0x40 0x2 0x1 alpha_jlt
-  0xb alpha_jmp
-  0x8 0x4 alpha_imm
+  0x0 0x5 alpha_imm
+  0x15 0x5 0x1 alpha_jlt
+  0x4a 0x2 0x1 alpha_jlt
+  0x15 alpha_jmp
   0x4 0x1 alpha_mul
   0x3 0x1 alpha_add
+  0x8 0x4 alpha_imm
   alpha_ret
   jump p2_top
 ;
@@ -530,19 +537,23 @@
 : require_array_variable
   require_variable dup variable_type 0x5 require_kind
 ;
+: require_word_array_variable
+  require_array_variable dup variable_type
+  dup symbol_aux2 swap symbol_aux1 assert-equal
+;
 : require_index
   need_token parse_nat dup set_temp_three
   temp_two symbol_aux1 < 0x1 assert-equal
 ;
 : emit_index_set
-  require_array_variable set_temp_two set_temp_one require_index
+  require_word_array_variable set_temp_two set_temp_one require_index
   require_variable dup variable_type temp_two symbol_aux0 assert-equal emit_load_r0 drop
   temp_one variable_address temp_three 0x8 * + 0x1 alpha_imm
   0x0 0x1 alpha_store jump p2_machine_body
 ;
 : emit_index_get
   require_variable set_switch_count
-  require_array_variable set_temp_two set_temp_one
+  require_word_array_variable set_temp_two set_temp_one
   require_index
   switch_count variable_type temp_two symbol_aux0 assert-equal
   temp_one variable_address temp_three 0x8 * + 0x0 alpha_imm
@@ -615,7 +626,9 @@
 : emit_read_test is_read branch emit_read emit_write_test ;
 : emit_write_test is_write branch emit_write emit_index_set_dyn_test ;
 : emit_index_set_dyn_test is_index_set_dyn branch emit_index_set_dyn emit_index_get_dyn_test ;
-: emit_index_get_dyn_test is_index_get_dyn branch emit_index_get_dyn bad ;
+: emit_index_get_dyn_test is_index_get_dyn branch emit_index_get_dyn emit_index_field_set_test ;
+: emit_index_field_set_test is_index_field_set branch emit_index_field_set emit_index_field_get_test ;
+: emit_index_field_get_test is_index_field_get branch emit_index_field_get bad ;
 : emit_halt require_word_variable emit_load_r0 drop 0x0 alpha_halt jump p2_machine_body ;
 
 : emit_copy
@@ -633,28 +646,63 @@
 ;
 
 : emit_index_set_dyn
-  require_array_variable set_temp_two set_temp_one
+  require_word_array_variable set_temp_two set_temp_one
   require_word_variable set_temp_three
   require_variable set_switch_count
   switch_count variable_type temp_two symbol_aux0 assert-equal
   temp_three emit_load_r1 drop
   temp_two symbol_aux1 0x2 alpha_imm
   temp_one variable_address 0x3 alpha_imm
-  0x17 alpha_call
+  0x21 alpha_call
   switch_count emit_load_r0 drop
   0x0 0x1 alpha_store jump p2_machine_body
 ;
 : emit_index_get_dyn
   require_variable set_switch_count
-  require_array_variable set_temp_two set_temp_one
+  require_word_array_variable set_temp_two set_temp_one
   require_word_variable set_temp_three
   switch_count variable_type temp_two symbol_aux0 assert-equal
   temp_three emit_load_r1 drop
   temp_two symbol_aux1 0x2 alpha_imm
   temp_one variable_address 0x3 alpha_imm
-  0x17 alpha_call
+  0x21 alpha_call
   0x1 0x0 alpha_load
   switch_count emit_store_r0 jump p2_machine_body
+;
+
+: emit_index_field_set
+  require_array_variable set_temp_two set_temp_one
+  require_word_variable set_temp_three
+  require_field set_switch_count
+  temp_two symbol_aux0 switch_count symbol_owner assert-equal
+  require_variable set_member_count
+  member_count variable_type switch_count symbol_aux1 assert-equal
+  temp_three emit_load_r1 drop
+  temp_two symbol_aux1 0x2 alpha_imm
+  temp_one variable_address 0x3 alpha_imm
+  temp_two symbol_aux0 symbol_aux2 0x8 * 0x4 alpha_imm
+  0x21 alpha_call
+  switch_count symbol_aux0 0x8 * 0x2 alpha_imm
+  0x2 0x1 alpha_add
+  member_count emit_load_r0 drop
+  0x0 0x1 alpha_store jump p2_machine_body
+;
+: emit_index_field_get
+  require_variable set_member_count
+  require_array_variable set_temp_two set_temp_one
+  require_word_variable set_temp_three
+  require_field set_switch_count
+  temp_two symbol_aux0 switch_count symbol_owner assert-equal
+  member_count variable_type switch_count symbol_aux1 assert-equal
+  temp_three emit_load_r1 drop
+  temp_two symbol_aux1 0x2 alpha_imm
+  temp_one variable_address 0x3 alpha_imm
+  temp_two symbol_aux0 symbol_aux2 0x8 * 0x4 alpha_imm
+  0x21 alpha_call
+  switch_count symbol_aux0 0x8 * 0x2 alpha_imm
+  0x2 0x1 alpha_add
+  0x1 0x0 alpha_load
+  member_count emit_store_r0 jump p2_machine_body
 ;
 
 : main pass_one pass_two ;

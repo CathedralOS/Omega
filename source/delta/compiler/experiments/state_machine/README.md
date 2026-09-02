@@ -14,8 +14,8 @@ performs an explicit postorder fold and branch-selection rewrite, and serializes
 the transformed tree without recursion or heap allocation.
 
 A second Epsilon-shaped customer lays out and encodes all 21 Alpha opcodes from
-22 nominal symbolic item variants. Full-profile fixed arenas admit 1,048,572
-items and labels; exact and adjacent payload-limit cases pin the selected Alpha
+22 nominal symbolic item variants. Full-profile typed record-row arenas admit
+1,048,572 items and labels; exact and adjacent payload-limit cases pin the selected Alpha
 maximum. It resolves forward labels, rejects malformed or incomplete programs
 before output, and emits exact target bytes. Supporting its label arithmetic
 adds typed multiplication, division, and signed less-than branching to the compiler.

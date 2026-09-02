@@ -3360,3 +3360,37 @@ comparison is actual Epsilon semantic lowering and whether an independent raw
 tape replay adds enough trust to justify its implementation cost. Payload scale,
 recursive syntax, and symbolic target resolution no longer independently argue
 for a functional Delta rung.
+
+## D77 — Typed record rows replace parallel compiler arenas
+
+Full-profile fixed storage need not expose a parallel-array convention to every
+compiler customer. The Delta experiment now permits arrays of fixed one-word-field
+records and adds checked `index-field-set` and `index-field-get` statements.
+The checker requires the selected field to belong to the array element record,
+requires source or destination type equality with that field, computes the
+record stride from its declared shape, and retains the shared dynamic-index
+bounds trap. Ordinary whole-element indexing remains restricted to one-word
+elements.
+
+The Alpha encoder replaces twelve item-field arrays and two label arrays with
+one twelve-word `AlphaItemRow` arena and one two-word `AlphaLabelRow` arena.
+Its semantic memory extent remains exactly 117,440,064 arena bytes and
+118,488,640 bytes including Delta's static base. A malformed twin that stores
+a `word` into the nominal `AlphaKind` field rejects identically under interpreted
+and native compilation.
+
+Typed rows grow the Gamma compiler from 661 to 709 lines, from 26,802 to 28,913
+source bytes, and from 23,403 to 25,104 native bytes. The encoder falls from 574
+to 552 source lines because fourteen array declarations and bindings collapse
+to two owned schemas, although longer explicit field names increase source
+bytes from 13,602 to 13,869. Runtime stride and field-offset setup grows its
+tape from 11,772 to 12,610 bytes. The exact maximum payload and every prior
+runtime result remain unchanged.
+
+This is the preferred state-machine representation for an Epsilon compiler:
+typed row arenas make schema ownership, field meaning, and nominal tag types
+locally auditable without adding heap values or recursive runtime machinery.
+The cost is 48 trusted compiler lines and 838 customer tape bytes. That trade is
+accepted for source auditability; native compactness is secondary on a frozen
+bootstrap rung. Actual Epsilon semantic lowering remains the final unresolved
+comparison before changing normative Delta.
