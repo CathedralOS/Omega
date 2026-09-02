@@ -149,24 +149,51 @@ fn validate_accepted_terminal_production_subject(
         .key()
         .identity()
         != package_subject.root()
-        || accepted_root.generated_sources().target() != subject.target_profile()
-        || accepted_root.generated_sources().dependency_closure()
-            != package_subject.dependency_closure()
-        || accepted_root.source_consumption() != package_subject.source_consumption_commitment()
-        || accepted_root.selected_build_machine_identity()
-            != subject.selected_build_machine_identity()
-        || !accepted_root
-            .build_evaluation_usage()
-            .is_some_and(|accepted| {
-                accepted.has_same_invocation_usage(subject.build_evaluation_usage())
-            })
-        || accepted_root
-            .build_observation()
-            .map(omega_build_evaluation::BuildObservationSummary::identity)
-            != Some(subject.build_observation_identity())
     {
         return Err(diagnostics(
-            "retained Terminal production subject differs from accepted package evidence",
+            "retained Terminal production root differs from accepted package evidence",
+        ));
+    }
+    if accepted_root.generated_sources().target() != subject.target_profile() {
+        return Err(diagnostics(
+            "retained Terminal production target differs from accepted package evidence",
+        ));
+    }
+    if accepted_root.generated_sources().dependency_closure()
+        != package_subject.dependency_closure()
+    {
+        return Err(diagnostics(
+            "retained Terminal production dependency closure differs from accepted package evidence",
+        ));
+    }
+    if accepted_root.source_consumption() != package_subject.source_consumption_commitment() {
+        return Err(diagnostics(
+            "retained Terminal production source consumption differs from accepted package evidence",
+        ));
+    }
+    if accepted_root.selected_build_machine_identity() != subject.selected_build_machine_identity()
+    {
+        return Err(diagnostics(
+            "retained Terminal production build machine differs from accepted package evidence",
+        ));
+    }
+    if !accepted_root
+        .build_evaluation_usage()
+        .is_some_and(|accepted| {
+            accepted.has_same_invocation_usage(subject.build_evaluation_usage())
+        })
+    {
+        return Err(diagnostics(
+            "retained Terminal production invocation usage differs from accepted package evidence",
+        ));
+    }
+    if accepted_root
+        .build_observation()
+        .map(omega_build_evaluation::BuildObservationSummary::identity)
+        != Some(subject.build_observation_identity())
+    {
+        return Err(diagnostics(
+            "retained Terminal production build observation differs from accepted package evidence",
         ));
     }
     Ok(())

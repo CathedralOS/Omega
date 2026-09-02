@@ -2168,12 +2168,19 @@ custody. Compiler-report replay also requires the manifest target
 and native target to equal the retained proposal. The manager derives the
 accepted set from opaque evidence rather than accepting a caller's policy as
 package admission. Direct and retained routes share the final exact accepted-
-row-to-receiving-policy validator. This closes the in-memory library join
-without embedding policy authority in target-neutral Terminal Psi. The
-production CLI still has no accepted-evidence orchestration: project
-preparation supplies raw compiler inputs only. It must recover and replay root
-policy, then invoke and cover the manager-owned route, before root-policy-to-
-native transport is complete.
+row-to-receiving-policy validator. Executable-root review preserves the exact
+authored `builder.roots.bind` span through its generated marker, and an
+application integration fixture now covers exact report/evidence success plus
+source-consumption, build-observation, and coordinated retained-proposal/
+receiving-policy substitution through the manager-owned route. A build with no
+filesystem reach canonically retains one empty Output tree in both sponsored
+review and ordinary production, keeping their complete observation identities
+equal without treating sponsor context as semantic input. This closes and
+covers the in-memory library join without embedding policy authority in target-
+neutral Terminal Psi. The production CLI still has no accepted-evidence
+orchestration: project preparation supplies raw compiler inputs only. It must
+recover and replay root policy, then invoke the already-covered manager-owned
+route, before root-policy-to-native transport is complete.
 
 ## D46 — Same-process package review does not observe its executable pathname
 

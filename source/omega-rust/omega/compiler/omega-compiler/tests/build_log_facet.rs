@@ -125,7 +125,11 @@ fn compile_package_build_log() {
     assert_eq!(usage.filesystem_operation_attempts, 0);
     assert_eq!(usage.replay_filesystem_operation_attempts, 0);
     assert!(observation.filesystem_operation_attempts().is_empty());
-    assert!(observation.staged_output_tree().is_none());
+    let staged_output = observation
+        .staged_output_tree()
+        .expect("filesystem-inaccessible build has one canonical empty Output tree");
+    assert_eq!(staged_output.entry_count(), 0);
+    assert_eq!(staged_output.file_bytes(), 0);
 }
 
 #[test]

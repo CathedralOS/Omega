@@ -165,9 +165,10 @@ pub(super) fn parse_postfix_expression_handle<'tokens, 'source>(
                     expression = syntax_trees.expressions.insert(ExpressionNode::Call(
                         TableCallExpression {
                             receiver: expression,
-                            target: psi_syntax_trees::identifier::Identifier::generated(format!(
-                                "bind_root#{slot}#{implementation}"
-                            )),
+                            target: psi_syntax_trees::identifier::Identifier::new(
+                                format!("bind_root#{slot}#{implementation}"),
+                                operation.source_span(),
+                            ),
                             machine_arguments: Box::default(),
                             arguments: HandleSpan::empty(),
                             evidence_arguments: Box::default(),
