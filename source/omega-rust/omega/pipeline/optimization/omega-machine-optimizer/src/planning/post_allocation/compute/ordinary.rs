@@ -105,6 +105,10 @@ fn selected_instructions(block: &SelectedBlock) -> impl Iterator<Item = &Selecte
         omega_selected_instructions::SelectedTerminator::ConditionalBranch {
             instruction, ..
         }
+        | omega_selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            ..
+        }
         | omega_selected_instructions::SelectedTerminator::Return { instruction, .. } => {
             instruction
         }

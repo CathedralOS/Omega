@@ -1,6 +1,6 @@
 use omega_isa_x86_64::{
     encode_x86_64_selected_nonzero_branch_form, encode_x86_64_selected_short_nonzero_branch_form,
-    x86_64_physical_register_model,
+    encode_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
 };
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use omega_register_model::{ValidatedPhysicalRegisterModel, validate_physical_register_model};
@@ -11,8 +11,8 @@ use omega_target::NativeTarget;
 use psi_core::{EdgeId, MachineId};
 
 use crate::{
-    ResolvedSelectedBlockLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow,
-    ResolvedSelectedFunctionLayout,
+    ResolvedConditionalBranchPredicate, ResolvedSelectedBlockLayout,
+    ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
 };
 
 use super::{
@@ -43,18 +43,53 @@ fn alternative() -> MachineAlternativeKey {
 }
 
 fn function(zero_arm_bytes: usize) -> ResolvedSelectedFunctionLayout {
+    conditional_function(
+        ResolvedConditionalBranchPredicate::NonZeroV1,
+        zero_arm_bytes,
+    )
+}
+
+fn less_than_function(not_less_arm_bytes: usize) -> ResolvedSelectedFunctionLayout {
+    conditional_function(
+        ResolvedConditionalBranchPredicate::U64LessThanV1,
+        not_less_arm_bytes,
+    )
+}
+
+fn conditional_function(
+    predicate: ResolvedConditionalBranchPredicate,
+    fallthrough_arm_bytes: usize,
+) -> ResolvedSelectedFunctionLayout {
     let physical = physical();
-    let displacement = i64::try_from(zero_arm_bytes).unwrap();
-    let near =
-        encode_x86_64_selected_nonzero_branch_form(&physical, alternative(), displacement).unwrap();
+    let displacement = i64::try_from(fallthrough_arm_bytes).unwrap();
+    let branch_alternative = match predicate {
+        ResolvedConditionalBranchPredicate::NonZeroV1 => alternative(),
+        ResolvedConditionalBranchPredicate::U64LessThanV1 => MachineAlternativeKey {
+            family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
+            variant: 0,
+        },
+    };
+    let near = match predicate {
+        ResolvedConditionalBranchPredicate::NonZeroV1 => {
+            encode_x86_64_selected_nonzero_branch_form(&physical, branch_alternative, displacement)
+        }
+        ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+            encode_x86_64_selected_u64_less_than_branch_form(
+                &physical,
+                branch_alternative,
+                displacement,
+            )
+        }
+    }
+    .unwrap();
     let entry = SelectedBlockId(0);
-    let zero = SelectedBlockId(1);
-    let nonzero = SelectedBlockId(2);
-    let zero_offset = 6;
-    let nonzero_offset = zero_offset + u64::try_from(zero_arm_bytes).unwrap();
+    let fallthrough = SelectedBlockId(1);
+    let taken = SelectedBlockId(2);
+    let fallthrough_offset = 6;
+    let taken_offset = fallthrough_offset + u64::try_from(fallthrough_arm_bytes).unwrap();
     ResolvedSelectedFunctionLayout {
         machine: MachineId::new(1).unwrap(),
-        byte_count: nonzero_offset + 1,
+        byte_count: taken_offset + 1,
         blocks: vec![
             ResolvedSelectedBlockLayout {
                 block: entry,
@@ -62,17 +97,18 @@ fn function(zero_arm_bytes: usize) -> ResolvedSelectedFunctionLayout {
                 byte_count: 6,
                 instructions: vec![ResolvedSelectedFormRow {
                     instruction: SelectedInstructionId(0),
-                    alternative: alternative(),
+                    alternative: branch_alternative,
                     offset: 0,
                     bytes: near.bytes().to_vec(),
                     branch: Some(Box::new(crate::ResolvedConditionalBranchEvidence {
+                        predicate,
                         source_block: entry,
-                        when_nonzero_edge: EdgeId::new(1).unwrap(),
-                        when_nonzero_block: nonzero,
-                        when_nonzero_offset: nonzero_offset,
-                        when_zero_edge: EdgeId::new(2).unwrap(),
-                        when_zero_block: zero,
-                        when_zero_offset: zero_offset,
+                        when_taken_edge: EdgeId::new(1).unwrap(),
+                        when_taken_block: taken,
+                        when_taken_offset: taken_offset,
+                        when_fallthrough_edge: EdgeId::new(2).unwrap(),
+                        when_fallthrough_block: fallthrough,
+                        when_fallthrough_offset: fallthrough_offset,
                         byte_displacement: displacement,
                         decoded_register_reads: vec![],
                         decoded_effects: near.footprint().encoded.clone(),
@@ -80,23 +116,23 @@ fn function(zero_arm_bytes: usize) -> ResolvedSelectedFunctionLayout {
                 }],
             },
             ResolvedSelectedBlockLayout {
-                block: zero,
-                offset: zero_offset,
-                byte_count: u64::try_from(zero_arm_bytes).unwrap(),
+                block: fallthrough,
+                offset: fallthrough_offset,
+                byte_count: u64::try_from(fallthrough_arm_bytes).unwrap(),
                 instructions: vec![ResolvedSelectedFormRow {
                     instruction: SelectedInstructionId(1),
                     alternative: MachineAlternativeKey {
                         family: MachineAlternativeFamily::ReturnI64,
                         variant: 0,
                     },
-                    offset: zero_offset,
-                    bytes: vec![0x90; zero_arm_bytes],
+                    offset: fallthrough_offset,
+                    bytes: vec![0x90; fallthrough_arm_bytes],
                     branch: None,
                 }],
             },
             ResolvedSelectedBlockLayout {
-                block: nonzero,
-                offset: nonzero_offset,
+                block: taken,
+                offset: taken_offset,
                 byte_count: 1,
                 instructions: vec![ResolvedSelectedFormRow {
                     instruction: SelectedInstructionId(2),
@@ -104,7 +140,7 @@ fn function(zero_arm_bytes: usize) -> ResolvedSelectedFunctionLayout {
                         family: MachineAlternativeFamily::ReturnI64,
                         variant: 0,
                     },
-                    offset: nonzero_offset,
+                    offset: taken_offset,
                     bytes: vec![0xc3],
                     branch: None,
                 }],
@@ -166,6 +202,73 @@ fn eligible_near_branch_shrinks_and_both_reflow_implementations_agree() {
     reflow_replay_functions(&mut replayed, &physical).unwrap();
     assert_eq!(produced, fixed_point);
     assert_eq!(replayed, fixed_point);
+}
+
+#[test]
+fn u64_less_than_relaxation_uses_jb_and_changes_only_the_alternative_variant() {
+    let physical = physical();
+    let source = less_than_function(127);
+    assert_eq!(source.blocks[0].instructions[0].bytes[..2], [0x0f, 0x82]);
+    assert_eq!(source.blocks[0].instructions[0].alternative.variant, 0);
+    assert_eq!(
+        inspect_production_branch(&source, 0, 0, &physical).unwrap(),
+        (
+            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+            Some(127),
+        )
+    );
+    assert_eq!(
+        replay_inspect_branch(&source, 0, 0, &physical).unwrap(),
+        (
+            X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
+            Some(127),
+        )
+    );
+
+    let short_alternative = MachineAlternativeKey {
+        family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
+        variant: 1,
+    };
+    let short = encode_x86_64_selected_u64_less_than_branch_form(&physical, short_alternative, 127)
+        .unwrap();
+    let mut produced = vec![source.clone()];
+    produced[0].blocks[0].instructions[0].alternative = short_alternative;
+    produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
+    let mut replayed = produced.clone();
+    reflow_production_functions(&mut produced, &physical).unwrap();
+    reflow_replay_functions(&mut replayed, &physical).unwrap();
+    assert_eq!(produced, replayed);
+    assert_eq!(source.byte_count - produced[0].byte_count, 4);
+    assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x72, 0x7f]);
+    assert_eq!(
+        produced[0].blocks[0].instructions[0].alternative,
+        short_alternative
+    );
+    assert_eq!(
+        inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
+        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
+    );
+    assert_eq!(
+        replay_inspect_branch(&produced[0], 0, 0, &physical).unwrap(),
+        (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
+    );
+}
+
+#[test]
+fn branch_predicate_and_opcode_cannot_be_substituted() {
+    let physical = physical();
+    let mut less = less_than_function(1);
+    less.blocks[0].instructions[0].alternative = alternative();
+    less.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1, 0, 0, 0];
+    assert!(replay_inspect_branch(&less, 0, 0, &physical).is_err());
+
+    let mut nonzero = function(1);
+    nonzero.blocks[0].instructions[0].alternative = MachineAlternativeKey {
+        family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
+        variant: 0,
+    };
+    nonzero.blocks[0].instructions[0].bytes = vec![0x0f, 0x82, 1, 0, 0, 0];
+    assert!(replay_inspect_branch(&nonzero, 0, 0, &physical).is_err());
 }
 
 #[test]

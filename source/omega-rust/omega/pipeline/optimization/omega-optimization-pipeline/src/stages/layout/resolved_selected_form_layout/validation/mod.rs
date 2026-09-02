@@ -79,6 +79,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
         physical,
         pre_layout,
         optimization,
+        expected_policy,
         artifact,
     )?;
     structural::validate(selected, machine, pre_layout, artifact)?;

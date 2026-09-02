@@ -1,4 +1,7 @@
-use omega_machine_code::{FunctionFragmentControlProvenance, FunctionFragmentSuccessorProvenance};
+use omega_machine_code::{
+    FunctionFragmentConditionalBranchPredicate, FunctionFragmentControlProvenance,
+    FunctionFragmentSuccessorProvenance,
+};
 use omega_selected_instructions::{SelectedBlock, SelectedInstructionId, SelectedTerminator};
 
 pub(super) fn provenance(
@@ -11,19 +14,41 @@ pub(super) fn provenance(
             when_nonzero,
             when_zero,
         } if branch.id == instruction => FunctionFragmentControlProvenance::ConditionalBranch {
-            when_nonzero: FunctionFragmentSuccessorProvenance {
+            predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
+            when_taken: FunctionFragmentSuccessorProvenance {
                 psi_edge: when_nonzero.psi_edge,
                 block: when_nonzero.block,
                 source_target: when_nonzero.source_target,
                 bindings: when_nonzero.bindings.clone(),
                 fuel: when_nonzero.fuel.clone(),
             },
-            when_zero: FunctionFragmentSuccessorProvenance {
+            when_fallthrough: FunctionFragmentSuccessorProvenance {
                 psi_edge: when_zero.psi_edge,
                 block: when_zero.block,
                 source_target: when_zero.source_target,
                 bindings: when_zero.bindings.clone(),
                 fuel: when_zero.fuel.clone(),
+            },
+        },
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction: branch,
+            when_less,
+            when_not_less,
+        } if branch.id == instruction => FunctionFragmentControlProvenance::ConditionalBranch {
+            predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
+            when_taken: FunctionFragmentSuccessorProvenance {
+                psi_edge: when_less.psi_edge,
+                block: when_less.block,
+                source_target: when_less.source_target,
+                bindings: when_less.bindings.clone(),
+                fuel: when_less.fuel.clone(),
+            },
+            when_fallthrough: FunctionFragmentSuccessorProvenance {
+                psi_edge: when_not_less.psi_edge,
+                block: when_not_less.block,
+                source_target: when_not_less.source_target,
+                bindings: when_not_less.bindings.clone(),
+                fuel: when_not_less.fuel.clone(),
             },
         },
         SelectedTerminator::Return {

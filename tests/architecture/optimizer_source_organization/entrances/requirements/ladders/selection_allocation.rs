@@ -2,6 +2,22 @@ use super::super::SemanticLadder;
 
 pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
+        family: "selected-plan canonical identity",
+        paths: &[
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/identity.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/identity/ordinary.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/identity/primitives.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/identity/projected_structural.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "selected-CFG liveness computation",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/compute.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/analyses/liveness/compute/control.rs",
+        ],
+    },
+    SemanticLadder {
         family: "logical spill-operation planning",
         paths: &[
             "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/allocation/logical_spill_operations/mod.rs",
@@ -509,6 +525,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/mod.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/direct_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/integer_equal_parameters.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/integer_less_than_parameters.rs",
         ],
     },
     SemanticLadder {
@@ -517,6 +534,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/mod.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/direct_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/integer_equal_parameters.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/integer_less_than_parameters.rs",
         ],
     },
     SemanticLadder {
@@ -525,9 +543,12 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/mod.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/direct_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/integer_equal_parameters.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/integer_less_than_immediate_pair.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/integer_less_than_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/mod.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/direct_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/integer_equal_parameters.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/integer_less_than_parameters.rs",
         ],
     },
     SemanticLadder {
@@ -567,6 +588,10 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_equal_conditional/fixture.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_equal_conditional/selected_graph.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_equal_conditional/corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_less_than_conditional/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_less_than_conditional/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_less_than_conditional/selected_graph.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_integer_less_than_conditional/corruption.rs",
         ],
     },
     SemanticLadder {
@@ -575,6 +600,14 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_integer_equal_conditional/mod.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_integer_equal_conditional/fixture.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_integer_equal_conditional/publication.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "runtime integer-less-than publication tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_integer_less_than_conditional/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_integer_less_than_conditional/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_integer_less_than_conditional/publication.rs",
         ],
     },
 ];

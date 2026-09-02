@@ -34,6 +34,11 @@ pub(super) fn replay_function(
                     when_zero,
                     ..
                 } => vec![when_nonzero.block, when_zero.block],
+                SelectedTerminator::ConditionalBranchU64LessThan {
+                    when_less,
+                    when_not_less,
+                    ..
+                } => vec![when_less.block, when_not_less.block],
                 SelectedTerminator::Return { .. } => Vec::new(),
             };
             let vo = targets
@@ -199,6 +204,22 @@ fn replay_block(
             when_nonzero,
             when_zero,
         } => [when_nonzero, when_zero]
+            .into_iter()
+            .enumerate()
+            .map(|(ordinal, successor)| SuccessorLiveness {
+                terminator: instruction.id,
+                polarity_ordinal: ordinal as u8,
+                psi_edge: successor.psi_edge,
+                target: successor.block,
+                virtual_live: collect(&v_in[&successor.block]),
+                unit_live: collect(&u_in[&successor.block]),
+            })
+            .collect(),
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => [when_less, when_not_less]
             .into_iter()
             .enumerate()
             .map(|(ordinal, successor)| SuccessorLiveness {

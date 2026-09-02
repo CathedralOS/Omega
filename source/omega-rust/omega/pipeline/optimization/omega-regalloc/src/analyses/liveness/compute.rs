@@ -7,8 +7,10 @@ use crate::analyses::liveness::model::{
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
 use omega_selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstruction, SelectedStructuralUnitFunction,
-    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
+
+mod control;
 
 pub(crate) fn compute_terminal_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
@@ -505,25 +507,19 @@ fn materialize_block(
         });
     }
     instructions.reverse();
-    let successors = match &block.terminator {
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero,
-            when_zero,
-        } => [when_nonzero, when_zero]
-            .into_iter()
-            .enumerate()
-            .map(|(ordinal, successor)| SuccessorLiveness {
-                terminator: instruction.id,
-                polarity_ordinal: ordinal as u8,
-                psi_edge: successor.psi_edge,
-                target: successor.block,
-                virtual_live: sorted(&virtual_entry[&successor.block]),
-                unit_live: sorted(&unit_entry[&successor.block]),
-            })
-            .collect(),
-        SelectedTerminator::Return { .. } => Vec::new(),
-    };
+    let terminator = control::instruction(&block.terminator);
+    let successors = control::successors(&block.terminator)
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, successor)| SuccessorLiveness {
+            terminator: terminator.id,
+            polarity_ordinal: ordinal as u8,
+            psi_edge: successor.psi_edge,
+            target: successor.block,
+            virtual_live: sorted(&virtual_entry[&successor.block]),
+            unit_live: sorted(&unit_entry[&successor.block]),
+        })
+        .collect();
     BlockLiveness {
         block: block.id,
         source_block: block.source_block,
@@ -559,24 +555,17 @@ fn virtual_uses_defs(
 }
 
 fn successor_blocks(block: &SelectedBlock) -> Vec<omega_selected_instructions::SelectedBlockId> {
-    match &block.terminator {
-        SelectedTerminator::ConditionalBranch {
-            when_nonzero,
-            when_zero,
-            ..
-        } => vec![when_nonzero.block, when_zero.block],
-        SelectedTerminator::Return { .. } => Vec::new(),
-    }
+    control::successors(&block.terminator)
+        .into_iter()
+        .map(|successor| successor.block)
+        .collect()
 }
 
 fn block_instructions(block: &SelectedBlock) -> Vec<&SelectedInstruction> {
     block
         .instructions
         .iter()
-        .chain(std::iter::once(match &block.terminator {
-            SelectedTerminator::ConditionalBranch { instruction, .. }
-            | SelectedTerminator::Return { instruction, .. } => instruction,
-        }))
+        .chain(std::iter::once(control::instruction(&block.terminator)))
         .collect()
 }
 

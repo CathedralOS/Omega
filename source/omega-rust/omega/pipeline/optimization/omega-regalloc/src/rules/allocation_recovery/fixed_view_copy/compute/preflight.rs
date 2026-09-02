@@ -118,6 +118,7 @@ pub(super) fn next_instruction_id(
                 .map(|instruction| instruction.id.0)
                 .chain(std::iter::once(match &block.terminator {
                     SelectedTerminator::ConditionalBranch { instruction, .. }
+                    | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                     | SelectedTerminator::Return { instruction, .. } => instruction.id.0,
                 }))
         })

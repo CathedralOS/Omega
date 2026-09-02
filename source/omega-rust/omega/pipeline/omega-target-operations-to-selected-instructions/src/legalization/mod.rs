@@ -7,6 +7,8 @@ mod admission;
 mod catalog;
 #[cfg(test)]
 mod catalog_tests;
+#[cfg(test)]
+mod condition_tests;
 mod model;
 mod projected_structural_call_return;
 mod replay;

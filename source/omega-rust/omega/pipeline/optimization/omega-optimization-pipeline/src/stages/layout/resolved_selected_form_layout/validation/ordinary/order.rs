@@ -3,11 +3,13 @@ use omega_selected_instructions::{
 };
 
 use super::super::super::OptimizedResolvedSelectedFormLayoutError;
+use super::super::super::SelectedFunctionLayoutPolicy;
 use super::Fusion;
 
 pub(super) fn derive<'a>(
     function: &'a SelectedFunction,
     fusion: Fusion<'_>,
+    policy: SelectedFunctionLayoutPolicy,
 ) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
     if let [block] = function.blocks.as_slice() {
         if function.entry_block != block.id
@@ -22,28 +24,37 @@ pub(super) fn derive<'a>(
         return unsupported(function);
     }
     let entry = find(function, function.entry_block)?;
-    let SelectedTerminator::ConditionalBranch {
-        when_nonzero,
-        when_zero,
-        ..
-    } = &entry.terminator
-    else {
-        return unsupported(function);
+    let (taken, fallthrough) = match (&entry.terminator, policy) {
+        (
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            },
+            SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
+        ) => (when_nonzero, when_zero),
+        (
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                when_less,
+                when_not_less,
+                ..
+            },
+            SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1,
+        ) if fusion.is_none() => (when_less, when_not_less),
+        _ => return unsupported(function),
     };
-    if when_nonzero.block == when_zero.block
-        || entry.id == when_nonzero.block
-        || entry.id == when_zero.block
+    if taken.block == fallthrough.block || entry.id == taken.block || entry.id == fallthrough.block
     {
         return unsupported(function);
     }
-    let zero = find(function, when_zero.block)?;
-    let nonzero = find(function, when_nonzero.block)?;
-    if !matches!(zero.terminator, SelectedTerminator::Return { .. })
-        || !matches!(nonzero.terminator, SelectedTerminator::Return { .. })
+    let fallthrough = find(function, fallthrough.block)?;
+    let taken = find(function, taken.block)?;
+    if !matches!(fallthrough.terminator, SelectedTerminator::Return { .. })
+        || !matches!(taken.terminator, SelectedTerminator::Return { .. })
     {
         return unsupported(function);
     }
-    Ok(vec![entry, zero, nonzero])
+    Ok(vec![entry, fallthrough, taken])
 }
 
 fn find(

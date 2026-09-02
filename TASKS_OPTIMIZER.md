@@ -1016,6 +1016,27 @@ decision. Only true language-semantic questions belong in
     execution of equal and unequal inputs. The positive, negative, corruption,
     identity, cross-target, and runtime suites pass on Linux x64 and Linux
     arm64.
+  - [x] Add the ordered runtime sibling as one exact unsigned-`U64`
+    strict-less-than conditional family. It admits the same bounded
+    two-parameter, three-block, immediate-leaf envelope but requires
+    `[IntegerLessThan, Conditional]` and preserves authored left/right order.
+    Legalization appends a distinct recipe and mirrored producer/replay
+    condition leaf; the generic immediate family explicitly excludes both
+    runtime comparison recipes so catalog overlap fails closed. Selection
+    emits `CompareI64` followed by the predicate-specific
+    `ConditionalBranchU64LessThan`, with the source true/less edge taken and
+    the false/not-less edge as fallthrough. Machine effects retain the exact
+    flags/control dependencies, while pre-allocation exposes only the safe
+    near x86 form; the explicit rel8 layout optimization alone may rewrite
+    `JB rel32` variant zero to `JB rel8` variant one. AArch64 emits `B.LO` and
+    cannot enter the compare-zero/CBNZ rule. Predicate-aware layout,
+    relaxation, function-fragment, relocation-free text, object, and callable
+    custody distinguish less-than from nonzero rather than relabelling it.
+    Independent replay rejects reflexive inputs, operand swaps, equality
+    substitution, successor swaps, predicate/opcode substitution, and stale
+    identities. Cross-target selection and publication tests pin x86
+    `cmp`/`JB` and AArch64 `cmp`/`B.LO` through Linux object and callable
+    publication.
   - [x] Add constant-widen-to-immediate as its own exact abstract-to-target
     family. Its independently reconstructed source grammar and target replay
     cover all 18 native fixed-integer widening relations and preserve the

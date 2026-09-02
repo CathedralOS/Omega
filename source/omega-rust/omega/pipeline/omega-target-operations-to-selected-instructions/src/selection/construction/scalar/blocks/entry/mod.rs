@@ -2,6 +2,7 @@
 
 mod direct_parameter;
 mod integer_equal_parameters;
+mod integer_less_than_parameters;
 
 use crate::selection::shared::*;
 
@@ -14,6 +15,9 @@ pub(in crate::selection::construction::scalar) fn condition(
         LegalizedCondition::DirectParameter { .. } => direct_parameter::build(context),
         LegalizedCondition::IntegerEqualParametersV1 { .. } => {
             integer_equal_parameters::build(context)
+        }
+        LegalizedCondition::IntegerLessThanParametersV1 { .. } => {
+            integer_less_than_parameters::build(context)
         }
     }
 }

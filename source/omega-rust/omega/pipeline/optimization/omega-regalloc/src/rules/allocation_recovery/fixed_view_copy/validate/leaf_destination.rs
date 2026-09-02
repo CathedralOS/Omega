@@ -51,6 +51,7 @@ pub(super) fn terminator(
 ) -> &omega_selected_instructions::SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

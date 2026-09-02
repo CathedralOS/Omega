@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Canonical source-to-legal construction over the sole ordered form catalog.
 
-mod conditions;
+pub(in crate::legalization) mod conditions;
 mod custody;
 mod functions;
 mod leaves;
@@ -14,6 +14,16 @@ use functions::{derive_source_function, derive_source_unit_function};
 use matchers::{match_structural_unit_form, match_unit_form};
 use shared::*;
 use structural::derive_source_structural_unit_function;
+
+#[cfg(test)]
+pub(in crate::legalization) fn derive_condition_for_test<'a>(
+    function: usize,
+    target: &'a omega_target_operations::TargetFunction,
+    abstracted: &omega_abstract_operations::AbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+) -> Result<conditions::DerivedCondition<'a>, LegalizationError> {
+    conditions::derive(function, target, abstracted, optimized)
+}
 
 pub(crate) struct SourceFunctionRosters {
     pub functions: Vec<SourceFunction>,

@@ -439,6 +439,7 @@ fn instruction_index(
         .collect::<BTreeMap<_, _>>();
     match &block.terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => {
             index.insert(instruction.id, instruction);
         }

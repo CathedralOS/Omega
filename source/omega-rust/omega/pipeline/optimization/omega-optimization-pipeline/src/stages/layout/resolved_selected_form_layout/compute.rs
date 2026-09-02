@@ -115,6 +115,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
             physical,
             fusion,
             copy_elision,
+            policy,
         )?);
     }
     if pre_rows.next().is_some() {

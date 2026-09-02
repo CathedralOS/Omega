@@ -13,11 +13,12 @@ use sha2::{Digest, Sha256};
 use crate::PostAllocationMachineOptimizationCustody;
 
 use super::model::{
-    ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout,
-    ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
+    ResolvedConditionalBranchPredicate, ResolvedSelectedFormLayoutIdentity,
+    ResolvedSelectedFunctionLayout, ResolvedStructuralUnitFunctionLayout,
+    SelectedFunctionLayoutPolicy,
 };
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v7";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v8";
 
 pub(super) fn layout_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
@@ -63,6 +64,7 @@ pub(super) fn layout_identity(
         SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 0,
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 1,
         SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 => 2,
+        SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 3,
     }]);
     hasher.update((functions.len() as u64).to_le_bytes());
     for function in functions {
@@ -84,13 +86,17 @@ pub(super) fn layout_identity(
                     None => hasher.update([0]),
                     Some(branch) => {
                         hasher.update([1]);
+                        hasher.update([match branch.predicate {
+                            ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
+                            ResolvedConditionalBranchPredicate::U64LessThanV1 => 1,
+                        }]);
                         hasher.update(branch.source_block.0.to_le_bytes());
-                        hasher.update(branch.when_nonzero_edge.get().to_le_bytes());
-                        hasher.update(branch.when_nonzero_block.0.to_le_bytes());
-                        hasher.update(branch.when_nonzero_offset.to_le_bytes());
-                        hasher.update(branch.when_zero_edge.get().to_le_bytes());
-                        hasher.update(branch.when_zero_block.0.to_le_bytes());
-                        hasher.update(branch.when_zero_offset.to_le_bytes());
+                        hasher.update(branch.when_taken_edge.get().to_le_bytes());
+                        hasher.update(branch.when_taken_block.0.to_le_bytes());
+                        hasher.update(branch.when_taken_offset.to_le_bytes());
+                        hasher.update(branch.when_fallthrough_edge.get().to_le_bytes());
+                        hasher.update(branch.when_fallthrough_block.0.to_le_bytes());
+                        hasher.update(branch.when_fallthrough_offset.to_le_bytes());
                         hasher.update(branch.byte_displacement.to_le_bytes());
                         encode_views(&mut hasher, &branch.decoded_register_reads);
                         encode_effects(&mut hasher, &branch.decoded_effects);
@@ -209,6 +215,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         Family::ExactSubtractI64Immediate => 8,
         Family::ReturnUnit => 9,
         Family::CompareI64 => 10,
+        Family::ConditionalBranchU64LessThan => 11,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

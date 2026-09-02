@@ -86,6 +86,7 @@ pub(super) fn apply(
     } else {
         let terminator_id = match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction.id,
         };
         if terminator_id != first.instruction {
@@ -112,6 +113,7 @@ fn rewrite_operand(
         .or_else(|| {
             let terminator = match &mut block.terminator {
                 SelectedTerminator::ConditionalBranch { instruction, .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. } => instruction,
             };
             (terminator.id == rewrite.instruction).then_some(terminator)

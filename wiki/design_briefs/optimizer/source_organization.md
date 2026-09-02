@@ -238,7 +238,9 @@ enablement and order.
 Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
 entrance over exact `direct_parameter` and `integer_equal_parameters` leaves;
-`replay/conditions/mod.rs` independently reconstructs those same closed forms
+the adjacent `integer_less_than_parameters` leaf owns the ordered runtime
+sibling. `replay/conditions/mod.rs` independently reconstructs those same
+three closed forms
 without importing producer helpers. The ordered legalization catalog selects
 the complete condition-plus-leaf recipe, so an immediate-leaf direct condition
 cannot overlap the immediate-leaf integer-equality condition. Condition leaves
@@ -249,10 +251,13 @@ leaf rungs.
 
 Scalar selected construction mirrors that split below its sole family catalog.
 The entry-control rung owns separate direct-parameter and
-integer-equal-parameter leaves. The latter constructs a two-register compare
-and deliberately maps the existing nonzero successor to the false source arm;
-its independent validation sibling reconstructs the same instruction,
-operands, provenance, and inverted successor mapping. ISA constraint/effect
+integer-equal-parameter, and integer-less-than-parameter leaves. Equality
+constructs a two-register compare and deliberately maps the existing nonzero
+successor to the false source arm. Strict less-than constructs the same ordered
+compare but a predicate-specific terminator with less/source-true taken and
+not-less/source-false as fallthrough. Their independent validation siblings
+reconstruct the exact instruction, operands, provenance, predicate, and
+successor mapping. ISA constraint/effect
 catalogs and encoders remain target-owned leaves rather than being hidden in
 the target-neutral selection entrance.
 

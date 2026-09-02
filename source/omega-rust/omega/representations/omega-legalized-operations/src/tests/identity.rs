@@ -204,3 +204,122 @@ fn call_aware_unit_roster_cannot_alias_value_less_unit_roster() {
         call_aware_identity
     );
 }
+
+#[test]
+fn strict_less_than_condition_has_distinct_ordered_identity() {
+    let mut plan = call_aware_plan();
+    plan.structural_unit_functions.clear();
+    let machine = id(20);
+    let entry = id::<BlockId>(21);
+    let true_block = id::<BlockId>(22);
+    let false_block = id::<BlockId>(23);
+    let left = id::<ValueId>(24);
+    let right = id::<ValueId>(25);
+    let condition = id::<ValueId>(26);
+    let comparison = id::<OperationId>(27);
+    let true_edge = id::<EdgeId>(28);
+    let false_edge = id::<EdgeId>(29);
+    let true_return = id::<EdgeId>(30);
+    let false_return = id::<EdgeId>(31);
+    let left_parameter = LegalizedConditionParameter {
+        source_value: left,
+        parameter_index: 0,
+        register: MachineRegister::X86Rdi,
+        definition_site: omega_optimization_unit::ValueDefinitionSite::FunctionParameter(0),
+    };
+    let right_parameter = LegalizedConditionParameter {
+        source_value: right,
+        parameter_index: 1,
+        register: MachineRegister::X86Rsi,
+        definition_site: omega_optimization_unit::ValueDefinitionSite::FunctionParameter(1),
+    };
+    let comparison_fuel = vec![FuelSettlement {
+        site: PsiProvenance::Operation(comparison),
+        units: 1,
+    }];
+    let leaf = |source_value, value, operation, block, edge| LegalizedLeaf {
+        return_edge: edge,
+        source_value,
+        return_fuel: vec![FuelSettlement {
+            site: PsiProvenance::Edge(edge),
+            units: 1,
+        }],
+        value: LegalizedLeafValue::Immediate {
+            value: IntegerValue::Unsigned(value),
+            constant_operation: operation,
+            definition_site: omega_optimization_unit::ValueDefinitionSite::Node { block, node: 0 },
+            constant_fuel: vec![FuelSettlement {
+                site: PsiProvenance::Operation(operation),
+                units: 1,
+            }],
+        },
+    };
+    let true_value = id::<ValueId>(32);
+    let false_value = id::<ValueId>(33);
+    let true_constant = id::<OperationId>(34);
+    let false_constant = id::<OperationId>(35);
+    plan.functions.push(LegalizedFunction {
+        machine,
+        attachment: None,
+        provenance: TerminalPsiProvenance {
+            operations: vec![comparison, true_constant, false_constant],
+            edges: vec![true_edge, false_edge, true_return, false_return],
+        },
+        recipe: LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1,
+        condition_source: condition,
+        condition: LegalizedCondition::IntegerLessThanParametersV1 {
+            operation: comparison,
+            result_definition_site: omega_optimization_unit::ValueDefinitionSite::Node {
+                block: entry,
+                node: 0,
+            },
+            fuel: comparison_fuel,
+            left: left_parameter.clone(),
+            right: right_parameter.clone(),
+        },
+        entry_block: entry,
+        true_block,
+        false_block,
+        branch_true_edge: true_edge,
+        branch_false_edge: false_edge,
+        branch_true_fuel: vec![FuelSettlement {
+            site: PsiProvenance::Edge(true_edge),
+            units: 1,
+        }],
+        branch_false_fuel: vec![FuelSettlement {
+            site: PsiProvenance::Edge(false_edge),
+            units: 1,
+        }],
+        branch_true_bindings: Vec::new(),
+        branch_false_bindings: Vec::new(),
+        when_true: leaf(true_value, 7, true_constant, true_block, true_return),
+        when_false: leaf(false_value, 9, false_constant, false_block, false_return),
+    });
+    let identity = legalized_operation_plan_identity(&plan);
+
+    let mut reversed = plan.clone();
+    let LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } =
+        &mut reversed.functions[0].condition
+    else {
+        panic!("strict less-than fixture")
+    };
+    std::mem::swap(left, right);
+    assert_ne!(legalized_operation_plan_identity(&reversed), identity);
+
+    let mut equality = plan.clone();
+    equality.functions[0].recipe = LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1;
+    equality.functions[0].condition = LegalizedCondition::IntegerEqualParametersV1 {
+        operation: comparison,
+        result_definition_site: omega_optimization_unit::ValueDefinitionSite::Node {
+            block: entry,
+            node: 0,
+        },
+        fuel: vec![FuelSettlement {
+            site: PsiProvenance::Operation(comparison),
+            units: 1,
+        }],
+        left: left_parameter,
+        right: right_parameter,
+    };
+    assert_ne!(legalized_operation_plan_identity(&equality), identity);
+}

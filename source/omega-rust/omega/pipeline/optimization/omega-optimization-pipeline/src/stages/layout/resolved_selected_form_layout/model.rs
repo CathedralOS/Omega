@@ -21,11 +21,18 @@ use super::identity::layout_identity;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedFunctionLayoutPolicy {
     EntryThenZeroFallthroughThenNonzeroV1,
+    EntryThenNotLessFallthroughThenLessV1,
     SingleEntryBlockV1,
     /// A separate zero-VReg structural roster. Every function has one entry
     /// block containing either `ReturnUnit`, or one unresolved whole-root
     /// `CallUnit` template followed by `ReturnUnit`.
     StructuralUnitCallThenReturnSingleEntryBlockV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolvedConditionalBranchPredicate {
+    NonZeroV1,
+    U64LessThanV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -43,13 +50,14 @@ impl ResolvedSelectedFormLayoutIdentity {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedConditionalBranchEvidence {
+    pub predicate: ResolvedConditionalBranchPredicate,
     pub source_block: SelectedBlockId,
-    pub when_nonzero_edge: EdgeId,
-    pub when_nonzero_block: SelectedBlockId,
-    pub when_nonzero_offset: u64,
-    pub when_zero_edge: EdgeId,
-    pub when_zero_block: SelectedBlockId,
-    pub when_zero_offset: u64,
+    pub when_taken_edge: EdgeId,
+    pub when_taken_block: SelectedBlockId,
+    pub when_taken_offset: u64,
+    pub when_fallthrough_edge: EdgeId,
+    pub when_fallthrough_block: SelectedBlockId,
+    pub when_fallthrough_offset: u64,
     /// x86-64 measures from instruction end; AArch64 measures from the branch
     /// word address. The target decoder independently checks this convention.
     pub byte_displacement: i64,

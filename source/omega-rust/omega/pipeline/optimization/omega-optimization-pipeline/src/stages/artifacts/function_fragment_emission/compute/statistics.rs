@@ -35,13 +35,14 @@ pub(super) fn compute(
                 result.resolved_conditional_branches += u64::from(row.branch.is_some());
                 let mut fuel = row.provenance.fuel.len();
                 if let FunctionFragmentControlProvenance::ConditionalBranch {
-                    when_nonzero,
-                    when_zero,
+                    when_taken,
+                    when_fallthrough,
+                    ..
                 } = &row.control
                 {
                     fuel = fuel
-                        .checked_add(when_nonzero.fuel.len())
-                        .and_then(|fuel| fuel.checked_add(when_zero.fuel.len()))
+                        .checked_add(when_taken.fuel.len())
+                        .and_then(|fuel| fuel.checked_add(when_fallthrough.fuel.len()))
                         .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
                 }
                 result.logical_fuel_settlements = result

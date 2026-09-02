@@ -2,6 +2,7 @@
 
 mod direct_parameter;
 mod integer_equal_parameters;
+mod integer_less_than_parameters;
 
 use crate::selection::shared::*;
 
@@ -18,6 +19,9 @@ pub(super) fn validate(
         }
         LegalizedCondition::IntegerEqualParametersV1 { .. } => {
             integer_equal_parameters::validate(function_index, source, function, keys, catalog)
+        }
+        LegalizedCondition::IntegerLessThanParametersV1 { .. } => {
+            integer_less_than_parameters::validate(function_index, source, function, keys, catalog)
         }
     }
 }

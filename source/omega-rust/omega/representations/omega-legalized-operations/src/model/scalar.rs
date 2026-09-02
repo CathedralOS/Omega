@@ -37,6 +37,13 @@ pub enum LegalizedCondition {
         left: LegalizedConditionParameter,
         right: LegalizedConditionParameter,
     },
+    IntegerLessThanParametersV1 {
+        operation: OperationId,
+        result_definition_site: ValueDefinitionSite,
+        fuel: Vec<FuelSettlement>,
+        left: LegalizedConditionParameter,
+        right: LegalizedConditionParameter,
+    },
 }
 
 /// One ordered entry-parameter operand of a legalized condition.

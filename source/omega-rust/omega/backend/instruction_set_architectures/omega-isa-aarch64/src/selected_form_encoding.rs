@@ -132,7 +132,11 @@ pub fn encode_aarch64_selected_nonzero_branch_form(
     alternative: MachineAlternativeKey,
     byte_displacement_from_instruction: i64,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    validate_branch_request(physical, alternative)?;
+    validate_branch_request(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchNonZero,
+    )?;
     let word_displacement = branch_word_displacement(byte_displacement_from_instruction)?;
     let word = 0x5400_0001 | (((word_displacement as u32) & 0x7ffff) << 5);
     let bytes = word.to_le_bytes();
@@ -150,7 +154,11 @@ pub fn validate_aarch64_selected_nonzero_branch_form(
     byte_displacement_from_instruction: i64,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    validate_branch_request(physical, alternative)?;
+    validate_branch_request(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchNonZero,
+    )?;
     branch_word_displacement(byte_displacement_from_instruction)?;
     let word = bytes
         .try_into()
@@ -170,19 +178,68 @@ pub fn validate_aarch64_selected_nonzero_branch_form(
     })
 }
 
+/// Encode the canonical AArch64 unsigned-lower conditional branch. `B.LO`
+/// uses condition code `0b0011`, with its signed imm19 measured from the
+/// branch instruction address and scaled by four bytes.
+pub fn encode_aarch64_selected_u64_less_than_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_branch_request(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan,
+    )?;
+    let word_displacement = branch_word_displacement(byte_displacement_from_instruction)?;
+    let word = 0x5400_0003 | (((word_displacement as u32) & 0x7ffff) << 5);
+    validate_aarch64_selected_u64_less_than_branch_form(
+        physical,
+        alternative,
+        byte_displacement_from_instruction,
+        &word.to_le_bytes(),
+    )
+}
+
+/// Independently decode exactly one canonical AArch64 `B.LO imm19`.
+pub fn validate_aarch64_selected_u64_less_than_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction: i64,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    validate_branch_request(
+        physical,
+        alternative,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan,
+    )?;
+    branch_word_displacement(byte_displacement_from_instruction)?;
+    let word = bytes
+        .try_into()
+        .ok()
+        .map(u32::from_le_bytes)
+        .filter(|word| word & 0xff00_001f == 0x5400_0003)
+        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+    let encoded_imm19 = ((word >> 5) & 0x7ffff) as i32;
+    let decoded_words = (encoded_imm19 << 13) >> 13;
+    if i64::from(decoded_words) * 4 != byte_displacement_from_instruction {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(SelectedInstructionKind::ConditionalBranchU64LessThan, &[]),
+    })
+}
+
 fn validate_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
+    family: MachineAlternativeFamily,
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     if physical.model() != &aarch64_physical_register_model() {
         return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
     }
-    if alternative
-        != (MachineAlternativeKey {
-            family: MachineAlternativeFamily::ConditionalBranchNonZero,
-            variant: 0,
-        })
-    {
+    if alternative != (MachineAlternativeKey { family, variant: 0 }) {
         return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
     }
     Ok(())
@@ -436,6 +493,9 @@ fn family_and_operand_count(
         SelectedInstructionKind::ConditionalBranchNonZero => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
+        SelectedInstructionKind::ConditionalBranchU64LessThan => {
+            return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
+        }
     })
 }
 
@@ -550,7 +610,8 @@ fn encode_unchecked(
         SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit => {
             words.push(0xd65f_03c0)
         }
-        SelectedInstructionKind::ConditionalBranchNonZero => {
+        SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
     }
@@ -833,7 +894,8 @@ fn validate_decoded(
         SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit => {
             decoded == [DecodedWord::Return]
         }
-        SelectedInstructionKind::ConditionalBranchNonZero => false,
+        SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan => false,
     };
     if valid {
         Ok(())
@@ -951,7 +1013,8 @@ fn footprint(
         SelectedInstructionKind::ReturnI64 | SelectedInstructionKind::ReturnUnit => {
             (vec![], vec![], false)
         }
-        SelectedInstructionKind::ConditionalBranchNonZero => (vec![], vec![], false),
+        SelectedInstructionKind::ConditionalBranchNonZero
+        | SelectedInstructionKind::ConditionalBranchU64LessThan => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
@@ -972,7 +1035,11 @@ fn footprint(
                 target: physical.view_named("x30").unwrap().id,
             },
         }
-    } else if matches!(kind, SelectedInstructionKind::ConditionalBranchNonZero) {
+    } else if matches!(
+        kind,
+        SelectedInstructionKind::ConditionalBranchNonZero
+            | SelectedInstructionKind::ConditionalBranchU64LessThan
+    ) {
         let mut uses = units("nzcv");
         uses.extend(units("pc"));
         uses.sort_unstable();
@@ -1509,6 +1576,92 @@ mod tests {
                 &[1, 0, 0, 0, 0]
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn u64_less_than_branch_is_exact_b_lo_imm19_with_flag_control_effects() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let nzcv = physical.model().view_named("nzcv").unwrap();
+        let pc = physical.model().view_named("pc").unwrap();
+        let alternative = alternative(MachineAlternativeFamily::ConditionalBranchU64LessThan);
+        for (displacement, expected) in [
+            (-4, [0xe3, 0xff, 0xff, 0x54]),
+            (0, [0x03, 0x00, 0x00, 0x54]),
+            (4, [0x23, 0x00, 0x00, 0x54]),
+        ] {
+            let encoded = encode_aarch64_selected_u64_less_than_branch_form(
+                &physical,
+                alternative,
+                displacement,
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes(), expected);
+            assert!(encoded.footprint().register_reads.is_empty());
+            assert!(encoded.footprint().register_writes.is_empty());
+            assert_eq!(
+                encoded.footprint().encoded.control,
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+            assert!(nzcv.units.iter().all(|unit| {
+                encoded
+                    .footprint()
+                    .encoded
+                    .implicit_unit_uses
+                    .contains(unit)
+            }));
+            assert!(pc.units.iter().all(|unit| {
+                encoded
+                    .footprint()
+                    .encoded
+                    .implicit_unit_uses
+                    .contains(unit)
+            }));
+            assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
+        }
+        for displacement in [-1_048_576, 1_048_572] {
+            assert!(
+                encode_aarch64_selected_u64_less_than_branch_form(
+                    &physical,
+                    alternative,
+                    displacement,
+                )
+                .is_ok()
+            );
+        }
+        for displacement in [-1_048_580, 1_048_576, 2] {
+            assert!(
+                encode_aarch64_selected_u64_less_than_branch_form(
+                    &physical,
+                    alternative,
+                    displacement,
+                )
+                .is_err()
+            );
+        }
+        for bytes in [
+            0x5400_0002_u32.to_le_bytes(),
+            0x5400_0009_u32.to_le_bytes(),
+            0x1400_0003_u32.to_le_bytes(),
+        ] {
+            assert_eq!(
+                validate_aarch64_selected_u64_less_than_branch_form(
+                    &physical,
+                    alternative,
+                    0,
+                    &bytes,
+                ),
+                Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
+            );
+        }
+        assert_eq!(
+            validate_aarch64_selected_u64_less_than_branch_form(
+                &physical,
+                alternative,
+                0,
+                &0x5400_0023_u32.to_le_bytes(),
+            ),
+            Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
         );
     }
 

@@ -91,6 +91,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
+        SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
     };
     bytes.push(tag);
     match kind {
@@ -163,6 +164,7 @@ pub(in crate::rules::allocation_recovery::fixed_view_copy::codec) fn decode_kind
         },
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
+        11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
         tag => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(tag)),
     })
 }
@@ -180,6 +182,21 @@ mod tests {
         assert_eq!(
             decode_kind(&mut cursor).unwrap(),
             SelectedInstructionKind::CompareI64
+        );
+    }
+
+    #[test]
+    fn conditional_branch_u64_less_than_uses_append_only_tag_eleven() {
+        let mut bytes = Vec::new();
+        encode_kind(
+            &mut bytes,
+            SelectedInstructionKind::ConditionalBranchU64LessThan,
+        );
+        assert_eq!(bytes, [11]);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(
+            decode_kind(&mut cursor).unwrap(),
+            SelectedInstructionKind::ConditionalBranchU64LessThan
         );
     }
 }

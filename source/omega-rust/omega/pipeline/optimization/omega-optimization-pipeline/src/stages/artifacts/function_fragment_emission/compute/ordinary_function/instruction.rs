@@ -1,5 +1,6 @@
 use omega_machine_code::{
-    FunctionFragmentConditionalBranchEvidence, FunctionFragmentInstructionSpan,
+    FunctionFragmentConditionalBranchEvidence, FunctionFragmentConditionalBranchPredicate,
+    FunctionFragmentInstructionSpan,
 };
 use omega_selected_instructions::{SelectedBlock, SelectedInstruction, SelectedTerminator};
 
@@ -28,13 +29,21 @@ pub(super) fn emit(
         bytes: row.bytes.clone(),
         branch: row.branch.as_deref().map(|branch| {
             Box::new(FunctionFragmentConditionalBranchEvidence {
+                predicate: match branch.predicate {
+                    crate::ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                        FunctionFragmentConditionalBranchPredicate::NonZeroV1
+                    }
+                    crate::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                        FunctionFragmentConditionalBranchPredicate::U64LessThanV1
+                    }
+                },
                 source_block: branch.source_block,
-                when_nonzero_edge: branch.when_nonzero_edge,
-                when_nonzero_block: branch.when_nonzero_block,
-                when_nonzero_offset: branch.when_nonzero_offset,
-                when_zero_edge: branch.when_zero_edge,
-                when_zero_block: branch.when_zero_block,
-                when_zero_offset: branch.when_zero_offset,
+                when_taken_edge: branch.when_taken_edge,
+                when_taken_block: branch.when_taken_block,
+                when_taken_offset: branch.when_taken_offset,
+                when_fallthrough_edge: branch.when_fallthrough_edge,
+                when_fallthrough_block: branch.when_fallthrough_block,
+                when_fallthrough_offset: branch.when_fallthrough_offset,
                 byte_displacement: branch.byte_displacement,
                 decoded_register_reads: branch.decoded_register_reads.clone(),
                 decoded_effects: branch.decoded_effects.clone(),
@@ -54,6 +63,7 @@ fn selected<'a>(
         .iter()
         .chain(std::iter::once(match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .find(|instruction| instruction.id == row.instruction)

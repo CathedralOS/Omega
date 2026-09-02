@@ -73,6 +73,7 @@ pub(super) fn replay(
         }
         let terminator = match &mut block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         };
         if terminator.id == rewrite_row.instruction {
@@ -102,6 +103,7 @@ pub(super) fn replay(
     } else {
         let terminator = match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
+            | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         };
         if terminator.id != first.instruction {

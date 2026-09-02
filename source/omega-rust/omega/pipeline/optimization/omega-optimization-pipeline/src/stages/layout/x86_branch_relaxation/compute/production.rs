@@ -1,10 +1,14 @@
 //! Production fixed-point scan and short-branch commit mechanics.
 
-use omega_isa_x86_64::encode_x86_64_selected_short_nonzero_branch_form;
+use omega_isa_x86_64::{
+    encode_x86_64_selected_short_nonzero_branch_form,
+    encode_x86_64_selected_u64_less_than_branch_form,
+};
 use omega_optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use omega_register_model::ValidatedPhysicalRegisterModel;
+use omega_selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 
-use crate::StagedOptimizedResolvedSelectedFormLayout;
+use crate::{ResolvedConditionalBranchPredicate, StagedOptimizedResolvedSelectedFormLayout};
 
 use super::super::{
     error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis},
@@ -109,12 +113,39 @@ pub(super) fn compute_trace(
         )?;
         let old =
             functions[function_index].blocks[block_index].instructions[instruction_index].clone();
-        let encoded = encode_x86_64_selected_short_nonzero_branch_form(
-            physical,
-            old.alternative,
-            displacement,
-        )
+        let predicate = old
+            .branch
+            .as_deref()
+            .ok_or(OptimizedX86BranchRelaxationError::MalformedBranch(
+                old.instruction,
+            ))?
+            .predicate;
+        let short_alternative = match predicate {
+            ResolvedConditionalBranchPredicate::NonZeroV1 => old.alternative,
+            ResolvedConditionalBranchPredicate::U64LessThanV1 => MachineAlternativeKey {
+                family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
+                variant: 1,
+            },
+        };
+        let encoded = match predicate {
+            ResolvedConditionalBranchPredicate::NonZeroV1 => {
+                encode_x86_64_selected_short_nonzero_branch_form(
+                    physical,
+                    short_alternative,
+                    displacement,
+                )
+            }
+            ResolvedConditionalBranchPredicate::U64LessThanV1 => {
+                encode_x86_64_selected_u64_less_than_branch_form(
+                    physical,
+                    short_alternative,
+                    displacement,
+                )
+            }
+        }
         .map_err(OptimizedX86BranchRelaxationError::X86_64)?;
+        functions[function_index].blocks[block_index].instructions[instruction_index].alternative =
+            short_alternative;
         functions[function_index].blocks[block_index].instructions[instruction_index].bytes =
             encoded.bytes().to_vec();
         reflow_production_functions(&mut functions, physical)?;

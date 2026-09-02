@@ -64,6 +64,9 @@ pub enum LegalizationRecipe {
     /// Equality of two ordered U64 entry parameters controls two immediate
     /// U64 return arms.
     ReturnU64IntegerEqualParametersConditionalV1,
+    /// Strict unsigned ordering of two ordered U64 entry parameters controls
+    /// two immediate U64 return arms.
+    ReturnU64IntegerLessThanParametersConditionalV1,
 }
 
 /// Closed identity legalization admitted for a value-less Unit function.

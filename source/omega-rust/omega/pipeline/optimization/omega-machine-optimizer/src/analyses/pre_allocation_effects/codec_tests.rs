@@ -262,6 +262,33 @@ fn codec_round_trips_complete_effect_content() {
 }
 
 #[test]
+fn codec_v7_round_trips_u64_less_than_branch_vocabulary() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::ConditionalBranchU64LessThan;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchU64LessThan;
+    source.identity = pre_allocation_machine_effect_identity(&source);
+
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
+        source
+    );
+}
+
+#[test]
+fn codec_v6_retains_pre_predicate_identity_decode_compatibility() {
+    let mut source = plan();
+    source.identity = super::identity::pre_allocation_machine_effect_identity_v5_legacy(&source);
+    let mut encoded = source.encode();
+    encoded[8..12].copy_from_slice(&6_u32.to_le_bytes());
+
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
+        source
+    );
+}
+
+#[test]
 fn codec_rejects_framing_corruption_and_stale_identity() {
     let source = plan();
     let encoded = source.encode();

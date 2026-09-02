@@ -30,7 +30,8 @@ pub(super) fn reconstruct<'a>(
             constraints,
             physical,
         )?],
-        LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => [left, right]
+        LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
+        | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } => [left, right]
             .into_iter()
             .map(|parameter| {
                 reconstruct_input(

@@ -53,6 +53,7 @@ pub(crate) fn compute_terminal_pre_allocation_machine_effects<S: ValidatedSelect
             }
             let terminator = match &block.terminator {
                 SelectedTerminator::ConditionalBranch { instruction, .. }
+                | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
                 | SelectedTerminator::Return { instruction, .. } => instruction,
             };
             instructions.push(compute_instruction(terminator, constraints, catalog)?);
@@ -255,6 +256,9 @@ fn semantic(kind: SelectedInstructionKind) -> MachineSemanticKind {
         }
         SelectedInstructionKind::ConditionalBranchNonZero => {
             MachineSemanticKind::ConditionalBranchNonZero
+        }
+        SelectedInstructionKind::ConditionalBranchU64LessThan => {
+            MachineSemanticKind::ConditionalBranchU64LessThan
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,

@@ -20,7 +20,7 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         return Err(PreAllocationMachineEffectDecodeError::WrongMagic);
     }
     let version = cursor.u32()?;
-    if version != VERSION {
+    if !matches!(version, LEGACY_VERSION | VERSION) {
         return Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
             version,
         ));
@@ -76,7 +76,14 @@ pub(crate) fn decode_terminal_pre_allocation_machine_effect_plan(
         functions,
         structural_unit_functions,
     };
-    if plan.identity != pre_allocation_machine_effect_identity(&plan) {
+    let expected_identity = if version == LEGACY_VERSION {
+        crate::analyses::pre_allocation_effects::identity::pre_allocation_machine_effect_identity_v5_legacy(
+            &plan,
+        )
+    } else {
+        pre_allocation_machine_effect_identity(&plan)
+    };
+    if plan.identity != expected_identity {
         return Err(PreAllocationMachineEffectDecodeError::InvalidIdentity);
     }
     Ok(plan)

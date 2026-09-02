@@ -12,6 +12,7 @@ pub(super) fn validate_dense(
                 if matches!(
                     source.condition,
                     LegalizedCondition::IntegerEqualParametersV1 { .. }
+                        | LegalizedCondition::IntegerLessThanParametersV1 { .. }
                 ) {
                     4
                 } else {
@@ -226,33 +227,69 @@ pub(super) fn validate_provenance_partition(
     function: &SelectedFunction,
 ) -> Result<(), SelectedInstructionError> {
     let entry = &function.blocks[0];
-    let SelectedTerminator::ConditionalBranch {
-        instruction: branch,
-        when_nonzero,
-        when_zero,
-    } = &entry.terminator
-    else {
-        return Err(SelectedInstructionError::ProvenancePartitionMismatch {
-            function: function_index,
-        });
-    };
-    let (expected_compare_fuel, expected_nonzero_fuel, expected_zero_fuel) = match &source.condition
-    {
-        LegalizedCondition::DirectParameter { .. } => (
+    let (
+        branch,
+        first_successor,
+        second_successor,
+        expected_compare_fuel,
+        expected_first_fuel,
+        expected_second_fuel,
+    ) = match (&source.condition, &entry.terminator) {
+        (
+            LegalizedCondition::DirectParameter { .. },
+            SelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            },
+        ) => (
+            instruction,
+            when_nonzero,
+            when_zero,
             &[][..],
             source.branch_true_fuel.as_slice(),
             source.branch_false_fuel.as_slice(),
         ),
-        LegalizedCondition::IntegerEqualParametersV1 { fuel, .. } => (
+        (
+            LegalizedCondition::IntegerEqualParametersV1 { fuel, .. },
+            SelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            },
+        ) => (
+            instruction,
+            when_nonzero,
+            when_zero,
             fuel.as_slice(),
             source.branch_false_fuel.as_slice(),
             source.branch_true_fuel.as_slice(),
         ),
+        (
+            LegalizedCondition::IntegerLessThanParametersV1 { fuel, .. },
+            SelectedTerminator::ConditionalBranchU64LessThan {
+                instruction,
+                when_less,
+                when_not_less,
+            },
+        ) => (
+            instruction,
+            when_less,
+            when_not_less,
+            fuel.as_slice(),
+            source.branch_true_fuel.as_slice(),
+            source.branch_false_fuel.as_slice(),
+        ),
+        _ => {
+            return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                function: function_index,
+            });
+        }
     };
     if entry.instructions[0].provenance.fuel != expected_compare_fuel
         || !branch.provenance.fuel.is_empty()
-        || when_nonzero.fuel != expected_nonzero_fuel
-        || when_zero.fuel != expected_zero_fuel
+        || first_successor.fuel != expected_first_fuel
+        || second_successor.fuel != expected_second_fuel
     {
         return Err(SelectedInstructionError::ProvenancePartitionMismatch {
             function: function_index,
@@ -422,6 +459,7 @@ pub(super) fn validate_provenance_partition(
 fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

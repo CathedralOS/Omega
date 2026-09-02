@@ -7,15 +7,18 @@ use omega_selected_instructions::{
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use sha2::{Digest, Sha256};
 
-use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
+use crate::{
+    ResolvedConditionalBranchPredicate, ResolvedSelectedFormLayoutIdentity,
+    ResolvedSelectedFunctionLayout,
+};
 
 use super::model::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
 
-const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v2";
-const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v2";
+const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v3";
+const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v3";
 
 #[derive(Clone, Copy)]
 pub(super) struct RevisionRoots {
@@ -131,13 +134,17 @@ fn encode_functions(hasher: &mut Sha256, functions: &[ResolvedSelectedFunctionLa
                     None => hasher.update([0]),
                     Some(branch) => {
                         hasher.update([1]);
+                        hasher.update([match branch.predicate {
+                            ResolvedConditionalBranchPredicate::NonZeroV1 => 0,
+                            ResolvedConditionalBranchPredicate::U64LessThanV1 => 1,
+                        }]);
                         hasher.update(branch.source_block.0.to_le_bytes());
-                        hasher.update(branch.when_nonzero_edge.get().to_le_bytes());
-                        hasher.update(branch.when_nonzero_block.0.to_le_bytes());
-                        hasher.update(branch.when_nonzero_offset.to_le_bytes());
-                        hasher.update(branch.when_zero_edge.get().to_le_bytes());
-                        hasher.update(branch.when_zero_block.0.to_le_bytes());
-                        hasher.update(branch.when_zero_offset.to_le_bytes());
+                        hasher.update(branch.when_taken_edge.get().to_le_bytes());
+                        hasher.update(branch.when_taken_block.0.to_le_bytes());
+                        hasher.update(branch.when_taken_offset.to_le_bytes());
+                        hasher.update(branch.when_fallthrough_edge.get().to_le_bytes());
+                        hasher.update(branch.when_fallthrough_block.0.to_le_bytes());
+                        hasher.update(branch.when_fallthrough_offset.to_le_bytes());
                         hasher.update(branch.byte_displacement.to_le_bytes());
                         encode_effects(hasher, &branch.decoded_effects);
                     }
@@ -160,6 +167,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

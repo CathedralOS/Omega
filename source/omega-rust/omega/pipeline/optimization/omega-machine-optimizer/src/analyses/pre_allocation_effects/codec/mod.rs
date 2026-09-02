@@ -1,8 +1,8 @@
 //! Optimizer module role: stage group. Versioned persistence for pre-allocation machine effects.
 //!
 //! The root maps supported wire versions and owns only cursor/error mechanics
-//! shared across versions. `v6` owns the current format and its semantic
-//! payload taxonomy.
+//! shared across versions. `v6` owns the byte-stable V6 payload taxonomy and
+//! the append-only V7 vocabulary; framing distinguishes their identities.
 
 mod cursor;
 mod error;

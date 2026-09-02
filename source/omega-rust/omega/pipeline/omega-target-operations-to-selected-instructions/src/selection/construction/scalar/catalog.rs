@@ -6,7 +6,7 @@ use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::{
     active_resident_exact_add_bridge_chain, active_resident_exact_add_chain,
     active_resident_exact_add_original_victim_chain, exact_binary_pair, immediate_pair,
-    integer_equal_immediate_pair, parameter_pair,
+    integer_equal_immediate_pair, integer_less_than_immediate_pair, parameter_pair,
 };
 
 type CandidateClassifier = fn(&SourceFunction) -> bool;
@@ -26,6 +26,11 @@ const SCALAR_FAMILIES: &[ScalarFamilyDescriptor] = &[
         "integer-equal-immediate-pair",
         integer_equal_immediate_pair::is_candidate,
         integer_equal_immediate_pair::build,
+    ),
+    ScalarFamilyDescriptor::new(
+        "integer-less-than-immediate-pair",
+        integer_less_than_immediate_pair::is_candidate,
+        integer_less_than_immediate_pair::build,
     ),
     ScalarFamilyDescriptor::new(
         "immediate-pair",
@@ -123,18 +128,26 @@ mod tests {
 
     #[test]
     fn omission_and_overlap_fail_closed() {
+        let family = |name| {
+            SCALAR_FAMILIES
+                .iter()
+                .find(|descriptor| descriptor.name == name)
+                .expect("named scalar family exists")
+        };
+        let immediate = family("immediate-pair");
+        let parameter = family("entry-parameter-pair");
         assert!(matches!(
             unique_match(7, std::iter::empty()),
             Err(SelectedInstructionError::UnsupportedSourceShape { function: 7 })
         ));
         assert_eq!(
-            unique_match(7, std::iter::once(&SCALAR_FAMILIES[1]))
+            unique_match(7, std::iter::once(immediate))
                 .expect("one row is exact")
                 .name,
             "immediate-pair"
         );
         assert!(matches!(
-            unique_match(7, [&SCALAR_FAMILIES[1], &SCALAR_FAMILIES[2]].into_iter()),
+            unique_match(7, [immediate, parameter].into_iter()),
             Err(SelectedInstructionError::AmbiguousSourceShape {
                 function: 7,
                 first: "immediate-pair",

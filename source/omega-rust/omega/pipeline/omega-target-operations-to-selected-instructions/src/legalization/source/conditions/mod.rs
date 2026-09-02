@@ -2,11 +2,12 @@
 
 mod direct_parameter;
 mod integer_equal_parameters;
+mod integer_less_than_parameters;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
 
-pub(super) struct DerivedCondition<'a> {
+pub(in crate::legalization) struct DerivedCondition<'a> {
     pub source: ValueId,
     pub legalized: LegalizedCondition,
     pub shape: ScalarConditionShape,
@@ -27,9 +28,14 @@ pub(super) fn derive<'a>(
         TargetOperation::ReturnIntegerConditionalControl { .. } => {
             direct_parameter::derive(function, target, abstracted, optimized)
         }
-        TargetOperation::ReturnIntegerExpressionConditionalControl { .. } => {
-            integer_equal_parameters::derive(function, target, abstracted, optimized)
-        }
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition: TargetBooleanExpression::IntegerEqual { .. },
+            ..
+        } => integer_equal_parameters::derive(function, target, abstracted, optimized),
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition: TargetBooleanExpression::IntegerLessThan { .. },
+            ..
+        } => integer_less_than_parameters::derive(function, target, abstracted, optimized),
         _ => Err(Error::UnsupportedSourceShape { function }),
     }
 }

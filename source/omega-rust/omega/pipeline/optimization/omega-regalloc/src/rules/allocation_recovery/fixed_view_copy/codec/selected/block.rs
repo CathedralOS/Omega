@@ -41,6 +41,16 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
             encode_instruction(bytes, instruction);
             bytes.extend_from_slice(&psi_return_edge.get().to_le_bytes());
         }
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => {
+            bytes.push(2);
+            encode_instruction(bytes, instruction);
+            encode_successor(bytes, when_less);
+            encode_successor(bytes, when_not_less);
+        }
     }
 }
 
@@ -63,6 +73,11 @@ pub(super) fn decode_block(
         1 => SelectedTerminator::Return {
             instruction: decode_instruction(cursor)?,
             psi_return_edge: decode_id(cursor, EdgeId::new)?,
+        },
+        2 => SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction: decode_instruction(cursor)?,
+            when_less: decode_successor(cursor)?,
+            when_not_less: decode_successor(cursor)?,
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownTerminator(tag)),
     };

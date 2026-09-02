@@ -56,6 +56,7 @@ pub(super) fn encode_manifest_content(
         SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
         SelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 2,
         SelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 => 3,
+        SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1 => 4,
     });
     canonical.push(match manifest.scope {
         FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1 => 1,

@@ -1,7 +1,8 @@
 use crate::{FixedViewCopyPlan, FixedViewCopyPolicy};
+use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 
 use super::{
-    super::{encode_v4, encode_v6},
+    super::{encode_v4, encode_v6, encode_v7},
     plan,
 };
 
@@ -37,4 +38,33 @@ fn artifact_v4_decodes_with_an_empty_structural_roster() {
 fn artifact_v6_retains_pre_compare_identity_decode_compatibility() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     assert_eq!(FixedViewCopyPlan::decode(&encode_v6(&plan)).unwrap(), plan);
+}
+
+#[test]
+fn artifact_v7_retains_pre_predicate_identity_decode_compatibility() {
+    let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    assert_eq!(FixedViewCopyPlan::decode(&encode_v7(&plan)).unwrap(), plan);
+}
+
+#[test]
+fn artifact_v8_round_trips_u64_less_than_terminator_vocabulary() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let terminator = plan.transformed.functions[0].blocks[0].terminator.clone();
+    let SelectedTerminator::ConditionalBranch {
+        mut instruction,
+        when_nonzero,
+        when_zero,
+    } = terminator
+    else {
+        panic!("shared fixture must begin with a conditional branch")
+    };
+    instruction.kind = SelectedInstructionKind::ConditionalBranchU64LessThan;
+    plan.transformed.functions[0].blocks[0].terminator =
+        SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction,
+            when_less: when_nonzero,
+            when_not_less: when_zero,
+        };
+
+    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
 }

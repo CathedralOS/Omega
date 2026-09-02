@@ -23,7 +23,8 @@ pub(super) fn validate_virtual_registers(
             *definition_site,
             ScalarType::Boolean,
         )],
-        LegalizedCondition::IntegerEqualParametersV1 { left, right, .. } => [left, right]
+        LegalizedCondition::IntegerEqualParametersV1 { left, right, .. }
+        | LegalizedCondition::IntegerLessThanParametersV1 { left, right, .. } => [left, right]
             .into_iter()
             .map(|parameter| {
                 (

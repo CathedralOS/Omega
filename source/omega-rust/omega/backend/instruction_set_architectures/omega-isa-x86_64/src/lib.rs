@@ -79,11 +79,12 @@ pub use selected_form_encoding::{
     encode_x86_64_selected_form, encode_x86_64_selected_nonzero_branch_form,
     encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_structural_unit_call_template,
-    resolve_x86_64_structural_unit_internal_call,
+    encode_x86_64_selected_u64_less_than_branch_form, resolve_x86_64_structural_unit_internal_call,
     validate_x86_64_resolved_structural_unit_internal_call, validate_x86_64_selected_form_encoding,
     validate_x86_64_selected_nonzero_branch_form,
     validate_x86_64_selected_short_nonzero_branch_form,
     validate_x86_64_selected_structural_unit_call_template,
+    validate_x86_64_selected_u64_less_than_branch_form,
 };
 pub use semantic_unit_wrapper_encoding::{
     ValidatedX86_64ResolvedSemanticUnitWrapper, ValidatedX86_64SemanticUnitWrapperTemplate,

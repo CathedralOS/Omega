@@ -8,8 +8,11 @@ use super::model::{ConstructedScalarBody, ScalarConstructionContext};
 use super::registers;
 
 pub(super) fn is_candidate(source: &SourceFunction) -> bool {
-    source.recipe != LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
-        && matches!(source.when_true.value, SourceLeafValue::Immediate { .. })
+    !matches!(
+        source.recipe,
+        LegalizationRecipe::ReturnU64IntegerEqualParametersConditionalV1
+            | LegalizationRecipe::ReturnU64IntegerLessThanParametersConditionalV1
+    ) && matches!(source.when_true.value, SourceLeafValue::Immediate { .. })
         && matches!(source.when_false.value, SourceLeafValue::Immediate { .. })
 }
 

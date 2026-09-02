@@ -203,6 +203,7 @@ fn validate_optimization_function_count(
 fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstruction {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

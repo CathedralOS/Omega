@@ -205,20 +205,22 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                 ));
             }
             for (index, machine_instruction) in machine_block.instructions.iter().enumerate() {
-                let (instruction, return_edge, conditional_terminator) =
-                    if index < block.instructions.len() {
-                        (&block.instructions[index], None, false)
-                    } else {
-                        match &block.terminator {
-                            SelectedTerminator::ConditionalBranch { instruction, .. } => {
-                                (instruction, None, true)
-                            }
-                            SelectedTerminator::Return {
-                                instruction,
-                                psi_return_edge,
-                            } => (instruction, Some(*psi_return_edge), false),
-                        }
-                    };
+                let (instruction, return_edge, conditional_terminator) = if index
+                    < block.instructions.len()
+                {
+                    (&block.instructions[index], None, false)
+                } else {
+                    match &block.terminator {
+                        SelectedTerminator::ConditionalBranch { instruction, .. }
+                        | SelectedTerminator::ConditionalBranchU64LessThan {
+                            instruction, ..
+                        } => (instruction, None, true),
+                        SelectedTerminator::Return {
+                            instruction,
+                            psi_return_edge,
+                        } => (instruction, Some(*psi_return_edge), false),
+                    }
+                };
                 if machine_instruction.instruction != instruction.id {
                     return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
                         instruction.id,
@@ -230,9 +232,22 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
                 let (resolved_block, resolved_row) = layout_rows.get(&instruction.id).ok_or(
                     WholeFunctionExitContractError::MissingInstruction(instruction.id),
                 )?;
+                let relaxed_less_than_alternative = matches!(
+                    layout_custody,
+                    WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 { .. }
+                ) && matches!(
+                    instruction.kind,
+                    omega_selected_instructions::SelectedInstructionKind::ConditionalBranchU64LessThan
+                ) && machine_instruction.alternative.key.family
+                    == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchU64LessThan
+                    && machine_instruction.alternative.key.variant == 0
+                    && resolved_row.alternative.family
+                        == omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchU64LessThan
+                    && resolved_row.alternative.variant == 1;
                 if resolved_block.block != block.id
                     || encoding_row.alternative != machine_instruction.alternative.key
-                    || resolved_row.alternative != machine_instruction.alternative.key
+                    || (resolved_row.alternative != machine_instruction.alternative.key
+                        && !relaxed_less_than_alternative)
                 {
                     return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
                         instruction.id,

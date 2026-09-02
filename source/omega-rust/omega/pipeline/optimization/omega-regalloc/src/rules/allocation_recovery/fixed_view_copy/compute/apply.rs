@@ -116,6 +116,7 @@ pub(super) fn apply_copy(
 fn terminator_instruction_id(terminator: &SelectedTerminator) -> SelectedInstructionId {
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
+        | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction.id,
     }
 }

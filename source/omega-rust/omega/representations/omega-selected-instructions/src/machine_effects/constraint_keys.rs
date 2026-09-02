@@ -36,6 +36,7 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::ReturnI64 => self.return_i64,
             MachineSemanticKind::ReturnUnit => self.return_unit,
             MachineSemanticKind::CompareI64 => self.compare_i64,
+            MachineSemanticKind::ConditionalBranchU64LessThan => self.conditional_branch,
         }
     }
 }

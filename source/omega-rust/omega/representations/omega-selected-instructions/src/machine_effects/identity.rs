@@ -12,7 +12,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v5\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v6\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     let selected_keys = catalog.selected_keys.in_identity_order();
@@ -273,6 +273,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ExactSubtractI64Immediate => 8,
         MachineSemanticKind::ReturnUnit => 9,
         MachineSemanticKind::CompareI64 => 10,
+        MachineSemanticKind::ConditionalBranchU64LessThan => 11,
     }
 }
 
@@ -289,6 +290,7 @@ pub(crate) const fn alternative_family_tag(family: MachineAlternativeFamily) -> 
         MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
+        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
     }
 }
 
@@ -358,6 +360,7 @@ mod tests {
             barrier: if matches!(
                 semantic,
                 MachineSemanticKind::ConditionalBranchNonZero
+                    | MachineSemanticKind::ConditionalBranchU64LessThan
                     | MachineSemanticKind::ReturnI64
                     | MachineSemanticKind::ReturnUnit
             ) {

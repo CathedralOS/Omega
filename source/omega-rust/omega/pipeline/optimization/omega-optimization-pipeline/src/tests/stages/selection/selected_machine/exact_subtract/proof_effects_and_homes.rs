@@ -245,18 +245,18 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
             .flat_map(|block| &block.instructions)
             .find_map(|row| row.branch.as_deref().map(|branch| (row, branch)))
             .expect("one resolved branch");
-        assert_eq!(branch.1.when_zero_block, when_zero.block);
-        assert_eq!(branch.1.when_nonzero_block, when_nonzero.block);
+        assert_eq!(branch.1.when_fallthrough_block, when_zero.block);
+        assert_eq!(branch.1.when_taken_block, when_nonzero.block);
         assert_eq!(
             branch.0.offset + u64::try_from(branch.0.bytes.len()).unwrap(),
-            branch.1.when_zero_offset
+            branch.1.when_fallthrough_offset
         );
         match target.architecture {
             omega_target::Architecture::X86_64 => {
                 assert_eq!(&branch.0.bytes[..2], [0x0f, 0x85]);
                 assert_eq!(
                     branch.1.byte_displacement,
-                    i64::try_from(branch.1.when_nonzero_offset).unwrap()
+                    i64::try_from(branch.1.when_taken_offset).unwrap()
                         - i64::try_from(branch.0.offset + 6).unwrap()
                 );
             }
@@ -264,7 +264,7 @@ fn exact_subtract_retains_proof_target_effects_and_reaches_homes() {
                 assert_eq!(branch.0.bytes[0] & 0x1f, 1);
                 assert_eq!(
                     branch.1.byte_displacement,
-                    i64::try_from(branch.1.when_nonzero_offset).unwrap()
+                    i64::try_from(branch.1.when_taken_offset).unwrap()
                         - i64::try_from(branch.0.offset).unwrap()
                 );
             }
