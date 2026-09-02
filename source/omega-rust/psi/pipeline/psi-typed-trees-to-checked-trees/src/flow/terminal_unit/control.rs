@@ -1044,13 +1044,19 @@ pub(super) fn build_checked_machine(
         && selected_ieee_float_fma_result_locals.is_none())
     .then(|| checked_unit_scalar_result_local(program, statements))
     .flatten();
+    let scalar_expression_locals =
+        if selected_scalar_result_local.is_some() || scalar_result_local.is_some() {
+            scalar_expression_local_suffix(program, facts, state, statements)?
+        } else {
+            Vec::new()
+        };
     let scalar_result_local_count = selected_ieee_float_fma_result_locals.as_ref().map_or_else(
         || {
             usize::from(
                 scalar_result_local.is_some()
                     || selected_scalar_result_local.is_some()
                     || selected_structural_result_local.is_some(),
-            )
+            ) + scalar_expression_locals.len()
         },
         Vec::len,
     );
@@ -1240,6 +1246,12 @@ pub(super) fn build_checked_machine(
                         )
                     })?;
             operations.push(operation);
+            operations.extend(scalar_expression_locals.iter().cloned().map(
+                |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                    result,
+                    value,
+                },
+            ));
             0
         } else if let Some((application, result, _)) = selected_structural_result_local {
             operations.push(build_selected_operator_structural_call(
@@ -1310,6 +1322,12 @@ pub(super) fn build_checked_machine(
                 structural_arguments,
                 completion_receipts,
             });
+            operations.extend(scalar_expression_locals.iter().cloned().map(
+                |(result, value)| CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                    result,
+                    value,
+                },
+            ));
             1
         } else {
             0
@@ -1370,6 +1388,7 @@ pub(super) fn build_checked_machine(
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
         })
         .collect::<BTreeSet<_>>();

@@ -256,6 +256,25 @@ pub(super) fn validate_unit_operation_sequence(
                         ))?;
                 *coordinate
             }
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+                if result.statement_index != result.binding_ordinal
+                    || result.binding_ordinal != next_scalar_binding
+                {
+                    return unsupported(
+                        "Unit scalar expression local is not the next dense source binding",
+                    );
+                }
+                next_scalar_binding =
+                    next_scalar_binding
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit scalar result binding ordinal space is exhausted",
+                        ))?;
+                psi_checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 coordinate,
                 result,

@@ -1324,6 +1324,108 @@ fn retains_boundary_scalar_result_local_consumed_by_later_unit_call() {
 }
 
 #[test]
+fn retains_branch_free_scalar_local_after_boundary_scalar_result() {
+    let checked = checked(
+        r#"
+        boundary trait Host {
+            machine measure(value: i32) -> i32
+            reaches Host;
+            machine finish(value: i32)
+            reaches Host;
+        }
+
+        data Main {}
+
+        machine Main::main(&mut self)
+        reaches Host
+        {
+            let measured: i32 = Host::measure(70);
+            let result: i32 = measured + 0i32;
+            Host::finish(result);
+        }
+        "#,
+    );
+
+    let main = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Main::main"))
+        .expect("dependent scalar-local flow should retain a complete Unit plan");
+    assert!(matches!(
+        main.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+            CheckedUnitEffectOperationPlan::BoundaryCall { scalar_arguments, .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { statement_index: 3, .. },
+        ] if measured.binding_ordinal == 0
+            && result.statement_index == 1
+            && result.binding_ordinal == 1
+            && result.primitive_type == PrimitiveType::I32
+            && matches!(
+                value,
+                CheckedScalarExpression::IntegerBinary {
+                    kind: psi_checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+                    primitive_type: PrimitiveType::I32,
+                    left,
+                    right,
+                } if matches!(
+                    left.as_ref(),
+                    CheckedScalarExpression::Local {
+                        position: 0,
+                        primitive_type: PrimitiveType::I32,
+                    }
+                ) && matches!(
+                    right.as_ref(),
+                    CheckedScalarExpression::IntegerLiteral { .. }
+                )
+            )
+            && matches!(
+                scalar_arguments.as_slice(),
+                [CheckedScalarExpression::Local {
+                    position: 1,
+                    primitive_type: PrimitiveType::I32,
+                }]
+            )
+    ));
+}
+
+#[test]
+fn fences_short_circuit_scalar_local_after_boundary_result() {
+    let checked = checked(
+        r#"
+        boundary trait Host {
+            machine measure(value: i32) -> i32
+            reaches Host;
+            machine finish(value: i32)
+            reaches Host;
+        }
+
+        data Main {}
+
+        machine Main::main(&mut self)
+        reaches Host
+        {
+            let measured: i32 = Host::measure(70);
+            let accepted: bool = measured == 70 && true;
+            Host::finish(measured);
+        }
+        "#,
+    );
+
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "Main::main"))
+            .is_none(),
+        "short-circuit control must not enter the branch-free scalar-local carrier",
+    );
+}
+
+#[test]
 fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
     let checked = checked(
         r#"

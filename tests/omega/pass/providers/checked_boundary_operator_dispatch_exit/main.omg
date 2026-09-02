@@ -22,6 +22,7 @@ ensures result == input + 0 && input == input
 data Main { console: Console; }
 
 machine Main::main(&mut self) {
-    let result: i32 = CheckedMath::offset_zero(70);
+    let selected: i32 = CheckedMath::offset_zero(70);
+    let result: i32 = selected + 0i32;
     self.console.exit_process(result);
 }

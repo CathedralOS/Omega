@@ -13,6 +13,7 @@ mod composed_control;
 mod parameters;
 mod provider_attachments;
 mod providers;
+mod scalar_locals;
 mod selected_operator;
 
 use parameters::lower_unit_scalar_parameter_types;
@@ -53,6 +54,7 @@ pub(super) use parameters::{
 pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
 use providers::checked_unit_provider_candidates;
+use scalar_locals::lower_scalar_expression_local;
 use selected_operator::{
     lower_selected_structural_result_realizations, lower_selected_structural_scalar_realizations,
     validate_selected_operator_scalar_call, validate_selected_operator_structural_call,
@@ -492,6 +494,7 @@ pub(super) fn lower_attached_unit_closure_including(
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal { .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {}
@@ -1301,6 +1304,20 @@ pub(super) fn lower_attached_unit_closure_including(
                         },
                     });
                     scalar_result_values.push(value);
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
+                    let lowered = lower_scalar_expression_local(
+                        checked,
+                        plan.state,
+                        result,
+                        value,
+                        scalar_parameter_count,
+                        &scalar_result_values,
+                        &mut next_value_identity,
+                        &mut operations,
+                    )?;
+                    scalar_result_values.push(lowered);
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {

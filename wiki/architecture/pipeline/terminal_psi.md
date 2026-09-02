@@ -2720,7 +2720,10 @@ authored use, public requirement, strong `ProviderPlan` identity, and selected
 machine/state application while Unit planning still owns the unrewritten
 operator expression. Attached-Unit production admits only that selected scalar
 graph and its ordinary scalar-call closure, emits the selected realization as
-a distinct Terminal machine, and passes the call result to later operations.
+a distinct Terminal machine, and passes the call result through a
+source-ordered prefix of immutable, branch-free scalar locals to later calls.
+Each such local rejoins its exact checked scalar-expression fact; nested calls
+and short-circuit control remain outside this lane.
 The first native continuation is deliberately narrower than the semantic call
 surface: attached Unit bodies may call service-free fixed 8/16/32/64-bit
 integer functions with constants or prior scalar-call results. Target

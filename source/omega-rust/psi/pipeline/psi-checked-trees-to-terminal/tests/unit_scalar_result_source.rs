@@ -24,12 +24,23 @@ reaches Host
 }
 "#;
 
-fn checked() -> psi_checked_trees::CheckedTrees {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
+fn checked_from_source(source: &str) -> psi_checked_trees::CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = lower_syntax_trees(&syntax).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     psi_typed_trees_to_checked_trees::lower_typed_trees(typed).expect("check")
+}
+
+fn checked() -> psi_checked_trees::CheckedTrees {
+    checked_from_source(SOURCE)
+}
+
+fn checked_with_dependent_scalar_local() -> psi_checked_trees::CheckedTrees {
+    checked_from_source(&SOURCE.replace(
+        "let result: i32 = Host::measure(70);\n    Host::finish(result);",
+        "let measured: i32 = Host::measure(70);\n    let result: i32 = measured + 0i32;\n    Host::finish(result);",
+    ))
 }
 
 fn main_symbol(checked: &psi_checked_trees::CheckedTrees) -> psi_symbols::SymbolHandle {
@@ -97,6 +108,133 @@ fn attached_unit_scalar_boundary_result_reaches_later_call_in_terminal_psi() {
         consumer.result,
         psi_terminal::OperationResult::Unit
     ));
+}
+
+#[test]
+fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
+    let checked = checked_with_dependent_scalar_local();
+    let operations = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| plan.machine == main_symbol(&checked))
+        .expect("Main::main Unit plan")
+        .operations;
+    assert!(matches!(
+        operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::BoundaryScalarCall { result: measured, .. },
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+            CheckedUnitEffectOperationPlan::BoundaryCall { scalar_arguments, .. },
+            CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+        ] if measured.binding_ordinal == 0
+            && result.binding_ordinal == 1
+            && matches!(
+                value,
+                CheckedScalarExpression::IntegerBinary {
+                    kind: psi_checked_trees::CheckedIntegerBinaryKind::ExactAdd,
+                    left,
+                    ..
+                } if matches!(
+                    left.as_ref(),
+                    CheckedScalarExpression::Local { position: 0, .. }
+                )
+            )
+            && matches!(
+                scalar_arguments.as_slice(),
+                [CheckedScalarExpression::Local { position: 1, .. }]
+            )
+    ));
+
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::main")
+        .expect("dependent scalar-local flow should lower");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    let producer = entry.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                psi_terminal::OperationKind::BoundaryCall { .. }
+            ) && matches!(operation.result, psi_terminal::OperationResult::Scalar(_))
+        })
+        .expect("scalar boundary producer");
+    let psi_terminal::OperationResult::Scalar(measured) = producer.result else {
+        unreachable!()
+    };
+    let exact_add = entry.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                psi_terminal::OperationKind::ExactIntegerAdd { .. }
+            )
+        })
+        .expect("dependent scalar expression");
+    let psi_terminal::OperationKind::ExactIntegerAdd { left, .. } = exact_add.kind else {
+        unreachable!()
+    };
+    assert_eq!(left, measured.id);
+    let psi_terminal::OperationResult::Scalar(result) = exact_add.result else {
+        panic!("dependent exact add should publish its scalar result")
+    };
+    let consumer = entry.blocks[0]
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                psi_terminal::OperationKind::BoundaryCall { .. }
+            ) && matches!(operation.result, psi_terminal::OperationResult::Unit)
+        })
+        .expect("Unit boundary consumer");
+    let psi_terminal::OperationKind::BoundaryCall { arguments, .. } = &consumer.kind else {
+        unreachable!()
+    };
+    assert_eq!(arguments, &[result.id]);
+}
+
+#[test]
+fn attached_unit_scalar_expression_local_rejects_checked_fact_drift() {
+    let mut checked = checked_with_dependent_scalar_local();
+    let CheckedUnitEffectOperationPlan::EstablishScalarLocal { value, .. } =
+        &mut main_operations_mut(&mut checked)[1]
+    else {
+        panic!("second operation should establish the dependent scalar local")
+    };
+    *value = CheckedScalarExpression::Local {
+        position: 0,
+        primitive_type: psi_typed_trees::types::PrimitiveType::I32,
+    };
+
+    assert_eq!(
+        rejection_message(&checked),
+        "Unit scalar expression local drifted from its checked value fact"
+    );
+}
+
+#[test]
+fn attached_unit_scalar_expression_local_rejects_source_coordinate_drift() {
+    let mut checked = checked_with_dependent_scalar_local();
+    let CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } =
+        &mut main_operations_mut(&mut checked)[1]
+    else {
+        panic!("second operation should establish the dependent scalar local")
+    };
+    result.statement_index = 2;
+
+    assert_eq!(
+        rejection_message(&checked),
+        "Unit scalar expression local is not the next dense source binding"
+    );
 }
 
 #[test]
