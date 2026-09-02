@@ -782,9 +782,11 @@ application remains semantic evidence but does not cause an unused runtime
 table to be emitted. The compiler refuses malformed, colliding, or
 interface-changing versions without devirtualizing them; the latest application
 alone supplies the private indirect slot call. This is equally valid for a
-result-less Unit requirement; no scalar carrier is introduced. Non-cast assignments, aggregate erased calls,
-storage, joins, escaping, and component crossing remain open. Those consumers
-use the same complete normalized maps.
+result-less Unit requirement; no scalar carrier is introduced. Non-cast
+assignments, aggregate erased calls, and within-artifact storage, joins, or
+escapes remain open. Those consumers use the same complete normalized maps.
+Replaceable-component crossing is not another descriptor rung: it is forbidden
+below, and uses a boundary requirement or a consumer-owned local proxy instead.
 
 The bounded pass-through lane accepts either `&dyn Trait` or `&mut dyn Trait`
 when the initializer, rebound source, descriptor parameter, and requirement
