@@ -105,8 +105,8 @@ pub enum AssignedOperation {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
     },
-    ScalarReturnAfterStructuralScalarFieldStore {
-        store: omega_target_operations::TargetScalarStructuralFieldStore,
+    ScalarReturnAfterStructuralScalarFieldStores {
+        stores: Vec<omega_target_operations::TargetScalarStructuralFieldStore>,
         scalar: Box<AssignedOperation>,
         structural_types: Vec<StructuralTypeDeclaration>,
         call_plan: CallPlan,

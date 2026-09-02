@@ -432,9 +432,10 @@ fn assigned_result_matches(
             | AssignedOperation::ReturnBooleanExpression { .. },
             psi_terminal::ClosedConformanceCallableResult::Bool,
         ) => true,
-        (AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore { scalar, .. }, result) => {
-            assigned_result_matches(scalar, result)
-        }
+        (
+            AssignedOperation::ScalarReturnAfterStructuralScalarFieldStores { scalar, .. },
+            result,
+        ) => assigned_result_matches(scalar, result),
         (AssignedOperation::UnitBody(_), psi_terminal::ClosedConformanceCallableResult::Unit) => {
             true
         }

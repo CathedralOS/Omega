@@ -90,7 +90,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 64;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 65;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -473,8 +473,8 @@ pub struct InstalledFunction {
         Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
-    pub scalar_structural_scalar_field_store:
-        Option<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
+    pub scalar_structural_scalar_field_stores:
+        Vec<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     pub scalar_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
     /// Canonical true-before-false DFS cleanup leaves for the exact bounded
@@ -720,8 +720,8 @@ where
                 unit_structural_scalar_field_stores: function
                     .unit_structural_scalar_field_stores
                     .clone(),
-                scalar_structural_scalar_field_store: function
-                    .scalar_structural_scalar_field_store
+                scalar_structural_scalar_field_stores: function
+                    .scalar_structural_scalar_field_stores
                     .clone(),
                 unit_affine_cleanup: function.unit_affine_cleanup.clone(),
                 scalar_affine_cleanup: function.scalar_affine_cleanup.clone(),
@@ -1204,8 +1204,8 @@ pub fn validate_installation_record(
                     || installed.unit_affine_scalar_records != emitted.unit_affine_scalar_records
                     || installed.unit_structural_scalar_field_stores
                         != emitted.unit_structural_scalar_field_stores
-                    || installed.scalar_structural_scalar_field_store
-                        != emitted.scalar_structural_scalar_field_store
+                    || installed.scalar_structural_scalar_field_stores
+                        != emitted.scalar_structural_scalar_field_stores
                     || installed.unit_affine_cleanup != emitted.unit_affine_cleanup
                     || installed.scalar_affine_cleanup != emitted.scalar_affine_cleanup
                     || !installed_scalar_control_cleanups_match_object(
@@ -1682,7 +1682,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         });
         let has_scalar_custody = has_scalar_cleanup
             || has_scalar_boundary_custody
-            || function.mixed_structural_scalar_abi.is_some();
+            || function.mixed_structural_scalar_abi.is_some()
+            || !function.scalar_structural_scalar_field_stores.is_empty();
         let ranked_body_is_exclusive = !function.ranked_u32_countdown
             || (record.functions.len() == 1
                 && function.attachment.is_some()
@@ -1703,7 +1704,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 && function.unit_scalar_homes.is_empty()
                 && function.unit_integer_constants.is_empty()
                 && function.unit_structural_scalar_field_stores.is_empty()
-                && function.scalar_structural_scalar_field_store.is_none()
+                && function.scalar_structural_scalar_field_stores.is_empty()
                 && record.structural_returns.is_empty()
                 && record.internal_unit_calls.is_empty()
                 && record.internal_unit_scalar_calls.is_empty()
@@ -4150,6 +4151,7 @@ pub enum InstallationError {
     TooManyUnitAffineScalarRecords,
     InvalidUnitAffineScalarRecord,
     TooManyUnitStructuralScalarFieldStores,
+    TooManyScalarStructuralScalarFieldStores,
     TooManyUnitStructuralScalarFieldStoreBytes,
     TooManyStructuralReturnParameters,
     TooManyStructuralReturnClaims,
@@ -4362,7 +4364,7 @@ mod resource_tests {
             unit_integer_constants: Vec::new(),
             unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
-            scalar_structural_scalar_field_store: None,
+            scalar_structural_scalar_field_stores: Vec::new(),
             unit_affine_cleanup: None,
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),

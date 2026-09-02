@@ -158,7 +158,7 @@ pub struct MachineCodeFunction {
     /// Exact one-store prefix for the bounded mutable-self scalar-return
     /// carrier. Unlike Unit stores, this writes through the incoming borrowed
     /// reference directly; no staged aggregate home or value copy exists.
-    pub scalar_structural_scalar_field_store: Option<ScalarStructuralScalarFieldStoreRecord>,
+    pub scalar_structural_scalar_field_stores: Vec<ScalarStructuralScalarFieldStoreRecord>,
     /// Exact zero-code affine-local establishment and Unit-return cleanup
     /// custody for the bounded one-state Unit slice.
     pub unit_affine_cleanup: Option<UnitAffineCleanupRecord>,

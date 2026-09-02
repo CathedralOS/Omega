@@ -1030,12 +1030,13 @@ pub enum TargetOperation {
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
     },
-    /// Execute one exact direct mutable-self Boolean or fixed-integer literal store before the
-    /// existing direct structural-field scalar return. The wrapper owns the
-    /// effect/return sequencing without turning scalar functions into Unit
-    /// operation streams.
-    ScalarReturnAfterStructuralScalarFieldStore {
-        store: TargetScalarStructuralFieldStore,
+    /// Execute one or two exact ordered direct mutable-self Boolean or
+    /// fixed-integer literal stores before the existing direct
+    /// structural-field scalar return. The wrapper owns the effect/return
+    /// sequencing without turning scalar functions into Unit operation
+    /// streams.
+    ScalarReturnAfterStructuralScalarFieldStores {
+        stores: Vec<TargetScalarStructuralFieldStore>,
         scalar: Box<TargetOperation>,
         structural_types: Vec<StructuralTypeDeclaration>,
         call_plan: CallPlan,

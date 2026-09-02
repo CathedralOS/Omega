@@ -7,7 +7,8 @@ use omega_image_emission::{
 use omega_machine_emission::emit_machine_code;
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    TargetFunction, TargetOperation, TargetOperationPlan, TargetStructuralParameter,
+    TargetFunction, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
+    TargetScalarImmediate, TargetScalarStructuralFieldStore, TargetStructuralParameter,
     TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource, TerminalPsiProvenance,
 };
 use omega_target_operations_to_assigned_target_operations::assign_registers;
@@ -142,6 +143,208 @@ fn field_store_plan(target: NativeTarget) -> TargetOperationPlan {
 fn emitted_field_store(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
     let assigned = assign_registers(&field_store_plan(target)).expect("assign field store");
     emit_machine_code(&assigned).expect("emit field store")
+}
+
+fn scalar_field_store_plan(target: NativeTarget) -> TargetOperationPlan {
+    let machine = MachineId::new(980).unwrap();
+    let structural_type = StructuralTypeId::new(980).unwrap();
+    let place = PlaceId::new(980).unwrap();
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let shape = ValueShape::borrowed_reference(16, 8);
+    let call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![shape],
+            result: Some(ValueShape::integer(4, 4)),
+        },
+    )
+    .unwrap();
+    let destination = StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: true,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let parameter = TargetStructuralParameter {
+        place,
+        structural_type,
+        multiplicity: destination.multiplicity,
+        access: destination.access,
+        projected_qualifications: Vec::new(),
+        shape,
+        placement: call_plan.parameters[0].clone(),
+    };
+    let stores = vec![
+        TargetScalarStructuralFieldStore {
+            psi_operation: OperationId::new(981).unwrap(),
+            destination: destination.clone(),
+            path: Vec::new(),
+            field: StructuralFieldId::new(980).unwrap(),
+            destination_placement: parameter.placement.clone(),
+            field_byte_offset: 0,
+            defining_operation: OperationId::new(980).unwrap(),
+            source_value: ValueId::new(980).unwrap(),
+            immediate: TargetScalarImmediate::Integer {
+                scalar_type: u64_type,
+                value: IntegerValue::Unsigned(513),
+            },
+        },
+        TargetScalarStructuralFieldStore {
+            psi_operation: OperationId::new(983).unwrap(),
+            destination: destination.clone(),
+            path: Vec::new(),
+            field: StructuralFieldId::new(981).unwrap(),
+            destination_placement: parameter.placement.clone(),
+            field_byte_offset: 8,
+            defining_operation: OperationId::new(982).unwrap(),
+            source_value: ValueId::new(981).unwrap(),
+            immediate: TargetScalarImmediate::Boolean(true),
+        },
+    ];
+    TargetOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x98; 32]),
+        },
+        target,
+        entry: machine,
+        functions: vec![TargetFunction {
+            machine,
+            attachment: Some(structural_type),
+            fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
+            provenance: TerminalPsiProvenance {
+                operations: vec![
+                    OperationId::new(980).unwrap(),
+                    OperationId::new(981).unwrap(),
+                    OperationId::new(982).unwrap(),
+                    OperationId::new(983).unwrap(),
+                    OperationId::new(984).unwrap(),
+                ],
+                edges: vec![EdgeId::new(980).unwrap()],
+            },
+            operation: TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
+                stores,
+                scalar: Box::new(TargetOperation::ReturnIntegerExpression {
+                    psi_edge: EdgeId::new(980).unwrap(),
+                    source_value: ValueId::new(982).unwrap(),
+                    scalar_type: i32_type,
+                    expression: TargetIntegerExpression::StructuralField {
+                        psi_operation: OperationId::new(984).unwrap(),
+                        source_value: ValueId::new(982).unwrap(),
+                        source: place,
+                        field: StructuralFieldId::new(982).unwrap(),
+                        source_placement: parameter.placement.clone(),
+                        field_byte_offset: 12,
+                        integer_type: i32_type,
+                    },
+                }),
+                structural_types: vec![StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: "ScalarCarrier".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![
+                            StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(980).unwrap(),
+                                identity: "value".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                    u64_type,
+                                )),
+                            },
+                            StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(981).unwrap(),
+                                identity: "enabled".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                            },
+                            StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(982).unwrap(),
+                                identity: "code".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                    i32_type,
+                                )),
+                            },
+                        ],
+                    },
+                }],
+                call_plan,
+                structural_parameters: vec![parameter],
+            },
+        }],
+    }
+}
+
+fn emitted_scalar_field_stores(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    let assigned =
+        assign_registers(&scalar_field_store_plan(target)).expect("assign scalar stores");
+    emit_machine_code(&assigned).expect("emit scalar stores")
+}
+
+#[test]
+fn ordered_scalar_stores_round_trip_through_object_image_and_installation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let machine = emitted_scalar_field_stores(target);
+        let [first, second] = machine.functions[0]
+            .scalar_structural_scalar_field_stores
+            .as_slice()
+        else {
+            panic!("two machine scalar stores")
+        };
+        assert_eq!(first.operation_ordinal, 1);
+        assert_eq!(second.operation_ordinal, 3);
+        assert_eq!(second.code_offset, first.byte_count);
+        let object = build_object_artifact(&machine).expect("replay scalar-store object");
+        assert_eq!(
+            object.functions()[0].scalar_structural_scalar_field_stores,
+            [first.clone(), second.clone()]
+        );
+        let image = emit_executable_image(&object, 3).expect("emit scalar-store image");
+        let record =
+            build_installation_record(&image, psi_core::ProfileDecisionId::new(1).unwrap())
+                .expect("build scalar-store installation");
+        assert_eq!(
+            record.functions()[0].scalar_structural_scalar_field_stores,
+            [first.clone(), second.clone()]
+        );
+        let bytes = encode_installation_record(&record).expect("encode scalar-store installation");
+        let decoded = decode_installation_record(&bytes).expect("decode scalar-store installation");
+        assert_eq!(decoded, record);
+        validate_installation_record(&decoded, &image).expect("replay installed scalar stores");
+    }
+}
+
+#[test]
+fn scalar_store_object_rejects_order_and_interval_corruption() {
+    let mut reordered = emitted_scalar_field_stores(NativeTarget::linux_x64());
+    reordered.functions[0]
+        .scalar_structural_scalar_field_stores
+        .swap(0, 1);
+    assert_eq!(
+        build_object_artifact(&reordered),
+        Err(
+            ObjectError::InvalidScalarStructuralScalarFieldStoreEvidence(
+                MachineId::new(980).unwrap()
+            )
+        )
+    );
+
+    let mut changed_interval = emitted_scalar_field_stores(NativeTarget::linux_arm64());
+    changed_interval.functions[0].scalar_structural_scalar_field_stores[1].code_offset += 4;
+    assert_eq!(
+        build_object_artifact(&changed_interval),
+        Err(
+            ObjectError::InvalidScalarStructuralScalarFieldStoreEvidence(
+                MachineId::new(980).unwrap()
+            )
+        )
+    );
 }
 
 #[test]

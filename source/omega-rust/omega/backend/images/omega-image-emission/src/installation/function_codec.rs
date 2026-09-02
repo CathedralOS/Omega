@@ -29,7 +29,7 @@ use super::{
     },
     push_u32, push_u64,
     scalar_structural_scalar_field_store_codec::{
-        decode_scalar_structural_scalar_field_store, encode_scalar_structural_scalar_field_store,
+        decode_scalar_structural_scalar_field_stores, encode_scalar_structural_scalar_field_stores,
     },
     unit_scalar_codec::{
         decode_unit_affine_scalar_records, decode_unit_integer_constants, decode_unit_scalar_homes,
@@ -92,9 +92,9 @@ pub(super) fn encode_functions(
             bytes,
             &function.unit_structural_scalar_field_stores,
         )?;
-        encode_scalar_structural_scalar_field_store(
+        encode_scalar_structural_scalar_field_stores(
             bytes,
-            function.scalar_structural_scalar_field_store.as_ref(),
+            &function.scalar_structural_scalar_field_stores,
         )?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
@@ -203,8 +203,8 @@ pub(super) fn decode_functions(
         let unit_affine_scalar_records = decode_unit_affine_scalar_records(reader)?;
         let unit_structural_scalar_field_stores =
             decode_unit_structural_scalar_field_stores(reader)?;
-        let scalar_structural_scalar_field_store =
-            decode_scalar_structural_scalar_field_store(reader)?;
+        let scalar_structural_scalar_field_stores =
+            decode_scalar_structural_scalar_field_stores(reader)?;
         functions.push(InstalledFunction {
             machine,
             attachment,
@@ -226,7 +226,7 @@ pub(super) fn decode_functions(
             unit_integer_constants,
             unit_affine_scalar_records,
             unit_structural_scalar_field_stores,
-            scalar_structural_scalar_field_store,
+            scalar_structural_scalar_field_stores,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {

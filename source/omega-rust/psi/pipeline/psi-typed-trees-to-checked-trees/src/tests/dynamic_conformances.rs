@@ -110,11 +110,13 @@ const MUTATING_REALIZATION_SOURCE: &str = r#"
 
     data Item {
         value: i32;
+        enabled: bool;
     }
 
     Primary: Item satisfies Shape {
         machine code(&mut self) -> i32 {
             self.value = 23;
+            self.enabled = true;
             transition { _ -> self.value }
         }
     }
@@ -860,27 +862,36 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
 fn dynamic_plan_retains_exact_mutating_realization_body() {
     let checked = check_dynamic_source(MUTATING_REALIZATION_SOURCE);
     let plan = sole_direct_dynamic_plan(&checked);
-    let store = plan
-        .realization_structural_scalar_field_store
-        .as_ref()
-        .expect("selected realization store");
-    assert_eq!(store.statement_index, 0);
-    assert_eq!(store.destination_parameter_position, 0);
-    assert!(store.carrier_path.is_empty());
-    assert_eq!(store.field_identity, "value");
+    let [integer_store, boolean_store] = plan.realization_structural_scalar_field_stores.as_slice()
+    else {
+        panic!("two selected realization stores expected")
+    };
+    assert_eq!(integer_store.statement_index, 0);
+    assert_eq!(integer_store.destination_parameter_position, 0);
+    assert!(integer_store.carrier_path.is_empty());
+    assert_eq!(integer_store.field_identity, "value");
     assert_eq!(
-        store.primitive_type,
+        integer_store.primitive_type,
         psi_typed_trees::types::PrimitiveType::I32
     );
     assert!(matches!(
-        &store.value,
+        &integer_store.value,
         psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
             if literal.value_i64() == Some(23)
     ));
+    assert_eq!(boolean_store.statement_index, 1);
+    assert_eq!(boolean_store.field_identity, "enabled");
+    assert_eq!(
+        boolean_store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::Bool
+    );
     let [callable] = plan.realization_callables.as_slice() else {
         panic!("one realization callable expected")
     };
-    assert_eq!(callable.structural_scalar_field_store.as_ref(), Some(store));
+    assert_eq!(
+        callable.structural_scalar_field_stores,
+        plan.realization_structural_scalar_field_stores
+    );
     assert_eq!(
         callable.return_expression,
         plan.realization_return_expression
@@ -888,12 +899,44 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
 }
 
 #[test]
+fn dynamic_plan_fences_repeated_and_third_realization_stores() {
+    let repeated = MUTATING_REALIZATION_SOURCE.replace("self.enabled = true;", "self.value = 24;");
+    let checked = check_dynamic_source(&repeated);
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .direct_scalar_calls
+            .is_empty()
+    );
+
+    let third = MUTATING_REALIZATION_SOURCE
+        .replace("enabled: bool;", "enabled: bool;\n        other: u8;")
+        .replace(
+            "self.enabled = true;",
+            "self.enabled = true;\n            self.other = 7;",
+        );
+    let checked = check_dynamic_source(&third);
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .direct_scalar_calls
+            .is_empty()
+    );
+}
+
+#[test]
 fn dynamic_plan_retains_nested_mutating_realization_path() {
     let checked = check_dynamic_source(NESTED_MUTATING_REALIZATION_SOURCE);
-    let store = sole_direct_dynamic_plan(&checked)
-        .realization_structural_scalar_field_store
-        .as_ref()
-        .expect("selected nested realization store");
+    let plan = sole_direct_dynamic_plan(&checked);
+    let [store] = plan.realization_structural_scalar_field_stores.as_slice() else {
+        panic!("selected nested realization store expected")
+    };
     assert_eq!(
         store.carrier_path,
         [

@@ -62,11 +62,13 @@ const MUTATING_REALIZATION_SOURCE: &str = r#"
 
     data Item [copy] {
         value: i32;
+        enabled: bool;
     }
 
     Primary: Item satisfies Measure {
         machine measure(&mut self) -> i32 {
             self.value = 23;
+            self.enabled = true;
             transition { _ -> self.value }
         }
     }
@@ -1338,7 +1340,7 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
 fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
     let checked = checked_source(MUTATING_REALIZATION_SOURCE);
     let plan = direct_plan(&checked);
-    assert!(plan.realization_structural_scalar_field_store.is_some());
+    assert_eq!(plan.realization_structural_scalar_field_stores.len(), 2);
 
     let lowered = lower_machine(&checked, "Main::run").expect("mutating realization lowers");
     psi_terminal_verifier::validate_module(&lowered.semantic_module)
@@ -1365,6 +1367,14 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
                 ..
             },
             psi_terminal::Operation {
+                kind: OperationKind::BooleanConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::StructuralScalarFieldStore { .. },
+                ..
+            },
+            psi_terminal::Operation {
                 kind: OperationKind::IntegerStructuralField { .. },
                 ..
             }
@@ -1375,10 +1385,10 @@ fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
 #[test]
 fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() {
     let checked = checked_source(PROJECTED_MUTATING_REALIZATION_SOURCE);
-    let store = direct_plan(&checked)
-        .realization_structural_scalar_field_store
-        .as_ref()
-        .expect("checked projected realization field store");
+    let plan = direct_plan(&checked);
+    let [store] = plan.realization_structural_scalar_field_stores.as_slice() else {
+        panic!("checked projected realization field store expected")
+    };
     assert_eq!(
         store.carrier_path,
         [
@@ -1444,10 +1454,23 @@ fn lowers_nested_projected_mutating_realization_path_before_its_scalar_return() 
 fn rejects_mutating_realization_body_that_drifted_from_checked_custody() {
     let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
     direct_plan_mut(&mut checked)
-        .realization_structural_scalar_field_store
-        .as_mut()
+        .realization_structural_scalar_field_stores
+        .first_mut()
         .expect("checked realization field store")
         .field_identity = "missing".into();
+
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic selected body drifted from checked custody"
+    );
+}
+
+#[test]
+fn rejects_mutating_realization_store_order_drift() {
+    let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    direct_plan_mut(&mut checked)
+        .realization_structural_scalar_field_stores
+        .swap(0, 1);
 
     assert_eq!(
         unsupported_message(&checked),

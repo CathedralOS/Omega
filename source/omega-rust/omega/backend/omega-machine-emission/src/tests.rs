@@ -3338,8 +3338,8 @@ fn mutable_scalar_store_return_plan(
                 operations: vec![defining_operation, store_operation, read_operation],
                 edges: vec![edge],
             },
-            operation: TargetOperation::ScalarReturnAfterStructuralScalarFieldStore {
-                store,
+            operation: TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
+                stores: vec![store],
                 scalar: Box::new(TargetOperation::ReturnIntegerExpression {
                     psi_edge: edge,
                     source_value: result,
@@ -3463,6 +3463,89 @@ fn mutable_scalar_store_return_plan(
     }
 }
 
+fn mutable_two_scalar_store_return_plan(target: NativeTarget) -> TargetOperationPlan {
+    let mut plan = mutable_scalar_store_return_plan(target, true, false);
+    let function = &mut plan.functions[0];
+    function.provenance.operations = vec![
+        OperationId::new(20).unwrap(),
+        OperationId::new(21).unwrap(),
+        OperationId::new(23).unwrap(),
+        OperationId::new(24).unwrap(),
+        OperationId::new(22).unwrap(),
+    ];
+    let TargetOperation::ScalarReturnAfterStructuralScalarFieldStores { stores, .. } =
+        &mut function.operation
+    else {
+        unreachable!("mutable scalar fixture retains its store carrier")
+    };
+    let mut second = stores[0].clone();
+    second.defining_operation = OperationId::new(23).unwrap();
+    second.psi_operation = OperationId::new(24).unwrap();
+    second.source_value = ValueId::new(22).unwrap();
+    second.field = StructuralFieldId::new(21).unwrap();
+    second.field_byte_offset = 4;
+    second.immediate = omega_target_operations::TargetScalarImmediate::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        value: IntegerValue::Signed(31),
+    };
+    stores.push(second);
+    plan
+}
+
+#[test]
+fn emits_two_ordered_mutable_self_stores_before_the_return_read() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let emitted = emit_machine_code(&mutable_two_scalar_store_return_plan(target))
+            .expect("emit two ordered mutable stores");
+        let function = &emitted.functions[0];
+        let [boolean_store, integer_store] =
+            function.scalar_structural_scalar_field_stores.as_slice()
+        else {
+            panic!("two scalar store records expected")
+        };
+        assert!(matches!(
+            boolean_store.immediate,
+            omega_target_operations::TargetScalarImmediate::Boolean(true)
+        ));
+        assert!(matches!(
+            integer_store.immediate,
+            omega_target_operations::TargetScalarImmediate::Integer {
+                value: IntegerValue::Signed(31),
+                ..
+            }
+        ));
+        assert_eq!(boolean_store.operation_ordinal, 1);
+        assert_eq!(integer_store.operation_ordinal, 3);
+        assert_eq!(boolean_store.code_offset, 0);
+        assert_eq!(integer_store.code_offset, boolean_store.byte_count);
+        assert_eq!(
+            function.bytes[..integer_store.code_offset],
+            boolean_store.bytes
+        );
+        assert_eq!(
+            function.bytes
+                [integer_store.code_offset..integer_store.code_offset + integer_store.byte_count],
+            integer_store.bytes
+        );
+    }
+}
+
+#[test]
+fn rejects_repeated_scalar_store_destination_before_assignment() {
+    let mut plan = mutable_two_scalar_store_return_plan(NativeTarget::linux_x64());
+    let TargetOperation::ScalarReturnAfterStructuralScalarFieldStores { stores, .. } =
+        &mut plan.functions[0].operation
+    else {
+        unreachable!("mutable scalar fixture retains its store carrier")
+    };
+    stores[1].field = stores[0].field;
+    stores[1].field_byte_offset = stores[0].field_byte_offset;
+    assert!(matches!(
+        assign_registers(&plan),
+        Err(omega_target_operations_to_assigned_target_operations::AssignmentError::StructuralScalarFieldStoreCustodyMismatch { .. })
+    ));
+}
+
 #[test]
 fn emits_mutable_self_store_through_the_original_reference_before_return_read() {
     let x86 = emit_machine_code(&mutable_scalar_store_return_plan(
@@ -3479,8 +3562,8 @@ fn emits_mutable_self_store_through_the_original_reference_before_return_read() 
         ]
     );
     let store = x86.functions[0]
-        .scalar_structural_scalar_field_store
-        .as_ref()
+        .scalar_structural_scalar_field_stores
+        .first()
         .expect("x86 store evidence");
     assert_eq!(store.bytes, x86.functions[0].bytes[..store.byte_count]);
     assert!(matches!(
@@ -3508,9 +3591,9 @@ fn emits_mutable_self_store_through_the_original_reference_before_return_read() 
         ]
     );
     assert!(
-        arm.functions[0]
-            .scalar_structural_scalar_field_store
-            .is_some()
+        !arm.functions[0]
+            .scalar_structural_scalar_field_stores
+            .is_empty()
     );
 }
 
@@ -3530,8 +3613,8 @@ fn emits_boolean_store_before_independent_integer_self_field_return() {
         ]
     );
     let store = x86.functions[0]
-        .scalar_structural_scalar_field_store
-        .as_ref()
+        .scalar_structural_scalar_field_stores
+        .first()
         .expect("Boolean store evidence");
     assert!(matches!(
         store.immediate,
@@ -3580,8 +3663,8 @@ fn emits_projected_boolean_store_at_the_accumulated_nested_offset() {
         ]
     );
     let store = x86.functions[0]
-        .scalar_structural_scalar_field_store
-        .as_ref()
+        .scalar_structural_scalar_field_stores
+        .first()
         .expect("projected Boolean store evidence");
     assert_eq!(
         store.path,
@@ -3613,10 +3696,13 @@ fn rejects_projected_scalar_store_path_or_accumulated_offset_drift_before_emissi
     let plan = mutable_scalar_store_return_plan(NativeTarget::linux_x64(), true, true);
     let rejects = |mut plan: TargetOperationPlan,
                    mutate: fn(&mut TargetScalarStructuralFieldStore)| {
-        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStore { store, .. } =
+        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStores { stores, .. } =
             &mut plan.functions[0].operation
         else {
             unreachable!("projected store fixture remains a scalar-store carrier")
+        };
+        let [store] = stores.as_mut_slice() else {
+            unreachable!("projected store fixture retains one store")
         };
         mutate(store);
         assert!(matches!(

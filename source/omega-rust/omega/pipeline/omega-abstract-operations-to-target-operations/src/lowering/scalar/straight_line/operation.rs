@@ -13,7 +13,7 @@ pub(super) fn lower_operation(
     call_plan: &CallPlan,
     target_structural_parameters: &[TargetStructuralParameter],
     provenance: &mut TerminalPsiProvenance,
-    structural_scalar_field_store: &mut Option<TargetScalarStructuralFieldStore>,
+    structural_scalar_field_stores: &mut Vec<TargetScalarStructuralFieldStore>,
     returned: &mut Option<TargetOperation>,
 ) -> Result<(), LoweringError> {
     match operation {
@@ -25,12 +25,12 @@ pub(super) fn lower_operation(
             });
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
-            if structural_scalar_field_store.is_some() {
+            if structural_scalar_field_stores.len() >= 2 {
                 return Err(LoweringError::UnsupportedOperationInScalarFunction(
                     function.machine,
                 ));
             }
-            *structural_scalar_field_store = Some(structural_scalar_field::lower_store(
+            let store = structural_scalar_field::lower_store(
                 operation,
                 operation_index,
                 function,
@@ -38,7 +38,17 @@ pub(super) fn lower_operation(
                 target_structural_parameters,
                 values,
                 provenance,
-            )?);
+            )?;
+            if structural_scalar_field_stores.iter().any(|earlier| {
+                earlier.destination.place == store.destination.place
+                    && earlier.path == store.path
+                    && earlier.field == store.field
+            }) {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
+            structural_scalar_field_stores.push(store);
         }
         AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {
