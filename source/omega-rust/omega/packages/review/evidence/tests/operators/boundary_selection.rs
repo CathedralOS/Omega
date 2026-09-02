@@ -273,6 +273,48 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         PackageReviewSourceLocationRole::BoundaryApplicationUse
     );
 
+    let mut normalized_expression = checked.clone();
+    let expression = normalized_expression
+        .facts
+        .operators
+        .named_uses
+        .iter()
+        .find_map(|(_, operator_use)| {
+            (!operator_use.provider_plan_commitment.is_empty()).then_some(operator_use.expression)
+        })
+        .expect("ordinary application selected-plan use");
+    normalized_expression
+        .typed
+        .expression_table
+        .set_source_span(
+            expression,
+            psi_source::SourceSpan::new(
+                psi_source::SourceId(usize::MAX),
+                psi_source::Span::default(),
+            ),
+        );
+    let normalized_review = project_checked_package_review(&normalized_expression)
+        .expect("exact authored selection survives an empty normalized expression span");
+    let normalized_rows = normalized_review
+        .canonical_rows()
+        .expect("normalized application canonical rows");
+    let [normalized_location] = normalized_rows
+        .iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::BoundaryApplicationRealization)
+        .expect("normalized application row")
+        .source()
+        .authored_locations()
+        .expect("normalized application retains authored selection custody")
+    else {
+        panic!("one normalized authored application location")
+    };
+    assert_eq!(normalized_location.relative_path(), "main.omg");
+    assert!(normalized_location.start_byte() < normalized_location.end_byte());
+    assert_eq!(
+        normalized_location.role(),
+        PackageReviewSourceLocationRole::BoundaryApplicationUse
+    );
+
     let mut substituted_plan = checked;
     let (actual_use, _) = substituted_plan
         .facts

@@ -601,8 +601,16 @@ custody separately rejects a retained proposal whose profile or native target
 differs from that production subject. Thus neither a freely constructed policy
 nor a reconstructed proposal grants package admission. Terminal Psi does not
 acquire policy authority, and unrelated receiving-policy rows remain legal.
+Executable application review and manager re-entry now cover exact success and
+source-consumption, build-observation, and coordinated proposal/policy
+substitution. The generated `builder.roots.bind` marker retains its authored
+`bind` span, while later expression normalization may recover location only
+from one exact private authored selection. A build with no filesystem reach
+has a canonical empty Output tree even without a physical sponsor; this keeps
+sponsored review and ordinary production observation identities equal without
+discarding Output custody.
 The command-line project workflow still stops at raw package inputs; it must
-gain accepted-evidence/root-policy orchestration and invoke and cover this route
+gain accepted-evidence/root-policy orchestration and invoke this route
 before the join is automatic in production.
 
 ### Resources

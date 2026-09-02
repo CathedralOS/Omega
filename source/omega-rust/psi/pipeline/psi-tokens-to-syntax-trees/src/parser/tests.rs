@@ -245,6 +245,33 @@ fn provider_selection_retains_two_structural_type_paths() {
 }
 
 #[test]
+fn root_binding_marker_retains_the_authored_bind_span() {
+    let source = r#"
+        machine build(builder: &mut Build) {
+            builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize root binding");
+    let parsed = parse_syntax_trees(&tokens).expect("parse root binding");
+    let call = parsed
+        .expressions
+        .iter_expressions()
+        .find_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str().starts_with("bind_root#") => {
+                Some(call)
+            }
+            _ => None,
+        })
+        .expect("generated root-binding marker call");
+
+    let span = call.target.source_span().span;
+    assert!(span.start < span.end);
+    assert_eq!(&source[span.start..span.end], "bind");
+}
+
+#[test]
 fn opaque_representation_selection_retains_data_and_conformance_paths() {
     let source = r#"
         machine build(builder: &mut Build) {

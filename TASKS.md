@@ -9275,13 +9275,21 @@ compiler concept is introduced.
   use the same exact accepted-row-to-receiving-policy check and retain the same
   receiving-policy identity.
 
+  Executable-root review now preserves the authored `builder.roots.bind`
+  source span through its generated marker, and the manager-owned route is
+  exercised end to end from a resolved application through fresh root-policy
+  acceptance, package-aware retained Terminal production, and native
+  realization. Exact success plus source-consumption, build-observation, and
+  coordinated retained-proposal/receiving-policy substitution are covered.
+  Filesystem-inaccessible builds canonicalize Output as one exact empty tree,
+  so sponsored review and ordinary production retain the same observation
+  without weakening observation identity.
+
   Remaining package work is production orchestration: the current CLI project
   preparation returns raw package compilation inputs and does not yet compile
   reviews, recover/accept root policy, or feed the resulting accepted policy to
   either native request route. Add that workflow without inferring permissions
-  in project preparation, and cover exact report/evidence success plus
-  source/observation/proposal substitution through the manager-owned entrypoint
-  once executable-root review orchestration reaches it. Then migrate
+  in project preparation. Then migrate
   `FilesystemHost` and later services to
   their exact portable facets, prove selected-closure coverage for every
   transitional broad row, and only then remove the filename classifier and

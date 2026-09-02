@@ -254,14 +254,17 @@ impl BuildMachineFilesystemScope {
         if self.replay.is_some() {
             return Ok(None);
         }
+        // When the selected build machine cannot reach the filesystem, the
+        // Output namespace is exactly empty without needing a physical
+        // staging sponsor. Canonicalize that semantic fact so sponsored
+        // review and ordinary production retain the same observation.
+        if !filesystem_reachable {
+            return Ok(Some(empty()));
+        }
         let Some(sponsor) = &self.sponsor else {
             return Ok(None);
         };
-        if filesystem_reachable {
-            capture(&self.build_dir, sponsor).map(Some)
-        } else {
-            Ok(Some(empty()))
-        }
+        capture(&self.build_dir, sponsor).map(Some)
     }
 }
 

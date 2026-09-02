@@ -295,9 +295,9 @@ fn expression_is_owned_by_package(
     // derivations, not package uses. Test and generated fixtures can retain an
     // empty expression span beside a real authored selection, so the ledger is
     // the deciding distinction.
-    if span.span.start >= span.span.end {
+    let ownership_span = if span.span.start >= span.span.end {
         let expected_kind = authored_application_selection_kind(use_kind);
-        let has_exact_authored_selection = compilation
+        let has_authored_selection = compilation
             .typed
             .expression_table
             .authored_selection_occurrences(expression)
@@ -307,23 +307,23 @@ fn expression_is_owned_by_package(
                     .authored_declaration_selections()
                     .get(occurrence)
             })
-            .any(|selection| {
-                selection.kind() == expected_kind
-                    && matches!(
-                        selection.target(),
-                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
-                            if target.selected_symbol() == requirement_operator
-                    )
-            });
-        if !has_exact_authored_selection {
+            .any(|selection| selection.kind() == expected_kind);
+        if !has_authored_selection {
             return Ok(false);
         }
-    }
-    let source = compilation.typed.symbols.source_file(span).ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "boundary application expression {expression:?} has no retained source file",
-        ))]
-    })?;
+        authored_application_source_span(compilation, expression, use_kind, requirement_operator)?
+    } else {
+        span
+    };
+    let source = compilation
+        .typed
+        .symbols
+        .source_file(ownership_span)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "boundary application expression {expression:?} has no retained source file",
+            ))]
+        })?;
     match source.origin {
         psi_source::SourceOrigin::Toolchain => Ok(false),
         psi_source::SourceOrigin::User => source
