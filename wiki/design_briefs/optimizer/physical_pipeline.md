@@ -1254,7 +1254,7 @@ Each boundary recomputes child identities and rejects detached, reordered,
 truncated, trailing, or cross-source data. Generic artifact layers bind child
 identities and do not need a new schema merely because a new exact rule exists.
 The genericization changed the data carried at three serialized boundaries:
-function-relative realization is v9, while fragment emission and fragment text
+function-relative realization is v10, while fragment emission and fragment text
 placement are v8. Their records retain the exact selected-lowering selection
 or post-allocation optimization, not a broad optimization level.
 

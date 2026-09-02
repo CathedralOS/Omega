@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Frames and dispatches the v9 function-relative realization manifest protocol.
+//! Optimizer module role: executable entrance. Frames and dispatches the v10 function-relative realization manifest protocol.
 
 mod cursor;
 mod decoding;
@@ -15,13 +15,13 @@ use cursor::Cursor;
 pub use error::FunctionRelativeOptimizationRealizationManifestDecodeError;
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 9;
+const MANIFEST_VERSION: u32 = 10;
 
 impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v9\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v10\0");
         canonical.extend_from_slice(&encoding::encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }

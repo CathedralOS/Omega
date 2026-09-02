@@ -11,10 +11,17 @@ pub(super) fn derive<'a>(
     fusion: Fusion<'_>,
     policy: SelectedFunctionLayoutPolicy,
 ) -> Result<Vec<&'a SelectedBlock>, OptimizedResolvedSelectedFormLayoutError> {
+    let function_has_fusion = fusion.is_some_and(|fusion| {
+        fusion
+            .fusion()
+            .plan()
+            .actions
+            .iter()
+            .any(|action| action.machine == function.machine)
+    });
     if let [block] = function.blocks.as_slice() {
         if function.entry_block != block.id
             || !matches!(block.terminator, SelectedTerminator::Return { .. })
-            || fusion.is_some()
         {
             return unsupported(function);
         }
@@ -47,7 +54,7 @@ pub(super) fn derive<'a>(
             },
             SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1
             | SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-        ) if fusion.is_none() => (when_less, when_not_less),
+        ) if !function_has_fusion => (when_less, when_not_less),
         _ => return unsupported(function),
     };
     if taken.block == fallthrough.block || entry.id == taken.block || entry.id == fallthrough.block
