@@ -432,6 +432,24 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
         !driver.contains("collect_contract_entailment_stand_downs(&typed)"),
         "checked orchestration must consume the phase-owned ledger instead of couriering a raw typed-derived vector"
     );
+
+    let certificate_path = repo_root.join(
+        "source/omega-rust/psi/pipeline/psi-typed-trees-to-checked-trees/src/proof/contract_entailment.rs",
+    );
+    let certificate = fs::read_to_string(&certificate_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", certificate_path.display()));
+    assert!(
+        certificate.contains("collect_contract_entailment_stand_downs(program)"),
+        "checked-IR contract-entailment certificates must reconstruct the stand-down roster inside typed-to-checked lowering"
+    );
+    assert!(
+        certificate.contains("psi_proof_admission::accept_certificate("),
+        "typed-to-checked certificate construction must invoke the proof kernel"
+    );
+    assert!(
+        !transition.contains("CheckedContractEntailmentAssumptionDischarge"),
+        "compiler orchestration must not construct checked-IR proof certificates"
+    );
 }
 
 #[test]

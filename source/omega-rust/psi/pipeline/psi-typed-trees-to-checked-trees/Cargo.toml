@@ -19,6 +19,7 @@ psi-language-core = { path = "../../foundation/psi-language-core" }
 psi-language-semantics = { path = "../../foundation/psi-language-semantics" }
 psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-proof = { path = "../../semantics/psi-proof" }
+psi-proof-admission = { path = "../../semantics/psi-proof-admission" }
 psi-source = { path = "../../foundation/psi-source" }
 psi-symbols = { path = "../../foundation/psi-symbols" }
 psi-typed-trees = { path = "../../representations/psi-typed-trees" }

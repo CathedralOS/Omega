@@ -426,6 +426,10 @@ pub(crate) use semantic::{
 pub(crate) use semantic_calls::call_site_evidence_arguments;
 
 mod proof;
+pub use proof::{
+    CheckedContractEntailmentAssumptionDischargeRecheckError,
+    recheck_contract_entailment_assumption_discharge,
+};
 mod qualification_evidence;
 mod review_sources;
 

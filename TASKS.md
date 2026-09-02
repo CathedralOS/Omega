@@ -3712,6 +3712,18 @@ Remaining:
   Unchanged-rank self-citation, unreachable singleton closure, missing grouped
   evidence, and call-site mutation reject. Normalization-law trust remains
   open.
+
+  Checked lowering now also owns the first narrow certificate for authored
+  contract-entailment stand-downs. When structural validation stands down on
+  an unrecognized checked body, an exact `ensures` fact may be discharged only
+  by an identical authored `requires` assumption over immutable Boolean,
+  fixed-integer, or address parameters. The checked-IR certificate binds the
+  machine symbol, exact contract/fact coordinates, strong machine-contract
+  commitment, canonical assumptions and goal, and deterministic selected
+  assumption. Construction and independent local replay both invoke the proof
+  kernel; unsupported expressions remain uncertified and the original
+  stand-down remains present. This is an internal compiler product, not yet a
+  persistable package-evidence or accepted-lock authority.
 - **SUBJECT-QUALIFIED-ARTIFACT-PROOFS.** Make the settled semantic-subject graph
   enforceable in canonical ledgers, certificates, artifact seals, deployment
   records, replay, and human-facing reports. The verifier reconstructs one

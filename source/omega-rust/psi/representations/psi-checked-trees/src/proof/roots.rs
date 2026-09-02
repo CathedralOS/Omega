@@ -9,6 +9,11 @@ use crate::{
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofFacts {
+    /// Checked-IR certificates for exact authored ensures obligations that the
+    /// structural validator stood down from but the proof kernel discharged
+    /// by an exact machine-requires assumption.
+    pub contract_entailment_assumption_discharges:
+        Vec<crate::CheckedContractEntailmentAssumptionDischarge>,
     pub obligations: Arena<ProofObligationFact>,
     pub contract_facts: Arena<ContractProofFact>,
     pub outcome_specific_guarantees: Arena<OutcomeSpecificGuaranteeFact>,
@@ -89,6 +94,7 @@ impl ProofFacts {
         proposition_vocabulary: crate::CheckedPropositionVocabulary,
     ) -> Self {
         Self {
+            contract_entailment_assumption_discharges: Vec::new(),
             obligations,
             contract_facts,
             outcome_specific_guarantees,
@@ -158,6 +164,7 @@ mod tests {
         );
 
         assert_eq!(facts.obligations, obligations);
+        assert!(facts.contract_entailment_assumption_discharges.is_empty());
         assert_eq!(facts.contract_facts, contract_facts);
         assert_eq!(
             facts.outcome_specific_guarantees,
