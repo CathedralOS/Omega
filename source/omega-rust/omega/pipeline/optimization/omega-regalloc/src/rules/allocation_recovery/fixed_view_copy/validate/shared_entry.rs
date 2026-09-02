@@ -10,39 +10,39 @@ use omega_selected_instructions::{
 };
 
 use crate::{
-    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FunctionAllocationLegality,
-    VirtualFixedConstraintSite,
+    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, VirtualFixedConstraintSite,
 };
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replay_shared_entry_copy(
     function_index: usize,
     function: &omega_selected_instructions::SelectedFunction,
-    legality: &FunctionAllocationLegality,
+    boundaries: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
     row: &RegisterInstructionConstraint,
     constraint: RegisterConstraintKey,
     instruction_id: u32,
     register_id: u32,
 ) -> Result<Option<FixedViewCopy>, FixedViewCopyError> {
-    let mut requirements = Vec::new();
-    for register in &legality.virtual_registers {
-        for transition in &register.entry_transitions {
-            requirements.push((register, transition));
-        }
-    }
-    if requirements.is_empty() {
+    if boundaries.is_empty() {
         return Ok(None);
     }
-    if requirements.len() != 2
-        || requirements[0].0.virtual_register != requirements[1].0.virtual_register
-        || requirements[0].1.from_view != requirements[1].1.from_view
-        || requirements[0].1.to_view != requirements[1].1.to_view
+    if boundaries.len() != 2
+        || boundaries[0].virtual_register != boundaries[1].virtual_register
+        || boundaries[0].source_segment != boundaries[1].source_segment
+        || boundaries[0].source_domain != boundaries[1].source_domain
+        || boundaries[0].from_view != boundaries[1].from_view
+        || boundaries[0].to_view != boundaries[1].to_view
+        || boundaries.iter().any(|boundary| {
+            boundary.function != function_index
+                || boundary.machine != function.machine
+                || boundary.incoming.is_none()
+        })
     {
         return Err(FixedViewCopyError::UnsupportedSharedTransitionSet {
             function: function_index,
         });
     }
-    let requirement = requirements[0].0;
+    let requirement = boundaries[0];
     let source = function
         .virtual_registers
         .iter()
@@ -58,7 +58,7 @@ pub(super) fn replay_shared_entry_copy(
         });
     };
     if source.class != requirement.class
-        || source.entry_fixed_view != Some(requirements[0].1.from_view)
+        || source.entry_fixed_view != Some(requirement.from_view)
         || !replay_is_u64(source.scalar_type)
         || row.operands[0].class != source.class
         || row.operands[1].class != source.class
@@ -103,14 +103,14 @@ pub(super) fn replay_shared_entry_copy(
     }
     let mut actual_leaves = BTreeSet::new();
     let mut destinations = Vec::new();
-    let from_view = requirements[0].1.from_view;
-    for (_, transition) in requirements {
+    let from_view = requirement.from_view;
+    for boundary in boundaries {
         let VirtualFixedConstraintSite::Operand {
             instruction,
             operand,
             access,
             ..
-        } = transition.to_site
+        } = boundary.site
         else {
             return Err(FixedViewCopyError::UnsupportedSharedTransitionSet {
                 function: function_index,
@@ -127,8 +127,11 @@ pub(super) fn replay_shared_entry_copy(
             instruction,
             operand,
             source.id,
-            transition.to_view,
+            boundary.to_view,
         )?;
+        if block != boundary.block {
+            return Err(FixedViewCopyError::SegmentEvidenceMismatch);
+        }
         let leaf = function
             .blocks
             .iter()
@@ -140,9 +143,9 @@ pub(super) fn replay_shared_entry_copy(
             });
         }
         destinations.push(FixedViewCopyDestination {
-            site: transition.to_site,
+            site: boundary.site,
             block,
-            view: transition.to_view,
+            view: boundary.to_view,
         });
     }
     if actual_leaves != expected_leaves {

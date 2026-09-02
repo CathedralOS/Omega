@@ -65,35 +65,22 @@ pub(super) fn copy_row(
 
 pub(super) fn work_usage(
     selected: &ValidatedSelectedInstructions,
-    legality: &ValidatedAllocationLegality,
+    boundaries: &[crate::rules::allocation_recovery::fixed_view_copy::evidence::AuthenticatedFixedViewBoundary],
     policy: FixedViewCopyPolicy,
 ) -> Result<OptimizationWorkUsage, FixedViewCopyError> {
     let functions = u64::try_from(selected.plan().functions.len())
         .map_err(|_| FixedViewCopyError::WorkOverflow)?;
-    let requirements = legality
-        .plan()
-        .functions
-        .iter()
-        .flat_map(|function| &function.virtual_registers)
-        .map(|register| register.entry_transitions.len())
-        .try_fold(0_u64, |total, count| {
-            total.checked_add(u64::try_from(count).ok()?)
-        })
-        .ok_or(FixedViewCopyError::WorkOverflow)?;
+    let requirements =
+        u64::try_from(boundaries.len()).map_err(|_| FixedViewCopyError::WorkOverflow)?;
     let commits = match policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => requirements,
-        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => legality
-            .plan()
-            .functions
+        FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => boundaries
             .iter()
-            .try_fold(0_u64, |count, function| {
-                let has_transitions = function
-                    .virtual_registers
-                    .iter()
-                    .any(|r| !r.entry_transitions.is_empty());
-                count.checked_add(u64::from(has_transitions))
-            })
-            .ok_or(FixedViewCopyError::WorkOverflow)?,
+            .map(|boundary| boundary.function)
+            .collect::<BTreeSet<_>>()
+            .len()
+            .try_into()
+            .map_err(|_| FixedViewCopyError::WorkOverflow)?,
     };
     Ok(OptimizationWorkUsage {
         rule_evaluations: functions,

@@ -12,7 +12,8 @@ use psi_core::{BlockId, EdgeId, IntegerType, MachineId, ValueId};
 
 use super::*;
 use crate::{
-    EntryFixedViewTransition, FunctionAllocationLegality, LiveRangePoint, LivenessPosition,
+    EntryFixedViewTransition, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
+    FunctionAllocationLegality, LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition,
     VirtualRegisterAllocationLegality,
 };
 
@@ -232,12 +233,50 @@ pub(crate) fn computed_shared_fixture() -> (
     SelectedFunction,
 ) {
     let (function, legality, row) = fixture();
-    let copy = build_shared_entry_copy(0, &function, &legality, &row, row.key, 4, 2)
+    let boundaries = boundaries(&legality);
+    let references = boundaries.iter().collect::<Vec<_>>();
+    let copy = build_shared_entry_copy(0, &function, &references, &row, row.key, 4, 2)
         .unwrap()
         .unwrap();
     let mut transformed = function.clone();
     apply_copy(0, &mut transformed, &copy, &row).unwrap();
     (function, legality, row, copy, transformed)
+}
+
+fn boundaries(
+    legality: &FunctionAllocationLegality,
+) -> Vec<super::super::evidence::AuthenticatedFixedViewBoundary> {
+    legality.virtual_registers[1]
+        .entry_transitions
+        .iter()
+        .enumerate()
+        .map(|(index, transition)| {
+            let block = SelectedBlockId(u32::try_from(index + 1).unwrap());
+            super::super::evidence::AuthenticatedFixedViewBoundary {
+                function: 0,
+                machine: legality.machine,
+                virtual_register: VirtualRegisterId(1),
+                class: legality.virtual_registers[1].class,
+                source_segment: FixedPrecoloredSourceSegmentId(0),
+                source_domain: FixedPrecoloredHomeDomainId(0),
+                from_view: transition.from_view,
+                destination_segment: FixedPrecoloredSourceSegmentId(
+                    u32::try_from(index + 1).unwrap(),
+                ),
+                destination_domain: FixedPrecoloredHomeDomainId(u32::try_from(index + 1).unwrap()),
+                site: transition.to_site,
+                block,
+                to_view: transition.to_view,
+                incoming: Some(LiveRangeEdgeConnector {
+                    source: SelectedBlockId(0),
+                    terminator: SelectedInstructionId(1),
+                    polarity_ordinal: u8::try_from(index).unwrap(),
+                    psi_edge: EdgeId::new(u64::try_from(index + 1).unwrap()).unwrap(),
+                    target: block,
+                }),
+            }
+        })
+        .collect()
 }
 
 #[test]
@@ -271,8 +310,10 @@ fn shared_entry_policy_rejects_noncanonical_compare_copy_branch_shape() {
         SelectedInstructionKind::CopyI64,
         Vec::new(),
     ));
+    let boundaries = boundaries(&legality);
+    let references = boundaries.iter().collect::<Vec<_>>();
     assert!(matches!(
-        build_shared_entry_copy(0, &function, &legality, &row, row.key, 5, 2),
+        build_shared_entry_copy(0, &function, &references, &row, row.key, 5, 2),
         Err(FixedViewCopyError::UnsupportedSharedTransitionSet { function: 0 })
     ));
 }

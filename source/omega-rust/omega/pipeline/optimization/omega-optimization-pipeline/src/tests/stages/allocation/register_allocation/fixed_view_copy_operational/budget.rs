@@ -8,15 +8,15 @@ use crate::tests::{
 use super::fixture::*;
 
 const EXACT_USAGE: OptimizationWorkUsage = OptimizationWorkUsage {
-    rule_evaluations: 1,
-    candidates: 2,
-    validation_steps: 2,
-    commits: 1,
-    iterations: 1,
+    rule_evaluations: 5,
+    candidates: 4,
+    validation_steps: 20,
+    commits: 3,
+    iterations: 11,
 };
 
 fn exact_budget() -> OptimizationWorkBudget {
-    OptimizationWorkBudget::new(1, 2, 2, 1, 1).unwrap()
+    OptimizationWorkBudget::new(5, 4, 20, 3, 11).unwrap()
 }
 
 fn fields(budget: OptimizationWorkBudget) -> [u64; 5] {

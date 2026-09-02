@@ -351,6 +351,18 @@ explicit strategy, introduce any new VReg/instruction phases, and rerun the
 complete liveness/range/legality chain before executable or publication
 authority exists.
 
+The first such decision now consumes those homes through the existing exact
+fixed-view-copy policies. A small pipeline prerequisite stage retains the
+validated interval, split-requirement, and segment-home artifacts together;
+the fixed-view-copy producer walks their positional correspondence while its
+validator reconstructs the same boundary roster through machine and
+`(VReg, SegmentId)` keys. Both paths reject any boundary not authenticated by
+an incompatible fixed-use opening. The copy artifact binds all three roots,
+then the existing selected reanalysis reruns complete transformed liveness,
+ranges, and legality before later authority. A `CopyI64` remains a semantic
+recovery decision, not a claim that two exact views have different physical
+storage; later target-owned copy elision may remove an aliasing move.
+
 Segment-home work is structural rather than implementation-loop accounting.
 For `F` functions, `R` source registers, `S` segments, `D` allocation domains,
 `Q` unordered domain pairs, `C` candidate-footprint comparisons on live
@@ -519,18 +531,18 @@ or shared-entry transformation, compares the complete selected result, and
 issues the receipt. The validator never calls `compute`.
 
 Fixed-view-copy artifacts use one small version-admitting codec entrance.
-Legacy V4 remains decode-only and byte-stable, with no structural-function
-roster. V5 introduced the scalar selected-plan leaf and structural subtree;
-its decoder remains supported and reconstructs absent call proof/crash rows as
-empty. V6 retains those exact rows below the structural call leaf, V8 appends
-the ordered-comparison vocabulary, and V9 appends the scalar-call kind plus
-callee payload. V10 appends the distinct signed-I64 less-than selected kind and
-terminator while preserving V4 through V9 decode. Signature, ABI/calling plan,
-declarations, boundary settlements, call, effects, ownership, and return fields
-remain explicit, while named envelope and payload leaves authenticate both
-semantic identities and exact canonical content. This also closes caller/callee
-call-plan fields that independent validation checks but the selected semantic
-identity does not fully cover.
+V4 remains byte-stable without a structural-function roster; V5 introduced
+the scalar selected-plan leaf and structural subtree; V6 retained call proof
+and crash rows; V8 added ordered comparisons; V9 added scalar-call payload;
+and V10 added signed-I64 less-than selection. V11 adds the three authenticated
+segment-evidence identities and advances the fixed-view-copy semantic identity
+to V7. V4 through V10 remain decode-only and reconstruct
+`LegacyLegalityTransitionsV1`; current validation refuses that evidence rather
+than silently recovering from the old legality-transition scan. Signature,
+ABI/calling plan, declarations, boundary settlements, call, effects,
+ownership, and return fields remain explicit, while named envelope, evidence,
+and payload leaves authenticate both semantic identities and exact canonical
+content.
 
 Function-relative realization uses the same source-navigation rule for its V9
 manifest: `codec/mod.rs` owns magic/version framing and final protocol

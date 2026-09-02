@@ -586,9 +586,23 @@ once. For the authentic forwarded-conditional fixture, x86-64 usage is
 `{3, 7, 59, 6, 12}` and AArch64 usage is `{3, 7, 104, 6, 12}` in
 `{rules, candidates, validation, commits, iterations}` order. Both targets
 retain four source fragments and expose the two leaf fixed-use domain
-boundaries through independent replay. Segmented home assignment, recovery
-selection, and full post-transform liveness/range/legality replay remain the
-next authority boundaries.
+boundaries through independent replay.
+
+Segmented home assignment is now its own adjacent boundary. Its
+`MostConstrainedLowestCompatibleViewV1` policy groups only compatible incoming
+segments into allocation domains, derives segment-local interference, and
+places the most constrained domain in its lowest viable exact view. Production
+uses positional traversal; independent replay keys functions and source
+segments. The result assigns pre-transform homes only and grants no copy,
+instruction, transformed liveness, or physical-movement claim.
+
+The fixed-view-copy route consumes those facts through an explicit prerequisite
+stage that retains fixed intervals, split requirements, and segment homes. Its
+producer no longer scans allocation-legality transitions. Instead it derives
+only authenticated incompatible fixed-use boundaries from the segment graph;
+validation independently reconstructs the same graph by machine and
+`(VReg, SegmentId)` keys. The existing selected reanalysis still reruns the
+complete transformed liveness/range/legality chain after insertion.
 
 Fixed-view-copy validation descends from one small independent join through
 root and copy-constraint custody, work and budget replay, leaf-local or
@@ -596,13 +610,14 @@ shared-entry policy reconstruction, and exact application/comparison. Its
 validated receipt therefore represents reconstructed copy insertion, not
 producer self-attestation.
 
-Its public artifact is V6. V4 remains decode-only and byte-pinned without a
-structural roster; V5 retains the structural roster but decodes call proof and
-crash rows as empty. V6 encodes those rows canonically through the shared
-Terminal crash-route codec and also retains projected qualification rows. Those
-rows are bound by the selected and fixed-view
-semantic identities and authenticated by the outer envelope; legacy decoders
-reconstruct fields absent from their payload versions as empty.
+Its public artifact is V11 with fixed-view-copy semantic identity V7. V4 is
+byte-pinned without a structural roster; V5 introduced that roster; V6 added
+canonical call proof/crash rows; later generations added selected-language
+forms through V10. V11 appends fixed-interval, split-requirement, and
+segment-home identities. V4 through V10 remain decode-only and reconstruct a
+typed legacy-evidence marker; current validation rejects it. The envelope and
+named evidence/payload leaves therefore authenticate both exact selected
+content and the source of every fixed-view boundary.
 
 The current transition-free, spill-free home stage is a deterministic
 constraint-graph allocator. Distinct use/definition ties form quotient

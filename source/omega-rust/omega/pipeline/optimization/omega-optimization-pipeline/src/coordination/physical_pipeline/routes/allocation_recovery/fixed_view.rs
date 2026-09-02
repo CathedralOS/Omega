@@ -4,7 +4,7 @@ use crate::{
     StagedAllocationRecoveryFunctionRelativeSource, StagedOptimizedLiveRanges,
     StagedOptimizedVerifiedPhysicalPipeline,
     stage_allocation_recovery_function_relative_realization, stage_optimized_allocation_legality,
-    stage_optimized_fixed_view_copies,
+    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
     stage_optimized_register_homes_after_fixed_view_copies, stage_optimized_selected_reanalysis,
 };
@@ -23,8 +23,10 @@ pub(super) fn stage_fixed_view(
         .budget_per_pass();
     let legality = stage_optimized_allocation_legality(ranges)
         .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
+    let segment_homes = stage_optimized_fixed_precolored_segment_homes(legality, budget)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::FixedPrecoloredSegmentHomes)?;
     let copies = stage_optimized_fixed_view_copies(
-        legality,
+        segment_homes,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1,
         budget,
     )

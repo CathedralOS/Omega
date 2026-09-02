@@ -6,9 +6,11 @@ use crate::*;
 
 pub(crate) mod codec;
 pub(crate) mod compute;
+mod evidence;
 pub(crate) mod identity;
 pub(crate) mod model;
 pub(crate) mod validate;
+mod work;
 
 pub use identity::fixed_view_copy_identity;
 pub use model::*;
@@ -20,6 +22,9 @@ pub fn materialize_fixed_view_copies(
     selected: &ValidatedSelectedInstructions,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
+    fixed: &ValidatedFixedPrecoloredIntervals,
+    requirements: &ValidatedFixedPrecoloredSplitRequirements,
+    homes: &ValidatedFixedPrecoloredSegmentHomes,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -32,6 +37,9 @@ pub fn materialize_fixed_view_copies(
         selected,
         ranges,
         legality,
+        fixed,
+        requirements,
+        homes,
         register_environment,
         physical,
         constraints,
@@ -44,6 +52,9 @@ pub fn materialize_fixed_view_copies(
         selected,
         ranges,
         legality,
+        fixed,
+        requirements,
+        homes,
         register_environment,
         physical,
         constraints,

@@ -9,21 +9,27 @@ use omega_selected_instructions::SelectedInstructionPlanIdentity;
 use psi_core::{FuelScheduleIdentity, MachineId};
 use psi_terminal::TerminalPsiIdentity;
 
-use crate::{OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality};
+use crate::{
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, StagedOptimizedAllocationLegality,
+    StagedOptimizedFixedPrecoloredSegmentHomes,
+};
 
 /// Exact named fixed-view copy materialization over the complete source
 /// legality chain. It mutates only its private selected-CFG realization and
 /// grants no allocation, emission, or publication authority.
 #[derive(Debug)]
 pub struct StagedOptimizedFixedViewCopies {
-    pub(super) source: StagedOptimizedAllocationLegality,
+    pub(super) source: StagedOptimizedFixedPrecoloredSegmentHomes,
     pub(super) copies: ValidatedFixedViewCopies,
     pub(super) custody: StagedOptimizedFixedViewCopyCustodyReceipt,
 }
 
 impl StagedOptimizedFixedViewCopies {
-    pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
+    pub const fn source_segment_home_stage(&self) -> &StagedOptimizedFixedPrecoloredSegmentHomes {
         &self.source
+    }
+    pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
+        self.source.source_legality_stage()
     }
     pub const fn copies(&self) -> &ValidatedFixedViewCopies {
         &self.copies
@@ -49,6 +55,9 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
     pub(super) source_liveness: omega_regalloc::LivenessIdentity,
     pub(super) source_ranges: omega_regalloc::LiveRangeIdentity,
     pub(super) source_legality: omega_regalloc::AllocationLegalityIdentity,
+    pub(super) fixed_intervals: omega_regalloc::FixedPrecoloredIntervalPlanIdentity,
+    pub(super) split_requirements: omega_regalloc::FixedPrecoloredSplitRequirementPlanIdentity,
+    pub(super) segment_homes: omega_regalloc::FixedPrecoloredSegmentHomePlanIdentity,
     pub(super) transformation: FixedViewCopyIdentity,
     pub(super) transformed_selected: SelectedInstructionPlanIdentity,
     pub(super) policy: FixedViewCopyPolicy,
@@ -102,6 +111,17 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
     pub const fn source_legality(self) -> omega_regalloc::AllocationLegalityIdentity {
         self.source_legality
     }
+    pub const fn fixed_intervals(self) -> omega_regalloc::FixedPrecoloredIntervalPlanIdentity {
+        self.fixed_intervals
+    }
+    pub const fn split_requirements(
+        self,
+    ) -> omega_regalloc::FixedPrecoloredSplitRequirementPlanIdentity {
+        self.split_requirements
+    }
+    pub const fn segment_homes(self) -> omega_regalloc::FixedPrecoloredSegmentHomePlanIdentity {
+        self.segment_homes
+    }
     pub const fn transformation(self) -> FixedViewCopyIdentity {
         self.transformation
     }
@@ -124,7 +144,7 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedFixedViewCopyCustodyError {
-    UpstreamLegality(OptimizedAllocationLegalityCustodyError),
+    UpstreamSegmentHomes(OptimizedFixedPrecoloredSegmentHomeCustodyError),
     Materialization(FixedViewCopyError),
     Revalidation(FixedViewCopyError),
     ReceiptMismatch,

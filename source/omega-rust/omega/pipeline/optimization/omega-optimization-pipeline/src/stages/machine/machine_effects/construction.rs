@@ -35,9 +35,11 @@ pub(super) fn construct_optimized_machine_effects(
 pub(super) fn construct_optimized_machine_effects_after_fixed_view_copies(
     source: &StagedOptimizedFixedViewCopies,
 ) -> Result<StagedOptimizedMachineEffects, OptimizedMachineEffectPipelineError> {
-    let source_receipt =
-        validate_optimized_fixed_view_copy_custody(source.source_legality_stage(), source.copies())
-            .map_err(OptimizedMachineEffectPipelineError::FixedViewCopies)?;
+    let source_receipt = validate_optimized_fixed_view_copy_custody(
+        source.source_segment_home_stage(),
+        source.copies(),
+    )
+    .map_err(OptimizedMachineEffectPipelineError::FixedViewCopies)?;
     let selected_stage = source
         .source_legality_stage()
         .live_range_stage()

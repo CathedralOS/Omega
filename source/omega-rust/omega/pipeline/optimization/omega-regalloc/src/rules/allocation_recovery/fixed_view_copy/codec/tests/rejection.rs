@@ -18,6 +18,15 @@ fn transformed_identity_offset(encoded: &[u8]) -> usize {
     cursor.offset
 }
 
+fn selected_payload_offset(encoded: &[u8]) -> usize {
+    let mut cursor = Cursor::new(encoded);
+    cursor
+        .take(transformed_identity_offset(encoded) + 32)
+        .unwrap();
+    super::super::evidence::decode(&mut cursor).unwrap();
+    cursor.offset
+}
+
 #[test]
 fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
@@ -34,10 +43,10 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
         Err(FixedViewCopyDecodeError::WrongMagic)
     );
     let mut wrong_version = encoded.clone();
-    wrong_version[8..12].copy_from_slice(&11_u32.to_le_bytes());
+    wrong_version[8..12].copy_from_slice(&12_u32.to_le_bytes());
     assert_eq!(
         FixedViewCopyPlan::decode(&wrong_version),
-        Err(FixedViewCopyDecodeError::UnsupportedVersion(11))
+        Err(FixedViewCopyDecodeError::UnsupportedVersion(12))
     );
     let mut policy_tag = encoded.clone();
     let policy_offset = 8 + 4 + 32 + (5 * 32);
@@ -57,6 +66,12 @@ fn artifact_rejects_corruption_truncation_trailing_and_closed_tags() {
     assert_eq!(
         FixedViewCopyPlan::decode(&transformed_identity_tamper),
         Err(FixedViewCopyDecodeError::TransformedIdentityMismatch)
+    );
+    let mut evidence_tag = encoded.clone();
+    evidence_tag[transformed_identity_offset(&encoded) + 32] = 99;
+    assert_eq!(
+        FixedViewCopyPlan::decode(&evidence_tag),
+        Err(FixedViewCopyDecodeError::UnknownSourceEvidence(99))
     );
     assert_eq!(
         FixedViewCopyPlan::decode(&encoded[..encoded.len() - 1]),
@@ -103,10 +118,10 @@ fn artifact_v4_rejection_precedence_is_stable() {
 }
 
 #[test]
-fn artifact_v6_rejection_precedence_is_trailing_payload_semantic_then_outer() {
+fn artifact_v11_rejection_precedence_is_trailing_payload_semantic_then_outer() {
     let encoded = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1).encode();
     let transformed_offset = transformed_identity_offset(&encoded);
-    let payload_digest_offset = transformed_offset + 32;
+    let payload_digest_offset = selected_payload_offset(&encoded);
 
     let mut trailing_payload_semantic_outer = encoded.clone();
     trailing_payload_semantic_outer[payload_digest_offset] ^= 1;

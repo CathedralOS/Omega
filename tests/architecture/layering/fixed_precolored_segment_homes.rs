@@ -54,3 +54,47 @@ fn segmented_home_replay_is_independent_and_non_authoritative() {
         );
     }
 }
+
+#[test]
+fn fixed_view_copy_consumes_segment_evidence_without_legacy_transition_fallback() {
+    let root = workspace_root();
+    let owner = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/rules/allocation_recovery/fixed_view_copy",
+    );
+    let entrance =
+        std::fs::read_to_string(owner.join("mod.rs")).expect("read fixed-view-copy entrance");
+    assert!(
+        entrance.contains("ValidatedFixedPrecoloredIntervals")
+            && entrance.contains("ValidatedFixedPrecoloredSplitRequirements")
+            && entrance.contains("ValidatedFixedPrecoloredSegmentHomes"),
+        "fixed-view-copy entrance must expose all authenticated segment-home prerequisites",
+    );
+
+    let evidence = recursive_rust_source(&owner.join("evidence"));
+    assert!(
+        !evidence.contains("entry_transitions"),
+        "current fixed-view-copy evidence must not rediscover boundaries from legacy legality transitions",
+    );
+    let replay = std::fs::read_to_string(owner.join("evidence/replay.rs"))
+        .expect("read fixed-view-copy evidence replay");
+    for forbidden in [
+        "derive_positionally",
+        "evidence::compute",
+        "compute::derive",
+    ] {
+        assert!(
+            !replay.contains(forbidden),
+            "fixed-view-copy evidence replay must not consume producer mechanics; found {forbidden}",
+        );
+    }
+    assert!(
+        replay.contains("BTreeMap::<MachineId")
+            && replay.contains("(assignment.virtual_register, assignment.source_segment)"),
+        "fixed-view-copy replay must visibly own keyed function and segment reconstruction",
+    );
+    let validation = recursive_rust_source(&owner.join("validate"));
+    assert!(
+        !validation.contains("super::compute") && !validation.contains("compute_terminal"),
+        "fixed-view-copy validation must not reach into producer-owned modules",
+    );
+}

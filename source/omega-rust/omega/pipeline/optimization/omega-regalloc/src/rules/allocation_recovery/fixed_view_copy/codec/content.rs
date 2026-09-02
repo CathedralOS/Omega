@@ -71,6 +71,7 @@ pub(super) fn encode_v5(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
     encode_selected_plan_v5(bytes, &plan.transformed);
 }
 
+#[cfg(test)]
 pub(super) fn encode_v6(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
     encode_prefix(
         bytes,
@@ -79,6 +80,18 @@ pub(super) fn encode_v6(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
             &plan.transformed,
         ),
     );
+    encode_selected_plan_v6(bytes, &plan.transformed);
+}
+
+pub(super) fn encode_v7(bytes: &mut Vec<u8>, plan: &FixedViewCopyPlan) {
+    encode_prefix(
+        bytes,
+        plan,
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity(
+            &plan.transformed,
+        ),
+    );
+    super::evidence::encode(bytes, plan.source_evidence);
     encode_selected_plan_v6(bytes, &plan.transformed);
 }
 
@@ -182,7 +195,12 @@ pub(super) fn decode_v4(
     cursor: &mut Cursor<'_>,
 ) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     let prefix = decode_prefix(cursor)?;
-    finish(prefix, decode_selected_plan_v4(cursor)?, true)
+    finish(
+        prefix,
+        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
+        decode_selected_plan_v4(cursor)?,
+        true,
+    )
 }
 
 pub(super) fn decode_v5(
@@ -190,7 +208,12 @@ pub(super) fn decode_v5(
 ) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     let prefix = decode_prefix(cursor)?;
     let decoded = decode_selected_plan_v5(cursor)?;
-    finish(prefix, decoded.plan, decoded.payload_matches)
+    finish(
+        prefix,
+        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
+        decoded.plan,
+        decoded.payload_matches,
+    )
 }
 
 pub(super) fn decode_v6(
@@ -198,11 +221,26 @@ pub(super) fn decode_v6(
 ) -> Result<DecodedContent, FixedViewCopyDecodeError> {
     let prefix = decode_prefix(cursor)?;
     let decoded = decode_selected_plan_v6(cursor)?;
-    finish(prefix, decoded.plan, decoded.payload_matches)
+    finish(
+        prefix,
+        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
+        decoded.plan,
+        decoded.payload_matches,
+    )
+}
+
+pub(super) fn decode_v7(
+    cursor: &mut Cursor<'_>,
+) -> Result<DecodedContent, FixedViewCopyDecodeError> {
+    let prefix = decode_prefix(cursor)?;
+    let evidence = super::evidence::decode(cursor)?;
+    let decoded = decode_selected_plan_v6(cursor)?;
+    finish(prefix, evidence, decoded.plan, decoded.payload_matches)
 }
 
 fn finish(
     prefix: DecodedPrefix,
+    source_evidence: crate::FixedViewCopySourceEvidence,
     transformed: omega_selected_instructions::SelectedInstructionPlan,
     transformed_payload_matches: bool,
 ) -> Result<DecodedContent, FixedViewCopyDecodeError> {
@@ -213,6 +251,7 @@ fn finish(
             source_legality: prefix.source_legality,
             register_environment: prefix.register_environment,
             allocator_availability: prefix.allocator_availability,
+            source_evidence,
             policy: prefix.policy,
             budget: prefix.budget,
             usage: prefix.usage,

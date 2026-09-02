@@ -146,8 +146,17 @@ fn transformed_identity_offset(encoded: &[u8]) -> usize {
     cursor.offset
 }
 
+fn selected_payload_offset(encoded: &[u8]) -> usize {
+    let mut cursor = Cursor::new(encoded);
+    cursor
+        .take(transformed_identity_offset(encoded) + 32)
+        .unwrap();
+    super::super::evidence::decode(&mut cursor).unwrap();
+    cursor.offset
+}
+
 #[test]
-fn artifact_v6_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
+fn artifact_v11_round_trips_structural_functions_call_plans_and_semantic_call_rows() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.transformed
         .structural_unit_functions
@@ -174,13 +183,13 @@ fn artifact_v5_decodes_with_empty_semantic_call_rows() {
 }
 
 #[test]
-fn artifact_v6_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
+fn artifact_v11_payload_digest_and_outer_envelope_close_call_plan_blind_spots() {
     let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     plan.transformed
         .structural_unit_functions
         .push(structural_function());
     let encoded = plan.encode();
-    let digest_offset = transformed_identity_offset(&encoded) + 32;
+    let digest_offset = selected_payload_offset(&encoded);
 
     let mut digest_tamper = encoded.clone();
     digest_tamper[digest_offset] ^= 1;

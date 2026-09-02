@@ -3,7 +3,7 @@ use omega_selected_instructions::{SelectedInstructionKind, SelectedTerminator};
 use psi_core::MachineId;
 
 use super::{
-    super::{encode_v4, encode_v6, encode_v7, encode_v8, encode_v9},
+    super::{encode_v4, encode_v6, encode_v7, encode_v8, encode_v9, encode_v10},
     plan,
 };
 
@@ -25,6 +25,30 @@ fn artifact_round_trips_both_policies_and_full_transformed_custody() {
             7
         );
     }
+}
+
+#[test]
+fn artifact_v11_retains_segment_home_source_evidence_while_v10_decodes_legacy_authority() {
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    plan.source_evidence = crate::FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
+        fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([21; 32]),
+        split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
+            [22; 32],
+        ),
+        segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([23; 32]),
+    };
+    let encoded = plan.encode();
+    assert_eq!(u32::from_le_bytes(encoded[8..12].try_into().unwrap()), 11);
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
+
+    let legacy = FixedViewCopyPlan::decode(&encode_v10(&plan)).unwrap();
+    assert_eq!(
+        legacy.source_evidence,
+        crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1
+    );
+    let mut expected = plan;
+    expected.source_evidence = crate::FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1;
+    assert_eq!(legacy, expected);
 }
 
 #[test]
@@ -100,7 +124,7 @@ fn artifact_v10_round_trips_signed_less_than_terminator_vocabulary() {
             when_not_less: when_zero,
         };
 
-    assert_eq!(FixedViewCopyPlan::decode(&plan.encode()).unwrap(), plan);
+    assert_eq!(FixedViewCopyPlan::decode(&encode_v10(&plan)).unwrap(), plan);
 
     assert_eq!(
         FixedViewCopyPlan::decode(&encode_v9(&plan)),

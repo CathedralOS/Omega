@@ -4,14 +4,27 @@ use omega_target_operations_to_selected_instructions::selected_instruction_plan_
 use sha2::{Digest, Sha256};
 
 use crate::{
-    FixedViewCopyIdentity, FixedViewCopyPlan, FixedViewCopyPolicy, VirtualFixedConstraintSite,
+    FixedViewCopyIdentity, FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence,
+    VirtualFixedConstraintSite,
 };
 
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     fixed_view_copy_identity_with_schema(
         plan,
+        b"omega.terminal-fixed-view-copies.v7\0",
+        selected_instruction_plan_identity(&plan.transformed),
+        true,
+    )
+}
+
+pub(crate) fn fixed_view_copy_identity_v6_legacy(
+    plan: &FixedViewCopyPlan,
+) -> FixedViewCopyIdentity {
+    fixed_view_copy_identity_with_schema(
+        plan,
         b"omega.terminal-fixed-view-copies.v6\0",
         selected_instruction_plan_identity(&plan.transformed),
+        false,
     )
 }
 
@@ -24,6 +37,7 @@ pub(crate) fn fixed_view_copy_identity_v5_selected_v16_legacy(
         omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v16_legacy(
             &plan.transformed,
         ),
+        false,
     )
 }
 
@@ -36,6 +50,7 @@ pub(crate) fn fixed_view_copy_identity_v3_legacy(
         omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v11_legacy(
             &plan.transformed,
         ),
+        false,
     )
 }
 
@@ -48,6 +63,7 @@ pub(crate) fn fixed_view_copy_identity_v4_legacy(
         omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v13_legacy(
             &plan.transformed,
         ),
+        false,
     )
 }
 
@@ -60,6 +76,7 @@ pub(crate) fn fixed_view_copy_identity_v4_selected_v14_legacy(
         omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v14_legacy(
             &plan.transformed,
         ),
+        false,
     )
 }
 
@@ -72,6 +89,7 @@ pub(crate) fn fixed_view_copy_identity_v5_selected_v15_legacy(
         omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v15_legacy(
             &plan.transformed,
         ),
+        false,
     )
 }
 
@@ -79,6 +97,7 @@ fn fixed_view_copy_identity_with_schema(
     plan: &FixedViewCopyPlan,
     domain: &[u8],
     transformed: omega_selected_instructions::SelectedInstructionPlanIdentity,
+    include_source_evidence: bool,
 ) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
@@ -87,6 +106,9 @@ fn fixed_view_copy_identity_with_schema(
     bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
+    if include_source_evidence {
+        encode_source_evidence(&mut bytes, plan.source_evidence);
+    }
     bytes.push(match plan.policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
@@ -117,6 +139,22 @@ fn fixed_view_copy_identity_with_schema(
     }
     bytes.extend_from_slice(&transformed.bytes());
     FixedViewCopyIdentity(Sha256::digest(bytes).into())
+}
+
+fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvidence) {
+    match evidence {
+        FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1 => bytes.push(0),
+        FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
+            fixed_intervals,
+            split_requirements,
+            segment_homes,
+        } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&fixed_intervals.bytes());
+            bytes.extend_from_slice(&split_requirements.bytes());
+            bytes.extend_from_slice(&segment_homes.bytes());
+        }
+    }
 }
 
 fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
@@ -211,6 +249,13 @@ mod tests {
             source_legality: AllocationLegalityIdentity([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
+            source_evidence: FixedViewCopySourceEvidence::FixedPrecoloredSegmentHomesV1 {
+                fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([6; 32]),
+                split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
+                    [7; 32],
+                ),
+                segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([8; 32]),
+            },
             policy: FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
             budget: OptimizationWorkBudget::new(10, 10, 10, 10, 10).unwrap(),
             usage: OptimizationWorkUsage {
@@ -294,6 +339,7 @@ mod tests {
                 plan.allocator_availability =
                     crate::AllocatorAvailabilityIdentity::from_bytes([16; 32])
             },
+            |plan| plan.source_evidence = FixedViewCopySourceEvidence::LegacyLegalityTransitionsV1,
             |plan| plan.budget = OptimizationWorkBudget::new(11, 10, 10, 10, 10).unwrap(),
             |plan| plan.usage.commits += 1,
             |plan| plan.copies[0].function += 1,

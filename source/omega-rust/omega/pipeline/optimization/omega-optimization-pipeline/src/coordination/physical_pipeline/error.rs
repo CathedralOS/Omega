@@ -3,12 +3,13 @@ use omega_abstract_operations_to_target_operations::LoweringError;
 use crate::{
     AllocationRecoveryFunctionRelativeRealizationError,
     FunctionRelativeOptimizationRealizationError, OptimizedActiveResidentRematerializationError,
-    OptimizedAllocationLegalityCustodyError, OptimizedFixedViewCopyCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError, OptimizedPostAllocationMachineOptimizationError,
-    OptimizedPostAllocationMachinePipelineError, OptimizedPostCopyRegisterHomeCustodyError,
-    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    OptimizedSelectedReanalysisError, OptimizedSelectionPipelineError,
+    OptimizedAllocationLegalityCustodyError, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
+    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
+    OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
+    OptimizedPostCopyRegisterHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedRegisterHomeCustodyError, OptimizedSelectedReanalysisError,
+    OptimizedSelectionPipelineError,
 };
 
 #[derive(Debug)]
@@ -18,6 +19,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     Liveness(OptimizedLivenessCustodyError),
     LiveRanges(OptimizedLiveRangeCustodyError),
     AllocationLegality(OptimizedAllocationLegalityCustodyError),
+    FixedPrecoloredSegmentHomes(OptimizedFixedPrecoloredSegmentHomeCustodyError),
     RegisterHomes(OptimizedRegisterHomeCustodyError),
     SelectedLowering(OptimizedLiteralFoldCustodyError),
     SelectedLoweringHomes(OptimizedPostSelectedLoweringHomeCustodyError),

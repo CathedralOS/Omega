@@ -6,53 +6,48 @@ use super::*;
 pub(super) fn build_shared_entry_copy(
     function_index: usize,
     function: &omega_selected_instructions::SelectedFunction,
-    legality: &FunctionAllocationLegality,
+    boundaries: &[&super::super::evidence::AuthenticatedFixedViewBoundary],
     row: &RegisterInstructionConstraint,
     copy_constraint: omega_register_model::RegisterConstraintKey,
     next_instruction: u32,
     next_register: u32,
 ) -> Result<Option<FixedViewCopy>, FixedViewCopyError> {
-    let transitions = legality
-        .virtual_registers
-        .iter()
-        .flat_map(|register| {
-            register
-                .entry_transitions
-                .iter()
-                .map(move |transition| (register, transition))
-        })
-        .collect::<Vec<_>>();
-    if transitions.is_empty() {
+    if boundaries.is_empty() {
         return Ok(None);
     }
-    if transitions.len() != 2
-        || transitions[0].0.virtual_register != transitions[1].0.virtual_register
-        || transitions[0].1.from_view != transitions[1].1.from_view
-        || transitions[0].1.to_view != transitions[1].1.to_view
+    if boundaries.len() != 2
+        || boundaries[0].virtual_register != boundaries[1].virtual_register
+        || boundaries[0].source_segment != boundaries[1].source_segment
+        || boundaries[0].source_domain != boundaries[1].source_domain
+        || boundaries[0].from_view != boundaries[1].from_view
+        || boundaries[0].to_view != boundaries[1].to_view
+        || boundaries.iter().any(|boundary| {
+            boundary.function != function_index
+                || boundary.machine != function.machine
+                || boundary.incoming.is_none()
+        })
     {
         return Err(FixedViewCopyError::UnsupportedSharedTransitionSet {
             function: function_index,
         });
     }
-    let legality_register = transitions[0].0;
+    let first = boundaries[0];
     let source = function
         .virtual_registers
-        .get(
-            usize::try_from(legality_register.virtual_register.0).map_err(|_| {
-                FixedViewCopyError::UnsupportedSourceRegister {
-                    function: function_index,
-                    register: legality_register.virtual_register.0,
-                }
-            })?,
-        )
+        .get(usize::try_from(first.virtual_register.0).map_err(|_| {
+            FixedViewCopyError::UnsupportedSourceRegister {
+                function: function_index,
+                register: first.virtual_register.0,
+            }
+        })?)
         .filter(|source| {
-            source.id == legality_register.virtual_register
-                && source.class == legality_register.class
-                && source.entry_fixed_view == Some(transitions[0].1.from_view)
+            source.id == first.virtual_register
+                && source.class == first.class
+                && source.entry_fixed_view == Some(first.from_view)
         })
         .ok_or(FixedViewCopyError::UnsupportedSourceRegister {
             function: function_index,
-            register: legality_register.virtual_register.0,
+            register: first.virtual_register.0,
         })?;
     let VirtualRegisterOrigin::EntryParameter { source_value, .. } = source.origin else {
         return Err(FixedViewCopyError::UnsupportedSourceRegister {
@@ -99,16 +94,16 @@ pub(super) fn build_shared_entry_copy(
         });
     }
     let successor_blocks = BTreeSet::from([when_nonzero.block, when_zero.block]);
-    let from_view = transitions[0].1.from_view;
+    let from_view = first.from_view;
     let mut destinations = Vec::with_capacity(2);
     let mut destination_blocks = BTreeSet::new();
-    for (_, transition) in transitions {
+    for boundary in boundaries {
         let VirtualFixedConstraintSite::Operand {
             instruction,
             operand,
             access: RegisterOperandAccess::Use,
             ..
-        } = transition.to_site
+        } = boundary.site
         else {
             return Err(FixedViewCopyError::UnsupportedSharedTransitionSet {
                 function: function_index,
@@ -120,8 +115,11 @@ pub(super) fn build_shared_entry_copy(
             instruction,
             operand,
             source.id,
-            transition.to_view,
+            boundary.to_view,
         )?;
+        if block != boundary.block {
+            return Err(FixedViewCopyError::SegmentEvidenceMismatch);
+        }
         let leaf = function
             .blocks
             .iter()
@@ -136,9 +134,9 @@ pub(super) fn build_shared_entry_copy(
             });
         }
         destinations.push(FixedViewCopyDestination {
-            site: transition.to_site,
+            site: boundary.site,
             block,
-            view: transition.to_view,
+            view: boundary.to_view,
         });
     }
     destinations.sort_by_key(|destination| match destination.site {

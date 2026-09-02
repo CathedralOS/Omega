@@ -1,4 +1,15 @@
 use crate::tests::*;
+
+fn with_segment_homes(
+    source: StagedOptimizedAllocationLegality,
+) -> StagedOptimizedFixedPrecoloredSegmentHomes {
+    stage_optimized_fixed_precolored_segment_homes(
+        source,
+        OptimizationWorkBudget::new(1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000).unwrap(),
+    )
+    .unwrap()
+}
+
 #[test]
 fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
     for (target, entry_name, result_name) in [
@@ -21,7 +32,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
             .clone();
         let source_manifest = source.custody().manifest();
         let materialized = stage_optimized_fixed_view_copies(
-            source,
+            with_segment_homes(source),
             FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
             budget(),
         )
@@ -53,11 +64,11 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
         assert_eq!(
             copy_plan.usage,
             omega_optimization_core::OptimizationWorkUsage {
-                rule_evaluations: 1,
-                candidates: 2,
-                validation_steps: 2,
-                commits: 2,
-                iterations: 1,
+                rule_evaluations: 5,
+                candidates: 4,
+                validation_steps: 20,
+                commits: 4,
+                iterations: 11,
             }
         );
         assert_ne!(
@@ -149,6 +160,11 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
                     .live_range_stage()
                     .ranges(),
                 materialized.source_legality_stage().legality(),
+                materialized.source_segment_home_stage().fixed_intervals(),
+                materialized
+                    .source_segment_home_stage()
+                    .split_requirements(),
+                materialized.source_segment_home_stage().segment_homes(),
                 environment.identity(),
                 environment.physical(),
                 environment.constraints(),
@@ -176,6 +192,11 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
                     .live_range_stage()
                     .ranges(),
                 materialized.source_legality_stage().legality(),
+                materialized.source_segment_home_stage().fixed_intervals(),
+                materialized
+                    .source_segment_home_stage()
+                    .split_requirements(),
+                materialized.source_segment_home_stage().segment_homes(),
                 environment.identity(),
                 environment.physical(),
                 environment.constraints(),
@@ -200,6 +221,11 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
                     .live_range_stage()
                     .ranges(),
                 materialized.source_legality_stage().legality(),
+                materialized.source_segment_home_stage().fixed_intervals(),
+                materialized
+                    .source_segment_home_stage()
+                    .split_requirements(),
+                materialized.source_segment_home_stage().segment_homes(),
                 environment.identity(),
                 environment.physical(),
                 environment.constraints(),
@@ -309,13 +335,16 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
         let repeated = stage_optimized_register_homes_after_fixed_view_copies(
             stage_optimized_selected_reanalysis(
                 stage_optimized_fixed_view_copies(
-                    stage_optimized_allocation_legality(
-                        stage_optimized_live_ranges(
-                            stage_optimized_liveness(staged_forwarded_conditional(target)).unwrap(),
+                    with_segment_homes(
+                        stage_optimized_allocation_legality(
+                            stage_optimized_live_ranges(
+                                stage_optimized_liveness(staged_forwarded_conditional(target))
+                                    .unwrap(),
+                            )
+                            .unwrap(),
                         )
                         .unwrap(),
-                    )
-                    .unwrap(),
+                    ),
                     FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
                     budget(),
                 )
@@ -339,7 +368,7 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
     .unwrap();
     assert!(matches!(
         stage_optimized_fixed_view_copies(
-            source,
+            with_segment_homes(source),
             FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
             constrained,
         ),
@@ -349,13 +378,16 @@ fn fixed_view_copies_are_explicit_reanalyzed_and_deterministic() {
     ));
 
     let constant = stage_optimized_fixed_view_copies(
-        stage_optimized_allocation_legality(
-            stage_optimized_live_ranges(
-                stage_optimized_liveness(staged_conditional(NativeTarget::linux_x64())).unwrap(),
+        with_segment_homes(
+            stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_conditional(NativeTarget::linux_x64()))
+                        .unwrap(),
+                )
+                .unwrap(),
             )
             .unwrap(),
-        )
-        .unwrap(),
+        ),
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1,
         budget(),
     )

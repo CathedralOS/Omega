@@ -10,8 +10,9 @@ use omega_selected_instructions::{
 use psi_core::{MachineId, ValueId};
 
 use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity,
-    VirtualFixedConstraintSite,
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
+    FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSplitRequirementPlanIdentity,
+    LiveRangeIdentity, VirtualFixedConstraintSite,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -38,6 +39,19 @@ pub enum FixedViewCopyPolicy {
     SharedEntryAfterCompareBeforeBranchV1,
 }
 
+/// Authenticated authority used to discover the exact fixed-view boundaries
+/// consumed by this transformation. Legacy wire generations remain decodable,
+/// but current production and validation require segment-home evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FixedViewCopySourceEvidence {
+    LegacyLegalityTransitionsV1,
+    FixedPrecoloredSegmentHomesV1 {
+        fixed_intervals: FixedPrecoloredIntervalPlanIdentity,
+        split_requirements: FixedPrecoloredSplitRequirementPlanIdentity,
+        segment_homes: FixedPrecoloredSegmentHomePlanIdentity,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedViewCopyPlan {
     pub source_selected: SelectedInstructionPlanIdentity,
@@ -45,6 +59,7 @@ pub struct FixedViewCopyPlan {
     pub source_legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
+    pub source_evidence: FixedViewCopySourceEvidence,
     pub policy: FixedViewCopyPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -88,6 +103,7 @@ pub struct FixedViewCopyValidationReceipt {
     pub(crate) source_legality: AllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
+    pub(crate) source_evidence: FixedViewCopySourceEvidence,
     pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
     pub(crate) optimization_unit: omega_optimization_core::OptimizationUnitIdentity,
     pub(crate) fuel_schedule: psi_core::FuelScheduleIdentity,
@@ -115,6 +131,9 @@ impl FixedViewCopyValidationReceipt {
     }
     pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
         self.allocator_availability
+    }
+    pub const fn source_evidence(self) -> FixedViewCopySourceEvidence {
+        self.source_evidence
     }
     pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
         self.transformed_selected
@@ -166,6 +185,11 @@ pub enum FixedViewCopyError {
         function: usize,
     },
     UnsupportedPolicy,
+    LegacySourceEvidence,
+    SegmentEvidenceMismatch,
+    UnsupportedSegmentBoundarySet {
+        function: usize,
+    },
     UnsupportedTransitionSite {
         function: usize,
         register: u32,
@@ -220,6 +244,7 @@ pub enum FixedViewCopyDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     UnknownPolicy(u8),
+    UnknownSourceEvidence(u8),
     UnknownDefinitionSite(u8),
     UnknownFixedSite(u8),
     UnknownRegisterOrigin(u8),
