@@ -112,12 +112,12 @@ static and the ultimate leaf is an unrestricted non-Atomic primitive. Dynamic,
 range, third-index, and aggregate-leaf projections remain outside that rung.
 
 Post-restoration call evidence now admits one direct exclusive child, one
-shared child, or one exact two-member concurrent shared-freeze cohort. The
-two-member form must use both borrow-only aliases together in one empty
-two-shared-parameter observation call and mutate the whole restored parent in
-the immediately following statement. Checked and Terminal replay every cohort
-member independently; three-member, sequential, projected, reordered, or
-intervening-call forms remain fail closed.
+shared child, or one exact two- or three-member concurrent shared-freeze
+cohort. A multi-member form must use every borrow-only alias together in one
+empty observation call with one shared parameter per member and mutate the
+whole restored parent in the immediately following statement. Checked and
+Terminal replay every cohort member independently; four-member, sequential,
+projected, reordered, or intervening-call forms remain fail closed.
 
 The first bounded whole-root primitive store accepts a landed integer literal
 or Boolean literal and preserves its complete write-only parameter row and
@@ -310,7 +310,7 @@ established prefix in reverse; trap and nuclear-abort edges clean nothing. No
 runtime liveness bitmap or data-dependent cleanup loop is introduced.
 
 The bounded recursively nested carrier now admits inner lengths three, four,
-five, six, seven, eight, nine, ten, eleven, twelve, and thirteen under one exact rule. A claim-free, unqualified affine
+five, six, seven, eight, nine, ten, eleven, twelve, thirteen, and fourteen under one exact rule. A claim-free, unqualified affine
 `[[T; N]; 2]`, where `N` is one of those lengths and `T` is a checked record
 without nominal cleanup, may
 move exactly one literal leaf from each outer element through two ordinary Unit
@@ -318,8 +318,9 @@ calls. Authored calls retain their order; the return cleans every remaining
 leaf with outer indices decreasing and then inner indices decreasing. The
 length-ten successor carries eighteen no-code residuals and the length-eleven
 successor carries twenty, the length-twelve successor carries twenty-two, and
-the length-thirteen successor carries twenty-four, while retaining the same
-five call/return fuel units. Inner length fourteen, another outer length,
+the length-thirteen successor carries twenty-four, and the length-fourteen
+successor carries twenty-six, while retaining the same five call/return fuel
+units. Inner length fifteen, another outer length,
 same-outer or nonliteral moves, and runtime liveness machinery remain fenced.
 
 The first construction-prefix implementation is deliberately narrower than

@@ -235,7 +235,7 @@ fn exact_restored_parent_call_use_validates() {
 }
 
 #[test]
-fn exact_two_member_shared_freeze_cohort_validates_and_fences_roster_drift() {
+fn exact_two_and_three_member_shared_freeze_cohorts_validate_and_fence_roster_drift() {
     let mut module = restored_call_use_module();
     let observer = id(3, MachineId::new);
     let observer_left_place = id(3, PlaceId::new);
@@ -352,14 +352,57 @@ fn exact_two_member_shared_freeze_cohort_validates_and_fences_roster_drift() {
     }
     validate_module(&module).expect("exact two-member shared-freeze cohort");
 
-    let mut third = module.clone();
-    let mut member = third.reborrow_restored_call_uses[0].shared_cohort[1].clone();
+    let mut three = module.clone();
+    let third_place = id(5, PlaceId::new);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut three.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(StructuralArgument {
+        place: caller_place,
+        path: Vec::new(),
+        access: StructuralAccess::SharedBorrow,
+    });
+    three.machines[2]
+        .structural_parameters
+        .push(shared_parameter(third_place, 2));
+    three.machines[2]
+        .structural_places
+        .push(StructuralPlaceDeclaration {
+            id: third_place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 2,
+                is_self: false,
+            },
+        });
+    let mut member = three.reborrow_restored_call_uses[0].shared_cohort[1].clone();
     member.child_owner_identity = borrow_identity('8');
-    third.reborrow_restored_call_uses[0]
+    member.child_activation = statement(3);
+    three.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .push(member);
+    validate_module(&three).expect("exact three-member shared-freeze cohort");
+
+    let mut fourth = three.clone();
+    let mut member = fourth.reborrow_restored_call_uses[0].shared_cohort[2].clone();
+    member.child_owner_identity = borrow_identity('7');
+    member.child_activation = statement(4);
+    fourth.reborrow_restored_call_uses[0]
         .shared_cohort
         .push(member);
     assert!(matches!(
-        validate_module(&third),
+        validate_module(&fourth),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut nonadjacent_duplicate = three.clone();
+    nonadjacent_duplicate.reborrow_restored_call_uses[0].shared_cohort[2] =
+        nonadjacent_duplicate.reborrow_restored_call_uses[0].shared_cohort[0].clone();
+    assert!(matches!(
+        validate_module(&nonadjacent_duplicate),
         Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
     ));
 
@@ -386,6 +429,15 @@ fn exact_two_member_shared_freeze_cohort_validates_and_fences_roster_drift() {
         .swap(0, 1);
     assert!(matches!(
         validate_module(&reordered),
+        Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
+    ));
+
+    let mut reordered_three = three;
+    reordered_three.reborrow_restored_call_uses[0]
+        .shared_cohort
+        .swap(1, 2);
+    assert!(matches!(
+        validate_module(&reordered_three),
         Err(ModuleError::InvalidReborrowRestoredCallUse { .. })
     ));
 

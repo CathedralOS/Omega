@@ -1333,7 +1333,7 @@ pub(super) fn ordinary_projected_call_is_supported(
                 [
                     CheckedUnitStructuralPathSegment::FixedIndex(outer @ (0 | 1)),
                     CheckedUnitStructuralPathSegment::FixedIndex(
-                        inner @ (0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12),
+                        inner @ (0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13),
                     ),
                 ],
                 TypeReferenceNode::FixedArray {
@@ -1345,7 +1345,7 @@ pub(super) fn ordinary_projected_call_is_supported(
                 matches!(
                     program.type_reference_table.type_reference(*element_type),
                     TypeReferenceNode::FixedArray {
-                        length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13)),
+                        length: psi_typed_trees::types::FixedArrayLength::Literal(inner_length @ (3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14)),
                         ..
                     } if u64::try_from(*inner_length).is_ok_and(|length| *inner < length)
                 )
@@ -1992,10 +1992,10 @@ fn reborrow_restored_call_alias_target(
     Some(place.clone())
 }
 
-/// Translate either member of the exact two-child shared-freeze cohort for
+/// Translate any member of the exact two- or three-child shared-freeze cohort for
 /// its final observation call. The checked restoration certificate remains
-/// the authority: both bare child aliases must occur exactly once in the call,
-/// both target parameters must be shared references, and the certified
+/// the authority: every bare child alias must occur exactly once in the call,
+/// every target parameter must be a shared reference, and the certified
 /// whole-parent mutation must be the immediately following statement.
 fn reborrow_restored_shared_cohort_observation_alias_target(
     program: &TypedTrees,
@@ -2022,7 +2022,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
             .statements(target_state.statement_nodes)
             .is_empty()
         || !is_unit(program, target_state.return_type)
-        || target_parameters.len() != 2
+        || !matches!(target_parameters.len(), 2 | 3)
         || target_parameters.iter().any(|parameter| {
             parameter.is_self
                 || structural_access_for_type_reference(program, parameter.type_reference)
@@ -2032,7 +2032,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
         return None;
     }
     let arguments = crate::call_site_argument_expressions(program, call_site);
-    if arguments.len() != 2 {
+    if arguments.len() != target_parameters.len() {
         return None;
     }
     let argument_roots = arguments
@@ -2050,7 +2050,11 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
             place.segments.is_empty().then_some(root)
         })
         .collect::<Option<Vec<_>>>()?;
-    if argument_roots[0] == argument_roots[1] {
+    if !argument_roots
+        .iter()
+        .enumerate()
+        .all(|(index, root)| !argument_roots[..index].contains(root))
+    {
         return None;
     }
 
@@ -2077,7 +2081,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                 .get(certificate.disposition);
             if certified_call.statement_index != call.statement_index.checked_add(1)?
                 || certified_call.call_ordinal != 0
-                || disposition.shared_cohort.len() != 2
+                || disposition.shared_cohort.len() != target_parameters.len()
             {
                 return None;
             }
@@ -2095,7 +2099,10 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
                         .then_some(member.owner_symbol)
                 })
                 .collect::<Option<Vec<_>>>()?;
-            if member_roots[0] == member_roots[1]
+            if !member_roots
+                .iter()
+                .enumerate()
+                .all(|(index, root)| !member_roots[..index].contains(root))
                 || argument_roots != member_roots
                 || !member_roots.contains(&authored_root)
             {
@@ -2423,7 +2430,7 @@ fn structural_signature_with_affine_pair(
             .statement_table
             .statements(state.statement_nodes)
             .is_empty()
-        && parameters.len() == 2)
+        && matches!(parameters.len(), 2 | 3))
         .then(|| {
             let TypeReferenceNode::Reference { referee, .. } = program
                 .type_reference_table
@@ -2473,7 +2480,7 @@ fn structural_signature_with_affine_pair(
         }
         // Primitive values remain in the scalar namespace. A reference to a
         // primitive may become a structural place only for the bounded
-        // write-only store/call closure or the exact two-shared-observer leaf.
+        // write-only store/call closure or the exact bounded shared-observer leaf.
         if !parameter.is_self {
             if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference)
             {

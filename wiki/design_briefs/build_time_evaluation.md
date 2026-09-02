@@ -561,11 +561,25 @@ complete cohort. Paths deeper than twelve records, recursion, arrays containing
 sums, enclosing direct sums, and target-dependent placement remain rejected;
 every shallower API keeps its exact boundary.
 
+The complete plural depth-thirteen fixed-depth rung admits a nonempty
+authored-order set of
+`Outer -> Eleventh -> Tenth -> Ninth -> Eighth -> Seventh -> Sixth -> Fifth -> Fourth -> Third -> Second -> First -> Middle -> Leaf -> direct conventional sums`
+chains. Its compact report retains the outer whole-record plan once and one
+exact row per outer occurrence; each row owns the unchanged plural depth-twelve
+report for that occurrence. A distinct non-clone carrier composes those
+depth-twelve carriers, keeps repeated nominal occurrences distinct, rebuilds
+every nested zero-padded image in authored order, replays all layouts and
+occurrence identities hash-free, and performs one final atomic copy. One shared
+memoized bounded reachability walk and global leaf-occurrence ceiling cover the
+complete cohort. Paths deeper than thirteen records, recursion, arrays
+containing sums, enclosing direct sums, and target-dependent placement remain
+rejected; every shallower API keeps its exact boundary.
+
 Zero-length or nested sum arrays, coexistence with direct sum fields,
-plural paths deeper than twelve records, paths deeper than twelve records, mixed
-common-field/case shapes, and sums whose all-case geometry requires a target
-capsule remain later rungs. The same NaN, reference, slice, Text, dynamic,
-atomic, and non-copy fences remain in force.
+plural paths deeper than thirteen records, paths deeper than thirteen records,
+mixed common-field/case shapes, and sums whose all-case geometry requires a
+target capsule remain later rungs. The same NaN, reference, slice, Text,
+dynamic, atomic, and non-copy fences remain in force.
 None of these slices narrows the legacy typed-owned materialization API or
 establishes evaluator admission, quotient canonicalization, producer-origin
 chains, or proof authority. Carried quotient representatives, richer origin

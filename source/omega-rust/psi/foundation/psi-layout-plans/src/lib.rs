@@ -460,6 +460,30 @@ pub struct ConventionalDepthTwelveRecordSumPathsLayoutReport {
     pub paths: Vec<ConventionalDepthTwelveRecordSumOccurrenceLayoutReport>,
 }
 
+/// One exact direct outer-field occurrence and the complete authored-order
+/// depth-twelve record paths reachable through that occurrence.
+///
+/// The nested report retains every existing depth-twelve boundary whole. No
+/// child layout or selected value is flattened into the new enclosing record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthThirteenRecordSumOccurrenceLayoutReport {
+    pub outer_field: String,
+    pub outer_member_identity: Option<u64>,
+    pub depth_twelve_paths: ConventionalDepthTwelveRecordSumPathsLayoutReport,
+}
+
+/// Compact complete authored-order set of qualifying plural depth-thirteen
+/// record chains.
+///
+/// The outer layout is retained once. Each occurrence owns the unchanged
+/// plural depth-twelve report for its exact eleventh record, preserving every
+/// path boundary without forming a flattened cross-product of nested rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConventionalDepthThirteenRecordSumPathsLayoutReport {
+    pub outer_layout: LayoutPlanReport,
+    pub paths: Vec<ConventionalDepthThirteenRecordSumOccurrenceLayoutReport>,
+}
+
 /// One normalized semantic-field-free callback destination in a native
 /// layout. Declaration identities are exact canonical strings rather than
 /// authored ordinals or arena handles. The authoritative layout policy owns

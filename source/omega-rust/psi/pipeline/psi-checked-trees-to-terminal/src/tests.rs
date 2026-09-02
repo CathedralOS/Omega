@@ -163,6 +163,25 @@ fn two_shared_reborrow_restored_call_source_with_observations(
     ))
 }
 
+fn three_shared_reborrow_restored_call_source() -> psi_checked_trees::CheckedTrees {
+    checked_source(
+        r#"
+            data Harness {}
+            data Sink {}
+            machine Sink::observe(left: &i32, middle: &i32, right: &i32) {}
+            machine Sink::mutate(value: &mut i32) { value = 2; }
+            machine Harness::exercise(root: &mut i32) {
+                let parent: &mut i32 = &mut root;
+                let left: &i32 = &parent;
+                let middle: &i32 = &parent;
+                let right: &i32 = &parent;
+                Sink::observe(left, middle, right);
+                Sink::mutate(parent);
+            }
+        "#,
+    )
+}
+
 fn multihop_reborrow_source(
     middle_access: &str,
     leaf_access: &str,
@@ -475,6 +494,104 @@ fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes).expect("two-member restored call use decodes"),
         lowered.semantic_module
+    );
+}
+
+#[test]
+fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort() {
+    let checked = three_shared_reborrow_restored_call_source();
+    let exercise = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| checked.typed.symbols.name(plan.machine) == "Harness::exercise")
+        .expect("the exact alias-erased exercise plan");
+    let [
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: observation_coordinate,
+            structural_arguments: observation_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate: mutation_coordinate,
+            structural_arguments: mutation_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::ReturnUnit { .. },
+    ] = exercise.operations.as_slice()
+    else {
+        panic!("one observation call, one restored mutation, and Unit return")
+    };
+    assert_eq!(observation_coordinate.statement_index, 4);
+    assert_eq!(mutation_coordinate.statement_index, 5);
+    assert_eq!(observation_arguments.len(), 3);
+    assert!(observation_arguments.iter().all(|argument| {
+        argument.source_parameter_index() == Some(0)
+            && argument.path.is_empty()
+            && argument.access == psi_checked_trees::CheckedStructuralAccess::SharedBorrow
+    }));
+    let [mutation_argument] = mutation_arguments.as_slice() else {
+        panic!("one restored whole-parent mutation argument")
+    };
+    assert_eq!(mutation_argument.source_parameter_index(), Some(0));
+    assert!(mutation_argument.path.is_empty());
+    assert_eq!(
+        mutation_argument.access,
+        psi_checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+
+    let lowered = lower_machine(&checked, "Harness::exercise")
+        .expect("three-member shared cohort lowers to Terminal Psi");
+    let [row] = lowered
+        .semantic_module
+        .reborrow_restored_call_uses
+        .as_slice()
+    else {
+        panic!("one restored-parent call publication")
+    };
+    let [left, middle, right] = row.shared_cohort.as_slice() else {
+        panic!("the exact three-member shared-freeze roster")
+    };
+    assert_ne!(left, middle);
+    assert_ne!(left, right);
+    assert_ne!(middle, right);
+    for member in [left, middle, right] {
+        assert_eq!(
+            member.child_access,
+            psi_terminal::StructuralAccess::SharedBorrow
+        );
+        assert_eq!(member.child_weakening, row.child_weakening);
+    }
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("three-member restored call use verifies");
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("three-member restored call use encodes");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes).expect("three-member restored call use decodes"),
+        lowered.semantic_module
+    );
+
+    let certificate = checked
+        .facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .next()
+        .expect("three-member checked restored use")
+        .1
+        .clone();
+    let mut duplicate = checked;
+    let disposition = duplicate
+        .facts
+        .borrow
+        .reborrow_disposition_events
+        .get_mut(certificate.disposition);
+    disposition.shared_cohort[2] = disposition.shared_cohort[0];
+    assert!(
+        lower_machine(&duplicate, "Harness::exercise").is_err(),
+        "nonadjacent duplicate cohort members must fail checked-to-Terminal replay"
     );
 }
 

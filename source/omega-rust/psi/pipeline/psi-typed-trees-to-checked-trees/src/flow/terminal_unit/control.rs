@@ -1137,15 +1137,14 @@ pub(super) fn build_checked_machine(
         let exact_shared_primitive_observer = statements.is_empty()
             && calls.is_empty()
             && entry_claims.is_empty()
-            && matches!(structural_parameters.as_slice(), [left, right]
-                if left.multiplicity == Multiplicity::Unrestricted
-                    && right.multiplicity == Multiplicity::Unrestricted
-                    && left.access == CheckedStructuralAccess::SharedBorrow
-                    && right.access == CheckedStructuralAccess::SharedBorrow
-                    && left.qualifications.is_empty()
-                    && right.qualifications.is_empty()
-                    && left.type_identity == right.type_identity)
-            && source_parameters.len() == 2
+            && matches!(structural_parameters.len(), 2 | 3)
+            && structural_parameters.iter().all(|parameter| {
+                parameter.multiplicity == Multiplicity::Unrestricted
+                    && parameter.access == CheckedStructuralAccess::SharedBorrow
+                    && parameter.qualifications.is_empty()
+                    && parameter.type_identity == structural_parameters[0].type_identity
+            })
+            && source_parameters.len() == structural_parameters.len()
             && source_parameters
                 .iter()
                 .all(|parameter| !parameter.is_self && !parameter.is_const);
@@ -1437,7 +1436,7 @@ pub(super) fn build_checked_machine(
     })
 }
 
-/// Recognize only the erased parent alias and the one- or two-child roster
+/// Recognize only the erased parent alias and the one-, two-, or three-child roster
 /// named by the checked
 /// post-reactivation certificate. These source bindings carry borrow
 /// lifetimes, not independent Terminal runtime places; every other reference
@@ -1474,7 +1473,7 @@ fn reborrow_restored_call_alias_prefix(
                         .max(1)
                 })
         })
-        .find(|count| matches!(count, 1 | 2))?;
+        .find(|count| matches!(count, 1 | 2 | 3))?;
     let child_locals = statements
         .get(1..=child_count)?
         .iter()
@@ -1590,7 +1589,7 @@ fn reborrow_restored_call_alias_prefix(
                 && child_locals
                     .iter()
                     .any(|local| local.symbol == child.owner_symbol)
-                && call.statement_index == child_count + usize::from(child_count == 2) + 1
+                && call.statement_index == child_count + usize::from(child_count > 1) + 1
                 && call.call_ordinal == 0
                 && call.target_symbol == certificate.target_symbol
         })

@@ -937,13 +937,15 @@ no cleanup, transfer, or linear-discharge authority to the borrow layer.
 
 A sibling checked post-restoration row now retains the first exact later use.
 One direct mutable parent lends either an exact mutable/write-only exclusive
-child, one exact shared child, or one exact two-member concurrent shared cohort.
-Other non-overlapping sequential exclusive siblings may occur. The exclusive
-form binds matching `Reactivate` and `ExclusiveSuspension`; the shared form
-binds `RestoreSharedCohort`, exact roster `[child]` or `[left, right]`, and one
-independently replayed `SharedFreeze` row per member. The two-member form makes
-both final uses in one exact empty, receiver-free, two-shared-parameter
-observation call. Its borrow-only aliases erase to the same certified parent
+child, one exact shared child, or one exact two- or three-member concurrent
+shared cohort. Other non-overlapping sequential exclusive siblings may occur.
+The exclusive form binds matching `Reactivate` and `ExclusiveSuspension`; the
+shared form
+binds `RestoreSharedCohort`, exact roster `[child]`, `[left, right]`, or
+`[left, middle, right]`, and one independently replayed `SharedFreeze` row per
+member. A multi-member form makes every final use in one exact empty,
+receiver-free observation call with one shared parameter per member. Its
+borrow-only aliases erase to the same certified parent
 place, and the whole-parent mutation is the immediately following statement.
 All admitted forms end by `LastUseExpired` before one
 runtime-receiver-free call with one exact mutable-reference parameter over the
@@ -952,9 +954,9 @@ referent. Nominal static qualification such as `Sink::mutate(parent)` is not a
 runtime receiver. Transactional replay
 rejoins both resources, weakening, disposition, containment, flow and borrow
 calls, carrier-read access, parent-loan entry constraint, captured places,
-restored access, and target identity. Three-member or sequential shared,
-multihop, other concurrent-sibling, state-exit, projected, receiver, extra-parameter,
-direct-assignment,
+restored access, and target identity. Four-member or sequential shared,
+multihop, other concurrent-sibling, state-exit, projected, receiver,
+extra-parameter, direct-assignment,
 partial-mutation, and nonmutating shapes remain absent. Terminal independently
 replays the checked join, the caller's exact `CallUnit`, and the receiver-free
 callee shape, then publishes one canonical row binding that operation to its
@@ -1393,16 +1395,17 @@ Partial construction follows the same rule on its established prefix, while
 trap and nuclear-abort terminators carry no cleanup.
 
 The exact nested replay carrier accepts `[[T; N]; 2]` for inner length three,
-four, five, six, seven, eight, nine, ten, eleven, twelve, or thirteen, with the same claim-free affine-record leaf restrictions. Two Unit
+four, five, six, seven, eight, nine, ten, eleven, twelve, thirteen, or fourteen, with the same claim-free affine-record leaf restrictions. Two Unit
 calls must move one literal leaf from each distinct outer element in authored
 order. Terminal verification reconstructs the full complement directly from
 the nested type graph and requires decreasing outer-then-inner cleanup order;
 the length-ten form therefore names eighteen no-code residual leaves and the
 length-eleven form names twenty, the length-twelve form names twenty-two, and
-the length-thirteen form names twenty-four. Codec,
+the length-thirteen form names twenty-four and the length-fourteen form names
+twenty-six. Codec,
 interpreter, Omega, machine, object/image, and installation replay must retain
-the same paths and layout. All eleven lengths charge exactly five call/return
-fuel units, and inner length fourteen or runtime liveness state grants no authority.
+the same paths and layout. All twelve lengths charge exactly five call/return
+fuel units, and inner length fifteen or runtime liveness state grants no authority.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
