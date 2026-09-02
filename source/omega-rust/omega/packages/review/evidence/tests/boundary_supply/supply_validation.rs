@@ -146,7 +146,7 @@ pub boundary requirement InterruptAcknowledgement::complete(self);
 pub boundary requirement InterruptAcknowledgement::retry(self);
 
 machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
-    satisfies InterruptAcknowledgement::complete
+    satisfies InterruptAcknowledgement::complete as CompletionSupply
     via Binding::Syscall(60);
 "#,
     );
@@ -207,30 +207,17 @@ target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
-    let cases = [
-        (
-            "private-operator",
-            r#"data F32 {}
+    let cases = [(
+        "private-operator",
+        r#"data F32 {}
 boundary operator F32::minimum(left: f32, right: f32) -> f32;
 data FloatProvider {}
 machine FloatProvider::minimum(left: f32, right: f32) -> f32
     satisfies F32::minimum
     via Binding::CompilerIntrinsic;
 "#,
-            "realizes non-public operator",
-        ),
-        (
-            "aliased",
-            r#"pub data F32 {}
-pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
-data FloatProvider {}
-machine FloatProvider::minimum(left: f32, right: f32) -> f32
-    satisfies F32::minimum as Selected
-    via Binding::CompilerIntrinsic;
-"#,
-            "through an alias not yet represented",
-        ),
-    ];
+        "realizes non-public operator",
+    )];
 
     for (label, source, expected) in cases {
         let package = TempPackage::new();
@@ -292,7 +279,7 @@ pub boundary operator F32::maximum(left: f32, right: f32) -> f32;
 
 pub data FloatProvider {}
 pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
-    satisfies F32::minimum
+    satisfies F32::minimum as MinimumSupply
     via Binding::CompilerIntrinsic;
 pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
     satisfies F32::maximum

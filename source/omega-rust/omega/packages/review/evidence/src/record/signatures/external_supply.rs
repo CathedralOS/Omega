@@ -189,11 +189,30 @@ impl PackageReviewEvaluatedImport {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewExternalRequirement {
     Trait(PackageReviewCallableConformance),
-    Operator(PackageReviewOperatorCoordinate),
+    Operator {
+        coordinate: PackageReviewOperatorCoordinate,
+        /// Authored `as Name` on the already-revalidated realization edge.
+        /// This is review identity, not operator declaration identity.
+        alias: Option<String>,
+    },
     TopLevelRequirement {
         identity: PackageReviewNominalIdentity,
         signature: PackageReviewExternalCallableSignature,
+        /// Authored `as Name` on the already-revalidated realization edge.
+        /// This is review identity, not requirement declaration identity.
+        alias: Option<String>,
     },
+}
+
+impl PackageReviewExternalRequirement {
+    pub fn alias(&self) -> Option<&str> {
+        match self {
+            Self::Trait(conformance) => conformance.alias(),
+            Self::Operator { alias, .. } | Self::TopLevelRequirement { alias, .. } => {
+                alias.as_deref()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -321,7 +340,7 @@ impl PackageReviewExternalExecutableSupply {
     pub const fn conformance(&self) -> Option<&PackageReviewCallableConformance> {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(conformance) => Some(conformance),
-            PackageReviewExternalRequirement::Operator(_)
+            PackageReviewExternalRequirement::Operator { .. }
             | PackageReviewExternalRequirement::TopLevelRequirement { .. } => None,
         }
     }
@@ -330,14 +349,14 @@ impl PackageReviewExternalExecutableSupply {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(_)
             | PackageReviewExternalRequirement::TopLevelRequirement { .. } => None,
-            PackageReviewExternalRequirement::Operator(operator) => Some(operator),
+            PackageReviewExternalRequirement::Operator { coordinate, .. } => Some(coordinate),
         }
     }
 
     pub const fn top_level_requirement(&self) -> Option<&PackageReviewNominalIdentity> {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(_)
-            | PackageReviewExternalRequirement::Operator(_) => None,
+            | PackageReviewExternalRequirement::Operator { .. } => None,
             PackageReviewExternalRequirement::TopLevelRequirement { identity, .. } => {
                 Some(identity)
             }
@@ -349,7 +368,7 @@ impl PackageReviewExternalExecutableSupply {
     ) -> Option<&PackageReviewExternalCallableSignature> {
         match &self.requirement {
             PackageReviewExternalRequirement::Trait(_)
-            | PackageReviewExternalRequirement::Operator(_) => None,
+            | PackageReviewExternalRequirement::Operator { .. } => None,
             PackageReviewExternalRequirement::TopLevelRequirement { signature, .. } => {
                 Some(signature)
             }

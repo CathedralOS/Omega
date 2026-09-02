@@ -15,7 +15,7 @@ pub data LinuxCompletion {}
 pub boundary requirement InterruptAcknowledgement::complete(self);
 
 pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
-    satisfies InterruptAcknowledgement::complete
+    satisfies InterruptAcknowledgement::complete as CompletionSupply
     via Binding::Syscall(60);
 "#,
     );
@@ -50,6 +50,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     );
     assert_eq!(supply.conformance(), None);
     assert_eq!(supply.operator(), None);
+    assert_eq!(supply.requirement().alias(), Some("CompletionSupply"));
     let requirement = supply
         .top_level_requirement()
         .expect("top-level requirement classification");
@@ -269,7 +270,7 @@ pub boundary operator F32::square_root(value: f32) -> f32;
 
 pub data FloatProvider {}
 pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
-    satisfies F32::minimum
+    satisfies F32::minimum as MinimumSupply
     via Binding::CompilerIntrinsic;
 machine FloatProvider::maximum(left: f32, right: f32) -> f32
     satisfies F32::maximum
@@ -298,10 +299,14 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .expect("external boundary-operator supply should project exactly");
 
     assert_eq!(review.external_executable_supply().len(), 3);
-    for (requirement, expected_builtin) in [
-        ("minimum", psi_symbols::BuiltinFunction::Min),
-        ("maximum", psi_symbols::BuiltinFunction::Max),
-        ("square_root", psi_symbols::BuiltinFunction::Sqrt),
+    for (requirement, expected_builtin, expected_alias) in [
+        (
+            "minimum",
+            psi_symbols::BuiltinFunction::Min,
+            Some("MinimumSupply"),
+        ),
+        ("maximum", psi_symbols::BuiltinFunction::Max, None),
+        ("square_root", psi_symbols::BuiltinFunction::Sqrt, None),
     ] {
         let callable_path = format!("FloatProvider::{requirement}");
         let declaration = review
@@ -318,10 +323,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .unwrap_or_else(|| panic!("missing external supply for {callable_path}"));
         assert!(matches!(
             supply.requirement(),
-            PackageReviewExternalRequirement::Operator(operator)
-                if operator == declaration.coordinate()
+            PackageReviewExternalRequirement::Operator { coordinate, .. }
+                if coordinate == declaration.coordinate()
         ));
         assert_eq!(supply.operator(), Some(declaration.coordinate()));
+        assert_eq!(supply.requirement().alias(), expected_alias);
         assert_eq!(supply.conformance(), None);
         assert_eq!(
             supply.binding(),
