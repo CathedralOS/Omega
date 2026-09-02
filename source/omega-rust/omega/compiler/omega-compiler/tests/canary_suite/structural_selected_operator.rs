@@ -847,6 +847,194 @@ fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
 }
 
 #[test]
+fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
+    let canary =
+        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("hosted mixed structural-result selection should check");
+    let produced =
+        psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+            &checked,
+            "consume",
+        )
+        .expect("mixed structural-result selection should reach Terminal");
+    produced
+        .boundary_operator_scope()
+        .validate_for_artifact(produced.artifact())
+        .expect("mixed structural-result D29 scope should bind the Terminal artifact");
+    let [occurrence] = produced.boundary_operator_scope().occurrences() else {
+        panic!("one exact mixed structural-result occurrence")
+    };
+    let module = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("mixed structural-result Terminal semantics should decode");
+    let matching_calls = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(move |operation| operation.id == occurrence.terminal_operation())
+                .map(move |operation| (machine, operation))
+        })
+        .collect::<Vec<_>>();
+    let [(terminal_consume, call)] = matching_calls.as_slice() else {
+        panic!("one exact D29-bound mixed structural-result Terminal call")
+    };
+    let psi_terminal::OperationKind::CallStructuralWithScalarArguments {
+        callee,
+        arguments,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = &call.kind
+    else {
+        panic!("mixed structural-result selection must retain its distinct Terminal role")
+    };
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(structural_arguments.len(), 1);
+    assert!(claim_transfers.is_empty());
+    assert!(returned_claim_transfers.is_empty());
+    assert!(requirement_obligations.is_empty());
+    assert!(crash_continuations.is_empty());
+    let result = call
+        .result
+        .structural()
+        .expect("structural operation result");
+    assert_eq!(
+        result.multiplicity,
+        psi_terminal::StructuralMultiplicity::Affine
+    );
+    assert!(result.qualifications.is_empty());
+    assert!(result.projected_qualifications.is_empty());
+    assert!(result.claims.is_empty());
+    assert!(matches!(
+        terminal_consume.blocks.as_slice(),
+        [block] if matches!(
+            &block.terminator,
+            psi_terminal::Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } if trivial_affine_discards.as_slice() == [result.place]
+        )
+    ));
+    let provider = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == *callee)
+        .expect("mixed structural-result provider realization");
+    assert_eq!(provider.parameters.len(), 1);
+    assert_eq!(provider.structural_parameters.len(), 1);
+    assert!(provider.entry_claims.is_empty());
+    assert!(provider.content_entry_claims.is_empty());
+    assert!(matches!(
+        provider.blocks.as_slice(),
+        [block] if block.operations.is_empty()
+            && matches!(
+                &block.terminator,
+                psi_terminal::Terminator::ReturnStructural {
+                    source,
+                    returned_claims,
+                    trivial_affine_discards,
+                    ..
+                } if *source == provider.structural_parameters[0].place
+                    && returned_claims.is_empty()
+                    && trivial_affine_discards.is_empty()
+            )
+    ));
+}
+
+#[test]
+fn specialized_mixed_structural_result_operator_rejects_terminal_custody_drift() {
+    #[derive(Clone, Copy, Debug)]
+    enum Drift {
+        RemovedScalar,
+        BorrowedStructuralArgument,
+        RetainedAffineResult,
+        CoordinatedParameterPartition,
+    }
+
+    let canary =
+        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+    let checked = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("hosted mixed structural-result selection should check");
+    let consume = checked
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "consume")
+        .expect("mixed structural-result Unit helper");
+
+    for drift in [
+        Drift::RemovedScalar,
+        Drift::BorrowedStructuralArgument,
+        Drift::RetainedAffineResult,
+        Drift::CoordinatedParameterPartition,
+    ] {
+        let mut drifted = checked.clone();
+        let (realization_machine, realization_state) = {
+            let plan = drifted
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter_mut()
+                .find(|plan| plan.machine == consume.symbol)
+                .expect("checked mixed structural-result helper plan");
+            let Some(
+                psi_checked_trees::CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    realization_machine,
+                    realization_state,
+                    scalar_arguments,
+                    structural_arguments,
+                    discard_result_on_return,
+                    ..
+                },
+            ) = plan.operations.first_mut()
+            else {
+                panic!("checked mixed structural-result selected call")
+            };
+            match drift {
+                Drift::RemovedScalar => scalar_arguments.clear(),
+                Drift::BorrowedStructuralArgument => {
+                    structural_arguments[0].access =
+                        psi_checked_trees::CheckedStructuralAccess::SharedBorrow;
+                }
+                Drift::RetainedAffineResult => *discard_result_on_return = false,
+                Drift::CoordinatedParameterPartition => {}
+            }
+            (*realization_machine, *realization_state)
+        };
+        if matches!(drift, Drift::CoordinatedParameterPartition) {
+            let realization = drifted
+                .facts
+                .flow
+                .terminal_structural_returns
+                .claim_free_affine_machines
+                .iter_mut()
+                .find(|realization| {
+                    realization.machine == realization_machine
+                        && realization.state == realization_state
+                })
+                .expect("checked claim-free affine structural realization");
+            realization.scalar_parameters[0].source_position = 0;
+            realization.structural_parameter.position = 1;
+        }
+        assert!(
+            psi_checked_trees_to_terminal::produce_terminal_artifact_with_checked_boundary_operator_scope(
+                &drifted,
+                "consume",
+            )
+            .is_err(),
+            "{drift:?} must reject before Terminal publication"
+        );
+    }
+}
+
+#[test]
 fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
     #[derive(Clone, Copy, Debug)]
     enum Drift {

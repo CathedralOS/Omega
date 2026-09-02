@@ -136,34 +136,60 @@ pub(super) fn lower_unit_structural_types(
             }
         }
         for operation in &machine.operations {
-            if let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
-                realization_machine,
-                realization_state,
-                ..
-            } = operation
-            {
-                let realizations = checked
-                    .facts
-                    .flow
-                    .terminal_structural_scalar_returns
-                    .machines
-                    .iter()
-                    .filter(|plan| {
-                        plan.machine == *realization_machine && plan.state == *realization_state
-                    })
-                    .collect::<Vec<_>>();
-                let [realization] = realizations.as_slice() else {
-                    return unsupported(
-                        "selected structural-scalar Unit operation has no exact type catalog owner",
-                    );
-                };
-                roots.push(realization.attachment_type_identity.clone());
-                roots.extend(
-                    realization
-                        .structural_parameters
+            match operation {
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                    realization_machine,
+                    realization_state,
+                    ..
+                } => {
+                    let realizations = checked
+                        .facts
+                        .flow
+                        .terminal_structural_scalar_returns
+                        .machines
                         .iter()
-                        .map(|parameter| parameter.type_identity.clone()),
-                );
+                        .filter(|plan| {
+                            plan.machine == *realization_machine && plan.state == *realization_state
+                        })
+                        .collect::<Vec<_>>();
+                    let [realization] = realizations.as_slice() else {
+                        return unsupported(
+                            "selected structural-scalar Unit operation has no exact type catalog owner",
+                        );
+                    };
+                    roots.push(realization.attachment_type_identity.clone());
+                    roots.extend(
+                        realization
+                            .structural_parameters
+                            .iter()
+                            .map(|parameter| parameter.type_identity.clone()),
+                    );
+                }
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    realization_machine,
+                    realization_state,
+                    ..
+                } => {
+                    let realizations = checked
+                        .facts
+                        .flow
+                        .terminal_structural_returns
+                        .claim_free_affine_machines
+                        .iter()
+                        .filter(|plan| {
+                            plan.machine == *realization_machine && plan.state == *realization_state
+                        })
+                        .collect::<Vec<_>>();
+                    let [realization] = realizations.as_slice() else {
+                        return unsupported(
+                            "selected structural-result Unit operation has no exact type catalog owner",
+                        );
+                    };
+                    roots.push(realization.attachment_type_identity.clone());
+                    roots.push(realization.structural_parameter.type_identity.clone());
+                    roots.push(realization.result.type_identity.clone());
+                }
+                _ => {}
             }
         }
     }

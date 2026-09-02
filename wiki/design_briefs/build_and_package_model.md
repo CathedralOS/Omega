@@ -1118,7 +1118,7 @@ canonical Terminal machine. No sibling copy of those IDs is treated as
 authority. Structural results, projections, borrows, services, content evidence,
 and nontrivial structural layouts remain fail-closed.
 
-The structural-result extension now has its first checked front. One selected
+The structural-result extension now has its first checked and Terminal front. One selected
 fixed-token application may combine an exact whole, claim-free owned-affine
 direct record containing one 64-bit integer with fixed-width integer operands,
 call one checked realization that returns that whole affine shape, bind the
@@ -1126,10 +1126,14 @@ result as the final immutable Unit local, and settle it at the immediately
 following return. The checked plan
 retains the provider-plan and realization commitments, authored operand
 positions, canonical structural identities, and the mandatory result discard;
-it does not manufacture an absent claim. Terminal lowering currently rejects
-this row explicitly. A Terminal structural-result operation with a mixed ABI,
-native lowering, and physical-child replay must land before package review may
-claim final realization for it. Projections, borrows, services, content
+it does not manufacture an absent claim. Terminal uses a distinct mixed-input
+structural-result operation so the established claim-bearing structural-call
+wire contract does not silently widen. Its verifier rejoins the exact scalar
+and structural parameter order, direct record shape, claim-free affine result,
+ownership transfer, result-place declaration, empty authority rows, and final
+discard; the canonical codec and reference interpreter preserve the same
+operation. Native ABI lowering and physical-child replay must still land before
+package review may claim final realization for it. Projections, borrows, services, content
 evidence, richer layouts, and wider cleanup remain outside this bounded front.
 
 A provider may compose checked software and target-owned external leaves. An

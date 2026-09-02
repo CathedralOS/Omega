@@ -49,9 +49,12 @@ stop the item on one precise owner question before adding machinery.
     front now retains one mixed fixed-width integer/whole owned-affine selected
     call over one direct 8-byte integer record, its exact claim-free affine
     provider return, and mandatory caller discard as distinct
-    source-handle-free carriers. Add the corresponding
-    Terminal structural operation/result and mixed ABI, then carry that exact
-    occurrence through native lowering and D32 physical custody. Projections,
+    source-handle-free carriers. Terminal now retains a distinct mixed-input
+    structural-result operation, exact claim-free affine realization, live
+    result frontier, mandatory caller discard, D29 occurrence, canonical wire
+    identity, verifier reconstruction, and reference execution. Carry that
+    exact occurrence through native ABI lowering and D32 physical custody.
+    Projections,
     borrows, services, content evidence, nontrivial structural layouts, and
     wider cleanup shapes remain fail-closed until each has independent
     checked, Terminal, and native custody;

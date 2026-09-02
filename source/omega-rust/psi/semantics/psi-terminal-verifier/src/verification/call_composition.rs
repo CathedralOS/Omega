@@ -249,6 +249,21 @@ pub(super) fn compose_call_operation(
         }
         (
             CallResultRule::StructuralCalleeResult,
+            OperationKind::CallStructuralWithScalarArguments {
+                requirement_obligations,
+                crash_continuations,
+                ..
+            },
+        ) => {
+            debug_assert!(requirement_obligations.is_empty());
+            debug_assert!(crash_continuations.is_empty());
+            // The first mixed structural-result lane admits only an empty
+            // callee contract, so there are no propositions to substitute or
+            // import. Scalar and structural ABI custody remains explicit in
+            // the operation and is validated independently.
+        }
+        (
+            CallResultRule::StructuralCalleeResult,
             OperationKind::CallStructural {
                 callee,
                 structural_arguments,

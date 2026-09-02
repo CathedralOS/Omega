@@ -255,12 +255,38 @@ pub(super) fn lower(
                 psi_operation: operation.id,
                 result,
                 callee,
+                arguments: Vec::new(),
                 structural_arguments,
                 claim_transfers,
                 returned_claim_transfers,
                 requirement_obligations,
                 crash_continuations,
                 selected_evidence,
+            }
+        }
+        OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            arguments,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let Some(result) = operation.result.structural().cloned() else {
+                return Err(LoweringError::UnsupportedStructuralResult(machine.id));
+            };
+            AbstractOperation::CallStructural {
+                psi_operation: operation.id,
+                result,
+                callee,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                returned_claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+                selected_evidence: Vec::new(),
             }
         }
         OperationKind::BoundaryCall {

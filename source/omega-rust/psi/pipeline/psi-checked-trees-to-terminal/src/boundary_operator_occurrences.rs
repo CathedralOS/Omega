@@ -22,6 +22,12 @@ pub(super) fn checked_boundary_operator_occurrences(
                     requirement_operator,
                     realization_machine,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    coordinate,
+                    requirement_operator,
+                    realization_machine,
+                    ..
                 } => {
                     let statement_index =
                         usize::try_from(coordinate.statement_index).map_err(|_| {

@@ -356,6 +356,11 @@ pub(super) fn validate_structural_frontier(
                     callee,
                     structural_arguments,
                     ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    callee,
+                    structural_arguments,
+                    ..
                 } => structural_arguments
                     .iter()
                     .zip(&machines[callee].structural_parameters)
@@ -406,6 +411,9 @@ pub(super) fn validate_structural_frontier(
                 }
                 | OperationKind::CallStructural {
                     claim_transfers, ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    claim_transfers, ..
                 } => claim_transfers
                     .iter()
                     .map(|transfer| transfer.claim)
@@ -445,6 +453,10 @@ pub(super) fn validate_structural_frontier(
                     ..
                 }
                 | OperationKind::CallStructural {
+                    structural_arguments,
+                    ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
                     structural_arguments,
                     ..
                 }
@@ -820,7 +832,54 @@ pub(super) fn validate_structural_frontier(
                             })
                         })
                     || exact_unrestricted_parameter_return;
-                if (returned_claims.is_empty() && !exact_payloadless_claim_free_return)
+                let exact_mixed_affine_parameter_return = returned_claims.is_empty()
+                    && source_signature.multiplicity == StructuralMultiplicity::Affine
+                    && super::structural_result_contracts::has_empty_qualification_rosters(
+                        source_signature.qualifications,
+                        source_signature.projected_qualifications,
+                    )
+                    && matches!(machine.parameters.as_slice(), [parameter]
+                    if matches!(
+                        parameter.scalar_type,
+                        ScalarType::Integer(integer)
+                            if matches!(integer.bits(), 8 | 16 | 32 | 64)
+                    ))
+                    && matches!(machine.structural_parameters.as_slice(), [parameter]
+                        if parameter.place == *source
+                            && parameter.position == 0
+                            && !parameter.is_self
+                            && parameter.multiplicity == StructuralMultiplicity::Affine
+                            && parameter.access == StructuralAccess::Owned
+                            && parameter.qualifications.is_empty()
+                            && parameter.projected_qualifications.is_empty())
+                    && machine.entry_claims.is_empty()
+                    && machine.content_entry_claims.is_empty()
+                    && machine.published_service_ceiling.is_empty()
+                    && machine.contract.crash_routes.is_empty()
+                    && machine.contract.requires.is_empty()
+                    && machine.contract.ensures.is_empty()
+                    && machine.contract.outcome_specific_ensures.is_empty()
+                    && matches!(machine.blocks.as_slice(), [only]
+                        if only.id == machine.entry && only.id == block.id
+                            && only.parameters.is_empty()
+                            && only.operations.is_empty())
+                    && module.structural_types.iter().any(|declaration| {
+                        declaration.id == result.structural_type
+                            && matches!(
+                                &declaration.shape,
+                                StructuralTypeShape::Record { fields }
+                                    if matches!(fields.as_slice(), [field]
+                                        if matches!(
+                                            field.field_type,
+                                            StructuralFieldType::Scalar(
+                                                ScalarType::Integer(integer)
+                                            ) if integer.bits() == 64
+                                        ))
+                            )
+                    });
+                if (returned_claims.is_empty()
+                    && !exact_payloadless_claim_free_return
+                    && !exact_mixed_affine_parameter_return)
                     || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
                 {
                     return Err(ModuleError::NonCanonicalStructuralReturnClaims {
@@ -1092,7 +1151,29 @@ fn expected_trivial_affine_discards(
     machine: &TerminalMachine,
     frontier: &StructuralOwnershipFrontier,
 ) -> Vec<PlaceId> {
-    let mut output = machine
+    let mut operation_results = machine
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::OperationResult { producer, .. }
+                if frontier.owned_places.get(&place.id)
+                    == Some(&StructuralMultiplicity::Affine)
+                    && !frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(place.id)) =>
+            {
+                Some((producer, place.id))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    operation_results.sort_by_key(|(producer, _)| std::cmp::Reverse(*producer));
+    let mut output = operation_results
+        .into_iter()
+        .map(|(_, place)| place)
+        .collect::<Vec<_>>();
+    let mut locals = machine
         .structural_places
         .iter()
         .filter_map(|place| match place.kind {
@@ -1105,11 +1186,8 @@ fn expected_trivial_affine_discards(
             _ => None,
         })
         .collect::<Vec<_>>();
-    output.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
-    let mut output = output
-        .into_iter()
-        .map(|(_, place)| place)
-        .collect::<Vec<_>>();
+    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    output.extend(locals.into_iter().map(|(_, place)| place));
     output.extend(
         machine
             .structural_parameters

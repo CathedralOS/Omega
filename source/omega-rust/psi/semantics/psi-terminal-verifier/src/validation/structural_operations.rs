@@ -27,6 +27,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
                         | OperationKind::CallDynamicScalar { .. }
                         | OperationKind::CallDynamicParameterScalar { .. }
                         | OperationKind::CallStructural { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
                         | OperationKind::BoundaryCall { .. }
                 )
             })
@@ -495,6 +496,149 @@ pub(super) fn validate_unit_operation_static(
                 structural_arguments,
                 crash_continuations,
                 operation.id,
+            )?;
+        }
+        OperationKind::CallStructuralWithScalarArguments {
+            callee,
+            arguments: _,
+            structural_arguments,
+            claim_transfers,
+            returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => {
+            let callee = machines
+                .get(callee)
+                .copied()
+                .ok_or(ModuleError::UnknownCallTarget {
+                    operation: operation.id,
+                    callee: *callee,
+                })?;
+            let Some(callee_result) = callee.result.structural() else {
+                return Err(ModuleError::StructuralCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            };
+            let Some(result) = operation.result.structural() else {
+                return Err(ModuleError::StructuralCallResultMismatch(operation.id));
+            };
+            let [callee_parameter] = callee.structural_parameters.as_slice() else {
+                return Err(ModuleError::StructuralCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            };
+            let [argument] = structural_arguments.as_slice() else {
+                return Err(ModuleError::StructuralCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            };
+            let exact_record = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == callee_result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        &declaration.shape,
+                        StructuralTypeShape::Record { fields }
+                            if matches!(
+                                fields.as_slice(),
+                                [field]
+                                    if matches!(
+                                        field.field_type,
+                                        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                                            if integer.carrier()
+                                                == psi_core::IntegerCarrier::Fixed
+                                                && integer.bits() == 64
+                                    )
+                            )
+                    )
+                });
+            let exact_return = matches!(callee.blocks.as_slice(), [block]
+            if block.operations.is_empty()
+                && matches!(
+                    &block.terminator,
+                    Terminator::ReturnStructural {
+                        source,
+                        returned_claims,
+                        trivial_affine_discards,
+                        ..
+                    } if *source == callee_parameter.place
+                        && returned_claims.is_empty()
+                        && trivial_affine_discards.is_empty()
+                ));
+            if callee.parameters.len() != 1
+                || !matches!(
+                    callee.parameters[0].scalar_type,
+                    ScalarType::Integer(integer)
+                        if integer.carrier() == psi_core::IntegerCarrier::Fixed
+                            && matches!(integer.bits(), 8 | 16 | 32 | 64)
+                )
+                || callee_parameter.position != 0
+                || callee_parameter.is_self
+                || callee_parameter.multiplicity != StructuralMultiplicity::Affine
+                || callee_parameter.access != StructuralAccess::Owned
+                || !callee_parameter.qualifications.is_empty()
+                || !callee_parameter.projected_qualifications.is_empty()
+                || argument.path.len() != 0
+                || argument.access != StructuralAccess::Owned
+                || result.structural_type != callee_result.structural_type
+                || result.multiplicity != StructuralMultiplicity::Affine
+                || result.multiplicity != callee_result.multiplicity
+                || !super::structural_result_contracts::call_result_matches(result, callee_result)
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !claim_transfers.is_empty()
+                || !returned_claim_transfers.is_empty()
+                || !requirement_obligations.is_empty()
+                || !crash_continuations.is_empty()
+                || !callee.entry_claims.is_empty()
+                || !callee.content_entry_claims.is_empty()
+                || !callee.content_identity_reshuffles.is_empty()
+                || !callee.content_partition_compositions.is_empty()
+                || !callee.published_service_ceiling.is_empty()
+                || !callee.contract.requires.is_empty()
+                || !callee.contract.ensures.is_empty()
+                || !callee.contract.outcome_specific_ensures.is_empty()
+                || !callee.contract.crash_routes.is_empty()
+                || !exact_record
+                || !exact_return
+            {
+                return Err(ModuleError::StructuralCallTargetMismatch {
+                    operation: operation.id,
+                    callee: callee.id,
+                });
+            }
+            let result_place = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == result.place);
+            if !matches!(
+                result_place.map(|place| place.kind),
+                Some(StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                }) if producer == operation.id && structural_type == result.structural_type
+            ) {
+                return Err(ModuleError::StructuralCallResultPlaceMismatch(operation.id));
+            }
+            validate_structural_arguments(
+                module,
+                machine,
+                structural_arguments,
+                &callee.structural_parameters,
+                operation.id,
+                true,
+                StructuralArgumentSourcePolicy::ParametersOnly,
+            )?;
+            validate_unit_call_contract_places(callee, operation.id)?;
+            validate_service_reach(
+                operation.id,
+                &machine.published_service_ceiling,
+                &callee.published_service_ceiling,
             )?;
         }
         OperationKind::CallStructural {

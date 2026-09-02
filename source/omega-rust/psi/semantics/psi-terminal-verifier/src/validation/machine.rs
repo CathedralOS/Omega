@@ -157,6 +157,21 @@ pub(super) fn validate_machine(
                 }
                 continue;
             }
+            if let OperationKind::CallStructuralWithScalarArguments {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                validate_unit_operation_static(module, machine, machines, operation)?;
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
             if matches!(
                 operation.kind,
                 OperationKind::EstablishPayloadlessCase { .. }
@@ -237,6 +252,7 @@ pub(super) fn validate_machine(
                 | OperationKind::CallDynamicScalar { .. }
                 | OperationKind::CallDynamicParameterScalar { .. }
                 | OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. }

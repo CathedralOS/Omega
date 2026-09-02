@@ -254,6 +254,41 @@ pub(super) fn encode_block_for_result_paths(
                     }
                 }
             }
+            OperationKind::CallStructuralWithScalarArguments {
+                callee,
+                arguments,
+                structural_arguments,
+                claim_transfers,
+                returned_claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(50);
+                writer.id(callee);
+                writer.len("mixed structural-call scalar arguments", arguments.len())?;
+                for argument in arguments {
+                    writer.id(argument);
+                }
+                encode_structural_arguments(writer, &structural_arguments)?;
+                writer.len(
+                    "mixed structural-call claim transfers",
+                    claim_transfers.len(),
+                )?;
+                for transfer in claim_transfers {
+                    writer.id(transfer.claim);
+                    writer.u32(transfer.argument_index);
+                }
+                writer.len(
+                    "mixed structural-call returned claim transfers",
+                    returned_claim_transfers.len(),
+                )?;
+                for transfer in returned_claim_transfers {
+                    writer.id(transfer.callee_claim);
+                    writer.id(transfer.caller_claim);
+                }
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
             OperationKind::BoundaryCall {
                 boundary,
                 arguments,
@@ -1000,6 +1035,25 @@ pub(super) fn decode_block_for_result_paths(
                         })?,
                     })
                 })?,
+            },
+            50 => OperationKind::CallStructuralWithScalarArguments {
+                callee: reader.id("MachineId")?,
+                arguments: decode_ids(reader, "ValueId")?,
+                structural_arguments: decode_structural_arguments(reader)?,
+                claim_transfers: decode_counted(reader, |reader| {
+                    Ok(ClaimTransfer {
+                        claim: reader.id("ClaimId")?,
+                        argument_index: reader.u32()?,
+                    })
+                })?,
+                returned_claim_transfers: decode_counted(reader, |reader| {
+                    Ok(StructuralResultClaimTransfer {
+                        callee_claim: reader.id("ClaimId")?,
+                        caller_claim: reader.id("ClaimId")?,
+                    })
+                })?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
             },
             tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
         };

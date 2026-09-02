@@ -11,7 +11,8 @@ pub(super) fn validate_call_graph(module: &TerminalModule) -> Result<(), ModuleE
                     OperationKind::Call { callee, .. }
                     | OperationKind::CallUnit { callee, .. }
                     | OperationKind::CallStructuralScalar { callee, .. }
-                    | OperationKind::CallStructural { callee, .. } => {
+                    | OperationKind::CallStructural { callee, .. }
+                    | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
                         callees.insert(*callee);
                     }
                     OperationKind::CallDynamicScalar { .. } => {

@@ -119,6 +119,7 @@ pub(super) fn lower_structural_machine(
                     psi_operation: operation.id,
                     result: operation_result.clone(),
                     callee: *callee,
+                    arguments: Vec::new(),
                     structural_arguments: structural_arguments.clone(),
                     claim_transfers: claim_transfers.clone(),
                     returned_claim_transfers: returned_claim_transfers.clone(),

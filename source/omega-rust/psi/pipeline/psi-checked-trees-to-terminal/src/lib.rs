@@ -82,11 +82,12 @@ use psi_terminal::{
     StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
     StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalPlacedViewInput, TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge,
-    TerminalRankedSuccessorArgument, Terminator, ValueDeclaration, VocabularyMarker,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalPlacedViewInput, TerminalRankedGuard,
+    TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument, Terminator,
+    ValueDeclaration, VocabularyMarker,
     program_local_root_introduction_compatibility_report_identity,
 };
 use psi_terminal_codec::{

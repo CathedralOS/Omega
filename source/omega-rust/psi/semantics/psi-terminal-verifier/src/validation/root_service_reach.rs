@@ -49,7 +49,10 @@ pub(super) fn validate_root_service_reach_exact(
                 OperationKind::Call { callee, .. }
                 | OperationKind::CallUnit { callee, .. }
                 | OperationKind::CallStructuralScalar { callee, .. }
-                | OperationKind::CallStructural { callee, .. } => pending.push(*callee),
+                | OperationKind::CallStructural { callee, .. }
+                | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
+                    pending.push(*callee)
+                }
                 OperationKind::CallDynamicScalar { .. } => {
                     let dispatch = module
                         .dynamic_dispatch

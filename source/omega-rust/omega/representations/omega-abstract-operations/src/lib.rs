@@ -573,6 +573,9 @@ pub enum AbstractOperation {
         psi_operation: OperationId,
         result: StructuralOperationResult,
         callee: MachineId,
+        /// Runtime scalar arguments in exact Terminal call order. The
+        /// established structural-only lane carries an empty row.
+        arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,

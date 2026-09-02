@@ -54,7 +54,8 @@ pub(super) use provider_attachments::lower_provider_attachment_places;
 use provider_attachments::validate_provider_attachment_requirements;
 use providers::checked_unit_provider_candidates;
 use selected_operator::{
-    lower_selected_structural_scalar_realizations, validate_selected_operator_scalar_call,
+    lower_selected_structural_result_realizations, lower_selected_structural_scalar_realizations,
+    validate_selected_operator_scalar_call, validate_selected_operator_structural_call,
     validate_selected_operator_structural_scalar_call,
 };
 
@@ -289,6 +290,28 @@ pub(super) fn lower_attached_unit_closure_including(
             "selected structural-scalar realization overlaps another attached Unit closure",
         );
     }
+    let mut selected_structural_result_roots = Vec::new();
+    for machine_symbol in &closure {
+        for operation in &unique_unit_machine(plans, *machine_symbol)?.operations {
+            if let CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                realization_machine,
+                ..
+            } = operation
+                && !selected_structural_result_roots.contains(realization_machine)
+            {
+                selected_structural_result_roots.push(*realization_machine);
+            }
+        }
+    }
+    if selected_structural_result_roots.iter().any(|machine| {
+        closure.contains(machine)
+            || scalar_closure.contains(machine)
+            || selected_structural_scalar_roots.contains(machine)
+    }) {
+        return unsupported(
+            "selected structural-result realization overlaps another attached Unit closure",
+        );
+    }
 
     let mut boundaries = Vec::<(&CheckedBoundaryMachinePlan, String)>::new();
     for machine_symbol in &closure {
@@ -433,10 +456,38 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                     )?;
                 }
-                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. } => {
-                    return unsupported(
-                        "selected structural-result Unit operator awaits its Terminal carrier",
-                    );
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    coordinate,
+                    result,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    realization_machine,
+                    realization_state,
+                    realization_contract_report_fingerprint,
+                    realization_contract_commitment,
+                    service_reach,
+                    scalar_arguments,
+                    structural_arguments,
+                    discard_result_on_return,
+                } => {
+                    validate_selected_operator_structural_call(
+                        checked,
+                        machine,
+                        *coordinate,
+                        result,
+                        *requirement_operator,
+                        *provider_plan_report_fingerprint,
+                        *provider_plan_commitment,
+                        *realization_machine,
+                        *realization_state,
+                        *realization_contract_report_fingerprint,
+                        *realization_contract_commitment,
+                        *service_reach,
+                        scalar_arguments,
+                        structural_arguments,
+                        *discard_result_on_return,
+                    )?;
                 }
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
@@ -622,6 +673,7 @@ pub(super) fn lower_attached_unit_closure_including(
         .iter()
         .chain(&scalar_closure)
         .chain(&selected_structural_scalar_roots)
+        .chain(&selected_structural_result_roots)
         .enumerate()
         .map(|(index, symbol)| Ok((*symbol, machine_id(dense_identity(index)?))))
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -659,7 +711,10 @@ pub(super) fn lower_attached_unit_closure_including(
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
     let mut call_evidence = Vec::new();
     let mut machines = Vec::with_capacity(
-        closure.len() + scalar_closure.len() + selected_structural_scalar_roots.len(),
+        closure.len()
+            + scalar_closure.len()
+            + selected_structural_scalar_roots.len()
+            + selected_structural_result_roots.len(),
     );
     let mut source_call_occurrences = Vec::new();
     let mut selected_ieee_float_fma_occurrences = Vec::new();
@@ -847,6 +902,7 @@ pub(super) fn lower_attached_unit_closure_including(
         let mut next_literal_argument = 0usize;
         let mut next_value_identity = next_value;
         let mut scalar_result_values = scalar_parameters.clone();
+        let mut structural_result_places = Vec::<(StructuralPlaceDeclaration, bool)>::new();
         for operation in &plan.operations[..plan.operations.len() - 1] {
             let mut source_call = None;
             let kind = match operation {
@@ -1291,6 +1347,131 @@ pub(super) fn lower_attached_unit_closure_including(
                         },
                     });
                     scalar_result_values.push(value);
+                    continue;
+                }
+                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    coordinate,
+                    result,
+                    realization_machine,
+                    realization_state,
+                    scalar_arguments,
+                    structural_arguments,
+                    discard_result_on_return,
+                    ..
+                } => {
+                    let realizations = checked
+                        .facts
+                        .flow
+                        .terminal_structural_returns
+                        .claim_free_affine_machines
+                        .iter()
+                        .filter(|target| {
+                            target.machine == *realization_machine
+                                && target.state == *realization_state
+                        })
+                        .collect::<Vec<_>>();
+                    let [target] = realizations.as_slice() else {
+                        return unsupported(
+                            "selected structural-result Unit operator target is absent or ambiguous",
+                        );
+                    };
+                    validate_transfer_shape(
+                        structural_arguments,
+                        &[],
+                        parameters,
+                        &[],
+                        std::slice::from_ref(&target.structural_parameter),
+                        &type_ids,
+                        &structural_types,
+                        &[],
+                    )?;
+                    if scalar_arguments.len() != target.scalar_parameters.len() {
+                        return unsupported(
+                            "selected structural-result scalar argument count disagrees with its realization",
+                        );
+                    }
+                    let source_types = scalar_result_values
+                        .iter()
+                        .map(|value| value.scalar_type)
+                        .collect::<Vec<_>>();
+                    let scalar_arguments = scalar_arguments
+                        .iter()
+                        .zip(&target.scalar_parameters)
+                        .map(|(argument, target)| {
+                            let argument = lower_checked_scalar_expression(argument)?;
+                            if direct_expression_contains_short_circuit(&argument) {
+                                return unsupported(
+                                    "selected structural-result arguments do not admit short-circuit control",
+                                );
+                            }
+                            let target_type = terminal_scalar_type(target.primitive_type)?;
+                            if argument.scalar_type() != target_type {
+                                return unsupported(
+                                    "selected structural-result scalar argument type disagrees with its realization",
+                                );
+                            }
+                            validate_direct_parameter_types(&argument, &source_types)?;
+                            Ok(emit_direct_expression(
+                                &argument,
+                                &scalar_result_values,
+                                &mut next_value_identity,
+                                &mut operations,
+                            ))
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                    let arguments =
+                        lower_structural_arguments(structural_arguments, parameters, &[], &[])?;
+                    let operation_id = operations.allocate();
+                    let result_place = place_id(allocate_dense(&mut next_place)?);
+                    let result_type = lookup_type_id(&type_ids, &result.type_identity)?;
+                    let result_declaration = StructuralPlaceDeclaration {
+                        id: result_place,
+                        kind: StructuralPlaceKind::OperationResult {
+                            producer: operation_id,
+                            structural_type: result_type,
+                        },
+                    };
+                    operations.record_source_call(
+                        SourceCallCoordinate {
+                            state: plan.state,
+                            statement_index: usize::try_from(coordinate.statement_index).map_err(
+                                |_| {
+                                    LoweringError::Unsupported(
+                                        "selected structural-result statement coordinate exceeds usize",
+                                    )
+                                },
+                            )?,
+                            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
+                                LoweringError::Unsupported(
+                                    "selected structural-result call ordinal exceeds usize",
+                                )
+                            })?,
+                        },
+                        None,
+                        operation_id,
+                        *realization_machine,
+                    )?;
+                    operations.push(Operation {
+                        id: operation_id,
+                        result: OperationResult::Structural(StructuralOperationResult {
+                            place: result_place,
+                            structural_type: result_type,
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            claims: Vec::new(),
+                        }),
+                        kind: OperationKind::CallStructuralWithScalarArguments {
+                            callee: lookup_machine_id(&machine_ids, *realization_machine)?,
+                            arguments: scalar_arguments,
+                            structural_arguments: arguments,
+                            claim_transfers: Vec::new(),
+                            returned_claim_transfers: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    });
+                    structural_result_places.push((result_declaration, *discard_result_on_return));
                     continue;
                 }
                 CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd {
@@ -1792,11 +1973,6 @@ pub(super) fn lower_attached_unit_closure_including(
                 CheckedUnitEffectOperationPlan::ReturnUnit { .. } => {
                     return unsupported("Unit return is not the final checked operation");
                 }
-                CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. } => {
-                    return unsupported(
-                        "selected structural-result Unit operator awaits its Terminal carrier",
-                    );
-                }
             };
             let id = operations.allocate();
             if let Some((coordinate, source_site, target_machine)) = source_call {
@@ -1864,6 +2040,11 @@ pub(super) fn lower_attached_unit_closure_including(
                         "Unit affine discard has an invalid parameter index",
                     ))
             }))
+            .chain(
+                structural_result_places
+                    .iter()
+                    .filter_map(|(place, discard)| discard.then_some(Ok(place.id))),
+            )
             .collect::<Result<Vec<_>, _>>()?;
         let block = block_id(allocate_dense(&mut next_block)?);
         let edge = edge_id(allocate_dense(&mut next_edge)?);
@@ -1905,6 +2086,11 @@ pub(super) fn lower_attached_unit_closure_including(
                 .chain(provider_places.iter().cloned())
                 .chain(local_places.iter().cloned())
                 .chain(literal_places.iter().cloned())
+                .chain(
+                    structural_result_places
+                        .iter()
+                        .map(|(place, _)| place.clone()),
+                )
                 .collect(),
             entry_claims: entry_claims.clone(),
             published_service_ceiling: if let Some(provider) = provider_candidate_plans
@@ -1998,6 +2184,16 @@ pub(super) fn lower_attached_unit_closure_including(
     call_evidence.append(&mut lowered_structural_realizations.evidence);
     source_call_occurrences.append(&mut lowered_structural_realizations.source_calls);
 
+    let mut lowered_structural_result_realizations = lower_selected_structural_result_realizations(
+        checked,
+        &selected_structural_result_roots,
+        &structural_types,
+        &type_ids,
+        &machine_ids,
+        closure.len() + scalar_closure.len() + selected_structural_scalar_roots.len(),
+    )?;
+    machines.append(&mut lowered_structural_result_realizations);
+
     let mut provider_candidates = provider_candidate_plans
         .iter()
         .map(|candidate| {
@@ -2088,6 +2284,7 @@ pub(super) fn lower_attached_unit_closure_including(
                     operation,
                     CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
                         | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { .. }
                 )
             })
         })

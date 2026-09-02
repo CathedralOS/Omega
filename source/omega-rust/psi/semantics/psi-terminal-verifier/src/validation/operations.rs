@@ -137,6 +137,28 @@ pub(super) fn validate_operation_operands(
         )?;
         return Ok(());
     }
+    if let OperationKind::CallStructuralWithScalarArguments {
+        callee, arguments, ..
+    } = &operation.kind
+    {
+        let callee = machines
+            .get(callee)
+            .copied()
+            .expect("mixed structural call target was validated during operation registration");
+        validate_call_arguments(
+            operation.id,
+            arguments,
+            &callee
+                .parameters
+                .iter()
+                .map(|parameter| parameter.scalar_type)
+                .collect::<Vec<_>>(),
+            value_types,
+            defined,
+            ScalarCallKind::Ordinary,
+        )?;
+        return Ok(());
+    }
     if let OperationKind::BoundaryCall {
         boundary,
         arguments,
@@ -558,6 +580,7 @@ pub(super) fn validate_operation_operands(
         | OperationKind::CallDynamicScalar { .. }
         | OperationKind::CallDynamicParameterScalar { .. }
         | OperationKind::CallStructural { .. }
+        | OperationKind::CallStructuralWithScalarArguments { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
