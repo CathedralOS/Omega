@@ -172,7 +172,12 @@ Must own:
   operational inference plan is transient, then projects machine-keyed
   suspension and blocking rows and threads those axes independently through
   callable-shape refinement. Missing inferred rows fall back to the matching
-  authored axis only; suspension never supplies blocking or vice versa.
+  authored axis only; suspension never supplies blocking or vice versa. A
+  transient call row whose exact typed path and arity select one named operator
+  retains that operator symbol separately from machine/state targets. Early
+  build-time admission rechecks the operator owner's package authority; an
+  ambiguous named operator remains unresolved rather than becoming a fake
+  machine edge.
 - Checked value origins for ranking witnesses, initializers, statement values,
   call arguments, transition guards/targets, and nested expression children.
 - Checked scalar expressions for named-transition arguments skip an implicit

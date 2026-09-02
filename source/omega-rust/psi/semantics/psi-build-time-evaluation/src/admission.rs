@@ -74,6 +74,7 @@ struct BuildTimeCallEdge {
     source_machine_symbol: SymbolHandle,
     target_machine_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
+    target_operator_symbol: SymbolHandle,
 }
 
 impl BuildTimeAdmissionPlan {
@@ -400,6 +401,7 @@ fn project_operational_axes(
                     source_machine_symbol: machine.symbol,
                     target_machine_symbol: call.target_machine_symbol,
                     target_state_symbol: call.target_state_symbol,
+                    target_operator_symbol: call.target_operator_symbol,
                 });
             }
         }
@@ -479,6 +481,7 @@ mod tests {
                 source_machine_symbol: suspending_machine,
                 target_machine_symbol: SymbolHandle::invalid(),
                 target_state_symbol: target_state,
+                target_operator_symbol: SymbolHandle::invalid(),
             }]
         );
 
