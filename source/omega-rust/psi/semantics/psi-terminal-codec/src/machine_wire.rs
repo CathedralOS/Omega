@@ -7,8 +7,8 @@
 
 use psi_terminal::{
     EntryClaim, StructuralPlaceDeclaration, TerminalMachine, TerminalMachineResult,
-    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge,
-    TerminalRankedSuccessorArgument, ValueDeclaration,
+    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
+    ValueDeclaration,
 };
 
 use super::content_wire::{
@@ -122,10 +122,7 @@ pub(super) fn decode_machine_for_result_paths(
     let result = match reader.u8()? {
         0 => TerminalMachineResult::Unit,
         1 => TerminalMachineResult::Scalar(decode_declaration(reader)?),
-        2 => TerminalMachineResult::Structural(decode_function_result(
-            reader,
-            result_path_format,
-        )?),
+        2 => TerminalMachineResult::Structural(decode_function_result(reader, result_path_format)?),
         tag => return Err(CodecError::InvalidTag("TerminalMachineResult", tag)),
     };
     let count = reader.count()?;

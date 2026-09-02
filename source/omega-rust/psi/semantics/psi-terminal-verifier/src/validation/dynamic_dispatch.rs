@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use psi_core::{MachineId, OperationId};
 use psi_terminal::{
-    OperationKind, OperationResult, StructuralAccess, TerminalMachine, TerminalMachineResult,
-    TerminalModule,
+    ClosedConformanceCallableResult, OperationKind, OperationResult, StructuralAccess,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource, TerminalMachine,
+    TerminalMachineResult, TerminalModule,
 };
 
 use super::ModuleError;
@@ -14,6 +15,7 @@ pub(super) fn validate_dynamic_dispatches(
     module: &TerminalModule,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
 ) -> Result<(), ModuleError> {
+    validate_dynamic_descriptor_parameters(module, machines)?;
     let selections = &module.dynamic_dispatch.selections;
     let mut selection_coordinates = BTreeSet::new();
     for selection in selections {
@@ -449,6 +451,13 @@ pub(super) fn validate_dynamic_dispatches(
             ));
         }
     }
+    consumed_descriptors.extend(validate_dynamic_descriptor_arguments(
+        module,
+        machines,
+        descriptors,
+        selections,
+    )?);
+    validate_parameter_dynamic_dispatches(module, machines)?;
     for descriptor in descriptors {
         if !consumed_descriptors.contains(&(descriptor.owner, descriptor.ordinal)) {
             return Err(ModuleError::OrphanReboundDynamicDescriptor {
@@ -472,6 +481,356 @@ pub(super) fn validate_dynamic_dispatches(
                 owner: selection.owner,
                 ordinal: selection.ordinal,
             });
+        }
+    }
+    Ok(())
+}
+
+fn validate_dynamic_descriptor_parameters(
+    module: &TerminalModule,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let parameters = &module.dynamic_dispatch.parameters;
+    if !parameters
+        .windows(2)
+        .all(|pair| (pair[0].owner, pair[0].ordinal) < (pair[1].owner, pair[1].ordinal))
+    {
+        return Err(ModuleError::NonCanonicalDynamicDescriptorParameterOrder);
+    }
+    let mut coordinates = BTreeSet::new();
+    let mut source_positions = BTreeSet::new();
+    let mut expected_ordinals = BTreeMap::<MachineId, u32>::new();
+    for parameter in parameters {
+        if !coordinates.insert((parameter.owner, parameter.ordinal)) {
+            return Err(ModuleError::DuplicateDynamicDescriptorParameter {
+                owner: parameter.owner,
+                ordinal: parameter.ordinal,
+            });
+        }
+        let expected = expected_ordinals.entry(parameter.owner).or_default();
+        if parameter.ordinal != *expected {
+            return Err(ModuleError::NonDenseDynamicDescriptorParameter {
+                owner: parameter.owner,
+                expected: *expected,
+                actual: parameter.ordinal,
+            });
+        }
+        *expected =
+            expected
+                .checked_add(1)
+                .ok_or(ModuleError::InvalidDynamicDescriptorParameter {
+                    owner: parameter.owner,
+                    ordinal: parameter.ordinal,
+                })?;
+        let requirements_are_canonical =
+            parameter
+                .requirements
+                .iter()
+                .enumerate()
+                .all(|(slot, requirement)| {
+                    usize::try_from(requirement.slot) == Ok(slot)
+                        && !requirement.declaring_trait_identity.is_empty()
+                        && !requirement.public_requirement_identity.is_empty()
+                });
+        let requirement_identities = parameter
+            .requirements
+            .iter()
+            .map(|requirement| {
+                (
+                    requirement.declaring_trait_identity.as_str(),
+                    requirement.public_requirement_identity.as_str(),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        if !machines.contains_key(&parameter.owner)
+            || !source_positions.insert((parameter.owner, parameter.source_position))
+            || parameter.trait_identity.is_empty()
+            || parameter.access != StructuralAccess::SharedBorrow
+            || !requirements_are_canonical
+            || requirement_identities.len() != parameter.requirements.len()
+        {
+            return Err(ModuleError::InvalidDynamicDescriptorParameter {
+                owner: parameter.owner,
+                ordinal: parameter.ordinal,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_dynamic_descriptor_arguments(
+    module: &TerminalModule,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    descriptors: &[psi_terminal::TerminalReboundDynamicDescriptor],
+    selections: &[psi_terminal::TerminalDynamicConformanceSelection],
+) -> Result<BTreeSet<(MachineId, u32)>, ModuleError> {
+    let arguments = &module.dynamic_dispatch.arguments;
+    if !arguments.windows(2).all(|pair| {
+        (pair[0].owner, pair[0].operation, pair[0].parameter_ordinal)
+            < (pair[1].owner, pair[1].operation, pair[1].parameter_ordinal)
+    }) {
+        return Err(ModuleError::NonCanonicalDynamicDescriptorArgumentOrder);
+    }
+    let mut coordinates = BTreeSet::new();
+    for argument in arguments {
+        if !coordinates.insert((
+            argument.owner,
+            argument.operation,
+            argument.parameter_ordinal,
+        )) {
+            return Err(ModuleError::DuplicateDynamicDescriptorArgument {
+                owner: argument.owner,
+                operation: argument.operation,
+                parameter_ordinal: argument.parameter_ordinal,
+            });
+        }
+    }
+
+    let mut consumed_coordinates = BTreeSet::new();
+    let mut consumed_descriptors = BTreeSet::new();
+    for (owner, machine) in machines {
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            let (callee, admits_dynamic_arguments) = match operation.kind {
+                OperationKind::Call { callee, .. }
+                | OperationKind::CallUnit { callee, .. }
+                | OperationKind::CallStructural { callee, .. } => (callee, false),
+                OperationKind::CallStructuralScalar { callee, .. } => (callee, true),
+                _ => continue,
+            };
+            let target_parameters = module
+                .dynamic_dispatch
+                .parameters
+                .iter()
+                .filter(|parameter| parameter.owner == callee)
+                .collect::<Vec<_>>();
+            let supplied = arguments
+                .iter()
+                .filter(|argument| argument.owner == *owner && argument.operation == operation.id)
+                .collect::<Vec<_>>();
+            if (!target_parameters.is_empty() && !admits_dynamic_arguments)
+                || supplied.len() != target_parameters.len()
+            {
+                return Err(ModuleError::InvalidDynamicDescriptorArgument {
+                    owner: *owner,
+                    operation: operation.id,
+                    parameter_ordinal: u32::try_from(supplied.len()).unwrap_or(u32::MAX),
+                });
+            }
+            for (target, argument) in target_parameters.into_iter().zip(supplied) {
+                consumed_coordinates.insert((
+                    argument.owner,
+                    argument.operation,
+                    argument.parameter_ordinal,
+                ));
+                if let TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } =
+                    argument.source
+                {
+                    consumed_descriptors.insert((argument.owner, ordinal));
+                }
+                if argument.parameter_ordinal != target.ordinal
+                    || !dynamic_argument_matches_parameter(
+                        module,
+                        *owner,
+                        argument.source,
+                        target,
+                        descriptors,
+                        selections,
+                    )
+                {
+                    return Err(ModuleError::InvalidDynamicDescriptorArgument {
+                        owner: *owner,
+                        operation: operation.id,
+                        parameter_ordinal: argument.parameter_ordinal,
+                    });
+                }
+            }
+        }
+    }
+    if consumed_coordinates != coordinates {
+        let (owner, operation, parameter_ordinal) = coordinates
+            .difference(&consumed_coordinates)
+            .next()
+            .copied()
+            .expect("consumed dynamic argument coordinates are a subset of declared coordinates");
+        return Err(ModuleError::InvalidDynamicDescriptorArgument {
+            owner,
+            operation,
+            parameter_ordinal,
+        });
+    }
+    Ok(consumed_descriptors)
+}
+
+fn dynamic_argument_matches_parameter(
+    module: &TerminalModule,
+    owner: MachineId,
+    source: TerminalDynamicDescriptorSource,
+    target: &TerminalDynamicDescriptorParameter,
+    descriptors: &[psi_terminal::TerminalReboundDynamicDescriptor],
+    selections: &[psi_terminal::TerminalDynamicConformanceSelection],
+) -> bool {
+    match source {
+        TerminalDynamicDescriptorSource::Parameter { ordinal } => module
+            .dynamic_dispatch
+            .parameters
+            .iter()
+            .find(|parameter| parameter.owner == owner && parameter.ordinal == ordinal)
+            .is_some_and(|source| dynamic_interfaces_match(source, target)),
+        TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+            let Some(descriptor) = descriptors
+                .iter()
+                .find(|descriptor| descriptor.owner == owner && descriptor.ordinal == ordinal)
+            else {
+                return false;
+            };
+            let Some(selection) = selections.iter().find(|selection| {
+                selection.owner == owner
+                    && selection.ordinal == descriptor.rebound_selection_ordinal
+            }) else {
+                return false;
+            };
+            let Some(application) =
+                module
+                    .closed_conformance_applications
+                    .iter()
+                    .find(|application| {
+                        application.owner == owner
+                            && application.report_fingerprint
+                                == selection.conformance_application_report_fingerprint
+                            && application.commitment
+                                == selection.conformance_application_commitment
+                    })
+            else {
+                return false;
+            };
+            application.trait_identity == target.trait_identity
+                && application.rows.len() == target.requirements.len()
+                && application
+                    .rows
+                    .iter()
+                    .zip(&target.requirements)
+                    .all(|(row, requirement)| {
+                        row.declaring_trait_identity == requirement.declaring_trait_identity
+                            && row.public_requirement_identity
+                                == requirement.public_requirement_identity
+                            && row
+                                .realization_callable_identity
+                                .as_ref()
+                                .and_then(|identity| {
+                                    application.realization_callables.iter().find(|callable| {
+                                        callable.source_callable_identity == *identity
+                                    })
+                                })
+                                .is_some_and(|callable| callable.result == requirement.result)
+                    })
+        }
+    }
+}
+
+fn dynamic_interfaces_match(
+    source: &TerminalDynamicDescriptorParameter,
+    target: &TerminalDynamicDescriptorParameter,
+) -> bool {
+    source.trait_identity == target.trait_identity
+        && source.access == target.access
+        && source.requirements == target.requirements
+}
+
+fn validate_parameter_dynamic_dispatches(
+    module: &TerminalModule,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> Result<(), ModuleError> {
+    let dispatches = &module.dynamic_dispatch.parameter_dispatches;
+    if !dispatches
+        .windows(2)
+        .all(|pair| (pair[0].owner, pair[0].operation) < (pair[1].owner, pair[1].operation))
+    {
+        return Err(ModuleError::NonCanonicalParameterDynamicDispatchOrder);
+    }
+    let mut coordinates = BTreeSet::new();
+    for dispatch in dispatches {
+        if !coordinates.insert((dispatch.owner, dispatch.operation)) {
+            return Err(ModuleError::DuplicateParameterDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        }
+        let parameter = module.dynamic_dispatch.parameters.iter().find(|parameter| {
+            parameter.owner == dispatch.owner && parameter.ordinal == dispatch.parameter_ordinal
+        });
+        let requirement = parameter.and_then(|parameter| {
+            parameter
+                .requirements
+                .iter()
+                .find(|requirement| requirement.slot == dispatch.requirement_slot)
+        });
+        let operation = machines.get(&dispatch.owner).and_then(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| operation.id == dispatch.operation)
+        });
+        let valid = match (requirement, operation) {
+            (Some(requirement), Some(operation)) => {
+                matches!(
+                    (&operation.kind, &operation.result, requirement.result),
+                    (
+                        OperationKind::CallDynamicParameterScalar {
+                            parameter_ordinal,
+                            requirement_slot,
+                            requirement_obligations,
+                            crash_continuations,
+                        },
+                        OperationResult::Scalar(result),
+                        ClosedConformanceCallableResult::I32,
+                    ) if *parameter_ordinal == dispatch.parameter_ordinal
+                        && *requirement_slot == dispatch.requirement_slot
+                        && requirement_obligations.is_empty()
+                        && crash_continuations.is_empty()
+                        && result.scalar_type == psi_core::ScalarType::Integer(
+                            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                .expect("i32 is a valid Terminal scalar type")
+                        )
+                ) || matches!(
+                    (&operation.kind, &operation.result, requirement.result),
+                    (
+                        OperationKind::CallDynamicParameterScalar {
+                            parameter_ordinal,
+                            requirement_slot,
+                            requirement_obligations,
+                            crash_continuations,
+                        },
+                        OperationResult::Scalar(result),
+                        ClosedConformanceCallableResult::Bool,
+                    ) if *parameter_ordinal == dispatch.parameter_ordinal
+                        && *requirement_slot == dispatch.requirement_slot
+                        && requirement_obligations.is_empty()
+                        && crash_continuations.is_empty()
+                        && result.scalar_type == psi_core::ScalarType::Boolean
+                )
+            }
+            _ => false,
+        };
+        if !valid {
+            return Err(ModuleError::InvalidParameterDynamicDispatch {
+                owner: dispatch.owner,
+                operation: dispatch.operation,
+            });
+        }
+    }
+    for (owner, machine) in machines {
+        for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+            if matches!(
+                operation.kind,
+                OperationKind::CallDynamicParameterScalar { .. }
+            ) && !coordinates.contains(&(*owner, operation.id))
+            {
+                return Err(ModuleError::InvalidParameterDynamicDispatch {
+                    owner: *owner,
+                    operation: operation.id,
+                });
+            }
         }
     }
     Ok(())

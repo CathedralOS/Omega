@@ -428,6 +428,10 @@ pub struct TerminalExecution {
     structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     machines: BTreeMap<MachineId, ExecutableMachine>,
     dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
+    dynamic_descriptor_templates: BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
+    dynamic_descriptor_arguments:
+        BTreeMap<(MachineId, OperationId), Vec<psi_terminal::TerminalDynamicDescriptorArgument>>,
+    dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
     provider_candidates: BTreeSet<BoundaryMachineId>,
     provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
@@ -482,10 +486,23 @@ struct SuspendedCall {
     payloadless_case_values: BTreeMap<PlaceId, TerminalPayloadlessCaseValue>,
     live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     live_claims: BTreeMap<ClaimId, LiveClaim>,
+    dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     current_machine: MachineId,
     current: BlockId,
     next_operation: usize,
     result: SuspendedCallResult,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeDynamicDescriptorTemplate {
+    source: StructuralArgument,
+    callables: Vec<MachineId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeDynamicDescriptor {
+    source: TerminalStructuralValue,
+    callables: Vec<MachineId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -704,6 +721,66 @@ impl TerminalExecution {
                 )
             })
             .collect::<BTreeMap<_, _>>();
+        let dynamic_descriptor_templates = module
+            .dynamic_dispatch
+            .rebound_descriptors
+            .iter()
+            .map(|descriptor| {
+                let selection = module
+                    .dynamic_dispatch
+                    .selections
+                    .iter()
+                    .find(|selection| {
+                        selection.owner == descriptor.owner
+                            && selection.ordinal == descriptor.rebound_selection_ordinal
+                    })
+                    .expect("verified descriptor has one latest selection");
+                let application = module
+                    .closed_conformance_applications
+                    .iter()
+                    .find(|application| {
+                        application.owner == descriptor.owner
+                            && application.report_fingerprint
+                                == selection.conformance_application_report_fingerprint
+                            && application.commitment
+                                == selection.conformance_application_commitment
+                    })
+                    .expect("verified descriptor has one conformance application");
+                let callables = application
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        let identity = row
+                            .realization_callable_identity
+                            .as_ref()
+                            .expect("verified dynamic row has one callable identity");
+                        application
+                            .realization_callables
+                            .iter()
+                            .find(|callable| callable.source_callable_identity == *identity)
+                            .map(|callable| callable.machine)
+                            .expect("verified dynamic row has one callable")
+                    })
+                    .collect();
+                (
+                    (descriptor.owner, descriptor.ordinal),
+                    RuntimeDynamicDescriptorTemplate {
+                        source: selection.source.clone(),
+                        callables,
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut dynamic_descriptor_arguments = BTreeMap::<
+            (MachineId, OperationId),
+            Vec<psi_terminal::TerminalDynamicDescriptorArgument>,
+        >::new();
+        for argument in &module.dynamic_dispatch.arguments {
+            dynamic_descriptor_arguments
+                .entry((argument.owner, argument.operation))
+                .or_default()
+                .push(argument.clone());
+        }
         let boundary_machines = module
             .boundary_machines
             .iter()
@@ -745,6 +822,9 @@ impl TerminalExecution {
             structural_types,
             machines,
             dynamic_scalar_calls,
+            dynamic_descriptor_templates,
+            dynamic_descriptor_arguments,
+            dynamic_parameters: BTreeMap::new(),
             boundary_machines,
             provider_candidates: module
                 .provider_candidates
@@ -816,6 +896,52 @@ impl TerminalExecution {
     /// semantic ownership state, not a runtime object-layout bitmap.
     pub fn live_affine_frontier(&self) -> impl Iterator<Item = &StructuralAffineDiscard> + '_ {
         self.live_affine_frontier.iter()
+    }
+
+    fn resolve_dynamic_call_arguments(
+        &self,
+        operation: OperationId,
+    ) -> Result<BTreeMap<u32, RuntimeDynamicDescriptor>, TerminalInterpretError> {
+        let mut resolved = BTreeMap::new();
+        for argument in self
+            .dynamic_descriptor_arguments
+            .get(&(self.current_machine, operation))
+            .into_iter()
+            .flatten()
+        {
+            let descriptor = match argument.source {
+                psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+                    let template = self
+                        .dynamic_descriptor_templates
+                        .get(&(self.current_machine, ordinal))
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                    let sources = resolve_structural_arguments(
+                        &self.structural_types,
+                        &self.structural_values,
+                        std::slice::from_ref(&template.source),
+                    )?;
+                    let [source] = sources.as_slice() else {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    };
+                    RuntimeDynamicDescriptor {
+                        source: source.clone(),
+                        callables: template.callables.clone(),
+                    }
+                }
+                psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal } => self
+                    .dynamic_parameters
+                    .get(&ordinal)
+                    .cloned()
+                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
+            };
+            if resolved
+                .insert(argument.parameter_ordinal, descriptor)
+                .is_some()
+            {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        }
+        Ok(resolved)
     }
 
     /// Enter one structural Unit callee after the operation-specific argument
@@ -890,6 +1016,7 @@ impl TerminalExecution {
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
+            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -900,6 +1027,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
+        self.dynamic_parameters = BTreeMap::new();
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;
@@ -912,6 +1040,7 @@ impl TerminalExecution {
         result: psi_terminal::ValueDeclaration,
         structural_arguments: &[StructuralArgument],
         claim_transfers: &[ClaimTransfer],
+        dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
         let callee = self
             .machines
@@ -982,6 +1111,7 @@ impl TerminalExecution {
             payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
+            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
             current_machine: self.current_machine,
             current: self.current,
             next_operation: self.next_operation,
@@ -992,6 +1122,54 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
+        self.dynamic_parameters = dynamic_parameters;
+        self.current_machine = callee_id;
+        self.current = callee.entry;
+        self.next_operation = 0;
+        Ok(())
+    }
+
+    fn begin_runtime_dynamic_scalar_call(
+        &mut self,
+        callee_id: MachineId,
+        result: psi_terminal::ValueDeclaration,
+        source: TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        let callee = self
+            .machines
+            .get(&callee_id)
+            .cloned()
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        if !callee.parameters.is_empty()
+            || callee.structural_parameters.len() != 1
+            || callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type)
+        {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let structural_values =
+            bind_structural_arguments(&callee.structural_parameters, &[source])?;
+        let callee_affine_frontier =
+            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        self.next_operation += 1;
+        self.call_stack.push(SuspendedCall {
+            blocks: std::mem::take(&mut self.blocks),
+            values: std::mem::take(&mut self.values),
+            structural_values: std::mem::take(&mut self.structural_values),
+            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
+            live_claims: std::mem::take(&mut self.live_claims),
+            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
+            current_machine: self.current_machine,
+            current: self.current,
+            next_operation: self.next_operation,
+            result: SuspendedCallResult::Scalar(result.id),
+        });
+        self.blocks = callee.blocks;
+        self.values = BTreeMap::new();
+        self.structural_values = structural_values;
+        self.live_affine_frontier = callee_affine_frontier;
+        self.live_claims = BTreeMap::new();
+        self.dynamic_parameters = BTreeMap::new();
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;
@@ -1168,11 +1346,14 @@ impl TerminalExecution {
                             .result
                             .scalar()
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let dynamic_parameters =
+                            self.resolve_dynamic_call_arguments(operation.id)?;
                         self.begin_structural_scalar_call(
                             callee,
                             result,
                             &structural_arguments,
                             &claim_transfers,
+                            dynamic_parameters,
                         )?;
                         continue;
                     }
@@ -1188,7 +1369,37 @@ impl TerminalExecution {
                             .get(&(self.current_machine, descriptor_ordinal))
                             .cloned()
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-                        self.begin_structural_scalar_call(callee, result, &[source], &[])?;
+                        self.begin_structural_scalar_call(
+                            callee,
+                            result,
+                            &[source],
+                            &[],
+                            BTreeMap::new(),
+                        )?;
+                        continue;
+                    }
+                    OperationKind::CallDynamicParameterScalar {
+                        parameter_ordinal,
+                        requirement_slot,
+                        ..
+                    } => {
+                        let result = operation
+                            .result
+                            .scalar()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let descriptor =
+                            self.dynamic_parameters
+                                .get(&parameter_ordinal)
+                                .cloned()
+                                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let slot = usize::try_from(requirement_slot)
+                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let callee = descriptor
+                            .callables
+                            .get(slot)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.begin_runtime_dynamic_scalar_call(callee, result, descriptor.source)?;
                         continue;
                     }
                     OperationKind::CallStructural {
@@ -1304,6 +1515,7 @@ impl TerminalExecution {
                             ),
                             live_affine_frontier: caller_affine_frontier,
                             live_claims: remaining_claims,
+                            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
                             current_machine: self.current_machine,
                             current: self.current,
                             next_operation: self.next_operation,
@@ -1317,6 +1529,7 @@ impl TerminalExecution {
                         self.structural_values = structural_values;
                         self.live_affine_frontier = callee_affine_frontier;
                         self.live_claims = live_claims;
+                        self.dynamic_parameters = BTreeMap::new();
                         self.current_machine = callee_id;
                         self.current = callee.entry;
                         self.next_operation = 0;
@@ -1507,6 +1720,7 @@ impl TerminalExecution {
                             ),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
+                            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
                             current_machine: self.current_machine,
                             current: self.current,
                             next_operation: self.next_operation,
@@ -1519,6 +1733,7 @@ impl TerminalExecution {
                         self.structural_values = BTreeMap::new();
                         self.live_affine_frontier = BTreeSet::new();
                         self.live_claims = BTreeMap::new();
+                        self.dynamic_parameters = BTreeMap::new();
                         self.current_machine = callee_id;
                         self.current = callee.entry;
                         self.next_operation = 0;
@@ -2356,6 +2571,7 @@ impl TerminalExecution {
                         payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
                         live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                         live_claims: std::mem::take(&mut self.live_claims),
+                        dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
                         current_machine: self.current_machine,
                         current: self.current,
                         next_operation: self.next_operation,
@@ -2370,6 +2586,7 @@ impl TerminalExecution {
                     self.structural_values = BTreeMap::new();
                     self.live_affine_frontier = BTreeSet::new();
                     self.live_claims = BTreeMap::new();
+                    self.dynamic_parameters = BTreeMap::new();
                     self.current_machine = cleanups[0].cleanup_machine;
                     self.current = callee.entry;
                     self.next_operation = 0;
@@ -2458,6 +2675,7 @@ impl TerminalExecution {
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
+                        self.dynamic_parameters = caller.dynamic_parameters;
                         self.current_machine = caller.current_machine;
                         self.current = caller.current;
                         self.next_operation = caller.next_operation;
@@ -2599,6 +2817,7 @@ impl TerminalExecution {
                             ),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
+                            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
                             current_machine: self.current_machine,
                             current: self.current,
                             next_operation: self.next_operation,
@@ -2613,6 +2832,7 @@ impl TerminalExecution {
                         self.structural_values = BTreeMap::new();
                         self.live_affine_frontier = BTreeSet::new();
                         self.live_claims = BTreeMap::new();
+                        self.dynamic_parameters = BTreeMap::new();
                         self.current_machine = completed.0.cleanup_machine;
                         self.current = callee.entry;
                         self.next_operation = 0;
@@ -2629,6 +2849,7 @@ impl TerminalExecution {
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
+                        self.dynamic_parameters = caller.dynamic_parameters;
                         self.current_machine = caller.current_machine;
                         self.current = caller.current;
                         self.next_operation = caller.next_operation;
@@ -2669,6 +2890,7 @@ impl TerminalExecution {
                         self.payloadless_case_values = caller.payloadless_case_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
+                        self.dynamic_parameters = caller.dynamic_parameters;
                         self.current_machine = caller.current_machine;
                         self.current = caller.current;
                         self.next_operation = caller.next_operation;
@@ -2712,6 +2934,9 @@ impl TerminalExecution {
                                             &mut self.live_affine_frontier,
                                         ),
                                         live_claims: std::mem::take(&mut self.live_claims),
+                                        dynamic_parameters: std::mem::take(
+                                            &mut self.dynamic_parameters,
+                                        ),
                                         current_machine: self.current_machine,
                                         current: self.current,
                                         next_operation: self.next_operation,
@@ -2726,6 +2951,7 @@ impl TerminalExecution {
                                     self.structural_values = BTreeMap::new();
                                     self.live_affine_frontier = BTreeSet::new();
                                     self.live_claims = BTreeMap::new();
+                                    self.dynamic_parameters = BTreeMap::new();
                                     self.current_machine = completed.0.cleanup_machine;
                                     self.current = callee.entry;
                                     self.next_operation = 0;
@@ -2750,6 +2976,7 @@ impl TerminalExecution {
                                     self.payloadless_case_values = caller.payloadless_case_values;
                                     self.live_affine_frontier = caller.live_affine_frontier;
                                     self.live_claims = caller.live_claims;
+                                    self.dynamic_parameters = caller.dynamic_parameters;
                                     self.current_machine = caller.current_machine;
                                     self.current = caller.current;
                                     self.next_operation = caller.next_operation;
@@ -2857,6 +3084,7 @@ impl TerminalExecution {
                             }
                             self.live_affine_frontier = caller.live_affine_frontier;
                             self.live_claims = caller.live_claims;
+                            self.dynamic_parameters = caller.dynamic_parameters;
                             self.current_machine = caller.current_machine;
                             self.current = caller.current;
                             self.next_operation = caller.next_operation;

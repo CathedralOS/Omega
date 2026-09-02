@@ -719,6 +719,8 @@ fn lower_dynamic_call_custody(
     Ok(match lane {
         DynamicLoweringLane::Direct => (
             TerminalDynamicDispatchCatalog {
+                parameters: Vec::new(),
+                arguments: Vec::new(),
                 selections: vec![latest_selection],
                 rebound_descriptors: Vec::new(),
                 direct_dispatches: vec![TerminalDirectDynamicDispatch {
@@ -733,6 +735,7 @@ fn lower_dynamic_call_custody(
                     realization: realization_machine,
                 }],
                 indirect_dispatches: Vec::new(),
+                parameter_dispatches: Vec::new(),
             },
             OperationKind::CallStructuralScalar {
                 callee: realization_machine,
@@ -753,6 +756,8 @@ fn lower_dynamic_call_custody(
             )?;
             (
                 TerminalDynamicDispatchCatalog {
+                    parameters: Vec::new(),
+                    arguments: Vec::new(),
                     selections: vec![
                         TerminalDynamicConformanceSelection {
                             owner: caller_machine,
@@ -772,6 +777,7 @@ fn lower_dynamic_call_custody(
                     }],
                     direct_dispatches: Vec::new(),
                     indirect_dispatches: vec![row_dispatch(0)],
+                    parameter_dispatches: Vec::new(),
                 },
                 OperationKind::CallDynamicScalar {
                     descriptor_ordinal: 0,

@@ -231,6 +231,20 @@ pub(super) fn compose_call_operation(
             );
         }
         (
+            CallResultRule::ScalarCalleeResult,
+            OperationKind::CallDynamicParameterScalar {
+                requirement_obligations,
+                crash_continuations,
+                ..
+            },
+        ) => {
+            debug_assert!(requirement_obligations.is_empty());
+            debug_assert!(crash_continuations.is_empty());
+            // The parameter interface fixes the result type and table slot,
+            // but no concrete realization is selected until invocation.
+            // V1 therefore imports no realization-specific contract axioms.
+        }
+        (
             CallResultRule::StructuralCalleeResult,
             OperationKind::CallStructural {
                 callee,

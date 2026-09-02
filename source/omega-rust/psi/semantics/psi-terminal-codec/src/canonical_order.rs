@@ -20,6 +20,28 @@ use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALA
 pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     if !strictly_increasing(
         module
+            .dynamic_dispatch
+            .parameters
+            .iter()
+            .map(|parameter| (parameter.owner, parameter.ordinal)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "dynamic descriptor parameters by owner and ordinal",
+        ));
+    }
+    if !strictly_increasing(module.dynamic_dispatch.arguments.iter().map(|argument| {
+        (
+            argument.owner,
+            argument.operation,
+            argument.parameter_ordinal,
+        )
+    })) {
+        return Err(CodecError::NonCanonicalOrder(
+            "dynamic descriptor arguments by owner, operation, and parameter ordinal",
+        ));
+    }
+    if !strictly_increasing(
+        module
             .structural_types
             .iter()
             .map(|declaration| declaration.id),
@@ -96,6 +118,17 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     ) {
         return Err(CodecError::NonCanonicalOrder(
             "indirect dynamic dispatches by owner and operation",
+        ));
+    }
+    if !strictly_increasing(
+        module
+            .dynamic_dispatch
+            .parameter_dispatches
+            .iter()
+            .map(|dispatch| (dispatch.owner, dispatch.operation)),
+    ) {
+        return Err(CodecError::NonCanonicalOrder(
+            "parameter dynamic dispatches by owner and operation",
         ));
     }
     if !strictly_increasing(
@@ -409,6 +442,10 @@ pub(super) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     ..
                 }
                 | OperationKind::CallDynamicScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallDynamicParameterScalar {
                     crash_continuations,
                     ..
                 }

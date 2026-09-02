@@ -150,6 +150,30 @@ pub(super) fn validate_closed_conformance_applications(
             .iter()
             .filter(|row| row.realization_callable_identity.is_some())
             .collect::<Vec<_>>();
+        let dynamic_argument_consumed = module.dynamic_dispatch.arguments.iter().any(|argument| {
+            let psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } =
+                argument.source
+            else {
+                return false;
+            };
+            module
+                .dynamic_dispatch
+                .rebound_descriptors
+                .iter()
+                .any(|descriptor| {
+                    descriptor.owner == application.owner
+                        && descriptor.owner == argument.owner
+                        && descriptor.ordinal == ordinal
+                        && module.dynamic_dispatch.selections.iter().any(|selection| {
+                            selection.owner == descriptor.owner
+                                && selection.ordinal == descriptor.rebound_selection_ordinal
+                                && selection.conformance_application_report_fingerprint
+                                    == application.report_fingerprint
+                                && selection.conformance_application_commitment
+                                    == application.commitment
+                        })
+                })
+        });
         match (
             application.realization_callables.as_slice(),
             mapped_rows.as_slice(),
@@ -238,7 +262,10 @@ pub(super) fn validate_closed_conformance_applications(
                                     },
                                 )
                         });
-                if !proof_output_consumed && !dynamic_dispatch_consumed {
+                if !proof_output_consumed
+                    && !dynamic_dispatch_consumed
+                    && !dynamic_argument_consumed
+                {
                     return Err(ModuleError::InvalidClosedConformanceApplication {
                         owner: application.owner,
                         declaration: application.declaration_identity.clone(),
@@ -248,34 +275,36 @@ pub(super) fn validate_closed_conformance_applications(
             (callables, rows)
                 if !callables.is_empty()
                     && rows.len() == application.rows.len()
-                    && module
-                        .dynamic_dispatch
-                        .indirect_dispatches
-                        .iter()
-                        .any(|dispatch| {
-                            dispatch.owner == application.owner
-                                && rows.iter().any(|row| {
-                                    row.declaring_trait_identity
-                                        == dispatch.declaring_trait_identity
-                                        && row.public_requirement_identity
-                                            == dispatch.public_requirement_identity
-                                        && row.requirement_identity == dispatch.requirement_identity
-                                        && row.realization_identity == dispatch.realization_identity
-                                        && row.realization_callable_identity.as_deref()
-                                            == Some(dispatch.realization_callable_identity.as_str())
-                                })
-                                && callables.iter().any(|callable| {
-                                    callable.source_callable_identity
-                                        == dispatch.realization_callable_identity
-                                        && callable.machine == dispatch.realization
-                                })
-                                && module.dynamic_dispatch.rebound_descriptors.iter().any(
-                                    |descriptor| {
-                                        descriptor.owner == dispatch.owner
-                                            && descriptor.ordinal == dispatch.descriptor_ordinal
-                                            && module.dynamic_dispatch.selections.iter().any(
-                                                |selection| {
-                                                    selection.owner == descriptor.owner
+                    && (dynamic_argument_consumed
+                        || module.dynamic_dispatch.indirect_dispatches.iter().any(
+                            |dispatch| {
+                                dispatch.owner == application.owner
+                                    && rows.iter().any(|row| {
+                                        row.declaring_trait_identity
+                                            == dispatch.declaring_trait_identity
+                                            && row.public_requirement_identity
+                                                == dispatch.public_requirement_identity
+                                            && row.requirement_identity
+                                                == dispatch.requirement_identity
+                                            && row.realization_identity
+                                                == dispatch.realization_identity
+                                            && row.realization_callable_identity.as_deref()
+                                                == Some(
+                                                    dispatch.realization_callable_identity.as_str(),
+                                                )
+                                    })
+                                    && callables.iter().any(|callable| {
+                                        callable.source_callable_identity
+                                            == dispatch.realization_callable_identity
+                                            && callable.machine == dispatch.realization
+                                    })
+                                    && module.dynamic_dispatch.rebound_descriptors.iter().any(
+                                        |descriptor| {
+                                            descriptor.owner == dispatch.owner
+                                                && descriptor.ordinal == dispatch.descriptor_ordinal
+                                                && module.dynamic_dispatch.selections.iter().any(
+                                                    |selection| {
+                                                        selection.owner == descriptor.owner
                                                     && selection.ordinal
                                                         == descriptor.rebound_selection_ordinal
                                                     && selection
@@ -283,11 +312,12 @@ pub(super) fn validate_closed_conformance_applications(
                                                         == application.report_fingerprint
                                                     && selection.conformance_application_commitment
                                                         == application.commitment
-                                                },
-                                            )
-                                    },
-                                )
-                        }) => {}
+                                                    },
+                                                )
+                                        },
+                                    )
+                            },
+                        )) => {}
             _ => {
                 return Err(ModuleError::InvalidClosedConformanceApplication {
                     owner: application.owner,

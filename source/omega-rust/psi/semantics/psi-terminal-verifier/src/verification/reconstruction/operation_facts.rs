@@ -138,6 +138,7 @@ pub(super) fn append_operation(
         | OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }
+        | OperationKind::CallDynamicParameterScalar { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::BoundaryCall { .. } => {
             unreachable!("call rows return before specialized reconstruction")

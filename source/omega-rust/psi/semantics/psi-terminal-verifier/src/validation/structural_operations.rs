@@ -25,6 +25,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::CallDynamicScalar { .. }
+                        | OperationKind::CallDynamicParameterScalar { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::BoundaryCall { .. }
                 )

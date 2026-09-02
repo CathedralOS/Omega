@@ -29,9 +29,12 @@ use psi_terminal::{
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
 use super::dynamic_dispatch_wire::{
     decode_direct_dynamic_dispatches, decode_dynamic_conformance_selections,
-    decode_indirect_dynamic_dispatches, decode_rebound_dynamic_descriptors,
-    encode_direct_dynamic_dispatches, encode_dynamic_conformance_selections,
-    encode_indirect_dynamic_dispatches, encode_rebound_dynamic_descriptors,
+    decode_dynamic_descriptor_arguments, decode_dynamic_descriptor_parameters,
+    decode_indirect_dynamic_dispatches, decode_parameter_dynamic_dispatches,
+    decode_rebound_dynamic_descriptors, encode_direct_dynamic_dispatches,
+    encode_dynamic_conformance_selections, encode_dynamic_descriptor_arguments,
+    encode_dynamic_descriptor_parameters, encode_indirect_dynamic_dispatches,
+    encode_parameter_dynamic_dispatches, encode_rebound_dynamic_descriptors,
 };
 use super::proof_declaration_wire::{
     decode_evidence_interface, decode_proposition_application, decode_proposition_declaration,
@@ -930,6 +933,8 @@ fn encode_raw_for_result_paths(
         writer.bytes(&application.commitment.as_bytes());
     }
     if result_path_format == ResultPathWireFormat::Current {
+        encode_dynamic_descriptor_parameters(&mut writer, &module.dynamic_dispatch.parameters)?;
+        encode_dynamic_descriptor_arguments(&mut writer, &module.dynamic_dispatch.arguments)?;
         encode_dynamic_conformance_selections(&mut writer, &module.dynamic_dispatch.selections)?;
         encode_rebound_dynamic_descriptors(
             &mut writer,
@@ -939,6 +944,10 @@ fn encode_raw_for_result_paths(
         encode_indirect_dynamic_dispatches(
             &mut writer,
             &module.dynamic_dispatch.indirect_dispatches,
+        )?;
+        encode_parameter_dynamic_dispatches(
+            &mut writer,
+            &module.dynamic_dispatch.parameter_dispatches,
         )?;
     }
     writer.len(
@@ -1290,19 +1299,33 @@ pub(super) fn decode_module_body(
         })
     })?;
     let (
+        dynamic_descriptor_parameters,
+        dynamic_descriptor_arguments,
         dynamic_conformance_selections,
         rebound_dynamic_descriptors,
         direct_dynamic_dispatches,
         indirect_dynamic_dispatches,
+        parameter_dynamic_dispatches,
     ) = if result_path_format == ResultPathWireFormat::Current {
         (
+            decode_dynamic_descriptor_parameters(reader)?,
+            decode_dynamic_descriptor_arguments(reader)?,
             decode_dynamic_conformance_selections(reader)?,
             decode_rebound_dynamic_descriptors(reader)?,
             decode_direct_dynamic_dispatches(reader)?,
             decode_indirect_dynamic_dispatches(reader)?,
+            decode_parameter_dynamic_dispatches(reader)?,
         )
     } else {
-        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+        (
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        )
     };
     let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
     let machine_count = reader.count()?;
@@ -1338,10 +1361,13 @@ pub(super) fn decode_module_body(
         proof_recursive_components,
         closed_conformance_applications,
         dynamic_dispatch: psi_terminal::TerminalDynamicDispatchCatalog {
+            parameters: dynamic_descriptor_parameters,
+            arguments: dynamic_descriptor_arguments,
             selections: dynamic_conformance_selections,
             rebound_descriptors: rebound_dynamic_descriptors,
             direct_dispatches: direct_dynamic_dispatches,
             indirect_dispatches: indirect_dynamic_dispatches,
+            parameter_dispatches: parameter_dynamic_dispatches,
         },
         quotient_correspondences,
         machines,

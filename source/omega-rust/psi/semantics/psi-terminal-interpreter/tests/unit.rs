@@ -19,8 +19,10 @@ use psi_terminal::{
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimBinding,
     StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
     StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalDynamicConformanceSelection, TerminalDynamicDispatchCatalog,
-    TerminalIndirectDynamicDispatch, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
+    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
+    TerminalDynamicDispatchCatalog, TerminalDynamicRequirement, TerminalIndirectDynamicDispatch,
+    TerminalMachine, TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
     TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
@@ -364,6 +366,40 @@ fn rebound_dynamic_scalar_call_executes_and_composes_its_fixed_fuel_callee() {
         )),
     );
     assert_eq!(meter.usage().total_units(), certificate.ceiling_units());
+}
+
+#[test]
+fn dynamic_descriptor_parameter_crosses_a_real_interpreter_call() {
+    let module = parameter_dynamic_scalar_call_module();
+    let proof_bundle = ProofBundle::default();
+    verify_module(&module, &proof_bundle, &AdmissionProfile::default())
+        .expect("dynamic descriptor parameter module verifies");
+    let semantic = encode_module(&module).expect("dynamic descriptor parameter semantics encode");
+    let proof = encode_proof_bundle(&proof_bundle).expect("empty proof encodes");
+    let structural = TerminalStructuralValue {
+        opaque_identity: 95,
+        structural_type: structural_type_id(95),
+        qualifications: Vec::new(),
+        path: Vec::new(),
+    };
+    let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        &[structural],
+    )
+    .expect("verified dynamic descriptor parameter call starts");
+    let mut meter = TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(99),
+            },
+        )),
+    );
 }
 
 fn assert_write_only_store_atomic(
@@ -3294,6 +3330,8 @@ fn rebound_dynamic_scalar_call_module() -> TerminalModule {
     };
     module.closed_conformance_applications = vec![application];
     module.dynamic_dispatch = TerminalDynamicDispatchCatalog {
+        parameters: Vec::new(),
+        arguments: Vec::new(),
         selections: vec![selection(0, "item"), selection(1, "selected")],
         rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
             owner: caller,
@@ -3313,12 +3351,97 @@ fn rebound_dynamic_scalar_call_module() -> TerminalModule {
             realization_callable_identity: "test::Item::measure#callable".into(),
             realization,
         }],
+        parameter_dispatches: Vec::new(),
     };
     module.machines[0].blocks[0].operations[0].kind = OperationKind::CallDynamicScalar {
         descriptor_ordinal: 0,
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
     };
+    module
+}
+
+fn parameter_dynamic_scalar_call_module() -> TerminalModule {
+    let mut module = rebound_dynamic_scalar_call_module();
+    let caller = machine_id(1);
+    let helper = machine_id(97);
+    let caller_operation = operation_id(3);
+    let helper_operation = operation_id(5);
+    module.dynamic_dispatch.indirect_dispatches.clear();
+    module.dynamic_dispatch.parameters = vec![TerminalDynamicDescriptorParameter {
+        owner: helper,
+        ordinal: 0,
+        source_position: 0,
+        trait_identity: "test::Measure".into(),
+        access: StructuralAccess::SharedBorrow,
+        requirements: vec![TerminalDynamicRequirement {
+            slot: 0,
+            declaring_trait_identity: "test::Measure".into(),
+            public_requirement_identity: "test::Measure::measure()".into(),
+            result: ClosedConformanceCallableResult::I32,
+        }],
+    }];
+    module.dynamic_dispatch.arguments = vec![TerminalDynamicDescriptorArgument {
+        owner: caller,
+        operation: caller_operation,
+        parameter_ordinal: 0,
+        source: TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 },
+    }];
+    module.dynamic_dispatch.parameter_dispatches = vec![TerminalParameterDynamicDispatch {
+        owner: helper,
+        operation: helper_operation,
+        parameter_ordinal: 0,
+        requirement_slot: 0,
+    }];
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::CallStructuralScalar {
+        callee: helper,
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    module.machines.push(TerminalMachine {
+        id: helper,
+        attachment: None,
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            id: value_id(6),
+            scalar_type: integer,
+        }),
+        structural_places: Vec::new(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(97),
+        blocks: vec![Block {
+            id: block_id(97),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                id: helper_operation,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    id: value_id(7),
+                    scalar_type: integer,
+                }),
+                kind: OperationKind::CallDynamicParameterScalar {
+                    parameter_ordinal: 0,
+                    requirement_slot: 0,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: edge_id(97),
+                value: value_id(7),
+                cleanup_actions: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(97)),
+    });
     module
 }
 

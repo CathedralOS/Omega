@@ -44,6 +44,7 @@ pub(super) fn lower(
         OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
         | OperationKind::CallDynamicScalar { .. }
+        | OperationKind::CallDynamicParameterScalar { .. }
         | OperationKind::CallStructural { .. }
         | OperationKind::BoundaryCall { .. } => calls::lower(
             operation,
