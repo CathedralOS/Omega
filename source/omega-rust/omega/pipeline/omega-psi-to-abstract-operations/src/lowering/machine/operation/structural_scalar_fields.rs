@@ -55,7 +55,10 @@ fn lower_store(
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
     if operation.result != OperationResult::Unit
-        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+        || !matches!(
+            destination.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
         || !matches!(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow

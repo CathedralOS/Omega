@@ -115,6 +115,7 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
                     row,
                     row_index,
                     adapter,
+                    argument,
                     &machine_functions,
                 )
                 .ok_or_else(invalid)?;
@@ -323,6 +324,7 @@ fn validate_adapter(
     row: &psi_terminal::ClosedConformanceRow,
     row_index: usize,
     adapter: &ForwardedDynamicDescriptorAdapterRecord,
+    argument: &omega_machine_code::ForwardedDynamicDescriptorArgumentRecord,
     machine_functions: &std::collections::BTreeMap<MachineId, &MachineCodeFunction>,
 ) -> Option<()> {
     let callable_identity = row.realization_callable_identity.as_deref()?;
@@ -348,10 +350,19 @@ fn validate_adapter(
         },
     )
     .ok()?;
+    let realization_parameter_shape =
+        if argument.instance.access == psi_terminal::StructuralAccess::MutableBorrow {
+            ValueShape::borrowed_reference(
+                argument.instance.shape.byte_size,
+                argument.instance.shape.alignment,
+            )
+        } else {
+            argument.instance.shape
+        };
     let realization = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![adapter.source_shape],
+            parameters: vec![realization_parameter_shape],
             result,
         },
     )
@@ -363,6 +374,7 @@ fn validate_adapter(
         || adapter.realization_identity != row.realization_identity
         || adapter.realization_callable_identity != callable_identity
         || adapter.result != callable.result
+        || adapter.source_shape != argument.instance.shape
         || adapter.erased_call_plan != erased
         || adapter.realization_call_plan != realization
     {

@@ -280,6 +280,49 @@ fn unrestricted_shared_integer_field_return_plan() -> AbstractOperationPlan {
     }
 }
 
+fn unrestricted_mutable_integer_field_store_return_plan() -> AbstractOperationPlan {
+    let mut plan = unrestricted_shared_integer_field_return_plan();
+    let function = &mut plan.functions[0];
+    let parameter = &mut function.structural_parameters[0];
+    parameter.access = StructuralAccess::MutableBorrow;
+    let parameter = parameter.clone();
+    let AbstractOperation::IntegerStructuralField { source, .. } = &mut function.operations[0]
+    else {
+        unreachable!()
+    };
+    *source = parameter.clone();
+    let result = function.result.scalar().unwrap();
+    let scalar_type = result.scalar_type;
+    let ScalarType::Integer(integer_type) = scalar_type else {
+        unreachable!()
+    };
+    let literal = AbstractResult {
+        value: ValueId::new(74).unwrap(),
+        scalar_type,
+    };
+    function.operations.insert(
+        0,
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(74).unwrap(),
+            result: literal.value,
+            scalar_type,
+            value: IntegerValue::Signed(23),
+        },
+    );
+    function.operations.insert(
+        1,
+        AbstractOperation::StructuralScalarFieldStore {
+            psi_operation: OperationId::new(75).unwrap(),
+            destination: parameter,
+            path: Vec::new(),
+            field: StructuralFieldId::new(73).unwrap(),
+            value: literal,
+        },
+    );
+    assert_eq!(integer_type.bits(), 32);
+    plan
+}
+
 #[test]
 fn unrestricted_shared_boolean_field_lowers_as_a_straight_line_return() {
     for target in [
@@ -342,6 +385,62 @@ fn unrestricted_shared_integer_field_lowers_as_a_straight_line_return() {
             } if *source_value == ValueId::new(73).unwrap()
                 && *scalar_type == IntegerType::new(IntegerSign::Signed, 32).unwrap()
                 && *psi_operation == OperationId::new(73).unwrap()
+                && *source == PlaceId::new(73).unwrap()
+                && *field == StructuralFieldId::new(73).unwrap()
+        ));
+    }
+}
+
+#[test]
+fn unrestricted_mutable_integer_store_wraps_the_direct_field_return() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let lowered = lower_to_target_operations(
+            &unrestricted_mutable_integer_field_store_return_plan(),
+            target,
+        )
+        .expect("direct mutable-self store and field return lower");
+        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStore {
+            store,
+            scalar,
+            structural_parameters,
+            ..
+        } = &lowered.functions[0].operation
+        else {
+            panic!("mutation-bearing return retains its dedicated target carrier")
+        };
+        assert_eq!(store.psi_operation, OperationId::new(75).unwrap());
+        assert_eq!(store.defining_operation, OperationId::new(74).unwrap());
+        assert_eq!(store.source_value, ValueId::new(74).unwrap());
+        assert_eq!(store.scalar_type.bits(), 32);
+        assert_eq!(store.value, IntegerValue::Signed(23));
+        assert!(store.path.is_empty());
+        assert_eq!(store.field_byte_offset, 0);
+        assert_eq!(
+            store.destination_placement,
+            structural_parameters[0].placement
+        );
+        assert_eq!(
+            structural_parameters[0].shape.class,
+            omega_calling_conventions::ValueClass::BorrowedReference
+        );
+        assert!(matches!(
+            structural_parameters[0].placement.locations.as_slice(),
+            [omega_calling_conventions::ValueLocation::Indirect {
+                copy_stack_byte_offset: None,
+                ..
+            }]
+        ));
+        assert!(matches!(
+            scalar.as_ref(),
+            TargetOperation::ReturnIntegerExpression {
+                expression: TargetIntegerExpression::StructuralField {
+                    psi_operation,
+                    source,
+                    field,
+                    ..
+                },
+                ..
+            } if *psi_operation == OperationId::new(73).unwrap()
                 && *source == PlaceId::new(73).unwrap()
                 && *field == StructuralFieldId::new(73).unwrap()
         ));

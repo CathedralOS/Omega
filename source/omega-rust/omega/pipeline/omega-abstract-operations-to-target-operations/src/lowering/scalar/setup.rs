@@ -93,11 +93,21 @@ pub(in crate::lowering) fn prepare_scalar_lowering(
                     function.machine,
                 ));
             }
-            structural_shape(
+            let shape = structural_shape(
                 parameter.structural_type,
                 structural_types,
                 &mut shape_cache,
                 &mut active,
+            )?;
+            Ok(
+                if matches!(
+                    parameter.access,
+                    psi_terminal::StructuralAccess::MutableBorrow
+                ) {
+                    ValueShape::borrowed_reference(shape.byte_size, shape.alignment)
+                } else {
+                    shape
+                },
             )
         })
         .collect::<Result<Vec<_>, _>>()?;

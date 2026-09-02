@@ -82,12 +82,13 @@ pub(super) fn structural_scalar_field_store_type(
         field,
     };
     let parameter = parameter_for(machine, destination).ok_or_else(invalid)?;
-    if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || !matches!(
-            parameter.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !has_empty_structural_custody(machine, destination)
+    if !matches!(
+        parameter.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !matches!(
+        parameter.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) || !has_empty_structural_custody(machine, destination)
         || !matches!(path, [] | [StructuralPathSegment::Field(_)])
     {
         return Err(invalid());

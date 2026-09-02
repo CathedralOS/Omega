@@ -42,6 +42,7 @@ mod ranked_countdown;
 
 mod dynamic_parameter;
 
+mod scalar_store;
 mod structural_result;
 mod structural_scalar;
 
@@ -151,7 +152,7 @@ fn validate_mixed_structural_scalar_abi(
         return Ok(());
     };
     let invalid = || EmissionError::InvalidMixedStructuralScalarFunctionAbi(function.machine);
-    if row.scalar_parameters.is_empty() || row.structural_parameters.is_empty() {
+    if row.structural_parameters.is_empty() {
         return Err(invalid());
     }
     let Some((_, result_type)) = assigned_direct_integer_result(&function.operation) else {
@@ -241,6 +242,9 @@ fn assigned_direct_integer_result(operation: &AssignedOperation) -> Option<(Valu
         AssignedOperation::ScalarReturnWithCleanup { scalar, .. } => {
             assigned_direct_integer_result(scalar)
         }
+        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore { scalar, .. } => {
+            assigned_direct_integer_result(scalar)
+        }
         _ => None,
     }
 }
@@ -256,6 +260,17 @@ fn retained_scalar_cleanup_abi_matches(
             *scalar_type == row.result.scalar_type
         }
         AssignedOperation::ScalarReturnWithCleanup {
+            scalar,
+            call_plan,
+            structural_parameters,
+            ..
+        } => {
+            assigned_direct_integer_result(scalar)
+                .is_some_and(|(_, scalar_type)| scalar_type == row.result.scalar_type)
+                && call_plan == &row.call_plan
+                && structural_parameters == &row.structural_parameters
+        }
+        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore {
             scalar,
             call_plan,
             structural_parameters,
@@ -347,6 +362,7 @@ fn emit_function(
     let mut unit_scalar_homes = Vec::new();
     let mut unit_integer_constants = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
+    let mut scalar_structural_scalar_field_store = None;
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
     let mut x86_floating_control = None;
@@ -372,8 +388,42 @@ fn emit_function(
         AssignedOperation::BooleanControlWithCleanup { .. } => {
             unreachable!("Boolean-control cleanup is emitted by the early carrier path")
         }
+        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore {
+            store,
+            scalar,
+            structural_parameters,
+            ..
+        } => {
+            let emitted =
+                scalar_store::emit(function, store, scalar, structural_parameters, target)?;
+            semantic_code_attribution = emitted.semantic_code_attribution;
+            scalar_structural_scalar_field_store = Some(emitted.store);
+            scalar_structural_parameters = structural_parameters
+                .iter()
+                .map(|parameter| omega_machine_code::UnitParameterRecord {
+                    place: parameter.place,
+                    structural_type: parameter.structural_type,
+                    multiplicity: parameter.multiplicity,
+                    shape: parameter.shape,
+                })
+                .collect();
+            scalar_structural_parameter_homes = structural_parameters
+                .iter()
+                .map(|parameter| omega_machine_code::UnitParameterHomeRecord {
+                    place: parameter.place,
+                    structural_type: parameter.structural_type,
+                    multiplicity: parameter.multiplicity,
+                    shape: parameter.shape,
+                    source: parameter.placement.clone(),
+                    byte_offset: 0,
+                    indirect: true,
+                })
+                .collect();
+            scalar_stack_eligible = true;
+            emitted.bytes
+        }
         operation @ AssignedOperation::ReturnStructuralScalarCall { .. } => {
-            let emitted = structural_scalar::emit(operation, target, functions)?;
+            let emitted = structural_scalar::emit(function.machine, operation, target, functions)?;
             internal_calls = emitted.internal_calls;
             foreign_calls = emitted.foreign_calls;
             internal_unit_calls = emitted.internal_unit_calls;
@@ -1084,6 +1134,7 @@ fn emit_function(
         unit_scalar_homes,
         unit_integer_constants,
         unit_structural_scalar_field_stores,
+        scalar_structural_scalar_field_store,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),

@@ -151,6 +151,10 @@ pub struct MachineCodeFunction {
     /// Exact semantic and physical custody for fixed-width immediate writes
     /// into staged attached-Unit structural parameter homes.
     pub unit_structural_scalar_field_stores: Vec<UnitStructuralScalarFieldStoreRecord>,
+    /// Exact one-store prefix for the bounded mutable-self scalar-return
+    /// carrier. Unlike Unit stores, this writes through the incoming borrowed
+    /// reference directly; no staged aggregate home or value copy exists.
+    pub scalar_structural_scalar_field_store: Option<ScalarStructuralScalarFieldStoreRecord>,
     /// Exact zero-code affine-local establishment and Unit-return cleanup
     /// custody for the bounded one-state Unit slice.
     pub unit_affine_cleanup: Option<UnitAffineCleanupRecord>,
@@ -878,6 +882,24 @@ pub struct UnitStructuralScalarFieldStoreRecord {
     pub source: InternalUnitScalarArgumentSourceRecord,
     pub parameter_home_byte_offset: u32,
     pub parameter_home_indirect: bool,
+    pub operation_ordinal: usize,
+    pub code_offset: usize,
+    pub byte_count: usize,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScalarStructuralScalarFieldStoreRecord {
+    pub psi_operation: OperationId,
+    pub destination: psi_terminal::StructuralParameterDeclaration,
+    pub path: Vec<StructuralPathSegment>,
+    pub field: psi_core::StructuralFieldId,
+    pub destination_placement: ValuePlacement,
+    pub field_byte_offset: u32,
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub value: IntegerValue,
     pub operation_ordinal: usize,
     pub code_offset: usize,
     pub byte_count: usize,

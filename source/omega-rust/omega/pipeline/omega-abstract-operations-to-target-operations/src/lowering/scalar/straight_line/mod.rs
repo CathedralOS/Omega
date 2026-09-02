@@ -24,12 +24,14 @@ pub(super) fn lower_straight_line(
 ) -> Result<TargetFunction, LoweringError> {
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = None;
-    for abstract_operation in &function.operations {
+    let mut structural_scalar_field_store = None;
+    for (operation_index, abstract_operation) in function.operations.iter().enumerate() {
         if returned.is_some() {
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         operation::lower_operation(
             abstract_operation,
+            operation_index,
             function,
             target,
             functions,
@@ -39,8 +41,23 @@ pub(super) fn lower_straight_line(
             &call_plan,
             &target_structural_parameters,
             &mut provenance,
+            &mut structural_scalar_field_store,
             &mut returned,
         )?;
+    }
+
+    let mut operation = returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?;
+    if let Some(store) = structural_scalar_field_store {
+        operation = TargetOperation::ScalarReturnAfterStructuralScalarFieldStore {
+            store,
+            scalar: Box::new(operation),
+            structural_types: structural_types
+                .values()
+                .map(|declaration| (*declaration).clone())
+                .collect(),
+            call_plan: call_plan.clone(),
+            structural_parameters: target_structural_parameters.clone(),
+        };
     }
 
     Ok(TargetFunction {
@@ -49,6 +66,6 @@ pub(super) fn lower_straight_line(
         fixed_integer_scalar_abi: None,
         mixed_structural_scalar_abi: None,
         provenance,
-        operation: returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?,
+        operation,
     })
 }

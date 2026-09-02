@@ -28,6 +28,9 @@ use super::{
         decode_mixed_structural_scalar_abi, encode_mixed_structural_scalar_abi,
     },
     push_u32, push_u64,
+    scalar_structural_scalar_field_store_codec::{
+        decode_scalar_structural_scalar_field_store, encode_scalar_structural_scalar_field_store,
+    },
     unit_scalar_codec::{
         decode_unit_integer_constants, decode_unit_scalar_homes, encode_unit_integer_constants,
         encode_unit_scalar_homes,
@@ -87,6 +90,10 @@ pub(super) fn encode_functions(
         encode_unit_structural_scalar_field_stores(
             bytes,
             &function.unit_structural_scalar_field_stores,
+        )?;
+        encode_scalar_structural_scalar_field_store(
+            bytes,
+            function.scalar_structural_scalar_field_store.as_ref(),
         )?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
@@ -194,6 +201,8 @@ pub(super) fn decode_functions(
         let unit_integer_constants = decode_unit_integer_constants(reader)?;
         let unit_structural_scalar_field_stores =
             decode_unit_structural_scalar_field_stores(reader)?;
+        let scalar_structural_scalar_field_store =
+            decode_scalar_structural_scalar_field_store(reader)?;
         functions.push(InstalledFunction {
             machine,
             attachment,
@@ -214,6 +223,7 @@ pub(super) fn decode_functions(
             unit_scalar_homes,
             unit_integer_constants,
             unit_structural_scalar_field_stores,
+            scalar_structural_scalar_field_store,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {

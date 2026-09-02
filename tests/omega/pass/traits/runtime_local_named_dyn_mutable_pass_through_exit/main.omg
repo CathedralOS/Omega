@@ -10,6 +10,7 @@ data Item {
 
 Primary: Item satisfies Shape {
     machine code(&mut self) -> i32 {
+        self.value = 23;
         transition {
             _ -> self.value
         }
@@ -28,7 +29,7 @@ machine Main::main(&mut self) {
     let mut erased: &mut dyn Shape = &mut self.decoy as &mut dyn Item::Primary;
     erased = &mut self.selected as &mut dyn Item::Primary;
     let result: i32 = dispatch(erased);
-    transition result == 99 {
+    transition result == 23 {
         true -> good()
         _ -> bad()
     }

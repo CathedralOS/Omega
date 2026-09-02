@@ -23,9 +23,10 @@ pub(super) use omega_target_operations::{
     TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorParameterAbi, TargetFunction,
     TargetIeeeFloatFmaOperand, TargetIntegerControl, TargetIntegerExpression, TargetOperation,
     TargetOperationPlan, TargetRankedU32Countdown, TargetScalarExpression,
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitBody, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
-    TargetX86ScalarFmaSettlement, TerminalPsiProvenance,
+    TargetScalarStructuralFieldStore, TargetStructuralArgument, TargetStructuralParameter,
+    TargetUnitBody, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement, TargetX86ScalarFmaSettlement,
+    TerminalPsiProvenance,
 };
 pub(super) use psi_core::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue,

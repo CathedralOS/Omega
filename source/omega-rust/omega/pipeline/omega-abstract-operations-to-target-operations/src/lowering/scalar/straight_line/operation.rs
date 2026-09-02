@@ -3,6 +3,7 @@ use super::*;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
     operation: &AbstractOperation,
+    operation_index: usize,
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -12,6 +13,7 @@ pub(super) fn lower_operation(
     call_plan: &CallPlan,
     target_structural_parameters: &[TargetStructuralParameter],
     provenance: &mut TerminalPsiProvenance,
+    structural_scalar_field_store: &mut Option<TargetScalarStructuralFieldStore>,
     returned: &mut Option<TargetOperation>,
 ) -> Result<(), LoweringError> {
     match operation {
@@ -22,11 +24,21 @@ pub(super) fn lower_operation(
                 operation: *psi_operation,
             });
         }
-        AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } => {
-            return Err(LoweringError::UnitOperationInScalarFunction {
-                machine: function.machine,
-                operation: *psi_operation,
-            });
+        AbstractOperation::StructuralScalarFieldStore { .. } => {
+            if structural_scalar_field_store.is_some() {
+                return Err(LoweringError::UnsupportedOperationInScalarFunction(
+                    function.machine,
+                ));
+            }
+            *structural_scalar_field_store = Some(structural_scalar_field::lower_store(
+                operation,
+                operation_index,
+                function,
+                structural_types,
+                target_structural_parameters,
+                values,
+                provenance,
+            )?);
         }
         AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
         | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. } => {

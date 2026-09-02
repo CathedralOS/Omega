@@ -1,5 +1,5 @@
 use super::{
-    boundary, cleanup, dynamic_parameter, ranked_countdown, scalar, structural,
+    boundary, cleanup, dynamic_parameter, ranked_countdown, scalar, scalar_store, structural,
     structural_parameter, unit,
 };
 use crate::assignment::shared::*;
@@ -27,6 +27,9 @@ pub(super) fn assign_operation(
         operation @ (TargetOperation::ScalarReturnWithCleanup { .. }
         | TargetOperation::BooleanControlWithCleanup { .. }) => {
             cleanup::assign(function, operation, target)
+        }
+        operation @ TargetOperation::ScalarReturnAfterStructuralScalarFieldStore { .. } => {
+            scalar_store::assign(function, operation, target)
         }
         operation @ (TargetOperation::ReturnBoundaryPortReadU8 { .. }
         | TargetOperation::ExitProcessI32 { .. }) => boundary::assign(function, operation, target),

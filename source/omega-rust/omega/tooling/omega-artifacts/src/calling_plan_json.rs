@@ -86,6 +86,7 @@ fn push_value_shape_json(output: &mut String, shape: ValueShape) {
     match shape.class {
         ValueClass::Integer => output.push_str("\"integer\""),
         ValueClass::Float => output.push_str("\"float\""),
+        ValueClass::BorrowedReference => output.push_str("\"borrowed_reference\""),
         ValueClass::HomogeneousFloatAggregate { members } => {
             output.push_str("{\"homogeneous_float_aggregate\": ");
             output.push_str(&members.to_string());

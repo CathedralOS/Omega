@@ -531,6 +531,25 @@ pub struct TargetStructuralArgument {
     pub destination: ValuePlacement,
 }
 
+/// One exact immediate scalar replacement performed before a scalar return.
+///
+/// This carrier is deliberately separate from [`TargetUnitOperation`]: a
+/// scalar function borrows its structural receiver through the ordinary scalar
+/// ABI and does not materialize an attached-Unit parameter frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetScalarStructuralFieldStore {
+    pub psi_operation: OperationId,
+    pub destination: StructuralParameterDeclaration,
+    pub path: Vec<StructuralPathSegment>,
+    pub field: StructuralFieldId,
+    pub destination_placement: ValuePlacement,
+    pub field_byte_offset: u32,
+    pub defining_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: IntegerType,
+    pub value: IntegerValue,
+}
+
 /// A scalar value produced by an attached-Unit call that must survive the
 /// call-result register's next clobber.
 ///
@@ -892,6 +911,17 @@ pub enum TargetOperation {
         structural_parameters: Vec<TargetStructuralParameter>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
         psi_edge: EdgeId,
+    },
+    /// Execute one exact direct mutable-self `i32` literal store before the
+    /// existing direct structural-field scalar return. The wrapper owns the
+    /// effect/return sequencing without turning scalar functions into Unit
+    /// operation streams.
+    ScalarReturnAfterStructuralScalarFieldStore {
+        store: TargetScalarStructuralFieldStore,
+        scalar: Box<TargetOperation>,
+        structural_types: Vec<StructuralTypeDeclaration>,
+        call_plan: CallPlan,
+        structural_parameters: Vec<TargetStructuralParameter>,
     },
     /// One direct x86 provider realization for a verified bodyless boundary
     /// returning an unsigned byte. Structural arguments and receipts are

@@ -52,8 +52,7 @@ pub(super) fn validate_mixed_structural_scalar_abi(
     .map_err(|_| invalid())?;
     let scalar_count = abi.scalar_parameters.len();
     let structural_count = abi.structural_parameters.len();
-    if scalar_count == 0
-        || structural_count == 0
+    if structural_count == 0
         || function.fixed_integer_scalar_abi.is_some()
         || function.unit_scalar_abi.is_some()
         || function.scalar_stack.is_none()

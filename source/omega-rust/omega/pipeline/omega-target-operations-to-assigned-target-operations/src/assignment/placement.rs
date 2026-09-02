@@ -11,6 +11,27 @@ pub(super) fn validate_structural_placement(
     let [location] = placement.locations.as_slice() else {
         return Err(AssignmentError::UnsupportedStructuralPlacement(place));
     };
+    if let ValueLocation::Indirect {
+        pointer,
+        copy_stack_byte_offset: None,
+        byte_size,
+        alignment,
+    } = *location
+        && placement.shape.class == ValueClass::BorrowedReference
+        && byte_size == placement.shape.byte_size
+        && alignment == placement.shape.alignment
+    {
+        return match pointer {
+            omega_calling_conventions::IndirectPointerLocation::Register(register) => {
+                validate_structural_register(place, register, architecture)
+            }
+            omega_calling_conventions::IndirectPointerLocation::Stack {
+                stack_byte_offset,
+                alignment,
+            } if alignment == 8 && stack_byte_offset % 8 == 0 => Ok(()),
+            _ => Err(AssignmentError::UnsupportedStructuralPlacement(place)),
+        };
+    }
     let ValueLocation::Register { register, .. } = location else {
         return match location {
             ValueLocation::Stack {

@@ -281,6 +281,7 @@ fn encode_value_placement(
     match shape.class() {
         PackageReviewBoundaryValueClass::Integer => encoder.byte(0),
         PackageReviewBoundaryValueClass::Float => encoder.byte(1),
+        PackageReviewBoundaryValueClass::BorrowedReference => encoder.byte(4),
         PackageReviewBoundaryValueClass::HomogeneousFloatAggregate { members } => {
             encoder.byte(2);
             encoder.byte(members);

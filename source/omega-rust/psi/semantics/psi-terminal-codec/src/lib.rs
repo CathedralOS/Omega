@@ -924,13 +924,14 @@ fn validate_operation_foundation(
             else {
                 return malformed("structural scalar field store destination is not a parameter");
             };
-            if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !matches!(
-                    parameter.access,
-                    psi_terminal::StructuralAccess::MutableBorrow
-                        | psi_terminal::StructuralAccess::WriteOnlyBorrow
-                )
-                || !parameter.qualifications.is_empty()
+            if !matches!(
+                parameter.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            ) || !matches!(
+                parameter.access,
+                psi_terminal::StructuralAccess::MutableBorrow
+                    | psi_terminal::StructuralAccess::WriteOnlyBorrow
+            ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || !matches!(path.as_slice(), [] | [StructuralPathSegment::Field(_)])
                 || machine

@@ -672,7 +672,7 @@ fn emit_x86_64_unit_store_immediate(
     }
 }
 
-fn emit_x86_64_memory_store_width(
+pub(crate) fn emit_x86_64_memory_store_width(
     bytes: &mut Vec<u8>,
     source: u8,
     base: u8,
@@ -743,7 +743,7 @@ fn emit_aarch64_unit_store_immediate(
     Ok(())
 }
 
-fn emit_aarch64_unit_immediate(instructions: &mut Vec<u32>, register: u8, bits: u64) {
+pub(crate) fn emit_aarch64_unit_immediate(instructions: &mut Vec<u32>, register: u8, bits: u64) {
     for chunk in 0..4 {
         let immediate = ((bits >> (chunk * 16)) & 0xffff) as u32;
         if chunk == 0 || immediate != 0 {

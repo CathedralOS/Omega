@@ -13,10 +13,11 @@ pub(super) fn encode_shape(
     bytes: &mut Vec<u8>,
     shape: ValueShape,
 ) -> Result<(), InstallationError> {
-    if shape.class != ValueClass::Integer {
-        return Err(InstallationError::UnsupportedStructuralReturnShape);
-    }
-    bytes.push(1);
+    bytes.push(match shape.class {
+        ValueClass::Integer => 1,
+        ValueClass::BorrowedReference => 2,
+        _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
+    });
     bytes.push(0);
     push_u16(bytes, shape.byte_size);
     push_u16(bytes, shape.alignment);
@@ -139,15 +140,24 @@ pub(super) fn encode_direct_placement(
 }
 
 pub(super) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, InstallationError> {
-    if reader.u8()? != 1 || reader.u8()? != 0 {
-        return Err(InstallationError::UnsupportedStructuralReturnShape);
+    let class = match reader.u8()? {
+        1 => ValueClass::Integer,
+        2 => ValueClass::BorrowedReference,
+        _ => return Err(InstallationError::UnsupportedStructuralReturnShape),
+    };
+    if reader.u8()? != 0 {
+        return Err(InstallationError::NonzeroReservedField);
     }
     let byte_size = reader.u16()?;
     let alignment = reader.u16()?;
     if reader.u16()? != 0 {
         return Err(InstallationError::NonzeroReservedField);
     }
-    Ok(ValueShape::integer(byte_size, alignment))
+    Ok(ValueShape {
+        class,
+        byte_size,
+        alignment,
+    })
 }
 
 pub(super) fn decode_placement(

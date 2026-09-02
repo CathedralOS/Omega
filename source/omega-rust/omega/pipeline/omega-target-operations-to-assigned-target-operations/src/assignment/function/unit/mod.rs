@@ -10,7 +10,7 @@ mod foreign_call;
 mod installed_provider;
 mod operation;
 mod scalar_call;
-mod structural_scalar;
+pub(super) mod structural_scalar;
 
 use crate::assignment::shared::*;
 

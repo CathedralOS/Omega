@@ -26,7 +26,7 @@ mod dynamic_argument;
 mod dynamic_scalar;
 mod installed_provider;
 mod scalar_call;
-mod structural_scalar;
+pub(crate) mod structural_scalar;
 
 use dynamic_argument::emit_forwarded_dynamic_descriptor_call;
 use dynamic_scalar::emit_dynamic_scalar_call;
