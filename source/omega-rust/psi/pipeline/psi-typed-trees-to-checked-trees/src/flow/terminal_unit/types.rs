@@ -32,8 +32,7 @@ pub(super) fn return_unit_affine_discards(
                 ..
             } => structural_arguments
                 .iter()
-                .filter(|argument| argument.byte_sequence_literal.is_none())
-                .map(|argument| argument.source_parameter_index)
+                .filter_map(|argument| argument.source_parameter_index())
                 .collect::<Vec<_>>(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }

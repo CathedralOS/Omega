@@ -397,6 +397,7 @@ pub(crate) fn validate_transfer_shape(
     arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
     transfers: &[psi_checked_trees::CheckedUnitClaimTransferPlan],
     caller_parameters: &[StructuralParameterDeclaration],
+    caller_trivial_affine_locals: &[StructuralPlaceDeclaration],
     target_parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
@@ -408,9 +409,8 @@ pub(crate) fn validate_transfer_shape(
         );
     }
     for (argument, target) in arguments.iter().zip(target_parameters) {
-        if argument.byte_sequence_literal.is_some() {
-            if argument.source_parameter_index != u32::MAX
-                || !argument.path.is_empty()
+        if argument.byte_sequence_literal().is_some() {
+            if !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
@@ -430,12 +430,45 @@ pub(crate) fn validate_transfer_shape(
             }
             continue;
         }
+        if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
+            let source = caller_trivial_affine_locals
+                .get(usize::try_from(declaration_ordinal).map_err(|_| {
+                    LoweringError::Unsupported("Unit local argument ordinal exceeds usize")
+                })?)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit local argument has an invalid declaration ordinal",
+                ))?;
+            let StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: source_ordinal,
+                structural_type,
+                ..
+            } = source.kind
+            else {
+                return unsupported("Unit local argument does not name a trivial affine local");
+            };
+            if source_ordinal != declaration_ordinal
+                || !argument.path.is_empty()
+                || argument.type_identity != target.type_identity
+                || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                || argument.access != psi_checked_trees::CheckedStructuralAccess::Owned
+                || target.access != psi_checked_trees::CheckedStructuralAccess::Owned
+                || target.multiplicity != Multiplicity::Affine
+                || !target.qualifications.is_empty()
+            {
+                return unsupported("Unit local argument has invalid checked custody");
+            }
+            continue;
+        }
+        let source_parameter_index =
+            argument
+                .source_parameter_index()
+                .ok_or(LoweringError::Unsupported(
+                    "Unit structural argument is neither a parameter nor a supported literal",
+                ))?;
         let source = caller_parameters
-            .get(
-                usize::try_from(argument.source_parameter_index).map_err(|_| {
-                    LoweringError::Unsupported("Unit structural argument index exceeds usize")
-                })?,
-            )
+            .get(usize::try_from(source_parameter_index).map_err(|_| {
+                LoweringError::Unsupported("Unit structural argument index exceeds usize")
+            })?)
             .ok_or(LoweringError::Unsupported(
                 "Unit structural argument has an invalid caller parameter index",
             ))?;
@@ -502,13 +535,14 @@ fn checked_access_can_supply(
 pub(crate) fn lower_structural_arguments(
     arguments: &[psi_checked_trees::CheckedUnitStructuralArgumentPlan],
     parameters: &[StructuralParameterDeclaration],
+    trivial_affine_locals: &[StructuralPlaceDeclaration],
     literal_places: &[PlaceId],
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
     let mut next_literal = 0usize;
     arguments
         .iter()
         .map(|argument| {
-            if argument.byte_sequence_literal.is_some() {
+            if argument.byte_sequence_literal().is_some() {
                 let place = *literal_places
                     .get(next_literal)
                     .ok_or(LoweringError::Unsupported(
@@ -534,12 +568,40 @@ pub(crate) fn lower_structural_arguments(
                     },
                 });
             }
+            if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
+                let source = trivial_affine_locals
+                    .get(usize::try_from(declaration_ordinal).map_err(|_| {
+                        LoweringError::Unsupported("Unit local argument ordinal exceeds usize")
+                    })?)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit local argument has an invalid declaration ordinal",
+                    ))?;
+                if !matches!(
+                    source.kind,
+                    StructuralPlaceKind::TrivialAffineLocal {
+                        declaration_ordinal: source_ordinal,
+                        ..
+                    } if source_ordinal == declaration_ordinal
+                ) || !argument.path.is_empty()
+                {
+                    return unsupported("Unit local argument drifted from checked custody");
+                }
+                return Ok(StructuralArgument {
+                    place: source.id,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                });
+            }
+            let source_parameter_index =
+                argument
+                    .source_parameter_index()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit structural argument is neither a parameter nor a lowered literal",
+                    ))?;
             let parameter = parameters
-                .get(
-                    usize::try_from(argument.source_parameter_index).map_err(|_| {
-                        LoweringError::Unsupported("Unit structural argument index exceeds usize")
-                    })?,
-                )
+                .get(usize::try_from(source_parameter_index).map_err(|_| {
+                    LoweringError::Unsupported("Unit structural argument index exceeds usize")
+                })?)
                 .ok_or(LoweringError::Unsupported(
                     "Unit structural argument has an invalid caller parameter index",
                 ))?;

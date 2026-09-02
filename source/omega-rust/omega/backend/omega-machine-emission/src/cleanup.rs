@@ -170,6 +170,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
                     &[],
                     target,
                     &[],
+                    &[],
                     &mut emitted.internal_calls,
                 )?;
             }
@@ -178,6 +179,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
                     &mut emitted.bytes,
                     owner,
                     cleanup.cleanup_machine,
+                    &[],
                     &[],
                     &[],
                     &mut emitted.internal_calls,
@@ -202,6 +204,7 @@ pub(super) fn emit_scalar_return_with_cleanup(
             owner,
             target: cleanup.cleanup_machine,
             result: None,
+            semantic_result: None,
             structural_result: None,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),
@@ -502,6 +505,7 @@ pub(super) fn emit_boolean_control_with_cleanup(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        structural_call_scalar_return: None,
         unit_scalar_abi: None,
         provenance: function.provenance.clone(),
         bytes: emitted.bytes,
@@ -817,6 +821,7 @@ fn emit_boolean_cleanup_leaf(
                     &[],
                     target,
                     &[],
+                    &[],
                     &mut internal_calls,
                 )?;
             }
@@ -825,6 +830,7 @@ fn emit_boolean_cleanup_leaf(
                     &mut bytes,
                     owner,
                     cleanup.cleanup_machine,
+                    &[],
                     &[],
                     &[],
                     &mut internal_calls,
@@ -846,6 +852,7 @@ fn emit_boolean_cleanup_leaf(
             owner,
             target: cleanup.cleanup_machine,
             result: None,
+            semantic_result: None,
             structural_result: None,
             arguments: Vec::new(),
             claim_transfers: Vec::new(),

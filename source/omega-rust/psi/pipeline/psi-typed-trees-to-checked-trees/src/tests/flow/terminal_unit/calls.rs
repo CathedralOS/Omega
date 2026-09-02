@@ -53,9 +53,9 @@ fn retains_exact_byte_literal_for_static_bodyless_boundary() {
     assert!(matches!(
         structural_arguments.as_slice(),
         [argument]
-            if argument.source_parameter_index == u32::MAX
+            if argument.source_parameter_index().is_none()
                 && argument.path.is_empty()
-                && argument.byte_sequence_literal.as_deref() == Some(&[0x80, b'A'][..])
+                && argument.byte_sequence_literal() == Some(&[0x80, b'A'][..])
     ));
 }
 
@@ -448,7 +448,7 @@ fn retains_one_direct_write_only_primitive_literal_store() {
             structural_arguments,
             ..
         } if matches!(structural_arguments.as_slice(), [argument]
-            if argument.source_parameter_index == 0
+            if argument.source_parameter_index() == Some(0)
                 && argument.path.is_empty()
                 && argument.access
                     == psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
@@ -531,7 +531,7 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
         ] if coordinate.statement_index == 2
             && coordinate.call_ordinal == 0
             && matches!(structural_arguments.as_slice(), [argument]
-                if argument.source_parameter_index == 0
+                if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.access
                         == psi_checked_trees::CheckedStructuralAccess::MutableBorrow)
@@ -588,7 +588,7 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
         ] if coordinate.statement_index == 2
             && coordinate.call_ordinal == 0
             && matches!(structural_arguments.as_slice(), [argument]
-                if argument.source_parameter_index == 0
+                if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.access
                         == psi_checked_trees::CheckedStructuralAccess::MutableBorrow)
@@ -748,7 +748,7 @@ fn retains_exact_write_only_common_field_subloan() {
     let [argument] = structural_arguments.as_slice() else {
         panic!("one projected write-only argument")
     };
-    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
         psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
@@ -790,7 +790,7 @@ fn retains_exact_literal_indexed_write_only_subloan() {
     let [argument] = structural_arguments.as_slice() else {
         panic!("one literal-indexed write-only argument")
     };
-    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
         psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
@@ -832,7 +832,7 @@ fn retains_exact_direct_root_literal_indexed_write_only_subloan() {
     let [argument] = structural_arguments.as_slice() else {
         panic!("one direct-root literal-indexed write-only argument")
     };
-    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(argument.source_parameter_index(), Some(0));
     assert_eq!(
         argument.access,
         psi_checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
@@ -1501,7 +1501,7 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
             assert_eq!(coordinate.call_ordinal, 0);
             assert_eq!(*target_machine, helper_symbol);
             assert_eq!(structural_arguments.len(), 1);
-            assert_eq!(structural_arguments[0].source_parameter_index, 0);
+            assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
             assert_eq!(claim_transfers.len(), 1);
             assert_eq!(claim_transfers[0].argument_index, 0);
             assert_eq!(

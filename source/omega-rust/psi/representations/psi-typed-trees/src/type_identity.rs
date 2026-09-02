@@ -833,6 +833,17 @@ fn normalize_type_reference(
 ) -> String {
     if let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(type_reference)
+        && let Some(generic_instance) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == *symbol)
+            .and_then(|definition| definition.generic_instance)
+        && generic_instance != type_reference
+    {
+        return normalize_type_reference(program, generic_instance, context);
+    }
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
         && let Some((_, replacement)) = context
             .substitutions
             .iter()
@@ -1481,6 +1492,7 @@ mod tests {
         package_qualified_nominal_name,
     };
     use crate::TypedTrees;
+    use crate::data::DataDefinition;
     use crate::domain::{DomainAliasConstituent, DomainAliasDefinition, DomainDefinition};
     use crate::expression::{
         BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode, NamePath,
@@ -1497,6 +1509,51 @@ mod tests {
     use psi_symbols::{
         SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
     };
+
+    #[test]
+    fn generated_concrete_generic_nominal_normalizes_to_its_exact_origin() {
+        let mut program = TypedTrees::default();
+        let generic_symbol = SymbolHandle::from_arena_index(91);
+        let concrete_symbol = SymbolHandle::from_arena_index(92);
+        let element = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated("i32"),
+            });
+        let arguments = program
+            .type_reference_table
+            .insert_type_reference_handles([element]);
+        let generic_instance = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: generic_symbol,
+                base_name: Identifier::generated("Buffer"),
+                lifetime_arguments: Vec::new(),
+                arguments,
+            });
+        let concrete = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: concrete_symbol,
+                name: Identifier::generated("Buffer<i32>"),
+            });
+        program.push_data_definition(DataDefinition {
+            symbol: concrete_symbol,
+            name: Identifier::generated("Buffer<i32>"),
+            generic_instance: Some(generic_instance),
+            ..DataDefinition::default()
+        });
+
+        assert_eq!(
+            program.normalized_type_identity(concrete),
+            program.normalized_type_identity(generic_instance),
+        );
+        assert_eq!(
+            program.package_qualified_type_identity(concrete),
+            program.package_qualified_type_identity(generic_instance),
+        );
+    }
 
     #[test]
     fn same_spelled_package_nominals_have_distinct_qualified_identities() {

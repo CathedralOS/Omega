@@ -110,13 +110,18 @@ pub(super) fn validate_unit_affine_cleanup(
         .iter()
         .map(|(_, place, _)| place.id)
         .collect::<Vec<_>>();
-    let expected_local_prefix = local_places.iter().rev().copied().collect::<Vec<_>>();
     let transferred_roots = internal_unit_calls
         .iter()
         .flat_map(|call| &call.arguments)
         .filter(|argument| argument.path.is_empty())
         .map(|argument| argument.place)
         .collect::<std::collections::BTreeSet<_>>();
+    let expected_local_prefix = local_places
+        .iter()
+        .rev()
+        .filter(|place| !transferred_roots.contains(place))
+        .copied()
+        .collect::<Vec<_>>();
     let expected_parameter_suffix = parameter_homes
         .iter()
         .rev()

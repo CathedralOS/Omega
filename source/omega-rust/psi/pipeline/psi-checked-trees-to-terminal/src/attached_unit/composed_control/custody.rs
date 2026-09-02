@@ -96,11 +96,11 @@ pub(super) fn admit(
         };
         if !scalar_arguments.is_empty()
             || !matches!(structural_arguments.as_slice(), [argument]
-                if argument.source_parameter_index == 0
+                if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.type_identity == entry_parameter.type_identity
                     && argument.access == psi_checked_trees::CheckedStructuralAccess::Owned
-                    && argument.byte_sequence_literal.is_none())
+                    && argument.byte_sequence_literal().is_none())
             || !matches!(completion_receipts.as_slice(), [receipt]
                 if receipt.claim_identity == leaf_claim.claim_identity
                     && receipt.argument_index == 0)

@@ -160,6 +160,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
                 &[],
                 target,
                 x86_homes,
+                &[],
                 internal_calls,
             )?;
         }
@@ -170,6 +171,7 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
                 *callee,
                 &[],
                 aarch64_homes,
+                &[],
                 internal_calls,
             )?;
         }

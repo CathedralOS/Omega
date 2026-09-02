@@ -11787,7 +11787,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 53 retains compact strong-identity
+  relocation. Canonical installation format 54 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Cross-architecture canaries cover two-row tables and reject

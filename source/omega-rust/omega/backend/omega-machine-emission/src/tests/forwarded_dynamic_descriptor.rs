@@ -146,10 +146,12 @@ fn emits_forwarded_descriptor_materializations_and_direct_helper_call() {
             }
         );
         assert!(call.direct_call_offset > argument.table_address.code_offset);
-        assert!(caller
-            .internal_calls
-            .iter()
-            .any(|relocation| relocation.target == call.callee));
+        assert!(
+            caller
+                .internal_calls
+                .iter()
+                .any(|relocation| relocation.target == call.callee)
+        );
         match (
             target.architecture,
             argument.table_address.encoding,

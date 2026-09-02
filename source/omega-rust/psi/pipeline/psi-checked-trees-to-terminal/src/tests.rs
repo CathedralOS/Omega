@@ -425,14 +425,14 @@ fn terminal_reborrow_restored_call_use_lowers_exact_two_member_shared_cohort() {
     assert_eq!(mutation_coordinate.statement_index, 4);
     assert_eq!(observation_arguments.len(), 2);
     assert!(observation_arguments.iter().all(|argument| {
-        argument.source_parameter_index == 0
+        argument.source_parameter_index() == Some(0)
             && argument.path.is_empty()
             && argument.access == psi_checked_trees::CheckedStructuralAccess::SharedBorrow
     }));
     let [mutation_argument] = mutation_arguments.as_slice() else {
         panic!("one restored whole-parent mutation argument")
     };
-    assert_eq!(mutation_argument.source_parameter_index, 0);
+    assert_eq!(mutation_argument.source_parameter_index(), Some(0));
     assert!(mutation_argument.path.is_empty());
     assert_eq!(
         mutation_argument.access,
@@ -2907,11 +2907,12 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                         service_reach: reach,
                         structural_arguments: vec![
                             psi_checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source_parameter_index: 0,
+                                source: psi_checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index: 0,
+                                },
                                 type_identity: "example::Acknowledgement".to_owned(),
                                 access: psi_checked_trees::CheckedStructuralAccess::Owned,
                                 path: Vec::new(),
-                                byte_sequence_literal: None,
                             },
                         ],
                         claim_transfers: vec![psi_checked_trees::CheckedUnitClaimTransferPlan {
@@ -2965,11 +2966,12 @@ fn hard_root_checked_fixture() -> CheckedTrees {
                         scalar_arguments: Vec::new(),
                         structural_arguments: vec![
                             psi_checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source_parameter_index: 0,
+                                source: psi_checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index: 0,
+                                },
                                 type_identity: "example::Acknowledgement".to_owned(),
                                 access: psi_checked_trees::CheckedStructuralAccess::Owned,
                                 path: Vec::new(),
-                                byte_sequence_literal: None,
                             },
                         ],
                         completion_receipts: vec![

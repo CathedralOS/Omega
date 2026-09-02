@@ -20,7 +20,7 @@ use omega_machine_code::{
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::CallSiteOwner;
-use psi_core::MachineId;
+use psi_core::{MachineId, OperationId};
 
 mod dynamic_argument;
 mod dynamic_scalar;
@@ -1089,6 +1089,7 @@ pub(super) fn emit_unit_body(
                         copies,
                         target,
                         &x86_homes,
+                        &established_affine_locals,
                         &mut internal_calls,
                     )?,
                     Architecture::Aarch64 => emit_aarch64_unit_call(
@@ -1097,6 +1098,7 @@ pub(super) fn emit_unit_body(
                         *callee,
                         copies,
                         &aarch64_homes,
+                        &established_affine_locals,
                         &mut internal_calls,
                     )?,
                 };
@@ -1104,6 +1106,7 @@ pub(super) fn emit_unit_body(
                     owner: CallSiteOwner::Operation(*psi_operation),
                     target: *callee,
                     result: *result,
+                    semantic_result: None,
                     structural_result: None,
                     arguments: copies
                         .iter()
@@ -1803,7 +1806,10 @@ pub(super) fn emit_unit_body(
                 let transferred_roots = body.operations[..operation_ordinal]
                     .iter()
                     .filter_map(|operation| match operation {
-                        AssignedUnitOperation::Call { copies, .. } => Some(copies),
+                        AssignedUnitOperation::Call { copies, .. }
+                        | AssignedUnitOperation::StructuralScalarCall { copies, .. } => {
+                            Some(copies)
+                        }
                         _ => None,
                     })
                     .flatten()
@@ -1813,6 +1819,7 @@ pub(super) fn emit_unit_body(
                 let expected_local_prefix = established_affine_locals
                     .iter()
                     .rev()
+                    .filter(|(_, place, _)| !transferred_roots.contains(&place.id))
                     .map(|(_, place, _)| place.id)
                     .collect::<Vec<_>>();
                 let expected_discards = expected_local_prefix
@@ -1999,6 +2006,7 @@ pub(super) fn emit_unit_body(
                                     &[],
                                     target,
                                     &x86_homes,
+                                    &established_affine_locals,
                                     &mut internal_calls,
                                 )?;
                             }
@@ -2009,6 +2017,7 @@ pub(super) fn emit_unit_body(
                                     cleanup.cleanup_machine,
                                     &[],
                                     &aarch64_homes,
+                                    &established_affine_locals,
                                     &mut internal_calls,
                                 )?;
                             }
@@ -2017,6 +2026,7 @@ pub(super) fn emit_unit_body(
                             owner,
                             target: cleanup.cleanup_machine,
                             result: None,
+                            semantic_result: None,
                             structural_result: None,
                             arguments: Vec::new(),
                             claim_transfers: Vec::new(),
@@ -2265,6 +2275,11 @@ pub(super) fn emit_x86_64_unit_call(
     copies: &[AssignedAggregateCopy],
     target: NativeTarget,
     homes: &[X86UnitParameterHome],
+    established_affine_locals: &[(
+        OperationId,
+        psi_terminal::StructuralPlaceDeclaration,
+        psi_terminal::StructuralTypeDeclaration,
+    )],
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
@@ -2292,10 +2307,27 @@ pub(super) fn emit_x86_64_unit_call(
     let mut argument_intervals = Vec::with_capacity(copies.len());
     for copy in copies {
         let copy_offset = bytes.len();
-        let home = homes
-            .iter()
-            .find(|home| home.place == copy.place)
-            .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+        let Some(home) = homes.iter().find(|home| home.place == copy.place) else {
+            let local = established_affine_locals
+                .iter()
+                .find(|(_, place, _)| place.id == copy.place)
+                .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+            if copy.path.is_empty()
+                && copy.source_byte_offset == 0
+                && copy.root_structural_type == local.2.id
+                && copy.structural_type == local.2.id
+                && copy.shape == ValueShape::integer(0, 1)
+                && copy.source.shape == copy.shape
+                && copy.source.locations.is_empty()
+                && copy.destination.shape == copy.shape
+                && copy.destination.locations.is_empty()
+                && matches!(local.2.shape, psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty())
+            {
+                argument_intervals.push((copy_offset, 0, 0, call_stack_bytes));
+                continue;
+            }
+            return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
+        };
         if home.source != copy.source
             || copy
                 .source_byte_offset
@@ -2339,6 +2371,11 @@ pub(super) fn emit_aarch64_unit_call(
     callee: MachineId,
     copies: &[AssignedAggregateCopy],
     homes: &[Aarch64UnitParameterHome],
+    established_affine_locals: &[(
+        OperationId,
+        psi_terminal::StructuralPlaceDeclaration,
+        psi_terminal::StructuralTypeDeclaration,
+    )],
     internal_calls: &mut Vec<InternalCallRelocation>,
 ) -> Result<Vec<(usize, usize, u32, u32)>, EmissionError> {
     let outgoing_bytes = copies
@@ -2357,10 +2394,32 @@ pub(super) fn emit_aarch64_unit_call(
     let mut argument_intervals = Vec::with_capacity(copies.len());
     for copy in copies {
         let instruction_offset = instructions.len();
-        let home = homes
-            .iter()
-            .find(|home| home.place == copy.place)
-            .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+        let Some(home) = homes.iter().find(|home| home.place == copy.place) else {
+            let local = established_affine_locals
+                .iter()
+                .find(|(_, place, _)| place.id == copy.place)
+                .ok_or(EmissionError::MissingUnitParameterHome(copy.place))?;
+            if copy.path.is_empty()
+                && copy.source_byte_offset == 0
+                && copy.root_structural_type == local.2.id
+                && copy.structural_type == local.2.id
+                && copy.shape == ValueShape::integer(0, 1)
+                && copy.source.shape == copy.shape
+                && copy.source.locations.is_empty()
+                && copy.destination.shape == copy.shape
+                && copy.destination.locations.is_empty()
+                && matches!(local.2.shape, psi_terminal::StructuralTypeShape::Record { ref fields } if fields.is_empty())
+            {
+                argument_intervals.push((
+                    bytes.len() + instruction_offset * 4,
+                    0,
+                    0,
+                    call_stack_bytes,
+                ));
+                continue;
+            }
+            return Err(EmissionError::UnitParameterHomeMismatch(copy.place));
+        };
         if home.source != copy.source
             || copy
                 .source_byte_offset

@@ -1052,21 +1052,57 @@ pub struct CheckedUnitCallCoordinate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedUnitStructuralArgumentPlan {
+pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Dense index into the caller's structural parameter list.
-    pub source_parameter_index: u32,
-    /// Empty names the complete source parameter. Accepted projected slices
-    /// retain exactly one literal fixed-array index or a finite nonempty record
-    /// field path; their specialized checked plans constrain the destination.
+    Parameter { parameter_index: u32 },
+    /// Dense declaration ordinal in the caller's checked trivial-affine-local
+    /// table. This source is always the exact whole local.
+    TrivialAffineLocal { declaration_ordinal: u32 },
+    /// Exact byte sequence passed directly to a bodyless boundary.
+    ByteSequenceLiteral { bytes: Vec<u8> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedUnitStructuralArgumentPlan {
+    pub source: CheckedUnitStructuralArgumentSourcePlan,
+    /// Empty names the complete source. Accepted parameter projections retain
+    /// exactly one literal fixed-array index or a finite nonempty record field
+    /// path; trivial locals and literals require an empty path.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
     /// Explicit access presented at this call site. This is independently
     /// checked against both the source carrier and target parameter.
     pub access: CheckedStructuralAccess,
-    /// Present only for an exact byte-sequence literal passed directly to a
-    /// bodyless boundary. The parameter index is then deliberately invalid and
-    /// must never be interpreted as caller storage.
-    pub byte_sequence_literal: Option<Vec<u8>>,
+}
+
+impl CheckedUnitStructuralArgumentPlan {
+    pub fn source_parameter_index(&self) -> Option<u32> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                Some(parameter_index)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
+        }
+    }
+
+    pub fn source_local_declaration_ordinal(&self) -> Option<u32> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+                declaration_ordinal,
+            } => Some(declaration_ordinal),
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
+        }
+    }
+
+    pub fn byte_sequence_literal(&self) -> Option<&[u8]> {
+        match &self.source {
+            CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. } => None,
+        }
+    }
 }
 
 /// One claim-free affine structural leaf that remains live after a projected

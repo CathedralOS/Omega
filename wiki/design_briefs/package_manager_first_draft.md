@@ -1324,6 +1324,20 @@ and changed-byte interval. A one-block checked call followed by an independent
 immediate Linux exit now exercises that path end to end without widening the
 exit settlement to dynamic or multi-block arguments.
 
+The hosted fixed-token structural/scalar lane also reaches D32 on Linux x86-64
+and AArch64. `ProgramEntry` constructs immutable claim-free affine empty-record
+locals, transfers each whole owned local exactly once into an ordinary Unit
+helper, and the helper returns the selected operator's scalar result. Checked
+custody records establishment and call transfer separately; Terminal frontier
+replay rejects use before establishment, reuse, or stale return cleanup. Native
+replay rejoins every zero-sized argument to either an incoming parameter home
+or the exact prior local establishment. A Unit body that contains and discards
+a scalar-producing call does not thereby gain function-result authority. The
+separate direct structural-call/scalar-return carrier binds its return edge,
+call operation, source value, scalar type, and callee. Mixed operands, structural
+results, projections, borrows, services, content evidence, and nontrivial local
+layouts remain unsupported rather than receiving partial physical evidence.
+
 Unoptimized normalized imports with only fixed-width 8-, 16-, 32-, or 64-bit
 integer scalar arguments and either Unit or one such scalar result now reach
 the admitted-provider D32 derivation lane. Their parent retains the exact

@@ -786,14 +786,14 @@ pub(super) fn lower_attached_unit_closure_including(
                 } => literal_arguments.extend(
                     structural_arguments
                         .iter()
-                        .filter(|argument| argument.byte_sequence_literal.is_some()),
+                        .filter(|argument| argument.byte_sequence_literal().is_some()),
                 ),
                 CheckedUnitEffectOperationPlan::CallUnit {
                     structural_arguments,
                     ..
                 } if structural_arguments
                     .iter()
-                    .any(|argument| argument.byte_sequence_literal.is_some()) =>
+                    .any(|argument| argument.byte_sequence_literal().is_some()) =>
                 {
                     return unsupported(
                         "byte-sequence literals may target only bodyless boundaries",
@@ -822,20 +822,18 @@ pub(super) fn lower_attached_unit_closure_including(
             .expect("terminal operation identity starts at one");
         let mut operations = OperationBuffer::new(operation_identity_base);
         for (argument, place) in literal_arguments.iter().zip(&literal_places) {
-            let bytes =
-                argument
-                    .byte_sequence_literal
-                    .as_ref()
-                    .ok_or(LoweringError::Unsupported(
-                        "byte-sequence literal payload is absent",
-                    ))?;
+            let bytes = argument
+                .byte_sequence_literal()
+                .ok_or(LoweringError::Unsupported(
+                    "byte-sequence literal payload is absent",
+                ))?;
             let id = operations.allocate();
             operations.push(Operation {
                 id,
                 result: psi_terminal::OperationResult::Unit,
                 kind: OperationKind::EstablishByteSequenceLiteral {
                     destination: place.id,
-                    bytes: bytes.clone(),
+                    bytes: bytes.to_vec(),
                 },
             });
         }
@@ -885,6 +883,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                         claim_transfers,
                         parameters,
+                        &local_places,
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -894,8 +893,12 @@ pub(super) fn lower_attached_unit_closure_including(
                             .map(|claim| claim.parameter_index)
                             .collect::<Vec<_>>(),
                     )?;
-                    let terminal_arguments =
-                        lower_structural_arguments(structural_arguments, parameters, &[])?;
+                    let terminal_arguments = lower_structural_arguments(
+                        structural_arguments,
+                        parameters,
+                        &local_places,
+                        &[],
+                    )?;
                     let target_parameters = lowered_machine_parameters
                         .iter()
                         .find_map(|(symbol, parameters)| {
@@ -930,6 +933,7 @@ pub(super) fn lower_attached_unit_closure_including(
                                     structural_crash_route_argument_prefix(
                                         argument,
                                         parameters,
+                                        &local_places,
                                         &structural_types,
                                     )?,
                                 ),
@@ -1193,13 +1197,14 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                         &[],
                         parameters,
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
                         &[],
                     )?;
                     let arguments =
-                        lower_structural_arguments(structural_arguments, parameters, &[])?;
+                        lower_structural_arguments(structural_arguments, parameters, &[], &[])?;
                     let value = ValueDeclaration {
                         id: value_id(next_value_identity),
                         scalar_type: terminal_scalar_type(result.primitive_type)?,
@@ -1365,8 +1370,9 @@ pub(super) fn lower_attached_unit_closure_including(
                             plan.entry_claims
                                 .iter()
                                 .filter(move |claim| {
-                                    argument.byte_sequence_literal.is_none()
-                                        && claim.parameter_index == argument.source_parameter_index
+                                    argument.byte_sequence_literal().is_none()
+                                        && Some(claim.parameter_index)
+                                            == argument.source_parameter_index()
                                         && (argument.path.is_empty() || claim.path == argument.path)
                                 })
                                 .map(move |_| {
@@ -1382,6 +1388,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                         completion_receipts,
                         parameters,
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1423,7 +1430,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     let literal_count = structural_arguments
                         .iter()
-                        .filter(|argument| argument.byte_sequence_literal.is_some())
+                        .filter(|argument| argument.byte_sequence_literal().is_some())
                         .count();
                     let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
                         LoweringError::Unsupported(
@@ -1445,6 +1452,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &call_literal_places,
                         )?,
                         completion_receipts: completion_receipts
@@ -1493,8 +1501,9 @@ pub(super) fn lower_attached_unit_closure_including(
                             plan.entry_claims
                                 .iter()
                                 .filter(move |claim| {
-                                    argument.byte_sequence_literal.is_none()
-                                        && claim.parameter_index == argument.source_parameter_index
+                                    argument.byte_sequence_literal().is_none()
+                                        && Some(claim.parameter_index)
+                                            == argument.source_parameter_index()
                                         && (argument.path.is_empty() || claim.path == argument.path)
                                 })
                                 .map(move |_| {
@@ -1510,6 +1519,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments,
                         completion_receipts,
                         parameters,
+                        &[],
                         &target.structural_parameters,
                         &type_ids,
                         &structural_types,
@@ -1551,7 +1561,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         .collect::<Result<Vec<_>, LoweringError>>()?;
                     let literal_count = structural_arguments
                         .iter()
-                        .filter(|argument| argument.byte_sequence_literal.is_some())
+                        .filter(|argument| argument.byte_sequence_literal().is_some())
                         .count();
                     let literal_end = next_literal_argument.checked_add(literal_count).ok_or(
                         LoweringError::Unsupported(
@@ -1573,6 +1583,7 @@ pub(super) fn lower_attached_unit_closure_including(
                         structural_arguments: lower_structural_arguments(
                             structural_arguments,
                             parameters,
+                            &[],
                             &call_literal_places,
                         )?,
                         completion_receipts: completion_receipts

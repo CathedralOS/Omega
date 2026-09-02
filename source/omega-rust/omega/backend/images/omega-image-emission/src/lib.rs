@@ -247,6 +247,8 @@ pub struct ObjectFunction {
     pub machine: MachineId,
     pub attachment: Option<psi_core::StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    pub structural_call_scalar_return:
+        Option<omega_machine_code::StructuralCallScalarReturnEvidence>,
     pub unit_scalar_abi: Option<omega_machine_code::UnitScalarFunctionAbiRecord>,
     pub provenance: TerminalPsiProvenance,
     pub symbol: ObjectSymbolHandle,
@@ -872,6 +874,44 @@ fn build_object_artifact_with_x86_feature_profile(
                 function.machine,
             ));
         }
+        if let Some(returned) = function.structural_call_scalar_return
+            && !(function.unit_stack.is_some()
+                && function.scalar_stack.is_none()
+                && function.provenance.operations.as_slice() == [returned.psi_operation]
+                && function.provenance.edges.as_slice() == [returned.psi_edge]
+                && matches!(
+                    (
+                        function.internal_unit_calls.as_slice(),
+                        function.semantic_code_attribution.as_slice(),
+                        function.unit_affine_cleanup.as_ref(),
+                    ),
+                    ([call], [call_attribution, return_attribution], Some(cleanup))
+                        if call.owner == CallSiteOwner::Operation(returned.psi_operation)
+                            && call.target == returned.callee
+                            && call.operation_ordinal == 0
+                            && call.result == Some(returned.scalar_type)
+                            && call.semantic_result.as_ref().is_some_and(|result| {
+                                result.value == returned.source_value
+                                    && result.scalar_type == returned.scalar_type
+                            })
+                            && call_attribution.site
+                                == SemanticCodeSite::Operation(returned.psi_operation)
+                            && call_attribution.operation_ordinal == call.operation_ordinal
+                            && call_attribution.code_offset == call.code_offset
+                            && call_attribution.byte_count == call.byte_count
+                            && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
+                            && return_attribution.operation_ordinal == 1
+                            && return_attribution.code_offset == cleanup.code_offset
+                            && return_attribution.byte_count == cleanup.byte_count
+                            && cleanup.psi_edge == returned.psi_edge
+                            && cleanup.locals.is_empty()
+                            && cleanup.actions.is_empty()
+                ))
+        {
+            return Err(ObjectError::InvalidInternalUnitCallEvidence(
+                function.machine,
+            ));
+        }
         if let Some(returned) = &function.structural_return {
             validate_structural_return_record(
                 plan.target,
@@ -1149,12 +1189,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 .get(&custody.target)
                 .copied()
                 .is_some_and(|target| {
-                    target.scalar_stack.is_some()
-                        || (target.unit_stack.is_some()
-                            && target
-                                .internal_unit_calls
-                                .iter()
-                                .any(|call| call.result.is_some()))
+                    target.scalar_stack.is_some() || target.structural_call_scalar_return.is_some()
                 });
             let target_structural_return = machine_functions
                 .get(&custody.target)
@@ -1187,8 +1222,20 @@ fn build_object_artifact_with_x86_feature_profile(
                     _ => false,
                 };
             if custody.result.is_some() != target_returns_scalar
+                || custody
+                    .semantic_result
+                    .as_ref()
+                    .map(|result| result.scalar_type)
+                    != custody.result
                 || !structural_result_valid
                 || (custody.structural_result.is_some() && target_returns_scalar)
+                || machine_functions
+                    .get(&custody.target)
+                    .is_some_and(|target| {
+                        target
+                            .structural_call_scalar_return
+                            .is_some_and(|returned| custody.result != Some(returned.scalar_type))
+                    })
             {
                 return Err(ObjectError::InvalidInternalUnitCallEvidence(
                     function.machine,
@@ -1220,6 +1267,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 &function.bytes,
                 &function.semantic_code_attribution,
                 &function.internal_calls,
+                &function.internal_unit_calls,
                 parameter_homes,
                 validated_function_stack.as_ref(),
                 unit_call_stack,
@@ -2000,6 +2048,7 @@ fn build_object_artifact_with_x86_feature_profile(
             machine: function.machine,
             attachment: function.attachment,
             fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+            structural_call_scalar_return: function.structural_call_scalar_return,
             unit_scalar_abi: function.unit_scalar_abi.clone(),
             provenance: function.provenance.clone(),
             symbol,

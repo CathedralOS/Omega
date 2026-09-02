@@ -144,30 +144,94 @@ pub(super) fn assign(
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-        } => AssignedUnitOperation::Call {
-            psi_operation: *psi_operation,
-            callee: *callee,
-            result: None,
-            copies: arguments
-                .iter()
-                .map(|argument| AssignedAggregateCopy {
-                    place: argument.place,
-                    access: argument.access,
-                    path: argument.path.clone(),
-                    root_structural_type: argument.root_structural_type,
-                    structural_type: argument.structural_type,
-                    shape: argument.shape,
-                    source_byte_offset: argument.source_byte_offset,
-                    fixed_array_length: argument.fixed_array_length,
-                    element_stride: argument.element_stride,
-                    source: argument.source.clone(),
-                    destination: argument.destination.clone(),
-                })
-                .collect(),
-            claim_transfers: claim_transfers.clone(),
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        },
+        } => {
+            let invalid = || AssignmentError::UnitCallCustodyMismatch {
+                machine,
+                operation: *psi_operation,
+            };
+            if arguments.iter().any(|argument| {
+                let parameter_source = body.parameters.iter().any(|parameter| {
+                    parameter.place == argument.place
+                        && parameter.structural_type == argument.root_structural_type
+                        && parameter.shape == argument.source.shape
+                        && parameter.placement == argument.source
+                });
+                let local_source = preceding_operations
+                    .iter()
+                    .filter_map(|preceding| match preceding {
+                        TargetUnitOperation::EstablishTrivialAffineLocal {
+                            psi_operation,
+                            place,
+                            structural_type,
+                        } if place.id == argument.place => {
+                            Some((*psi_operation, place, structural_type))
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                let exact_local = matches!(local_source.as_slice(), [(establishment, place, structural_type)]
+                    if argument.path.is_empty()
+                        && argument.access == psi_terminal::StructuralAccess::Owned
+                        && argument.root_structural_type == structural_type.id
+                        && argument.structural_type == structural_type.id
+                        && argument.shape == ValueShape::integer(0, 1)
+                        && argument.source.shape == argument.shape
+                        && argument.source.locations.is_empty()
+                        && matches!(
+                            place.kind,
+                            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                                structural_type: local_type,
+                                construction: None,
+                                ..
+                            } if local_type == structural_type.id
+                        )
+                        && matches!(
+                            structural_type.shape,
+                            psi_terminal::StructuralTypeShape::Record { ref fields }
+                                if fields.is_empty()
+                        )
+                        && body.structural_types.iter().any(|candidate| candidate == *structural_type)
+                        && !preceding_operations.iter().any(|preceding| match preceding {
+                            TargetUnitOperation::Call { arguments, .. }
+                            | TargetUnitOperation::StructuralScalarCall { arguments, .. } => {
+                                arguments.iter().any(|candidate| {
+                                    candidate.place == argument.place
+                                        && candidate.path.is_empty()
+                                        && candidate.access == psi_terminal::StructuralAccess::Owned
+                                })
+                            }
+                            _ => false,
+                        })
+                        && *establishment != *psi_operation);
+                !parameter_source && !exact_local
+            }) {
+                return Err(invalid());
+            }
+            AssignedUnitOperation::Call {
+                psi_operation: *psi_operation,
+                callee: *callee,
+                result: None,
+                copies: arguments
+                    .iter()
+                    .map(|argument| AssignedAggregateCopy {
+                        place: argument.place,
+                        access: argument.access,
+                        path: argument.path.clone(),
+                        root_structural_type: argument.root_structural_type,
+                        structural_type: argument.structural_type,
+                        shape: argument.shape,
+                        source_byte_offset: argument.source_byte_offset,
+                        fixed_array_length: argument.fixed_array_length,
+                        element_stride: argument.element_stride,
+                        source: argument.source.clone(),
+                        destination: argument.destination.clone(),
+                    })
+                    .collect(),
+                claim_transfers: claim_transfers.clone(),
+                requirement_obligations: requirement_obligations.clone(),
+                crash_continuations: crash_continuations.clone(),
+            }
+        }
         TargetUnitOperation::ScalarCall {
             psi_operation,
             callee,
@@ -201,6 +265,7 @@ pub(super) fn assign(
             crash_continuations,
         } => structural_scalar::assign_call(
             machine,
+            attachment,
             body,
             target,
             *psi_operation,

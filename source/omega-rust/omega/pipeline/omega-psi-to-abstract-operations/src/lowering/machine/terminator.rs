@@ -120,9 +120,27 @@ pub(super) fn lower_terminator(
             if result.is_some() {
                 return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
             }
+            let consumed_locals = operations
+                .iter()
+                .flat_map(|operation| match operation {
+                    AbstractOperation::CallUnit {
+                        structural_arguments,
+                        ..
+                    } => structural_arguments
+                        .iter()
+                        .filter(|argument| {
+                            argument.path.is_empty()
+                                && argument.access == psi_terminal::StructuralAccess::Owned
+                        })
+                        .map(|argument| argument.place)
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
+                })
+                .collect::<BTreeSet<_>>();
             let expected_locals = lowered_unit_affine_locals
                 .iter()
                 .rev()
+                .filter(|(_, place, _)| !consumed_locals.contains(&place.id))
                 .map(|(_, place, _)| place.id)
                 .collect::<Vec<_>>();
             if !trivial_affine_discards.starts_with(&expected_locals) {

@@ -67,7 +67,7 @@ fn composes_one_whole_root_linear_claim_through_both_boundary_leaves() {
                 completion_receipts,
                 ..
             }] if matches!(structural_arguments.as_slice(), [argument]
-                if argument.source_parameter_index == 0 && argument.path.is_empty())
+                if argument.source_parameter_index() == Some(0) && argument.path.is_empty())
                 && matches!(completion_receipts.as_slice(), [receipt]
                     if receipt.claim_identity == leaf.entry_claims[0].claim_identity
                         && receipt.argument_index == 0)

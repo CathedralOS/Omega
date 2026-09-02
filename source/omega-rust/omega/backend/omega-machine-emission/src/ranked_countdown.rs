@@ -97,6 +97,7 @@ pub(super) fn emit(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        structural_call_scalar_return: None,
         unit_scalar_abi: None,
         provenance: function.provenance.clone(),
         bytes,

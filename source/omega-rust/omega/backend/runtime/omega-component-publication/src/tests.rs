@@ -296,6 +296,7 @@ fn terminal_image(
             machine,
             attachment: None,
             fixed_integer_scalar_abi: None,
+            structural_call_scalar_return: None,
             unit_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![operation],

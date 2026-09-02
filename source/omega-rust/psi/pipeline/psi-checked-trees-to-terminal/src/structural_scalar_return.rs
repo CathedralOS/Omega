@@ -135,6 +135,7 @@ pub(super) fn lower_trait_operator_scalar_return_machine(
         realization,
         machine_id(2),
         TERMINAL_MACHINE_IDENTITY_STRIDE,
+        None,
     )?;
     let type_ids = lowered
         .semantic_module
@@ -303,7 +304,7 @@ pub(super) fn lower_structural_scalar_return_machine(
     }) {
         return lower_nominal_structural_scalar_return_machine(checked, plan);
     }
-    lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0)
+    lower_structural_scalar_return_machine_in_namespace(checked, plan, machine_id(1), 0, None)
 }
 
 pub(super) fn lower_structural_scalar_return_machine_in_namespace(
@@ -311,6 +312,7 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     plan: &CheckedStructuralScalarReturnMachinePlan,
     terminal_machine: MachineId,
     identity_base: u64,
+    shared_structural_types: Option<&[StructuralTypeDeclaration]>,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
     if plan.cleanup_actions.iter().any(|action| {
         matches!(
@@ -320,13 +322,33 @@ pub(super) fn lower_structural_scalar_return_machine_in_namespace(
     }) {
         return unsupported("namespaced structural scalar callees require direct root cleanup");
     }
-    let (structural_types, type_ids) = lower_structural_type_plans(
+    let (lowered_structural_types, lowered_type_ids) = lower_structural_type_plans(
         &checked
             .facts
             .flow
             .terminal_structural_scalar_returns
             .structural_types,
     )?;
+    let (structural_types, type_ids) = if let Some(shared) = shared_structural_types {
+        for declaration in &lowered_structural_types {
+            if !shared.iter().any(|candidate| {
+                candidate.identity == declaration.identity && candidate.shape == declaration.shape
+            }) {
+                return unsupported(
+                    "shared Unit structural catalog is missing a scalar realization type",
+                );
+            }
+        }
+        (
+            shared.to_vec(),
+            shared
+                .iter()
+                .map(|declaration| (declaration.identity.clone(), declaration.id))
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        (lowered_structural_types, lowered_type_ids)
+    };
     if plan.structural_parameters.is_empty() {
         return unsupported("structural scalar return has no structural parameters");
     }

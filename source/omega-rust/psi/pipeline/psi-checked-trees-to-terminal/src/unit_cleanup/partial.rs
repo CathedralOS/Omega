@@ -61,7 +61,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
                 .map_err(|_| LoweringError::Unsupported("partial affine call count exceeds u32"))?
             || coordinate.call_ordinal != 0
             || !claim_transfers.is_empty()
-            || argument.source_parameter_index != 0
+            || argument.source_parameter_index() != Some(0)
             || moved_paths.iter().any(|(earlier, _, _)| {
                 earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
             })

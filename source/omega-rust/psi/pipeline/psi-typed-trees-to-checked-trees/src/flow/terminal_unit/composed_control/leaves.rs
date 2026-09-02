@@ -27,6 +27,7 @@ pub(super) fn build(
         machine,
         state,
         structural_parameters,
+        &[],
         entry_claims,
         call,
         false,
@@ -103,11 +104,11 @@ fn exact_boundary_custody(
                 && claim.parameter_index == 0
                 && claim.path.is_empty()
                 && claim.carry == CarryPolicy::STRICT
-                && argument.source_parameter_index == 0
+                && argument.source_parameter_index() == Some(0)
                 && argument.path.is_empty()
                 && argument.type_identity == caller.type_identity
                 && argument.access == CheckedStructuralAccess::Owned
-                && argument.byte_sequence_literal.is_none()
+                && argument.byte_sequence_literal().is_none()
                 && receipt.claim_identity == claim.claim_identity
                 && receipt.argument_index == 0
                 && boundary.type_identity == caller.type_identity

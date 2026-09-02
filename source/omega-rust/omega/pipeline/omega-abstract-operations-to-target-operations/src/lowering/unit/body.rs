@@ -1,6 +1,7 @@
 //! Stateful operation dispatch for an attached Unit body.
 
 use super::super::shared::*;
+use super::super::structural_layout::structural_shape;
 use super::boundary_call::lower_boundary_call;
 use super::dynamic_scalar::lower_dynamic_scalar_call;
 use super::return_unit::lower_unit_return;
@@ -8,7 +9,7 @@ use super::scalar_call::{KnownUnitInteger, lower_scalar_call};
 use super::scalar_definitions::{
     lower_ieee_float_constant, lower_ieee_float_fma, lower_integer_constant,
 };
-use super::structural_call::lower_structural_unit_call;
+use super::structural_call::{StructuralCallLocalSource, lower_structural_unit_call};
 use super::structural_scalar::lower_dynamic_argument_scalar_call;
 use super::structural_scalar::{lower_field_store, lower_structural_scalar_call};
 
@@ -46,6 +47,8 @@ pub(super) fn lower_unit_body(
     let mut returned = false;
     let mut established_byte_sequences =
         BTreeMap::<PlaceId, (OperationId, StructuralTypeDeclaration, Vec<u8>)>::new();
+    let mut established_affine_local_sources =
+        BTreeMap::<PlaceId, StructuralCallLocalSource>::new();
     let mut integer_constants =
         BTreeMap::<ValueId, (OperationId, IntegerType, IntegerValue)>::new();
     let mut ieee_float_constants =
@@ -136,6 +139,41 @@ pub(super) fn lower_unit_body(
                 place,
                 structural_type,
             } => {
+                let shape = structural_shape(
+                    structural_type.id,
+                    structural_types,
+                    &mut shape_cache,
+                    &mut active,
+                )?;
+                if !matches!(
+                    (&place.kind, &structural_type.shape),
+                    (
+                        psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                            structural_type: place_type,
+                            ..
+                        },
+                        StructuralTypeShape::Record { fields }
+                    ) if *place_type == structural_type.id
+                        && fields.is_empty()
+                        && shape == ValueShape::integer(0, 1)
+                ) || established_affine_local_sources
+                    .insert(
+                        place.id,
+                        StructuralCallLocalSource {
+                            structural_type: structural_type.id,
+                            shape,
+                            placement: ValuePlacement {
+                                shape,
+                                locations: Vec::new(),
+                            },
+                        },
+                    )
+                    .is_some()
+                {
+                    return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                        function.machine,
+                    ));
+                }
                 operations.push(TargetUnitOperation::EstablishTrivialAffineLocal {
                     psi_operation: *psi_operation,
                     place: place.clone(),
@@ -150,6 +188,7 @@ pub(super) fn lower_unit_body(
                 functions,
                 structural_types,
                 &parameters_by_place,
+                &established_affine_local_sources,
                 &mut shape_cache,
                 &mut active,
                 &mut operations,

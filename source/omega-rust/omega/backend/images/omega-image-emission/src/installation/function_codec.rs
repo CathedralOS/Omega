@@ -6,7 +6,11 @@
 use psi_core::{MachineId, StructuralTypeId};
 
 use super::{
-    InstallationError, InstalledFunction, Reader, decode_boolean,
+    InstallationError, InstalledFunction, Reader,
+    boundary_result_scalar_codec::{
+        decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
+    },
+    decode_boolean,
     fixed_integer_scalar_abi_codec::{
         decode_fixed_integer_scalar_abi, encode_fixed_integer_scalar_abi,
     },
@@ -59,7 +63,18 @@ pub(super) fn encode_functions(
         encode_function_stack_facts(bytes, function)?;
         bytes.push(u8::from(function.unit_body));
         bytes.push(u8::from(function.ranked_u32_countdown));
-        bytes.extend_from_slice(&[0; 2]);
+        match function.structural_call_scalar_return {
+            Some(returned) => {
+                bytes.extend_from_slice(&[1, 0]);
+                push_u64(bytes, returned.psi_edge.get());
+                push_u64(bytes, returned.psi_operation.get());
+                push_u64(bytes, returned.source_value.get());
+                encode_boundary_result_scalar_type(bytes, returned.scalar_type);
+                bytes.extend_from_slice(&[0; 2]);
+                push_u64(bytes, returned.callee.get());
+            }
+            None => bytes.extend_from_slice(&[0, 0]),
+        }
         encode_fixed_integer_scalar_abi(bytes, function.fixed_integer_scalar_abi.as_ref())?;
         encode_parameter_records(bytes, &function.unit_parameters)?;
         encode_parameter_homes(bytes, &function.unit_parameter_homes)?;
@@ -135,9 +150,38 @@ pub(super) fn decode_functions(
             decode_function_stack_facts(reader)?;
         let unit_body = decode_boolean(reader.u8()?)?;
         let ranked_u32_countdown = decode_boolean(reader.u8()?)?;
-        if reader.take(2)? != [0; 2] {
+        let has_structural_call_scalar_return = decode_boolean(reader.u8()?)?;
+        if reader.u8()? != 0 {
             return Err(InstallationError::NonzeroReservedField);
         }
+        let structural_call_scalar_return = match has_structural_call_scalar_return {
+            false => None,
+            true => {
+                let psi_edge = psi_core::EdgeId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralCallScalarReturnIdentity("return edge"),
+                )?;
+                let psi_operation = psi_core::OperationId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralCallScalarReturnIdentity("call operation"),
+                )?;
+                let source_value = psi_core::ValueId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralCallScalarReturnIdentity("source value"),
+                )?;
+                let scalar_type = decode_boundary_result_scalar_type(reader)?;
+                if reader.take(2)? != [0; 2] {
+                    return Err(InstallationError::NonzeroReservedField);
+                }
+                let callee = psi_core::MachineId::new(reader.u64()?).ok_or(
+                    InstallationError::ZeroStructuralCallScalarReturnIdentity("callee"),
+                )?;
+                Some(omega_machine_code::StructuralCallScalarReturnEvidence {
+                    psi_edge,
+                    psi_operation,
+                    source_value,
+                    scalar_type,
+                    callee,
+                })
+            }
+        };
         let fixed_integer_scalar_abi = decode_fixed_integer_scalar_abi(reader)?;
         let unit_parameters = decode_unit_parameter_records(reader)?;
         let unit_parameter_homes = decode_unit_parameter_homes(reader)?;
@@ -149,6 +193,7 @@ pub(super) fn decode_functions(
             machine,
             attachment,
             fixed_integer_scalar_abi,
+            structural_call_scalar_return,
             text_offset,
             byte_count,
             unit_stack,

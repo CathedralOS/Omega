@@ -23,6 +23,7 @@ pub(super) fn validate_internal_unit_call_custody(
     function_bytes: &[u8],
     attribution: &[SemanticCodeAttribution],
     relocations: &[omega_machine_code::InternalCallRelocation],
+    internal_unit_calls: &[omega_machine_code::InternalUnitCallRecord],
     parameter_homes: &[omega_machine_code::UnitParameterHomeRecord],
     validated_function_stack: Option<&ObjectUnitStack>,
     validated_call_stack: Option<&ObjectUnitCallStack>,
@@ -128,6 +129,11 @@ pub(super) fn validate_internal_unit_call_custody(
     let CallSiteOwner::Operation(operation) = custody.owner else {
         return Err(invalid());
     };
+    let operation_position = provenance
+        .operations
+        .iter()
+        .position(|candidate| *candidate == operation)
+        .ok_or_else(invalid)?;
     let expected_plan = omega_calling_conventions::evaluate_call_plan(
         omega_calling_conventions::CallingPolicy::native_for_target(target),
         &omega_calling_conventions::CallSignature {
@@ -241,18 +247,76 @@ pub(super) fn validate_internal_unit_call_custody(
             .iter()
             .zip(&expected_plan.parameters)
             .any(|(argument, destination)| {
-                let home_mismatch = !argument.path.is_empty()
-                    && projected_home.is_none_or(|home| {
-                        argument.place != home.place
-                            || argument.root_structural_type != home.structural_type
-                            || argument.source != home.source
-                            || argument.source.shape != home.shape
-                            || argument.source_home_byte_offset != home.byte_offset
+                let parameter_source = parameter_homes
+                    .iter()
+                    .find(|home| home.place == argument.place)
+                    .is_some_and(|home| {
+                        argument.root_structural_type == home.structural_type
+                            && argument.source == home.source
+                            && argument.source.shape == home.shape
+                            && argument.source_home_byte_offset == home.byte_offset
+                            && (argument.path.is_empty()
+                                || projected_home.is_some_and(|projected| {
+                                    projected.place == home.place
+                                        && projected.structural_type == home.structural_type
+                                }))
                     });
+                let local_source = affine_cleanup
+                    .and_then(|cleanup| {
+                        cleanup.locals.iter().find(|(_, place, structural_type)| {
+                            place.id == argument.place
+                                && argument.path.is_empty()
+                                && argument.access == psi_terminal::StructuralAccess::Owned
+                                && argument.root_structural_type == structural_type.id
+                                && argument.structural_type == structural_type.id
+                                && argument.shape
+                                    == omega_calling_conventions::ValueShape::integer(0, 1)
+                                && argument.source.shape == argument.shape
+                                && argument.source.locations.is_empty()
+                                && argument.destination.shape == argument.shape
+                                && argument.destination.locations.is_empty()
+                                && argument.source_home_byte_offset == 0
+                                && matches!(
+                                    place.kind,
+                                    psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                                        structural_type: local_type,
+                                        construction: None,
+                                        ..
+                                    } if local_type == structural_type.id
+                                )
+                                && matches!(
+                                    structural_type.shape,
+                                    psi_terminal::StructuralTypeShape::Record { ref fields }
+                                        if fields.is_empty()
+                                )
+                        })
+                    })
+                    .is_some_and(|(establishment, _, _)| {
+                        provenance
+                            .operations
+                            .iter()
+                            .position(|candidate| candidate == establishment)
+                            .is_some_and(|position| position < operation_position)
+                            && internal_unit_calls
+                                .iter()
+                                .flat_map(|call| &call.arguments)
+                                .filter(|candidate| {
+                                    candidate.place == argument.place && candidate.path.is_empty()
+                                })
+                                .count()
+                                == 1
+                    });
+                let zero_byte_argument = (parameter_source || local_source)
+                    && argument.path.is_empty()
+                    && argument.byte_count == 0
+                    && argument.bytes.is_empty()
+                    && argument.shape == omega_calling_conventions::ValueShape::integer(0, 1)
+                    && argument.source.locations.is_empty()
+                    && argument.destination.locations.is_empty();
                 argument.destination != *destination
                     || argument.call_stack_bytes != expected_call_stack_bytes
-                    || home_mismatch
-                    || argument.byte_count == 0
+                    || (!parameter_source && !local_source)
+                    || (argument.byte_count == 0 && !zero_byte_argument)
                     || argument.bytes.len() != argument.byte_count
                     || argument
                         .code_offset

@@ -2048,10 +2048,11 @@ pub(crate) fn validate_linear_permission_events(
             if let Some(first) = outcomes.first() {
                 for place_index in 0..places.len() {
                     let live = first[place_index].live;
-                    if outcomes
-                        .iter()
-                        .skip(1)
-                        .any(|outcome| outcome[place_index].live != live)
+                    if places[place_index].multiplicity == Multiplicity::Linear
+                        && outcomes
+                            .iter()
+                            .skip(1)
+                            .any(|outcome| outcome[place_index].live != live)
                     {
                         diagnostics.push(Diagnostic::error(format!(
                             "linear value `{}` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation",
@@ -2071,7 +2072,8 @@ pub(crate) fn validate_linear_permission_events(
 
         if has_ordinary_exit {
             for place in places.iter().filter(|place| {
-                place.live
+                place.multiplicity == Multiplicity::Linear
+                    && place.live
                     && !mixed_places
                         .iter()
                         .any(|(symbol, path)| *symbol == place.symbol && *path == place.path)
@@ -2212,17 +2214,50 @@ fn initial_linear_places(
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
-        for claim in linear_claim_frontier(program, local.type_reference) {
+        let claims = linear_claim_frontier(program, local.type_reference);
+        for claim in &claims {
             places.push(LinearPlace {
                 symbol: local.symbol,
                 name: claim_place_name(program, local.name.as_str(), &claim.path),
-                path: claim.path,
+                path: claim.path.clone(),
                 multiplicity: claim.multiplicity,
                 claim_identity: None,
                 provenance: None,
                 live: false,
                 ever_established: false,
                 conditional: claim.conditional,
+            });
+        }
+        if claims.is_empty()
+            && type_multiplicity(program, local.type_reference) == Multiplicity::Affine
+            && !local.is_mutable
+            && local.initial_value.is_valid()
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(local.type_reference),
+                psi_typed_trees::types::TypeReferenceNode::Named { .. }
+            )
+            && matches!(
+                program.expression_table.expression(local.initial_value),
+                psi_typed_trees::expression::ExpressionNode::StructLiteral(literal)
+                    if literal.case_name.is_none()
+                        && program
+                            .expression_table
+                            .struct_fields(literal.fields)
+                            .is_empty()
+            )
+        {
+            places.push(LinearPlace {
+                symbol: local.symbol,
+                name: local.name.as_str().to_owned(),
+                path: Vec::new(),
+                multiplicity: Multiplicity::Affine,
+                claim_identity: None,
+                provenance: None,
+                live: false,
+                ever_established: false,
+                conditional: false,
             });
         }
     }
@@ -2512,7 +2547,7 @@ fn apply_recorded_state_entry_events(
         else {
             continue;
         };
-        place.live = event.obligation_live;
+        place.live = event.obligation_live || place.multiplicity == Multiplicity::Affine;
         place.ever_established = true;
         place.claim_identity = Some(event.claim_identity);
         place.provenance = Some(event.provenance);
@@ -2563,7 +2598,7 @@ fn apply_recorded_statement_events(
                         place.name
                     )));
                 }
-                place.live = event.obligation_live;
+                place.live = event.obligation_live || place.multiplicity == Multiplicity::Affine;
                 place.ever_established = true;
                 place.claim_identity = Some(event.claim_identity);
                 place.provenance = Some(event.provenance);
@@ -2803,7 +2838,7 @@ fn apply_statement_permission_production(
             }
             let segments = facts.flow.ownership.segments.insert_many(claim_path);
             let place = &mut places[index];
-            let obligation_live = place.live;
+            let obligation_live = place.live && place.multiplicity == Multiplicity::Linear;
             permission_events.push(FlowPermissionEventFact {
                 machine_symbol,
                 state_symbol,
@@ -2845,7 +2880,7 @@ fn apply_statement_permission_production(
         let segments = facts.flow.ownership.segments.insert_many(claim_path);
         let place = &mut places[place_index];
         debug_assert_eq!(place.symbol, symbol);
-        place.live = obligation_live;
+        place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
         place.ever_established = true;
         place.claim_identity = Some(claim_identity);
         place.provenance = Some(provenance.unwrap_or_else(|| {
@@ -3071,14 +3106,15 @@ fn written_linear_targets(
                 root: target.root,
                 destination_path: target.segments.clone(),
                 place_index,
-                obligation_live: expression_establishes_obligation(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    value,
-                    relative_path,
-                    places,
-                ),
+                obligation_live: tracked.multiplicity != Multiplicity::Affine
+                    && expression_establishes_obligation(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        value,
+                        relative_path,
+                        places,
+                    ),
                 claim_identity: expression_permission_claim_identity_for_claim(
                     program,
                     state_symbol,
@@ -3429,7 +3465,14 @@ fn append_affine_cleanup_permission_events(
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     let mut append = |symbol: SymbolHandle, type_reference: TypeReferenceHandle| {
-        if tracked_places.iter().any(|place| place.symbol == symbol)
+        let tracked_root = tracked_places
+            .iter()
+            .find(|place| place.symbol == symbol && place.path.is_empty());
+        if let Some(place) = tracked_root {
+            if place.multiplicity != Multiplicity::Affine || !place.live {
+                return;
+            }
+        } else if tracked_places.iter().any(|place| place.symbol == symbol)
             || type_multiplicity(program, type_reference) == Multiplicity::Unrestricted
         {
             return;
@@ -3442,7 +3485,9 @@ fn append_affine_cleanup_permission_events(
             multiplicity: Multiplicity::Affine,
             access: PermissionAccess::Owned,
             claim_identity: PermissionClaimIdentity::Unknown,
-            provenance: PermissionProvenance::Unknown,
+            provenance: tracked_root
+                .and_then(|place| place.provenance)
+                .unwrap_or(PermissionProvenance::Unknown),
             root: psi_facts::PlaceRoot::Symbol(symbol),
             segments: HandleSpan::empty(),
             obligation_live: false,

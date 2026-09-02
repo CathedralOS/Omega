@@ -175,7 +175,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             plan.entry_claims
                 .iter()
                 .filter(move |claim| {
-                    claim.parameter_index == argument.source_parameter_index
+                    Some(claim.parameter_index) == argument.source_parameter_index()
                         && (argument.path.is_empty() || claim.path == argument.path)
                 })
                 .map(move |_| {
@@ -189,6 +189,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         structural_arguments,
         completion_receipts,
         &parameters,
+        &[],
         &boundary.structural_parameters,
         &type_ids,
         &structural_types,
@@ -255,6 +256,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
             structural_arguments: lower_structural_arguments(
                 structural_arguments,
                 &parameters,
+                &[],
                 &[],
             )?,
             completion_receipts: completion_receipts
