@@ -25,6 +25,16 @@ pub enum ClosedOperatorApplicationArgument {
     },
 }
 
+/// One direct mapping from a boundary operator's type telescope into the
+/// enclosing generic machine's type telescope. This is an open demand, not a
+/// closed application or realization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolicOperatorTypeApplicationArgument {
+    pub operator_binder_symbol: SymbolHandle,
+    pub machine_binder_symbol: SymbolHandle,
+    pub machine_binder_ordinal: u32,
+}
+
 /// One concrete checked-body realization of an exact operator requirement.
 ///
 /// The requirement owns the binder telescope. Argument order therefore
@@ -123,6 +133,85 @@ pub fn closed_operator_application_for_operands(
         })
         .collect::<Option<Vec<_>>>()?;
     Some(application)
+}
+
+/// Derive the first supported symbolic D29 application shape: every operator
+/// type binder maps directly to one type binder on the enclosing generic
+/// machine. Nested type construction and symbolic const expressions remain
+/// unsupported so this fact cannot overstate what final substitution can
+/// close and independently validate.
+pub fn symbolic_operator_type_application_for_operands(
+    program: &TypedTrees,
+    machine: &crate::machine::Machine,
+    operator: &OperatorDefinition,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> Option<Vec<SymbolicOperatorTypeApplicationArgument>> {
+    if !operator.lifetime_parameters.is_empty() {
+        return None;
+    }
+    let operator_parameters = program.operator_type_parameters(operator);
+    if operator_parameters.is_empty()
+        || operator_parameters
+            .iter()
+            .any(|parameter| !matches!(parameter.kind, crate::data::TypeParameterKind::Type))
+    {
+        return None;
+    }
+    let parameters = program.operator_parameters(operator);
+    if parameters.len() != operand_types.len() {
+        return None;
+    }
+
+    let mut type_bindings = Vec::new();
+    let mut const_bindings = Vec::new();
+    if !operand_types
+        .iter()
+        .zip(normalized_operand_parameters(parameters))
+        .all(|(actual, expected)| {
+            actual.is_some_and(|actual| {
+                type_reference_matches_with_policy(
+                    program,
+                    actual,
+                    expected.type_reference,
+                    None,
+                    operator_parameters,
+                    &mut type_bindings,
+                    &mut const_bindings,
+                    false,
+                ) && declared_domain_constraints_match(program, actual, expected.type_reference)
+            })
+        })
+        || !const_bindings.is_empty()
+    {
+        return None;
+    }
+
+    let machine_parameters = program.machine_type_parameters(machine);
+    operator_parameters
+        .iter()
+        .map(|operator_parameter| {
+            let type_reference = type_bindings.iter().find_map(|(symbol, argument)| {
+                (*symbol == operator_parameter.symbol).then_some(*argument)
+            })?;
+            let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(type_reference)
+            else {
+                return None;
+            };
+            let (machine_binder_ordinal, machine_parameter) = machine_parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| parameter.symbol == *symbol)?;
+            if !matches!(machine_parameter.kind, crate::data::TypeParameterKind::Type) {
+                return None;
+            }
+            Some(SymbolicOperatorTypeApplicationArgument {
+                operator_binder_symbol: operator_parameter.symbol,
+                machine_binder_symbol: machine_parameter.symbol,
+                machine_binder_ordinal: u32::try_from(machine_binder_ordinal).ok()?,
+            })
+        })
+        .collect()
 }
 
 /// Reconstruct one specialized machine's exact closed realization of an

@@ -97,6 +97,28 @@ pub struct CheckedBoundaryOperatorApplicationDemand {
     pub arguments: Vec<CheckedBoundaryOperatorApplicationArgument>,
 }
 
+/// One checked open application exported by a generic machine. This is
+/// symbolic demand only; it cannot satisfy a closed application or authorize
+/// a realization before final substitution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedSymbolicBoundaryOperatorApplicationDemand {
+    pub site: CheckedBoundaryOperatorApplicationUseSite,
+    pub requirement_symbol: SymbolHandle,
+    pub machine_symbol: SymbolHandle,
+    pub arguments: Vec<CheckedSymbolicBoundaryOperatorApplicationArgument>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedSymbolicBoundaryOperatorApplicationArgument {
+    TypeBinder {
+        binder_owner: SymbolHandle,
+        binder_ordinal: u32,
+        binder_symbol: SymbolHandle,
+        machine_binder_ordinal: u32,
+        machine_binder_symbol: SymbolHandle,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedBoundaryOperatorApplicationUseSite {
     Expression {
@@ -428,6 +450,10 @@ pub struct CheckedOperatorFacts {
     /// D29 checked-use demands. Absence for a selected boundary use is not
     /// coverage; later authority-bearing consumers must fail closed.
     pub boundary_applications: Vec<CheckedBoundaryOperatorApplicationDemand>,
+    /// D29 open demands retained separately from closed applications so no
+    /// downstream consumer can accidentally interpret them as coverage.
+    pub symbolic_boundary_applications:
+        Vec<CheckedSymbolicBoundaryOperatorApplicationDemand>,
 }
 
 /// Retained checked baseline for one machine-to-operator realization.
@@ -511,6 +537,7 @@ impl CheckedOperatorFacts {
             operator_crash_contracts: Vec::new(),
             operator_realization_contracts: Vec::new(),
             boundary_applications: Vec::new(),
+            symbolic_boundary_applications: Vec::new(),
         }
     }
 

@@ -1,7 +1,9 @@
 use psi_checked_trees::{
     CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationDemand,
     CheckedBoundaryOperatorApplicationUseSite, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedOperatorUseFact, CheckedValueOrigin,
+    CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedSymbolicBoundaryOperatorApplicationDemand, CheckedValueOrigin,
 };
 use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -26,6 +28,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
     }
     let mut diagnostics = Vec::new();
     let mut applications = Vec::new();
+    let mut symbolic_applications = Vec::new();
     for (_, operator_use) in operators.uses.iter() {
         if operator_use.status != CheckedOperatorResolutionStatus::Resolved {
             continue;
@@ -101,6 +104,35 @@ pub(crate) fn bind_boundary_operator_application_demands(
                 for operator_use in matching_uses {
                     let operand_types =
                         named_expression_operand_types(program, call, operator_use.origin);
+                    if application.arguments.iter().any(|argument| {
+                        matches!(
+                            argument,
+                            psi_validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. }
+                        )
+                    }) {
+                        if let Some((machine_symbol, arguments)) =
+                            rejoin_validated_symbolic_arguments(
+                                program,
+                                operator,
+                                &application.arguments,
+                                &operand_types,
+                                &mut diagnostics,
+                            )
+                        {
+                            symbolic_applications.push(
+                                CheckedSymbolicBoundaryOperatorApplicationDemand {
+                                    site: CheckedBoundaryOperatorApplicationUseSite::Expression {
+                                        expression,
+                                        origin: operator_use.origin,
+                                    },
+                                    requirement_symbol: operator.symbol,
+                                    machine_symbol,
+                                    arguments,
+                                },
+                            );
+                        }
+                        continue;
+                    }
                     if let Some(arguments) = rejoin_validated_arguments(
                         program,
                         &symbols,
@@ -133,6 +165,17 @@ pub(crate) fn bind_boundary_operator_application_demands(
                     ));
                     continue;
                 }
+                if application.arguments.iter().any(|argument| {
+                    matches!(
+                        argument,
+                        psi_validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. }
+                    )
+                }) {
+                    diagnostics.push(psi_diagnostics::Diagnostic::error(
+                        "symbolic statement boundary applications are not yet supported",
+                    ));
+                    continue;
+                }
                 if let Some(arguments) = rejoin_validated_arguments(
                     program,
                     &symbols,
@@ -154,6 +197,7 @@ pub(crate) fn bind_boundary_operator_application_demands(
         return Err(diagnostics);
     }
     operators.boundary_applications = applications;
+    operators.symbolic_boundary_applications = symbolic_applications;
     Ok(())
 }
 
@@ -247,8 +291,9 @@ fn rejoin_validated_arguments(
         return None;
     }
     let mut closed = Vec::with_capacity(validated.len());
+    let mut checked = Vec::with_capacity(validated.len());
     for (ordinal, (argument, parameter)) in validated.iter().zip(parameters).enumerate() {
-        let (binder_owner, binder_ordinal, binder_symbol, closed_argument) = match argument {
+        let (binder_owner, binder_ordinal, binder_symbol, closed_argument, checked_argument) = match argument {
             psi_validation::ValidatedBoundaryOperatorApplicationArgument::Type {
                 binder_owner,
                 binder_ordinal,
@@ -259,6 +304,12 @@ fn rejoin_validated_arguments(
                 *binder_ordinal,
                 *binder_symbol,
                 ClosedOperatorApplicationArgument::Type {
+                    binder_symbol: *binder_symbol,
+                    type_reference: *type_reference,
+                },
+                CheckedBoundaryOperatorApplicationArgument::Type {
+                    binder_owner: *binder_owner,
+                    binder_ordinal: *binder_ordinal,
                     binder_symbol: *binder_symbol,
                     type_reference: *type_reference,
                 },
@@ -278,7 +329,20 @@ fn rejoin_validated_arguments(
                     declared_carrier: *declared_carrier,
                     value: value.clone(),
                 },
+                CheckedBoundaryOperatorApplicationArgument::Const {
+                    binder_owner: *binder_owner,
+                    binder_ordinal: *binder_ordinal,
+                    binder_symbol: *binder_symbol,
+                    declared_carrier: *declared_carrier,
+                    value: value.clone(),
+                },
             ),
+            psi_validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder { .. } => {
+                diagnostics.push(psi_diagnostics::Diagnostic::error(
+                    "symbolic boundary application entered closed-application replay",
+                ));
+                return None;
+            }
         };
         if binder_owner != operator.symbol
             || usize::try_from(binder_ordinal).ok() != Some(ordinal)
@@ -290,6 +354,7 @@ fn rejoin_validated_arguments(
             return None;
         }
         closed.push(closed_argument);
+        checked.push(checked_argument);
     }
     if let Err(diagnostic) =
         psi_validation::validate_closed_operator_application(program, symbols, operator, &closed)
@@ -315,37 +380,117 @@ fn rejoin_validated_arguments(
             return None;
         }
     }
-    Some(
-        validated
+    Some(checked)
+}
+
+fn rejoin_validated_symbolic_arguments(
+    program: &TypedTrees,
+    operator: &psi_typed_trees::operator::OperatorDefinition,
+    validated: &[psi_validation::ValidatedBoundaryOperatorApplicationArgument],
+    operand_types: &[Option<TypeReferenceHandle>],
+    diagnostics: &mut Vec<psi_diagnostics::Diagnostic>,
+) -> Option<(
+    psi_symbols::SymbolHandle,
+    Vec<CheckedSymbolicBoundaryOperatorApplicationArgument>,
+)> {
+    let parameters = program.operator_type_parameters(operator);
+    if !operator.lifetime_parameters.is_empty()
+        || parameters.is_empty()
+        || parameters
             .iter()
-            .map(|argument| match argument {
-                psi_validation::ValidatedBoundaryOperatorApplicationArgument::Type {
-                    binder_owner,
-                    binder_ordinal,
-                    binder_symbol,
-                    type_reference,
-                } => CheckedBoundaryOperatorApplicationArgument::Type {
-                    binder_owner: *binder_owner,
-                    binder_ordinal: *binder_ordinal,
-                    binder_symbol: *binder_symbol,
-                    type_reference: *type_reference,
-                },
-                psi_validation::ValidatedBoundaryOperatorApplicationArgument::Const {
-                    binder_owner,
-                    binder_ordinal,
-                    binder_symbol,
-                    declared_carrier,
-                    value,
-                } => CheckedBoundaryOperatorApplicationArgument::Const {
-                    binder_owner: *binder_owner,
-                    binder_ordinal: *binder_ordinal,
-                    binder_symbol: *binder_symbol,
-                    declared_carrier: *declared_carrier,
-                    value: value.clone(),
-                },
+            .any(|parameter| !matches!(parameter.kind, psi_typed_trees::data::TypeParameterKind::Type))
+        || parameters.len() != validated.len()
+    {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(
+            "symbolic boundary application does not match the supported type-only operator telescope",
+        ));
+        return None;
+    }
+
+    let machine_symbol = validated.first().and_then(|argument| match argument {
+        psi_validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
+            machine_owner,
+            ..
+        } => Some(*machine_owner),
+        _ => None,
+    })?;
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(
+            "symbolic boundary application lost its enclosing generic machine",
+        ));
+        return None;
+    };
+    let machine_parameters = program.machine_type_parameters(machine);
+    let rederived =
+        psi_typed_trees::operator::symbolic_operator_type_application_for_operands(
+            program,
+            machine,
+            operator,
+            operand_types,
+        );
+    let Some(rederived) = rederived else {
+        diagnostics.push(psi_diagnostics::Diagnostic::error(
+            "symbolic boundary application no longer reconstructs from its selected use",
+        ));
+        return None;
+    };
+
+    let mut checked = Vec::with_capacity(validated.len());
+    for (ordinal, ((argument, parameter), expected)) in validated
+        .iter()
+        .zip(parameters)
+        .zip(&rederived)
+        .enumerate()
+    {
+        let psi_validation::ValidatedBoundaryOperatorApplicationArgument::TypeBinder {
+            binder_owner,
+            binder_ordinal,
+            binder_symbol,
+            machine_owner,
+            machine_binder_ordinal,
+            machine_binder_symbol,
+        } = argument
+        else {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "symbolic boundary application mixes closed and open arguments",
+            ));
+            return None;
+        };
+        let machine_parameter = usize::try_from(*machine_binder_ordinal)
+            .ok()
+            .and_then(|ordinal| machine_parameters.get(ordinal));
+        if *binder_owner != operator.symbol
+            || usize::try_from(*binder_ordinal).ok() != Some(ordinal)
+            || *binder_symbol != parameter.symbol
+            || *machine_owner != machine_symbol
+            || machine_parameter.is_none_or(|candidate| {
+                candidate.symbol != *machine_binder_symbol
+                    || !matches!(candidate.kind, psi_typed_trees::data::TypeParameterKind::Type)
             })
-            .collect(),
-    )
+            || expected.operator_binder_symbol != *binder_symbol
+            || expected.machine_binder_ordinal != *machine_binder_ordinal
+            || expected.machine_binder_symbol != *machine_binder_symbol
+        {
+            diagnostics.push(psi_diagnostics::Diagnostic::error(
+                "symbolic boundary application does not rejoin its operator and machine binders",
+            ));
+            return None;
+        }
+        checked.push(
+            CheckedSymbolicBoundaryOperatorApplicationArgument::TypeBinder {
+                binder_owner: *binder_owner,
+                binder_ordinal: *binder_ordinal,
+                binder_symbol: *binder_symbol,
+                machine_binder_ordinal: *machine_binder_ordinal,
+                machine_binder_symbol: *machine_binder_symbol,
+            },
+        );
+    }
+    Some((machine_symbol, checked))
 }
 
 fn named_expression_operand_types(

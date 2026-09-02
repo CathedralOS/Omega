@@ -8,7 +8,7 @@ pub use applications::{
     ValidatedBoundaryOperatorApplicationUseSite, canonical_closed_operator_realization_bytes,
     checked_operator_application_matches_realization, landed_integer_literal_type_reference,
     validate_closed_operator_application, validate_named_operator_application,
-    validated_boundary_operator_application,
+    validated_boundary_operator_application, validated_symbolic_boundary_operator_application,
 };
 
 use crate::symbols::TopLevelSymbols;
