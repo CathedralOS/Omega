@@ -1517,7 +1517,10 @@ fn retained_source_evaluated_fixed_i32_result_requires_complete_d32_custody() {
         .expect("object call retains its fixed scalar result");
     let i32_type = psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap();
     let i32_shape = omega_calling_conventions::ValueShape::integer(4, 4);
-    assert_eq!(scalar_result.home.scalar_type, i32_type);
+    assert_eq!(
+        scalar_result.home.scalar_type,
+        psi_core::ScalarType::Integer(i32_type)
+    );
     assert_eq!(scalar_result.home.shape, i32_shape);
     assert_eq!(
         foreign_call.boundary_entry_plan.call.result.as_ref(),

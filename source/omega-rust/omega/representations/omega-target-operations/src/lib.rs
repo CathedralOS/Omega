@@ -72,8 +72,9 @@ pub struct TargetFunction {
     /// fixed-integer scalar function family. Other function shapes carry no
     /// scalar ABI claim.
     pub fixed_integer_scalar_abi: Option<FixedIntegerScalarFunctionAbi>,
-    /// Canonical ABI for the bounded fixed-integer-result family whose
-    /// ordered inputs have a scalar prefix and structural suffix.
+    /// Canonical ABI for the bounded scalar-result family whose ordered inputs
+    /// have a fixed-integer prefix and structural suffix. Results may be a
+    /// fixed integer or Boolean.
     pub mixed_structural_scalar_abi: Option<MixedStructuralScalarFunctionAbi>,
     pub provenance: TerminalPsiProvenance,
     pub operation: TargetOperation,
@@ -86,6 +87,16 @@ pub struct TargetFunction {
 pub struct FixedIntegerScalarAbiValue {
     pub value: ValueId,
     pub scalar_type: IntegerType,
+    pub placement: ValuePlacement,
+}
+
+/// One semantic scalar result joined to its canonical target call placement.
+/// Mixed structural/scalar functions currently admit fixed integers and
+/// Boolean results; the exact scalar family remains explicit in this row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MixedStructuralScalarAbiResult {
+    pub value: ValueId,
+    pub scalar_type: ScalarType,
     pub placement: ValuePlacement,
 }
 
@@ -112,7 +123,7 @@ pub struct MixedStructuralScalarFunctionAbi {
     pub call_plan: CallPlan,
     pub scalar_parameters: Vec<FixedIntegerScalarAbiValue>,
     pub structural_parameters: Vec<TargetStructuralParameter>,
-    pub result: FixedIntegerScalarAbiValue,
+    pub result: MixedStructuralScalarAbiResult,
 }
 
 /// Target-owned physical ABI for one portable existential parameter.
@@ -582,7 +593,7 @@ impl TargetScalarImmediate {
 pub struct TargetUnitScalarHomeRequirement {
     pub defining_operation: OperationId,
     pub source_value: ValueId,
-    pub scalar_type: IntegerType,
+    pub scalar_type: ScalarType,
     pub shape: ValueShape,
 }
 
@@ -620,10 +631,10 @@ impl TargetUnitScalarArgumentSource {
         }
     }
 
-    pub const fn scalar_type(self) -> IntegerType {
+    pub const fn scalar_type(self) -> ScalarType {
         match self {
-            Self::Parameter { scalar_type, .. } => scalar_type,
-            Self::IntegerImmediate { scalar_type, .. } => scalar_type,
+            Self::Parameter { scalar_type, .. } => ScalarType::Integer(scalar_type),
+            Self::IntegerImmediate { scalar_type, .. } => ScalarType::Integer(scalar_type),
             Self::Home(home) => home.scalar_type,
         }
     }
@@ -656,7 +667,7 @@ impl TargetUnitScalarCallArgument {
         self.source.source_value()
     }
 
-    pub const fn scalar_type(&self) -> IntegerType {
+    pub const fn scalar_type(&self) -> ScalarType {
         self.source.scalar_type()
     }
 }
@@ -806,6 +817,12 @@ pub enum TargetUnitOperation {
         scalar_type: IntegerType,
         left: TargetUnitScalarArgumentSource,
         right: TargetUnitScalarArgumentSource,
+        when_true: TargetUnitConditionalSuccessor,
+        when_false: TargetUnitConditionalSuccessor,
+    },
+    /// One bounded truth decision over an exact durable Boolean result home.
+    ConditionalBoolean {
+        condition: TargetUnitScalarHomeRequirement,
         when_true: TargetUnitConditionalSuccessor,
         when_false: TargetUnitConditionalSuccessor,
     },

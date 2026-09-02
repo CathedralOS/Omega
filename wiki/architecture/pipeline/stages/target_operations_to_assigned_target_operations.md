@@ -25,7 +25,7 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
   independent parameter-location discovery.
 - `assignment/function/unit.rs` replays attached-Unit scalar-call plans and
   sources, reduces each argument to an exact register or outgoing-stack
-  destination, and assigns one ordered, non-reused eight-byte result home after
+  destination, and assigns one ordered, non-reused scalar result home after
   the structural parameter-home prefix.
 - `assignment/function/unit/structural_scalar.rs` independently reconstructs
   the bounded projected integer-field store and structural scalar call,
@@ -67,6 +67,8 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 - Must preserve target operation ordering unless a later allocator explicitly owns reordering.
 - The bounded O0 attached-Unit scalar lane does not reuse result homes; reuse is
   a later allocator decision requiring its own liveness evidence.
+- Direct Boolean control accepts only the exact preceding one-byte Boolean
+  home and rejects producer, value, scalar-type, or shape substitution.
 - The bounded nearest-FMA lane currently uses fixed XMM homes. Widening or
   reusing them is an allocator change and must preserve per-occurrence custody.
 

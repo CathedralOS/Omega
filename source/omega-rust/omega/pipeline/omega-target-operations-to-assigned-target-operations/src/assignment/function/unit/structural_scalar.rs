@@ -153,7 +153,10 @@ pub(super) fn assign_call(
                 || argument.placement.shape
                     != super::scalar_call::fixed_integer_shape(
                         argument.source.source_value(),
-                        argument.source.scalar_type(),
+                        match argument.source.scalar_type() {
+                            ScalarType::Integer(integer) => integer,
+                            _ => return Err(invalid()),
+                        },
                     )
                     .map_err(|_| invalid())?
             {

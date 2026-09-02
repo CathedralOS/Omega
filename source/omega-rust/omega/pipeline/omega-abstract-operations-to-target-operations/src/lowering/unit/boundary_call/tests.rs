@@ -219,7 +219,10 @@ fn fixed_integer_literal_preserves_source_type_value_order_and_register_placemen
             panic!("one argument")
         };
         assert_eq!(argument.source_value(), source);
-        assert_eq!(argument.scalar_type(), integer_type);
+        assert_eq!(
+            argument.scalar_type(),
+            psi_core::ScalarType::Integer(integer_type)
+        );
         assert_eq!(
             argument.source,
             TargetUnitScalarArgumentSource::IntegerImmediate {
@@ -292,7 +295,10 @@ fn two_fixed_integer_literals_preserve_ordered_occurrence_custody() {
             arguments.iter().zip(expected_registers).enumerate()
         {
             assert_eq!(argument.source_value(), [first, second][index]);
-            assert_eq!(argument.scalar_type(), [i16_type, i64_type][index]);
+            assert_eq!(
+                argument.scalar_type(),
+                psi_core::ScalarType::Integer([i16_type, i64_type][index])
+            );
             assert_eq!(argument.parameter_index, index as u32);
             assert_eq!(argument.placement, plan.call.parameters[index]);
             assert!(matches!(
@@ -569,7 +575,7 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
                 Ok(Some(TargetUnitScalarHomeRequirement {
                     defining_operation: operation,
                     source_value: value,
-                    scalar_type: integer,
+                    scalar_type: psi_core::ScalarType::Integer(integer),
                     shape,
                 }))
             );

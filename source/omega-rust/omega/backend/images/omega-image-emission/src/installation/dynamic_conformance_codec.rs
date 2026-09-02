@@ -1,7 +1,7 @@
 //! Canonical installation transport for dynamic-conformance table custody.
 
 use omega_machine_code::InternalUnitScalarCallResultRecord;
-use psi_core::{MachineId, OperationId, PlaceId, ScalarType, ValueId};
+use psi_core::{MachineId, OperationId, PlaceId, ValueId};
 use psi_terminal::ClosedConformanceApplicationCommitment;
 
 use super::{
@@ -12,7 +12,7 @@ use super::{
     internal_unit_scalar_call_codec::{decode_offset, encode_offset},
     push_u32, push_u64,
     unit_scalar_codec::{
-        decode_integer_type, decode_unit_scalar_home, encode_integer_type, encode_unit_scalar_home,
+        decode_scalar_type, decode_unit_scalar_home, encode_scalar_type, encode_unit_scalar_home,
     },
     value_placement_codec::{decode_direct_placement, encode_direct_placement},
 };
@@ -157,12 +157,7 @@ pub(super) fn encode_dynamic_conformance_custody(
         bytes.extend_from_slice(&call.application_commitment.as_bytes());
         push_u64(bytes, call.source.get());
         push_u64(bytes, call.semantic_result.value.get());
-        let ScalarType::Integer(result_type) = call.semantic_result.scalar_type else {
-            return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
-                call.machine,
-            ));
-        };
-        encode_integer_type(bytes, result_type)?;
+        encode_scalar_type(bytes, call.semantic_result.scalar_type)?;
         encode_unit_scalar_home(bytes, call.result.home)?;
         encode_direct_placement(bytes, &call.result.source)?;
         encode_offset(bytes, call.result.code_offset)?;
@@ -416,7 +411,7 @@ pub(super) fn decode_dynamic_conformance_custody(
             value: ValueId::new(reader.u64()?).ok_or(
                 InstallationError::InvalidForwardedDynamicDescriptorCall(machine),
             )?,
-            scalar_type: ScalarType::Integer(decode_integer_type(reader)?),
+            scalar_type: decode_scalar_type(reader)?,
         };
         let result = InternalUnitScalarCallResultRecord {
             home: decode_unit_scalar_home(reader)?,

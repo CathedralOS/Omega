@@ -432,9 +432,9 @@ fn mixed_callee_abi(
             shape: copy.shape,
             placement: copy.destination.clone(),
         }],
-        result: FixedIntegerScalarAbiValue {
+        result: omega_target_operations::MixedStructuralScalarAbiResult {
             value: ValueId::new(981).unwrap(),
-            scalar_type: integer_type,
+            scalar_type: ScalarType::Integer(integer_type),
             placement: call_plan.result.clone().expect("scalar result placement"),
         },
     }

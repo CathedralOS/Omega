@@ -1,5 +1,7 @@
 use super::calling::{encode_call_plan, encode_placement, encode_shape};
-use super::scalar::{encode_definition_site, encode_integer, encode_integer_type};
+use super::scalar::{
+    encode_definition_site, encode_integer, encode_integer_type, encode_scalar_type,
+};
 use super::shared::*;
 use super::structural::{encode_effect, encode_ownership_roster};
 
@@ -72,7 +74,7 @@ fn encode_home(
 ) {
     bytes.extend_from_slice(&home.defining_operation.get().to_le_bytes());
     bytes.extend_from_slice(&home.source_value.get().to_le_bytes());
-    encode_integer_type(bytes, home.scalar_type);
+    encode_scalar_type(bytes, home.scalar_type);
     encode_shape(bytes, home.shape);
 }
 

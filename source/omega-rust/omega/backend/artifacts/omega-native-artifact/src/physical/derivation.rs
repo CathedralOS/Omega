@@ -657,7 +657,7 @@ fn derive_normalized_foreign_child(
         .zip(&foreign.scalar_arguments)
     {
         if physical.source.source_value() != *argument
-            || ScalarType::Integer(physical.source.scalar_type()) != *scalar_type
+            || physical.source.scalar_type() != *scalar_type
         {
             return Err("normalized foreign D41 child changed a scalar argument source");
         }
@@ -671,7 +671,7 @@ fn derive_normalized_foreign_child(
         (psi_terminal::OperationResult::Scalar(value), Some(declared), Some(physical))
             if value.scalar_type == declared
                 && physical.home.source_value == value.id
-                && ScalarType::Integer(physical.home.scalar_type) == declared =>
+                && physical.home.scalar_type == declared =>
         {
             let Some(shape) = fixed_integer_shape(declared) else {
                 return Ok(None);

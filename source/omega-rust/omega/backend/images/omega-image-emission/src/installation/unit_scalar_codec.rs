@@ -2,7 +2,7 @@
 //! and zero-code Unit integer definitions.
 
 use omega_machine_code::{UnitIntegerConstantRecord, UnitScalarHomeRecord};
-use psi_core::{IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
+use psi_core::{IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 
 use super::{
     InstallationError, Reader, push_u16, push_u32, push_u64, push_u128,
@@ -44,6 +44,45 @@ pub(super) fn decode_integer_type(
         .map_err(|_| InstallationError::UnsupportedInstalledFixedIntegerType)
 }
 
+pub(super) fn encode_scalar_type(
+    bytes: &mut Vec<u8>,
+    scalar_type: ScalarType,
+) -> Result<(), InstallationError> {
+    match scalar_type {
+        ScalarType::Boolean => {
+            bytes.extend_from_slice(&[0; 4]);
+            Ok(())
+        }
+        ScalarType::Integer(integer) => encode_integer_type(bytes, integer),
+        ScalarType::IeeeFloat(_) => Err(InstallationError::UnsupportedInstalledFixedIntegerType),
+    }
+}
+
+pub(super) fn decode_scalar_type(reader: &mut Reader<'_>) -> Result<ScalarType, InstallationError> {
+    let tag = reader.u8()?;
+    let reserved = reader.u8()?;
+    let bits = reader.u16()?;
+    if tag == 0 {
+        return (reserved == 0 && bits == 0)
+            .then_some(ScalarType::Boolean)
+            .ok_or(InstallationError::NonzeroReservedField);
+    }
+    let sign = match tag {
+        1 => IntegerSign::Signed,
+        2 => IntegerSign::Unsigned,
+        tag => return Err(InstallationError::InvalidInstalledIntegerSignTag(tag)),
+    };
+    if reserved != 0 {
+        return Err(InstallationError::NonzeroReservedField);
+    }
+    if !matches!(bits, 8 | 16 | 32 | 64) {
+        return Err(InstallationError::UnsupportedInstalledFixedIntegerType);
+    }
+    IntegerType::new(sign, bits)
+        .map(ScalarType::Integer)
+        .map_err(|_| InstallationError::UnsupportedInstalledFixedIntegerType)
+}
+
 pub(super) fn encode_integer_value(bytes: &mut Vec<u8>, value: IntegerValue) {
     match value {
         IntegerValue::Signed(value) => {
@@ -78,7 +117,7 @@ pub(super) fn encode_unit_scalar_home(
 ) -> Result<(), InstallationError> {
     push_u64(bytes, home.defining_operation.get());
     push_u64(bytes, home.source_value.get());
-    encode_integer_type(bytes, home.scalar_type)?;
+    encode_scalar_type(bytes, home.scalar_type)?;
     encode_shape(bytes, home.shape)?;
     push_u32(bytes, home.byte_offset);
     Ok(())
@@ -92,7 +131,7 @@ pub(super) fn decode_unit_scalar_home(
             .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
         source_value: ValueId::new(reader.u64()?)
             .ok_or(InstallationError::ZeroInstalledScalarIdentity)?,
-        scalar_type: decode_integer_type(reader)?,
+        scalar_type: decode_scalar_type(reader)?,
         shape: decode_shape(reader)?,
         byte_offset: reader.u32()?,
     })
@@ -172,4 +211,34 @@ pub(super) fn decode_unit_integer_constants(
         });
     }
     Ok(constants)
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_calling_conventions::ValueShape;
+
+    use super::*;
+
+    #[test]
+    fn boolean_home_round_trips_and_noncanonical_tags_reject() {
+        let home = UnitScalarHomeRecord {
+            defining_operation: OperationId::new(7).unwrap(),
+            source_value: ValueId::new(8).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            shape: ValueShape::integer(1, 1),
+            byte_offset: 16,
+        };
+        let mut bytes = Vec::new();
+        encode_unit_scalar_home(&mut bytes, home).expect("encode Boolean home");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_unit_scalar_home(&mut reader).expect("decode Boolean home"),
+            home
+        );
+        assert_eq!(reader.remaining(), 0);
+
+        let mut noncanonical = bytes;
+        noncanonical[17] = 1;
+        assert!(decode_unit_scalar_home(&mut Reader::new(&noncanonical)).is_err());
+    }
 }

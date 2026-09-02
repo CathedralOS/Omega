@@ -14,7 +14,7 @@ use omega_machine_code::{
 };
 use omega_target::{Architecture, NativeTarget};
 use omega_target_operations::{CallSiteOwner, FixedIntegerScalarFunctionAbi};
-use psi_core::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId};
+use psi_core::{IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 
 use super::instruction_loads::{
     aarch64_terminal_register, expected_aarch64_stack_load, expected_x86_stack_load,
@@ -203,7 +203,7 @@ fn validate_home_roster(
         if home.byte_offset != cursor
             || result.home != *home
             || owner != CallSiteOwner::Operation(home.defining_operation)
-            || integer_shape(home.scalar_type) != Some(home.shape)
+            || scalar_home_shape(home.scalar_type) != Some(home.shape)
             || !operations.insert(home.defining_operation)
             || !values.insert(home.source_value)
         {
@@ -297,7 +297,7 @@ fn validate_call(
     if call.call_plan != abi.call_plan
         || call.arguments.len() != abi.parameters.len()
         || call.result.source != abi.result.placement
-        || call.result.home.scalar_type != abi.result.scalar_type
+        || call.result.home.scalar_type != ScalarType::Integer(abi.result.scalar_type)
         || !function.provenance.operations.contains(&operation)
         || exact_attribution_count(
             &function.semantic_code_attribution,
@@ -332,7 +332,7 @@ fn validate_call(
     for (index, (argument, parameter)) in call.arguments.iter().zip(&abi.parameters).enumerate() {
         if argument.parameter_index != index as u32
             || argument.destination != parameter.placement
-            || argument.source.scalar_type() != parameter.scalar_type
+            || argument.source.scalar_type() != ScalarType::Integer(parameter.scalar_type)
             || argument.code_offset != cursor
         {
             return Err(invalid());
@@ -635,6 +635,14 @@ pub(super) fn integer_shape(integer: IntegerType) -> Option<ValueShape> {
     Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
 }
 
+pub(super) fn scalar_home_shape(scalar: ScalarType) -> Option<ValueShape> {
+    match scalar {
+        ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
+        ScalarType::Integer(integer) => integer_shape(integer),
+        ScalarType::IeeeFloat(_) => None,
+    }
+}
+
 fn canonical_bits(integer: IntegerType, value: IntegerValue) -> Option<u64> {
     if integer_shape(integer).is_none() || !integer.admits(value) {
         return None;
@@ -663,7 +671,14 @@ pub(super) fn expected_x86_stack_store(bytes: &mut Vec<u8>, register: u8, offset
     }
 }
 
-fn expected_x86_normalize(bytes: &mut Vec<u8>, register: u8, integer: IntegerType) {
+fn expected_x86_normalize(bytes: &mut Vec<u8>, register: u8, scalar: ScalarType) {
+    let integer = match scalar {
+        ScalarType::Boolean => {
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 Boolean ABI carrier")
+        }
+        ScalarType::Integer(integer) => integer,
+        ScalarType::IeeeFloat(_) => return,
+    };
     if integer.bits() == 64 {
         return;
     }
@@ -707,7 +722,14 @@ pub(super) fn expected_aarch64_stack_store(register: u8, offset: u32) -> Option<
         .then_some(0xf900_0000 | ((offset / 8) << 10) | (31 << 5) | u32::from(register))
 }
 
-fn expected_aarch64_normalize(words: &mut Vec<u32>, register: u8, integer: IntegerType) {
+fn expected_aarch64_normalize(words: &mut Vec<u32>, register: u8, scalar: ScalarType) {
+    let integer = match scalar {
+        ScalarType::Boolean => {
+            IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 Boolean ABI carrier")
+        }
+        ScalarType::Integer(integer) => integer,
+        ScalarType::IeeeFloat(_) => return,
+    };
     if integer.bits() == 64 {
         return;
     }

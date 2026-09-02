@@ -59,8 +59,7 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
                 || call.call_plan.parameters.len() != 2
                 || machine_functions.get(&call.callee).is_none()
                 || call.semantic_result.value != call.result.home.source_value
-                || call.semantic_result.scalar_type
-                    != psi_core::ScalarType::Integer(call.result.home.scalar_type)
+                || call.semantic_result.scalar_type != call.result.home.scalar_type
                 || call.result.home.defining_operation != call.psi_operation
                 || call.call_plan.result.as_ref() != Some(&call.result.source)
                 || !function.unit_scalar_homes.contains(&call.result.home)
@@ -146,10 +145,8 @@ fn validate_scalar_result(
     call: &omega_machine_code::ForwardedDynamicDescriptorCallRecord,
     operation_end: usize,
 ) -> Option<()> {
-    let psi_core::ScalarType::Integer(result_type) = call.semantic_result.scalar_type else {
-        return None;
-    };
-    let result_shape = super::unit_scalar_call_custody::integer_shape(result_type)?;
+    let result_shape =
+        super::unit_scalar_call_custody::scalar_home_shape(call.semantic_result.scalar_type)?;
     let pointer = ValueShape::integer(
         u16::try_from(target.pointer_size).ok()?,
         u16::try_from(target.pointer_alignment).ok()?,
@@ -186,7 +183,7 @@ fn validate_scalar_result(
         && call.call_plan.result.as_ref() == Some(&result.source)
         && result.home.defining_operation == call.psi_operation
         && result.home.source_value == call.semantic_result.value
-        && result.home.scalar_type == result_type
+        && result.home.scalar_type == call.semantic_result.scalar_type
         && result.home.shape == result_shape
         && function.unit_scalar_homes.contains(&result.home)
         && result.code_offset == expected_result_offset

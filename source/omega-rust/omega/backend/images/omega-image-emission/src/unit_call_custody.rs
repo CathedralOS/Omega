@@ -35,7 +35,8 @@ pub(super) fn validate_mixed_structural_scalar_abi(
         .iter()
         .map(|parameter| fixed_integer_shape(parameter.scalar_type).ok_or_else(invalid))
         .collect::<Result<Vec<_>, _>>()?;
-    let result_shape = fixed_integer_shape(abi.result.scalar_type).ok_or_else(invalid)?;
+    let result_shape = super::unit_scalar_call_custody::scalar_home_shape(abi.result.scalar_type)
+        .ok_or_else(invalid)?;
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -370,7 +371,7 @@ pub(super) fn validate_internal_unit_call_custody(
     .map_err(|_| invalid())?;
     if let Some(abi) = callee_mixed_abi {
         if expected_plan != abi.call_plan
-            || custody.result != Some(psi_core::ScalarType::Integer(abi.result.scalar_type))
+            || custody.result != Some(abi.result.scalar_type)
             || custody.scalar_arguments.len() != abi.scalar_parameters.len()
             || custody.arguments.len() != abi.structural_parameters.len()
             || custody
@@ -381,7 +382,8 @@ pub(super) fn validate_internal_unit_call_custody(
                 .any(|(index, (argument, parameter))| {
                     usize::try_from(argument.parameter_index) != Ok(index)
                         || argument.destination != parameter.placement
-                        || argument.source.scalar_type() != parameter.scalar_type
+                        || argument.source.scalar_type()
+                            != psi_core::ScalarType::Integer(parameter.scalar_type)
                 })
             || custody
                 .arguments
@@ -423,7 +425,8 @@ pub(super) fn validate_internal_unit_call_custody(
                 .any(|(index, (argument, parameter))| {
                     usize::try_from(argument.parameter_index) != Ok(index)
                         || argument.destination != parameter.placement
-                        || argument.source.scalar_type() != parameter.scalar_type
+                        || argument.source.scalar_type()
+                            != psi_core::ScalarType::Integer(parameter.scalar_type)
                 })
             || custody
                 .arguments

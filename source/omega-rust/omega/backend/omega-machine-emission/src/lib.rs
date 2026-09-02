@@ -155,13 +155,18 @@ fn validate_mixed_structural_scalar_abi(
     if row.structural_parameters.is_empty() {
         return Err(invalid());
     }
-    let Some((_, result_type)) = assigned_direct_integer_result(&function.operation) else {
+    let Some(result_type) = assigned_direct_scalar_type(&function.operation) else {
         return Err(invalid());
     };
     let scalar_shapes = row
         .scalar_parameters
         .iter()
-        .map(|parameter| unit::unit_scalar_shape(parameter.value, parameter.scalar_type))
+        .map(|parameter| {
+            unit::unit_scalar_shape(
+                parameter.value,
+                psi_core::ScalarType::Integer(parameter.scalar_type),
+            )
+        })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| invalid())?;
     let result_shape =
@@ -222,28 +227,31 @@ fn validate_mixed_structural_scalar_abi(
     Ok(())
 }
 
-fn assigned_direct_integer_result(operation: &AssignedOperation) -> Option<(ValueId, IntegerType)> {
+fn assigned_direct_scalar_type(operation: &AssignedOperation) -> Option<psi_core::ScalarType> {
     match operation {
-        AssignedOperation::ReturnIntegerImmediate {
-            source_value,
-            scalar_type,
-            ..
+        AssignedOperation::ReturnIntegerImmediate { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerParameter { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerExpression { scalar_type, .. } => {
+            Some(psi_core::ScalarType::Integer(*scalar_type))
         }
-        | AssignedOperation::ReturnIntegerParameter {
-            source_value,
-            scalar_type,
-            ..
+        AssignedOperation::ReturnBooleanImmediate { .. }
+        | AssignedOperation::ReturnBooleanParameter { .. }
+        | AssignedOperation::ReturnBooleanNotParameter { .. }
+        | AssignedOperation::ReturnBooleanSharedConvergence { .. }
+        | AssignedOperation::ReturnBooleanExpression { .. }
+        | AssignedOperation::ReturnBooleanConditionalControl { .. }
+        | AssignedOperation::ReturnBooleanExpressionConditionalControl { .. } => {
+            Some(psi_core::ScalarType::Boolean)
         }
-        | AssignedOperation::ReturnIntegerExpression {
-            source_value,
-            scalar_type,
-            ..
-        } => Some((*source_value, *scalar_type)),
+        AssignedOperation::ReturnIntegerConditionalControl { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerExpressionConditionalControl { scalar_type, .. } => {
+            Some(psi_core::ScalarType::Integer(*scalar_type))
+        }
         AssignedOperation::ScalarReturnWithCleanup { scalar, .. } => {
-            assigned_direct_integer_result(scalar)
+            assigned_direct_scalar_type(scalar)
         }
         AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore { scalar, .. } => {
-            assigned_direct_integer_result(scalar)
+            assigned_direct_scalar_type(scalar)
         }
         _ => None,
     }
@@ -254,10 +262,19 @@ fn retained_scalar_cleanup_abi_matches(
     row: &omega_target_operations::MixedStructuralScalarFunctionAbi,
 ) -> bool {
     match operation {
-        AssignedOperation::ReturnIntegerImmediate { scalar_type, .. }
-        | AssignedOperation::ReturnIntegerParameter { scalar_type, .. }
-        | AssignedOperation::ReturnIntegerExpression { scalar_type, .. } => {
-            *scalar_type == row.result.scalar_type
+        AssignedOperation::ReturnIntegerImmediate { .. }
+        | AssignedOperation::ReturnIntegerParameter { .. }
+        | AssignedOperation::ReturnIntegerExpression { .. }
+        | AssignedOperation::ReturnIntegerConditionalControl { .. }
+        | AssignedOperation::ReturnIntegerExpressionConditionalControl { .. }
+        | AssignedOperation::ReturnBooleanImmediate { .. }
+        | AssignedOperation::ReturnBooleanParameter { .. }
+        | AssignedOperation::ReturnBooleanNotParameter { .. }
+        | AssignedOperation::ReturnBooleanSharedConvergence { .. }
+        | AssignedOperation::ReturnBooleanExpression { .. }
+        | AssignedOperation::ReturnBooleanConditionalControl { .. }
+        | AssignedOperation::ReturnBooleanExpressionConditionalControl { .. } => {
+            assigned_direct_scalar_type(operation) == Some(row.result.scalar_type)
         }
         AssignedOperation::ScalarReturnWithCleanup {
             scalar,
@@ -265,8 +282,7 @@ fn retained_scalar_cleanup_abi_matches(
             structural_parameters,
             ..
         } => {
-            assigned_direct_integer_result(scalar)
-                .is_some_and(|(_, scalar_type)| scalar_type == row.result.scalar_type)
+            assigned_direct_scalar_type(scalar) == Some(row.result.scalar_type)
                 && call_plan == &row.call_plan
                 && structural_parameters == &row.structural_parameters
         }
@@ -276,8 +292,7 @@ fn retained_scalar_cleanup_abi_matches(
             structural_parameters,
             ..
         } => {
-            assigned_direct_integer_result(scalar)
-                .is_some_and(|(_, scalar_type)| scalar_type == row.result.scalar_type)
+            assigned_direct_scalar_type(scalar) == Some(row.result.scalar_type)
                 && call_plan == &row.call_plan
                 && structural_parameters == &row.structural_parameters
         }

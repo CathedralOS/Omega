@@ -425,9 +425,8 @@ fn scalar_result_register(
     Ok(*register)
 }
 
-/// Normalize one fixed-integer ABI result into the shared 64-bit durable-home
-/// representation and retain the exact emitted interval. Internal and
-/// normalized foreign calls use this single physical result path.
+/// Normalize one scalar ABI result into the shared 64-bit durable-home
+/// representation and retain the exact emitted interval.
 pub(super) fn emit_unit_scalar_result(
     bytes: &mut Vec<u8>,
     architecture: Architecture,
@@ -597,8 +596,18 @@ fn emit_aarch64_unit_scalar_immediate(instructions: &mut Vec<u32>, register: u8,
 fn emit_x86_64_unit_scalar_normalize(
     bytes: &mut Vec<u8>,
     register: u8,
-    scalar_type: psi_core::IntegerType,
+    scalar_type: psi_core::ScalarType,
 ) {
+    let scalar_type = match scalar_type {
+        psi_core::ScalarType::Boolean => {
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8)
+                .expect("u8 Boolean ABI carrier")
+        }
+        psi_core::ScalarType::Integer(integer) => integer,
+        psi_core::ScalarType::IeeeFloat(_) => {
+            unreachable!("Unit scalar homes do not admit IEEE float results")
+        }
+    };
     if scalar_type.bits() == 64 {
         return;
     }
@@ -630,8 +639,18 @@ fn emit_x86_64_unit_scalar_normalize(
 fn emit_aarch64_unit_scalar_normalize(
     instructions: &mut Vec<u32>,
     register: u8,
-    scalar_type: psi_core::IntegerType,
+    scalar_type: psi_core::ScalarType,
 ) {
+    let scalar_type = match scalar_type {
+        psi_core::ScalarType::Boolean => {
+            psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8)
+                .expect("u8 Boolean ABI carrier")
+        }
+        psi_core::ScalarType::Integer(integer) => integer,
+        psi_core::ScalarType::IeeeFloat(_) => {
+            unreachable!("Unit scalar homes do not admit IEEE float results")
+        }
+    };
     if scalar_type.bits() == 64 {
         return;
     }

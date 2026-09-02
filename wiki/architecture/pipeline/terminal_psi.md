@@ -728,7 +728,7 @@ Optimizer reconstruction and independent validation retain the dynamic result,
 both declared source places, descriptor-version relation, selected-realization
 call graph, service closure, and non-rewritable call observation;
 physical assignment allocates the canonical runtime `{ instance, table }`
-carrier and durable result home. Machine-emission preflight independently
+carrier and a durable scalar-typed result home. Machine-emission preflight independently
 replays those non-overlapping descriptor/result frame regions. Each abstract
 dynamic carrier retains the complete canonically ordered
 `ClosedConformanceApplication`, not merely the selected indirect row.
@@ -773,9 +773,11 @@ lowering accumulates the outer and primitive-field offsets; assignment replays
 the path against the retained declarations, and machine emission rejects path
 or offset drift before producing bytes. A
 structural-only scalar-result realization publishes the ABI that its private
-erased-data adapter must rejoin before calling it. The first Boolean store
-returns an independent `i32` self field through the existing fixed-integer
-result-home lane; Boolean forwarded results are not implied. A second write,
+erased-data adapter must rejoin before calling it. Boolean-returning forwarded
+calls now publish the same ABI with an exact Boolean result, normalize and
+store that result into a one-byte durable Unit home, and branch directly on
+that home with target-specific zero tests. The first Boolean store still
+returns an independent `i32` self field through the fixed-integer lane. A second write,
 path deeper than one named record field, indexed/case projection, computed
 store value, shared receiver, or body reorder remains outside the native
 carrier.

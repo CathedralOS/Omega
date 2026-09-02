@@ -1,4 +1,5 @@
 use crate::assignment::shared::*;
+use psi_core::ScalarType;
 pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
     boundary_entry_plan: &omega_calling_conventions::BoundaryEntryPlan,
     target: NativeTarget,
@@ -11,11 +12,12 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
 ) -> Result<Vec<AssignedNormalizedForeignScalarArgument>, AssignmentError> {
     let result_shape = result_home
         .map(|result| {
-            let expected_shape = super::super::scalar_call::fixed_integer_shape(
-                result.source_value,
-                result.scalar_type,
-            )
-            .map_err(|_| AssignmentError::ExpressionStackFrameNotEncodable)?;
+            let ScalarType::Integer(result_type) = result.scalar_type else {
+                return Err(AssignmentError::ExpressionStackFrameNotEncodable);
+            };
+            let expected_shape =
+                super::super::scalar_call::fixed_integer_shape(result.source_value, result_type)
+                    .map_err(|_| AssignmentError::ExpressionStackFrameNotEncodable)?;
             if result.shape != expected_shape {
                 return Err(AssignmentError::ExpressionStackFrameNotEncodable);
             }
@@ -88,7 +90,12 @@ pub(super) fn assign_normalized_foreign_scalar_call_for_plan(
         let physical_index = parameter_index
             + usize::from(callback_ordinal.is_some_and(|ordinal| parameter_index >= ordinal));
         let source_value = argument.source_value();
-        let scalar_type = argument.scalar_type();
+        let ScalarType::Integer(scalar_type) = argument.scalar_type() else {
+            return Err(AssignmentError::ExpressionParameterLocationConflict {
+                value: source_value,
+                parameter_index,
+            });
+        };
         let placed_byte_size = match argument.placement.locations.as_slice() {
             [
                 ValueLocation::Register {

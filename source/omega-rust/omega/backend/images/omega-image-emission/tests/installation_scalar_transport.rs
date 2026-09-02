@@ -101,7 +101,7 @@ fn scalar_transport_plan() -> TargetOperationPlan {
                             result_home: TargetUnitScalarHomeRequirement {
                                 defining_operation: call_operation,
                                 source_value: call_result,
-                                scalar_type,
+                                scalar_type: psi_core::ScalarType::Integer(scalar_type),
                                 shape,
                             },
                             arguments: vec![TargetUnitScalarCallArgument {

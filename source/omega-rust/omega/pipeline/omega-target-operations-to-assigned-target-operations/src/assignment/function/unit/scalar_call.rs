@@ -1,4 +1,5 @@
 use crate::assignment::shared::*;
+use psi_core::ScalarType;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign(
@@ -15,7 +16,13 @@ pub(super) fn assign(
     assigned_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
     next_home: &mut u32,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
-    let result_shape = fixed_integer_shape(result.source_value, result.scalar_type)?;
+    let ScalarType::Integer(result_type) = result.scalar_type else {
+        return Err(AssignmentError::UnitScalarCallCustodyMismatch {
+            machine,
+            operation: psi_operation,
+        });
+    };
+    let result_shape = fixed_integer_shape(result.source_value, result_type)?;
     if result.shape != result_shape || result.defining_operation != psi_operation {
         return Err(AssignmentError::UnitScalarCallCustodyMismatch {
             machine,
@@ -78,10 +85,13 @@ pub(super) fn assign(
                 &argument.placement,
                 target,
             )?;
-            let expected_shape = fixed_integer_shape(
-                argument.source.source_value(),
-                argument.source.scalar_type(),
-            )?;
+            let ScalarType::Integer(argument_type) = argument.source.scalar_type() else {
+                return Err(AssignmentError::UnitScalarCallSourceMismatch(
+                    argument.source.source_value(),
+                ));
+            };
+            let expected_shape =
+                fixed_integer_shape(argument.source.source_value(), argument_type)?;
             if argument.placement.shape != expected_shape {
                 return Err(AssignmentError::UnitScalarCallSourceMismatch(
                     argument.source.source_value(),

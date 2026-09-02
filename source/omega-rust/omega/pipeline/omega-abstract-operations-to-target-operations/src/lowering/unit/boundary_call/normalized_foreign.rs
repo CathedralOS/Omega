@@ -208,7 +208,7 @@ pub(super) fn lower_normalized_foreign_scalar_result(
     Ok(Some(TargetUnitScalarHomeRequirement {
         defining_operation,
         source_value,
-        scalar_type: result_type,
+        scalar_type: ScalarType::Integer(result_type),
         shape,
     }))
 }

@@ -360,7 +360,7 @@ pub(super) fn lower_dynamic_argument_scalar_call(
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
+) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
     let AbstractOperation::CallStructuralScalarWithDynamicArguments {
         psi_operation,
         result,
@@ -424,11 +424,14 @@ pub(super) fn lower_dynamic_argument_scalar_call(
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
     let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
-    let ScalarType::Integer(result_type) = result.scalar_type else {
+    if !matches!(
+        result.scalar_type,
+        ScalarType::Boolean | ScalarType::Integer(_)
+    ) {
         return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
             result.value,
         ));
-    };
+    }
     let descriptor_parameter_count = dynamic_arguments.len().checked_mul(2).ok_or_else(invalid)?;
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -500,14 +503,16 @@ pub(super) fn lower_dynamic_argument_scalar_call(
     let result_home = TargetUnitScalarHomeRequirement {
         defining_operation: *psi_operation,
         source_value: result.value,
-        scalar_type: result_type,
+        scalar_type: result.scalar_type,
         shape: result_shape,
     };
-    insert_known_unit_integer(
-        scalar_values,
-        result.value,
-        KnownUnitInteger::Home(result_home),
-    )?;
+    if matches!(result.scalar_type, ScalarType::Integer(_)) {
+        insert_known_unit_integer(
+            scalar_values,
+            result.value,
+            KnownUnitInteger::Home(result_home),
+        )?;
+    }
     operations.push(
         TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
             psi_operation: *psi_operation,
@@ -523,5 +528,5 @@ pub(super) fn lower_dynamic_argument_scalar_call(
         },
     );
     provenance.operations.push(*psi_operation);
-    Ok(())
+    Ok(result_home)
 }

@@ -1,0 +1,50 @@
+use omega_language_std::console;
+
+trait Switch {
+    machine enabled(&self) -> bool;
+}
+
+data Item {
+    enabled: bool;
+}
+
+Primary: Item satisfies Switch {
+    machine enabled(&self) -> bool {
+        transition {
+            _ -> self.enabled
+        }
+    }
+}
+
+data Main {
+    console: Console;
+    decoy: Item;
+    selected: Item;
+}
+
+machine Main::main(&mut self) {
+    self.decoy.enabled = false;
+    self.selected.enabled = true;
+    let mut erased: &dyn Switch = &self.decoy as &dyn Item::Primary;
+    erased = &self.selected as &dyn Item::Primary;
+    let result: bool = dispatch(erased);
+    transition result {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine dispatch(erased: &dyn Switch) -> bool {
+    let result: bool = erased.enabled();
+    transition {
+        _ -> result
+    }
+}

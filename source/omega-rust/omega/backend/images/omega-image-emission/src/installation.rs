@@ -89,7 +89,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 59;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 60;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2711,7 +2711,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             (None, None) => custody.scalar_arguments.is_empty(),
             (Some(_), Some(_)) => false,
             (Some(abi), None) => {
-                custody.result == Some(psi_core::ScalarType::Integer(abi.result.scalar_type))
+                custody.result == Some(abi.result.scalar_type)
                     && plan == abi.call_plan
                     && scalar_count == abi.scalar_parameters.len()
                     && custody.arguments.len() == abi.structural_parameters.len()
@@ -2731,7 +2731,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 });
                             usize::try_from(argument.parameter_index) == Ok(index)
                                 && argument.destination == parameter.placement
-                                && argument.source.scalar_type() == parameter.scalar_type
+                                && argument.source.scalar_type()
+                                    == psi_core::ScalarType::Integer(parameter.scalar_type)
                                 && installed_scalar_source_is_exact(
                                     record,
                                     function,
@@ -2815,7 +2816,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                                 });
                             usize::try_from(argument.parameter_index) == Ok(index)
                                 && argument.destination == parameter.placement
-                                && argument.source.scalar_type() == parameter.scalar_type
+                                && argument.source.scalar_type()
+                                    == psi_core::ScalarType::Integer(parameter.scalar_type)
                                 && installed_scalar_source_is_exact(
                                     record,
                                     function,

@@ -57,8 +57,7 @@ fn matches_terminal_machine(
                     && declared.scalar_type == ScalarType::Integer(retained.scalar_type)
             })
         && machine.result.scalar_ref().is_some_and(|declared| {
-            declared.id == abi.result.value
-                && declared.scalar_type == ScalarType::Integer(abi.result.scalar_type)
+            declared.id == abi.result.value && declared.scalar_type == abi.result.scalar_type
         })
         && machine.structural_parameters.len() == abi.structural_parameters.len()
         && machine
@@ -80,7 +79,8 @@ fn matches_terminal_machine(
 mod tests {
     use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use omega_target_operations::{
-        FixedIntegerScalarAbiValue, MixedStructuralScalarFunctionAbi, TargetStructuralParameter,
+        FixedIntegerScalarAbiValue, MixedStructuralScalarAbiResult,
+        MixedStructuralScalarFunctionAbi, TargetStructuralParameter,
     };
     use psi_core::{
         BlockId, ContractId, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType,
@@ -161,9 +161,9 @@ mod tests {
                 shape,
                 placement: call_plan.parameters[1].clone(),
             }],
-            result: FixedIntegerScalarAbiValue {
+            result: MixedStructuralScalarAbiResult {
                 value: result,
-                scalar_type: integer,
+                scalar_type: ScalarType::Integer(integer),
                 placement: call_plan.result.clone().expect("result placement"),
             },
             call_plan,

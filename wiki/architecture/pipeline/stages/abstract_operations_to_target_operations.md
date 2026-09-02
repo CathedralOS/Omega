@@ -92,11 +92,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
   selected realization. It derives the realization's structural argument and
   scalar result ABI while preserving both source copies; physical assignment
   later allocates the canonical two-word descriptor and durable result home.
-- `lowering/unit/conditional_exit.rs` owns the exact attached-Unit equality
+- `lowering/unit/conditional_exit.rs` owns the exact attached-Unit control
   diamond used by a rebound dynamic result followed by two admitted
-  nonreturning boundary leaves. It preserves all ten Terminal operation
-  ordinals with explicit zero-code control markers and carries both successor
-  edges; it is not a general CFG legalization path.
+  nonreturning boundary leaves. The ten-operation integer form retains its
+  explicit equality; the eight-operation Boolean form branches directly on
+  the producer-bound result home. Both preserve Terminal operation ordinals
+  and successor edges; neither is a general CFG legalization path.
 - `lowering/unit/projected_argument.rs` owns the shared target-layout lowering
   for one structural argument projected from an attached Unit parameter.
 - `lowering/unit/boundary_call.rs` also owns the bounded native
@@ -128,7 +129,7 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 - Must preserve abstract operation order when remapping handles and spans.
 - Must not own language acceptance of unsafe behavior, proof discharge, borrow checking, or effect authorization.
 - Must keep legalization separate from physical register/stack assignment.
-- An attached-Unit scalar call may request a result home, but this stage does
+- An attached-Unit scalar call may request an exact scalar-typed result home, but this stage does
   not choose its byte offset; assignment owns the ordered physical layout.
 - Nearest-FMA legalization must retain exact occurrence/plan/admission custody,
   but assignment—not target legalization—owns its XMM register choices.

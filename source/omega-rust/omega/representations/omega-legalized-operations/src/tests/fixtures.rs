@@ -310,7 +310,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let home = |index| omega_target_operations::TargetUnitScalarHomeRequirement {
         defining_operation: operations[index],
         source_value: values[index],
-        scalar_type,
+        scalar_type: psi_core::ScalarType::Integer(scalar_type),
         shape,
     };
     let argument = |parameter_index, source| LegalizedScalarCallUnitArgument {

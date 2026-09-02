@@ -137,7 +137,10 @@ fn attached_unit_calls_retain_immediates_and_prior_results_with_durable_homes() 
 
         assert_eq!(first_home.defining_operation, *first_operation);
         assert_eq!(first_home.source_value, ValueId::new(11).unwrap());
-        assert_eq!(first_home.scalar_type, fixed_integer(32));
+        assert_eq!(
+            first_home.scalar_type,
+            psi_core::ScalarType::Integer(fixed_integer(32))
+        );
         assert_eq!(first_home.shape, first_plan.result.as_ref().unwrap().shape);
         assert_eq!(second_home.defining_operation, *second_operation);
         assert_eq!(second_home.source_value, ValueId::new(12).unwrap());

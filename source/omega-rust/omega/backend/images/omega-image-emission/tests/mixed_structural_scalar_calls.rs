@@ -14,8 +14,8 @@ use omega_image_emission::{
 use omega_machine_emission::emit_machine_code;
 use omega_target::NativeTarget;
 use omega_target_operations::{
-    AbstractResult, FixedIntegerScalarAbiValue, MixedStructuralScalarFunctionAbi,
-    TargetStructuralParameter, TerminalPsiProvenance,
+    AbstractResult, FixedIntegerScalarAbiValue, MixedStructuralScalarAbiResult,
+    MixedStructuralScalarFunctionAbi, TargetStructuralParameter, TerminalPsiProvenance,
 };
 use psi_core::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
@@ -109,9 +109,9 @@ fn mixed_plan(target: NativeTarget) -> AssignedOperationPlan {
             placement: mixed_call_plan.parameters[0].clone(),
         }],
         structural_parameters: vec![callee_parameter],
-        result: FixedIntegerScalarAbiValue {
+        result: MixedStructuralScalarAbiResult {
             value: callee_result,
-            scalar_type: integer,
+            scalar_type: ScalarType::Integer(integer),
             placement: mixed_call_plan.result.clone().unwrap(),
         },
     };
