@@ -837,16 +837,52 @@ fn lower_dynamic_call_custody(
     };
     Ok(match lane {
         DynamicLoweringLane::Direct => {
-            if forwarded_helper.is_some() {
-                return unsupported("forwarded dynamic dispatch must retain rebound custody");
-            }
-            (
-                TerminalDynamicDispatchCatalog {
-                    parameters: Vec::new(),
+            let mut catalog = TerminalDynamicDispatchCatalog {
+                parameters: Vec::new(),
+                arguments: Vec::new(),
+                selections: vec![latest_selection],
+                rebound_descriptors: Vec::new(),
+                direct_dispatches: Vec::new(),
+                indirect_dispatches: Vec::new(),
+                parameter_dispatches: Vec::new(),
+            };
+            let call_kind = if let Some(helper) = forwarded_helper {
+                let (requirements, requirement_slot) =
+                    dynamic_parameter_interface(application, selected_row)?;
+                catalog.parameters.push(TerminalDynamicDescriptorParameter {
+                    owner: helper.machine,
+                    ordinal: 0,
+                    source_position: 0,
+                    trait_identity: application.trait_identity.clone(),
+                    access: latest_source.access,
+                    requirements,
+                });
+                catalog.arguments.push(TerminalDynamicDescriptorArgument {
+                    owner: caller_machine,
+                    operation: call_operation,
+                    parameter_ordinal: 0,
+                    source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+                });
+                catalog
+                    .parameter_dispatches
+                    .push(TerminalParameterDynamicDispatch {
+                        owner: helper.machine,
+                        operation: helper.operation,
+                        parameter_ordinal: 0,
+                        requirement_slot,
+                    });
+                OperationKind::CallStructuralScalar {
+                    callee: helper.machine,
                     arguments: Vec::new(),
-                    selections: vec![latest_selection],
-                    rebound_descriptors: Vec::new(),
-                    direct_dispatches: vec![TerminalDirectDynamicDispatch {
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                }
+            } else {
+                catalog
+                    .direct_dispatches
+                    .push(TerminalDirectDynamicDispatch {
                         owner: caller_machine,
                         operation: call_operation,
                         selection_ordinal: 0,
@@ -858,10 +894,7 @@ fn lower_dynamic_call_custody(
                         realization_identity: selected_row.realization_identity.clone(),
                         realization_callable_identity: callable_identity,
                         realization: realization_machine,
-                    }],
-                    indirect_dispatches: Vec::new(),
-                    parameter_dispatches: Vec::new(),
-                },
+                    });
                 OperationKind::CallStructuralScalar {
                     callee: realization_machine,
                     arguments: Vec::new(),
@@ -869,8 +902,9 @@ fn lower_dynamic_call_custody(
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                },
-            )
+                }
+            };
+            (catalog, call_kind)
         }
         DynamicLoweringLane::Rebound(initial) => {
             let initial_source = validate_and_lower_selection_source(

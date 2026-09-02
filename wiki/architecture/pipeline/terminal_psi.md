@@ -778,8 +778,10 @@ row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
 Current format 71/vocabulary 74 adds a distinct owner-local selection argument
 source alongside rebound descriptors and inbound parameters. Direct-selection
-Unit forwarding therefore crosses the helper without relabeling its custody;
-direct scalar forwarding is not widened by this bounded rung. The
+Unit and scalar forwarding therefore cross the helper without relabeling their
+custody. The scalar form retains its exact result through the ordinary caller,
+parameter-slot helper, target assignment, durable Unit-frame home, and native
+artifact replay; the Unit form retains no result carrier. The
 Terminal-to-abstract boundary retains both dynamic Unit variants without a
 scalar definition. Local rebound dispatch and the exactly-once forwarded form
 now cross target lowering, assignment, native emission, object/image replay,

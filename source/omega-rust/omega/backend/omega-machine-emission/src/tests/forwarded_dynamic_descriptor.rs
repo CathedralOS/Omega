@@ -11,7 +11,9 @@ use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 fn assigned_plan(target: NativeTarget) -> omega_assigned_target_operations::AssignedOperationPlan {
-    let source = r#"
+    assigned_scalar_plan_from_source(
+        target,
+        r#"
         trait Measure {
             machine measure(&self) -> i32;
             machine alternate(&self) -> i32;
@@ -44,7 +46,38 @@ fn assigned_plan(target: NativeTarget) -> omega_assigned_target_operations::Assi
             let result: i32 = erased.measure();
             transition { _ -> result }
         }
-    "#;
+    "#,
+    )
+}
+
+fn assigned_direct_plan(
+    target: NativeTarget,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
+    assigned_scalar_plan_from_source(
+        target,
+        r#"
+        trait Measure { machine measure(&self) -> i32; }
+        data Item { value: i32; }
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 { transition { _ -> self.value } }
+        }
+        data Main { selected: Item; }
+        machine Main::run(&mut self) {
+            let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+        machine forward(erased: &dyn Measure) -> i32 {
+            let result: i32 = erased.measure();
+            transition { _ -> result }
+        }
+    "#,
+    )
+}
+
+fn assigned_scalar_plan_from_source(
+    target: NativeTarget,
+    source: &str,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -132,6 +165,56 @@ fn assigned_unit_plan_from_source(
     let target_plan = lower_to_target_operations(&abstract_plan, target)
         .expect("lower result-less caller and helper to target operations");
     assign_registers(&target_plan).expect("assign result-less forwarded descriptor ABI")
+}
+
+#[test]
+fn emits_direct_selection_scalar_forwarding_with_a_durable_result_home() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assigned_direct_plan(target);
+        let emitted = crate::emit_machine_code(&assigned)
+            .expect("emit direct-selection scalar caller and helper");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("entry caller");
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one direct-selection scalar call expected: {caller:#?}")
+        };
+        let result = call.result.as_ref().expect("scalar forwarded result");
+        let semantic_result = call.semantic_result.expect("scalar semantic result");
+        assert_eq!(call.call_plan.result.as_ref(), Some(&result.source));
+        assert_eq!(caller.unit_scalar_homes, [result.home]);
+        assert_eq!(result.home.source_value, semantic_result.value);
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one direct-selection descriptor argument expected")
+        };
+        assert!(matches!(
+            argument.custody.source,
+            omega_target_operations::AbstractDynamicDescriptorSource::Selection { .. }
+        ));
+        assert_eq!(argument.adapters.len(), 1);
+        assert_eq!(
+            argument.adapters[0].result,
+            psi_terminal::ClosedConformanceCallableResult::I32
+        );
+
+        let helper = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.callee)
+            .expect("direct-selection scalar helper");
+        let [parameter_call] = helper.dynamic_parameter_calls.as_slice() else {
+            panic!("one scalar parameter-slot call expected: {helper:#?}")
+        };
+        assert!(parameter_call.source_value.is_some());
+        assert_eq!(
+            parameter_call.scalar_type,
+            Some(psi_core::ScalarType::Integer(
+                psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32).unwrap(),
+            ))
+        );
+    }
 }
 
 #[test]
