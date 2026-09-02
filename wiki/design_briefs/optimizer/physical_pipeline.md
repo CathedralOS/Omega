@@ -201,6 +201,16 @@ nine fixed/address carriers, four ordered boundary pairs, and five targets
 produce 180 direct plus 180 optimized-custody cases. Plain immediate,
 bitwise-not, AND/OR, parameter XOR, and runtime-expression substitution all
 fail closed.
+Constant saturating integer add is a separate exact four-operation family. It
+validates two ordered same-type constants, `SaturatingIntegerAdd`, and
+`Return`, recomputes the declared carrier through
+`IntegerType::saturating_add`, and requires one exact
+`ReturnIntegerImmediate` with ordered provenance. Signed and unsigned fixed
+8/16/32/64 plus address64 cross positive, negative, and nonsaturating
+boundaries at direct and optimized custody on all five targets. Exact or
+wrapping add, subtraction/multiplication, plain-immediate, parameter-family,
+and runtime-expression substitution fail closed. The family validates the
+existing lowering; it adds no target operation and no persisted wire form.
 Constant wrapping integer add is a separate exact four-operation family. It
 validates two ordered same-type constants, `WrappingIntegerAdd`, and `Return`,
 computes modulo the declared width through `IntegerType::wrapping_add`, and

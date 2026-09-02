@@ -783,6 +783,16 @@ joins the exact ordered four-operation grammar to independent
 fixture, corruption, catalog, and optimized-custody leaves cover 180 direct and
 180 optimized fixed/address cases across all five targets while remaining
 disjoint from plain immediate, bitwise-not, AND/OR, and parameter XOR.
+Constant saturating integer-add immediate translation owns the adjacent exact
+arithmetic taxonomy under `straight_line_saturating_integer_add_immediate/`.
+Its 27-line executable entrance joins only `grammar::reconstruct` and
+`replay::validate`; those two lower rungs own the four-operation source shape
+and independent `ReturnIntegerImmediate` check. A typed receipt, one catalog
+adapter, focused fixture/corruption leaves, and the optimized-custody fixture
+complete the visible ladder. The tests cover 180 direct and 180 optimized
+fixed/address cases across all five targets while keeping exact, wrapping,
+subtract/multiply, plain-immediate, parameter-add, and runtime-expression
+families disjoint.
 Constant wrapping integer-add immediate translation is its exact arithmetic
 sibling under `straight_line_wrapping_integer_add_immediate/`. Its 27-line
 entrance joins the ordered two-constant grammar to independent

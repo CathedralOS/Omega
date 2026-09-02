@@ -5,7 +5,6 @@ mod dispatch;
 mod model;
 mod plan;
 mod selection;
-
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
@@ -20,6 +19,7 @@ const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
     dispatch::immediate::INTEGER_BITWISE_AND,
     dispatch::immediate::INTEGER_BITWISE_OR,
     dispatch::immediate::INTEGER_BITWISE_XOR,
+    dispatch::immediate::SATURATING_INTEGER_ADD,
     dispatch::immediate::WRAPPING_INTEGER_ADD,
     dispatch::immediate::WRAPPING_INTEGER_SUBTRACT,
     dispatch::immediate::WRAPPING_INTEGER_MULTIPLY,
