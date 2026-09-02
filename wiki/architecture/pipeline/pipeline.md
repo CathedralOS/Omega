@@ -220,8 +220,15 @@ root role, package identities and canonical names, physical roots, canonical
 build-visible source metadata, and requester-local dependency edges. Generated
 source bundles and accepted semantic bindings remain exact-target child inputs.
 This projection is a checkpoint equality guard, not a durable package identity
-or source receipt; source/parse sharing does not land until the compiler owns
-and validates the corresponding immutable checkpoint.
+or source receipt.
+
+The compiler now forms and validates the corresponding immutable source/parse
+checkpoint. Physical roots and unconditional physical imports are parsed once;
+an exact child must match the retained package source inputs before it may add
+its dependency-generated sources, resolve generated-only imports, or load its
+selected target imports. The ordinary one-target path uses that same child, so
+it cannot drift from later multi-target orchestration. The checkpoint remains
+compiler-private and does not itself loop targets or publish a batch result.
 
 ## Representation Root Shape
 
