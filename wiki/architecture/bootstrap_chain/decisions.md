@@ -3328,3 +3328,35 @@ the raw payload. The next experiment must scale the arena profile and connect
 real Epsilon semantic lowering. Within the tested profile, however, the actual
 backend workload is about 300 source lines smaller in state-machine Delta, so
 neither recursion nor symbolic encoding currently pays for a functional rung.
+
+## D76 — Fixed arenas carry the complete Alpha payload profile
+
+The symbolic encoder's bounded checkpoint is expanded without changing its
+representation or publication discipline. All twelve item-field arenas and two
+label arenas now contain 1,048,572 words. They consume 117,440,064 bytes; with
+Delta's 1 MiB static base, the final arena ends at byte 118,488,640, below
+AlphaBootstrapV2's 256 MiB memory bound. Label counts and identities use
+little-endian `u32`, removing the prior 256-label restriction.
+
+Typed wrapping multiplication and signed less-than branching are added beside
+division for label decoding and payload bounds. The Gamma compiler grows from
+643 to 661 lines, from 25,943 to 26,802 source bytes, and from 22,690 to 23,403
+native bytes. The encoder grows from 539 to 574 lines and from 12,635 to 13,602
+source bytes; its generated tape grows from 10,842 to 11,772 bytes. Existing
+state, parser, and recursive-transform tapes remain exact.
+
+The gate resolves a forward label numbered 300, emits one exact 1,048,572-byte
+payload formed from 95,324 eleven-byte equality branches and eight returns,
+and rejects the adjacent 1,048,583-byte request before output. Four-byte label
+count framing, exact input end, dense definitions, all instruction forms, and
+high-bit immediate bytes remain covered.
+
+This removes D75's profile-size reservation. The state-machine backend is still
+260 lines smaller than the retained 834-line functional backend while covering
+the selected Alpha payload limit. It spends fixed semantic memory instead of
+persistent trie and balanced-rope structure and relies on complete symbolic
+prevalidation instead of replaying bytes it just emitted. The remaining honest
+comparison is actual Epsilon semantic lowering and whether an independent raw
+tape replay adds enough trust to justify its implementation cost. Payload scale,
+recursive syntax, and symbolic target resolution no longer independently argue
+for a functional Delta rung.
