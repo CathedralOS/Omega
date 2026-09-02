@@ -248,6 +248,27 @@ pub(super) fn compose_call_operation(
             // V1 therefore imports no realization-specific contract axioms.
         }
         (
+            CallResultRule::UnitCalleeResult,
+            OperationKind::CallDynamicUnit {
+                requirement_obligations,
+                crash_continuations,
+                ..
+            },
+        )
+        | (
+            CallResultRule::UnitCalleeResult,
+            OperationKind::CallDynamicParameterUnit {
+                requirement_obligations,
+                crash_continuations,
+                ..
+            },
+        ) => {
+            debug_assert!(requirement_obligations.is_empty());
+            debug_assert!(crash_continuations.is_empty());
+            // The admitted Unit descriptor rows have empty contracts. The
+            // dynamic catalog independently validates the selected table slot.
+        }
+        (
             CallResultRule::StructuralCalleeResult,
             OperationKind::CallStructuralWithScalarArguments {
                 requirement_obligations,

@@ -31,6 +31,21 @@ use psi_terminal::{
 use super::*;
 
 mod continuation;
+mod unit;
+
+pub(super) fn lower_direct_dynamic_unit_machine(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedDynamicUnitCallPlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    unit::lower_direct_dynamic_unit_machine(checked, plan)
+}
+
+pub(super) fn lower_rebound_dynamic_unit_machine(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedReboundDynamicUnitCallPlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    unit::lower_rebound_dynamic_unit_machine(checked, plan)
+}
 
 struct DynamicCallerShape {
     attachment_type_identity: String,
@@ -608,6 +623,27 @@ fn validate_forwarded_dynamic_call(
     coordinate: psi_checked_trees::CheckedUnitCallCoordinate,
     parameter: psi_symbols::SymbolHandle,
 ) -> Result<bool, LoweringError> {
+    validate_forwarded_dynamic_call_coordinates(
+        checked,
+        plan.requirement,
+        plan.checked_call_service_reach,
+        helper_machine,
+        helper_state,
+        coordinate,
+        parameter,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_forwarded_dynamic_call_coordinates(
+    checked: &CheckedTrees,
+    requirement: psi_symbols::SymbolHandle,
+    checked_call_service_reach: ServiceReachSummary,
+    helper_machine: psi_symbols::SymbolHandle,
+    helper_state: psi_symbols::SymbolHandle,
+    coordinate: psi_checked_trees::CheckedUnitCallCoordinate,
+    parameter: psi_symbols::SymbolHandle,
+) -> Result<bool, LoweringError> {
     let selections = checked
         .facts
         .flow
@@ -643,9 +679,9 @@ fn validate_forwarded_dynamic_call(
     Ok(call.statement_index == coordinate.statement_index as usize
         && call.call_ordinal == coordinate.call_ordinal as usize
         && call.receiver_symbol == parameter
-        && call.target_symbol == plan.requirement
+        && call.target_symbol == requirement
         && call.has_receiver
-        && call.service_reach == plan.checked_call_service_reach)
+        && call.service_reach == checked_call_service_reach)
 }
 
 fn checked_store_literal_matches(
@@ -685,25 +721,52 @@ fn validate_and_lower_selection_source(
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
     type_ids: &[(String, psi_core::StructuralTypeId)],
 ) -> Result<StructuralArgument, LoweringError> {
-    if plan.source_parameter_position != caller_self.position
-        || plan.caller_parameter_access
+    validate_and_lower_dynamic_source(
+        caller_self,
+        plan.source_parameter_position,
+        plan.caller_parameter_access,
+        plan.caller_multiplicity,
+        plan.source_access,
+        &plan.caller_attachment_type_identity,
+        source_path,
+        source_type_identity,
+        structural_types,
+        type_ids,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_and_lower_dynamic_source(
+    caller_self: &StructuralParameterDeclaration,
+    source_parameter_position: u32,
+    caller_parameter_access: CheckedStructuralAccess,
+    caller_multiplicity: Multiplicity,
+    source_access: CheckedStructuralAccess,
+    caller_attachment_type_identity: &str,
+    source_path: &[CheckedUnitStructuralPathSegment],
+    source_type_identity: &str,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    type_ids: &[(String, psi_core::StructuralTypeId)],
+) -> Result<StructuralArgument, LoweringError> {
+    if source_parameter_position != caller_self.position
+        || caller_parameter_access
             != match caller_self.access {
                 StructuralAccess::SharedBorrow => CheckedStructuralAccess::SharedBorrow,
                 StructuralAccess::MutableBorrow => CheckedStructuralAccess::MutableBorrow,
                 _ => return unsupported("direct dynamic caller self access is unsupported"),
             }
         || !caller_self.is_self
-        || caller_self.multiplicity != terminal_structural_multiplicity(plan.caller_multiplicity)
+        || caller_self.multiplicity != terminal_structural_multiplicity(caller_multiplicity)
         || !matches!(
-            plan.source_access,
+            source_access,
             CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
         )
-        || (plan.source_access == CheckedStructuralAccess::MutableBorrow
+        || (source_access == CheckedStructuralAccess::MutableBorrow
             && caller_self.access != StructuralAccess::MutableBorrow)
     {
         return unsupported("direct dynamic caller self does not license the field subloan");
     }
-    let attachment_id = lookup_type_id(type_ids, &plan.caller_attachment_type_identity)?;
+    let attachment_id = lookup_type_id(type_ids, caller_attachment_type_identity)?;
     let source_type = lookup_type_id(type_ids, source_type_identity)?;
     let attachment = structural_types
         .iter()
@@ -730,7 +793,7 @@ fn validate_and_lower_selection_source(
     Ok(StructuralArgument {
         place: caller_self.place,
         path: lower_structural_path(source_path),
-        access: match plan.source_access {
+        access: match source_access {
             CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
             CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
             _ => unreachable!("borrowed dynamic source access was validated"),
@@ -1115,7 +1178,13 @@ fn terminal_structural_multiplicity(multiplicity: Multiplicity) -> StructuralMul
 fn terminal_projected_source_multiplicity(
     plan: &CheckedDynamicScalarCallPlan,
 ) -> StructuralMultiplicity {
-    match plan.caller_multiplicity {
+    terminal_projected_source_multiplicity_for(plan.caller_multiplicity)
+}
+
+fn terminal_projected_source_multiplicity_for(
+    caller_multiplicity: Multiplicity,
+) -> StructuralMultiplicity {
+    match caller_multiplicity {
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
         Multiplicity::Affine => StructuralMultiplicity::Affine,
         Multiplicity::Linear => StructuralMultiplicity::Linear,
@@ -1133,7 +1202,29 @@ fn lower_dynamic_structural_types(
     ),
     LoweringError,
 > {
-    if caller_attachment != plan.caller_attachment_type_identity {
+    lower_dynamic_structural_types_for_source(
+        checked,
+        caller_attachment,
+        &plan.caller_attachment_type_identity,
+        &plan.source_path,
+        &plan.source_type_identity,
+    )
+}
+
+fn lower_dynamic_structural_types_for_source(
+    checked: &CheckedTrees,
+    caller_attachment: &str,
+    checked_caller_attachment: &str,
+    source_path: &[CheckedUnitStructuralPathSegment],
+    source_type_identity: &str,
+) -> Result<
+    (
+        Vec<psi_terminal::StructuralTypeDeclaration>,
+        Vec<(String, psi_core::StructuralTypeId)>,
+    ),
+    LoweringError,
+> {
+    if caller_attachment != checked_caller_attachment {
         return unsupported("direct dynamic caller attachment identity drifted");
     }
     let roots = &checked.facts.flow.terminal_unit_effects.structural_types;
@@ -1144,8 +1235,7 @@ fn lower_dynamic_structural_types(
     let [caller] = caller_roots.as_slice() else {
         return unsupported("direct dynamic caller attachment shape is absent or ambiguous");
     };
-    let [CheckedUnitStructuralPathSegment::Field(source_field)] = plan.source_path.as_slice()
-    else {
+    let [CheckedUnitStructuralPathSegment::Field(source_field)] = source_path else {
         return unsupported("direct dynamic source must be one exact attachment field");
     };
     let CheckedUnitStructuralTypeShape::Record { fields } = &caller.shape else {
@@ -1157,7 +1247,7 @@ fn lower_dynamic_structural_types(
             field.identity == *source_field
                 && field.field_type
                     == CheckedUnitStructuralFieldType::Structural {
-                        type_identity: plan.source_type_identity.clone(),
+                        type_identity: source_type_identity.to_owned(),
                     }
         })
         .count();
@@ -1168,7 +1258,7 @@ fn lower_dynamic_structural_types(
         checked,
         &[
             caller_attachment.to_owned(),
-            plan.source_type_identity.clone(),
+            source_type_identity.to_owned(),
         ],
     )
 }

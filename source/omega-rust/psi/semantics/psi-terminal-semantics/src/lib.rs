@@ -337,6 +337,8 @@ operation_semantic_rows! {
     CallStructuralScalar => ("algebra:call:call-structural-scalar", CallComposition, None),
     CallDynamicScalar => ("algebra:call:call-dynamic-scalar", CallComposition, None),
     CallDynamicParameterScalar => ("algebra:call:call-dynamic-parameter-scalar", CallComposition, None),
+    CallDynamicUnit => ("algebra:call:call-dynamic-unit", CallComposition, None),
+    CallDynamicParameterUnit => ("algebra:call:call-dynamic-parameter-unit", CallComposition, None),
     CallStructural => ("algebra:call:call-structural", CallComposition, None),
     CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
     BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
@@ -715,21 +717,21 @@ mod tests {
 
     #[test]
     fn operation_inventory_is_exact_unique_and_closed() {
-        assert_eq!(OperationSemanticTag::ALL.len(), 49);
-        assert_eq!(OperationSemanticRow::ALL.len(), 50);
+        assert_eq!(OperationSemanticTag::ALL.len(), 53);
+        assert_eq!(OperationSemanticRow::ALL.len(), 53);
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            42,
+            43,
         );
         assert_eq!(
             OperationSemanticRow::ALL
                 .iter()
                 .filter(|row| row.custody == OperationSemanticCustody::CallComposition)
                 .count(),
-            7,
+            10,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -744,7 +746,7 @@ mod tests {
                 .map(|row| row.tag)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            49,
+            53,
         );
         assert_eq!(
             OperationSemanticRow::ALL
@@ -752,7 +754,7 @@ mod tests {
                 .map(|row| row.identity)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            49,
+            53,
         );
         assert!(
             OperationSemanticRow::ALL

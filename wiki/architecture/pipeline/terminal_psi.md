@@ -763,6 +763,23 @@ not general mutable initialized-data or BSS support. Multi-block continuation
 remains independent unfinished work. None of these boundaries permit
 devirtualizing the call.
 
+Terminal format 70/vocabulary 73 adds result-less dynamic Unit dispatch without
+inventing a scalar carrier. A direct local selection remains an exact
+`CallUnit` joined to its direct dispatch row. A same-conformance rebound uses
+`CallDynamicUnit`, and an exactly once-rebound descriptor passed through one
+transparent helper uses `CallDynamicParameterUnit`. Both explicit dynamic
+operations have `OperationResult::Unit`; their descriptor/parameter ordinal,
+requirement slot, obligations, and crash continuations round-trip canonically.
+Validation rejoins the complete application, Unit callable interface, selected
+row or parameter slot, operation, access, and source. Fixed fuel and reference
+execution resolve the same rows without allocating a value ID or result home.
+Direct-selection forwarding remains outside Terminal because the descriptor-
+argument source vocabulary currently names only rebound descriptors and inbound
+parameters. The producer rejects that case rather than relabeling it. The
+Terminal-to-abstract boundary also rejects both dynamic Unit variants until a
+target-neutral table/adapter carrier exists, so this rung claims no native
+execution.
+
 The same closed application now admits one exact mutation-bearing callable in
 Terminal form. Its checked row carries a primitive-field literal store through
 `&mut self` separately from the scalar return expression. The field may be
@@ -3835,7 +3852,7 @@ parameter table and rejects write-only borrow access; owned, shared-borrowed,
 and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
-format substitution fail closed. Terminal format 69 / vocabulary 72 assign
+format substitution fail closed. Terminal format 70 / vocabulary 73 assign
 source tag 9 and reject it under legacy formats. Checked/source production
 remains transitional because the pipeline retains no exact checked expression
 to Terminal owner/root/path correspondence. Other arbitrary Terminal values
@@ -4870,9 +4887,9 @@ lifetime composition obligations are established.
 The current Rust migration surface is now exposed by `psi-terminal-codec` in
 every verified proof synopsis. Its validated graph binds exact source bytes and
 explicit versions for the decoder, proof kernel, verifier, each sufficient-form
-reducer, the unproved ledger framework, 32 scalar-denotation rows, six
-separate structural/effect rows, and five call-composition rows covering every
-closed `OperationKind`. The 38 leaf / five call operation-custody split remains
+reducer, the unproved ledger framework, 34 scalar-denotation rows, nine
+separate structural/effect rows, and ten call-composition rows covering every
+closed `OperationKind`. The 43 leaf / ten call operation-custody split remains
 unchanged. Dependency edges
 contribute to the graph identity; unknown, cyclic, unreachable, duplicate, or
 noncanonical custody rejects. The entry deliberately reports `fully-derived
@@ -4880,9 +4897,10 @@ false`: this inventory is the prerequisite for, not an implementation of, the
 low canonical ledger.
 
 The production structural/effect table extends the closed-row schema:
-`WriteOnlyPrimitiveStore`, `EstablishPayloadlessCase`,
-`EstablishByteSequenceLiteral`, `BooleanStructuralField`, `PortWrite`, and
-`EstablishTrivialAffineLocal` expose
+`WriteOnlyPrimitiveStore`, `StructuralScalarFieldStore`,
+`EstablishPayloadlessCase`, `EstablishByteSequenceLiteral`,
+`BooleanStructuralField`, `IntegerStructuralField`, `PortWrite`, and
+`EstablishTrivialAffineLocal`, and `EstablishAffineScalarRecord` expose
 their result, exact custody, action, external-effect, one-fuel, and place-
 frontier policies through one exact-unique Rust table. Its generic interpreter
 keeps the Boolean equation, observable port effect, and affine establishment
@@ -4893,11 +4911,13 @@ proof-bundle, reconstruction, and substitution sources, so splitting the former
 monolith does not weaken exact deciding-byte custody.
 
 Call composition follows the same production shape without pretending that a
-call is a primitive denotation. One exact-unique five-row table independently
+call is a primitive denotation. One exact-unique ten-row table independently
 declares target, result, positional arguments, requirement handling, structural
 transfer, successful outcome, crash routes, evidence lifetime, fuel, and
 frontier policy for `Call`, `CallUnit`, `CallStructuralScalar`,
-`CallStructural`, and `BoundaryCall`. Execution-grade
+`CallDynamicScalar`, `CallDynamicParameterScalar`, `CallDynamicUnit`,
+`CallDynamicParameterUnit`, `CallStructural`,
+`CallStructuralWithScalarArguments`, and `BoundaryCall`. Execution-grade
 module validation remains responsible for proving each concrete signature,
 state/movement, clause coverage, capture-free substitution, transfer, outcome,
 crash, and evidence invariant. Only then does the focused call-composition
@@ -4918,9 +4938,9 @@ format-22/vocabulary-25 artifact. Git commit `a5cfd83cc` and its follow-ups
 retain the executable
 provenance; dead source is not carried as a parallel verifier.
 
-The reusable result now lives in production's closed 43-row inventory: 32
-scalar denotations plus six structural/effect leaves form 38 leaf rows, while
-five call-composition rows remain a separate algebra. Exact-unique lookup and
+The reusable result now lives in production's closed 53-row inventory: 34
+scalar denotations plus nine structural/effect leaves form 43 leaf rows, while
+ten call-composition rows remain a separate algebra. Exact-unique lookup and
 mutation tests retain the schema discipline. Reusable low-rung byte,
 scalar/type/value, UTF-8, and structural-leaf grammar fragments remain gated,
 but deliberately claim neither a fixed terminal header nor a complete live

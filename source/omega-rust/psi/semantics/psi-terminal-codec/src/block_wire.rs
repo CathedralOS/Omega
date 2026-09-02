@@ -91,7 +91,7 @@ pub(super) fn encode_block_for_result_paths(
                 writer.id(destination);
             }
             OperationKind::EstablishAffineScalarRecord { field, value } => {
-                writer.u8(51);
+                writer.u8(52);
                 writer.id(field);
                 encode_integer_value(writer, value);
             }
@@ -177,6 +177,28 @@ pub(super) fn encode_block_for_result_paths(
                 crash_continuations,
             } => {
                 writer.u8(49);
+                writer.u32(parameter_ordinal);
+                writer.u32(requirement_slot);
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
+            OperationKind::CallDynamicUnit {
+                descriptor_ordinal,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(51);
+                writer.u32(descriptor_ordinal);
+                encode_obligation_ids(writer, &requirement_obligations)?;
+                encode_crash_routes(writer, &crash_continuations)?;
+            }
+            OperationKind::CallDynamicParameterUnit {
+                parameter_ordinal,
+                requirement_slot,
+                requirement_obligations,
+                crash_continuations,
+            } => {
+                writer.u8(53);
                 writer.u32(parameter_ordinal);
                 writer.u32(requirement_slot);
                 encode_obligation_ids(writer, &requirement_obligations)?;
@@ -974,6 +996,17 @@ pub(super) fn decode_block_for_result_paths(
                 crash_continuations: decode_crash_routes(reader)?,
             },
             49 => OperationKind::CallDynamicParameterScalar {
+                parameter_ordinal: reader.u32()?,
+                requirement_slot: reader.u32()?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
+            },
+            52 => OperationKind::CallDynamicUnit {
+                descriptor_ordinal: reader.u32()?,
+                requirement_obligations: decode_ids(reader, "ObligationId")?,
+                crash_continuations: decode_crash_routes(reader)?,
+            },
+            53 => OperationKind::CallDynamicParameterUnit {
                 parameter_ordinal: reader.u32()?,
                 requirement_slot: reader.u32()?,
                 requirement_obligations: decode_ids(reader, "ObligationId")?,
