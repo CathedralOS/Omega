@@ -56,6 +56,8 @@ pub(super) fn validate_mixed_structural_scalar_abi(
         || structural_count == 0
         || function.fixed_integer_scalar_abi.is_some()
         || function.unit_scalar_abi.is_some()
+        || function.scalar_stack.is_none()
+        || function.unit_stack.is_some()
         || expected != abi.call_plan
         || abi.call_plan.parameters.len() != scalar_count + structural_count
         || abi.call_plan.result.as_ref() != Some(&abi.result.placement)

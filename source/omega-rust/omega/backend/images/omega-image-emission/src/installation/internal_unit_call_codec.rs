@@ -1,10 +1,11 @@
-//! Canonical format-37 codec for one installed internal Unit-call row.
+//! Canonical format-55 codec for one installed internal Unit-call row.
 //!
 //! Call ordering, stack composition, and custody validation remain in the
 //! installation parent. This child owns only the exact call-row bytes.
 
 use omega_machine_code::{
     InternalStructuralCallResult, InternalUnitCallArgumentRecord, InternalUnitCallRecord,
+    InternalUnitScalarCallArgumentRecord,
 };
 use omega_target_operations::CallSiteOwner;
 use psi_core::{ClaimId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
@@ -14,8 +15,9 @@ use psi_terminal::{
 };
 
 use super::{
-    InstallationError, InstalledInternalUnitCall, Reader, decode_boolean, push_u16, push_u32,
-    push_u64,
+    InstallationError, InstalledInternalUnitCall, Reader, decode_boolean,
+    internal_unit_scalar_call_codec::{decode_argument_source, encode_argument_source},
+    push_u16, push_u32, push_u64,
     structural_argument_codec::{decode_structural_argument, encode_structural_argument},
     value_placement_codec::{
         decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
@@ -116,6 +118,26 @@ fn encode_internal_unit_call(
         u64::try_from(custody.byte_count)
             .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
     );
+    push_u32(
+        bytes,
+        u32::try_from(custody.scalar_arguments.len())
+            .map_err(|_| InstallationError::TooManyInternalUnitScalarCallArguments)?,
+    );
+    for argument in &custody.scalar_arguments {
+        push_u32(bytes, argument.parameter_index);
+        encode_argument_source(bytes, argument.source)?;
+        encode_direct_placement(bytes, &argument.destination)?;
+        push_u64(
+            bytes,
+            u64::try_from(argument.code_offset)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+        push_u64(
+            bytes,
+            u64::try_from(argument.byte_count)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        );
+    }
     push_u32(
         bytes,
         u32::try_from(custody.arguments.len())
@@ -343,6 +365,23 @@ fn decode_internal_unit_call(
         .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
     let byte_count = usize::try_from(reader.u64()?)
         .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
+    let scalar_argument_count = usize::try_from(reader.u32()?)
+        .map_err(|_| InstallationError::TooManyInternalUnitScalarCallArguments)?;
+    if scalar_argument_count > reader.remaining() / 48 {
+        return Err(InstallationError::UnexpectedEnd);
+    }
+    let mut scalar_arguments = Vec::with_capacity(scalar_argument_count);
+    for _ in 0..scalar_argument_count {
+        scalar_arguments.push(InternalUnitScalarCallArgumentRecord {
+            parameter_index: reader.u32()?,
+            source: decode_argument_source(reader)?,
+            destination: decode_direct_placement(reader)?,
+            code_offset: usize::try_from(reader.u64()?)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+            byte_count: usize::try_from(reader.u64()?)
+                .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?,
+        });
+    }
     let argument_count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyInternalUnitCallArguments)?;
     if argument_count > reader.remaining() / 80 {
@@ -419,6 +458,7 @@ fn decode_internal_unit_call(
             result,
             semantic_result,
             structural_result,
+            scalar_arguments,
             arguments,
             claim_transfers,
             operation_ordinal,

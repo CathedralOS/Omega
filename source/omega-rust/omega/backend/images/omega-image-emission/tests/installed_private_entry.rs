@@ -120,6 +120,7 @@ fn emitted_object() -> (
             machine: MachineId::new(1).expect("entry machine"),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: Vec::new(),
                 edges: vec![EdgeId::new(1).expect("entry return edge")],

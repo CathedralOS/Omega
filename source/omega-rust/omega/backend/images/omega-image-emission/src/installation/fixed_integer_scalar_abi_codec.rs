@@ -67,7 +67,7 @@ pub(super) fn decode_fixed_integer_scalar_abi(
     }
 }
 
-fn encode_abi_value(
+pub(super) fn encode_abi_value(
     bytes: &mut Vec<u8>,
     value: &FixedIntegerScalarAbiValue,
 ) -> Result<(), InstallationError> {
@@ -77,7 +77,7 @@ fn encode_abi_value(
     Ok(())
 }
 
-fn decode_abi_value(
+pub(super) fn decode_abi_value(
     reader: &mut Reader<'_>,
 ) -> Result<FixedIntegerScalarAbiValue, InstallationError> {
     Ok(FixedIntegerScalarAbiValue {

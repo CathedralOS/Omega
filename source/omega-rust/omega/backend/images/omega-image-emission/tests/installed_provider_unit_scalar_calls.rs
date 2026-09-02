@@ -80,6 +80,7 @@ fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
                 machine: caller,
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: vec![operation],
                     edges: vec![EdgeId::new(970).unwrap()],
@@ -118,6 +119,7 @@ fn emitted_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
                 machine: candidate,
                 attachment: None,
                 fixed_integer_scalar_abi: None,
+                mixed_structural_scalar_abi: None,
                 provenance: TerminalPsiProvenance {
                     operations: Vec::new(),
                     edges: vec![EdgeId::new(971).unwrap()],

@@ -54,6 +54,7 @@ fn field_store_plan(target: NativeTarget) -> TargetOperationPlan {
             machine,
             attachment: Some(root_type),
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             provenance: TerminalPsiProvenance {
                 operations: vec![constant_operation, store_operation],
                 edges: vec![return_edge],

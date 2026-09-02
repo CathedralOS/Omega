@@ -26,6 +26,12 @@ pub(super) fn installed_function_scalar_transport_is_canonical(
         .fixed_integer_scalar_abi
         .as_ref()
         .is_none_or(|abi| installed_fixed_integer_scalar_abi_is_canonical(abi, target));
+    let mixed_abi_is_canonical = function
+        .mixed_structural_scalar_abi
+        .as_ref()
+        .is_none_or(|abi| {
+            installed_mixed_structural_scalar_abi_is_canonical(function, abi, target)
+        });
     let homes_are_canonical = function
         .unit_scalar_homes
         .iter()
@@ -60,7 +66,83 @@ pub(super) fn installed_function_scalar_transport_is_canonical(
                                 && prior.operation_ordinal < constant.operation_ordinal
                         })
             });
-    abi_is_canonical && homes_are_canonical && constants_are_canonical
+    abi_is_canonical && mixed_abi_is_canonical && homes_are_canonical && constants_are_canonical
+}
+
+pub(super) fn installed_mixed_structural_scalar_abi_is_canonical(
+    function: &InstalledFunction,
+    abi: &omega_target_operations::MixedStructuralScalarFunctionAbi,
+    target: NativeTarget,
+) -> bool {
+    let Some(scalar_shapes) = abi
+        .scalar_parameters
+        .iter()
+        .map(|parameter| fixed_integer_shape(parameter.scalar_type))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    let Some(result_shape) = fixed_integer_shape(abi.result.scalar_type) else {
+        return false;
+    };
+    let Ok(expected) = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: scalar_shapes
+                .iter()
+                .copied()
+                .chain(
+                    abi.structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.shape),
+                )
+                .collect(),
+            result: Some(result_shape),
+        },
+    ) else {
+        return false;
+    };
+    let scalar_count = abi.scalar_parameters.len();
+    let structural_count = abi.structural_parameters.len();
+    scalar_count != 0
+        && structural_count != 0
+        && function.fixed_integer_scalar_abi.is_none()
+        && function.scalar_stack.is_some()
+        && function.unit_stack.is_none()
+        && expected == abi.call_plan
+        && abi.call_plan.parameters.len() == scalar_count + structural_count
+        && abi.call_plan.result.as_ref() == Some(&abi.result.placement)
+        && abi.result.placement.shape == result_shape
+        && abi
+            .scalar_parameters
+            .iter()
+            .zip(&scalar_shapes)
+            .zip(&abi.call_plan.parameters[..scalar_count])
+            .all(|((parameter, shape), placement)| {
+                parameter.placement == *placement && placement.shape == *shape
+            })
+        && abi
+            .structural_parameters
+            .iter()
+            .zip(&abi.call_plan.parameters[scalar_count..])
+            .all(|(parameter, placement)| {
+                parameter.placement == *placement && placement.shape == parameter.shape
+            })
+        && abi
+            .scalar_parameters
+            .iter()
+            .map(|parameter| parameter.value)
+            .chain(std::iter::once(abi.result.value))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == scalar_count + 1
+        && abi
+            .structural_parameters
+            .iter()
+            .map(|parameter| parameter.place)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == structural_count
 }
 
 pub(super) fn installed_fixed_integer_scalar_abi_is_canonical(

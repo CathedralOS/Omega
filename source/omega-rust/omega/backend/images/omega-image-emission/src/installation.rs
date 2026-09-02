@@ -35,6 +35,7 @@ mod installation_header_codec;
 mod installed_unit_scalar_transport;
 mod internal_unit_call_codec;
 mod internal_unit_scalar_call_codec;
+mod mixed_structural_scalar_abi_codec;
 mod port_effect_codec;
 mod private_function_codec;
 mod provider_execution_codec;
@@ -86,7 +87,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 54;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 55;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -437,6 +438,8 @@ pub struct InstalledFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    pub mixed_structural_scalar_abi:
+        Option<omega_target_operations::MixedStructuralScalarFunctionAbi>,
     pub structural_call_scalar_return:
         Option<omega_machine_code::StructuralCallScalarReturnEvidence>,
     pub text_offset: usize,
@@ -689,6 +692,7 @@ where
             .map(|function| InstalledFunction {
                 machine: function.machine,
                 fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+                mixed_structural_scalar_abi: function.mixed_structural_scalar_abi.clone(),
                 structural_call_scalar_return: function.structural_call_scalar_return,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
@@ -1167,6 +1171,7 @@ pub fn validate_installation_record(
                 installed.machine != emitted.machine
                     || installed.attachment != emitted.attachment
                     || installed.fixed_integer_scalar_abi != emitted.fixed_integer_scalar_abi
+                    || installed.mixed_structural_scalar_abi != emitted.mixed_structural_scalar_abi
                     || installed.structural_call_scalar_return
                         != emitted.structural_call_scalar_return
                     || installed.text_offset != emitted.text_offset
@@ -1494,6 +1499,61 @@ pub fn installation_fingerprint(
 ) -> Result<InstallationFingerprint, InstallationError> {
     let bytes = encode_installation_record(record)?;
     Ok(fingerprint_record(&bytes))
+}
+
+fn installed_scalar_source_is_exact(
+    record: &InstallationRecord,
+    function: &InstalledFunction,
+    machine: MachineId,
+    consumer: &omega_machine_code::InternalUnitCallRecord,
+    source: omega_machine_code::InternalUnitScalarArgumentSourceRecord,
+) -> bool {
+    match source {
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Parameter { .. } => false,
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            defining_operation,
+            source_value,
+            scalar_type,
+            value,
+        } => {
+            function
+                .unit_integer_constants
+                .iter()
+                .filter(|constant| {
+                    constant.defining_operation == defining_operation
+                        && constant.source_value == source_value
+                        && constant.scalar_type == scalar_type
+                        && constant.value == value
+                        && constant.operation_ordinal < consumer.operation_ordinal
+                })
+                .count()
+                == 1
+        }
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(home) => {
+            function
+                .unit_scalar_homes
+                .iter()
+                .filter(|candidate| **candidate == home)
+                .count()
+                == 1
+                && record
+                    .internal_unit_scalar_calls
+                    .iter()
+                    .filter(|producer| {
+                        producer.machine == machine
+                            && producer.custody.result.home == home
+                            && producer.custody.operation_ordinal < consumer.operation_ordinal
+                            && producer
+                                .custody
+                                .result
+                                .code_offset
+                                .checked_add(producer.custody.result.byte_count)
+                                .is_some_and(|producer_end| producer_end <= consumer.code_offset)
+                    })
+                    .count()
+                    == 1
+        }
+    }
 }
 
 fn validate_record_shape(record: &InstallationRecord) -> Result<(), InstallationError> {
@@ -2332,6 +2392,9 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             InstallationError::InvalidInternalUnitCall(installed.machine),
         )?;
         let custody = &installed.custody;
+        let callee_mixed_abi = function_by_machine
+            .get(&custody.target)
+            .and_then(|target| target.mixed_structural_scalar_abi.as_ref());
         let target_returns_scalar =
             function_by_machine
                 .get(&custody.target)
@@ -2377,11 +2440,32 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
         let plan = evaluate_call_plan(
             CallingPolicy::native_for_target(record.target),
             &CallSignature {
-                parameters: custody
-                    .arguments
-                    .iter()
-                    .map(|argument| argument.shape)
-                    .collect(),
+                parameters: if let Some(abi) = callee_mixed_abi {
+                    abi.scalar_parameters
+                        .iter()
+                        .map(|parameter| {
+                            let integer = parameter.scalar_type;
+                            if integer.is_address() || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
+                                return Err(InstallationError::InvalidInternalUnitCall(
+                                    installed.machine,
+                                ));
+                            }
+                            let bytes = integer.bits() / 8;
+                            Ok(ValueShape::integer(bytes, bytes))
+                        })
+                        .chain(
+                            abi.structural_parameters
+                                .iter()
+                                .map(|parameter| Ok(parameter.shape)),
+                        )
+                        .collect::<Result<Vec<_>, _>>()?
+                } else {
+                    custody
+                        .arguments
+                        .iter()
+                        .map(|argument| argument.shape)
+                        .collect()
+                },
                 result: if let Some(result) = custody.result {
                     let bytes = match result {
                         psi_core::ScalarType::Boolean => 1,
@@ -2463,6 +2547,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             } => {
                 custody.result.is_none()
                     && custody.structural_result.is_none()
+                    && custody.scalar_arguments.is_empty()
                     && custody.arguments.is_empty()
                     && custody.claim_transfers.is_empty()
                     && affine_cleanup
@@ -2497,6 +2582,83 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                         })
             }
         };
+        let scalar_count = custody.scalar_arguments.len();
+        let mixed_roster_is_exact = match callee_mixed_abi {
+            None => custody.scalar_arguments.is_empty(),
+            Some(abi) => {
+                custody.result == Some(psi_core::ScalarType::Integer(abi.result.scalar_type))
+                    && plan == abi.call_plan
+                    && scalar_count == abi.scalar_parameters.len()
+                    && custody.arguments.len() == abi.structural_parameters.len()
+                    && custody
+                        .scalar_arguments
+                        .iter()
+                        .zip(&abi.scalar_parameters)
+                        .enumerate()
+                        .all(|(index, (argument, parameter))| {
+                            let expected_argument_bytes =
+                                custody.arguments.first().and_then(|structural| {
+                                    crate::unit_scalar_call_custody::expected_argument_bytes(
+                                        record.target,
+                                        argument,
+                                        structural.call_stack_bytes,
+                                    )
+                                });
+                            usize::try_from(argument.parameter_index) == Ok(index)
+                                && argument.destination == parameter.placement
+                                && argument.source.scalar_type() == parameter.scalar_type
+                                && installed_scalar_source_is_exact(
+                                    record,
+                                    function,
+                                    installed.machine,
+                                    custody,
+                                    argument.source,
+                                )
+                                && expected_argument_bytes
+                                    .as_ref()
+                                    .is_some_and(|bytes| bytes.len() == argument.byte_count)
+                                && argument.code_offset >= custody.code_offset
+                                && argument
+                                    .code_offset
+                                    .checked_add(argument.byte_count)
+                                    .is_some_and(|argument_end| argument_end <= end)
+                        })
+                    && custody
+                        .arguments
+                        .iter()
+                        .zip(&abi.structural_parameters)
+                        .all(|(argument, parameter)| {
+                            argument.path.is_empty()
+                                && argument.root_structural_type == parameter.structural_type
+                                && argument.structural_type == parameter.structural_type
+                                && argument.access == parameter.access
+                                && argument.shape == parameter.shape
+                                && argument.destination == parameter.placement
+                        })
+                    && custody.scalar_arguments.windows(2).all(|pair| {
+                        pair[0]
+                            .code_offset
+                            .checked_add(pair[0].byte_count)
+                            .is_some_and(|prior_end| prior_end == pair[1].code_offset)
+                    })
+                    && custody.scalar_arguments.last().is_none_or(|last| {
+                        last.code_offset
+                            .checked_add(last.byte_count)
+                            .is_some_and(|scalar_end| {
+                                custody
+                                    .arguments
+                                    .first()
+                                    .map_or(scalar_end <= end, |argument| {
+                                        scalar_end == argument.code_offset
+                                    })
+                            })
+                    })
+                    && custody.arguments.windows(2).all(|pair| {
+                        pair[0].code_offset.checked_add(pair[0].byte_count)
+                            == Some(pair[1].code_offset)
+                    })
+            }
+        };
         if previous_call.is_some_and(|previous| previous >= key)
             || installed.text_offset != expected_text_offset
             || end > function.byte_count
@@ -2517,7 +2679,8 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || !structural_result_valid
             || (custody.structural_result.is_some() && target_returns_scalar)
             || !owner_valid
-            || plan.parameters.len() != custody.arguments.len()
+            || !mixed_roster_is_exact
+            || plan.parameters.len() != scalar_count + custody.arguments.len()
             || custody.arguments.windows(2).any(|pair| {
                 pair[0]
                     .code_offset
@@ -2527,7 +2690,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || custody
                 .arguments
                 .iter()
-                .zip(&plan.parameters)
+                .zip(&plan.parameters[scalar_count..])
                 .any(|(argument, destination)| {
                     let parameter_source = parameter_homes
                         .iter()
@@ -3905,6 +4068,7 @@ mod resource_tests {
             machine: MachineId::new(1).expect("function"),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            mixed_structural_scalar_abi: None,
             structural_call_scalar_return: None,
             text_offset: 24,
             byte_count: 16,
@@ -4157,6 +4321,7 @@ mod resource_tests {
                     scalar_type: psi_core::ScalarType::Boolean,
                 }),
                 structural_result: None,
+                scalar_arguments: Vec::new(),
                 arguments: Vec::new(),
                 claim_transfers: Vec::new(),
                 operation_ordinal: 0,

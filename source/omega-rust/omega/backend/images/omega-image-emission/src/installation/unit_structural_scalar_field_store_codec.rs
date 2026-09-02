@@ -205,7 +205,7 @@ fn decode_path(reader: &mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, In
     Ok(path)
 }
 
-fn encode_projected_qualifications(
+pub(super) fn encode_projected_qualifications(
     bytes: &mut Vec<u8>,
     qualifications: &[StructuralPathQualification],
 ) -> Result<(), InstallationError> {
@@ -221,7 +221,7 @@ fn encode_projected_qualifications(
     Ok(())
 }
 
-fn decode_projected_qualifications(
+pub(super) fn decode_projected_qualifications(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralPathQualification>, InstallationError> {
     let count = usize::try_from(reader.u32()?)

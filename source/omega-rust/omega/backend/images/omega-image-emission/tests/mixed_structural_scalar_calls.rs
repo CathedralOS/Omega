@@ -6,7 +6,11 @@ use omega_assigned_target_operations::{
 use omega_calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
-use omega_image_emission::{ObjectError, build_object_artifact};
+use omega_image_emission::{
+    InstallationError, ObjectError, build_installation_record, build_object_artifact,
+    decode_installation_record, emit_executable_image, encode_installation_record,
+    validate_installation_record,
+};
 use omega_machine_emission::emit_machine_code;
 use omega_target::NativeTarget;
 use omega_target_operations::{
@@ -246,5 +250,85 @@ fn object_rejects_mixed_scalar_roster_and_abi_drift() {
     assert_eq!(
         build_object_artifact(&changed_type),
         Err(ObjectError::InvalidInternalUnitCallEvidence(caller))
+    );
+
+    let mut substituted = emitted(NativeTarget::linux_x64());
+    let omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+        source_value,
+        ..
+    } = &mut substituted.functions[0].internal_unit_calls[0].scalar_arguments[0].source
+    else {
+        panic!("mixed test uses immediate scalar source")
+    };
+    *source_value = ValueId::new(9999).unwrap();
+    assert_eq!(
+        build_object_artifact(&substituted),
+        Err(ObjectError::InvalidInternalUnitCallEvidence(caller))
+    );
+
+    let mut placement = emitted(NativeTarget::linux_arm64());
+    placement.functions[0].internal_unit_calls[0].scalar_arguments[0].destination =
+        placement.functions[0].internal_unit_calls[0].arguments[0]
+            .destination
+            .clone();
+    assert_eq!(
+        build_object_artifact(&placement),
+        Err(ObjectError::InvalidInternalUnitCallEvidence(caller))
+    );
+
+    let mut interval = emitted(NativeTarget::linux_x64());
+    interval.functions[0].internal_unit_calls[0].scalar_arguments[0].code_offset += 1;
+    assert_eq!(
+        build_object_artifact(&interval),
+        Err(ObjectError::InvalidInternalUnitCallEvidence(caller))
+    );
+}
+
+#[test]
+fn mixed_abi_and_scalar_arguments_round_trip_through_installation() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let machine = emitted(target);
+        let object = build_object_artifact(&machine).unwrap();
+        let image = emit_executable_image(&object, 3).unwrap();
+        let record =
+            build_installation_record(&image, psi_core::ProfileDecisionId::new(1).unwrap())
+                .unwrap();
+        assert_eq!(
+            record.functions()[1].mixed_structural_scalar_abi,
+            machine.functions[1].mixed_structural_scalar_abi
+        );
+        assert_eq!(
+            record.internal_unit_calls()[0]
+                .custody
+                .scalar_arguments
+                .len(),
+            1
+        );
+        let bytes = encode_installation_record(&record).unwrap();
+        let decoded = decode_installation_record(&bytes).unwrap();
+        assert_eq!(decoded, record);
+        validate_installation_record(&decoded, &image).unwrap();
+    }
+}
+
+#[test]
+fn installed_mixed_call_rejects_substituted_scalar_source() {
+    let machine = emitted(NativeTarget::linux_x64());
+    let object = build_object_artifact(&machine).unwrap();
+    let image = emit_executable_image(&object, 3).unwrap();
+    let record =
+        build_installation_record(&image, psi_core::ProfileDecisionId::new(1).unwrap()).unwrap();
+    let mut bytes = encode_installation_record(&record).unwrap();
+    let source = [9920_u64.to_le_bytes(), 9920_u64.to_le_bytes()].concat();
+    let offset = bytes
+        .windows(source.len())
+        .rposition(|window| window == source)
+        .expect("installed scalar source identity");
+    bytes[offset + 8..offset + 16].copy_from_slice(&9999_u64.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&bytes),
+        Err(InstallationError::InvalidInternalUnitCall(
+            MachineId::new(9920).unwrap()
+        ))
     );
 }
