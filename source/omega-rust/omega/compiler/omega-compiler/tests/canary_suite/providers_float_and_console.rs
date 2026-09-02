@@ -1318,7 +1318,7 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
     let [argument] = structural_arguments.as_slice() else {
         panic!("forwarding caller should retain one structural argument")
     };
-    assert_eq!(argument.source_parameter_index, 0);
+    assert_eq!(argument.source_parameter_index(), Some(0));
     assert!(argument.path.is_empty());
     assert_eq!(
         argument.access,
@@ -1385,7 +1385,10 @@ fn fused_service_parameter_moves_through_one_exact_internal_hop() {
     else {
         unreachable!()
     };
-    structural_arguments[0].source_parameter_index = 1;
+    structural_arguments[0].source =
+        psi_checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: 1,
+        };
     assert_rejects(&wrong_source, "a substituted forwarding source index");
 
     let mut projected = baseline.clone();

@@ -15,6 +15,7 @@ pub(super) fn emit(
     let AssignedOperation::ReturnStructuralScalarCall {
         psi_edge,
         psi_operation,
+        source_value,
         scalar_type,
         callee,
         structural_types,
@@ -29,7 +30,7 @@ pub(super) fn emit(
     else {
         unreachable!("structural scalar emission receives its exact assigned carrier")
     };
-    emit_unit_body(
+    let mut emission = emit_unit_body(
         &AssignedUnitBody {
             structural_types: structural_types.clone(),
             call_plan: call_plan.clone(),
@@ -56,5 +57,15 @@ pub(super) fn emit(
         target,
         functions,
         &[],
-    )
+    )?;
+    let [call] = emission.internal_unit_calls.as_mut_slice() else {
+        return Err(EmissionError::InvalidStructuralScalarCallCustody(
+            *psi_operation,
+        ));
+    };
+    call.semantic_result = Some(omega_target_operations::AbstractResult {
+        value: *source_value,
+        scalar_type: *scalar_type,
+    });
+    Ok(emission)
 }

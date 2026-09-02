@@ -876,6 +876,23 @@ fn emit_function(
         machine: function.machine,
         attachment: function.attachment,
         fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+        structural_call_scalar_return: match &function.operation {
+            AssignedOperation::ReturnStructuralScalarCall {
+                psi_edge,
+                psi_operation,
+                source_value,
+                scalar_type,
+                callee,
+                ..
+            } => Some(omega_machine_code::StructuralCallScalarReturnEvidence {
+                psi_edge: *psi_edge,
+                psi_operation: *psi_operation,
+                source_value: *source_value,
+                scalar_type: *scalar_type,
+                callee: *callee,
+            }),
+            _ => None,
+        },
         unit_scalar_abi: match &function.operation {
             AssignedOperation::UnitBody(body) if !body.scalar_parameters.is_empty() => {
                 Some(omega_machine_code::UnitScalarFunctionAbiRecord {

@@ -11,15 +11,12 @@ use crate::{ObjectArtifact, ObjectError};
 /// Classify ranked custody once, then join target decoding and semantic replay.
 /// This grants object custody only.
 pub(super) fn replay_ranked_u32_countdown(plan: &MachineCodePlan) -> Result<(), ObjectError> {
-    let mut candidates = plan
-        .functions
-        .iter()
-        .filter_map(|function| {
-            function
-                .ranked_u32_countdown
-                .as_ref()
-                .map(|record| (function, record))
-        });
+    let mut candidates = plan.functions.iter().filter_map(|function| {
+        function
+            .ranked_u32_countdown
+            .as_ref()
+            .map(|record| (function, record))
+    });
     let Some((function, record)) = candidates.next() else {
         return Ok(());
     };

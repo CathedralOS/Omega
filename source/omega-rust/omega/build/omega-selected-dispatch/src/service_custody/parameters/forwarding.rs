@@ -56,9 +56,9 @@ pub(super) fn validate(
         return Err("the forwarding edge does not retain exactly one argument");
     };
     if !claim_transfers.is_empty()
-        || argument.source_parameter_index != 0
+        || argument.source_parameter_index() != Some(0)
         || !argument.path.is_empty()
-        || argument.byte_sequence_literal.is_some()
+        || argument.byte_sequence_literal().is_some()
         || argument.type_identity != parameter.type_identity
         || argument.access != psi_checked_trees::CheckedStructuralAccess::Owned
     {

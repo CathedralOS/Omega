@@ -64,6 +64,10 @@ pub struct MachineCodeFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    /// Exact semantic return evidence for the bounded structural-call/scalar-
+    /// return carrier. A Unit body may contain and discard a scalar-producing
+    /// call, so object replay must not infer this role from mechanical shape.
+    pub structural_call_scalar_return: Option<StructuralCallScalarReturnEvidence>,
     /// Exact Unit-returning fixed-integer input ABI when this function belongs
     /// to the bounded scalar-provider cohort.
     pub unit_scalar_abi: Option<UnitScalarFunctionAbiRecord>,
@@ -173,6 +177,15 @@ pub struct MachineCodeFunction {
     /// interval. Claim identities are semantic metadata, never hidden ABI
     /// words.
     pub structural_return: Option<StructuralReturnRecord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StructuralCallScalarReturnEvidence {
+    pub psi_edge: EdgeId,
+    pub psi_operation: OperationId,
+    pub source_value: ValueId,
+    pub scalar_type: ScalarType,
+    pub callee: MachineId,
 }
 
 /// Exact source-free custody for one call to a normalized foreign locator.
@@ -769,6 +782,10 @@ pub struct InternalUnitCallRecord {
     /// `None` for a value-less structural call; otherwise the exact scalar
     /// result returned through the ordinary target ABI.
     pub result: Option<ScalarType>,
+    /// Exact Terminal scalar value produced by this call when later semantic
+    /// custody needs to distinguish production from return. The ABI result
+    /// above remains the independently replayed physical type.
+    pub semantic_result: Option<AbstractResult>,
     /// Exact structural result custody for the bounded direct-return call
     /// family. Mutually exclusive with `result`; absent on Unit/scalar calls.
     pub structural_result: Option<InternalStructuralCallResult>,

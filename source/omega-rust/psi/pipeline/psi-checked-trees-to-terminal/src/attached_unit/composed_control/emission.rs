@@ -304,7 +304,7 @@ pub(super) fn emit_boundary_call_operation(
                 .entry_claims
                 .iter()
                 .filter(move |claim| {
-                    claim.parameter_index == argument.source_parameter_index
+                    Some(claim.parameter_index) == argument.source_parameter_index()
                         && (argument.path.is_empty() || claim.path == argument.path)
                 })
                 .map(move |_| {
@@ -320,6 +320,7 @@ pub(super) fn emit_boundary_call_operation(
         structural_arguments,
         completion_receipts,
         parameters,
+        &[],
         &target.checked_structural_parameters,
         type_ids,
         structural_types,
@@ -366,6 +367,7 @@ pub(super) fn emit_boundary_call_operation(
             structural_arguments: lower_structural_arguments(
                 structural_arguments,
                 parameters,
+                &[],
                 &[],
             )?,
             completion_receipts: completion_receipts

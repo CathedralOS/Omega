@@ -322,11 +322,12 @@ pub(super) fn build_selected_operator_structural_scalar_call(
         }
         structural_parameters[source_index].type_identity = target.type_identity.clone();
         structural_arguments.push(CheckedUnitStructuralArgumentPlan {
-            source_parameter_index: u32::try_from(source_index).ok()?,
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(source_index).ok()?,
+            },
             path: Vec::new(),
             type_identity: target.type_identity.clone(),
             access: CheckedStructuralAccess::Owned,
-            byte_sequence_literal: None,
         });
     }
     let contract = facts

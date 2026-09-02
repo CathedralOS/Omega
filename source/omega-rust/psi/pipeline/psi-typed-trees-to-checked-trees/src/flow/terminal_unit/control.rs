@@ -1217,6 +1217,7 @@ pub(super) fn build_checked_machine(
                 machine,
                 state,
                 &structural_parameters,
+                &local_rows,
                 &entry_claims,
                 call,
                 false,
@@ -1252,6 +1253,7 @@ pub(super) fn build_checked_machine(
                 machine,
                 state,
                 &structural_parameters,
+                &local_rows,
                 &entry_claims,
                 call,
                 false,
@@ -1259,12 +1261,45 @@ pub(super) fn build_checked_machine(
             )?);
         }
     }
+    let transferred_local_ordinals = operations
+        .iter()
+        .flat_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
+                structural_arguments,
+                ..
+            } => structural_arguments
+                .iter()
+                .filter_map(|argument| argument.source_local_declaration_ordinal())
+                .collect::<Vec<_>>(),
+            CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+            | CheckedUnitEffectOperationPlan::ReturnUnit { .. } => Vec::new(),
+        })
+        .collect::<BTreeSet<_>>();
     operations.push(CheckedUnitEffectOperationPlan::ReturnUnit {
         statement_index: u32::try_from(statements.len()).ok()?,
         trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
             .rev()
             .map(|ordinal| u32::try_from(ordinal).ok())
-            .collect::<Option<Vec<_>>>()?,
+            .collect::<Option<Vec<_>>>()?
+            .into_iter()
+            .filter(|ordinal| !transferred_local_ordinals.contains(ordinal))
+            .collect(),
         trivial_affine_discards: return_unit_affine_discards(
             program,
             facts,

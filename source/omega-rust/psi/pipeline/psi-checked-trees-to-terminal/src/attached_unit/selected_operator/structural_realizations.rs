@@ -80,6 +80,7 @@ pub(in crate::attached_unit) fn lower_selected_structural_scalar_realizations(
                 realization,
                 terminal_machine,
                 identity_base,
+                Some(structural_types),
             )?;
         if lowered.semantic_module.structural_types != structural_types
             || !lowered.semantic_module.structural_domains.is_empty()

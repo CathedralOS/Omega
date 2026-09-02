@@ -1758,7 +1758,7 @@ fn retains_source_ordered_direct_field_transfers_with_exact_residual_affine_clea
                 claim_transfers,
                 ..
             } if structural_arguments.len() == 1 && claim_transfers.is_empty() => {
-                assert_eq!(structural_arguments[0].source_parameter_index, 0);
+                assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
                 structural_arguments[0].path.clone()
             }
             _ => panic!("partial cleanup requires source-ordered direct Unit calls"),

@@ -899,6 +899,7 @@ fn build_structural_call_return_machine(
         machine,
         state,
         &structural_parameters,
+        &[],
         target_machine,
         target_state,
         &call_site,
@@ -910,11 +911,11 @@ fn build_structural_call_return_machine(
     let [argument] = structural_arguments.as_slice() else {
         return None;
     };
-    if argument.source_parameter_index != 0
+    if argument.source_parameter_index() != Some(0)
         || !argument.path.is_empty()
         || argument.type_identity != input.type_identity
         || argument.access != CheckedStructuralAccess::Owned
-        || argument.byte_sequence_literal.is_some()
+        || argument.byte_sequence_literal().is_some()
     {
         return None;
     }
@@ -1109,21 +1110,43 @@ pub(super) fn build_structural_return_machine(
                 })
                 .map(|(_, event)| event)
                 .collect::<Vec<_>>();
-            let [event] = local_events.as_slice() else {
+            let [establishment, settlement] = local_events.as_slice() else {
                 return None;
             };
-            if event.source != PermissionEventSource::StateExit
-                || event.kind != PermissionEventKind::AffineDrop
-                || event.multiplicity != Multiplicity::Affine
-                || event.access != PermissionAccess::Owned
-                || event.claim_identity != PermissionClaimIdentity::Unknown
-                || event.provenance != psi_language_semantics::PermissionProvenance::Unknown
-                || event.obligation_live
+            let establishment_source = PermissionEventSource::Statement {
+                statement_index: declaration_ordinal,
+            };
+            let establishment_provenance =
+                psi_language_semantics::PermissionProvenance::Established {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    source: establishment_source,
+                };
+            if establishment.source != establishment_source
+                || establishment.kind != PermissionEventKind::Establish
+                || establishment.multiplicity != Multiplicity::Affine
+                || establishment.access != PermissionAccess::Owned
+                || establishment.claim_identity != PermissionClaimIdentity::Unknown
+                || establishment.provenance != establishment_provenance
+                || establishment.obligation_live
                 || !facts
                     .flow
                     .ownership
                     .segments
-                    .span_or_empty(event.segments)
+                    .span_or_empty(establishment.segments)
+                    .is_empty()
+                || settlement.source != PermissionEventSource::StateExit
+                || settlement.kind != PermissionEventKind::AffineDrop
+                || settlement.multiplicity != Multiplicity::Affine
+                || settlement.access != PermissionAccess::Owned
+                || settlement.claim_identity != PermissionClaimIdentity::Unknown
+                || settlement.provenance != establishment_provenance
+                || settlement.obligation_live
+                || !facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(settlement.segments)
                     .is_empty()
             {
                 return None;
@@ -1745,6 +1768,7 @@ pub(super) fn build_boundary_scalar_return_machine(
         machine,
         state,
         &structural_parameters,
+        &[],
         &entry_claims,
         call,
         false,

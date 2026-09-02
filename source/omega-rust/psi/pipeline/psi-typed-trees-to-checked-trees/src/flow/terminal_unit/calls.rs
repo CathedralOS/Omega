@@ -61,21 +61,51 @@ pub(super) fn build_unit_trivial_affine_locals(
                 })
                 .map(|(_, event)| event)
                 .collect::<Vec<_>>();
-            let [event] = local_events.as_slice() else {
+            let [establishment, settlement] = local_events.as_slice() else {
                 return None;
             };
-            if event.source != PermissionEventSource::StateExit
-                || event.kind != PermissionEventKind::AffineDrop
-                || event.multiplicity != Multiplicity::Affine
-                || event.access != PermissionAccess::Owned
-                || event.claim_identity != PermissionClaimIdentity::Unknown
-                || event.provenance != psi_language_semantics::PermissionProvenance::Unknown
-                || event.obligation_live
+            let establishment_source = PermissionEventSource::Statement {
+                statement_index: declaration_ordinal,
+            };
+            let establishment_provenance =
+                psi_language_semantics::PermissionProvenance::Established {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    source: establishment_source,
+                };
+            if establishment.source != establishment_source
+                || establishment.kind != PermissionEventKind::Establish
+                || establishment.multiplicity != Multiplicity::Affine
+                || establishment.access != PermissionAccess::Owned
+                || establishment.claim_identity != PermissionClaimIdentity::Unknown
+                || establishment.provenance != establishment_provenance
+                || establishment.obligation_live
                 || !facts
                     .flow
                     .ownership
                     .segments
-                    .span_or_empty(event.segments)
+                    .span_or_empty(establishment.segments)
+                    .is_empty()
+                || !matches!(
+                    (settlement.source, settlement.kind),
+                    (
+                        PermissionEventSource::StateExit,
+                        PermissionEventKind::AffineDrop
+                    ) | (
+                        PermissionEventSource::Call { .. },
+                        PermissionEventKind::Transfer
+                    )
+                )
+                || settlement.multiplicity != Multiplicity::Affine
+                || settlement.access != PermissionAccess::Owned
+                || settlement.claim_identity != PermissionClaimIdentity::Unknown
+                || settlement.provenance != establishment_provenance
+                || settlement.obligation_live
+                || !facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(settlement.segments)
                     .is_empty()
             {
                 return None;
@@ -390,6 +420,7 @@ pub(super) fn build_call_operation(
     machine: &psi_typed_trees::machine::Machine,
     state: &psi_typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
+    caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     call: &psi_checked_trees::FlowCallFact,
     allow_field_path_projection: bool,
@@ -567,14 +598,15 @@ pub(super) fn build_call_operation(
                     program.expression_table.expression(*argument)
             {
                 structural_arguments.push(CheckedUnitStructuralArgumentPlan {
-                    source_parameter_index: u32::MAX,
+                    source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        bytes: bytes.to_vec(),
+                    },
                     path: Vec::new(),
                     type_identity: target_identity,
                     access: structural_access_for_type_reference(
                         program,
                         parameter.type_reference,
                     )?,
-                    byte_sequence_literal: Some(bytes.to_vec()),
                 });
                 continue;
             }
@@ -604,7 +636,9 @@ pub(super) fn build_call_operation(
                 return None;
             }
             structural_arguments.push(CheckedUnitStructuralArgumentPlan {
-                source_parameter_index: u32::try_from(source_parameter_index).ok()?,
+                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(source_parameter_index).ok()?,
+                },
                 path: Vec::new(),
                 type_identity: target_identity,
                 access: exact_structural_argument_access(
@@ -615,7 +649,6 @@ pub(super) fn build_call_operation(
                     &place,
                     structural_access_for_type_reference(program, parameter.type_reference)?,
                 )?,
-                byte_sequence_literal: None,
             });
         }
         if !program.trait_type_parameters(definition).is_empty()
@@ -721,6 +754,7 @@ pub(super) fn build_call_operation(
         machine,
         state,
         caller_parameters,
+        caller_trivial_affine_locals,
         target_machine,
         target_state,
         &call_site,
@@ -1002,7 +1036,7 @@ pub(super) fn ordinary_projected_call_is_supported(
 ) -> bool {
     if arguments
         .iter()
-        .any(|argument| argument.byte_sequence_literal.is_some())
+        .any(|argument| argument.byte_sequence_literal().is_some())
     {
         return false;
     }
@@ -1016,7 +1050,7 @@ pub(super) fn ordinary_projected_call_is_supported(
         || caller_parameters.len() != 1
         || target_source_parameters.len() != 1
         || arguments.len() != 1
-        || arguments[0].source_parameter_index != 0
+        || arguments[0].source_parameter_index() != Some(0)
     {
         return false;
     }
@@ -1382,6 +1416,7 @@ pub(super) fn structural_call_arguments(
     caller_machine: &psi_typed_trees::machine::Machine,
     caller_state: &psi_typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
+    caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     target_machine: &psi_typed_trees::machine::Machine,
     target_state: &psi_typed_trees::state::State,
     call_site: &crate::CallSite<'_>,
@@ -1473,6 +1508,57 @@ pub(super) fn structural_call_arguments(
         let psi_facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
+        let target_identity = if target.is_self {
+            attached_data_identity(program, target_machine)?
+        } else if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
+            byte_sequence_type_identity(program, target.type_reference, &[], &[])?
+        } else {
+            base_type_identity(program, target.type_reference, &[])?
+        };
+        if let Some((local, _)) = caller_trivial_affine_locals
+            .iter()
+            .find(|(_, symbol)| *symbol == source_symbol)
+        {
+            let exact_transfer = facts.flow.ownership.permissions.iter().any(|(_, event)| {
+                event.machine_symbol == caller_machine.symbol
+                    && event.state_symbol == caller_state.symbol
+                    && event.source
+                        == PermissionEventSource::Call {
+                            statement_index: call.statement_index,
+                            call_ordinal: call.call_ordinal,
+                            target_symbol: call.target_symbol,
+                        }
+                    && event.kind == PermissionEventKind::Transfer
+                    && event.multiplicity == Multiplicity::Affine
+                    && event.access == PermissionAccess::Owned
+                    && event.claim_identity == PermissionClaimIdentity::Unknown
+                    && !event.obligation_live
+                    && event.root == psi_facts::PlaceRoot::Symbol(source_symbol)
+                    && facts
+                        .flow
+                        .ownership
+                        .segments
+                        .span_or_empty(event.segments)
+                        .is_empty()
+            });
+            if !place.segments.is_empty()
+                || local.type_identity != target_identity
+                || structural_access_for_type_reference(program, target.type_reference)?
+                    != CheckedStructuralAccess::Owned
+                || !exact_transfer
+            {
+                return None;
+            }
+            output.push(CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
+                    declaration_ordinal: local.declaration_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: target_identity,
+                access: CheckedStructuralAccess::Owned,
+            });
+            continue;
+        }
         let source_parameter = source_parameters.iter().find(|parameter| {
             parameter_root_symbol(caller_machine.symbol, parameter) == source_symbol
         })?;
@@ -1487,13 +1573,6 @@ pub(super) fn structural_call_arguments(
                 .unwrap_or(u32::MAX)
         })?;
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
-        let target_identity = if target.is_self {
-            attached_data_identity(program, target_machine)?
-        } else if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
-            byte_sequence_type_identity(program, target.type_reference, &[], &[])?
-        } else {
-            base_type_identity(program, target.type_reference, &[])?
-        };
         let path = match place.segments.as_slice() {
             [] => Vec::new(),
             [psi_facts::PlaceSegment::FixedIndex { index }]
@@ -1614,7 +1693,9 @@ pub(super) fn structural_call_arguments(
             return None;
         }
         output.push(CheckedUnitStructuralArgumentPlan {
-            source_parameter_index: u32::try_from(source_index).ok()?,
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(source_index).ok()?,
+            },
             path,
             type_identity: target_identity,
             access: if restored_alias.is_some() {
@@ -1629,7 +1710,6 @@ pub(super) fn structural_call_arguments(
                     structural_access_for_type_reference(program, target.type_reference)?,
                 )?
             },
-            byte_sequence_literal: None,
         });
     }
     if explicit_index != explicit_arguments.len() {
@@ -1898,22 +1978,33 @@ pub(super) fn call_claim_transfers(
         .collect::<Vec<_>>();
     let mut output = Vec::new();
     for (argument_index, argument) in arguments.iter().enumerate() {
-        if argument.byte_sequence_literal.is_some() {
-            if argument.source_parameter_index != u32::MAX || !argument.path.is_empty() {
+        if argument.byte_sequence_literal().is_some() {
+            if !argument.path.is_empty() {
                 return None;
             }
             continue;
         }
+        let source_parameter_index = argument.source_parameter_index();
+        if source_parameter_index.is_none() {
+            if argument.source_local_declaration_ordinal().is_none()
+                || !argument.path.is_empty()
+                || argument.access != CheckedStructuralAccess::Owned
+            {
+                return None;
+            }
+            continue;
+        }
+        let source_parameter_index = source_parameter_index?;
         let entries = entry_claims
             .iter()
             .filter(|entry| {
-                entry.parameter_index == argument.source_parameter_index
+                entry.parameter_index == source_parameter_index
                     && (argument.path.is_empty() || entry.path == argument.path)
             })
             .collect::<Vec<_>>();
         if entries.is_empty() {
             if caller_parameters
-                .get(argument.source_parameter_index as usize)?
+                .get(source_parameter_index as usize)?
                 .multiplicity
                 == Multiplicity::Linear
             {

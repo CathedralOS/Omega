@@ -380,6 +380,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             entry: machine,
             functions: vec![MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -582,6 +583,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
         entry: machine,
         functions: vec![MachineCodeFunction {
             fixed_integer_scalar_abi: None,
+            structural_call_scalar_return: None,
             unit_scalar_abi: None,
             internal_unit_scalar_calls: Vec::new(),
             installed_provider_unit_scalar_calls: Vec::new(),
@@ -2222,6 +2224,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
             entry: machine,
             functions: vec![MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -2331,7 +2334,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "16edc1a5efa7b4dc3c1c21991b115e3a23ec054cd24cb826514d6305c17b6e63"
+        "e6ada42fae9b53f720e1202b660ed3f54393872dff404c0957df99924d5f5fd7"
     );
 
     let mut changed_plan = plan;
@@ -2520,6 +2523,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
         entry: machine_id(1),
         functions: vec![MachineCodeFunction {
             fixed_integer_scalar_abi: None,
+            structural_call_scalar_return: None,
             unit_scalar_abi: None,
             internal_unit_scalar_calls: Vec::new(),
             installed_provider_unit_scalar_calls: Vec::new(),
@@ -2705,6 +2709,7 @@ fn two_function_plan() -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -2744,6 +2749,7 @@ fn two_function_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -2944,6 +2950,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -2983,6 +2990,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -3822,6 +3830,7 @@ fn account_x86_unit_call(plan: &mut MachineCodePlan) {
         owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
         result: None,
+        semantic_result: None,
         structural_result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -4037,6 +4046,7 @@ fn account_aarch64_unit_call(plan: &mut MachineCodePlan) {
         owner: caller.internal_calls[0].owner,
         target: caller.internal_calls[0].target,
         result: None,
+        semantic_result: None,
         structural_result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -4121,6 +4131,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         owner: CallSiteOwner::Operation(operation),
         target,
         result: None,
+        semantic_result: None,
         structural_result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),
@@ -4135,6 +4146,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
         functions: vec![
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -4187,6 +4199,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -4236,6 +4249,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
             },
             MachineCodeFunction {
                 fixed_integer_scalar_abi: None,
+                structural_call_scalar_return: None,
                 unit_scalar_abi: None,
                 internal_unit_scalar_calls: Vec::new(),
                 installed_provider_unit_scalar_calls: Vec::new(),
@@ -4292,6 +4306,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                     },
                     target: machine_id(1),
                     result: None,
+                    semantic_result: None,
                     structural_result: None,
                     arguments: Vec::new(),
                     claim_transfers: Vec::new(),
@@ -4391,6 +4406,7 @@ fn two_call_edge_owned_cleanup_plan() -> MachineCodePlan {
         owner: CallSiteOwner::Operation(second_operation),
         target: second_helper,
         result: None,
+        semantic_result: None,
         structural_result: None,
         arguments: Vec::new(),
         claim_transfers: Vec::new(),

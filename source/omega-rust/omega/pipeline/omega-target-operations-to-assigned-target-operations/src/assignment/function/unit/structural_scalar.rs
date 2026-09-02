@@ -12,6 +12,7 @@ use psi_terminal::{
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };
+use std::collections::BTreeSet;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign_field_store(
@@ -99,6 +100,7 @@ pub(super) fn assign_field_store(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign_call(
     machine: MachineId,
+    attachment: Option<StructuralTypeId>,
     body: &TargetUnitBody,
     target: NativeTarget,
     psi_operation: OperationId,
@@ -134,6 +136,22 @@ pub(super) fn assign_call(
         return Err(invalid());
     }
     let declarations = declaration_map(&body.structural_types).ok_or_else(invalid)?;
+    let free_whole_affine = attachment.is_none()
+        && arguments.len() == body.parameters.len()
+        && claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && body.parameters.iter().all(|parameter| {
+            parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                && parameter.access == psi_terminal::StructuralAccess::Owned
+                && parameter.projected_qualifications.is_empty()
+        })
+        && arguments
+            .iter()
+            .map(|argument| argument.place)
+            .collect::<BTreeSet<_>>()
+            .len()
+            == arguments.len();
     let copies = arguments
         .iter()
         .enumerate()
@@ -144,9 +162,15 @@ pub(super) fn assign_call(
                 .find(|parameter| parameter.place == argument.place)
                 .ok_or_else(invalid)?;
             let (projected_type, projected_shape, projected_offset) =
-                resolve_field_path(root.structural_type, &argument.path, &declarations)
-                    .ok_or_else(invalid)?;
-            if argument.path.is_empty()
+                if argument.path.is_empty() && free_whole_affine {
+                    (root.structural_type, root.shape, 0)
+                } else {
+                    resolve_field_path(root.structural_type, &argument.path, &declarations)
+                        .ok_or_else(invalid)?
+                };
+            if (argument.path.is_empty() && !free_whole_affine)
+                || (!argument.path.is_empty() && attachment.is_none())
+                || (free_whole_affine && argument.access != psi_terminal::StructuralAccess::Owned)
                 || argument.root_structural_type != root.structural_type
                 || argument.structural_type != projected_type
                 || argument.shape != projected_shape

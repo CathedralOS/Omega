@@ -1655,14 +1655,27 @@ pub(super) fn substitute_structural_requirement_roots(
 pub(super) fn structural_crash_route_argument_prefix(
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
+    trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
     let mut structural_type = parameters
         .iter()
         .find(|parameter| parameter.place == argument.place)
         .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            trivial_affine_locals.iter().find_map(|local| {
+                (local.id == argument.place)
+                    .then(|| match local.kind {
+                        StructuralPlaceKind::TrivialAffineLocal {
+                            structural_type, ..
+                        } => Some(structural_type),
+                        _ => None,
+                    })
+                    .flatten()
+            })
+        })
         .ok_or(LoweringError::Unsupported(
-            "structural crash route argument has no caller parameter",
+            "structural crash route argument has no caller structural source",
         ))?;
     let mut prefix = Vec::with_capacity(argument.path.len());
     for segment in &argument.path {

@@ -179,11 +179,7 @@ pub(super) fn emit_structural_scalar_call(
             .any(|(placement, copy)| placement != &copy.destination)
         || !functions.iter().any(|function| {
             function.machine == *callee
-                && matches!(
-                    function.operation,
-                    AssignedOperation::ReturnIntegerExpression { scalar_type, .. }
-                        if scalar_type == integer_type
-                )
+                && assigned_integer_result_matches(&function.operation, integer_type)
         })
     {
         return Err(EmissionError::InvalidStructuralScalarCallCustody(
@@ -198,6 +194,7 @@ pub(super) fn emit_structural_scalar_call(
             copies,
             target,
             x86_homes,
+            &[],
             internal_calls,
         )?,
         Architecture::Aarch64 => emit_aarch64_unit_call(
@@ -206,6 +203,7 @@ pub(super) fn emit_structural_scalar_call(
             *callee,
             copies,
             aarch64_homes,
+            &[],
             internal_calls,
         )?,
     };
@@ -213,6 +211,7 @@ pub(super) fn emit_structural_scalar_call(
         owner: CallSiteOwner::Operation(*psi_operation),
         target: *callee,
         result: Some(result.scalar_type),
+        semantic_result: Some(result.clone()),
         structural_result: None,
         arguments: copies
             .iter()
@@ -245,6 +244,23 @@ pub(super) fn emit_structural_scalar_call(
         code_offset,
         byte_count: bytes.len() - code_offset,
     })
+}
+
+fn assigned_integer_result_matches(
+    operation: &AssignedOperation,
+    expected: psi_core::IntegerType,
+) -> bool {
+    match operation {
+        AssignedOperation::ReturnIntegerImmediate { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerParameter { scalar_type, .. }
+        | AssignedOperation::ReturnIntegerExpression { scalar_type, .. } => {
+            *scalar_type == expected
+        }
+        AssignedOperation::ScalarReturnWithCleanup { scalar, .. } => {
+            assigned_integer_result_matches(scalar, expected)
+        }
+        _ => false,
+    }
 }
 
 fn emit_x86_64_unit_store_immediate(

@@ -195,6 +195,70 @@ fn assigned_direct_plan(target: NativeTarget) -> AssignedOperationPlan {
     }
 }
 
+fn assigned_structural_scalar_return_plan(target: NativeTarget) -> AssignedOperationPlan {
+    let mut plan = assigned_direct_plan(target);
+    let caller = &mut plan.functions[0];
+    let AssignedOperation::UnitBody(body) = &caller.operation else {
+        unreachable!()
+    };
+    let AssignedUnitOperation::StructuralScalarCall {
+        psi_operation,
+        result,
+        callee,
+        call_plan: _,
+        copies,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    } = &body.operations[2]
+    else {
+        unreachable!()
+    };
+    let psi_operation = *psi_operation;
+    let result = result.clone();
+    let callee = *callee;
+    let mut copies = copies.clone();
+    let structural_types = body.structural_types.clone();
+    let mut structural_parameters = body.parameters.clone();
+    let claim_transfers = claim_transfers.clone();
+    let requirement_obligations = requirement_obligations.clone();
+    let crash_continuations = crash_continuations.clone();
+    let result_shape = ValueShape::integer(4, 4);
+    let return_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: structural_parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: Some(result_shape),
+        },
+    )
+    .expect("structural-scalar return ABI");
+    structural_parameters[0].placement = return_call_plan.parameters[0].clone();
+    copies[0].source = return_call_plan.parameters[0].clone();
+    let psi_edge = EdgeId::new(962).unwrap();
+    caller.provenance = TerminalPsiProvenance {
+        operations: vec![psi_operation],
+        edges: vec![psi_edge],
+    };
+    caller.operation = AssignedOperation::ReturnStructuralScalarCall {
+        psi_edge,
+        psi_operation,
+        source_value: result.value,
+        scalar_type: result.scalar_type,
+        callee,
+        structural_types,
+        call_plan: return_call_plan,
+        structural_parameters,
+        copies,
+        claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+    };
+    plan
+}
+
 #[test]
 fn projected_store_and_discarded_scalar_call_emit_exact_cross_architecture_custody() {
     for (target, expected_store) in [
@@ -231,8 +295,44 @@ fn projected_store_and_discarded_scalar_call_emit_exact_cross_architecture_custo
                 IntegerType::new(IntegerSign::Signed, 32).unwrap()
             ))
         );
+        assert_eq!(
+            call.semantic_result,
+            Some(AbstractResult {
+                value: ValueId::new(961).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap()
+                ),
+            })
+        );
         assert_eq!(call.arguments.len(), 1);
         assert!(caller.unit_scalar_homes.is_empty());
+    }
+}
+
+#[test]
+fn structural_scalar_return_emits_exact_value_and_return_evidence() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let emitted = emit_machine_code(&assigned_structural_scalar_return_plan(target))
+            .expect("structural scalar return emits");
+        let caller = &emitted.functions[0];
+        let expected = omega_machine_code::StructuralCallScalarReturnEvidence {
+            psi_edge: EdgeId::new(962).unwrap(),
+            psi_operation: OperationId::new(962).unwrap(),
+            source_value: ValueId::new(961).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+            callee: MachineId::new(961).unwrap(),
+        };
+        assert_eq!(caller.structural_call_scalar_return, Some(expected));
+        let [call] = caller.internal_unit_calls.as_slice() else {
+            panic!("one exact structural scalar return call")
+        };
+        assert_eq!(
+            call.semantic_result,
+            Some(AbstractResult {
+                value: expected.source_value,
+                scalar_type: expected.scalar_type,
+            })
+        );
     }
 }
 

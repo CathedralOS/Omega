@@ -22,10 +22,10 @@ pub(super) fn lower_structural_call_return_machine(
         || plan.structural_parameters.len() != 1
         || plan.call.structural_arguments.len() != 1
         || plan.call.claim_transfers.len() != 1
-        || plan.call.structural_arguments[0].source_parameter_index != 0
+        || plan.call.structural_arguments[0].source_parameter_index() != Some(0)
         || !plan.call.structural_arguments[0].path.is_empty()
         || plan.call.structural_arguments[0]
-            .byte_sequence_literal
+            .byte_sequence_literal()
             .is_some()
         || plan.call.claim_transfers[0].argument_index != 0
         || plan.call.claim_transfers[0].claim_identity != plan.returned_claim
@@ -188,7 +188,7 @@ pub(super) fn lower_structural_call_return_machine(
     }
 
     let structural_arguments =
-        lower_structural_arguments(&plan.call.structural_arguments, &parameters, &[])?;
+        lower_structural_arguments(&plan.call.structural_arguments, &parameters, &[], &[])?;
     let caller = TerminalMachine {
         id: machine_id(1),
         attachment: Some(attachment),

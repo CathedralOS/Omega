@@ -1,0 +1,34 @@
+data Buffer<Element, const Count: u64> {}
+
+data Position {}
+
+data Indexing {}
+
+boundary operator [] Indexing::index<Element, const Count: u64>(
+    items: Buffer<Element, Count>,
+    position: Position
+) -> i32
+requires Count == Count;
+
+data IndexingProvider {}
+
+machine IndexingProvider::index<Value, const Length: u64>(
+    items: Buffer<Value, Length>,
+    position: Position
+) -> i32
+satisfies Indexing::index
+{
+    7
+}
+
+machine consume(items: Buffer<i32, 4>, position: Position) {
+    let selected: i32 = items[position];
+}
+
+data Main {}
+
+machine Main::main(&mut self) {
+    let items: Buffer<i32, 4> = Buffer {};
+    let position: Position = Position {};
+    consume(items, position);
+}

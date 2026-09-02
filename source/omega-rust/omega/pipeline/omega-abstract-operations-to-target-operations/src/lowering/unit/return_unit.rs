@@ -36,6 +36,21 @@ pub(super) fn lower_unit_return(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
+            let consumed_whole_roots = operations
+                .iter()
+                .flat_map(|operation| match operation {
+                    TargetUnitOperation::Call { arguments, .. }
+                    | TargetUnitOperation::StructuralScalarCall { arguments, .. } => arguments
+                        .iter()
+                        .filter(|argument| {
+                            argument.path.is_empty()
+                                && argument.access == psi_terminal::StructuralAccess::Owned
+                        })
+                        .map(|argument| argument.place)
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
+                })
+                .collect::<BTreeSet<_>>();
             let fully_consumed_affine_pair = exact_fully_consumed_affine_pair_root(
                 function,
                 &parameters,
@@ -46,6 +61,7 @@ pub(super) fn lower_unit_return(
             let expected_roots = local_places
                 .iter()
                 .rev()
+                .filter(|place| !consumed_whole_roots.contains(place))
                 .copied()
                 .chain(
                     function
@@ -56,6 +72,7 @@ pub(super) fn lower_unit_return(
                             parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine
                                 && parameter.access == psi_terminal::StructuralAccess::Owned
                                 && Some(parameter.place) != fully_consumed_affine_pair
+                                && !consumed_whole_roots.contains(&parameter.place)
                         })
                         .map(|parameter| parameter.place),
                 )

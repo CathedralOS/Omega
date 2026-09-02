@@ -207,7 +207,7 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
         .iter()
         .zip(&realization.structural_parameters)
     {
-        if argument.byte_sequence_literal.is_some()
+        if argument.byte_sequence_literal().is_some()
             || !argument.path.is_empty()
             || argument.access != psi_checked_trees::CheckedStructuralAccess::Owned
             || argument.type_identity != target.type_identity
@@ -216,7 +216,11 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
             || target.access != psi_checked_trees::CheckedStructuralAccess::Owned
             || !target.qualifications.is_empty()
             || target.fused_service_erasure.is_some()
-            || !sources.insert(argument.source_parameter_index)
+            || !sources.insert(argument.source_parameter_index().ok_or(
+                LoweringError::Unsupported(
+                    "selected operator argument is not a caller structural parameter",
+                ),
+            )?)
         {
             return unsupported(
                 "selected structural Unit operator operands drifted from whole affine roots",

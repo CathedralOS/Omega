@@ -24,8 +24,18 @@ pub(super) fn build(
             let [call] = matching_calls.as_slice() else {
                 return None;
             };
-            let operation =
-                build_call_operation(program, facts, machine, state, &[], &[], call, false, None)?;
+            let operation = build_call_operation(
+                program,
+                facts,
+                machine,
+                state,
+                &[],
+                &[],
+                &[],
+                call,
+                false,
+                None,
+            )?;
             let admitted = match &operation {
                 CheckedUnitEffectOperationPlan::CallUnit {
                     structural_arguments,

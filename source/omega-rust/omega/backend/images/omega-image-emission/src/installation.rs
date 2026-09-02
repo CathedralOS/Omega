@@ -86,7 +86,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 53;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 54;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -437,6 +437,8 @@ pub struct InstalledFunction {
     pub machine: MachineId,
     pub attachment: Option<StructuralTypeId>,
     pub fixed_integer_scalar_abi: Option<omega_target_operations::FixedIntegerScalarFunctionAbi>,
+    pub structural_call_scalar_return:
+        Option<omega_machine_code::StructuralCallScalarReturnEvidence>,
     pub text_offset: usize,
     pub byte_count: usize,
     /// Stack facts recomputed from exact target instructions at object
@@ -687,6 +689,7 @@ where
             .map(|function| InstalledFunction {
                 machine: function.machine,
                 fixed_integer_scalar_abi: function.fixed_integer_scalar_abi.clone(),
+                structural_call_scalar_return: function.structural_call_scalar_return,
                 text_offset: function.text_offset,
                 byte_count: function.byte_count,
                 unit_stack: function.unit_stack,
@@ -1164,6 +1167,8 @@ pub fn validate_installation_record(
                 installed.machine != emitted.machine
                     || installed.attachment != emitted.attachment
                     || installed.fixed_integer_scalar_abi != emitted.fixed_integer_scalar_abi
+                    || installed.structural_call_scalar_return
+                        != emitted.structural_call_scalar_return
                     || installed.text_offset != emitted.text_offset
                     || installed.byte_count != emitted.byte_count
                     || installed.unit_stack != emitted.unit_stack
@@ -1624,9 +1629,51 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                     .semantic_code_attribution
                     .iter()
                     .all(|row| row.machine == function.machine));
+        let structural_call_scalar_result_is_exact = function
+            .structural_call_scalar_return
+            .is_none_or(|returned| {
+                let attributions = record
+                    .semantic_code_attribution
+                    .iter()
+                    .filter(|attribution| attribution.machine == function.machine)
+                    .map(|attribution| &attribution.attribution)
+                    .collect::<Vec<_>>();
+                function.unit_body
+                    && function.unit_stack.is_some()
+                    && function.scalar_stack.is_none()
+                    && matches!(
+                        (
+                            function_unit_calls.as_slice(),
+                            attributions.as_slice(),
+                            function.unit_affine_cleanup.as_ref(),
+                        ),
+                        ([call], [call_attribution, return_attribution], Some(cleanup))
+                        if call.owner == CallSiteOwner::Operation(returned.psi_operation)
+                            && call.target == returned.callee
+                            && call.operation_ordinal == 0
+                            && call.result == Some(returned.scalar_type)
+                            && call.semantic_result.as_ref().is_some_and(|result| {
+                                result.value == returned.source_value
+                                    && result.scalar_type == returned.scalar_type
+                            })
+                            && call_attribution.site
+                                == SemanticCodeSite::Operation(returned.psi_operation)
+                            && call_attribution.operation_ordinal == call.operation_ordinal
+                            && call_attribution.code_offset == call.code_offset
+                            && call_attribution.byte_count == call.byte_count
+                            && return_attribution.site == SemanticCodeSite::Edge(returned.psi_edge)
+                            && return_attribution.operation_ordinal == 1
+                            && return_attribution.code_offset == cleanup.code_offset
+                            && return_attribution.byte_count == cleanup.byte_count
+                            && cleanup.psi_edge == returned.psi_edge
+                            && cleanup.locals.is_empty()
+                            && cleanup.actions.is_empty()
+                    )
+            });
         if !installed_stack_facts_are_canonical(function, &attachments)
             || !installed_function_scalar_transport_is_canonical(function, record.target)
             || !ranked_body_is_exclusive
+            || !structural_call_scalar_result_is_exact
             || function.unit_parameters.len() != function.unit_parameter_homes.len()
             || function.unit_body != function.unit_affine_cleanup.is_some()
             || (!function.unit_body
@@ -2289,11 +2336,7 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             function_by_machine
                 .get(&custody.target)
                 .is_some_and(|target| {
-                    target.scalar_stack.is_some()
-                        || (target.unit_body
-                            && record.internal_unit_calls.iter().any(|call| {
-                                call.machine == custody.target && call.custody.result.is_some()
-                            }))
+                    target.scalar_stack.is_some() || target.structural_call_scalar_return.is_some()
                 });
         let target_structural_return = record
             .structural_returns
@@ -2386,6 +2429,11 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .as_ref()
             .or(function.unit_affine_cleanup.as_ref())
             .or(control_cleanup);
+        let parameter_homes = if function.scalar_structural_parameter_homes.is_empty() {
+            function.unit_parameter_homes.as_slice()
+        } else {
+            function.scalar_structural_parameter_homes.as_slice()
+        };
         let function_unit_calls = record
             .internal_unit_calls
             .iter()
@@ -2454,6 +2502,18 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             || end > function.byte_count
             || !function_by_machine.contains_key(&custody.target)
             || custody.result.is_some() != target_returns_scalar
+            || custody
+                .semantic_result
+                .as_ref()
+                .map(|result| result.scalar_type)
+                != custody.result
+            || function_by_machine
+                .get(&custody.target)
+                .is_some_and(|target| {
+                    target
+                        .structural_call_scalar_return
+                        .is_some_and(|returned| custody.result != Some(returned.scalar_type))
+                })
             || !structural_result_valid
             || (custody.structural_result.is_some() && target_returns_scalar)
             || !owner_valid
@@ -2469,8 +2529,75 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .iter()
                 .zip(&plan.parameters)
                 .any(|(argument, destination)| {
+                    let parameter_source = parameter_homes
+                        .iter()
+                        .find(|home| home.place == argument.place)
+                        .is_some_and(|home| {
+                            argument.root_structural_type == home.structural_type
+                                && argument.source == home.source
+                                && argument.source.shape == home.shape
+                                && argument.source_home_byte_offset == home.byte_offset
+                        });
+                    let local_source = affine_cleanup
+                        .and_then(|cleanup| {
+                            cleanup
+                                .locals
+                                .iter()
+                                .find(|(establishment, place, structural_type)| {
+                                    place.id == argument.place
+                                        && argument.path.is_empty()
+                                        && argument.access == psi_terminal::StructuralAccess::Owned
+                                        && argument.root_structural_type == structural_type.id
+                                        && argument.structural_type == structural_type.id
+                                        && argument.shape == ValueShape::integer(0, 1)
+                                        && argument.source.shape == argument.shape
+                                        && argument.source.locations.is_empty()
+                                        && argument.destination.shape == argument.shape
+                                        && argument.destination.locations.is_empty()
+                                        && argument.source_home_byte_offset == 0
+                                        && matches!(
+                                            place.kind,
+                                            psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                                                structural_type: local_type,
+                                                construction: None,
+                                                ..
+                                            } if local_type == structural_type.id
+                                        )
+                                        && matches!(
+                                            structural_type.shape,
+                                            psi_terminal::StructuralTypeShape::Record { ref fields }
+                                                if fields.is_empty()
+                                        )
+                                        && record.semantic_code_attribution.iter().any(|row| {
+                                            row.machine == installed.machine
+                                                && row.attribution.site
+                                                    == SemanticCodeSite::Operation(*establishment)
+                                                && row.attribution.operation_ordinal
+                                                    < custody.operation_ordinal
+                                                && row.attribution.byte_count == 0
+                                        })
+                                })
+                        })
+                        .is_some_and(|_| {
+                            function_unit_calls
+                                .iter()
+                                .flat_map(|call| &call.arguments)
+                                .filter(|candidate| {
+                                    candidate.place == argument.place && candidate.path.is_empty()
+                                })
+                                .count()
+                                == 1
+                        });
+                    let zero_byte_argument = (parameter_source || local_source)
+                        && argument.path.is_empty()
+                        && argument.byte_count == 0
+                        && argument.bytes.is_empty()
+                        && argument.shape == ValueShape::integer(0, 1)
+                        && argument.source.locations.is_empty()
+                        && argument.destination.locations.is_empty();
                     argument.destination != *destination
-                        || argument.byte_count == 0
+                        || (!parameter_source && !local_source)
+                        || (argument.byte_count == 0 && !zero_byte_argument)
                         || argument.bytes.len() != argument.byte_count
                         || (!argument.path.is_empty()
                             && super::expected_projected_copy_bytes(record.target, argument)
@@ -3639,6 +3766,7 @@ pub enum InstallationError {
     MissingCompilerPrivateFunctionAbi,
     ZeroStructuralReturnIdentity(&'static str),
     ZeroInternalUnitCallIdentity,
+    ZeroStructuralCallScalarReturnIdentity(&'static str),
     ZeroInstalledScalarIdentity,
     InvalidStructuralMultiplicity(u8),
     InvalidStructuralAccess(u8),
@@ -3766,15 +3894,18 @@ mod resource_tests {
             decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
             encode_scalar_control_affine_cleanups,
         },
+        function_codec::{decode_functions, encode_functions},
         function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
+        internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls},
     };
-    use psi_core::{EdgeId, PlaceId, StructuralCaseId, StructuralFieldId};
+    use psi_core::{EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
     fn installed_function_with_unit_call() -> InstalledFunction {
         InstalledFunction {
             machine: MachineId::new(1).expect("function"),
             attachment: None,
             fixed_integer_scalar_abi: None,
+            structural_call_scalar_return: None,
             text_offset: 24,
             byte_count: 16,
             unit_stack: Some(crate::ObjectUnitStack {
@@ -3987,6 +4118,60 @@ mod resource_tests {
         assert_eq!(unit_calls, function.unit_call_stacks);
         assert_eq!(scalar_calls, function.scalar_call_stacks);
         assert_eq!(foreign_calls, function.foreign_call_stacks);
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn function_codec_round_trips_structural_call_scalar_result_evidence() {
+        let mut function = installed_function_with_unit_call();
+        function.structural_call_scalar_return =
+            Some(omega_machine_code::StructuralCallScalarReturnEvidence {
+                psi_edge: EdgeId::new(1).expect("return edge"),
+                psi_operation: OperationId::new(1).expect("call operation"),
+                source_value: ValueId::new(1).expect("source value"),
+                scalar_type: psi_core::ScalarType::Boolean,
+                callee: MachineId::new(2).expect("callee"),
+            });
+        let mut bytes = Vec::new();
+        encode_functions(&mut bytes, 1, std::slice::from_ref(&function))
+            .expect("encode function result evidence");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_functions(&mut reader).expect("decode function result evidence"),
+            [function]
+        );
+        assert_eq!(reader.remaining(), 0);
+    }
+
+    #[test]
+    fn internal_unit_call_codec_round_trips_exact_semantic_result() {
+        let installed = InstalledInternalUnitCall {
+            machine: MachineId::new(1).expect("caller"),
+            text_offset: 8,
+            custody: omega_machine_code::InternalUnitCallRecord {
+                owner: CallSiteOwner::Operation(OperationId::new(1).expect("call operation")),
+                target: MachineId::new(2).expect("callee"),
+                result: Some(psi_core::ScalarType::Boolean),
+                semantic_result: Some(omega_abstract_operations::AbstractResult {
+                    value: ValueId::new(1).expect("call result"),
+                    scalar_type: psi_core::ScalarType::Boolean,
+                }),
+                structural_result: None,
+                arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                operation_ordinal: 0,
+                code_offset: 8,
+                byte_count: 5,
+            },
+        };
+        let mut bytes = Vec::new();
+        encode_internal_unit_calls(&mut bytes, 1, std::slice::from_ref(&installed))
+            .expect("encode semantic call result");
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(
+            decode_internal_unit_calls(&mut reader).expect("decode semantic call result"),
+            [installed]
+        );
         assert_eq!(reader.remaining(), 0);
     }
 

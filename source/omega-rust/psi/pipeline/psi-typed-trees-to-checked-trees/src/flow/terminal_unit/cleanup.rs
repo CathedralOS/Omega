@@ -992,6 +992,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             machine,
             state,
             &structural_parameters,
+            &[],
             &entry_claims,
             call,
             true,
@@ -1012,7 +1013,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         if !is_partial_affine_path(&argument.path) {
             return None;
         }
-        if argument.source_parameter_index != 0
+        if argument.source_parameter_index() != Some(0)
             || !claim_transfers.is_empty()
             || moved_paths.iter().any(|(earlier, _)| {
                 earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)

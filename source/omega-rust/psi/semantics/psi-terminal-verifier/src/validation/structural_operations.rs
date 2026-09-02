@@ -350,7 +350,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                false,
+                StructuralArgumentSourcePolicy::ParametersAndTrivialAffineLocals,
             )?;
             if let Some(argument_index) = structural_arguments
                 .iter()
@@ -464,7 +464,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                false,
+                StructuralArgumentSourcePolicy::ParametersOnly,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -668,7 +668,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                false,
+                StructuralArgumentSourcePolicy::ParametersOnly,
             )?;
             validate_unit_call_contract_places(callee, operation.id)?;
             validate_service_reach(
@@ -721,7 +721,7 @@ pub(super) fn validate_unit_operation_static(
                 &boundary.structural_parameters,
                 operation.id,
                 true,
-                true,
+                StructuralArgumentSourcePolicy::ParametersAndByteSequenceLiterals,
             )?;
             validate_service_reach(
                 operation.id,
@@ -886,6 +886,13 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
         )
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum StructuralArgumentSourcePolicy {
+    ParametersOnly,
+    ParametersAndByteSequenceLiterals,
+    ParametersAndTrivialAffineLocals,
+}
+
 pub(super) fn validate_structural_arguments(
     module: &TerminalModule,
     caller: &TerminalMachine,
@@ -893,7 +900,7 @@ pub(super) fn validate_structural_arguments(
     expected: &[StructuralParameterDeclaration],
     operation: OperationId,
     allow_projected: bool,
-    allow_local_literal: bool,
+    source_policy: StructuralArgumentSourcePolicy,
 ) -> Result<(), ModuleError> {
     if arguments.len() != expected.len() {
         return Err(ModuleError::StructuralArgumentArityMismatch {
@@ -923,9 +930,6 @@ pub(super) fn validate_structural_arguments(
                 )
             })
             .or_else(|| {
-                if !allow_local_literal {
-                    return None;
-                }
                 caller.structural_places.iter().find_map(|place| {
                     if place.id != argument.place {
                         return None;
@@ -933,9 +937,21 @@ pub(super) fn validate_structural_arguments(
                     match place.kind {
                         StructuralPlaceKind::ByteSequenceLiteral {
                             structural_type, ..
-                        } => Some((
+                        } if source_policy
+                            == StructuralArgumentSourcePolicy::ParametersAndByteSequenceLiterals => Some((
                             structural_type,
                             StructuralMultiplicity::Unrestricted,
+                            StructuralAccess::Owned,
+                            &[][..],
+                            &[][..],
+                        )),
+                        StructuralPlaceKind::TrivialAffineLocal {
+                            structural_type, ..
+                        } if source_policy
+                            == StructuralArgumentSourcePolicy::ParametersAndTrivialAffineLocals
+                            && argument.path.is_empty() => Some((
+                            structural_type,
+                            StructuralMultiplicity::Affine,
                             StructuralAccess::Owned,
                             &[][..],
                             &[][..],
@@ -1559,6 +1575,9 @@ pub(crate) fn structural_argument_canonical_prefix(
                 .iter()
                 .find_map(|place| match place.kind {
                     StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    }
+                    | StructuralPlaceKind::TrivialAffineLocal {
                         structural_type, ..
                     } if place.id == argument.place => Some(structural_type),
                     _ => None,

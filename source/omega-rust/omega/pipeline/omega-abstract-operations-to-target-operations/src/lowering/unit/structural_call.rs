@@ -5,6 +5,13 @@ use super::super::structural_layout::{
     checked_align_up_u32, resolve_structural_field_path, structural_shape,
 };
 
+#[derive(Debug, Clone)]
+pub(super) struct StructuralCallLocalSource {
+    pub(super) structural_type: StructuralTypeId,
+    pub(super) shape: ValueShape,
+    pub(super) placement: ValuePlacement,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_structural_unit_call(
     operation: &AbstractOperation,
@@ -13,6 +20,7 @@ pub(super) fn lower_structural_unit_call(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -71,12 +79,17 @@ pub(super) fn lower_structural_unit_call(
         .zip(callee_shapes)
         .zip(&callee_plan.parameters)
         .map(|(((argument, callee_parameter), shape), destination)| {
-            let source = parameters_by_place.get(&argument.place).copied().ok_or(
-                LoweringError::UnknownStructuralArgumentPlace {
-                    machine: function.machine,
-                    place: argument.place,
-                },
-            )?;
+            let (source_structural_type, source_shape, source_placement) =
+                if let Some(source) = parameters_by_place.get(&argument.place).copied() {
+                    (source.structural_type, source.shape, &source.placement)
+                } else if let Some(source) = local_sources_by_place.get(&argument.place) {
+                    (source.structural_type, source.shape, &source.placement)
+                } else {
+                    return Err(LoweringError::UnknownStructuralArgumentPlace {
+                        machine: function.machine,
+                        place: argument.place,
+                    });
+                };
             let (
                 projected_type,
                 projected_shape,
@@ -85,12 +98,12 @@ pub(super) fn lower_structural_unit_call(
                 element_stride,
             ) =
                 match argument.path.as_slice() {
-                    [] => (source.structural_type, source.shape, 0, None, None),
+                    [] => (source_structural_type, source_shape, 0, None, None),
                     [StructuralPathSegment::FixedIndex(index)] => {
                         let declaration = structural_types
-                            .get(&source.structural_type)
+                            .get(&source_structural_type)
                             .copied()
-                            .ok_or(LoweringError::UnknownStructuralType(source.structural_type))?;
+                            .ok_or(LoweringError::UnknownStructuralType(source_structural_type))?;
                         let StructuralTypeShape::FixedArray { element, length } = declaration.shape
                         else {
                             return Err(LoweringError::StructuralCallArgumentTypeMismatch {
@@ -111,13 +124,13 @@ pub(super) fn lower_structural_unit_call(
                             u32::from(element_shape.alignment),
                         )
                         .ok_or(LoweringError::StructuralTypeTooLarge(
-                            source.structural_type,
+                            source_structural_type,
                         ))?;
                         let offset = u64::from(stride)
                             .checked_mul(*index)
                             .and_then(|offset| u32::try_from(offset).ok())
                             .ok_or(LoweringError::StructuralTypeTooLarge(
-                                source.structural_type,
+                                source_structural_type,
                             ))?;
                         (element, element_shape, offset, Some(length), Some(stride))
                     }
@@ -126,9 +139,9 @@ pub(super) fn lower_structural_unit_call(
                         StructuralPathSegment::FixedIndex(inner_index),
                     ] => {
                         let declaration = structural_types
-                            .get(&source.structural_type)
+                            .get(&source_structural_type)
                             .copied()
-                            .ok_or(LoweringError::UnknownStructuralType(source.structural_type))?;
+                            .ok_or(LoweringError::UnknownStructuralType(source_structural_type))?;
                         let StructuralTypeShape::FixedArray {
                             element: inner_type,
                             length: 2,
@@ -168,14 +181,14 @@ pub(super) fn lower_structural_unit_call(
                             u32::from(inner_shape.alignment),
                         )
                         .ok_or(LoweringError::StructuralTypeTooLarge(
-                            source.structural_type,
+                            source_structural_type,
                         ))?;
                         let inner_stride = checked_align_up_u32(
                             u32::from(leaf_shape.byte_size),
                             u32::from(leaf_shape.alignment),
                         )
                         .ok_or(LoweringError::StructuralTypeTooLarge(
-                            source.structural_type,
+                            source_structural_type,
                         ))?;
                         let offset = u64::from(outer_stride)
                             .checked_mul(*outer_index)
@@ -186,7 +199,7 @@ pub(super) fn lower_structural_unit_call(
                             })
                             .and_then(|offset| u32::try_from(offset).ok())
                             .ok_or(LoweringError::StructuralTypeTooLarge(
-                                source.structural_type,
+                                source_structural_type,
                             ))?;
                         (leaf_type, leaf_shape, offset, Some(2), Some(outer_stride))
                     }
@@ -196,7 +209,7 @@ pub(super) fn lower_structural_unit_call(
                             .all(|segment| matches!(segment, StructuralPathSegment::Field(_))) =>
                     {
                         let (field_type, field_shape, offset) = resolve_structural_field_path(
-                            source.structural_type,
+                            source_structural_type,
                             path,
                             structural_types,
                             shape_cache,
@@ -219,7 +232,7 @@ pub(super) fn lower_structural_unit_call(
                 || projected_shape != shape
                 || u32::from(shape.byte_size)
                     .checked_add(source_byte_offset)
-                    .is_none_or(|end| end > u32::from(source.shape.byte_size))
+                    .is_none_or(|end| end > u32::from(source_shape.byte_size))
             {
                 return Err(LoweringError::StructuralCallArgumentTypeMismatch {
                     callee: *callee,
@@ -230,13 +243,13 @@ pub(super) fn lower_structural_unit_call(
                 place: argument.place,
                 access: argument.access,
                 path: argument.path.clone(),
-                root_structural_type: source.structural_type,
+                root_structural_type: source_structural_type,
                 structural_type: projected_type,
                 shape,
                 source_byte_offset,
                 fixed_array_length,
                 element_stride,
-                source: source.placement.clone(),
+                source: source_placement.clone(),
                 destination: destination.clone(),
             })
         })

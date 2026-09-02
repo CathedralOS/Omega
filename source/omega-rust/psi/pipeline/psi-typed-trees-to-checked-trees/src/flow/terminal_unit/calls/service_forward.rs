@@ -87,11 +87,11 @@ pub(super) fn exact_single_fused_service_forward_is_supported(
             != Multiplicity::Affine
         || structural_access_for_type_reference(program, target_source.type_reference)
             != Some(CheckedStructuralAccess::Owned)
-        || argument.source_parameter_index != 0
+        || argument.source_parameter_index() != Some(0)
         || !argument.path.is_empty()
         || argument.type_identity != caller_parameter.type_identity
         || argument.access != CheckedStructuralAccess::Owned
-        || argument.byte_sequence_literal.is_some()
+        || argument.byte_sequence_literal().is_some()
     {
         return false;
     }

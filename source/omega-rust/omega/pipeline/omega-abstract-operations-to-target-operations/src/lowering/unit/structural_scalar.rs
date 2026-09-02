@@ -132,7 +132,7 @@ pub(super) fn lower_structural_scalar_call(
     else {
         unreachable!("structural-scalar call lowering receives only structural scalar calls")
     };
-    if function.attachment.is_none() || structural_arguments.is_empty() {
+    if structural_arguments.is_empty() {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
         ));
@@ -150,6 +150,47 @@ pub(super) fn lower_structural_scalar_call(
         || structural_arguments.len() != callee_function.structural_parameters.len()
     {
         return Err(LoweringError::UnitCallTargetKindMismatch(*callee));
+    }
+    let free_whole_affine = function.attachment.is_none()
+        && function.structural_parameters.len() == structural_arguments.len()
+        && claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && function.published_service_ceiling.is_empty()
+        && function.structural_parameters.iter().all(|parameter| {
+            parameter.multiplicity == StructuralMultiplicity::Affine
+                && parameter.access == StructuralAccess::Owned
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+        })
+        && callee_function
+            .structural_parameters
+            .iter()
+            .all(|parameter| {
+                parameter.multiplicity == StructuralMultiplicity::Affine
+                    && parameter.access == StructuralAccess::Owned
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            })
+        && structural_arguments.iter().all(|argument| {
+            argument.path.is_empty()
+                && argument.access == StructuralAccess::Owned
+                && function
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == argument.place)
+        })
+        && structural_arguments
+            .iter()
+            .map(|argument| argument.place)
+            .collect::<BTreeSet<_>>()
+            .len()
+            == structural_arguments.len();
+    let attached_projection = function.attachment.is_some();
+    if !free_whole_affine && !attached_projection {
+        return Err(LoweringError::UnsupportedOperationInUnitFunction(
+            function.machine,
+        ));
     }
     let callee_shapes = callee_function
         .structural_parameters
@@ -187,31 +228,36 @@ pub(super) fn lower_structural_scalar_call(
                     place: argument.place,
                 },
             )?;
-            if argument.path.is_empty()
-                || argument
-                    .path
-                    .iter()
-                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-            {
-                return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                    callee: *callee,
-                    place: argument.place,
-                });
-            }
             let (projected_type, projected_shape, source_byte_offset) =
-                resolve_structural_field_path(
-                    source.structural_type,
-                    &argument.path,
-                    structural_types,
-                    shape_cache,
-                    active,
-                )
-                .map_err(|_| {
-                    LoweringError::StructuralCallArgumentTypeMismatch {
-                        callee: *callee,
-                        place: argument.place,
+                match argument.path.as_slice() {
+                    [] if free_whole_affine => (source.structural_type, source.shape, 0),
+                    path @ [StructuralPathSegment::Field(_), ..]
+                        if attached_projection
+                            && path.iter().all(|segment| {
+                                matches!(segment, StructuralPathSegment::Field(_))
+                            }) =>
+                    {
+                        resolve_structural_field_path(
+                            source.structural_type,
+                            path,
+                            structural_types,
+                            shape_cache,
+                            active,
+                        )
+                        .map_err(|_| {
+                            LoweringError::StructuralCallArgumentTypeMismatch {
+                                callee: *callee,
+                                place: argument.place,
+                            }
+                        })?
                     }
-                })?;
+                    _ => {
+                        return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                            callee: *callee,
+                            place: argument.place,
+                        });
+                    }
+                };
             if projected_type != callee_parameter.structural_type
                 || projected_shape != shape
                 || u32::from(shape.byte_size)

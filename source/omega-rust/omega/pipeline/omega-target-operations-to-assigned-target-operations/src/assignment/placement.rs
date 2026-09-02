@@ -5,6 +5,9 @@ pub(super) fn validate_structural_placement(
     placement: &omega_calling_conventions::ValuePlacement,
     architecture: Architecture,
 ) -> Result<(), AssignmentError> {
+    if placement.shape == ValueShape::integer(0, 1) && placement.locations.is_empty() {
+        return Ok(());
+    }
     let [location] = placement.locations.as_slice() else {
         return Err(AssignmentError::UnsupportedStructuralPlacement(place));
     };

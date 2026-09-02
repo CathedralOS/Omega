@@ -117,6 +117,27 @@ fn structural_scalar_call_plan() -> AbstractOperationPlan {
         ],
     }
 }
+
+fn free_whole_affine_unit_call_plan() -> AbstractOperationPlan {
+    let mut plan = structural_scalar_call_plan();
+    let caller = &mut plan.functions[0];
+    caller.result = AbstractFunctionResult::Unit;
+    let AbstractOperation::CallStructuralScalar {
+        requirement_obligations,
+        crash_continuations,
+        ..
+    } = &mut caller.operations[0]
+    else {
+        unreachable!()
+    };
+    requirement_obligations.clear();
+    crash_continuations.clear();
+    caller.operations[1] = AbstractOperation::ReturnUnit {
+        psi_edge: EdgeId::new(70).unwrap(),
+        cleanup_actions: Vec::new(),
+    };
+    plan
+}
 fn unrestricted_shared_boolean_field_return_plan() -> AbstractOperationPlan {
     let realization = MachineId::new(72).unwrap();
     let structural_type = StructuralTypeId::new(72).unwrap();
@@ -363,5 +384,43 @@ fn whole_root_structural_call_retains_direct_scalar_return_abi() {
                 alternatives: vec![CrashRouteGuard::Truth],
             }]
         );
+    }
+}
+
+#[test]
+fn free_whole_affine_unit_call_requires_the_exact_callee_contract() {
+    let target = NativeTarget::linux_x64();
+    let lowered = lower_to_target_operations(&free_whole_affine_unit_call_plan(), target)
+        .expect("exact free whole-affine Unit call lowers");
+    assert!(matches!(
+        &lowered.functions[0].operation,
+        TargetOperation::UnitBody(body)
+            if matches!(
+                body.operations.as_slice(),
+                [TargetUnitOperation::StructuralScalarCall { .. }, TargetUnitOperation::Return { .. }]
+            )
+    ));
+
+    let mutations: [fn(&mut StructuralParameterDeclaration); 3] = [
+        |parameter: &mut StructuralParameterDeclaration| {
+            parameter.access = StructuralAccess::SharedBorrow;
+        },
+        |parameter: &mut StructuralParameterDeclaration| {
+            parameter.multiplicity = StructuralMultiplicity::Unrestricted;
+        },
+        |parameter: &mut StructuralParameterDeclaration| {
+            parameter
+                .qualifications
+                .push(psi_core::StructuralDomainId::new(1).expect("forged qualification"));
+        },
+    ];
+    for mutate in mutations {
+        let mut drifted = free_whole_affine_unit_call_plan();
+        mutate(&mut drifted.functions[1].structural_parameters[0]);
+        assert!(matches!(
+            lower_to_target_operations(&drifted, target),
+            Err(crate::LoweringError::UnsupportedOperationInUnitFunction(machine))
+                if machine == MachineId::new(70).unwrap()
+        ));
     }
 }

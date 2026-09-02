@@ -8,9 +8,9 @@ use omega_machine_code::{
 use omega_target::{Architecture, NativeTarget};
 
 use crate::{
-    aarch64_load_base, aarch64_unit_memory_access, aarch64_unit_stack_access,
+    EmissionError, aarch64_load_base, aarch64_unit_memory_access, aarch64_unit_stack_access,
     append_aarch64_instructions, emit_aarch64_adjust_sp, emit_x86_64_adjust_sp,
-    stack_adjustment_pair, x86_unit_register, EmissionError,
+    stack_adjustment_pair, x86_unit_register,
 };
 
 pub(super) struct EmittedDynamicParameterCall {
@@ -241,7 +241,7 @@ mod tests {
         AssignedDynamicDescriptorParameterAbi, AssignedDynamicParameterCallMechanism,
         AssignedFunction, AssignedOperation, AssignedOperationPlan,
     };
-    use omega_calling_conventions::{evaluate_call_plan, CallSignature, CallingPolicy, ValueShape};
+    use omega_calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
     use omega_target::NativeTarget;
     use omega_target_operations::MachineRegister;
     use psi_core::{EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId};

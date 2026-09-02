@@ -89,6 +89,18 @@ fn encode_internal_unit_call(
             );
         }
     }
+    match &custody.semantic_result {
+        Some(result) if Some(result.scalar_type) == custody.result => {
+            bytes.extend_from_slice(&[1, 0, 0, 0, 0, 0, 0, 0]);
+            push_u64(bytes, result.value.get());
+        }
+        None => bytes.extend_from_slice(&[0; 16]),
+        Some(_) => {
+            return Err(InstallationError::InvalidInternalUnitCall(
+                installed.machine,
+            ));
+        }
+    }
     push_u64(
         bytes,
         u64::try_from(custody.operation_ordinal)
@@ -306,6 +318,25 @@ fn decode_internal_unit_call(
         )),
         _ => return Err(InstallationError::InvalidInternalUnitCall(machine)),
     };
+    let semantic_result = match decode_boolean(reader.u8()?)? {
+        false => {
+            if reader.take(7)? != [0; 7] || reader.u64()? != 0 {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            None
+        }
+        true => {
+            if reader.take(7)? != [0; 7] {
+                return Err(InstallationError::NonzeroReservedField);
+            }
+            let value = psi_core::ValueId::new(reader.u64()?)
+                .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
+            Some(omega_abstract_operations::AbstractResult {
+                value,
+                scalar_type: result.ok_or(InstallationError::InvalidInternalUnitCall(machine))?,
+            })
+        }
+    };
     let operation_ordinal = usize::try_from(reader.u64()?)
         .map_err(|_| InstallationError::InternalUnitCallOffsetNotRepresentable)?;
     let code_offset = usize::try_from(reader.u64()?)
@@ -386,6 +417,7 @@ fn decode_internal_unit_call(
             owner,
             target,
             result,
+            semantic_result,
             structural_result,
             arguments,
             claim_transfers,

@@ -28,11 +28,11 @@ use psi_checked_trees::{
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
-    CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
-    ContractProofFactOwner,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralDomainRequirementPlan, CheckedUnitStructuralFieldPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralTypeShape, ContractProofFactKind, ContractProofFactOwner,
 };
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::{

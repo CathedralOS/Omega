@@ -409,7 +409,7 @@ pub(super) fn validate_dynamic_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            false,
+            super::structural_operations::StructuralArgumentSourcePolicy::ParametersOnly,
         )?;
         validate_structural_arguments(
             module,
@@ -418,7 +418,7 @@ pub(super) fn validate_dynamic_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            false,
+            super::structural_operations::StructuralArgumentSourcePolicy::ParametersOnly,
         )?;
         if !exact_call
             || rows != 1

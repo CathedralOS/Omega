@@ -96,6 +96,7 @@ pub(crate) fn lower_selected_operator_structural_scalar_return_machine(
         realization,
         machine_id(2),
         TERMINAL_MACHINE_IDENTITY_STRIDE,
+        None,
     )?;
     let type_ids = lowered
         .semantic_module
