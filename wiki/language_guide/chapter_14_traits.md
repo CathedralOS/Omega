@@ -1008,6 +1008,17 @@ descriptors cannot be enumerated for unload or migration. A component exposes
 a boundary requirement whose calls use the selected `CallPlan` and
 `StatePlan`.
 
+Within one artifact, the portable descriptor is exactly two target-neutral
+words: a data address and a table address. Passing it to another Psi machine
+does not freeze a concrete target ABI into Psi. Native lowering selects the
+two-word function-entry ABI and an erased one-pointer slot ABI, then generates
+one source-free adapter for each closed conformance row. The caller addresses
+the table, the table addresses the adapter, and the adapter calls the concrete
+realization using its ordinary native ABI. Direct local dynamic tables remain
+a distinct role and may address concrete realizations directly. Object,
+final-image, and installation replay preserve these roles and all three joins;
+matching symbol names or identical bytes never substitute for that evidence.
+
 Code that wants a local dynamic interface over a component owns a local proxy:
 
 ```omega

@@ -1,11 +1,14 @@
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_image_emission::{
-    ObjectError, build_object_artifact, emit_executable_image, validate_executable_image,
+    ObjectError, build_installation_record, build_object_artifact, decode_installation_record,
+    emit_executable_image, encode_installation_record, validate_executable_image,
+    validate_installation_record,
 };
 use omega_machine_emission::emit_machine_code;
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use omega_target::NativeTarget;
 use omega_target_operations_to_assigned_target_operations::assign_registers;
+use psi_core::ProfileDecisionId;
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -108,6 +111,20 @@ fn object_construction_binds_forwarded_tables_through_adapters() {
             image.forwarded_dynamic_descriptor_tables(),
             object.forwarded_dynamic_descriptor_tables()
         );
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build forwarded descriptor installation");
+        assert_eq!(
+            installation.forwarded_dynamic_descriptor_adapters().len(),
+            argument.adapters.len()
+        );
+        assert_eq!(installation.forwarded_dynamic_descriptor_tables().len(), 1);
+        assert_eq!(installation.forwarded_dynamic_descriptor_calls().len(), 1);
+        assert_eq!(installation.dynamic_parameter_scalar_calls().len(), 1);
+        let bytes = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(decode_installation_record(&bytes), Ok(installation.clone()));
+        validate_installation_record(&installation, &image)
+            .expect("replay forwarded descriptor installation");
     }
 }
 
