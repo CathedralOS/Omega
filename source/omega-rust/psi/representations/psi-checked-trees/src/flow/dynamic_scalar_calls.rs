@@ -143,6 +143,10 @@ pub struct CheckedDynamicScalarCallPlan {
     /// lowering may then compose that internal call without inventing
     /// descriptor custody.
     pub origin: CheckedDynamicScalarCallOrigin,
+    /// Exact parameter-sourced transfers before the final dispatching helper,
+    /// ordered from the root caller toward that helper. Empty for local and
+    /// one-hop forwarded calls.
+    pub forwarding_transfers: Vec<CheckedDynamicDescriptorTransferPlan>,
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
     pub caller_attachment_type_identity: String,

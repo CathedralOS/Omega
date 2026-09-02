@@ -1077,6 +1077,19 @@ a distinct role and may address concrete realizations directly. Object,
 final-image, and installation replay preserve these roles and all three joins;
 matching symbol names or identical bytes never substitute for that evidence.
 
+The current bounded implementation also retains an unambiguous chain of
+scalar helpers that pass one descriptor parameter unchanged. Checked flow
+records the original selection and every parameter-sourced forwarding edge;
+Terminal Psi independently reconstructs the path and represents every hop as
+an explicit helper call. It does not collapse the chain into a direct dispatch.
+A state with multiple inbound call sites is deliberately not treated as such a
+chain because the incoming descriptor would require an explicit join rule.
+Canonical Terminal artifacts preserve this distinction. Native target lowering
+is still fail closed for chains longer than the existing one-hop form until a
+scalar target operation can carry a parameter-sourced descriptor argument
+without pretending it came from a structural field. Unit results and
+continuation-bearing callers are likewise not yet in this bounded lane.
+
 Code that wants a local dynamic interface over a component owns a local proxy:
 
 ```omega
