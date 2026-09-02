@@ -294,8 +294,10 @@ explicitly.
     - the named-`dyn`/Console ordinary-package native canary, needing accepted
       Console semantic-binding replay from the lock and multi-block target
       continuation;
-    - two build/runtime float twins lacking exact early named-operator callable
-      identity;
+    - two build/runtime float twins whose exact named-operator identity now
+      survives early build-time selection and call-closure authority, but whose
+      runtime entries still lack a Terminal composed-Unit plan for scalar
+      setup, indexed assignment, and guarded Console leaves;
     - six nested/repeated wire roots whose generated codec source loses
       requester-owned schema visibility under package-scoped compilation;
     - three arithmetic float-helper roots lacking a Terminal composed-Unit plan

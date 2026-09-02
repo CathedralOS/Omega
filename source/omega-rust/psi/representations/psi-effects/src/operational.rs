@@ -4,6 +4,9 @@
 //! `(state, statement, ordinal)` identity in grouped arenas so service reach,
 //! capability approval, carry checks, and reports can join the same topology
 //! without rebuilding leaf `Vec`s or reintroducing a global service catalog.
+//! Exact typed named-operator targets remain distinct from machine targets so
+//! early execution can validate their declaration authority without inventing
+//! a call-closure machine edge.
 
 use psi_arena::{Arena, HandleSpan};
 use psi_symbols::SymbolHandle;
@@ -59,6 +62,9 @@ pub struct CallOperational {
     pub target_name: String,
     pub target_state_symbol: SymbolHandle,
     pub target_machine_symbol: SymbolHandle,
+    /// Exact named-operator declaration selected from typed path and arity
+    /// when this call is not a machine/state invocation.
+    pub target_operator_symbol: SymbolHandle,
     pub direct_may_suspend: bool,
     pub direct_may_block: bool,
     pub transitive_may_suspend: bool,
@@ -96,6 +102,7 @@ struct CallWork {
     target_name: String,
     target_state_symbol: SymbolHandle,
     target_machine_symbol: SymbolHandle,
+    target_operator_symbol: SymbolHandle,
     direct_may_suspend: bool,
     direct_may_block: bool,
     transitive_may_suspend: bool,
@@ -272,10 +279,18 @@ fn push_statement_call(
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
 ) {
+    let target_operator_symbol = {
+        let candidates = psi_typed_trees::operator::named_statement_call_candidates(program, call);
+        match candidates.as_slice() {
+            [operator] => operator.symbol,
+            _ => SymbolHandle::invalid(),
+        }
+    };
     push_call(
         program,
         call.target.as_str(),
         call.target_symbol,
+        target_operator_symbol,
         call.operational_acknowledgement,
         statement_index,
         call_ordinal,
@@ -379,10 +394,15 @@ fn push_expression_call(
     call_ordinal: &mut usize,
     calls: &mut Vec<CallWork>,
 ) {
+    let target_operator_symbol =
+        psi_typed_trees::operator::resolve_named_expression_call(program, call)
+            .map(|operator| operator.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
     push_call(
         program,
         call.target.as_str(),
         call.target_symbol,
+        target_operator_symbol,
         call.operational_acknowledgement,
         statement_index,
         call_ordinal,
@@ -394,6 +414,7 @@ fn push_call(
     program: &TypedTrees,
     target_name: &str,
     target_state_symbol: SymbolHandle,
+    target_operator_symbol: SymbolHandle,
     acknowledgement: psi_language_semantics::CallOperationalAcknowledgement,
     statement_index: usize,
     call_ordinal: &mut usize,
@@ -407,6 +428,7 @@ fn push_call(
         target_name: target_name.to_owned(),
         target_state_symbol,
         target_machine_symbol,
+        target_operator_symbol,
         direct_may_suspend: direct.may_suspend,
         direct_may_block: direct.may_block,
         transitive_may_suspend: false,
@@ -632,6 +654,7 @@ fn build_plan(machines: Vec<MachineWork>) -> OperationalPlan {
                         target_name: call.target_name,
                         target_state_symbol: call.target_state_symbol,
                         target_machine_symbol: call.target_machine_symbol,
+                        target_operator_symbol: call.target_operator_symbol,
                         direct_may_suspend: call.direct_may_suspend,
                         direct_may_block: call.direct_may_block,
                         transitive_may_suspend: call.transitive_may_suspend,

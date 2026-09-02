@@ -51,6 +51,23 @@ pub(super) fn selection_authority_violation(
             .filter(|call| call.source_machine_symbol == source_machine)
         {
             let Some(target_machine) = target_machine_symbol(program, call) else {
+                if let Some(operator) = target_operator_symbol(program, call) {
+                    let context = format!(
+                        "build-time named operator call `{}` -> `{}`",
+                        program.symbols.display_path(source_machine, "::"),
+                        program.symbols.display_path(operator, "::")
+                    );
+                    if let Some(violation) = require_selection(
+                        program,
+                        package_for_symbol(program, source_machine),
+                        package_for_symbol(program, operator),
+                        authority,
+                        &context,
+                    ) {
+                        return Some(violation);
+                    }
+                    continue;
+                }
                 return Some(format!(
                     "build-time call from `{}` has no exact target-machine identity",
                     program.symbols.display_path(source_machine, "::")
@@ -427,7 +444,15 @@ fn late_bound_selection_symbol(
         .count();
     let table = &program.expression_table;
     let selected = match (binding, table.expression(expression)) {
-        (Binding::CheckedCall, ExpressionNode::Call(call)) => call.target_symbol,
+        (Binding::CheckedCall, ExpressionNode::Call(call)) => {
+            if call.target_symbol.is_valid() {
+                call.target_symbol
+            } else {
+                psi_typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map(|operator| operator.symbol)
+                    .unwrap_or_else(SymbolHandle::invalid)
+            }
+        }
         (Binding::CheckedMember, ExpressionNode::Member(member)) => member.member_symbol,
         (Binding::CheckedStaticPathSegment, ExpressionNode::Name(path)) => table
             .name_path_member_symbols(path.member_symbols)
@@ -462,6 +487,13 @@ fn target_machine_symbol(program: &TypedTrees, call: &BuildTimeCallEdge) -> Opti
     (call.target_state_symbol.is_valid()
         && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine)
         .then_some(call.target_state_symbol)
+}
+
+fn target_operator_symbol(program: &TypedTrees, call: &BuildTimeCallEdge) -> Option<SymbolHandle> {
+    (call.target_operator_symbol.is_valid()
+        && psi_typed_trees::operator::declaration_by_symbol(program, call.target_operator_symbol)
+            .is_some())
+    .then_some(call.target_operator_symbol)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -519,5 +551,116 @@ fn require_selection(
         (PackageCustody::Missing, _) | (_, PackageCustody::Missing) => Some(format!(
             "{context} lacks compiler-owned source/package provenance"
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use psi_source_files_to_tokens::Lexer;
+    use psi_tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn typed_from_source(source: &str) -> TypedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees(&syntax)
+            .expect("resolve");
+        psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type")
+    }
+
+    fn named_call(program: &TypedTrees, name: &str) -> ExpressionHandle {
+        program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(node, ExpressionNode::Call(call) if call.target.as_str() == name)
+                    .then_some(expression)
+            })
+            .expect("named operator call")
+    }
+
+    #[test]
+    fn unresolved_named_operator_call_rejoins_its_exact_typed_declaration() {
+        let source = r#"
+            data Math {}
+
+            operator Math::same(value: u64) -> u64;
+
+            machine selected() -> u64 {
+                let result: u64 = Math::same(7);
+                transition { _ -> result }
+            }
+        "#;
+        let typed = typed_from_source(source);
+        let expression = named_call(&typed, "same");
+        let operator = typed
+            .operators()
+            .iter()
+            .find(|operator| {
+                typed
+                    .operator_path_members(operator.name)
+                    .last()
+                    .is_some_and(|name| name.as_str() == "same")
+            })
+            .expect("named operator declaration");
+        let operational = psi_effects::infer_operational_may(&typed);
+        let selected_call = operational
+            .machines()
+            .iter()
+            .flat_map(|machine| operational.states.span_or_empty(machine.states))
+            .flat_map(|state| operational.calls.span_or_empty(state.calls))
+            .find(|call| call.target_name == "same")
+            .expect("named operator operational call");
+
+        assert_eq!(selected_call.target_operator_symbol, operator.symbol);
+        assert!(!selected_call.target_machine_symbol.is_valid());
+
+        assert_eq!(
+            late_bound_selection_symbol(
+                &typed,
+                expression,
+                &[],
+                psi_typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            ),
+            Some(operator.symbol)
+        );
+    }
+
+    #[test]
+    fn ambiguous_named_operator_call_does_not_manufacture_early_identity() {
+        let typed = typed_from_source(
+            r#"
+                data Math {}
+
+                operator Math::same(value: i32) -> i32;
+                operator Math::same(value: u32) -> u32;
+
+                machine selected(value: i32) -> i32 {
+                    let result: i32 = Math::same(value);
+                    transition { _ -> result }
+                }
+            "#,
+        );
+        let expression = named_call(&typed, "same");
+        let operational = psi_effects::infer_operational_may(&typed);
+        let selected_call = operational
+            .machines()
+            .iter()
+            .flat_map(|machine| operational.states.span_or_empty(machine.states))
+            .flat_map(|state| operational.calls.span_or_empty(state.calls))
+            .find(|call| call.target_name == "same")
+            .expect("ambiguous named operator operational call");
+
+        assert!(!selected_call.target_operator_symbol.is_valid());
+        assert_eq!(
+            late_bound_selection_symbol(
+                &typed,
+                expression,
+                &[],
+                psi_typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedCall,
+            ),
+            None
+        );
     }
 }
