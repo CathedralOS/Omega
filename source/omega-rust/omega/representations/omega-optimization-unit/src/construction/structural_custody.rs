@@ -43,14 +43,22 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.extend(structural_arguments.iter().map(|argument| argument.place));
             for argument in dynamic_arguments {
-                if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                    initial,
-                    rebound,
-                    ..
-                } = &argument.source
-                {
-                    places.insert(initial.source.place);
-                    places.insert(rebound.source.place);
+                match &argument.source {
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        selection,
+                        ..
+                    } => {
+                        places.insert(selection.source.place);
+                    }
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        initial,
+                        rebound,
+                        ..
+                    } => {
+                        places.insert(initial.source.place);
+                        places.insert(rebound.source.place);
+                    }
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {}
                 }
             }
         }

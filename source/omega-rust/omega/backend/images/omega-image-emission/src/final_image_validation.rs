@@ -509,12 +509,18 @@ fn validate_dynamic_conformance_tables(
         }
         for call in &function.forwarded_dynamic_descriptor_calls {
             for argument in &call.dynamic_arguments {
-                let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                    application,
-                    ..
-                } = &argument.custody.source
-                else {
-                    return Err(invalid());
+                let application = match &argument.custody.source {
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        application,
+                        ..
+                    }
+                    | omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        application,
+                        ..
+                    } => application,
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
+                        return Err(invalid());
+                    }
                 };
                 let table = artifact
                     .forwarded_dynamic_descriptor_tables()

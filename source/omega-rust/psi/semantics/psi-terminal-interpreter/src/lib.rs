@@ -429,6 +429,7 @@ pub struct TerminalExecution {
     machines: BTreeMap<MachineId, ExecutableMachine>,
     dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
     dynamic_descriptor_templates: BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
+    dynamic_selection_templates: BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
     dynamic_descriptor_arguments:
         BTreeMap<(MachineId, OperationId), Vec<psi_terminal::TerminalDynamicDescriptorArgument>>,
     dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
@@ -721,31 +722,22 @@ impl TerminalExecution {
                 )
             })
             .collect::<BTreeMap<_, _>>();
-        let dynamic_descriptor_templates = module
+        let dynamic_selection_templates = module
             .dynamic_dispatch
-            .rebound_descriptors
+            .selections
             .iter()
-            .map(|descriptor| {
-                let selection = module
-                    .dynamic_dispatch
-                    .selections
-                    .iter()
-                    .find(|selection| {
-                        selection.owner == descriptor.owner
-                            && selection.ordinal == descriptor.rebound_selection_ordinal
-                    })
-                    .expect("verified descriptor has one latest selection");
+            .map(|selection| {
                 let application = module
                     .closed_conformance_applications
                     .iter()
                     .find(|application| {
-                        application.owner == descriptor.owner
+                        application.owner == selection.owner
                             && application.report_fingerprint
                                 == selection.conformance_application_report_fingerprint
                             && application.commitment
                                 == selection.conformance_application_commitment
                     })
-                    .expect("verified descriptor has one conformance application");
+                    .expect("verified selection has one conformance application");
                 let callables = application
                     .rows
                     .iter()
@@ -763,12 +755,24 @@ impl TerminalExecution {
                     })
                     .collect();
                 (
-                    (descriptor.owner, descriptor.ordinal),
+                    (selection.owner, selection.ordinal),
                     RuntimeDynamicDescriptorTemplate {
                         source: selection.source.clone(),
                         callables,
                     },
                 )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let dynamic_descriptor_templates = module
+            .dynamic_dispatch
+            .rebound_descriptors
+            .iter()
+            .map(|descriptor| {
+                let template = dynamic_selection_templates
+                    .get(&(descriptor.owner, descriptor.rebound_selection_ordinal))
+                    .expect("verified descriptor has one latest selection")
+                    .clone();
+                ((descriptor.owner, descriptor.ordinal), template)
             })
             .collect::<BTreeMap<_, _>>();
         let mut dynamic_descriptor_arguments = BTreeMap::<
@@ -823,6 +827,7 @@ impl TerminalExecution {
             machines,
             dynamic_scalar_calls,
             dynamic_descriptor_templates,
+            dynamic_selection_templates,
             dynamic_descriptor_arguments,
             dynamic_parameters: BTreeMap::new(),
             boundary_machines,
@@ -910,6 +915,24 @@ impl TerminalExecution {
             .flatten()
         {
             let descriptor = match argument.source {
+                psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal } => {
+                    let template = self
+                        .dynamic_selection_templates
+                        .get(&(self.current_machine, ordinal))
+                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                    let sources = resolve_structural_arguments(
+                        &self.structural_types,
+                        &self.structural_values,
+                        std::slice::from_ref(&template.source),
+                    )?;
+                    let [source] = sources.as_slice() else {
+                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    };
+                    RuntimeDynamicDescriptor {
+                        source: source.clone(),
+                        callables: template.callables.clone(),
+                    }
+                }
                 psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
                     let template = self
                         .dynamic_descriptor_templates

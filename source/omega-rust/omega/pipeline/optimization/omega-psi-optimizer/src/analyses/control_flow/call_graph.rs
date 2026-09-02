@@ -37,11 +37,14 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                 } => {
                     callees.push(*callee);
                     for argument in dynamic_arguments {
-                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
                             application,
                             ..
-                        } = &argument.source
-                        {
+                        }
+                        | omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } = &argument.source {
                             callees.extend(
                                 application
                                     .realization_callables

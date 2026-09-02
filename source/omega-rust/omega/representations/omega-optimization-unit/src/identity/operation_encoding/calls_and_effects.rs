@@ -275,6 +275,10 @@ fn encode_dynamic_descriptor_argument(
     bytes.id(argument.argument.operation);
     bytes.u32(argument.argument.parameter_ordinal);
     match argument.argument.source {
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal } => {
+            bytes.u8(3);
+            bytes.u32(ordinal);
+        }
         psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
             bytes.u8(1);
             bytes.u32(ordinal);
@@ -286,6 +290,14 @@ fn encode_dynamic_descriptor_argument(
     }
     encode_dynamic_descriptor_parameter(bytes, &argument.target);
     match &argument.source {
+        omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+            selection,
+            application,
+        } => {
+            bytes.u8(3);
+            encode_dynamic_selection(bytes, selection);
+            encode_closed_conformance_application(bytes, application);
+        }
         omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
             initial,
             rebound,

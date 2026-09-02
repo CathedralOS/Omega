@@ -21,11 +21,6 @@ pub(super) fn lower_direct_dynamic_unit_machine(
     checked: &CheckedTrees,
     plan: &CheckedDynamicUnitCallPlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    if matches!(plan.origin, CheckedDynamicUnitCallOrigin::Forwarded { .. }) {
-        return unsupported(
-            "forwarded direct Unit descriptors require a selection argument source",
-        );
-    }
     lower_dynamic_unit_machine(checked, plan, DynamicLoweringLane::Direct)
 }
 
@@ -598,34 +593,74 @@ fn lower_unit_call_custody(
         conformance_application_commitment: application.commitment,
     };
     Ok(match lane {
-        DynamicLoweringLane::Direct => (
-            TerminalDynamicDispatchCatalog {
+        DynamicLoweringLane::Direct => {
+            let mut catalog = TerminalDynamicDispatchCatalog {
                 parameters: Vec::new(),
                 arguments: Vec::new(),
                 selections: vec![latest_selection],
                 rebound_descriptors: Vec::new(),
-                direct_dispatches: vec![TerminalDirectDynamicDispatch {
-                    owner: caller_machine,
-                    operation: call_operation,
-                    selection_ordinal: 0,
-                    declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-                    public_requirement_identity: selected_row.public_requirement_identity.clone(),
-                    requirement_identity: selected_row.requirement_identity.clone(),
-                    realization_identity: selected_row.realization_identity.clone(),
-                    realization_callable_identity: callable_identity,
-                    realization: realization_machine,
-                }],
+                direct_dispatches: Vec::new(),
                 indirect_dispatches: Vec::new(),
                 parameter_dispatches: Vec::new(),
-            },
-            OperationKind::CallUnit {
-                callee: realization_machine,
-                structural_arguments: vec![latest_source],
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        ),
+            };
+            let call_kind = if let Some(helper) = forwarded_helper {
+                let (requirements, requirement_slot) =
+                    dynamic_parameter_interface(application, selected_row)?;
+                catalog.parameters.push(TerminalDynamicDescriptorParameter {
+                    owner: helper.machine,
+                    ordinal: 0,
+                    source_position: 0,
+                    trait_identity: application.trait_identity.clone(),
+                    access: latest_source.access,
+                    requirements,
+                });
+                catalog.arguments.push(TerminalDynamicDescriptorArgument {
+                    owner: caller_machine,
+                    operation: call_operation,
+                    parameter_ordinal: 0,
+                    source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+                });
+                catalog
+                    .parameter_dispatches
+                    .push(TerminalParameterDynamicDispatch {
+                        owner: helper.machine,
+                        operation: helper.operation,
+                        parameter_ordinal: 0,
+                        requirement_slot,
+                    });
+                OperationKind::CallUnit {
+                    callee: helper.machine,
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                }
+            } else {
+                catalog
+                    .direct_dispatches
+                    .push(TerminalDirectDynamicDispatch {
+                        owner: caller_machine,
+                        operation: call_operation,
+                        selection_ordinal: 0,
+                        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+                        public_requirement_identity: selected_row
+                            .public_requirement_identity
+                            .clone(),
+                        requirement_identity: selected_row.requirement_identity.clone(),
+                        realization_identity: selected_row.realization_identity.clone(),
+                        realization_callable_identity: callable_identity,
+                        realization: realization_machine,
+                    });
+                OperationKind::CallUnit {
+                    callee: realization_machine,
+                    structural_arguments: vec![latest_source],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                }
+            };
+            (catalog, call_kind)
+        }
         DynamicLoweringLane::Rebound(initial) => {
             let initial_source = validate_and_lower_dynamic_source(
                 caller_self,

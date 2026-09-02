@@ -492,6 +492,19 @@ pub(super) fn validate_dynamic_dispatches(
         descriptors,
         selections,
     )?);
+    consumed_selections.extend(
+        module
+            .dynamic_dispatch
+            .arguments
+            .iter()
+            .filter_map(|argument| match argument.source {
+                TerminalDynamicDescriptorSource::Selection { ordinal } => {
+                    Some((argument.owner, ordinal))
+                }
+                TerminalDynamicDescriptorSource::ReboundDescriptor { .. }
+                | TerminalDynamicDescriptorSource::Parameter { .. } => None,
+            }),
+    );
     validate_parameter_dynamic_dispatches(module, machines)?;
     for descriptor in descriptors {
         if !consumed_descriptors.contains(&(descriptor.owner, descriptor.ordinal)) {
@@ -713,6 +726,10 @@ fn dynamic_argument_matches_parameter(
     selections: &[psi_terminal::TerminalDynamicConformanceSelection],
 ) -> bool {
     match source {
+        TerminalDynamicDescriptorSource::Selection { ordinal } => selections
+            .iter()
+            .find(|selection| selection.owner == owner && selection.ordinal == ordinal)
+            .is_some_and(|selection| selection_matches_parameter(module, owner, selection, target)),
         TerminalDynamicDescriptorSource::Parameter { ordinal } => module
             .dynamic_dispatch
             .parameters
@@ -732,20 +749,27 @@ fn dynamic_argument_matches_parameter(
             }) else {
                 return false;
             };
-            let Some(application) =
-                module
-                    .closed_conformance_applications
-                    .iter()
-                    .find(|application| {
-                        application.owner == owner
-                            && application.report_fingerprint
-                                == selection.conformance_application_report_fingerprint
-                            && application.commitment
-                                == selection.conformance_application_commitment
-                    })
-            else {
-                return false;
-            };
+            selection_matches_parameter(module, owner, selection, target)
+        }
+    }
+}
+
+fn selection_matches_parameter(
+    module: &TerminalModule,
+    owner: MachineId,
+    selection: &psi_terminal::TerminalDynamicConformanceSelection,
+    target: &TerminalDynamicDescriptorParameter,
+) -> bool {
+    module
+        .closed_conformance_applications
+        .iter()
+        .find(|application| {
+            application.owner == owner
+                && application.report_fingerprint
+                    == selection.conformance_application_report_fingerprint
+                && application.commitment == selection.conformance_application_commitment
+        })
+        .is_some_and(|application| {
             application.trait_identity == target.trait_identity
                 && application.rows.len() == target.requirements.len()
                 && application
@@ -766,8 +790,7 @@ fn dynamic_argument_matches_parameter(
                                 })
                                 .is_some_and(|callable| callable.result == requirement.result)
                     })
-        }
-    }
+        })
 }
 
 fn dynamic_interfaces_match(

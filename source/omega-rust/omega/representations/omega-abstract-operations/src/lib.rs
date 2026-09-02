@@ -285,6 +285,10 @@ pub struct AbstractDynamicDescriptorArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractDynamicDescriptorSource {
+    Selection {
+        selection: TerminalDynamicConformanceSelection,
+        application: ClosedConformanceApplication,
+    },
     Rebound {
         initial: TerminalDynamicConformanceSelection,
         rebound: TerminalDynamicConformanceSelection,
@@ -316,6 +320,47 @@ impl AbstractDynamicDescriptorArgument {
                 && source.requirements == self.target.requirements
         };
         match (&self.argument.source, &self.source) {
+            (
+                psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal },
+                AbstractDynamicDescriptorSource::Selection {
+                    selection,
+                    application,
+                },
+            ) => {
+                selection.owner == caller
+                    && selection.ordinal == *ordinal
+                    && application.owner == caller
+                    && selection.conformance_application_report_fingerprint
+                        == application.report_fingerprint
+                    && selection.conformance_application_commitment == application.commitment
+                    && application.report_fingerprint != 0
+                    && !application.commitment.is_zero()
+                    && application.report_fingerprint
+                        == psi_terminal::closed_conformance_application_report_fingerprint(
+                            application,
+                        )
+                    && application.commitment
+                        == psi_terminal::closed_conformance_application_commitment(application)
+                    && selection.source.access == self.target.access
+                    && application.trait_identity == self.target.trait_identity
+                    && application.rows.len() == self.target.requirements.len()
+                    && application.rows.iter().zip(&self.target.requirements).all(
+                        |(row, requirement)| {
+                            row.declaring_trait_identity == requirement.declaring_trait_identity
+                                && row.public_requirement_identity
+                                    == requirement.public_requirement_identity
+                                && row
+                                    .realization_callable_identity
+                                    .as_ref()
+                                    .and_then(|identity| {
+                                        application.realization_callables.iter().find(|callable| {
+                                            callable.source_callable_identity == *identity
+                                        })
+                                    })
+                                    .is_some_and(|callable| callable.result == requirement.result)
+                        },
+                    )
+            }
             (
                 psi_terminal::TerminalDynamicDescriptorSource::Parameter { ordinal },
                 AbstractDynamicDescriptorSource::Parameter(source),

@@ -56,6 +56,23 @@ fn unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePla
     )
 }
 
+fn direct_unit_machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
+    machine_plan_from_source(
+        r#"
+            trait Touch { machine touch(&self); }
+            data Item { value: i32; }
+            Primary: Item satisfies Touch { machine touch(&self) {} }
+            data Main { selected: Item; }
+            machine Main::run(&mut self) {
+                let erased: &dyn Touch = &self.selected as &dyn Item::Primary;
+                forward(erased);
+            }
+            machine forward(erased: &dyn Touch) { erased.touch(); }
+        "#,
+        target,
+    )
+}
+
 fn machine_plan_from_source(
     source: &str,
     target: NativeTarget,
@@ -125,6 +142,50 @@ fn object_image_and_installation_replay_result_less_forwarding() {
         );
         validate_installation_record(&installation, &image)
             .expect("replay result-less installed evidence");
+    }
+}
+
+#[test]
+fn object_image_and_installation_replay_direct_selection_forwarding() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let plan = direct_unit_machine_plan(target);
+        let caller = plan
+            .functions
+            .iter()
+            .find(|function| function.machine == plan.entry)
+            .expect("entry caller");
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one direct-selection forwarded call expected")
+        };
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one direct-selection descriptor argument expected")
+        };
+        assert!(matches!(
+            argument.custody.source,
+            omega_abstract_operations::AbstractDynamicDescriptorSource::Selection { .. }
+        ));
+        assert!(call.semantic_result.is_none());
+        assert!(call.result.is_none());
+
+        let object = build_object_artifact(&plan).expect("replay direct-selection object evidence");
+        let image =
+            emit_executable_image(&object, 3).expect("link direct-selection forwarded image");
+        validate_executable_image(&object, &image).expect("replay direct-selection linked image");
+        let installation =
+            build_installation_record(&image, ProfileDecisionId::new(1).expect("profile decision"))
+                .expect("build direct-selection installation");
+        let [installed_call] = installation.forwarded_dynamic_descriptor_calls() else {
+            panic!("one installed direct-selection call expected")
+        };
+        assert!(installed_call.semantic_result.is_none());
+        assert!(installed_call.result.is_none());
+        let encoded = encode_installation_record(&installation).expect("encode installation");
+        assert_eq!(
+            decode_installation_record(&encoded),
+            Ok(installation.clone())
+        );
+        validate_installation_record(&installation, &image)
+            .expect("replay direct-selection installed evidence");
     }
 }
 

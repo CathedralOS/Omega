@@ -160,14 +160,22 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                     callee,
                     dynamic_arguments,
                     ..
+                }
+                | O::CallUnitWithDynamicArguments {
+                    callee,
+                    dynamic_arguments,
+                    ..
                 } => {
                     summary.callees.insert(*callee);
                     for argument in dynamic_arguments {
-                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
                             application,
                             ..
-                        } = &argument.source
-                        {
+                        }
+                        | omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } = &argument.source {
                             summary.callees.extend(
                                 application
                                     .realization_callables
@@ -189,6 +197,9 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                 }
                 O::CallDynamicScalar {
                     dynamic_dispatch, ..
+                }
+                | O::CallDynamicUnit {
+                    dynamic_dispatch, ..
                 } => {
                     let callee = dynamic_dispatch.dispatch.realization;
                     summary.callees.insert(callee);
@@ -199,7 +210,7 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
-                O::CallDynamicParameterScalar { .. } => {
+                O::CallDynamicParameterScalar { .. } | O::CallDynamicParameterUnit { .. } => {
                     // The concrete table row is an incoming runtime value.
                     // Until target realization rejoins every caller-supplied
                     // descriptor, retain the conservative internal-call

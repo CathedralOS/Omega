@@ -63,8 +63,17 @@ pub struct TerminalDynamicRequirement {
 /// placement is selected only after Terminal Psi.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalDynamicDescriptorSource {
-    ReboundDescriptor { ordinal: u32 },
-    Parameter { ordinal: u32 },
+    /// One owner-local exact conformance selection used directly as a
+    /// descriptor argument, without fabricating a rebound version pair.
+    Selection {
+        ordinal: u32,
+    },
+    ReboundDescriptor {
+        ordinal: u32,
+    },
+    Parameter {
+        ordinal: u32,
+    },
 }
 
 /// One descriptor passed by an ordinary in-module call.

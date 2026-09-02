@@ -475,6 +475,35 @@ fn lower_dynamic_arguments(
                 return Err(LoweringError::InvalidDynamicCall(operation.id));
             };
             let source = match argument.source {
+                TerminalDynamicDescriptorSource::Selection { ordinal } => {
+                    let selections = dynamic_dispatch
+                        .selections
+                        .iter()
+                        .filter(|selection| {
+                            selection.owner == machine.id && selection.ordinal == ordinal
+                        })
+                        .collect::<Vec<_>>();
+                    let [selection] = selections.as_slice() else {
+                        return Err(LoweringError::InvalidDynamicCall(operation.id));
+                    };
+                    let applications = closed_conformance_applications
+                        .iter()
+                        .filter(|application| {
+                            application.owner == machine.id
+                                && application.report_fingerprint
+                                    == selection.conformance_application_report_fingerprint
+                                && application.commitment
+                                    == selection.conformance_application_commitment
+                        })
+                        .collect::<Vec<_>>();
+                    let [application] = applications.as_slice() else {
+                        return Err(LoweringError::InvalidDynamicCall(operation.id));
+                    };
+                    AbstractDynamicDescriptorSource::Selection {
+                        selection: (**selection).clone(),
+                        application: (**application).clone(),
+                    }
+                }
                 TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
                     lower_rebound_argument_source(
                         machine,

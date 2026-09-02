@@ -11163,8 +11163,9 @@ Remaining N6/N8 work:
   through the owner's declared structural types and requires the selected leaf
   to be `IeeeFloat(format)`. Unknown owners or roots, erased/non-float leaves,
   invalid or substituted paths, format drift, and duplicate tuples reject.
-  Terminal format 70 / vocabulary 73 encode this distinct source class; legacy
-  formats reject its tag. Checked/source production is now live for a nonempty
+  Introduced in Terminal format 70 / vocabulary 73 and retained by current
+  format 71 / vocabulary 74, this distinct source class rejects under legacy
+  formats. Checked/source production is now live for a nonempty
   field/case path below a direct structural parameter in the owning top-level
   machine contract. Checked custody retains the exact owner, parameter ordinal,
   normalized member identities, and fallback; while both representations exist,
@@ -12003,7 +12004,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 70 / vocabulary 73, these rows carry
+  and retained by current format 71 / vocabulary 74, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation
@@ -12025,8 +12026,8 @@ checked-result arithmetic decision listed below.
   reconstructed abstract-operation and optimizer boundary. Descriptor-bearing
   structural calls use a distinct role rather than taxing or changing the
   identity of ordinary structural calls. Each caller argument retains its
-  target parameter and either complete rebound-application custody or exact
-  incoming-parameter interface; each helper dispatch retains the parameter,
+  target parameter and either complete direct-selection/rebound application
+  custody or an exact incoming-parameter interface; each helper dispatch retains the parameter,
   requirement slot, and scalar result. Optimization identity v20 now also
   retains every descriptor parameter as an ordered zero-code declaration
   prefix in the callee entry block, including parameters with no dispatch use.
@@ -12146,17 +12147,19 @@ checked-result arithmetic decision listed below.
   operation-free Unit call is the helper's sole statement. Direct and
   once-rebound sources retain both outer and inner coordinates.
 
-  Terminal format 70 / vocabulary 73 now preserves that distinction. A direct
+  Terminal format 70 / vocabulary 73 introduced that distinction. A direct
   local Unit selection lowers to an exact result-less `CallUnit`; a rebound
   local selection lowers to `CallDynamicUnit`; and an exactly once-rebound
   forwarded source crosses one ordinary Unit call into a
   `CallDynamicParameterUnit` helper. Canonical encoding, call-composition rows,
   verification, fixed fuel, and reference interpretation all retain Unit as
-  Unit and reject scalar-result substitution. Direct descriptor forwarding
-  remains checked-only because Terminal has no direct-selection descriptor
-  argument source; it fails closed rather than fabricating a rebound source.
+  Unit and reject scalar-result substitution. Current format 71 / vocabulary
+  74 adds an honest owner-local selection argument source, so direct Unit
+  descriptor forwarding crosses the same helper boundary without fabricating a
+  rebound. Direct scalar forwarding remains outside this bounded Unit rung.
   Target-neutral abstract operations now retain the same result-independent
-  rebound and parameter dispatch carriers used by scalar requirements. A
+  direct-selection, rebound, and parameter dispatch carriers used by scalar
+  requirements. A
   forwarded outer Unit call is distinct as `CallUnitWithDynamicArguments`, so
   its exact descriptor argument cannot disappear between the caller and the
   helper's `CallDynamicParameterUnit`; local rebound calls remain
@@ -12210,9 +12213,6 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - add an honest direct-selection descriptor argument source before admitting
-    direct forwarding; do not relabel it as rebound custody or widen helper
-    bodies and call forms first;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected
