@@ -7,6 +7,12 @@ pub(super) fn derive_fixed_integer_scalar_function_abi(
     if !function.published_service_ceiling.is_empty()
         || !function.structural_parameters.is_empty()
         || !function.entry_claims.is_empty()
+        || function.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
     {
         return Ok(None);
     }

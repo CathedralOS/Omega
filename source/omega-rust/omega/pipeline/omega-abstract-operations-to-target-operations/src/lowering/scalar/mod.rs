@@ -30,7 +30,7 @@ use expressions::*;
 pub(in crate::lowering) use expressions::{scalar_parameter_location, scalar_shape};
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn lower_scalar_function(
+pub(crate) fn lower_scalar_function(
     function: &AbstractFunction,
     function_result: AbstractResult,
     target: NativeTarget,

@@ -15,6 +15,9 @@ pub(super) fn lower_special_form(
     let mut active = prepared.active_shapes.clone();
     let call_plan = prepared.call_plan.clone();
     let target_structural_parameters = prepared.target_structural_parameters.clone();
+    if let Some(lowered) = lower_dynamic_parameter_return(function, function_result, target)? {
+        return Ok(Some(lowered));
+    }
     if let Some(lowered) = structural_call::lower_direct_return(
         function,
         function_result,
@@ -112,4 +115,139 @@ pub(super) fn lower_special_form(
     }
 
     Ok(None)
+}
+
+fn lower_dynamic_parameter_return(
+    function: &AbstractFunction,
+    function_result: AbstractResult,
+    target: NativeTarget,
+) -> Result<Option<TargetFunction>, LoweringError> {
+    let [
+        AbstractOperation::DynamicDescriptorParameter { parameter },
+        AbstractOperation::CallDynamicParameterScalar {
+            psi_operation,
+            result,
+            dynamic_dispatch,
+            requirement_obligations,
+            crash_continuations,
+        },
+        AbstractOperation::Return {
+            psi_edge,
+            result: returned_result,
+            value,
+            scalar_type,
+            cleanup_actions,
+        },
+    ] = function.operations.as_slice()
+    else {
+        return Ok(None);
+    };
+    let dispatch = &dynamic_dispatch.dispatch;
+    let Some(requirement) = parameter
+        .requirements
+        .iter()
+        .find(|requirement| requirement.slot == dispatch.requirement_slot)
+        .cloned()
+    else {
+        return Err(LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
+    };
+    if function.attachment.is_some()
+        || !function.parameters.is_empty()
+        || !function.structural_parameters.is_empty()
+        || parameter != &dynamic_dispatch.parameter
+        || parameter.owner != function.machine
+        || parameter.ordinal != 0
+        || parameter.access != psi_terminal::StructuralAccess::SharedBorrow
+        || dispatch.owner != function.machine
+        || dispatch.operation != *psi_operation
+        || dispatch.parameter_ordinal != parameter.ordinal
+        || *returned_result != function_result.value
+        || *value != result.value
+        || *scalar_type != result.scalar_type
+        || !requirement_obligations.is_empty()
+        || !crash_continuations.is_empty()
+        || !cleanup_actions.is_empty()
+        || !function.published_service_ceiling.is_empty()
+    {
+        return Err(LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
+    }
+    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| {
+        LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        }
+    })?;
+    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| {
+        LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        }
+    })?;
+    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
+    let function_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer_shape, pointer_shape],
+            result: Some(result_shape),
+        },
+    )
+    .map_err(LoweringError::AbiPlan)?;
+    let [instance, table] = function_call_plan.parameters.as_slice() else {
+        return Err(LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
+    };
+    let dispatch_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target),
+        &CallSignature {
+            parameters: vec![pointer_shape],
+            result: Some(result_shape),
+        },
+    )
+    .map_err(LoweringError::AbiPlan)?;
+    let pointer_size_u32 = u32::try_from(target.pointer_size).map_err(|_| {
+        LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        }
+    })?;
+    let table_slot_byte_offset = dispatch
+        .requirement_slot
+        .checked_mul(pointer_size_u32)
+        .ok_or(LoweringError::InvalidDynamicScalarDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        })?;
+    Ok(Some(TargetFunction {
+        machine: function.machine,
+        attachment: function.attachment,
+        fixed_integer_scalar_abi: None,
+        provenance: TerminalPsiProvenance {
+            operations: vec![*psi_operation],
+            edges: vec![*psi_edge],
+        },
+        operation: TargetOperation::ReturnDynamicParameterScalarCall {
+            psi_edge: *psi_edge,
+            psi_operation: *psi_operation,
+            source_value: result.value,
+            scalar_type: result.scalar_type,
+            parameter_abi: TargetDynamicDescriptorParameterAbi {
+                parameter: parameter.clone(),
+                instance: instance.clone(),
+                table: table.clone(),
+            },
+            requirement,
+            function_call_plan,
+            dispatch_call_plan,
+            table_slot_byte_offset,
+        },
+    }))
 }

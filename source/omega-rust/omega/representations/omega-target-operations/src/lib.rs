@@ -19,7 +19,8 @@ use psi_terminal::{
     ProviderCandidateConformance, StructuralArgument, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultClaimTransfer, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, TerminalPsiIdentity,
+    TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter, TerminalDynamicRequirement,
+    TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -96,6 +97,18 @@ pub struct FixedIntegerScalarFunctionAbi {
     pub call_plan: CallPlan,
     pub parameters: Vec<FixedIntegerScalarAbiValue>,
     pub result: FixedIntegerScalarAbiValue,
+}
+
+/// Target-owned physical ABI for one portable existential parameter.
+///
+/// Terminal Psi owns only the semantic interface. The receiving lowerer maps
+/// that interface to two ordinary pointer-shaped parameters and retains their
+/// exact placements here so assignment cannot recover them by convention.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDynamicDescriptorParameterAbi {
+    pub parameter: TerminalDynamicDescriptorParameter,
+    pub instance: ValuePlacement,
+    pub table: ValuePlacement,
 }
 
 /// Ordered terminal-Psi sources refined into one target function.
@@ -751,6 +764,22 @@ pub enum TargetOperation {
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Return the result of one call through an existential descriptor passed
+    /// into the current function. `function_call_plan` owns the helper's
+    /// `{data, table}` entry ABI; `dispatch_call_plan` owns the erased adapter
+    /// ABI reached through the selected table slot. The slot never names the
+    /// concrete-layout realization directly.
+    ReturnDynamicParameterScalarCall {
+        psi_edge: EdgeId,
+        psi_operation: OperationId,
+        source_value: ValueId,
+        scalar_type: ScalarType,
+        parameter_abi: TargetDynamicDescriptorParameterAbi,
+        requirement: TerminalDynamicRequirement,
+        function_call_plan: CallPlan,
+        dispatch_call_plan: CallPlan,
+        table_slot_byte_offset: u32,
     },
     /// One exact whole-root structural call whose direct ABI result is returned
     /// unchanged by the caller.

@@ -40,6 +40,8 @@ pub(crate) use coordination::{
     validate_native_callback_target_rows as validate_native_callback_target_rows_for_tests,
 };
 #[cfg(test)]
+pub(crate) use scalar::lower_scalar_function as lower_scalar_function_for_tests;
+#[cfg(test)]
 pub(crate) use structural_layout::structural_shape as structural_shape_for_tests;
 
 pub fn lower_to_target_operations(
