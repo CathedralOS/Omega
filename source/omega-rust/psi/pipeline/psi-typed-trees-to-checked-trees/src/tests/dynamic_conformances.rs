@@ -111,12 +111,14 @@ const MUTATING_REALIZATION_SOURCE: &str = r#"
     data Item {
         value: i32;
         enabled: bool;
+        attempts: u16;
     }
 
     Primary: Item satisfies Shape {
         machine code(&mut self) -> i32 {
             self.value = 23;
             self.enabled = true;
+            self.attempts = 257;
             transition { _ -> self.value }
         }
     }
@@ -862,9 +864,10 @@ fn direct_dynamic_plan_retains_exact_integer_and_boolean_structural_field_stores
 fn dynamic_plan_retains_exact_mutating_realization_body() {
     let checked = check_dynamic_source(MUTATING_REALIZATION_SOURCE);
     let plan = sole_direct_dynamic_plan(&checked);
-    let [integer_store, boolean_store] = plan.realization_structural_scalar_field_stores.as_slice()
+    let [integer_store, boolean_store, short_store] =
+        plan.realization_structural_scalar_field_stores.as_slice()
     else {
-        panic!("two selected realization stores expected")
+        panic!("three selected realization stores expected")
     };
     assert_eq!(integer_store.statement_index, 0);
     assert_eq!(integer_store.destination_parameter_position, 0);
@@ -885,6 +888,17 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
         boolean_store.primitive_type,
         psi_typed_trees::types::PrimitiveType::Bool
     );
+    assert_eq!(short_store.statement_index, 2);
+    assert_eq!(short_store.field_identity, "attempts");
+    assert_eq!(
+        short_store.primitive_type,
+        psi_typed_trees::types::PrimitiveType::U16
+    );
+    assert!(matches!(
+        &short_store.value,
+        psi_checked_trees::CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.value_i64() == Some(257)
+    ));
     let [callable] = plan.realization_callables.as_slice() else {
         panic!("one realization callable expected")
     };
@@ -899,7 +913,7 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
 }
 
 #[test]
-fn dynamic_plan_fences_repeated_and_third_realization_stores() {
+fn dynamic_plan_fences_repeated_and_fourth_realization_stores() {
     let repeated = MUTATING_REALIZATION_SOURCE.replace("self.enabled = true;", "self.value = 24;");
     let checked = check_dynamic_source(&repeated);
     assert!(
@@ -912,13 +926,13 @@ fn dynamic_plan_fences_repeated_and_third_realization_stores() {
             .is_empty()
     );
 
-    let third = MUTATING_REALIZATION_SOURCE
-        .replace("enabled: bool;", "enabled: bool;\n        other: u8;")
+    let fourth = MUTATING_REALIZATION_SOURCE
+        .replace("attempts: u16;", "attempts: u16;\n        other: u8;")
         .replace(
-            "self.enabled = true;",
-            "self.enabled = true;\n            self.other = 7;",
+            "self.attempts = 257;",
+            "self.attempts = 257;\n            self.other = 7;",
         );
-    let checked = check_dynamic_source(&third);
+    let checked = check_dynamic_source(&fourth);
     assert!(
         checked
             .facts

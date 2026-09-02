@@ -118,7 +118,7 @@ pub(super) fn emit(
         ),
         _ => return Err(invalid()),
     };
-    if stores.len() > 2 {
+    if stores.len() > 3 {
         return Err(invalid());
     }
     let prepared_stores = stores

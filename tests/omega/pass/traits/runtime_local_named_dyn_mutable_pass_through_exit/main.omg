@@ -7,6 +7,7 @@ trait Shape {
 data Item {
     value: u64;
     enabled: bool;
+    attempts: u16;
     code: i32;
 }
 
@@ -14,6 +15,7 @@ Primary: Item satisfies Shape {
     machine code(&mut self) -> i32 {
         self.value = 513;
         self.enabled = true;
+        self.attempts = 257;
         transition {
             _ -> self.code
         }
@@ -29,9 +31,11 @@ data Main {
 machine Main::main(&mut self) {
     self.decoy.value = 4;
     self.decoy.enabled = false;
+    self.decoy.attempts = 4;
     self.decoy.code = 4;
     self.selected.value = 99;
     self.selected.enabled = false;
+    self.selected.attempts = 99;
     self.selected.code = 23;
     let mut erased: &mut dyn Shape = &mut self.decoy as &mut dyn Item::Primary;
     erased = &mut self.selected as &mut dyn Item::Primary;

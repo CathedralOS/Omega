@@ -814,7 +814,7 @@ forms through the existing transparent descriptor-parameter hop. Unit remains
 result-less throughout.
 
 The same closed application now admits one exact mutation-bearing callable in
-Terminal form. Its checked row carries one or two distinct ordered
+Terminal form. Its checked row carries one, two, or three distinct ordered
 primitive-field literal stores through `&mut self` separately from the scalar
 return expression. Each field may be directly below the realization's attached
 self type or below an exact finite path of relevant named record fields.
@@ -837,8 +837,9 @@ erased-data adapter must rejoin before calling it. Boolean-returning forwarded
 calls now publish the same ABI with an exact Boolean result, normalize and
 store that result into a one-byte durable Unit home, and branch directly on
 that home with target-specific zero tests. The first Boolean store still
-returns an independent `i32` self field through the fixed-integer lane. A third
-write, repeated destination, indexed/case projection, address or IEEE-float
+returns an independent `i32` self field through the fixed-integer lane. The
+same ordered carrier retains a third store. A fourth write, repeated
+destination, indexed/case projection, address or IEEE-float
 literal, computed store value, shared receiver, or body reorder remains outside
 the native carrier.
 
@@ -1091,7 +1092,7 @@ callee-row coordinate, emits the exact two-machine closure, retains sibling
 guarded rows and producer provenance on the callee, and rejoins each selected
 row to a distinct caller-local term without changing the four-unit runtime.
 The next bounded rung permits one, two, three, four, five, six, seven, eight,
-nine, ten, eleven, twelve, or thirteen distinct selected whole-result guarded
+nine, ten, eleven, twelve, thirteen, or fourteen distinct selected whole-result guarded
 terms to be used once each as dense ordered named `requires` inputs of one
 direct tail state in the matching payloadless arm.
 Terminal retains that tail as an independently resolvable third machine with
@@ -1102,7 +1103,7 @@ applications, evidence terms, and caller/target places. Format 42 / vocabulary
 45 reject omission, duplication, reordering, redirection, interface drift, and
 tail-shape drift. The tail remains outside the runtime entry graph, so
 interpretation and fixed fuel retain the existing four-unit saved-result path.
-Payload projections, multiple or partial-result substitutions, fourteen-or-more
+Payload projections, multiple or partial-result substitutions, fifteen-or-more
 evidence arguments, repeated term use, later invalidation, erased proof-output
 linkage, wider structural calls, and tagged-sum target lowering remain outside
 this bounded source rung.
@@ -1657,7 +1658,19 @@ discards them as
 and the verifier, codec, interpreter, Omega lowering, native emission,
 object/image replay, and installation encoding retain the common root plus
 exact twenty-four fuel units. Missing/reordered operations or cleanup, changed
-indices/root length, and length-twenty-five or wider prefixes reject; no runtime
+indices/root length, and other prefix drift reject; no runtime
+liveness bitmap or cleanup loop is introduced.
+
+The following bounded carrier admits the same shape at length twenty-five with
+establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]`.
+Terminal publishes twenty-four ordered zero-ABI local places, the Unit return
+discards them as
+`[23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`,
+and the verifier, codec, interpreter, Omega lowering, native emission,
+object/image replay, and installation encoding retain the common root plus
+exact twenty-five fuel units. Missing/reordered operations or cleanup, changed
+indices/root length, and length-twenty-six or wider prefixes reject; no runtime
 liveness bitmap or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a

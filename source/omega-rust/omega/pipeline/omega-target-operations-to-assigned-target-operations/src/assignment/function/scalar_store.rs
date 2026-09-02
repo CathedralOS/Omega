@@ -1,4 +1,4 @@
-//! Physical assignment for one direct mutable-self scalar store prefix.
+//! Physical assignment for a bounded direct mutable-self scalar store prefix.
 
 use super::assign_function;
 use super::unit::structural_scalar::{
@@ -33,7 +33,7 @@ pub(super) fn assign(
         machine: function.machine,
         operation: anchor.psi_operation,
     };
-    if stores.len() > 2 {
+    if stores.len() > 3 {
         return Err(invalid());
     }
     let declarations = declaration_map(structural_types).ok_or_else(invalid)?;

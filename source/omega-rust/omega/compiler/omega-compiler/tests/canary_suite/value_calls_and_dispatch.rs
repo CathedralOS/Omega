@@ -1237,8 +1237,8 @@ fn assert_forwarded_dynamic_result_canary(
                 .iter()
                 .flat_map(|function| &function.scalar_structural_scalar_field_stores)
                 .collect::<Vec<_>>();
-            let [integer_store, boolean_store] = stores.as_slice() else {
-                panic!("{target} should retain two ordered realization stores")
+            let [integer_store, boolean_store, short_store] = stores.as_slice() else {
+                panic!("{target} should retain three ordered realization stores")
             };
             assert!(integer_store.path.is_empty());
             assert_eq!(integer_store.field_byte_offset, 0);
@@ -1258,10 +1258,27 @@ fn assert_forwarded_dynamic_result_canary(
                 boolean_store.immediate,
                 omega_target_operations::TargetScalarImmediate::Boolean(true)
             ));
+            assert!(short_store.path.is_empty());
+            assert_eq!(short_store.field_byte_offset, 10);
+            assert!(matches!(
+                short_store.immediate,
+                omega_target_operations::TargetScalarImmediate::Integer {
+                    scalar_type,
+                    value: psi_core::IntegerValue::Unsigned(257),
+                } if scalar_type == psi_core::IntegerType::new(
+                    psi_core::IntegerSign::Unsigned,
+                    16,
+                ).expect("u16 type")
+            ));
             assert!(integer_store.operation_ordinal < boolean_store.operation_ordinal);
+            assert!(boolean_store.operation_ordinal < short_store.operation_ordinal);
             assert_eq!(
                 boolean_store.code_offset,
                 integer_store.code_offset + integer_store.byte_count
+            );
+            assert_eq!(
+                short_store.code_offset,
+                boolean_store.code_offset + boolean_store.byte_count
             );
         } else if fixture
             == "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit"

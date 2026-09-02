@@ -2073,7 +2073,7 @@ fn lower_realization_store_operations(
     next_operation: &mut u64,
     next_value: &mut u64,
 ) -> Result<Vec<Operation>, LoweringError> {
-    if stores.len() > 2 {
+    if stores.len() > 3 {
         return unsupported("dynamic realization has too many structural stores");
     }
     let mut operations = Vec::with_capacity(stores.len() * 2);

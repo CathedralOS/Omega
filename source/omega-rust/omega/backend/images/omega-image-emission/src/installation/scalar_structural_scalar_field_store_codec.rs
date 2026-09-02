@@ -25,7 +25,7 @@ pub(super) fn encode_scalar_structural_scalar_field_stores(
     bytes: &mut Vec<u8>,
     stores: &[ScalarStructuralScalarFieldStoreRecord],
 ) -> Result<(), InstallationError> {
-    if stores.len() > 2 {
+    if stores.len() > 3 {
         return Err(InstallationError::TooManyScalarStructuralScalarFieldStores);
     }
     push_u32(
@@ -75,7 +75,7 @@ pub(super) fn decode_scalar_structural_scalar_field_stores(
 ) -> Result<Vec<ScalarStructuralScalarFieldStoreRecord>, InstallationError> {
     let count = usize::try_from(reader.u32()?)
         .map_err(|_| InstallationError::TooManyScalarStructuralScalarFieldStores)?;
-    if count > 2 {
+    if count > 3 {
         return Err(InstallationError::TooManyScalarStructuralScalarFieldStores);
     }
     if count > reader.remaining() / 112 {
@@ -165,9 +165,9 @@ mod tests {
                 .is_empty()
         );
 
-        let mut three = Reader::new(&[3, 0, 0, 0]);
+        let mut four = Reader::new(&[4, 0, 0, 0]);
         assert_eq!(
-            decode_scalar_structural_scalar_field_stores(&mut three),
+            decode_scalar_structural_scalar_field_stores(&mut four),
             Err(InstallationError::TooManyScalarStructuralScalarFieldStores)
         );
     }

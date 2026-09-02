@@ -544,7 +544,19 @@ occurrences in order
 Terminal and every native artifact layer independently retain the common
 length-twenty-four root and twenty-three operations plus one return-edge fuel
 units. Missing or reordered establishments, root/index/length drift,
-cleanup-order drift, and length-twenty-five or wider prefixes remain fail
+cleanup-order drift, and other prefix drift remains fail
+closed without runtime liveness state or a cleanup loop.
+
+The following bounded successor admits `[T; 25]` under the same restrictions
+and establishes literal indices `0`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`,
+`9`, `10`, `11`, `12`, `13`, `14`, `15`, `16`, `17`, `18`, `19`, `20`, `21`,
+`22`, then `23`. Ordinary abandonment cleans the twenty-four zero-ABI element
+occurrences in order
+`[23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`;
+Terminal and every native artifact layer independently retain the common
+length-twenty-five root and twenty-four operations plus one return-edge fuel
+units. Missing or reordered establishments, root/index/length drift,
+cleanup-order drift, and length-twenty-six or wider prefixes remain fail
 closed without runtime liveness state or a cleanup loop.
 
 Named record and case literals generalize the construction half without

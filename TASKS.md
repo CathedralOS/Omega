@@ -2181,17 +2181,17 @@ Owners:
   enclosing field identities before the same direct erased leaves; missing,
   cross-sibling, represented-leaf, type, and multiplicity drift reject under
   the original root plan decision.
-  Third through twenty-first bounded represented-record levels are now live under
+  Third through twenty-second bounded represented-record levels are now live under
   the same nonzero, acyclic, non-generic, case-free rules. Their custody
   projections preserve every enclosing field identity and must completely
   cover every erased descendant admitted by the bounded classifier; a direct
   erased leaf cannot conceal an unsupported deeper descendant. One bounded
-  recursive classifier and validator owns every admitted depth instead of nineteen
+  recursive classifier and validator owns every admitted depth instead of twenty
   hand-unrolled implementations while preserving the same diagnostic order.
   Revalidation cites the exact `Policy::plan` machine and its retained
   offset/width decision, and only the toolchain `core/layout.omg` trait receives
   this meaning. The conformance remains ordinary evidence and grants no
-  storage, content, domain, provider, or establishment authority. A twenty-second
+  storage, content, domain, provider, or establishment authority. A twenty-third
   represented record level and broader recursion, structurally zero-layout
   wrappers, arrays, generic or case-
   dependent custody, planless agreement checking, generic placement operation
@@ -10211,8 +10211,20 @@ reach or trust, and private proof improvements do not change public identity.
   cleanup-order, and artifact mutations reject; `[T; 25]` and wider prefixes
   remain fail closed without runtime liveness state or a loop.
 
+  The following bounded construction-prefix successor is now closed. The exact
+  carrier admits `[T; 25]` with establishments
+  `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]`
+  and ordinary cleanup
+  `[23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`.
+  Checked production, Terminal verification, codec and interpretation, machine
+  emission, object/image validation, and installation replay retain the common
+  length-twenty-five root and exact twenty-four-operation/one-edge fuel
+  ordinals. Missing, reordered, redirected-root, wrong-length, index,
+  cleanup-order, and artifact mutations reject; `[T; 26]` and wider prefixes
+  remain fail closed without runtime liveness state or a loop.
+
   Extend recursive coverage beyond the exact `[[T; 15]; 2]` rung and extend
-  construction-prefix cleanup beyond `[T; 24]` to deeper canonical fuel/action
+  construction-prefix cleanup beyond `[T; 25]` to deeper canonical fuel/action
   ordinals.
 
   Dynamic/mixed projections, scalar/float/byte/linear/nominal/qualified/content
@@ -10582,7 +10594,7 @@ Remaining N6/N8 work:
   concluding the caller application. Source, codec, verifier, optimizer
   identity, and tamper canaries preserve the same four-unit runtime. The next
   bounded rung now permits one, two, three, four, five, six, seven, eight,
-  nine, ten, eleven, twelve, or thirteen distinct bound whole-result terms to be
+  nine, ten, eleven, twelve, thirteen, or fourteen distinct bound whole-result terms to be
   used once each: the matching payloadless arm may pass them as dense ordered
   named `requires` inputs of one direct tail state whose sole ordinary argument
   is the saved result and whose body returns that argument unchanged. Terminal
@@ -10594,9 +10606,9 @@ Remaining N6/N8 work:
   drifted, or non-identity uses while fixed fuel and interpretation retain the
   existing four-unit runtime. The length-thirteen source, canonical codec,
   independent verifier, proof admission, fixed-fuel, and interpreter path retain
-  thirteen dense distinct rows, while an otherwise fully rejoined fourteenth
+  fourteen dense distinct rows, while an otherwise fully rejoined fifteenth
   row fails the bounded cardinality gate. Payload projections, multiple or
-  partial-result substitutions, fourteen-or-more evidence arguments, repeated
+  partial-result substitutions, fifteen-or-more evidence arguments, repeated
   term use, later invalidation, erased proof-output linkage, wider structural
   calls, and tagged-sum execution remain fail-closed.
 
@@ -12184,15 +12196,15 @@ checked-result arithmetic decision listed below.
   corresponding entry claim.
 
   The first mutation-bearing realization body is live through checked custody
-  and Terminal verification. It is one or two distinct, ordered literal `bool`
-  or signed or unsigned 8-, 16-, 32-, or 64-bit integer stores into direct
+  and Terminal verification. It is one, two, or three distinct, ordered
+  literal `bool` or signed or unsigned 8-, 16-, 32-, or 64-bit integer stores into direct
   primitive fields of `&mut self` or primitive fields below exact finite paths
   of relevant record fields, followed by the existing exact scalar self-field
   return. The checked callable roster retains every store, source statement,
   mutable-self parameter, field identity, primitive type, and literal
   independently from the return expression; the selected-call summary must
   equal its selected callable. Terminal materializes each constant and
-  self-field store before the read and permits no third mutation, repeated
+  self-field store before the read and permits no fourth mutation, repeated
   destination, indexed/case projection, erased or scalar-intermediate path,
   computed value, shared receiver, or reordered body. The
   Boolean and fixed-integer literal stores now cross target lowering,
@@ -12208,8 +12220,9 @@ checked-result arithmetic decision listed below.
   path against the retained declarations. Machine and object evidence bind
   the literal store, path, accumulated offset, subsequent read, result
   normalization, return, provenance, and exact x86-64/AArch64 bytes. The
-  authored mutable pass-through canary stores `513u64` and then `true` before
-  returning an independent selected code of 23; the direct and nested-projected
+  authored mutable pass-through canary stores `513u64`, then `true`, then
+  `257u16` before returning an independent selected code of 23; the direct and
+  nested-projected
   Boolean mutation canaries store `true` and return an independent selected
   code of 23. All three exit 70 on Linux x86-64
   while their target artifacts cross-link. Exact machine tests place the
@@ -12220,7 +12233,7 @@ checked-result arithmetic decision listed below.
   The fixed-integer source gate now matches that already-general physical
   carrier: a nested `u16` source fixture and direct `u64` native canary retain
   exact landed types, values, widths, offsets, and bytes. Address, IEEE-float,
-  computed, repeated-destination, and third-store mutation forms remain fenced.
+  computed, repeated-destination, and fourth-store mutation forms remain fenced.
 
   Boolean-returning forwarded calls now use the same producer-bound result-
   home model without pretending that a Boolean is an integer. The mixed
@@ -12329,10 +12342,10 @@ checked-result arithmetic decision listed below.
     final-image custody remain complete on both architectures, and the Linux
     x86-64 full-pipeline canary executes the forwarded adapter and checks the
     selected instance through exit status;
-  - widen beyond the current two distinct ordered Boolean or fixed-integer
+  - widen beyond the current three distinct ordered Boolean or fixed-integer
     literal stores only when each wider body has an exact semantic and physical
     rule; computed values, indexed/case projections, repeated destinations, and
-    a third write still have no native carrier;
+    a fourth write still has no native carrier;
   - extend descriptors to stored/joined/escaping, aggregate-erased, and
     component-crossing forms.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

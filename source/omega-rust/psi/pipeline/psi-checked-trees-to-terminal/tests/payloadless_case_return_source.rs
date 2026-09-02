@@ -561,7 +561,7 @@ const SEVEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
     }
 "#;
 
-const THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
+const FOURTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
     trait Evidence {}
     data Outcome [copy] { case Success; case Failure; }
     proposition accepted(value: Outcome) evidence Evidence;
@@ -577,6 +577,7 @@ const THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
     proposition attested(value: Outcome) evidence Evidence;
     proposition warranted(value: Outcome) evidence Evidence;
     proposition substantiated(value: Outcome) evidence Evidence;
+    proposition documented(value: Outcome) evidence Evidence;
     ConcreteEvidence: satisfies Evidence {}
     data Root {}
 
@@ -595,6 +596,7 @@ const THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
         eleventh: attested(result);
         twelfth: warranted(result);
         thirteenth: substantiated(result);
+        fourteenth: documented(result);
     }
     {
         first = ConcreteEvidence;
@@ -610,6 +612,7 @@ const THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
         eleventh = ConcreteEvidence;
         twelfth = ConcreteEvidence;
         thirteenth = ConcreteEvidence;
+        fourteenth = ConcreteEvidence;
         Outcome::Success
     }
 
@@ -623,12 +626,14 @@ const THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
                   seventh: local_seventh, eighth: local_eighth,
                   ninth: local_ninth, tenth: local_tenth,
                   eleventh: local_eleventh, twelfth: local_twelfth,
-                  thirteenth: local_thirteenth
+                  thirteenth: local_thirteenth,
+                  fourteenth: local_fourteenth
             } -> finish(
                 saved; local_first, local_second, local_third,
                 local_fourth, local_fifth, local_sixth,
                 local_seventh, local_eighth, local_ninth, local_tenth,
-                local_eleventh, local_twelfth, local_thirteenth
+                local_eleventh, local_twelfth, local_thirteenth,
+                local_fourteenth
             )
             Outcome::Failure { } -> saved
         }
@@ -646,6 +651,7 @@ const THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE: &str = r#"
         requires needed_eleventh: attested(value)
         requires needed_twelfth: warranted(value)
         requires needed_thirteenth: substantiated(value)
+        requires needed_fourteenth: documented(value)
         { value }
     }
 "#;
@@ -1539,6 +1545,10 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
         .expect("a fully rejoined thirteenth row verifies");
 
     append_rejoined_selected_evidence_row(&mut extended_terminal_rows, 13, "fourteenth");
+    psi_terminal_verifier::validate_module(&extended_terminal_rows)
+        .expect("a fully rejoined fourteenth row verifies");
+
+    append_rejoined_selected_evidence_row(&mut extended_terminal_rows, 14, "fifteenth");
     assert!(matches!(
         psi_terminal_verifier::validate_module(&extended_terminal_rows),
         Err(psi_terminal_verifier::ModuleError::InvalidOutcomeSpecificCallEvidence { .. })
@@ -1546,8 +1556,8 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 }
 
 #[test]
-fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
-    let checked = checked(THIRTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
+fn fourteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
+    let checked = checked(FOURTEEN_SELECTED_WITNESS_TAIL_USES_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()
@@ -1559,14 +1569,14 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
         .flow
         .terminal_structural_call_returns
         .payloadless_guarded_for_machine(caller_symbol)
-        .expect("the exact thirteen-witness tail use has a checked plan");
-    assert_eq!(plan.selected_evidence.len(), 13);
+        .expect("the exact fourteen-witness tail use has a checked plan");
+    assert_eq!(plan.selected_evidence.len(), 14);
     assert_eq!(
         plan.selected_evidence
             .iter()
             .map(|selection| selection.tail_use.as_ref().unwrap().input_position)
             .collect::<Vec<_>>(),
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
     );
     assert!(
         plan.selected_evidence
@@ -1575,7 +1585,7 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     );
 
     let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::caller")
-        .expect("the exact thirteen-witness tail use lowers");
+        .expect("the exact fourteen-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -1586,8 +1596,8 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     else {
         panic!("the producer call remains structural")
     };
-    assert_eq!(selected_evidence.len(), 13);
-    assert_eq!(target.contract.requires.len(), 13);
+    assert_eq!(selected_evidence.len(), 14);
+    assert_eq!(target.contract.requires.len(), 14);
     let mut terminal_positions = Vec::new();
     for selected in selected_evidence {
         let [use_] = selected.uses.as_slice() else {
@@ -1606,11 +1616,11 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     terminal_positions.sort_unstable();
     assert_eq!(
         terminal_positions,
-        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
     );
     assert!(target.blocks[0].operations.is_empty());
 
-    let bytes = encode_module(module).expect("thirteen selected-witness rows encode");
+    let bytes = encode_module(module).expect("fourteen selected-witness rows encode");
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof bundle encodes");
     let verified = psi_terminal_verifier::verify_module(
@@ -1618,7 +1628,7 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
         &lowered.proof_bundle,
         &AdmissionProfile::default(),
     )
-    .expect("all thirteen independent tail requirements replay");
+    .expect("all fourteen independent tail requirements replay");
     assert_eq!(
         derive_fixed_entry_fuel(&verified, module.entry)
             .expect("proof-only uses do not add fuel")
@@ -1627,7 +1637,7 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     );
     let mut execution =
         TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
-            .expect("thirteen-witness artifact starts");
+            .expect("fourteen-witness artifact starts");
     let mut meter = TerminalFuelMeter::with_allowance(4);
     assert!(matches!(
         execution.resume(&mut meter).expect("artifact completes"),
@@ -1641,7 +1651,7 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     else {
         unreachable!()
     };
-    selected_evidence.swap(11, 12);
+    selected_evidence.swap(12, 13);
     assert!(psi_terminal_verifier::validate_module(&reordered).is_err());
 
     let mut duplicated_lane = module.clone();
@@ -1651,18 +1661,18 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     else {
         unreachable!()
     };
-    selected_evidence[12].uses[0].input_position = selected_evidence[11].uses[0].input_position;
+    selected_evidence[13].uses[0].input_position = selected_evidence[12].uses[0].input_position;
     assert!(psi_terminal_verifier::validate_module(&duplicated_lane).is_err());
 
-    let mut omitted_thirteenth = module.clone();
+    let mut omitted_fourteenth = module.clone();
     let OperationKind::CallStructural {
         selected_evidence, ..
-    } = &mut omitted_thirteenth.machines[0].blocks[0].operations[0].kind
+    } = &mut omitted_fourteenth.machines[0].blocks[0].operations[0].kind
     else {
         unreachable!()
     };
     selected_evidence.pop();
-    assert!(psi_terminal_verifier::validate_module(&omitted_thirteenth).is_err());
+    assert!(psi_terminal_verifier::validate_module(&omitted_fourteenth).is_err());
 
     let mut redirected = module.clone();
     let OperationKind::CallStructural {
@@ -1671,7 +1681,7 @@ fn thirteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
     else {
         unreachable!()
     };
-    selected_evidence[12].uses[0].target = callee.id;
+    selected_evidence[13].uses[0].target = callee.id;
     assert!(psi_terminal_verifier::validate_module(&redirected).is_err());
 }
 
