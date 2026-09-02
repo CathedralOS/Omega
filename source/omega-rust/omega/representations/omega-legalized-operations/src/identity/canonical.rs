@@ -61,6 +61,7 @@ pub(super) fn identity(
             LegalizationRecipe::ReturnU64IntegerNotEqualParametersConditionalV1 => 12,
             LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1 => 13,
             LegalizationRecipe::ReturnU64EqualZeroParameterConditionalV1 => 14,
+            LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1 => 15,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         match &function.condition {
@@ -186,6 +187,33 @@ pub(super) fn identity(
                 bytes.extend_from_slice(&operation.get().to_le_bytes());
                 encode_definition_site(&mut bytes, *result_definition_site);
                 encode_fuel(&mut bytes, fuel);
+                bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
+                bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
+                encode_register(&mut bytes, parameter.register);
+                encode_definition_site(&mut bytes, parameter.definition_site);
+                encode_immediate(&mut bytes, zero);
+            }
+            LegalizedCondition::U64NotEqualZeroParameterV1 {
+                equality_operation,
+                equality_result,
+                equality_result_definition_site,
+                equality_fuel,
+                boolean_not_operation,
+                boolean_not_result,
+                boolean_not_result_definition_site,
+                boolean_not_fuel,
+                parameter,
+                zero,
+            } => {
+                bytes.push(0xf9);
+                bytes.extend_from_slice(&equality_operation.get().to_le_bytes());
+                bytes.extend_from_slice(&equality_result.get().to_le_bytes());
+                encode_definition_site(&mut bytes, *equality_result_definition_site);
+                encode_fuel(&mut bytes, equality_fuel);
+                bytes.extend_from_slice(&boolean_not_operation.get().to_le_bytes());
+                bytes.extend_from_slice(&boolean_not_result.get().to_le_bytes());
+                encode_definition_site(&mut bytes, *boolean_not_result_definition_site);
+                encode_fuel(&mut bytes, boolean_not_fuel);
                 bytes.extend_from_slice(&parameter.source_value.get().to_le_bytes());
                 bytes.extend_from_slice(&(parameter.parameter_index as u64).to_le_bytes());
                 encode_register(&mut bytes, parameter.register);

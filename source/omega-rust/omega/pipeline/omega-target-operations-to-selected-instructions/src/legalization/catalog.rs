@@ -1,7 +1,6 @@
 //! Sole ordered inventory of every target-legal form admitted by this stage.
 //!
-//! Rows contain contract data only. Producer matchers and independent replay
-//! validators receive distinct dispatch kinds, so the shared inventory cannot
+//! Contract-only rows give producers and replay validators distinct dispatch kinds, so inventory cannot
 //! become producer-derived validation evidence.
 
 use omega_legalized_operations::{
@@ -114,6 +113,7 @@ pub(super) enum ScalarConditionShape {
     IntegerNotEqualU64Parameters,
     IntegerLessThanI64Parameters,
     U64EqualZeroParameter,
+    U64NotEqualZeroParameter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -266,6 +266,38 @@ const fn three_node_integer_comparison_scalar_form(
     descriptor
 }
 
+const fn four_node_integer_comparison_scalar_form(
+    recipe: LegalizationRecipe,
+    condition: ScalarConditionShape,
+    producer_matcher: ScalarLegalizationMatcherKind,
+    block_offsets: [usize; 3],
+    operation_count: usize,
+    leaf_node_counts: [usize; 2],
+    parameter_count: usize,
+    projected_selected_instruction_count: usize,
+    introduced_temporary_count: usize,
+    validator: ScalarLegalizationValidatorKind,
+) -> LegalizationFormDescriptor {
+    let mut descriptor = three_node_integer_comparison_scalar_form(
+        recipe,
+        condition,
+        producer_matcher,
+        block_offsets,
+        operation_count,
+        leaf_node_counts,
+        parameter_count,
+        projected_selected_instruction_count,
+        introduced_temporary_count,
+        validator,
+    );
+    let LegalizationShapeConstraints::Scalar(mut constraints) = descriptor.constraints else {
+        return descriptor;
+    };
+    constraints.entry_node_count = 4;
+    descriptor.constraints = LegalizationShapeConstraints::Scalar(constraints);
+    descriptor
+}
+
 const fn unit_form() -> LegalizationFormDescriptor {
     LegalizationFormDescriptor {
         recipe: LegalizationFormRecipe::Unit(UnitLegalizationRecipe::ReturnUnitV1),
@@ -334,7 +366,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 21] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 22] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -500,6 +532,18 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 21] = [
         ScalarLegalizationMatcherKind::Immediate,
         [0, 3, 5],
         7,
+        [2, 2],
+        1,
+        6,
+        0,
+        ScalarLegalizationValidatorKind::Immediate,
+    ),
+    four_node_integer_comparison_scalar_form(
+        LegalizationRecipe::ReturnU64NotEqualZeroParameterConditionalV1,
+        ScalarConditionShape::U64NotEqualZeroParameter,
+        ScalarLegalizationMatcherKind::Immediate,
+        [0, 4, 6],
+        8,
         [2, 2],
         1,
         6,

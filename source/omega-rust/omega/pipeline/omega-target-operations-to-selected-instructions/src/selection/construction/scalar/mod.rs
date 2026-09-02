@@ -11,12 +11,12 @@ mod blocks;
 mod catalog;
 mod comparison_immediate_pair;
 mod context;
-mod equal_zero_immediate_pair;
 mod exact_binary_pair;
 mod immediate_pair;
 mod model;
 mod parameter_pair;
 mod registers;
+mod zero_comparison_immediate_pair;
 
 use crate::selection::shared::*;
 

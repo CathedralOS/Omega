@@ -236,6 +236,19 @@ pub(super) fn validate_provenance_partition(
         }
         _ => Vec::new(),
     };
+    let not_equal_zero_compare_fuel = match &source.condition {
+        LegalizedCondition::U64NotEqualZeroParameterV1 {
+            equality_fuel,
+            zero,
+            ..
+        } => zero
+            .fuel
+            .iter()
+            .chain(equality_fuel)
+            .copied()
+            .collect::<Vec<_>>(),
+        _ => Vec::new(),
+    };
     let (
         branch,
         first_successor,
@@ -276,6 +289,24 @@ pub(super) fn validate_provenance_partition(
             &[][..],
             source.branch_false_fuel.as_slice(),
             source.branch_true_fuel.as_slice(),
+        ),
+        (
+            LegalizedCondition::U64NotEqualZeroParameterV1 {
+                boolean_not_fuel, ..
+            },
+            SelectedTerminator::ConditionalBranch {
+                instruction,
+                when_nonzero,
+                when_zero,
+            },
+        ) => (
+            instruction,
+            when_nonzero,
+            when_zero,
+            not_equal_zero_compare_fuel.as_slice(),
+            boolean_not_fuel.as_slice(),
+            source.branch_true_fuel.as_slice(),
+            source.branch_false_fuel.as_slice(),
         ),
         (
             LegalizedCondition::IntegerEqualParametersV1 { fuel, .. },

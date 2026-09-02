@@ -39,7 +39,8 @@ pub(super) fn validate_source_register_architecture(
                 left.register.architecture() != architecture
                     || right.register.architecture() != architecture
             }
-            LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. } => {
+            LegalizedCondition::U64EqualZeroParameterV1 { parameter, .. }
+            | LegalizedCondition::U64NotEqualZeroParameterV1 { parameter, .. } => {
                 parameter.register.architecture() != architecture
             }
         };

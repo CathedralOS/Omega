@@ -51,6 +51,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/tests/fixture.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-machine-optimizer/src/rules/aarch64/compare_zero_branch_nonzero/tests/fuel.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/coordination/physical_pipeline/equal_zero_parameter.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/coordination/physical_pipeline/not_equal_zero_parameter.rs",
         ],
     },
     SemanticLadder {

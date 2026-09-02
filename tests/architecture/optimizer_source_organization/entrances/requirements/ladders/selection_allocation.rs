@@ -597,6 +597,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/integer_parameter_not_equal.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/integer_not_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/u64_equal_zero_parameter.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/source/conditions/u64_not_equal_zero_parameter.rs",
         ],
     },
     SemanticLadder {
@@ -613,6 +614,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/integer_parameter_not_equal.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/integer_not_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/u64_equal_zero_parameter.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization/replay/conditions/u64_not_equal_zero_parameter.rs",
         ],
     },
     SemanticLadder {
@@ -621,13 +623,14 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/mod.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/direct_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/comparison_immediate_pair.rs",
-            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/equal_zero_immediate_pair.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/zero_comparison_immediate_pair.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/integer_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/integer_less_than_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/i64_less_than_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/integer_less_or_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/integer_not_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/equal_zero_parameter.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/construction/scalar/blocks/entry/not_equal_zero_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/mod.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/direct_parameter.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/integer_equal_parameters.rs",
@@ -636,6 +639,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/integer_less_or_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/integer_not_equal_parameters.rs",
             "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/equal_zero_parameter.rs",
+            "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/selection/validation/blocks/entry_control/not_equal_zero_parameter.rs",
         ],
     },
     SemanticLadder {
@@ -691,6 +695,10 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_equal_zero_parameter/fixture.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_equal_zero_parameter/selected_graph.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_equal_zero_parameter/corruption.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_not_equal_zero_parameter/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_not_equal_zero_parameter/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_not_equal_zero_parameter/selected_graph.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/selection/assignment_and_legalization/runtime_u64_not_equal_zero_parameter/corruption.rs",
         ],
     },
     SemanticLadder {
@@ -740,6 +748,15 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_u64_equal_zero_parameter/mod.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_u64_equal_zero_parameter/fixture.rs",
             "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_u64_equal_zero_parameter/publication.rs",
+        ],
+    },
+    SemanticLadder {
+        family: "runtime U64 parameter-not-equal-zero publication tests",
+        paths: &[
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/coordination/physical_pipeline/not_equal_zero_parameter.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_u64_not_equal_zero_parameter/mod.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_u64_not_equal_zero_parameter/fixture.rs",
+            "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/tests/stages/realization/runtime_u64_not_equal_zero_parameter/publication.rs",
         ],
     },
 ];
