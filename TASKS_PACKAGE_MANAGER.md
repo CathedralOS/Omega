@@ -257,7 +257,9 @@ explicitly.
   - [x] resolve and retain one target-independent immutable package source
     closure, then require review and production consumers to project an exact-
     target child whose profile cannot disagree with its canonical subject;
-  - consume the landed compiler-owned `ExplicitTargetSet` at the orchestration
+  - form and validate the compiler-owned immutable source/parse checkpoint
+    against the landed target-independent `PackageCompilationSourceInputs`
+    equality projection, then consume `ExplicitTargetSet` at the orchestration
     boundary and reuse parsing, flat build facts, and every other target-
     independent stage result across those children;
   - reuse an identical checked/Terminal Psi or PCC product across target

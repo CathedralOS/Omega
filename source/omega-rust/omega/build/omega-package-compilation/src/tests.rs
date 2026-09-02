@@ -212,6 +212,133 @@ fn compiler_inputs_retain_application_root_role_and_reject_workspace_role() {
 }
 
 #[test]
+fn source_input_projection_excludes_exact_target_child_inputs() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let dependency = tree.package("dependency");
+    let inputs = PackageCompilationInputs::new_package(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root),
+            PackageSourceBinding::new(identity(2), "dependency", dependency),
+        ],
+        vec![PackageDependencyBinding::new(
+            identity(1),
+            "dependency",
+            identity(2),
+        )],
+    )
+    .expect("source graph should close");
+    let expected = inputs.source_inputs();
+
+    let with_binding = inputs
+        .clone()
+        .with_accepted_semantic_bindings(vec![accepted_console_binding(identity(2), 7)])
+        .expect("exact-child semantic binding should attach");
+    assert_eq!(with_binding.source_inputs(), expected);
+
+    let generated = generated_bundle(
+        &inputs,
+        identity(2),
+        omega_target::TargetProfile::WindowsX64,
+        9,
+        vec![generated_source(
+            b"generated.omg",
+            b"pub machine generated() -> u64 { 1 }\n",
+        )],
+    );
+    let with_generated = inputs
+        .with_complete_dependency_generated_sources(vec![generated])
+        .expect("exact-child generated source should attach");
+    assert_eq!(with_generated.source_inputs(), expected);
+}
+
+#[test]
+fn source_input_projection_binds_names_roots_metadata_and_edges() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let first_dependency = tree.package("first-dependency");
+    let second_dependency = tree.package("second-dependency");
+    fs::write(root.join("main.omg"), b"machine main() {}\n").expect("write root source");
+
+    let inputs = |root_name: &str,
+                  root_path: PathBuf,
+                  dependency_path: PathBuf,
+                  alias: &str,
+                  with_metadata: bool| {
+        let root_binding = PackageSourceBinding::new(identity(1), root_name, root_path);
+        let root_binding = if with_metadata {
+            root_binding
+                .with_canonical_source_metadata()
+                .expect("capture root source metadata")
+        } else {
+            root_binding
+        };
+        PackageCompilationInputs::new_package(
+            identity(1),
+            vec![
+                root_binding,
+                PackageSourceBinding::new(identity(2), "dependency", dependency_path),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                alias,
+                identity(2),
+            )],
+        )
+        .expect("source graph should close")
+        .source_inputs()
+    };
+
+    let baseline = inputs(
+        "root",
+        root.clone(),
+        first_dependency.clone(),
+        "dependency",
+        false,
+    );
+    assert_ne!(
+        baseline,
+        inputs(
+            "renamed-root",
+            root.clone(),
+            first_dependency.clone(),
+            "dependency",
+            false,
+        ),
+        "canonical names participate in self-import routing",
+    );
+    assert_ne!(
+        baseline,
+        inputs("root", root.clone(), second_dependency, "dependency", false,),
+        "physical source roots belong to the shared checkpoint",
+    );
+    assert_ne!(
+        baseline,
+        inputs(
+            "root",
+            root.clone(),
+            first_dependency.clone(),
+            "renamed_dependency",
+            false,
+        ),
+        "requester-local dependency edges drive import routing",
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(root.join("main.omg"), fs::Permissions::from_mode(0o444))
+            .expect("seal root source");
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o555)).expect("seal root directory");
+    }
+    assert_ne!(
+        baseline,
+        inputs("root", root, first_dependency, "dependency", true,),
+        "canonical build-visible source metadata must not cross checkpoints",
+    );
+}
+
+#[test]
 fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift() {
     let tree = TempTree::new();
     let root = tree.package("root");
