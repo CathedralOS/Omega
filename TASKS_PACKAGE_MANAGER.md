@@ -254,8 +254,6 @@ explicitly.
 
 - [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
   semantics begin.**
-  - lift flat build facts and any later target-independent immutable result
-    above the landed exact-child orchestration boundary;
   - reuse an identical checked/Terminal Psi or PCC product across target
     children only after exact strong-identity equality, then supply each native
     branch with its own target and lowering-authority inputs;

@@ -2431,14 +2431,20 @@ deployment profiles with abstract and local modes and therefore cannot define
 deployment intent.
 
 Multi-target compilation is staged fan-out, not an opaque loop around the whole
-compiler. Source acquisition, the immutable source snapshot, parsing, flat
-build facts, and any other target-independent immutable result are formed once.
-The pipeline forks at each first target-sensitive consumer: exact root
-selection, target-scoped declaration filtering, target semantics and admission,
-provider and foreign-binding selection, and native realization. An
-implementation may share more work only when the shared result is exactly the
-same fact each independent child would have consumed; mutable target state or
-one child's authority never enters a sibling.
+compiler. Source acquisition, the immutable source snapshot, and parsing are
+formed once. Flat build facts mean only syntax-projectable declarations that
+cannot observe `Build.target`: the selected project role and name and the
+resolver's unconditional dependency rows. Target-qualified root bindings are
+unconditional rows in that shared parsed source, but slot membership, schema
+compatibility, and exact entry selection remain child-local. The pipeline forks
+at each first target-sensitive consumer: exact root selection, target-scoped
+declaration filtering, target semantics and admission, provider and
+foreign-binding selection, build-machine execution, and native realization.
+`Build.target`, filesystem observations, generated output, optimization and
+provider selection, and every other evaluated `Build` result are therefore not
+shared build facts. An implementation may share more work only when the shared
+result is exactly the same fact each independent child would have consumed;
+mutable target state or one child's authority never enters a sibling.
 
 Each target child has exactly the subject, semantic identity, diagnostics, and
 outcome it would have under a standalone exact-target invocation. Adding or
