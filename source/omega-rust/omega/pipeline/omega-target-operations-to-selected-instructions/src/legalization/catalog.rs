@@ -112,6 +112,7 @@ pub(super) enum ScalarConditionShape {
     IntegerLessThanU64Parameters,
     IntegerLessOrEqualU64Parameters,
     IntegerNotEqualU64Parameters,
+    IntegerLessThanI64Parameters,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -332,7 +333,7 @@ const fn structural_unit_form(
 }
 
 /// The sole precedence, shape, and planning inventory for all current forms.
-pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 19] = [
+pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 20] = [
     scalar_form(
         LegalizationRecipe::ReturnU64ImmediateConditionalV1,
         ScalarLegalizationMatcherKind::Immediate,
@@ -474,6 +475,18 @@ pub(super) const LEGALIZATION_FORMS: [LegalizationFormDescriptor; 19] = [
         ScalarLegalizationMatcherKind::Immediate,
         [0, 3, 5],
         7,
+        [2, 2],
+        2,
+        6,
+        0,
+        ScalarLegalizationValidatorKind::Immediate,
+    ),
+    integer_comparison_scalar_form(
+        LegalizationRecipe::ReturnU64I64LessThanParametersConditionalV1,
+        ScalarConditionShape::IntegerLessThanI64Parameters,
+        ScalarLegalizationMatcherKind::Immediate,
+        [0, 2, 4],
+        6,
         [2, 2],
         2,
         6,

@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Independently replays the selected entry compare and branch projection.
 
 mod direct_parameter;
+mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
@@ -36,6 +37,9 @@ pub(super) fn validate(
         }
         LegalizedCondition::IntegerNotEqualParametersV1 { .. } => {
             integer_not_equal_parameters::validate(function_index, source, function, keys, catalog)
+        }
+        LegalizedCondition::I64LessThanParametersV1 { .. } => {
+            i64_less_than_parameters::validate(function_index, source, function, keys, catalog)
         }
     }
 }

@@ -69,6 +69,13 @@ pub(super) fn validate_initial_roots(
                             || left.register != right.register,
                     )
                 }
+                LegalizedCondition::I64LessThanParametersV1 { left, right, .. } => {
+                    1 + usize::from(
+                        left.source_value != right.source_value
+                            || left.parameter_index != right.parameter_index
+                            || left.register != right.register,
+                    )
+                }
             };
             condition_inputs
                 + usize::from(matches!(

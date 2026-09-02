@@ -10,8 +10,20 @@ use crate::{
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     fixed_view_copy_identity_with_schema(
         plan,
-        b"omega.terminal-fixed-view-copies.v5\0",
+        b"omega.terminal-fixed-view-copies.v6\0",
         selected_instruction_plan_identity(&plan.transformed),
+    )
+}
+
+pub(crate) fn fixed_view_copy_identity_v5_selected_v16_legacy(
+    plan: &FixedViewCopyPlan,
+) -> FixedViewCopyIdentity {
+    fixed_view_copy_identity_with_schema(
+        plan,
+        b"omega.terminal-fixed-view-copies.v5\0",
+        omega_target_operations_to_selected_instructions::selected_instruction_plan_identity_v16_legacy(
+            &plan.transformed,
+        ),
     )
 }
 

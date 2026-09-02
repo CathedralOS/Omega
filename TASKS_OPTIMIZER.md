@@ -1037,6 +1037,26 @@ decision. Only true language-semantic questions belong in
     identities. Cross-target selection and publication tests pin x86
     `cmp`/`JB` and AArch64 `cmp`/`B.LO` through Linux object and callable
     publication.
+  - [x] Add signed runtime strict ordering as its own exact `I64` family. The
+    admitted three-block grammar has two distinct signed-`I64` entry
+    parameters, entry operations `[IntegerLessThan, Conditional]`, and two
+    immediate-`U64` return leaves. Legalization retains a distinct
+    `I64LessThanParametersV1` condition and exact parameter types rather than
+    widening the unsigned recipe or inferring signedness from register bits.
+    Selection preserves authored operand order through `CompareI64` and the
+    distinct `ConditionalBranchI64LessThan`, with source true/less taken and
+    source false/not-less as fallthrough. x86-64 emits `JL rel32`; only the
+    explicit layout rule may relax it to `JL rel8`. AArch64 emits `B.LT`.
+    Machine-effect, layout, encoding, fragment, and object identities keep
+    those opcodes disjoint from unsigned `JB`/`B.LO`. Independent source and
+    selected replay reject sign, recipe, operand, definition, provenance,
+    fuel, predicate, and successor substitution. Allocation, resolved layout,
+    relocation-free object, and callable custody pass on Linux x86-64 and
+    AArch64, while the boundary matrix covers `I64::MIN`, `-1`, `0`, `1`, and
+    `I64::MAX` and explicitly distinguishes signed from unsigned ordering at
+    the sign boundary. Append-only custody advances legalized V18 and selected
+    V17 identities, pre-allocation-effect V8 and post-allocation-plan V4 wire
+    formats, and fixed-view-copy V10 while preserving every prior decoder.
   - [x] Add inclusive unsigned-`U64` runtime comparison without expanding the
     machine predicate vocabulary. Legalization admits one exact
     `[IntegerLessOrEqual, Conditional]` sibling in the same bounded
@@ -1494,7 +1514,8 @@ decision. Only true language-semantic questions belong in
   ISAs. Independent legalization/selection replay, target substitution,
   fixed-view, clobber, and home corruption tests fail closed. Custody advances
   append-only legalized V17 and selected V16 identities; fixed-view-copy V9
-  persists the call kind and callee while retaining V4-V8 decode compatibility.
+  persists the call kind and callee while V10 retains that payload and adds the
+  signed-branch vocabulary. V4-V9 decode compatibility remains supported.
   This is allocation evidence only: general call shapes and ABIs, callee-save
   prologue/epilogue realization, call memory/stack/trap effects, relocation,
   encoding, emission, and publication remain unsupported.

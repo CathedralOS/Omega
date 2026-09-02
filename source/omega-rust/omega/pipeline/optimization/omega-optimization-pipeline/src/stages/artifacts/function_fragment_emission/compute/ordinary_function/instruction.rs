@@ -36,6 +36,9 @@ pub(super) fn emit(
                     crate::ResolvedConditionalBranchPredicate::U64LessThanV1 => {
                         FunctionFragmentConditionalBranchPredicate::U64LessThanV1
                     }
+                    crate::ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                        FunctionFragmentConditionalBranchPredicate::I64LessThanV1
+                    }
                 },
                 source_block: branch.source_block,
                 when_taken_edge: branch.when_taken_edge,
@@ -64,6 +67,7 @@ fn selected<'a>(
         .chain(std::iter::once(match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .find(|instruction| instruction.id == row.instruction)

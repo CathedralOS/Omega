@@ -1,4 +1,4 @@
-//! Shared exact envelope for ordered U64 entry-parameter comparisons.
+//! Shared exact envelope for ordered integer entry-parameter comparisons.
 
 use super::*;
 use crate::legalization::source::leaves::exact_operation_fuel;
@@ -8,6 +8,7 @@ pub(super) enum Kind {
     Equal,
     LessThan,
     LessOrEqual,
+    I64LessThan,
 }
 
 pub(super) fn derive<'a>(
@@ -57,7 +58,7 @@ pub(super) fn derive<'a>(
                 when_true,
                 when_false,
             },
-            Kind::LessThan,
+            Kind::LessThan | Kind::I64LessThan,
         )
         | (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
@@ -86,8 +87,11 @@ pub(super) fn derive<'a>(
         ),
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
-    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
-    if *condition_type != u64_type {
+    let parameter_type = match kind {
+        Kind::I64LessThan => IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+        _ => IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"),
+    };
+    if *condition_type != parameter_type {
         return Err(Error::UnsupportedCondition { function });
     }
     let [left, right] = [target_left, target_right].map(|expression| {
@@ -106,9 +110,9 @@ pub(super) fn derive<'a>(
             return Err(Error::UnsupportedCondition { function });
         };
         if parameter.value != *source_value
-            || parameter.scalar_type != ScalarType::Integer(u64_type)
+            || parameter.scalar_type != ScalarType::Integer(parameter_type)
             || abstract_parameter.value != *source_value
-            || abstract_parameter.scalar_type != ScalarType::Integer(u64_type)
+            || abstract_parameter.scalar_type != ScalarType::Integer(parameter_type)
         {
             return Err(Error::UnsupportedCondition { function });
         }
@@ -149,7 +153,7 @@ pub(super) fn derive<'a>(
                     left,
                     right,
                 },
-                Kind::LessThan,
+                Kind::LessThan | Kind::I64LessThan,
             )
             | (
                 AbstractOperation::IntegerLessOrEqual {
@@ -206,6 +210,16 @@ pub(super) fn derive<'a>(
                 right,
             },
             ScalarConditionShape::IntegerLessOrEqualU64Parameters,
+        ),
+        Kind::I64LessThan => (
+            LegalizedCondition::I64LessThanParametersV1 {
+                operation: *psi_operation,
+                result_definition_site,
+                fuel,
+                left,
+                right,
+            },
+            ScalarConditionShape::IntegerLessThanI64Parameters,
         ),
     };
     Ok(DerivedCondition {

@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Selects the exact entry compare while preserving one shared branch envelope.
 
 mod direct_parameter;
+mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
@@ -26,6 +27,9 @@ pub(in crate::selection::construction::scalar) fn condition(
         }
         LegalizedCondition::IntegerNotEqualParametersV1 { .. } => {
             integer_not_equal_parameters::build(context)
+        }
+        LegalizedCondition::I64LessThanParametersV1 { .. } => {
+            i64_less_than_parameters::build(context)
         }
     }
 }

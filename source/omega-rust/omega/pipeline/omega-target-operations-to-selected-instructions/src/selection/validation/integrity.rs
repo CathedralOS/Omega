@@ -15,6 +15,7 @@ pub(super) fn validate_dense(
                         | LegalizedCondition::IntegerLessThanParametersV1 { .. }
                         | LegalizedCondition::IntegerLessOrEqualParametersV1 { .. }
                         | LegalizedCondition::IntegerNotEqualParametersV1 { .. }
+                        | LegalizedCondition::I64LessThanParametersV1 { .. }
                 ) {
                     4
                 } else {
@@ -322,6 +323,22 @@ pub(super) fn validate_provenance_partition(
             source.branch_false_fuel.as_slice(),
             source.branch_true_fuel.as_slice(),
         ),
+        (
+            LegalizedCondition::I64LessThanParametersV1 { fuel, .. },
+            SelectedTerminator::ConditionalBranchI64LessThan {
+                instruction,
+                when_less,
+                when_not_less,
+            },
+        ) => (
+            instruction,
+            when_less,
+            when_not_less,
+            fuel.as_slice(),
+            &[][..],
+            source.branch_true_fuel.as_slice(),
+            source.branch_false_fuel.as_slice(),
+        ),
         _ => {
             return Err(SelectedInstructionError::ProvenancePartitionMismatch {
                 function: function_index,
@@ -502,6 +519,7 @@ fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

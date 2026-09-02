@@ -86,6 +86,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::ReturnUnit => 9,
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
+        SelectedInstructionKind::ConditionalBranchI64LessThan => 12,
         SelectedInstructionKind::CallI64 { .. } => {
             unreachable!("scalar calls are refused before machine-effect identity")
         }
@@ -122,6 +123,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
         SelectedInstructionKind::CallI64 { .. } => {

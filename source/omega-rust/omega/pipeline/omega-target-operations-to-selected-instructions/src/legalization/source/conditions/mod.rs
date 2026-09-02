@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Classifies and reconstructs the exact scalar condition before leaf selection.
 
 mod direct_parameter;
+mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
@@ -36,6 +37,12 @@ pub(super) fn derive<'a>(
             condition: TargetBooleanExpression::IntegerEqual { .. },
             ..
         } => integer_equal_parameters::derive(function, target, abstracted, optimized),
+        TargetOperation::ReturnIntegerExpressionConditionalControl {
+            condition: TargetBooleanExpression::IntegerLessThan { scalar_type, .. },
+            ..
+        } if *scalar_type == IntegerType::new(IntegerSign::Signed, 64).expect("i64") => {
+            i64_less_than_parameters::derive(function, target, abstracted, optimized)
+        }
         TargetOperation::ReturnIntegerExpressionConditionalControl {
             condition: TargetBooleanExpression::IntegerLessThan { .. },
             ..

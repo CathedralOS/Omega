@@ -67,6 +67,7 @@ pub(super) fn validate_declaration(
         semantic,
         MachineSemanticKind::ConditionalBranchNonZero
             | MachineSemanticKind::ConditionalBranchU64LessThan
+            | MachineSemanticKind::ConditionalBranchI64LessThan
             | MachineSemanticKind::ReturnI64
             | MachineSemanticKind::ReturnUnit
     ) {

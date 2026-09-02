@@ -203,6 +203,7 @@ fn validate_function(
         let terminator = match &source_block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         };
         validate_instruction(
@@ -289,6 +290,9 @@ fn replay_declaration<'a>(
         }
         SelectedInstructionKind::ConditionalBranchU64LessThan => {
             MachineSemanticKind::ConditionalBranchU64LessThan
+        }
+        SelectedInstructionKind::ConditionalBranchI64LessThan => {
+            MachineSemanticKind::ConditionalBranchI64LessThan
         }
         SelectedInstructionKind::ReturnI64 => MachineSemanticKind::ReturnI64,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,

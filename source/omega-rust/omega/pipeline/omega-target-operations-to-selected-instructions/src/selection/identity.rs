@@ -54,10 +54,21 @@ pub(super) fn receipt(
 pub fn selected_instruction_plan_identity(
     plan: &SelectedInstructionPlan,
 ) -> SelectedInstructionPlanIdentity {
-    let domain = b"omega.terminal-selected-instructions.v16\0".as_slice();
+    let domain = b"omega.terminal-selected-instructions.v17\0".as_slice();
     selected_instruction_plan_identity_with_schema(
         plan,
         domain,
+        StructuralLegalizedIdentitySchema::V14,
+    )
+}
+
+#[doc(hidden)]
+pub fn selected_instruction_plan_identity_v16_legacy(
+    plan: &SelectedInstructionPlan,
+) -> SelectedInstructionPlanIdentity {
+    selected_instruction_plan_identity_with_schema(
+        plan,
+        b"omega.terminal-selected-instructions.v16\0",
         StructuralLegalizedIdentitySchema::V14,
     )
 }
@@ -307,6 +318,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::CompareI64 => 10,
         SelectedInstructionKind::ConditionalBranchU64LessThan => 11,
         SelectedInstructionKind::CallI64 { .. } => 12,
+        SelectedInstructionKind::ConditionalBranchI64LessThan => 13,
     });
     match instruction.kind {
         SelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -361,6 +373,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::ReturnI64
         | SelectedInstructionKind::ReturnUnit => {}
         SelectedInstructionKind::CallI64 { callee } => {

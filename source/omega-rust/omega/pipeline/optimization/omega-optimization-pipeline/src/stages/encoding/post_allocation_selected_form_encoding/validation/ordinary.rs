@@ -204,6 +204,7 @@ fn terminator_instruction(terminator: &SelectedTerminator) -> &SelectedInstructi
     match terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     }
 }

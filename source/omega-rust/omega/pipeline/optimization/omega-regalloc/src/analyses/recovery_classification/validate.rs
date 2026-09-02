@@ -395,6 +395,7 @@ fn replay_block_instructions(
     instructions.push(match &block.terminator {
         SelectedTerminator::ConditionalBranch { instruction, .. }
         | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+        | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
         | SelectedTerminator::Return { instruction, .. } => instruction,
     });
     instructions

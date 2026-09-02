@@ -262,16 +262,50 @@ fn codec_round_trips_complete_effect_content() {
 }
 
 #[test]
-fn codec_v7_round_trips_u64_less_than_branch_vocabulary() {
+fn codec_v8_round_trips_signed_less_than_branch_vocabulary() {
     let mut source = plan();
     let instruction = &mut source.functions[0].blocks[0].instructions[0];
-    instruction.kind = SelectedInstructionKind::ConditionalBranchU64LessThan;
-    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchU64LessThan;
+    instruction.kind = SelectedInstructionKind::ConditionalBranchI64LessThan;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchI64LessThan;
     source.identity = pre_allocation_machine_effect_identity(&source);
 
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&source.encode()).unwrap(),
         source
+    );
+}
+
+#[test]
+fn codec_v7_retains_unsigned_predicate_identity_decode_compatibility() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::ConditionalBranchU64LessThan;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchU64LessThan;
+    source.identity = super::identity::pre_allocation_machine_effect_identity_v6_legacy(&source);
+    let mut encoded = source.encode();
+    encoded[8..12].copy_from_slice(&7_u32.to_le_bytes());
+    encoded[12..44].copy_from_slice(&source.identity.bytes());
+
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
+        source
+    );
+}
+
+#[test]
+fn codec_v7_rejects_the_v8_signed_predicate_tag() {
+    let mut source = plan();
+    let instruction = &mut source.functions[0].blocks[0].instructions[0];
+    instruction.kind = SelectedInstructionKind::ConditionalBranchI64LessThan;
+    instruction.alternatives[0].key.family = MachineAlternativeFamily::ConditionalBranchI64LessThan;
+    source.identity = super::identity::pre_allocation_machine_effect_identity_v6_legacy(&source);
+    let mut encoded = source.encode();
+    encoded[8..12].copy_from_slice(&7_u32.to_le_bytes());
+    encoded[12..44].copy_from_slice(&source.identity.bytes());
+
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&encoded),
+        Err(PreAllocationMachineEffectDecodeError::InvalidField)
     );
 }
 

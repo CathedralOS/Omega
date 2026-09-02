@@ -2,9 +2,10 @@ use super::*;
 
 pub(super) fn decode_instruction(
     cursor: &mut Cursor<'_>,
+    allow_i64_less_than: bool,
 ) -> Result<InstructionMachineEffects, PreAllocationMachineEffectDecodeError> {
     let instruction = SelectedInstructionId(cursor.u32()?);
-    let kind = decode_kind(cursor)?;
+    let kind = decode_kind(cursor, allow_i64_less_than)?;
     let constraint = decode_constraint_key(cursor)?;
     let unit_uses = decode_units(cursor)?;
     let unit_defs = decode_units(cursor)?;
@@ -24,7 +25,7 @@ pub(super) fn decode_instruction(
     let alternative_count = cursor.length()?;
     let mut alternatives = Vec::with_capacity(alternative_count.min(cursor.remaining()));
     for _ in 0..alternative_count {
-        alternatives.push(decode_alternative(cursor)?);
+        alternatives.push(decode_alternative_for_version(cursor, allow_i64_less_than)?);
     }
     Ok(InstructionMachineEffects {
         instruction,
@@ -45,6 +46,7 @@ pub(super) fn decode_instruction(
 
 fn decode_kind(
     cursor: &mut Cursor<'_>,
+    allow_i64_less_than: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
         0 => SelectedInstructionKind::CompareI64Zero,
@@ -75,6 +77,7 @@ fn decode_kind(
         9 => SelectedInstructionKind::ReturnUnit,
         10 => SelectedInstructionKind::CompareI64,
         11 => SelectedInstructionKind::ConditionalBranchU64LessThan,
+        12 if allow_i64_less_than => SelectedInstructionKind::ConditionalBranchI64LessThan,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
@@ -127,6 +130,19 @@ pub(crate) fn decode_provenance(
 pub(crate) fn decode_alternative(
     cursor: &mut Cursor<'_>,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
+    decode_alternative_for_version(cursor, true)
+}
+
+pub(crate) fn decode_alternative_legacy(
+    cursor: &mut Cursor<'_>,
+) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
+    decode_alternative_for_version(cursor, false)
+}
+
+fn decode_alternative_for_version(
+    cursor: &mut Cursor<'_>,
+    allow_i64_less_than: bool,
+) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
         0 => MachineAlternativeFamily::CompareI64Zero,
         1 => MachineAlternativeFamily::MaterializeI64,
@@ -140,6 +156,7 @@ pub(crate) fn decode_alternative(
         9 => MachineAlternativeFamily::ReturnUnit,
         10 => MachineAlternativeFamily::CompareI64,
         11 => MachineAlternativeFamily::ConditionalBranchU64LessThan,
+        12 if allow_i64_less_than => MachineAlternativeFamily::ConditionalBranchI64LessThan,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = MachineAlternativeKey {

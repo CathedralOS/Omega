@@ -143,6 +143,7 @@ fn instruction(
         .chain(std::iter::once(match &block.terminator {
             SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
+            | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
             | SelectedTerminator::Return { instruction, .. } => instruction,
         }))
         .find(|instruction| instruction.id == id)

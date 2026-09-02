@@ -51,6 +51,27 @@ pub(super) fn provenance(
                 fuel: when_not_less.fuel.clone(),
             },
         },
+        SelectedTerminator::ConditionalBranchI64LessThan {
+            instruction: branch,
+            when_less,
+            when_not_less,
+        } if branch.id == instruction => FunctionFragmentControlProvenance::ConditionalBranch {
+            predicate: FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
+            when_taken: FunctionFragmentSuccessorProvenance {
+                psi_edge: when_less.psi_edge,
+                block: when_less.block,
+                source_target: when_less.source_target,
+                bindings: when_less.bindings.clone(),
+                fuel: when_less.fuel.clone(),
+            },
+            when_fallthrough: FunctionFragmentSuccessorProvenance {
+                psi_edge: when_not_less.psi_edge,
+                block: when_not_less.block,
+                source_target: when_not_less.source_target,
+                bindings: when_not_less.bindings.clone(),
+                fuel: when_not_less.fuel.clone(),
+            },
+        },
         SelectedTerminator::Return {
             instruction: returned,
             psi_return_edge,

@@ -238,21 +238,22 @@ enablement and order.
 Runtime condition legalization follows the same mirrored taxonomy as leaf
 legalization. `source/conditions/mod.rs` is the small producer coordination
 entrance over exact `direct_parameter`, `integer_equal_parameters`,
-`integer_less_than_parameters`, `integer_less_or_equal_parameters`, and
-`integer_not_equal_parameters` leaves. The three simple comparison leaves
-delegate only their common ordered-parameter
-mechanics to `integer_parameter_comparison`; each named leaf continues to own
-its predicate. The composite inequality leaf delegates its shared parameter
-projection to `integer_parameter_not_equal` while retaining the equality and
-Boolean-not chain itself. `replay/conditions/mod.rs` independently reconstructs
-those same five closed forms through its own mirrored comparison mechanics
-without importing producer helpers. The ordered legalization catalog selects
-the complete condition-plus-leaf recipe, so an immediate-leaf direct condition
-cannot overlap the immediate-leaf integer-equality condition. Condition leaves
-own operation, result definition, ordered operand links, ABI location,
-provenance, and fuel
-custody; return-expression mechanics remain under the existing source/replay
-leaf rungs.
+`integer_less_than_parameters`, `integer_less_or_equal_parameters`,
+`integer_not_equal_parameters`, and `i64_less_than_parameters` leaves. The
+simple comparison leaves delegate only their common ordered-parameter mechanics
+to `integer_parameter_comparison`; each named leaf continues to own its
+predicate and exact integer type. The composite inequality leaf delegates its
+shared parameter projection to `integer_parameter_not_equal` while retaining
+the equality and Boolean-not chain itself. `replay/conditions/mod.rs` joins a
+tiny local model leaf to independently reconstruct those same six closed forms
+through its own mirrored comparison mechanics without importing producer
+helpers. The ordered
+legalization catalog selects the complete condition-plus-leaf recipe, so an
+immediate-leaf direct condition cannot overlap either signed or unsigned
+comparison custody. Condition leaves own operation, result definition, ordered
+operand links, type, ABI location, provenance, and fuel custody;
+return-expression mechanics remain under the existing source/replay leaf
+rungs.
 
 Scalar selected construction mirrors that split below its sole family catalog.
 One `comparison_immediate_pair` family owns shared leaf materialization, while
@@ -266,11 +267,14 @@ compare operands and maps that same less predicate to source false, leaving
 source true as fallthrough. Integer inequality owns its separate entry leaf:
 it keeps equality provenance on the compare and Boolean-not provenance on the
 existing nonzero branch, mapping nonzero to source true and zero to source
-false without materializing a Boolean-not result. Their independent validation siblings
+false without materializing a Boolean-not result. Signed strict less-than owns
+parallel `i64_less_than_parameters` construction and validation leaves and a
+distinct signed terminator; it does not widen the unsigned leaf or infer the
+predicate from register bits. Their independent validation siblings
 reconstruct the exact instruction, operands, provenance, predicate, and
-successor mapping. ISA constraint/effect
-catalogs and encoders remain target-owned leaves rather than being hidden in
-the target-neutral selection entrance.
+successor mapping. ISA constraint/effect catalogs and encoders remain
+target-owned leaves rather than being hidden in the target-neutral selection
+entrance.
 
 Fixed/precolored interval analysis is deliberately absent from the selectable
 rule table. Its 24-line

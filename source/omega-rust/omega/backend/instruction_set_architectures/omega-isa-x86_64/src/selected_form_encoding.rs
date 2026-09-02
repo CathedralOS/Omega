@@ -441,6 +441,100 @@ pub fn validate_x86_64_selected_u64_less_than_branch_form(
     })
 }
 
+/// Encode the selected layout-resolved signed-less-than branch. Alternative
+/// zero is the six-byte `JL rel32`; alternative one is the two-byte `JL rel8`.
+/// In both cases the displacement is measured from the instruction end.
+pub fn encode_x86_64_selected_i64_less_than_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction_end: i64,
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    validate_i64_less_than_branch_request(physical, alternative)?;
+    let bytes = match alternative.variant {
+        0 => {
+            let displacement = i32::try_from(byte_displacement_from_instruction_end)
+                .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI32)?;
+            let mut bytes = vec![0x0f, 0x8c];
+            bytes.extend(displacement.to_le_bytes());
+            bytes
+        }
+        1 => {
+            let displacement = i8::try_from(byte_displacement_from_instruction_end)
+                .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)?;
+            vec![0x7c, displacement as u8]
+        }
+        _ => unreachable!("signed less-than branch request validated variant"),
+    };
+    validate_x86_64_selected_i64_less_than_branch_form(
+        physical,
+        alternative,
+        byte_displacement_from_instruction_end,
+        &bytes,
+    )
+}
+
+/// Independently decode the exact `JL` form named by the alternative.
+pub fn validate_x86_64_selected_i64_less_than_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+    byte_displacement_from_instruction_end: i64,
+    bytes: &[u8],
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    validate_i64_less_than_branch_request(physical, alternative)?;
+    match alternative.variant {
+        0 => {
+            let expected = i32::try_from(byte_displacement_from_instruction_end)
+                .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI32)?;
+            let actual = bytes
+                .get(2..6)
+                .filter(|_| bytes.len() == 6 && bytes[..2] == [0x0f, 0x8c])
+                .and_then(|bytes| bytes.try_into().ok())
+                .map(i32::from_le_bytes)
+                .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+            if actual != expected {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+        }
+        1 => {
+            let expected = i8::try_from(byte_displacement_from_instruction_end)
+                .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)?;
+            let actual = bytes
+                .get(1)
+                .copied()
+                .filter(|_| bytes.len() == 2 && bytes[0] == 0x7c)
+                .map(|displacement| displacement as i8)
+                .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+            if actual != expected {
+                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+        }
+        _ => unreachable!("signed less-than branch request validated variant"),
+    }
+    Ok(ValidatedX86_64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(
+            SelectedInstructionKind::ConditionalBranchI64LessThan,
+            alternative,
+            &[],
+        ),
+    })
+}
+
+fn validate_i64_less_than_branch_request(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: MachineAlternativeKey,
+) -> Result<(), X86_64SelectedFormEncodingError> {
+    if physical.model() != &x86_64_physical_register_model() {
+        return Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    if alternative.family != MachineAlternativeFamily::ConditionalBranchI64LessThan
+        || alternative.variant > 1
+    {
+        return Err(X86_64SelectedFormEncodingError::AlternativeMismatch);
+    }
+    Ok(())
+}
+
 fn validate_less_than_branch_request(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
@@ -565,6 +659,9 @@ fn family_and_operand_count(
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
         SelectedInstructionKind::ConditionalBranchU64LessThan => {
+            return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
+        }
+        SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
         SelectedInstructionKind::CallI64 { .. } => {
@@ -766,7 +863,8 @@ fn encode_unchecked(
             bytes.push(0xc3)
         }
         SelectedInstructionKind::ConditionalBranchNonZero
-        | SelectedInstructionKind::ConditionalBranchU64LessThan => {
+        | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan => {
             return Err(X86_64SelectedFormEncodingError::LayoutDependentForm);
         }
         SelectedInstructionKind::CallI64 { .. } => {
@@ -1596,6 +1694,7 @@ fn validate_decoded(
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::CallI64 { .. } => false,
     };
     if valid {
@@ -1633,6 +1732,7 @@ fn footprint(
         }
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
+        | SelectedInstructionKind::ConditionalBranchI64LessThan
         | SelectedInstructionKind::CallI64 { .. } => (vec![], vec![], false),
     };
     let physical = x86_64_physical_register_model();
@@ -1667,6 +1767,7 @@ fn footprint(
         kind,
         SelectedInstructionKind::ConditionalBranchNonZero
             | SelectedInstructionKind::ConditionalBranchU64LessThan
+            | SelectedInstructionKind::ConditionalBranchI64LessThan
     ) {
         let mut uses = units("rflags");
         uses.extend(units("rip"));
@@ -2680,6 +2781,32 @@ mod tests {
                 &[0x72, 1],
             ),
             Err(X86_64SelectedFormEncodingError::EncodedFormMismatch)
+        );
+    }
+
+    #[test]
+    fn signed_less_than_branch_uses_exact_near_and_short_jl_forms() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let near = alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan, 0);
+        let short = alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan, 1);
+
+        let encoded =
+            encode_x86_64_selected_i64_less_than_branch_form(&physical, near, -6).unwrap();
+        assert_eq!(encoded.bytes(), [0x0f, 0x8c, 0xfa, 0xff, 0xff, 0xff]);
+        assert_eq!(
+            encoded.footprint().encoded.control,
+            MachineEncodedControlEffect::ConditionalRelativeBranchV1
+        );
+        let encoded =
+            encode_x86_64_selected_i64_less_than_branch_form(&physical, short, -2).unwrap();
+        assert_eq!(encoded.bytes(), [0x7c, 0xfe]);
+        assert_eq!(
+            validate_x86_64_selected_i64_less_than_branch_form(&physical, short, 0, &[0x72, 0],),
+            Err(X86_64SelectedFormEncodingError::MalformedEncoding)
+        );
+        assert_eq!(
+            encode_x86_64_selected_i64_less_than_branch_form(&physical, short, 128),
+            Err(X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)
         );
     }
 }

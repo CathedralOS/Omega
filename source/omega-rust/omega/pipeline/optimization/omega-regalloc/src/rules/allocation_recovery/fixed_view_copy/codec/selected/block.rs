@@ -51,6 +51,16 @@ pub(super) fn encode_block(bytes: &mut Vec<u8>, block: &SelectedBlock) {
             encode_successor(bytes, when_less);
             encode_successor(bytes, when_not_less);
         }
+        SelectedTerminator::ConditionalBranchI64LessThan {
+            instruction,
+            when_less,
+            when_not_less,
+        } => {
+            bytes.push(3);
+            encode_instruction(bytes, instruction);
+            encode_successor(bytes, when_less);
+            encode_successor(bytes, when_not_less);
+        }
     }
 }
 
@@ -75,6 +85,11 @@ pub(super) fn decode_block(
             psi_return_edge: decode_id(cursor, EdgeId::new)?,
         },
         2 => SelectedTerminator::ConditionalBranchU64LessThan {
+            instruction: decode_instruction(cursor)?,
+            when_less: decode_successor(cursor)?,
+            when_not_less: decode_successor(cursor)?,
+        },
+        3 => SelectedTerminator::ConditionalBranchI64LessThan {
             instruction: decode_instruction(cursor)?,
             when_less: decode_successor(cursor)?,
             when_not_less: decode_successor(cursor)?,

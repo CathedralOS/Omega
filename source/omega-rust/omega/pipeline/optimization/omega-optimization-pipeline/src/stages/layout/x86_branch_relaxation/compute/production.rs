@@ -1,6 +1,7 @@
 //! Production fixed-point scan and short-branch commit mechanics.
 
 use omega_isa_x86_64::{
+    encode_x86_64_selected_i64_less_than_branch_form,
     encode_x86_64_selected_short_nonzero_branch_form,
     encode_x86_64_selected_u64_less_than_branch_form,
 };
@@ -126,6 +127,10 @@ pub(super) fn compute_trace(
                 family: MachineAlternativeFamily::ConditionalBranchU64LessThan,
                 variant: 1,
             },
+            ResolvedConditionalBranchPredicate::I64LessThanV1 => MachineAlternativeKey {
+                family: MachineAlternativeFamily::ConditionalBranchI64LessThan,
+                variant: 1,
+            },
         };
         let encoded = match predicate {
             ResolvedConditionalBranchPredicate::NonZeroV1 => {
@@ -137,6 +142,13 @@ pub(super) fn compute_trace(
             }
             ResolvedConditionalBranchPredicate::U64LessThanV1 => {
                 encode_x86_64_selected_u64_less_than_branch_form(
+                    physical,
+                    short_alternative,
+                    displacement,
+                )
+            }
+            ResolvedConditionalBranchPredicate::I64LessThanV1 => {
+                encode_x86_64_selected_i64_less_than_branch_form(
                     physical,
                     short_alternative,
                     displacement,

@@ -49,6 +49,27 @@ pub(super) fn reconstruct<'a>(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?,
+        LegalizedCondition::I64LessThanParametersV1 { left, right, .. } => {
+            let i64_type = ScalarType::Integer(
+                psi_core::IntegerType::new(IntegerSign::Signed, 64).expect("i64"),
+            );
+            [left, right]
+                .into_iter()
+                .map(|parameter| {
+                    reconstruct_input(
+                        function,
+                        source.machine,
+                        parameter.source_value,
+                        parameter.parameter_index,
+                        parameter.register,
+                        parameter.definition_site,
+                        i64_type,
+                        constraints,
+                        physical,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
     };
     Ok(ScalarConstructionContext {
         function,

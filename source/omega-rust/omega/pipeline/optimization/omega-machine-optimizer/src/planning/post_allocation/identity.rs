@@ -12,10 +12,29 @@ use crate::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
 pub fn post_allocation_machine_identity(
     plan: &PostAllocationMachinePlan,
 ) -> PostAllocationMachineIdentity {
+    post_allocation_machine_identity_with_domain(
+        plan,
+        b"omega.terminal-postallocation-machine.v5\0",
+    )
+}
+
+pub(crate) fn post_allocation_machine_identity_v4_legacy(
+    plan: &PostAllocationMachinePlan,
+) -> PostAllocationMachineIdentity {
+    post_allocation_machine_identity_with_domain(
+        plan,
+        b"omega.terminal-postallocation-machine.v4\0",
+    )
+}
+
+fn post_allocation_machine_identity_with_domain(
+    plan: &PostAllocationMachinePlan,
+    domain: &[u8],
+) -> PostAllocationMachineIdentity {
     use sha2::{Digest, Sha256};
 
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-postallocation-machine.v4\0");
+    bytes.extend_from_slice(domain);
     bytes.extend_from_slice(&encode_terminal_post_allocation_machine_content(plan));
     PostAllocationMachineIdentity::from_bytes(Sha256::digest(bytes).into())
 }
@@ -134,6 +153,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &MachineAlternative) {
         MachineAlternativeFamily::ReturnUnit => 9,
         MachineAlternativeFamily::CompareI64 => 10,
         MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
+        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     match alternative.applicability {

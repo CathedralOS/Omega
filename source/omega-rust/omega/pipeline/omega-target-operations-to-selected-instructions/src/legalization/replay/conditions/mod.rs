@@ -1,25 +1,18 @@
 //! Optimizer module role: executable entrance. Independently classifies and replays one proposed scalar condition.
 
 mod direct_parameter;
+mod i64_less_than_parameters;
 mod integer_equal_parameters;
 mod integer_less_or_equal_parameters;
 mod integer_less_than_parameters;
 mod integer_not_equal_parameters;
 mod integer_parameter_comparison;
 mod integer_parameter_not_equal;
+mod model;
 
 use super::shared::*;
 use crate::legalization::catalog::ScalarConditionShape;
-
-pub(in crate::legalization) struct ReplayedCondition<'a> {
-    pub source: ValueId,
-    pub shape: ScalarConditionShape,
-    pub result_type: IntegerType,
-    pub when_true: &'a TargetConditionalIntegerArm,
-    pub when_false: &'a TargetConditionalIntegerArm,
-    pub conditional_node_index: usize,
-    pub provenance_operations: Vec<OperationId>,
-}
+pub(in crate::legalization) use model::ReplayedCondition;
 
 type ReplayLeaf = for<'a> fn(
     usize,
@@ -52,6 +45,15 @@ pub(super) fn replay<'a>(
             },
             LegalizedCondition::IntegerEqualParametersV1 { .. },
         ) => integer_equal_parameters::replay,
+        (
+            TargetOperation::ReturnIntegerExpressionConditionalControl {
+                condition: TargetBooleanExpression::IntegerLessThan { scalar_type, .. },
+                ..
+            },
+            LegalizedCondition::I64LessThanParametersV1 { .. },
+        ) if *scalar_type == IntegerType::new(IntegerSign::Signed, 64).expect("i64") => {
+            i64_less_than_parameters::replay
+        }
         (
             TargetOperation::ReturnIntegerExpressionConditionalControl {
                 condition: TargetBooleanExpression::IntegerLessThan { .. },

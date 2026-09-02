@@ -181,7 +181,8 @@ fn declaration(
                 MachineSizeKnowledge::ExactBytes(6),
             ),
         ],
-        MachineSemanticKind::ConditionalBranchU64LessThan => vec![alternative(
+        MachineSemanticKind::ConditionalBranchU64LessThan
+        | MachineSemanticKind::ConditionalBranchI64LessThan => vec![alternative(
             semantic,
             0,
             MachineAlternativeApplicability::Always,
@@ -203,6 +204,7 @@ fn declaration(
             semantic,
             MachineSemanticKind::ConditionalBranchNonZero
                 | MachineSemanticKind::ConditionalBranchU64LessThan
+                | MachineSemanticKind::ConditionalBranchI64LessThan
                 | MachineSemanticKind::ReturnI64
                 | MachineSemanticKind::ReturnUnit
         ) {
@@ -261,6 +263,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
         MachineSemanticKind::ConditionalBranchNonZero
         | MachineSemanticKind::ConditionalBranchU64LessThan
+        | MachineSemanticKind::ConditionalBranchI64LessThan
         | MachineSemanticKind::ReturnI64
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
     };
@@ -285,7 +288,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                 MachineEncodedControlEffect::FallThroughV1,
             ),
             MachineSemanticKind::ConditionalBranchNonZero
-            | MachineSemanticKind::ConditionalBranchU64LessThan => {
+            | MachineSemanticKind::ConditionalBranchU64LessThan
+            | MachineSemanticKind::ConditionalBranchI64LessThan => {
                 let mut uses = units("rflags");
                 uses.extend(units("rip"));
                 uses.sort_unstable();
@@ -364,7 +368,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             maximum_bytes: Some(8),
         },
         MachineSemanticKind::ConditionalBranchNonZero
-        | MachineSemanticKind::ConditionalBranchU64LessThan => {
+        | MachineSemanticKind::ConditionalBranchU64LessThan
+        | MachineSemanticKind::ConditionalBranchI64LessThan => {
             MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 2,
                 maximum_bytes: Some(6),
@@ -419,6 +424,11 @@ mod tests {
                 .iter()
                 .find(|row| row.semantic == MachineSemanticKind::ConditionalBranchU64LessThan)
                 .unwrap();
+            let signed_less_than_branch = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == MachineSemanticKind::ConditionalBranchI64LessThan)
+                .unwrap();
             assert_eq!(less_than_branch.constraint, X86_64_CONDITIONAL_BRANCH);
             assert_eq!(less_than_branch.alternatives.len(), 1);
             assert_eq!(
@@ -428,6 +438,19 @@ mod tests {
             assert_eq!(
                 less_than_branch.alternatives[0].encoded.control,
                 MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            );
+            assert_eq!(
+                signed_less_than_branch.constraint,
+                X86_64_CONDITIONAL_BRANCH
+            );
+            assert_eq!(signed_less_than_branch.alternatives.len(), 1);
+            assert_eq!(
+                signed_less_than_branch.alternatives[0].key.family,
+                omega_selected_instructions::MachineAlternativeFamily::ConditionalBranchI64LessThan
+            );
+            assert_eq!(
+                signed_less_than_branch.alternatives[0].size,
+                MachineSizeKnowledge::ExactBytes(6)
             );
             assert_eq!(
                 add.alternatives[0].applicability,
@@ -482,6 +505,7 @@ mod tests {
                         row.semantic,
                         MachineSemanticKind::ConditionalBranchNonZero
                             | MachineSemanticKind::ConditionalBranchU64LessThan
+                            | MachineSemanticKind::ConditionalBranchI64LessThan
                             | MachineSemanticKind::ReturnI64
                             | MachineSemanticKind::ReturnUnit
                     ) {
