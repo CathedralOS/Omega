@@ -571,9 +571,11 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         changed_store.functions[0].bytes[store_byte] ^= 1;
         assert!(omega_image_emission::build_object_artifact(&changed_store).is_err());
         let mut changed_stack_offset = machine_code.clone();
-        let [omega_calling_conventions::ValueLocation::Stack {
-            stack_byte_offset, ..
-        }] = changed_stack_offset.functions[0].foreign_calls[0].scalar_arguments[last_index]
+        let [
+            omega_calling_conventions::ValueLocation::Stack {
+                stack_byte_offset, ..
+            },
+        ] = changed_stack_offset.functions[0].foreign_calls[0].scalar_arguments[last_index]
             .placement
             .locations
             .as_mut_slice()
@@ -583,12 +585,14 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
         *stack_byte_offset = 0;
         assert!(omega_image_emission::build_object_artifact(&changed_stack_offset).is_err());
         let mut changed_stack_shape = machine_code.clone();
-        let [omega_calling_conventions::ValueLocation::Stack {
-            value_byte_offset,
-            byte_size,
-            alignment,
-            ..
-        }] = changed_stack_shape.functions[0].foreign_calls[0].scalar_arguments[last_index]
+        let [
+            omega_calling_conventions::ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                alignment,
+                ..
+            },
+        ] = changed_stack_shape.functions[0].foreign_calls[0].scalar_arguments[last_index]
             .placement
             .locations
             .as_mut_slice()
@@ -725,6 +729,33 @@ fn assert_exact_rejoined_literal_import_reaches_dynamic_elf(
     let [object_call] = object.foreign_calls() else {
         panic!("one object foreign call")
     };
+    assert_eq!(object_call.operation_ordinal, call.operation_ordinal);
+    assert_eq!(
+        object_call.scalar_arguments.len(),
+        call.scalar_arguments.len()
+    );
+    let object_function = object
+        .functions()
+        .iter()
+        .find(|function| function.machine == machine_code.functions[0].machine)
+        .expect("object function owning the foreign call");
+    for (object_argument, machine_argument) in object_call
+        .scalar_arguments
+        .iter()
+        .zip(&call.scalar_arguments)
+    {
+        assert_eq!(
+            object_argument.parameter_index,
+            machine_argument.parameter_index
+        );
+        assert_eq!(object_argument.source, machine_argument.source);
+        assert_eq!(object_argument.placement, machine_argument.placement);
+        assert_eq!(object_argument.byte_count, machine_argument.byte_count);
+        assert_eq!(
+            object_argument.code_offset,
+            object_function.text_offset + machine_argument.code_offset,
+        );
+    }
     assert_eq!(object_call.same_stack_contribution, same_stack);
     assert_eq!(
         object_call.provider_execution.provider_plan_report_identity,

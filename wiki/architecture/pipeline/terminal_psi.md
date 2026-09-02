@@ -272,14 +272,20 @@ here would add no authority because its bytes are not published. Optimization
 phases that actually select, allocate, rewrite, or lay out physical code remain
 fenced until their own complete custody reaches the native artifact.
 
-The unoptimized admitted-provider continuation currently admits exactly a
-zero-argument Unit normalized foreign call. Its D41 parent retains the complete
-provider-execution binding, selected-plan digest, normalized locator, boundary-
-entry plan, and same-stack admission. Its physical child independently rejoins
-the semantic call owner, machine/object/image call rows, normalized import,
-exact unresolved relocation, emitted spans, and final image-symbol identity.
-Arguments, results, callbacks, ranked control, port effects, and optimized
-foreign calls remain fail-closed rather than publishing partial D32 evidence.
+The unoptimized admitted-provider continuation currently admits normalized
+foreign calls containing only fixed-width 8-, 16-, 32-, or 64-bit integer
+scalar arguments and either Unit or one such scalar result. Its D41 parent
+retains the complete provider-execution binding, selected-plan digest,
+normalized locator, boundary-entry plan, and same-stack admission. Its physical
+child independently rejoins exact Terminal values and types to object-retained
+scalar source, placement, home, and materialization rows. The child spans the
+complete semantic-code attribution interval and contains the exact unresolved
+import relocation while retaining machine/object/image bytes and final image-
+symbol identity. Structural values, callbacks, ranked control, port effects,
+and optimized foreign calls remain fail-closed rather than publishing partial
+D32 evidence. The source route exercises scalar arguments; result-producing
+attached-Unit source calls remain fenced earlier by checked transitive-machine
+closure.
 
 Mach-O image replay derives one aligned eight-byte lazy-binding pointer slot for
 each referenced unresolved import from the exact object import/relocation sets.

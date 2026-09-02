@@ -459,6 +459,9 @@ pub struct ObjectBoundarySettlement {
 pub struct ObjectForeignCall {
     pub machine: MachineId,
     pub owner: CallSiteOwner,
+    /// Ordinal of the exact normalized foreign operation owning the complete
+    /// semantic-code attribution interval.
+    pub operation_ordinal: usize,
     pub locator: omega_target::NormalizedForeignLocator,
     pub provider_execution: omega_machine_code::ProviderExecutionRecord,
     pub boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
@@ -467,6 +470,9 @@ pub struct ObjectForeignCall {
     pub caller_live_bytes: u32,
     /// Sealed admitted demand for the opaque same-stack foreign leaf.
     pub same_stack_contribution: omega_task_plans::AdmittedSameStackContribution,
+    /// Exact scalar argument materializations retained from machine emission.
+    /// Every code offset is rebased to absolute object `.text`.
+    pub scalar_arguments: Vec<omega_machine_code::ForeignCallScalarArgumentRecord>,
     /// Exact compiler-private callback address materialized before this call.
     /// Every byte offset has been rebased to absolute object `.text`.
     pub callback_address: Option<omega_machine_code::CallbackAddressMaterialization>,
@@ -1765,6 +1771,17 @@ fn build_object_artifact_with_x86_feature_profile(
                     Ok(result)
                 })
                 .transpose()?;
+            let scalar_arguments = call
+                .scalar_arguments
+                .iter()
+                .cloned()
+                .map(|mut argument| {
+                    argument.code_offset = text_offset
+                        .checked_add(argument.code_offset)
+                        .ok_or(ObjectError::TextSizeOverflow)?;
+                    Ok(argument)
+                })
+                .collect::<Result<Vec<_>, ObjectError>>()?;
             let x86_floating_control = call
                 .x86_floating_control
                 .map(|mut control| {
@@ -1822,11 +1839,13 @@ fn build_object_artifact_with_x86_feature_profile(
             foreign_calls.push(ObjectForeignCall {
                 machine: function.machine,
                 owner: call.owner,
+                operation_ordinal: call.operation_ordinal,
                 locator: call.locator.clone(),
                 provider_execution: call.provider_execution,
                 boundary_entry_plan: call.boundary_entry_plan.clone(),
                 caller_live_bytes,
                 same_stack_contribution: call.same_stack_contribution.clone(),
+                scalar_arguments,
                 callback_address,
                 scalar_result,
                 x86_floating_control,

@@ -18,6 +18,7 @@ use omega_terminal_psi_to_native_artifact as native;
 
 const INSTALL_NAME: &[u8] = b"/usr/lib/libSystem.B.dylib";
 const SYMBOL: &[u8] = b"_getpid";
+const SCALAR_SYMBOL: &[u8] = b"_sleep";
 
 fn replay_native_artifact_parts(
     parts: &native::NativeArtifactParts,
@@ -182,6 +183,43 @@ machine Main::main(&mut self) {
     builder.application("source-evaluated-windows-x86-fma");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}
+"#,
+        )
+    }
+
+    fn new_macos_u32_argument() -> Self {
+        Self::with_source(
+            "macho-u32-argument",
+            "macos_arm64",
+            r#"use omega::language::core::external_binding;
+
+target macos_arm64 {
+}
+
+boundary trait Delay {
+    machine wait(seconds: u32);
+}
+
+macos_arm64 machine wait_binding() -> Binding<26, 6, 0> {
+    Binding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_sleep",
+        },
+    }
+}
+
+machine wait_leaf(seconds: u32) satisfies Delay::wait via wait_binding();
+
+data Main { delay: Delay; }
+machine Main::main(&mut self) {
+    self.delay.wait(3);
+}
+"#,
+            r#"machine build(builder: &mut Build) {
+    builder.application("source-evaluated-macho-u32-argument-native");
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,
         )
@@ -618,10 +656,22 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
         .iter()
         .find(|function| function.machine == foreign_call.machine)
         .expect("foreign call owning object function");
-    let machine_offset = foreign_call
-        .text_offset
-        .checked_sub(object_function.text_offset)
-        .expect("object call lies within its function");
+    let matching_attributions = artifact
+        .object()
+        .semantic_code_attribution()
+        .iter()
+        .filter(|attribution| {
+            attribution.machine == foreign_call.machine
+                && attribution.attribution.site
+                    == omega_machine_code::SemanticCodeSite::Operation(
+                        parent.occurrence().operation(),
+                    )
+                && attribution.attribution.operation_ordinal == foreign_call.operation_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [attribution] = matching_attributions.as_slice() else {
+        panic!("one full semantic interval must own the zero-argument import")
+    };
     let matching_relocations = artifact
         .object()
         .relocations()
@@ -631,24 +681,26 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     let [(_, object_relocation)] = matching_relocations.as_slice() else {
         panic!("one unresolved object relocation must target the normalized import")
     };
-    assert_eq!(child.machine_span().offset(), machine_offset);
-    assert_eq!(child.object_span().offset(), foreign_call.text_offset);
+    assert_eq!(
+        child.machine_span().offset(),
+        attribution.attribution.code_offset,
+    );
+    assert_eq!(child.object_span().offset(), attribution.text_offset);
     assert_eq!(child.final_image_span(), child.object_span());
     assert_eq!(
         child.machine_span().byte_count(),
-        object_relocation.byte_width,
+        attribution.attribution.byte_count,
     );
     assert_eq!(
         child.object_span().byte_count(),
-        object_relocation.byte_width
+        attribution.attribution.byte_count,
     );
-    assert_eq!(
-        child.final_image_span().byte_count(),
-        object_relocation.byte_width,
-    );
+    let object_interval_end = child.object_span().offset() + child.object_span().byte_count();
+    assert!(child.object_span().offset() <= object_relocation.offset);
+    assert!(object_relocation.offset + object_relocation.byte_width <= object_interval_end);
+    assert!(child.object_span().byte_count() > object_relocation.byte_width);
     let machine_span = child.machine_span();
     let object_span = child.object_span();
-    let final_image_span = child.final_image_span();
     assert_eq!(
         &object_function.bytes(artifact.object())
             [machine_span.offset()..machine_span.offset() + machine_span.byte_count()],
@@ -657,13 +709,13 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     );
     let object_instruction = u32::from_le_bytes(
         artifact.object().text_bytes()
-            [object_span.offset()..object_span.offset() + object_span.byte_count()]
+            [object_relocation.offset..object_relocation.offset + object_relocation.byte_width]
             .try_into()
             .expect("one AArch64 branch instruction"),
     );
     let final_instruction = u32::from_le_bytes(
         artifact.image().output().final_text_bytes
-            [final_image_span.offset()..final_image_span.offset() + final_image_span.byte_count()]
+            [object_relocation.offset..object_relocation.offset + object_relocation.byte_width]
             .try_into()
             .expect("one final AArch64 branch instruction"),
     );
@@ -884,5 +936,204 @@ fn retained_source_evaluated_import_realizes_exact_macho_image() {
     });
     assert_physical_child_mutation_rejected(&parts, |child| {
         child.final_image_bytes_digest[0] ^= 1;
+    });
+}
+
+#[test]
+fn retained_source_evaluated_fixed_u32_import_requires_complete_d32_custody() {
+    let fixture = Fixture::new_macos_u32_argument();
+    let retained = fixture.compile_terminal();
+    let admission = admit_import(
+        &retained,
+        SameStackContributionAdmissionReceiptId::from_normalized_identity(0x4d41_4348_0605)
+            .unwrap(),
+    );
+    let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
+    let artifact = realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        permission_policy,
+        &[SourceEvaluatedImportSettlement::new(
+            &admission.execution,
+            &admission.same_stack,
+        )],
+    )
+    .unwrap_or_else(|diagnostics| {
+        panic!(
+            "fixed-scalar admitted import should realize complete D32 evidence:\n{}",
+            diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    });
+
+    artifact
+        .validate()
+        .expect("fixed-scalar native artifact replays");
+    assert_eq!(
+        artifact.physical_evidence_scope(),
+        native::NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence,
+    );
+    let physical = artifact
+        .physical_evidence()
+        .expect("fixed-scalar import retains complete D32 evidence");
+    assert_eq!(physical.projection().operator_occurrences().len(), 0);
+    assert_eq!(physical.projection().boundary_occurrences().len(), 1);
+    let [child] = physical.children() else {
+        panic!("one fixed-scalar source call must produce exactly one D41 child")
+    };
+    assert!(matches!(
+        child.occurrence(),
+        native::NativePhysicalOccurrence::Boundary(_),
+    ));
+    assert_eq!(child.projection(), physical.projection().identity());
+
+    let [foreign_call] = artifact.object().foreign_calls() else {
+        panic!("one fixed-scalar Mach-O foreign call expected")
+    };
+    assert_eq!(foreign_call.boundary_entry_plan.call.parameters.len(), 1);
+    let [scalar_argument] = foreign_call.scalar_arguments.as_slice() else {
+        panic!("one exact fixed-scalar object argument row expected")
+    };
+    assert_eq!(scalar_argument.parameter_index, 0);
+    assert_eq!(
+        scalar_argument.placement,
+        foreign_call.boundary_entry_plan.call.parameters[0],
+    );
+    assert!(matches!(
+        scalar_argument.source,
+        omega_machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
+            scalar_type,
+            value: psi_core::IntegerValue::Unsigned(3),
+            ..
+        } if scalar_type
+            == psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 32).unwrap()
+    ));
+    let ForeignLocatorCandidate::MachODylibSymbol {
+        install_name,
+        symbol,
+    } = foreign_call.locator.locator()
+    else {
+        panic!("structured scalar Mach-O locator must survive object construction")
+    };
+    assert_eq!(install_name, INSTALL_NAME);
+    assert_eq!(symbol, SCALAR_SYMBOL);
+
+    let native::PhysicalChildParent::BoundaryTraitSettlement(parent) = child.parent() else {
+        panic!("fixed-scalar import must retain its D41 settlement parent")
+    };
+    assert_eq!(
+        parent.requirement_identity(),
+        admission.execution.requirement
+    );
+    assert_eq!(parent.target(), artifact.target());
+    assert_eq!(
+        parent.occurrence().operation_ordinal(),
+        foreign_call.operation_ordinal,
+    );
+    let [selected_plan] = artifact.selected_provider_plans() else {
+        panic!("one exact fixed-scalar provider plan expected")
+    };
+    assert_eq!(parent.selected_plan_digest(), selected_plan.plan_digest());
+    let native::BoundaryTraitSettlementRole::AdmittedProvider {
+        execution,
+        realization,
+    } = parent.role()
+    else {
+        panic!("fixed-scalar import must retain admitted-provider D41 custody")
+    };
+    assert_eq!(parent.execution(), (*execution).into());
+    assert_eq!(realization.locator, foreign_call.locator);
+    assert_eq!(
+        realization.boundary_entry_plan,
+        foreign_call.boundary_entry_plan,
+    );
+    assert_eq!(realization.boundary_entry_plan.call.parameters.len(), 1);
+    assert_eq!(realization.same_stack_contribution, admission.same_stack);
+    assert_eq!(
+        realization.same_stack_contribution,
+        foreign_call.same_stack_contribution,
+    );
+
+    let matching_attributions = artifact
+        .object()
+        .semantic_code_attribution()
+        .iter()
+        .filter(|attribution| {
+            attribution.machine == foreign_call.machine
+                && attribution.attribution.site
+                    == omega_machine_code::SemanticCodeSite::Operation(
+                        parent.occurrence().operation(),
+                    )
+                && attribution.attribution.operation_ordinal == foreign_call.operation_ordinal
+        })
+        .collect::<Vec<_>>();
+    let [attribution] = matching_attributions.as_slice() else {
+        panic!("one full semantic interval must own the fixed-scalar import")
+    };
+    assert_eq!(
+        child.machine_span().offset(),
+        attribution.attribution.code_offset
+    );
+    assert_eq!(child.object_span().offset(), attribution.text_offset);
+    assert_eq!(
+        child.object_span().byte_count(),
+        attribution.attribution.byte_count,
+    );
+    let object_interval_end = child.object_span().offset() + child.object_span().byte_count();
+    assert!(child.object_span().offset() <= scalar_argument.code_offset);
+    assert!(scalar_argument.code_offset + scalar_argument.byte_count <= object_interval_end);
+    let [normalized] = artifact
+        .object()
+        .object()
+        .layout
+        .normalized_imports
+        .as_slice()
+    else {
+        panic!("one normalized fixed-scalar object import expected")
+    };
+    let matching_relocations = artifact
+        .object()
+        .relocations()
+        .records()
+        .filter(|(_, relocation)| relocation.symbol_handle == normalized.symbol)
+        .collect::<Vec<_>>();
+    let [(_, object_relocation)] = matching_relocations.as_slice() else {
+        panic!("one unresolved object relocation must target the scalar import")
+    };
+    assert!(child.object_span().offset() <= object_relocation.offset);
+    assert!(object_relocation.offset + object_relocation.byte_width <= object_interval_end);
+    assert!(child.object_span().byte_count() > object_relocation.byte_width);
+
+    let parts = artifact.into_parts();
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        let native::BoundaryTraitSettlementRole::AdmittedProvider { realization, .. } =
+            &mut parent.role
+        else {
+            panic!("fixture D41 parent is admitted-provider custody")
+        };
+        realization.boundary_entry_plan.call.parameters.clear();
+    });
+    assert_d41_parent_mutation_rejected(&parts, |parent| {
+        let native::BoundaryTraitSettlementRole::AdmittedProvider { realization, .. } =
+            &mut parent.role
+        else {
+            panic!("fixture D41 parent is admitted-provider custody")
+        };
+        realization.boundary_entry_plan.call.parameters[0]
+            .locations
+            .clear();
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.relocation = native::PhysicalRelocationDisposition::DirectInstructionBytes;
+    });
+    assert_physical_child_mutation_rejected(&parts, |child| {
+        child.machine_bytes_digest[0] ^= 1;
     });
 }

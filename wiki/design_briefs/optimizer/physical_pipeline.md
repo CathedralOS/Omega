@@ -1046,12 +1046,18 @@ missing, duplicate, stale, substituted, padded, or role-swapped children; the
 physical pipeline may omit only an occurrence whose verified optimization
 proof establishes elimination.
 
-The first admitted-provider child lane is intentionally narrow: an unoptimized,
-zero-argument Unit normalized import. Its complete D41 parent binds exact
-provider execution, selected plan, locator, boundary-entry plan, and same-stack
-admission; its child binds the machine/object/image call, normalized import,
-unresolved semantic relocation, all emitted spans, and final image-symbol
-identity. Wider call shapes and optimized foreign calls remain fail-closed.
+The admitted-provider child lane remains intentionally narrow: an unoptimized
+normalized import with only fixed-width 8-, 16-, 32-, or 64-bit integer scalar
+arguments and either Unit or one fixed-width integer scalar result. Its complete
+D41 parent binds exact provider execution, selected plan, locator, boundary-
+entry plan, and same-stack admission. Its child independently rejoins exact
+Terminal values and types to object-retained scalar materializations, then binds
+the complete semantic-code attribution interval, contained unresolved import
+relocation, machine/object/image bytes, and final image-symbol identity.
+Structural values, callbacks, ranked control, port effects, and optimized
+foreign calls remain fail-closed. Source production currently exercises Unit
+calls with scalar arguments; its earlier checked transitive-machine closure
+still fences result-producing attached-Unit calls before this D32 lane.
 
 For UEFI, the physical adapter contract is settled but not yet implemented in
 this chain. A generated ABI shell invokes one checked bootstrap adapter;
