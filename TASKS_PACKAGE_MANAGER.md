@@ -107,21 +107,25 @@ after the complete current-version lock payload exists.
 - [ ] **PROOF-AND-BOUNDARY-ADMISSION.** Complete the authority-bearing later-
   discharge/open-obligation result and locally recheck every retained
   certificate required by an ordinary package claim.
-  The first compiler-owned class now kernel-checks and independently rechecks
-  an exact authored `ensures` fact discharged by an identical immutable-scalar
-  machine `requires` assumption. Remaining work is to consume that checked-IR
-  class in package evidence, derive the concrete later-discharge/open-
-  obligation result, add any further classes demanded by the supported
-  package surface, and complete required final-realization joins. Preserve
-  exact `OpenLaterDischarge` propagation and pre-policy rejection. Do not
-  persist this partial lane, cite standalone `psi-proof` as production
-  enforcement, or add an empty generic certificate framework.
+  The first compiler-owned class now kernel-checks an exact authored `ensures`
+  fact discharged by an identical immutable-scalar machine `requires`
+  assumption. Package evidence matches it to the stable reviewed callable,
+  coordinates, and strong contract commitment, independently rechecks it, and
+  emits a concrete in-memory discharged result; missing or duplicate evidence
+  remains open or rejects, and an end-to-end dependency canary proves only the
+  discharged row ceases to propagate as `OpenLaterDischarge`. Remaining work
+  is to add any further classes demanded by the supported package surface,
+  derive the complete transitive discharge/open-obligation result, and finish
+  required final-realization joins. Preserve exact open-obligation propagation
+  and pre-policy rejection. Do not persist this partial lane, cite standalone
+  `psi-proof` as production enforcement, or add an empty generic certificate
+  framework.
 
-  **Landed prerequisite:** `TASKS.md` `PROOF-CERTIFICATION-BRIDGE` now owns the
-  first real checked-IR assumption-discharge certificate and local rechecker.
-  Package evidence must consume that exact compiler product; current Terminal
+  **Landed prerequisite:** `TASKS.md` `PROOF-CERTIFICATION-BRIDGE` owns the
+  first real checked-IR assumption-discharge certificate and local rechecker,
+  and package evidence consumes that exact compiler product. Current Terminal
   modules still do not represent authored source stand-down goals, so a
-  coordinate sidecar must not pretend to establish that custody.
+  coordinate sidecar must not pretend to establish other discharge classes.
 
 - [ ] **PACKAGE-KEY-AND-INSTANCE.** Introduce the final `PackageInstance` only
   after exact source and artifact subjects, obligation-semantics identity,

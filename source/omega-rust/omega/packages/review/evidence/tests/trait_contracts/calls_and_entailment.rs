@@ -217,6 +217,134 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn compiler_assumption_certificate_locally_discharges_the_exact_open_obligation() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"machine retain(value: u64) -> u64
+requires
+    value >= 1
+ensures
+    value >= 1
+{
+    let retained: u64 = value;
+    retained
+}
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x86_64 { }
+target linux_x86_64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some(target),
+        package_inputs(&package.0),
+    )
+    .expect("assumption-discharge fixture should check");
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .contract_entailment_assumption_discharges
+            .len(),
+        1
+    );
+    let projection = project_checked_package_review(&checked)
+        .expect("review still exposes the structural-validator stand-down");
+    assert_eq!(projection.contract_entailment_open_obligations().len(), 1);
+
+    let results = reconstruct_ordinary_package_obligation_results(&checked)
+        .expect("package evidence independently rechecks the compiler certificate");
+    assert!(results.open_contract_entailment_obligations().is_empty());
+    let [discharge] = results.contract_entailment_assumption_discharges() else {
+        panic!("one exact assumption discharge")
+    };
+    assert_eq!(
+        discharge.status(),
+        OrdinaryPackageObligationStatus::Discharged
+    );
+    assert_eq!(
+        discharge.obligation(),
+        &projection.contract_entailment_open_obligations()[0]
+    );
+    assert_eq!(discharge.assumptions(), [discharge.goal().clone()]);
+    assert_eq!(discharge.selected_assumption_position(), 0);
+
+    let mut missing = checked.clone();
+    missing
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges
+        .clear();
+    let missing_results = reconstruct_ordinary_package_obligation_results(&missing)
+        .expect("a missing certificate must leave the obligation open");
+    assert!(
+        missing_results
+            .contract_entailment_assumption_discharges()
+            .is_empty()
+    );
+    assert_eq!(
+        missing_results.open_contract_entailment_obligations().len(),
+        1
+    );
+
+    let certificate = checked
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges[0]
+        .clone();
+    let mut tampered = checked.clone();
+    let original = &tampered
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges[0];
+    let changed = psi_checked_trees::CheckedContractEntailmentAssumptionDischarge::new(
+        original.machine_symbol(),
+        original.contract_position(),
+        original.fact_position(),
+        original.machine_contract_commitment(),
+        original.assumptions().to_vec(),
+        psi_core::Proposition::Falsehood,
+        original.selected_assumption_position(),
+    )
+    .expect("well-formed tamper fixture");
+    tampered
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges[0] = changed;
+    let diagnostics = reconstruct_ordinary_package_obligation_results(&tampered)
+        .expect_err("changed certificate must fail local reconstruction");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("certificate failed local recheck")
+    }));
+
+    let mut duplicate = checked;
+    duplicate
+        .facts
+        .proof
+        .contract_entailment_assumption_discharges = vec![certificate.clone(), certificate];
+    let diagnostics = reconstruct_ordinary_package_obligation_results(&duplicate)
+        .expect_err("duplicate certificate must fail the exact obligation join");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not rejoin exactly one open obligation")
+    }));
+}
+
+#[test]
 fn equal_contract_entailment_goals_retain_distinct_positions_and_complete_hypotheses() {
     let Some(target) = host_target_name() else {
         return;
