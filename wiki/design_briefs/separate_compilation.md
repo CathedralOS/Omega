@@ -67,10 +67,14 @@ through direct scalar expressions into Unit-returning boundary calls. The same
 Terminal parameter namespace admits ordinary scalar-bearing attached Unit
 provider bodies. Provider conformance compares the scalar types already owned
 by the boundary declaration and candidate machine; it does not duplicate them
-inside the structural refinement row. Borrowing, nesting, internal forwarding,
-multiple carriers, mixed receiver requirements, composed control, free-machine
-lowering, native installed-provider scalar ABI realization, root establishment,
-and Independent mode remain closed rather than being represented as fused.
+inside the structural refinement row. The same exact one-carrier plus
+primitive-scalar lane admits a free Unit machine without synthesizing a
+receiver or attachment: Terminal records `attachment: None`, retains the
+Service carrier structurally, and retains ordinary scalar parameters in its
+independent scalar namespace. Borrowing, nesting, internal forwarding,
+multiple carriers, mixed receiver requirements, composed control, native
+installed-provider scalar ABI realization, root establishment, and Independent
+mode remain closed rather than being represented as fused.
 Multiple distinct carriers specifically wait on a
 Terminal domain-application identity: the current structural-domain table keys
 only `SemanticDomainId` while binding one carrier identity, so one `Bound` row

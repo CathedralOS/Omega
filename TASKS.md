@@ -12249,8 +12249,7 @@ checked-result arithmetic decision listed below.
     returns, trait/requirement signatures, and operators. Internal
     Service-to-Service forwarding, projected or borrowed arguments, multiple
     carrier parameters, mixed receiver requirements, composed control,
-    free-machine Terminal lowering, native installed-provider scalar ABI
-    realization, root establishment, and
+    native installed-provider scalar ABI realization, root establishment, and
     Independent execution remain separately fenced. Multiple distinct
     carriers are **DEPENDENCY-BLOCKED**, not language-design-blocked: Terminal
     structural qualifications currently key one domain plan only by
@@ -12331,10 +12330,14 @@ checked-result arithmetic decision listed below.
   The `process-exit` package's public `terminate` helper now also exposes
   `Service<Console> in Bound`; package review preserves its exact Console reach
   and parameter-zero invocation identity. That free helper's additional scalar
-  input is no longer independently representation-blocked: the attached rung
-  now proves the exact Terminal scalar parameter shape. The helper remains
-  outside that rung solely because it is a free machine, whose Terminal lowering
-  is still separately fenced.
+  input and free-machine shape now cross the same checked-plan and final Fused
+  custody boundary into canonical Terminal Psi. Its Terminal machine has no
+  attachment, retains the Service carrier in the structural parameter
+  namespace, retains `return_code` in the scalar namespace, and passes that
+  exact scalar value to the Console boundary call. Lowering does not fabricate
+  an empty attached record or provider-attachment requirement. Native
+  installed-provider scalar ABI realization and initial routed root
+  establishment remain separate fences.
   Provider-internal nested fields and all other boundary-bearing parameters
   remain transitional until their separately fenced carrier rungs land; do not
   broaden either custody proof by name.
