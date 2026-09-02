@@ -385,6 +385,28 @@ impl SymbolResolvedTrees {
         )
     }
 
+    pub fn record_resolved_authored_declaration_selection_in_partition(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        compiler_partition: Option<
+            psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition,
+        >,
+        selected_symbol: psi_symbols::SymbolHandle,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
+        self.tables
+            .authored_declaration_selections
+            .record_resolved_in_partition(
+                source_span,
+                exposure,
+                kind,
+                compiler_partition,
+                selected_symbol,
+            )
+    }
+
     pub fn record_late_bound_authored_declaration_selection(
         &mut self,
         source_span: SourceSpan,
@@ -396,6 +418,28 @@ impl SymbolResolvedTrees {
         self.tables
             .authored_declaration_selections
             .record_late_bound(source_span, exposure, kind, late_binding)
+    }
+
+    pub fn record_late_bound_authored_declaration_selection_in_partition(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        compiler_partition: Option<
+            psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition,
+        >,
+        late_binding: AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
+        self.tables
+            .authored_declaration_selections
+            .record_late_bound_in_partition(
+                source_span,
+                exposure,
+                kind,
+                compiler_partition,
+                late_binding,
+            )
     }
 
     pub fn authored_declaration_selections(&self) -> &AuthoredDeclarationSelections {

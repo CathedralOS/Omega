@@ -1,7 +1,9 @@
 use crate::AuthoredDeclarationSelectionOccurrenceId;
 use crate::name::DiagnosticName;
 use psi_arena::{Arena, Handle, HandleSpan};
-use psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionExposure, CompilerDerivedSelectionPartition,
+};
 use psi_numerics::literals::IntegerLiteral;
 use psi_source::SourceSpan;
 use psi_symbols::SymbolHandle;
@@ -43,6 +45,7 @@ struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
     source_spans: Vec<SourceSpan>,
     authored_expression_exposures: Vec<Option<AuthoredDeclarationSelectionExposure>>,
+    compiler_selection_partitions: Vec<Option<CompilerDerivedSelectionPartition>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
 }
 
@@ -62,6 +65,7 @@ impl ExpressionTable {
                 expressions: Arena::new(),
                 source_spans: Vec::new(),
                 authored_expression_exposures: Vec::new(),
+                compiler_selection_partitions: Vec::new(),
                 authored_selection_occurrences: Vec::new(),
             },
             spans: ExpressionSpanStorage {
@@ -78,6 +82,7 @@ impl ExpressionTable {
         self.nodes.expressions.reset_retain_capacity();
         self.nodes.source_spans.clear();
         self.nodes.authored_expression_exposures.clear();
+        self.nodes.compiler_selection_partitions.clear();
         self.nodes.authored_selection_occurrences.clear();
         self.spans.expression_handles.reset_retain_capacity();
         self.spans.name_path_members.reset_retain_capacity();
@@ -92,6 +97,7 @@ impl ExpressionTable {
         let handle = self.nodes.expressions.insert(expression);
         self.nodes.source_spans.push(SourceSpan::default());
         self.nodes.authored_expression_exposures.push(None);
+        self.nodes.compiler_selection_partitions.push(None);
         self.nodes
             .authored_selection_occurrences
             .push(HandleSpan::empty());
@@ -99,6 +105,10 @@ impl ExpressionTable {
         debug_assert_eq!(
             source_span_index(handle),
             self.nodes.authored_expression_exposures.len() - 1
+        );
+        debug_assert_eq!(
+            source_span_index(handle),
+            self.nodes.compiler_selection_partitions.len() - 1
         );
         debug_assert_eq!(
             source_span_index(handle),
@@ -137,6 +147,28 @@ impl ExpressionTable {
             );
         }
         *slot = Some(exposure);
+    }
+
+    pub fn compiler_selection_partition(
+        &self,
+        handle: ExpressionHandle,
+    ) -> Option<CompilerDerivedSelectionPartition> {
+        self.nodes.compiler_selection_partitions[source_span_index(handle)]
+    }
+
+    pub fn set_compiler_selection_partition(
+        &mut self,
+        handle: ExpressionHandle,
+        partition: CompilerDerivedSelectionPartition,
+    ) {
+        let slot = &mut self.nodes.compiler_selection_partitions[source_span_index(handle)];
+        if let Some(existing) = *slot {
+            assert_eq!(
+                existing, partition,
+                "one expression handle cannot belong to two compiler selection partitions"
+            );
+        }
+        *slot = Some(partition);
     }
 
     /// Attach exact authored-selection occurrence identities to an expression.
@@ -523,6 +555,9 @@ impl ExpressionTable {
         if let Some(exposure) = source.authored_expression_exposure(expression) {
             self.set_authored_expression_exposure(copied, exposure);
         }
+        if let Some(partition) = source.compiler_selection_partition(expression) {
+            self.set_compiler_selection_partition(copied, partition);
+        }
         self.attach_authored_selection_occurrences(
             copied,
             source.authored_selection_occurrences(expression),
@@ -774,6 +809,7 @@ impl ExpressionTable {
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         let authored_exposure = self.authored_expression_exposure(expression);
+        let compiler_partition = self.compiler_selection_partition(expression);
         let copied = match self.expression(expression).clone() {
             ExpressionNode::Name(path) => {
                 let members = self.copy_name_path_members_with_member_suffix(
@@ -814,6 +850,9 @@ impl ExpressionTable {
         if let Some(exposure) = authored_exposure {
             self.set_authored_expression_exposure(copied, exposure);
         }
+        if let Some(partition) = compiler_partition {
+            self.set_compiler_selection_partition(copied, partition);
+        }
         self.attach_authored_selection_occurrences(copied, occurrences);
         copied
     }
@@ -827,6 +866,7 @@ impl ExpressionTable {
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
         let authored_exposure = self.authored_expression_exposure(expression);
+        let compiler_partition = self.compiler_selection_partition(expression);
         let copied = match self.expression(expression).clone() {
             ExpressionNode::ArrayLiteral(values) => {
                 let copied_values = self.reserve_expression_handles(values.count());
@@ -985,6 +1025,9 @@ impl ExpressionTable {
         self.set_source_span(copied, source_span);
         if let Some(exposure) = authored_exposure {
             self.set_authored_expression_exposure(copied, exposure);
+        }
+        if let Some(partition) = compiler_partition {
+            self.set_compiler_selection_partition(copied, partition);
         }
         self.attach_authored_selection_occurrences(copied, occurrences);
         copied

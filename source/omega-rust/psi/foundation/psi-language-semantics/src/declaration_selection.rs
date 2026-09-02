@@ -158,6 +158,27 @@ impl AuthoredDeclarationSelectionOccurrenceId {
     }
 }
 
+/// Transient compiler partition for one instantiated use of authored syntax.
+///
+/// Most compiler-derived copies preserve one authored selection occurrence.
+/// A trait-default body is different: each conformance application may route
+/// the same authored call to a different exact realization. This ordinal
+/// separates those applications while source coordinates remain shared. It is
+/// compiler-internal join custody and must never enter canonical package
+/// evidence, lock identity, or diagnostics as semantic identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CompilerDerivedSelectionPartition(u64);
+
+impl CompilerDerivedSelectionPartition {
+    pub fn from_compiler_ordinal(ordinal: u64) -> Self {
+        Self(ordinal)
+    }
+
+    pub fn ordinal(self) -> u64 {
+        self.0
+    }
+}
+
 /// Why an authored selection could not enter the ledger.
 ///
 /// Recording is transactional: either a complete row receives its occurrence
@@ -243,6 +264,7 @@ pub struct AuthoredDeclarationSelection {
     source_span: SourceSpan,
     exposure: AuthoredDeclarationSelectionExposure,
     kind: AuthoredDeclarationSelectionKind,
+    compiler_partition: Option<CompilerDerivedSelectionPartition>,
     target: AuthoredDeclarationSelectionTarget,
 }
 
@@ -252,6 +274,7 @@ impl AuthoredDeclarationSelection {
         source_span: SourceSpan,
         exposure: AuthoredDeclarationSelectionExposure,
         kind: AuthoredDeclarationSelectionKind,
+        compiler_partition: Option<CompilerDerivedSelectionPartition>,
         selected_symbol: SymbolHandle,
     ) -> Result<Self, AuthoredDeclarationSelectionRecordError> {
         let selected = ResolvedAuthoredDeclarationSelection::new(selected_symbol)
@@ -261,6 +284,7 @@ impl AuthoredDeclarationSelection {
             source_span,
             exposure,
             kind,
+            compiler_partition,
             target: AuthoredDeclarationSelectionTarget::Resolved(selected),
         })
     }
@@ -270,6 +294,7 @@ impl AuthoredDeclarationSelection {
         source_span: SourceSpan,
         exposure: AuthoredDeclarationSelectionExposure,
         kind: AuthoredDeclarationSelectionKind,
+        compiler_partition: Option<CompilerDerivedSelectionPartition>,
         late_binding: AuthoredDeclarationSelectionLateBinding,
     ) -> Self {
         Self {
@@ -277,6 +302,7 @@ impl AuthoredDeclarationSelection {
             source_span,
             exposure,
             kind,
+            compiler_partition,
             target: AuthoredDeclarationSelectionTarget::LateBound(late_binding),
         }
     }
@@ -295,6 +321,10 @@ impl AuthoredDeclarationSelection {
 
     pub fn kind(self) -> AuthoredDeclarationSelectionKind {
         self.kind
+    }
+
+    pub fn compiler_partition(self) -> Option<CompilerDerivedSelectionPartition> {
+        self.compiler_partition
     }
 
     pub fn target(self) -> AuthoredDeclarationSelectionTarget {
@@ -341,6 +371,7 @@ impl AuthoredDeclarationSelections {
                 || source.source_span != destination.source_span
                 || source.exposure != destination.exposure
                 || source.kind != destination.kind
+                || source.compiler_partition != destination.compiler_partition
             {
                 return Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixIdentityMismatch);
             }
@@ -394,12 +425,25 @@ impl AuthoredDeclarationSelections {
         selected_symbol: SymbolHandle,
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
     {
+        self.record_resolved_in_partition(source_span, exposure, kind, None, selected_symbol)
+    }
+
+    pub fn record_resolved_in_partition(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        compiler_partition: Option<CompilerDerivedSelectionPartition>,
+        selected_symbol: SymbolHandle,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
         let occurrence_id = self.next_occurrence_id()?;
         let selection = AuthoredDeclarationSelection::resolved(
             occurrence_id,
             source_span,
             exposure,
             kind,
+            compiler_partition,
             selected_symbol,
         )?;
         self.rows.push(selection);
@@ -414,12 +458,25 @@ impl AuthoredDeclarationSelections {
         late_binding: AuthoredDeclarationSelectionLateBinding,
     ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
     {
+        self.record_late_bound_in_partition(source_span, exposure, kind, None, late_binding)
+    }
+
+    pub fn record_late_bound_in_partition(
+        &mut self,
+        source_span: SourceSpan,
+        exposure: AuthoredDeclarationSelectionExposure,
+        kind: AuthoredDeclarationSelectionKind,
+        compiler_partition: Option<CompilerDerivedSelectionPartition>,
+        late_binding: AuthoredDeclarationSelectionLateBinding,
+    ) -> Result<AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError>
+    {
         let occurrence_id = self.next_occurrence_id()?;
         self.rows.push(AuthoredDeclarationSelection::late_bound(
             occurrence_id,
             source_span,
             exposure,
             kind,
+            compiler_partition,
             late_binding,
         ));
         Ok(occurrence_id)
@@ -595,6 +652,44 @@ mod tests {
     }
 
     #[test]
+    fn compiler_partitions_separate_applications_without_replacing_source_custody() {
+        let mut selections = AuthoredDeclarationSelections::default();
+        let source = source_span(12, 16);
+        let first_partition = CompilerDerivedSelectionPartition::from_compiler_ordinal(3);
+        let second_partition = CompilerDerivedSelectionPartition::from_compiler_ordinal(7);
+        let first = selections
+            .record_resolved_in_partition(
+                source,
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                Some(first_partition),
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("first application");
+        let second = selections
+            .record_resolved_in_partition(
+                source,
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                Some(second_partition),
+                SymbolHandle::from_arena_index(8),
+            )
+            .expect("second application");
+
+        assert_ne!(first, second);
+        assert_eq!(selections.get(first).unwrap().source_span(), source);
+        assert_eq!(selections.get(second).unwrap().source_span(), source);
+        assert_eq!(
+            selections.get(first).unwrap().compiler_partition(),
+            Some(first_partition)
+        );
+        assert_eq!(
+            selections.get(second).unwrap().compiler_partition(),
+            Some(second_partition)
+        );
+    }
+
+    #[test]
     fn suffix_rebase_preserves_destination_prefix_and_shifts_only_extension_rows() {
         let mut combined = AuthoredDeclarationSelections::default();
         combined
@@ -693,6 +788,22 @@ mod tests {
         assert_eq!(
             combined.replace_prefix_and_rebase_suffix(1, &target_tamper),
             Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixTargetMismatch)
+        );
+
+        let mut partitioned = AuthoredDeclarationSelections::default();
+        partitioned
+            .record_resolved_in_partition(
+                source_span(1, 2),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::Call,
+                Some(CompilerDerivedSelectionPartition::from_compiler_ordinal(3)),
+                SymbolHandle::from_arena_index(4),
+            )
+            .expect("partitioned row");
+        assert_eq!(
+            combined.replace_prefix_and_rebase_suffix(1, &partitioned),
+            Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixIdentityMismatch),
+            "compiler application custody cannot be changed while rebasing a retained row"
         );
     }
 

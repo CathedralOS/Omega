@@ -248,6 +248,11 @@ pub(crate) struct Lowerer {
     /// symbol-assignment pass has minted those handles.
     pub(crate) pending_outcome_specific_contracts: Vec<PendingOutcomeSpecificContract>,
     pub(crate) current_authored_expression_exposure: Option<AuthoredDeclarationSelectionExposure>,
+    /// Transient partition for one compiler-instantiated trait-default
+    /// application. It separates copied authored selections that may resolve
+    /// differently in distinct conformances and is cleared between machines.
+    pub(crate) current_compiler_selection_partition:
+        Option<psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
     /// Per-lowering counter that mints unique names for synthetic `let`
@@ -401,6 +406,7 @@ impl Lowerer {
             pending_const_selections: Vec::new(),
             pending_outcome_specific_contracts: Vec::new(),
             current_authored_expression_exposure: None,
+            current_compiler_selection_partition: None,
             sources,
             source_scoped_top_level_bindings,
             hoist_counter: 0,

@@ -1903,6 +1903,87 @@ fn closed_conformance_retains_trait_default_selection_rows() {
         rows[0].realization_name.as_str(),
         "Card::PowerOrder::Ranked::fallback"
     );
+    let realization = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == rows[0].realization_machine)
+        .expect("selected default realization");
+    let [requirement] = program.machine_trait_conformances(realization.satisfies) else {
+        panic!("default realization retains one exact requirement edge");
+    };
+    assert_eq!(requirement.symbol, rows[0].declaring_trait);
+    assert_eq!(
+        requirement.requirement.as_ref().map(|name| name.as_str()),
+        Some("fallback")
+    );
+}
+
+#[test]
+fn inherited_trait_default_applications_partition_shared_authored_calls() {
+    let source = r#"
+        trait Resettable {
+            machine set(&mut self, value: i32);
+            machine reset(&mut self) { self.set(30); }
+        }
+        trait Counter { requires Resettable; }
+
+        data Left { value: i32; }
+        LeftCounter: Left satisfies Counter;
+        machine Left::set(&mut self, value: i32) { self.value = value; }
+
+        data Right { value: i32; }
+        RightCounter: Right satisfies Counter;
+        machine Right::set(&mut self, value: i32) { self.value = value; }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax_trees = parse_syntax_trees(&tokens).expect("source should parse");
+    let program = lower_syntax_trees(&syntax_trees)
+        .expect("each inherited default application should own its routed call");
+
+    let applications = ["Left::reset", "Right::reset"].map(|name| {
+        let machine = program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("synthesized attached default");
+        let partition = machine
+            .compiler_selection_partition
+            .expect("default application partition");
+        let [requirement] = program.machine_trait_conformances(machine.satisfies) else {
+            panic!("synthesized default retains one requirement edge");
+        };
+        assert_eq!(
+            requirement.requirement.as_ref().map(|name| name.as_str()),
+            Some("reset")
+        );
+        let state = program.machine_state(program.machine_state_handles(machine.states)[0]);
+        let call = program
+            .state_statements(state.statements)
+            .iter()
+            .find_map(|statement| match statement {
+                psi_symbol_resolved_trees::statement::Statement::Call(call) => Some(call),
+                _ => None,
+            })
+            .expect("default body call");
+        let occurrence = call
+            .authored_call_selection
+            .expect("routed call selection occurrence");
+        let selection = *program
+            .authored_declaration_selections()
+            .get(occurrence)
+            .expect("selection ledger row");
+        assert_eq!(selection.compiler_partition(), Some(partition));
+        (partition, selection)
+    });
+
+    assert_ne!(applications[0].0, applications[1].0);
+    assert_eq!(
+        applications[0].1.source_span(),
+        applications[1].1.source_span()
+    );
+    assert_ne!(applications[0].1.target(), applications[1].1.target());
 }
 
 #[test]

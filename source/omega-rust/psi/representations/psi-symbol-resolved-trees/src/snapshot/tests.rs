@@ -66,6 +66,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         service_reach_is_installation_bound: false,
         suspends_keyword_source_spans: Vec::new(),
         blocks_keyword_source_spans: Vec::new(),
+        compiler_selection_partition: None,
         storage: MachineStorage {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),

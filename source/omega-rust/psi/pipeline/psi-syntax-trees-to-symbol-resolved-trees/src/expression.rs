@@ -35,6 +35,9 @@ pub(crate) fn lower_expression_into_table(
                 exposure,
             });
     }
+    if let Some(partition) = lowerer.current_compiler_selection_partition {
+        expression_table(lowerer).set_compiler_selection_partition(lowered, partition);
+    }
     Ok(lowered)
 }
 

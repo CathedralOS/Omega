@@ -753,6 +753,7 @@ impl TypedTrees {
                 selection.source_span() == source_span
                     && selection.exposure() == exposure
                     && selection.kind() == kind
+                    && selection.compiler_partition().is_none()
                     && matches!(
                         selection.target(),
                         psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
