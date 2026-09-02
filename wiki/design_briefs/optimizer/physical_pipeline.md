@@ -221,6 +221,17 @@ ordinary decrement, and reversed-order behavior at direct and optimized
 custody on all five targets. Exact/wrapping subtraction, addition/
 multiplication, plain-immediate, parameter-family, and runtime-expression
 substitution fail closed. No target operation or persisted wire form is added.
+Constant saturating integer multiply is a third independently named sibling.
+It admits exactly two same-type constants, `SaturatingIntegerMultiply`, and
+`Return`; recomputes the result through `IntegerType::saturating_mul`; and
+requires one exact `ReturnIntegerImmediate` while retaining authored source
+and provenance custody. Signed/unsigned fixed 8/16/32/64 and address64 cross
+positive saturation, signed negative saturation, unsigned/address zero clamp,
+reversed constant custody, and an ordinary product at direct and optimized
+custody on all five targets (180 cases at each boundary). Exact/wrapping
+multiply, saturating add/subtract, plain-immediate, parameter-family, and
+runtime-expression substitution fail closed. No target operation or persisted
+wire form is added.
 Constant wrapping integer add is a separate exact four-operation family. It
 validates two ordered same-type constants, `WrappingIntegerAdd`, and `Return`,
 computes modulo the declared width through `IntegerType::wrapping_add`, and

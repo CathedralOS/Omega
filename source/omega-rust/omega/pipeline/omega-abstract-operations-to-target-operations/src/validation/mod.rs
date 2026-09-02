@@ -30,6 +30,7 @@ pub(crate) mod straight_line_parameter;
 pub(crate) mod straight_line_port_write_unit_return;
 pub(crate) mod straight_line_saturating_integer_add_immediate;
 pub(crate) mod straight_line_saturating_integer_subtract_immediate;
+pub(crate) mod straight_line_saturating_integer_multiply_immediate;
 pub(crate) mod straight_line_scalar_crash;
 pub(crate) mod straight_line_trivial_affine_local_unit_return;
 pub(crate) mod straight_line_unit_call_return;

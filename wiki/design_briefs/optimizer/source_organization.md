@@ -809,6 +809,16 @@ A typed receipt, catalog adapter, focused fixture/corruption leaves, and
 optimized-custody fixture cover 180 direct and 180 optimized fixed/address
 cases across all five targets while keeping exact/wrapping, add/multiply,
 plain-immediate, parameter-subtract, and runtime-expression siblings disjoint.
+Constant saturating integer-multiply immediate translation owns the adjacent
+`straight_line_saturating_integer_multiply_immediate/` taxonomy. Its 27-line
+executable entrance joins only `grammar::reconstruct` and `replay::validate`;
+the lower rungs independently own source shape,
+`IntegerType::saturating_mul`, and exact immediate-target replay. A typed
+receipt, catalog adapter, focused fixture/corruption leaves, and optimized-
+custody fixture cover 180 direct and 180 optimized fixed/address cases across
+all five targets while keeping exact/wrapping multiply, saturating add/
+subtract, plain-immediate, parameter-multiply, and runtime-expression siblings
+disjoint.
 Constant wrapping integer-add immediate translation is its exact arithmetic
 sibling under `straight_line_wrapping_integer_add_immediate/`. Its 27-line
 entrance joins the ordered two-constant grammar to independent
