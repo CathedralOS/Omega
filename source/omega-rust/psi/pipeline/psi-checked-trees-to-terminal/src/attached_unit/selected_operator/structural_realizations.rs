@@ -44,27 +44,23 @@ pub(in crate::attached_unit) fn lower_selected_structural_scalar_realizations(
                 "selected structural-scalar closure does not contain one exact checked machine",
             );
         };
-        let authored_partition =
-            psi_typed_trees_to_checked_trees::rederive_selected_operator_parameter_partition(
-                &checked.typed,
-                realization.machine,
-                realization.state,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "selected structural-scalar realization lost its authored parameter declaration",
-            ))?;
-        if realization
+        let mut parameter_positions = realization
             .scalar_parameters
             .iter()
-            .map(|parameter| (parameter.source_position, parameter.primitive_type))
-            .collect::<Vec<_>>()
-            != authored_partition.scalar_parameters
-            || realization
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.position)
-                .collect::<Vec<_>>()
-                != authored_partition.structural_parameter_positions
+            .map(|parameter| parameter.source_position)
+            .chain(
+                realization
+                    .structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.position),
+            )
+            .collect::<Vec<_>>();
+        parameter_positions.sort_unstable();
+        let exact_parameter_partition = parameter_positions
+            .iter()
+            .enumerate()
+            .all(|(position, actual)| u32::try_from(position) == Ok(*actual));
+        if !exact_parameter_partition
             || !realization.caller_requirements.is_empty()
             || !realization.scalar_requirements.is_empty()
             || realization.structural_parameters.iter().any(|parameter| {
