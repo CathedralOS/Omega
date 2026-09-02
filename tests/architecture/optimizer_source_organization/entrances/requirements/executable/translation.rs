@@ -110,6 +110,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "grammar::reconstruct(source)?",
     },
     RequiredCoordinationEntrance {
+        path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_saturating_integer_subtract_immediate/mod.rs",
+        coordination_marker: "grammar::reconstruct(source)?",
+    },
+    RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/straight_line_wrapping_integer_add_immediate/mod.rs",
         coordination_marker: "grammar::reconstruct(source)?",
     },

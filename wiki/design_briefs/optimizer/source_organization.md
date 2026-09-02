@@ -793,6 +793,15 @@ complete the visible ladder. The tests cover 180 direct and 180 optimized
 fixed/address cases across all five targets while keeping exact, wrapping,
 subtract/multiply, plain-immediate, parameter-add, and runtime-expression
 families disjoint.
+Constant saturating integer-subtract immediate translation owns a separate
+`straight_line_saturating_integer_subtract_immediate/` taxonomy because
+operand order is semantic. Its 27-line executable entrance joins only
+`grammar::reconstruct` and `replay::validate`; the lower rungs independently
+own source shape, `IntegerType::saturating_sub`, and the exact immediate target.
+A typed receipt, catalog adapter, focused fixture/corruption leaves, and
+optimized-custody fixture cover 180 direct and 180 optimized fixed/address
+cases across all five targets while keeping exact/wrapping, add/multiply,
+plain-immediate, parameter-subtract, and runtime-expression siblings disjoint.
 Constant wrapping integer-add immediate translation is its exact arithmetic
 sibling under `straight_line_wrapping_integer_add_immediate/`. Its 27-line
 entrance joins the ordered two-constant grammar to independent

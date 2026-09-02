@@ -36,6 +36,7 @@ mod integer_less_or_equal_immediate;
 mod integer_less_than_immediate;
 mod integer_widen_immediate;
 mod saturating_integer_add_immediate;
+mod saturating_integer_subtract_immediate;
 mod wrapping_integer_add_immediate;
 mod wrapping_integer_multiply_immediate;
 mod wrapping_integer_subtract_immediate;

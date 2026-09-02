@@ -21,6 +21,7 @@ pub use immediate::{
     StraightLineIntegerImmediateTranslationError,
     StraightLineIntegerWidenImmediateTranslationError,
     StraightLineSaturatingIntegerAddImmediateTranslationError,
+    StraightLineSaturatingIntegerSubtractImmediateTranslationError,
     StraightLineWrappingIntegerAddImmediateTranslationError,
     StraightLineWrappingIntegerMultiplyImmediateTranslationError,
     StraightLineWrappingIntegerSubtractImmediateTranslationError,
