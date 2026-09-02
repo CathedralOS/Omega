@@ -11908,7 +11908,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 56 retains compact strong-identity
+  relocation. Canonical installation format 58 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -11947,9 +11947,16 @@ checked-result arithmetic decision listed below.
   and literal independently from the return expression; the selected-call
   summary must equal its selected callable. Terminal materializes the constant
   and direct self-field store before the read and permits no second mutation,
-  nested destination, computed value, shared receiver, or reordered body.
-  Native target lowering remains fenced because scalar-result functions do not
-  yet have a source-free physical carrier for a preceding Unit-valued store.
+  nested destination, computed value, shared receiver, or reordered body. The
+  fixed-integer form now crosses target lowering, assignment, machine emission,
+  object/image replay, installation, and native execution. Its ABI carries
+  `&mut self` as one no-copy pointer to caller storage; the private adapter
+  rejoins the realization's exact structural-only scalar-result ABI before
+  calling it. Machine and object evidence independently bind the literal
+  store, subsequent read, result normalization, return, provenance, and exact
+  x86-64/AArch64 bytes. The authored mutable pass-through canary changes the
+  selected field to 23 and exits 70 on Linux x86-64 while both target artifacts
+  cross-link.
 
   Remaining work:
 
@@ -11957,10 +11964,10 @@ checked-result arithmetic decision listed below.
     custody are complete on both architectures, and the existing Linux x86-64
     full-pipeline canary executes the forwarded adapter and checks the selected
     instance through exit status;
-  - carry the exact mutation-bearing `&mut self` realization store through
-    target assignment, machine/object/image evidence, and native replay; then
-    widen beyond the current single direct literal store only when each wider
-    body has an exact semantic and physical rule;
+  - widen beyond the current single direct fixed-integer literal store only
+    when each wider body has an exact semantic and physical rule; the checked
+    Boolean form, computed values, projected paths, and multiple writes still
+    have no native carrier;
   - extend the v1 borrowed surface to Unit-returning requirements and
     additional call forms when their exact semantic and physical rules are
     settled;
