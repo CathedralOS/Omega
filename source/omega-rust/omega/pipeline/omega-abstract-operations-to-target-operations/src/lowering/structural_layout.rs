@@ -61,11 +61,11 @@ pub(crate) fn structural_shape(
                         StructuralFieldType::Structural(nested) => {
                             structural_shape(*nested, declarations, cache, active)?
                         }
-                        StructuralFieldType::Erased { .. } => {
-                            return Err(LoweringError::RelevantOpaqueStructuralField(
-                                structural_type,
-                            ));
-                        }
+                        // Erased capability/proof fields remain semantically
+                        // relevant but deliberately contribute no target
+                        // bytes. A later attempt to project such a field still
+                        // fails because it has no structural runtime shape.
+                        StructuralFieldType::Erased { .. } => continue,
                     };
                     alignment = alignment.max(field_shape.alignment);
                     byte_size = checked_align_up_u32(byte_size, u32::from(field_shape.alignment))
@@ -172,11 +172,7 @@ fn direct_scalar_field_offset(
             StructuralFieldType::Structural(nested) => {
                 structural_shape(nested, declarations, &mut cache, &mut active)?
             }
-            StructuralFieldType::Erased { .. } => {
-                return Err(LoweringError::RelevantOpaqueStructuralField(
-                    structural_type,
-                ));
-            }
+            StructuralFieldType::Erased { .. } => continue,
         };
         offset = checked_align_up_u32(offset, u32::from(shape.alignment))
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
@@ -236,11 +232,7 @@ pub(super) fn resolve_structural_field_path(
                 StructuralFieldType::Structural(nested) => {
                     structural_shape(nested, declarations, cache, active)?
                 }
-                StructuralFieldType::Erased { .. } => {
-                    return Err(LoweringError::RelevantOpaqueStructuralField(
-                        structural_type,
-                    ));
-                }
+                StructuralFieldType::Erased { .. } => continue,
             };
             local_offset = checked_align_up_u32(local_offset, u32::from(field_shape.alignment))
                 .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;

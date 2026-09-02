@@ -234,6 +234,47 @@ pub(super) fn assign(
             assigned_scalar_homes,
             next_scalar_home,
         )?,
+        TargetUnitOperation::ConditionalIntegerEqual {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            when_true,
+            when_false,
+        } => AssignedUnitOperation::ConditionalIntegerEqual {
+            psi_operation: *psi_operation,
+            result: *result,
+            scalar_type: *scalar_type,
+            left: scalar_call::assign_known_unit_scalar_source(
+                *left,
+                preceding_operations,
+                assigned_scalar_homes,
+            )
+            .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
+                left.source_value(),
+            ))?,
+            right: scalar_call::assign_known_unit_scalar_source(
+                *right,
+                preceding_operations,
+                assigned_scalar_homes,
+            )
+            .ok_or(AssignmentError::UnitScalarCallSourceMismatch(
+                right.source_value(),
+            ))?,
+            when_true: *when_true,
+            when_false: *when_false,
+        },
+        TargetUnitOperation::ConditionalDispatch { fallthrough_edge } => {
+            AssignedUnitOperation::ConditionalDispatch {
+                fallthrough_edge: *fallthrough_edge,
+            }
+        }
+        TargetUnitOperation::NonreturningTail { psi_edge } => {
+            AssignedUnitOperation::NonreturningTail {
+                psi_edge: *psi_edge,
+            }
+        }
         TargetUnitOperation::InstalledProviderCall {
             psi_operation,
             boundary,

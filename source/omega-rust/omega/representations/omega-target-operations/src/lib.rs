@@ -529,6 +529,17 @@ pub struct TargetUnitScalarCallArgument {
     pub placement: ValuePlacement,
 }
 
+/// One exact successor of the bounded attached-Unit equality diamond.
+/// `operation_ordinal` names the first physical operation in that arm; the
+/// nominal return edge remains semantic custody even though a preceding
+/// nonreturning boundary realization makes it physically unreachable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetUnitConditionalSuccessor {
+    pub psi_edge: EdgeId,
+    pub operation_ordinal: u32,
+    pub nominal_return_edge: EdgeId,
+}
+
 impl TargetUnitScalarCallArgument {
     pub const fn source_value(&self) -> ValueId {
         self.source.source_value()
@@ -638,6 +649,27 @@ pub enum TargetUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// One bounded equality decision after a durable Unit scalar result.
+    /// The true arm is laid out first and both arms must end in admitted
+    /// nonreturning boundary settlements. This is deliberately not a general
+    /// Unit CFG carrier.
+    ConditionalIntegerEqual {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: TargetUnitScalarArgumentSource,
+        right: TargetUnitScalarArgumentSource,
+        when_true: TargetUnitConditionalSuccessor,
+        when_false: TargetUnitConditionalSuccessor,
+    },
+    /// Zero-code ordinal marker for the source conditional operation that
+    /// consumes the preceding equality. The true edge owns the fallthrough
+    /// site; the paired false edge remains in the equality carrier.
+    ConditionalDispatch { fallthrough_edge: EdgeId },
+    /// Zero-code semantic tail after an admitted nonreturning boundary. The
+    /// edge remains independently attributable even when another conditional
+    /// arm follows physically in the same function.
+    NonreturningTail { psi_edge: EdgeId },
     /// One bodyless boundary occurrence projected through an opaque admitted
     /// installation into an exact checked Unit provider call. The original
     /// receipt evidence remains alongside its call-transfer interpretation so

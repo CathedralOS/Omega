@@ -262,6 +262,21 @@ pub enum AssignedUnitOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    ConditionalIntegerEqual {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: IntegerType,
+        left: AssignedUnitScalarArgumentSource,
+        right: AssignedUnitScalarArgumentSource,
+        when_true: omega_target_operations::TargetUnitConditionalSuccessor,
+        when_false: omega_target_operations::TargetUnitConditionalSuccessor,
+    },
+    ConditionalDispatch {
+        fallthrough_edge: EdgeId,
+    },
+    NonreturningTail {
+        psi_edge: EdgeId,
+    },
     NormalizedForeignCall {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,

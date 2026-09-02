@@ -2,6 +2,7 @@
 
 mod body;
 mod boundary_call;
+mod conditional_exit;
 mod dynamic_scalar;
 mod preflight;
 mod projected_argument;
@@ -34,23 +35,40 @@ pub(super) fn lower_unit_function(
     ieee_float_fma: &BTreeMap<OperationId, TargetX86ScalarFmaSettlement>,
     native_callbacks: &BTreeMap<OperationId, omega_target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
-    validate_unit_function_shape(function)?;
+    let bounded_conditional_exit = conditional_exit::has_bounded_shape(function);
+    if !bounded_conditional_exit {
+        validate_unit_function_shape(function)?;
+    }
     validate_unit_scalar_definitions(function)?;
 
     let prepared = prepare_unit_function(function, target, structural_types)?;
-    let lowered = lower_unit_body(
-        function,
-        target,
-        functions,
-        structural_types,
-        boundary_machines,
-        settlements,
-        installed_calls,
-        fixed_integer_scalar_abis,
-        ieee_float_fma,
-        native_callbacks,
-        &prepared.parameters,
-    )?;
+    let lowered = if bounded_conditional_exit {
+        conditional_exit::lower(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+            installed_calls,
+            native_callbacks,
+            &prepared.parameters,
+        )?
+    } else {
+        lower_unit_body(
+            function,
+            target,
+            functions,
+            structural_types,
+            boundary_machines,
+            settlements,
+            installed_calls,
+            fixed_integer_scalar_abis,
+            ieee_float_fma,
+            native_callbacks,
+            &prepared.parameters,
+        )?
+    };
 
     Ok(TargetFunction {
         machine: function.machine,
