@@ -3147,3 +3147,42 @@ This remains an experimental side artifact because complete profile-v2 source
 rejection and resource equivalence are not proved. Its source-size comparison is
 now meaningful: the compiler is smaller than the 738-line Beta evaluator without
 hiding a second opaque runtime representation inside packed constants.
+
+## D71 — Representative Delta does not yet justify a functional rung
+
+A noncanonical Gamma-written compiler tests a typed state-machine Delta slice
+before changing the normative functional Delta contract. Its 38-line customer
+uses one nominal sum, one record, one fixed array, typed machine parameters,
+results and locals, named states, constructor assignment, record and array
+access, exhaustive transition dispatch, a machine call/return, conditional
+looping, and direct Alpha emission.
+
+The compiler performs exact ASCII tokenization and name comparison, duplicate
+declaration rejection, nominal type and owner checks, machine-local variable and
+state checks, declaration-order sum exhaustiveness, two-pass native address
+assignment, and typed Alpha lowering. It is 564 Gamma lines and 22,601 source
+bytes. Gamma's self-hosted compiler produces a 19,872-byte native Delta compiler.
+Interpreted and native execution emit the same 453-byte sample tape, which runs
+to status zero.
+
+Eight malformed twins cover duplicate names, unknown types, cross-machine
+variable use, record-field type mismatch, constant array bounds, nonexhaustive
+sum transitions, cross-machine state targets, and unknown statements. The
+interpreted and native compilers agree on status 2 and exact partial-output
+prefixes for every twin.
+
+This slice does not justify inserting a permanent functional language between
+Gamma and typed state machines. The observed implementation failures came from
+implicit Gamma stack-temporary clobbering and unnamed checker state; Delta's
+typed named locals directly address that pain. Explicit states, fixed storage,
+and direct CFG lowering were not dominant costs. Approximate line spend was 64
+for named compiler state, 76 tokenizer/keywords, 49 names/numbers, 84 symbols
+and types, 88 declaration/state census, 45 statement sizing, 36 Alpha/type
+helpers, and 122 typed replay/lowering.
+
+The experiment is not the canonical Delta compiler and deliberately restricts
+global namespaces, sum representation, storage allocation, array indexes, and
+call recursion. Reopen the functional-rung comparison when a representative
+larger slice requires recursive syntax values, variable-length collections,
+nested scopes, or rich deterministic diagnostics. Those costs are absent here
+and could reverse the result.

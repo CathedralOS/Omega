@@ -1,0 +1,38 @@
+# Representative typed state-machine Delta slice.
+
+sum Mode stop go end
+record Pair left word right word end
+array Slots word 4
+
+machine decrement value word result word
+state decrement_entry
+const result 1
+sub result value result
+return result
+end
+
+machine main ignored word answer word
+local one word
+local count word
+local mode Mode
+local pair Pair
+local slots Slots
+state start
+const one 1
+const count 3
+construct mode Mode go
+field-set pair left count
+index-set slots 0 count
+switch mode Mode stop done go loop endswitch
+state loop
+field-get count pair left
+call count decrement count
+field-set pair left count
+index-set slots 0 count
+brzero count done loop
+state done
+index-get answer slots 0
+halt answer
+end
+
+entry main start
