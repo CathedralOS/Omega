@@ -476,9 +476,16 @@ fn reject_quotient_operation_requests(program: &TypedTrees, diagnostics: &mut Ve
                         remaining.join(", "),
                     )))
                 }
-                Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                    "`Quotient::{operation}` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved ({reason}); executable quotient operations are not admitted",
-                ))),
+                Err(reason) => {
+                    let implication = relation_plan::render_failed_builtin_implication(
+                        program, machine, state, call, request, reason,
+                    )
+                    .map(|context| format!("; {context}"))
+                    .unwrap_or_default();
+                    diagnostics.push(Diagnostic::error(format!(
+                        "`Quotient::{operation}` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved ({reason}){implication}; executable quotient operations are not admitted",
+                    )));
+                }
             }
         }
     }

@@ -669,6 +669,38 @@ const UNIT_AFFINE_TWENTY_THREE_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
     }
 "#;
 
+const UNIT_AFFINE_TWENTY_FOUR_CONSTRUCTION_PREFIX_SOURCE: &str = r#"
+    data Empty {}
+    data Root {}
+
+    machine Root::cleanup_prefix() {
+        let mut values: [Empty; 24];
+        values[0] = Empty {};
+        values[1] = Empty {};
+        values[2] = Empty {};
+        values[3] = Empty {};
+        values[4] = Empty {};
+        values[5] = Empty {};
+        values[6] = Empty {};
+        values[7] = Empty {};
+        values[8] = Empty {};
+        values[9] = Empty {};
+        values[10] = Empty {};
+        values[11] = Empty {};
+        values[12] = Empty {};
+        values[13] = Empty {};
+        values[14] = Empty {};
+        values[15] = Empty {};
+        values[16] = Empty {};
+        values[17] = Empty {};
+        values[18] = Empty {};
+        values[19] = Empty {};
+        values[20] = Empty {};
+        values[21] = Empty {};
+        values[22] = Empty {};
+    }
+"#;
+
 #[test]
 fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let tokens = Lexer::new(UNIT_AFFINE_LOCAL_SOURCE)
@@ -1024,6 +1056,11 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
             22_usize,
             23_u64,
         ),
+        (
+            UNIT_AFFINE_TWENTY_FOUR_CONSTRUCTION_PREFIX_SOURCE,
+            23_usize,
+            24_u64,
+        ),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -1166,6 +1203,83 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
         };
         *length = root_length + 1;
         assert!(psi_terminal_verifier::validate_module_representation(&wider_root_length).is_err());
+
+        if root_length == 24 {
+            let mut fenced_successor = lowered.semantic_module.clone();
+            let machine = &mut fenced_successor.machines[0];
+            let mut successor_place = *machine
+                .structural_places
+                .last()
+                .expect("construction-prefix place");
+            successor_place.id = psi_core::PlaceId::new(
+                machine
+                    .structural_places
+                    .iter()
+                    .map(|place| place.id.get())
+                    .max()
+                    .expect("construction-prefix place")
+                    + 1,
+            )
+            .expect("successor place");
+            let psi_core::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                construction: Some(construction),
+                ..
+            } = &mut successor_place.kind
+            else {
+                unreachable!()
+            };
+            *declaration_ordinal = 23;
+            construction.index = 23;
+
+            let block = &mut machine.blocks[0];
+            let mut successor_operation = block
+                .operations
+                .last()
+                .expect("construction-prefix establishment")
+                .clone();
+            successor_operation.id = psi_core::OperationId::new(
+                block
+                    .operations
+                    .iter()
+                    .map(|operation| operation.id.get())
+                    .max()
+                    .expect("construction-prefix operation")
+                    + 1,
+            )
+            .expect("successor operation");
+            let psi_terminal::OperationKind::EstablishTrivialAffineLocal { destination } =
+                &mut successor_operation.kind
+            else {
+                unreachable!()
+            };
+            *destination = successor_place.id;
+            block.operations.push(successor_operation);
+            let Terminator::ReturnUnit {
+                trivial_affine_discards,
+                ..
+            } = &mut block.terminator
+            else {
+                unreachable!()
+            };
+            trivial_affine_discards.insert(0, successor_place.id);
+            machine.structural_places.push(successor_place);
+
+            let psi_terminal::StructuralTypeShape::FixedArray { length, .. } =
+                &mut fenced_successor
+                    .structural_types
+                    .iter_mut()
+                    .find(|declaration| declaration.id == root)
+                    .expect("construction root declaration")
+                    .shape
+            else {
+                unreachable!()
+            };
+            *length = 25;
+            assert!(
+                psi_terminal_verifier::validate_module_representation(&fenced_successor).is_err()
+            );
+        }
 
         let proof = encode_proof_bundle(&lowered.proof_bundle).expect("construction proof encodes");
         let mut execution =
