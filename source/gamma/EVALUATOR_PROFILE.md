@@ -57,8 +57,8 @@ report, or human-readable diagnostic in the audited evaluator. Development
 tools may provide richer diagnostics without entering Gamma meaning or artifact
 authority.
 
-An authored arithmetic, bytes, value-kind, name, arity, local-binding, or
-wrong-family match trap yields status 2. Returning `Reject` also yields status
+An authored arithmetic, bytes, pair-projection, pair-equality, value-kind, name,
+or local-binding trap yields status 2. Returning `Reject` also yields status
 2. Malformed private evaluator state or a returned value outside the reserved
 outcome family yields status 4. Exhausting a fixed source, input, declaration,
 frame, value-arena, or output extent yields status 3 and makes no Gamma judgment.
@@ -93,31 +93,29 @@ unreachable suffix cannot authenticate completeness.
 
 The evaluator retains exact source bytes rather than constructing an AST,
 token array, or bound occurrence graph. A complete structural pass records only
-fixed-capacity function, constructor-family, constructor, and entry rows
-containing source `(start, length)` spans and required arities/body coordinates.
-Reserved forms dispatch directly. Global and local names resolve by source-
-order linear scan, length comparison, and exact source-byte equality. The
+fixed-capacity unary-function and entry rows containing source `(start, length)`
+spans and body coordinates. Reserved forms dispatch directly. Global and local
+names resolve by source-order linear scan, length comparison, and exact source-byte equality. The
 initial evaluator uses no hash, fingerprint, cache, interning table, or pre-
 resolved occurrence.
 
-Private table and arena identities are one-based. Declaration row zero,
-constructor-family zero, and arena handle zero mean absent or unresolved. Value
-tag zero means uninitialized or invalid. A `Bytes` value combines its explicit
-value tag with a private handle; handle zero is canonical empty `Bytes`, so it
-cannot be confused with `Int(0)`.
+Private table and arena identities are nonzero. Function row zero and arena
+handle zero mean absent or unresolved. Value tag zero means uninitialized or
+invalid. A `Bytes` value combines its explicit value tag with a private handle;
+handle zero is canonical empty `Bytes`, so it cannot be confused with `Int(0)`.
 
 The profile represents nonempty `Bytes` as immutable literal/input leaves,
 single-byte leaves, concatenation ropes, and slices/views. Concatenation does
 not copy either operand, slicing retains a logical view, and all traversal is
 iterative over the reusable evaluator stack.
 
-Persistent constructor values and byte rope/view nodes use one invocation-local
-bounded bump arena with no reclamation or garbage collector. Parameters, `let`
-bindings, pattern bindings, pending primitive work, and non-tail continuations
-use a separate reusable bounded stack. A non-tail call pushes its continuation;
-a return pops it; a tail call replaces the current function frame without
-growing the stack. These mutable regions are private evaluator mechanics and
-are not Gamma values or source mutation.
+Persistent pair values and byte rope/view nodes use one invocation-local bounded
+bump arena with no reclamation or garbage collector. A pair node carries two
+complete tagged values and is checked before projection. Parameters, `let`
+bindings, pending primitive work, and ordinary call contexts use a separate
+reusable bounded stack. Calls do not receive special tail treatment; collision
+with that fixed stack reports `Incomplete`. These mutable regions are private
+evaluator mechanics and are not Gamma values or source mutation.
 
 The trusted Beta compiler compiles `evaluator/gamma_evaluator.beta` to the
 Gamma evaluator tape. Exact Beta compiler reconstruction and byte-identical

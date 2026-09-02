@@ -203,6 +203,39 @@ assert_case unreachable-unresolved-call 0 \
 assert_case deep-bounded-recursion 0 \
     '(def loop (value) (if (= value 0) (Complete #x01) (loop (- value 1)))) (def main (input) (loop 10000)) (entry main)' \
     '' 01
+assert_case pair-first 0 \
+    '(def main (input) (Complete (pair-first (pair input 7)))) (entry main)' \
+    6162 6162
+assert_case pair-second 0 \
+    '(def main (input) (Complete (bytes-single (pair-second (pair input 65))))) (entry main)' \
+    '' 41
+assert_case nested-pair 0 \
+    '(def main (input) (Complete (pair-first (pair (pair-second (pair 0 input)) 1)))) (entry main)' \
+    63 63
+assert_case pair-through-call 0 \
+    '(def select (value) (pair-second value)) (def main (input) (Complete (select (pair 0 input)))) (entry main)' \
+    64 64
+assert_case pair-kind-trap 2 \
+    '(def main (input) (Complete (pair-first input))) (entry main)' \
+    65 ''
+assert_case pair-strict 2 \
+    '(def main (input) (Complete (pair-first (pair (/ 1 0) input)))) (entry main)' \
+    66 ''
+assert_case pair-equality-trap 2 \
+    '(def main (input) (if (= (pair 1 2) (pair 1 2)) (Complete input) Reject)) (entry main)' \
+    67 ''
+assert_case pair-cross-equality-trap 2 \
+    '(def main (input) (if (= (pair 1 2) 1) (Complete input) Reject)) (entry main)' \
+    68 ''
+assert_case uppercase-identifier 1 \
+    '(def main (input) (if 0 Uppercase (Complete input))) (entry main)' \
+    69 ''
+assert_case retired-data-form 1 \
+    '(data Maybe (None 0) (Some 1)) (def main (input) (Complete input)) (entry main)' \
+    6a ''
+assert_case retired-match-form 1 \
+    '(def main (input) (match input (_ (Complete input)))) (entry main)' \
+    6b ''
 
 printf 'BAD' > "$TMP/request"
 set +e
@@ -215,4 +248,4 @@ set -e
 }
 echo "ok - malformed-request"
 
-echo "Gamma evaluator development slice: 51/51 cases passed"
+echo "Gamma evaluator core: 62/62 cases passed"

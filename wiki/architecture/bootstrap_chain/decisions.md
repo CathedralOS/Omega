@@ -2971,3 +2971,57 @@ The migration renderer used to calculate address updates is nonauthoritative,
 ignored build scaffolding. It may propose a diff, but it is not retained source,
 a compiler stage, or a trust premise. Exact assertions, independent assembly,
 self-reconstruction, and downstream behavior validate the checked-in result.
+
+## D66 — Gamma chooses unary functions and pairs over general algebraic data
+
+The 42-case Gamma evaluator baseline was 69,958 addressed-Beta source bytes,
+2,026 lines, and 12,735 Alpha tape bytes. It implemented one unary entry
+function and the expression primitives but not declaration census, calls,
+constructors, `match`, or proper tail calls. The following isolated experiments
+were measured against that exact baseline:
+
+| Experiment | Evaluator tape | Change from prior checkpoint |
+| --- | ---: | ---: |
+| bounded unary function rows and exact entry lookup | 13,057 | +322 |
+| isolated unary calls using ordinary bounded frames | 13,838 | +781 |
+| heterogeneous pairs plus narrowed identifiers | 14,599 | +761 |
+| one shared NUL-row reserved-form table | 13,630 | -969 |
+
+The selected Gamma core therefore has exact 76,430-byte, 2,231-line Beta
+source and a 13,630-byte Alpha tape. Its functions have exactly one parameter.
+Nested immutable `Pair` values carry heterogeneous argument tuples, lists,
+tagged records, and trees. `pair-first` and `pair-second` validate private node
+shape; applying `=` to a pair is an authored trap. Gamma has no user-defined
+algebraic declarations, `match`, arbitrary function arity, or proper-tail
+implementation requirement.
+
+This decision rejects an explicit CEK-style evaluator machine for now. The
+ordinary-call candidate completed 170,000 recursive countdown calls and
+reported `Incomplete` at 180,000 through the checked 16-MiB evaluator-stack
+collision. That count is diagnostic rather than a language limit, but it shows
+the bounded implementation has ample depth for the bootstrap customer without
+adding continuation tags and a central return dispatcher. Calls isolate lexical
+environments with an explicit binding-base word; stack exhaustion never becomes
+a Gamma value or semantic rejection.
+
+The customer check is executable rather than hypothetical. The retained
+4,357-byte, 96-line Gamma program `tests/gamma/fixtures/delta0_compiler.gamma`
+compiles a compact directly programmed control-flow graph with physical state
+assertions, register immediates, moves, arithmetic, jumps, conditional
+transitions, and halt. It emits an exact 35-byte Alpha countdown tape, which is
+stamped and executed. Incorrect state assertions and unknown operations produce
+quiet authored traps. The prototype uses deliberate division-by-zero as its
+minimal fail-closed rejection carrier; it does not claim to be the canonical
+Delta language or a typed C-power systems language.
+
+Reopen unary arity or generic algebraic data only when a representative Delta
+compiler becomes materially larger or less auditable because of nested pair
+plumbing. Reopen an explicit evaluator machine or proper tail calls only when a
+named checker/compiler workload approaches bounded call storage or needs
+language-level tail-space reasoning. A follow-up experiment removed division,
+remainder, and their signed edge checks while replacing Delta0's fail-closed
+division with an existing bounds trap. It saved only 179 tape bytes. Both
+operations remain: that 1.3% implementation cost is smaller than the expected
+customer complexity of quotient loops, and decimal parsing plus alignment work
+are credible near-term uses. Reopen individual arithmetic or byte primitives
+only against complete customer source rather than feature count alone.

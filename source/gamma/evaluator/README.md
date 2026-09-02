@@ -7,12 +7,11 @@ compiler edge rather than optional reconstruction tooling.
 The current slice implements exact-ended request loading, source-envelope
 validation, bounded unary function declaration rows, exact entry selection,
 unary calls with isolated lexical environments, `if`, `let`, checked integer primitives,
-all five byte primitives, total equality over its value universe,
-`Complete`/`Reject`, immutable raw/hex/single/concat/slice nodes, linear local
+all five byte primitives, defined non-pair equality with pair traps,
+`Complete`/`Reject`, immutable pairs, immutable raw/hex/single/concat/slice nodes, linear local
 lookup, bounded arena/stack collision checks, and terminal status classes. It
-does not yet implement source-declared constructors, `match`, arbitrary function
-arity, or proper tail calls. Ordinary recursion is bounded by the fixed evaluator
-stack and reports `Incomplete` on collision.
+implements the complete narrowed Gamma expression surface. Ordinary recursion
+is bounded by the fixed evaluator stack and reports `Incomplete` on collision.
 
 | Retained file | Role | Deletion condition |
 | --- | --- | --- |
