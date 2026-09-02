@@ -855,6 +855,15 @@ fixture, corruption, and optimized-custody leaves cover all 81 native type
 pairs, four count boundaries, and five targets (1,620 direct and 1,620
 optimized cases) while direction, exact policy, plain, parameter, mixed-
 runtime, arithmetic, and bitwise siblings remain disjoint.
+Its direction-specific sibling lives under
+`straight_line_wrapping_integer_shift_right_immediate/`. The same 27-line
+entrance joins an exact two-constant grammar to independent immediate replay,
+but the sole semantic oracle is `IntegerType::wrapping_shift_right`. Its typed
+receipt, catalog adapter, direct fixture/corruption leaves, and optimized-
+custody leaf cover all 81 native type pairs, four count boundaries, and five
+targets (1,620 direct and 1,620 optimized cases), explicitly retaining signed
+sign-fill versus unsigned/address zero-fill while rejecting every left, exact,
+plain, parameter, mixed-runtime, arithmetic, and bitwise sibling.
 
 Projected structural call/return custody follows a plan taxonomy because no
 single function can validate the closure. The 54-line

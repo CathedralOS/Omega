@@ -11,6 +11,7 @@ mod saturating_integer_subtract;
 mod wrapping_integer_add;
 mod wrapping_integer_multiply;
 mod wrapping_integer_shift_left;
+mod wrapping_integer_shift_right;
 mod wrapping_integer_subtract;
 
 pub use integer_bitwise_and::StraightLineIntegerBitwiseAndImmediateTranslationReceipt;
@@ -24,6 +25,7 @@ pub use saturating_integer_subtract::StraightLineSaturatingIntegerSubtractImmedi
 pub use wrapping_integer_add::StraightLineWrappingIntegerAddImmediateTranslationReceipt;
 pub use wrapping_integer_multiply::StraightLineWrappingIntegerMultiplyImmediateTranslationReceipt;
 pub use wrapping_integer_shift_left::StraightLineWrappingIntegerShiftLeftImmediateTranslationReceipt;
+pub use wrapping_integer_shift_right::StraightLineWrappingIntegerShiftRightImmediateTranslationReceipt;
 pub use wrapping_integer_subtract::StraightLineWrappingIntegerSubtractImmediateTranslationReceipt;
 
 use psi_core::{EdgeId, IntegerType, IntegerValue, MachineId, ObligationId, OperationId, ValueId};

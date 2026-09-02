@@ -268,6 +268,15 @@ at direct and optimized custody (1,620 cases at each boundary). Shift-right,
 proof-bearing exact shifts, plain-immediate, parameter, mixed-runtime,
 arithmetic, and bitwise substitution fail closed. This validates existing
 lowering and adds no target operation or persisted wire form.
+Constant wrapping integer shift-right is a separate direction-specific
+catalog row with the same independently typed native value/count domain. Its
+source replay uses only `IntegerType::wrapping_shift_right`; target replay
+requires the exact `ReturnIntegerImmediate`, ordered provenance, and source
+identities. The 81 type pairs cross four modulo-count boundaries on all five
+targets at direct and optimized custody (1,620 cases each), including an
+effective width-minus-one case that distinguishes signed sign-fill from
+unsigned/address zero-fill. Left, proof-bearing exact, parameter, mixed-runtime,
+arithmetic, and bitwise siblings remain disjoint.
 The sibling shift rung owns distinct value/count types, values, parameter
 indices, and ABI locations rather than forcing them through arithmetic's
 same-type carrier. Both wrapping directions admit fixed or address64 carriers

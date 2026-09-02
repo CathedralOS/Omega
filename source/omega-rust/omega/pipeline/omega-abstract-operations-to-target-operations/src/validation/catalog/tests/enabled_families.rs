@@ -25,6 +25,7 @@ fn enabled_family_identities_are_unique_and_dispatch_is_typed() {
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerMultiplyImmediate,
             AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerMultiplyImmediate,
             AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftLeftImmediate,
+            AbstractToTargetTranslationFamily::StraightLineWrappingIntegerShiftRightImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerBitwiseNotImmediate,
             AbstractToTargetTranslationFamily::StraightLineIntegerExactCastImmediateOperand,
             AbstractToTargetTranslationFamily::StraightLineIntegerEqualImmediate,

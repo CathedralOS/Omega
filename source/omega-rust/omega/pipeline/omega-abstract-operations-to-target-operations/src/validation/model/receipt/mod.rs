@@ -28,6 +28,7 @@ pub use immediate::{
     StraightLineWrappingIntegerAddImmediateTranslationReceipt,
     StraightLineWrappingIntegerMultiplyImmediateTranslationReceipt,
     StraightLineWrappingIntegerShiftLeftImmediateTranslationReceipt,
+    StraightLineWrappingIntegerShiftRightImmediateTranslationReceipt,
     StraightLineWrappingIntegerSubtractImmediateTranslationReceipt,
 };
 pub use parameter::{
