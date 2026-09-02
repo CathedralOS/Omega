@@ -3,6 +3,10 @@
 This experiment asks whether Gamma can implement the expensive core of a Delta
 state-machine compiler without an intervening functional language.
 
+The latest compiler implementation is retained at
+[`../../../source/delta/compiler/experiments/state_machine/delta_compiler.gamma`](../../../source/delta/compiler/experiments/state_machine/delta_compiler.gamma).
+This test owner retains only the customer, executable gate, and measurements.
+
 It is not the normative Delta language or canonical compiler edge. The current
 functional Delta contract remains unchanged while this evidence is compared.
 

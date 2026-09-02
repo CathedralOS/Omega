@@ -11,7 +11,10 @@ small and exists to implement the Epsilon compiler.
 Gamma evaluator + delta_compiler.gamma -> delta_compiler_bytecode.tape
 ```
 
-The Gamma-written compiler source and its Alpha tape do not exist yet. The
+The canonical Gamma-written compiler source and its Alpha tape do not exist yet.
+A latest speculative state-machine implementation is retained under
+`compiler/experiments/`; it is implementation evidence, not an alternate
+language authority or selected edge. The
 former imperative Gamma compiler and the incomplete compiler previously written
 in that language were deleted rather than preserved as alternate authority.
 No old interpreter or differential oracle stands in for the direct edge.
@@ -26,3 +29,4 @@ runtime facilities.
 | Retained child | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `LANGUAGE.md` | Normative Delta source and execution contract. | Replace only with a versioned contract and synchronized compiler/customer gates. |
+| `compiler/experiments/` | Latest speculative Gamma-written Delta implementation material. | Promote into one canonical compiler or delete after a superseding experiment. |
