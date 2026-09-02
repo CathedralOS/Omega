@@ -25,12 +25,12 @@ use boundary_applications::{
     boundary_application_coverage_identity, validate_boundary_application_coverage,
 };
 pub use physical::{
-    BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeByteSpan,
-    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
-    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceParts,
-    NativePhysicalOccurrence, OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence,
-    PhysicalChildParent, PhysicalRelocationDisposition,
-    ValidatedOptimizedNativePhysicalEvidenceScope,
+    BoundaryTraitSettlement, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
+    NativeByteSpan, NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection,
+    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
+    NativePhysicalEvidenceParts, NativePhysicalOccurrence, NormalizedForeignCallRelocation,
+    OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };
 use physical::{derive_physical_evidence, derive_validated_optimization_scope};
 
@@ -426,6 +426,7 @@ impl NativeArtifact {
             &parts.object,
             &parts.image,
             &parts.selected_provider_plans,
+            &parts.provider_executions,
             parts.boundary_application_coverage.as_ref(),
         )?;
         Self::from_replayed_parts(NativeArtifactParts {
@@ -607,6 +608,7 @@ impl NativeArtifact {
             &self.object,
             &self.image,
             &self.selected_provider_plans,
+            &self.provider_executions,
             self.boundary_application_coverage.as_ref(),
         )?;
         if self.physical_evidence != expected_physical_evidence {

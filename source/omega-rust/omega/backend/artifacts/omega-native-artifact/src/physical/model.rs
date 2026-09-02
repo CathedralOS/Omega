@@ -5,7 +5,10 @@ use omega_optimization_core::{
     OptimizedOperatorOccurrenceIdentity,
 };
 use omega_target::NativeTarget;
-use omega_target_operations::BoundaryScalarArgument;
+use omega_target_operations::{
+    BoundaryExecutionBinding, BoundaryRealization, BoundaryScalarArgument,
+    NormalizedForeignCallBinding, ProviderExecutionBinding,
+};
 use psi_core::{BoundaryMachineId, MachineId, OperationId};
 use psi_terminal::TerminalPsiIdentity;
 
@@ -175,11 +178,38 @@ pub struct BoundaryTraitSettlement {
     requirement_identity: String,
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
-    catalog: NativeCompilerBuiltinCatalogIdentity,
-    execution: omega_target_operations::BoundaryExecutionBinding,
-    realization: omega_target_operations::BoundaryRealization,
-    scalar_argument: BoundaryScalarArgument,
+    role: BoundaryTraitSettlementRole,
     identity: [u8; 32],
+}
+
+/// Complete role-specific D41 custody. Installed provider authority and the
+/// consuming lowerer's builtin catalog remain disjoint and cannot substitute
+/// for one another.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BoundaryTraitSettlementRole {
+    CompilerBuiltin {
+        catalog: NativeCompilerBuiltinCatalogIdentity,
+        execution: omega_target_operations::CompilerBuiltinExecution,
+        realization: BoundaryRealization,
+        scalar_argument: BoundaryScalarArgument,
+    },
+    AdmittedProvider {
+        execution: ProviderExecutionBinding,
+        realization: NormalizedForeignCallBinding,
+    },
+}
+
+impl BoundaryTraitSettlementRole {
+    pub const fn execution(&self) -> BoundaryExecutionBinding {
+        match self {
+            Self::CompilerBuiltin { execution, .. } => {
+                BoundaryExecutionBinding::CompilerBuiltin(*execution)
+            }
+            Self::AdmittedProvider { execution, .. } => {
+                BoundaryExecutionBinding::AdmittedProvider(*execution)
+            }
+        }
+    }
 }
 
 impl BoundaryTraitSettlement {
@@ -199,20 +229,12 @@ impl BoundaryTraitSettlement {
         self.target
     }
 
-    pub const fn catalog(&self) -> NativeCompilerBuiltinCatalogIdentity {
-        self.catalog
+    pub const fn execution(&self) -> BoundaryExecutionBinding {
+        self.role.execution()
     }
 
-    pub const fn execution(&self) -> omega_target_operations::BoundaryExecutionBinding {
-        self.execution
-    }
-
-    pub const fn realization(&self) -> &omega_target_operations::BoundaryRealization {
-        &self.realization
-    }
-
-    pub const fn scalar_argument(&self) -> BoundaryScalarArgument {
-        self.scalar_argument
+    pub const fn role(&self) -> &BoundaryTraitSettlementRole {
+        &self.role
     }
 
     pub const fn identity(&self) -> &[u8; 32] {
@@ -225,10 +247,7 @@ impl BoundaryTraitSettlement {
             requirement_identity: self.requirement_identity,
             selected_plan_digest: self.selected_plan_digest,
             target: self.target,
-            catalog: self.catalog,
-            execution: self.execution,
-            realization: self.realization,
-            scalar_argument: self.scalar_argument,
+            role: self.role,
             identity: self.identity,
         }
     }
@@ -264,6 +283,62 @@ impl PhysicalChildParent {
 pub enum PhysicalRelocationDisposition {
     DirectInstructionBytes,
     ResolvedInternalCall,
+    UnresolvedNormalizedForeignCall(NormalizedForeignCallRelocation),
+}
+
+/// Exact unresolved import relocation retained by one normalized-foreign D41
+/// child. The parent owns the complete locator and boundary contract; their
+/// strong identities are repeated here to bind that semantic parent to this
+/// object symbol and final-image relocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NormalizedForeignCallRelocation {
+    locator_identity: [u8; 32],
+    boundary_plan_identity: [u8; 32],
+    object_symbol: omega_object_file::ObjectSymbolHandle,
+    origin: omega_object_file::RelocationOrigin,
+    offset: usize,
+    byte_width: usize,
+    addend: i64,
+    kind: omega_object_file::RelocationKind,
+    final_image_symbol_identity: [u8; 32],
+}
+
+impl NormalizedForeignCallRelocation {
+    pub const fn locator_identity(&self) -> &[u8; 32] {
+        &self.locator_identity
+    }
+
+    pub const fn boundary_plan_identity(&self) -> &[u8; 32] {
+        &self.boundary_plan_identity
+    }
+
+    pub const fn object_symbol(&self) -> omega_object_file::ObjectSymbolHandle {
+        self.object_symbol
+    }
+
+    pub const fn origin(&self) -> omega_object_file::RelocationOrigin {
+        self.origin
+    }
+
+    pub const fn offset(&self) -> usize {
+        self.offset
+    }
+
+    pub const fn byte_width(&self) -> usize {
+        self.byte_width
+    }
+
+    pub const fn addend(&self) -> i64 {
+        self.addend
+    }
+
+    pub const fn kind(&self) -> omega_object_file::RelocationKind {
+        self.kind
+    }
+
+    pub const fn final_image_symbol_identity(&self) -> &[u8; 32] {
+        &self.final_image_symbol_identity
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -400,10 +475,7 @@ pub struct BoundaryTraitSettlementParts {
     pub requirement_identity: String,
     pub selected_plan_digest: NativeSelectedProviderPlanDigest,
     pub target: NativeTarget,
-    pub catalog: NativeCompilerBuiltinCatalogIdentity,
-    pub execution: omega_target_operations::BoundaryExecutionBinding,
-    pub realization: omega_target_operations::BoundaryRealization,
-    pub scalar_argument: BoundaryScalarArgument,
+    pub role: BoundaryTraitSettlementRole,
     pub identity: [u8; 32],
 }
 
@@ -414,10 +486,7 @@ impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
             requirement_identity: parts.requirement_identity,
             selected_plan_digest: parts.selected_plan_digest,
             target: parts.target,
-            catalog: parts.catalog,
-            execution: parts.execution,
-            realization: parts.realization,
-            scalar_argument: parts.scalar_argument,
+            role: parts.role,
             identity: parts.identity,
         }
     }
@@ -465,6 +534,31 @@ impl From<NativePhysicalChildParts> for NativePhysicalChild {
 
 pub(super) fn native_byte_span(offset: usize, byte_count: usize) -> NativeByteSpan {
     NativeByteSpan::from_replayed_parts(offset, byte_count)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn normalized_foreign_call_relocation(
+    locator_identity: [u8; 32],
+    boundary_plan_identity: [u8; 32],
+    object_symbol: omega_object_file::ObjectSymbolHandle,
+    origin: omega_object_file::RelocationOrigin,
+    offset: usize,
+    byte_width: usize,
+    addend: i64,
+    kind: omega_object_file::RelocationKind,
+    final_image_symbol_identity: [u8; 32],
+) -> NormalizedForeignCallRelocation {
+    NormalizedForeignCallRelocation {
+        locator_identity,
+        boundary_plan_identity,
+        object_symbol,
+        origin,
+        offset,
+        byte_width,
+        addend,
+        kind,
+        final_image_symbol_identity,
+    }
 }
 
 pub(super) fn optimized_boundary_occurrence(

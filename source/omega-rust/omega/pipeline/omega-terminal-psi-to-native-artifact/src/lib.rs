@@ -18,11 +18,12 @@ pub use entry_settlement::{
 };
 pub use omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
 pub use omega_native_artifact::{
-    BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts, NativeArtifact,
-    NativeArtifactParts, NativeByteSpan, NativePhysicalChild, NativePhysicalChildParts,
-    NativePhysicalEvidence, NativePhysicalEvidenceParts, NativePhysicalEvidenceScope,
-    NativePhysicalOccurrence, NativeProviderExecution, NativeSelectedProviderPlan,
-    NativeSelectedProviderPlanDigest, PhysicalChildParent, PhysicalRelocationDisposition,
+    BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts,
+    BoundaryTraitSettlementRole, NativeArtifact, NativeArtifactParts, NativeByteSpan,
+    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
+    NativePhysicalEvidenceParts, NativePhysicalEvidenceScope, NativePhysicalOccurrence,
+    NativeProviderExecution, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
+    NormalizedForeignCallRelocation, PhysicalChildParent, PhysicalRelocationDisposition,
 };
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,

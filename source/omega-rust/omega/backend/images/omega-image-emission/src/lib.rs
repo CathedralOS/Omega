@@ -461,6 +461,7 @@ pub struct ObjectForeignCall {
     pub owner: CallSiteOwner,
     pub locator: omega_target::NormalizedForeignLocator,
     pub provider_execution: omega_machine_code::ProviderExecutionRecord,
+    pub boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
     /// Exact physical caller frontier independently reconstructed from emitted
     /// stack instructions before the opaque foreign leaf begins.
     pub caller_live_bytes: u32,
@@ -1823,6 +1824,7 @@ fn build_object_artifact_with_x86_feature_profile(
                 owner: call.owner,
                 locator: call.locator.clone(),
                 provider_execution: call.provider_execution,
+                boundary_entry_plan: call.boundary_entry_plan.clone(),
                 caller_live_bytes,
                 same_stack_contribution: call.same_stack_contribution.clone(),
                 callback_address,
@@ -2860,7 +2862,8 @@ fn validate_foreign_scalar_arguments(
     .map_err(|_| invalid())?;
     let mut ordinary_call_plan = call.call_plan.clone();
     ordinary_call_plan.callback_materializations.clear();
-    if ordinary_call_plan != expected_plan
+    if call.boundary_entry_plan.call != call.call_plan
+        || ordinary_call_plan != expected_plan
         || call.call_plan.policy
             != omega_calling_conventions::CallingPolicy::native_for_target(target)
         || call.call_plan.entry_control != omega_calling_conventions::EntryControl::CallReturn
