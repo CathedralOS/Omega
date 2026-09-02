@@ -410,6 +410,27 @@ fn validate_exact_dynamic_plan(
     if selected_rows != 1 {
         return unsupported("direct dynamic dispatch lost its exact selected conformance row");
     }
+    let selected_callables = plan
+        .realization_callables
+        .iter()
+        .filter(|callable| {
+            callable.declaring_trait == plan.declaring_trait
+                && callable.requirement == plan.requirement
+                && callable.realization_machine == plan.realization_machine
+                && callable.realization_state == plan.realization_state
+                && callable.requirement_identity == plan.requirement_identity
+                && callable.realization_identity == plan.realization_identity
+        })
+        .collect::<Vec<_>>();
+    let [selected_callable] = selected_callables.as_slice() else {
+        return unsupported("direct dynamic selected callable is absent or ambiguous");
+    };
+    if selected_callable.return_expression != plan.realization_return_expression
+        || selected_callable.structural_scalar_field_store
+            != plan.realization_structural_scalar_field_store
+    {
+        return unsupported("direct dynamic selected body drifted from checked custody");
+    }
     if forwarded.is_none()
         && (checked
             .facts
@@ -1272,9 +1293,6 @@ fn materialize_dynamic_realizations(
             let scalar_type = terminal_scalar_type(callable.result_type)?;
             let block = block_id(allocate_dense(next_block)?);
             let place = place_id(allocate_dense(next_place)?);
-            let operation = operation_id(allocate_dense(next_operation)?);
-            let operation_value = value_id(allocate_dense(next_value)?);
-            let result_value = value_id(allocate_dense(next_value)?);
             let edge = edge_id(allocate_dense(next_edge)?);
             let parameter = StructuralParameterDeclaration {
                 place,
@@ -1291,12 +1309,13 @@ fn materialize_dynamic_realizations(
                 projected_qualifications: Vec::new(),
             };
             let operations = lower_realization_operations(
+                callable.structural_scalar_field_store.as_ref(),
                 &callable.return_expression,
                 scalar_type,
                 &parameter,
                 structural_types,
-                operation,
-                operation_value,
+                next_operation,
+                next_value,
             )?;
             let returned = operations
                 .last()
@@ -1305,6 +1324,7 @@ fn materialize_dynamic_realizations(
                 .ok_or(LoweringError::Unsupported(
                     "dynamic realization did not emit one scalar result",
                 ))?;
+            let result_value = value_id(allocate_dense(next_value)?);
             Ok(TerminalMachine {
                 id: realization.machine,
                 attachment: Some(source_type),
@@ -1660,13 +1680,23 @@ fn lower_caller_store_operations(
 }
 
 fn lower_realization_operations(
+    store: Option<&psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
     expression: &CheckedScalarExpression,
     expected: psi_core::ScalarType,
     parameter: &StructuralParameterDeclaration,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
-    operation: psi_core::OperationId,
-    value: psi_core::ValueId,
+    next_operation: &mut u64,
+    next_value: &mut u64,
 ) -> Result<Vec<Operation>, LoweringError> {
+    let mut operations = lower_realization_store_operations(
+        store,
+        parameter,
+        structural_types,
+        next_operation,
+        next_value,
+    )?;
+    let operation = operation_id(allocate_dense(next_operation)?);
+    let value = value_id(allocate_dense(next_value)?);
     if let CheckedScalarExpression::Boolean(boolean) = expression
         && let CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
@@ -1699,7 +1729,7 @@ fn lower_realization_operations(
         let [field] = matching.as_slice() else {
             return unsupported("direct dynamic realization Boolean field is absent or ambiguous");
         };
-        return Ok(vec![Operation {
+        operations.push(Operation {
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value,
@@ -1709,7 +1739,8 @@ fn lower_realization_operations(
                 source: parameter.place,
                 field: field.id,
             },
-        }]);
+        });
+        return Ok(operations);
     }
 
     if let CheckedScalarExpression::StructuralParameterField {
@@ -1745,7 +1776,7 @@ fn lower_realization_operations(
         let [field] = matching.as_slice() else {
             return unsupported("direct dynamic realization integer field is absent or ambiguous");
         };
-        return Ok(vec![Operation {
+        operations.push(Operation {
             id: operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 id: value,
@@ -1755,10 +1786,96 @@ fn lower_realization_operations(
                 source: parameter.place,
                 field: field.id,
             },
-        }]);
+        });
+        return Ok(operations);
     }
 
     unsupported("direct dynamic realization must return one exact Boolean or i32 self field")
+}
+
+fn lower_realization_store_operations(
+    store: Option<&psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
+    parameter: &StructuralParameterDeclaration,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    next_operation: &mut u64,
+    next_value: &mut u64,
+) -> Result<Vec<Operation>, LoweringError> {
+    let Some(store) = store else {
+        return Ok(Vec::new());
+    };
+    if parameter.access != StructuralAccess::MutableBorrow
+        || store.statement_index != 0
+        || store.destination_parameter_position != parameter.position
+        || !store.carrier_path.is_empty()
+        || !checked_store_literal_matches(&store.value, store.primitive_type)
+    {
+        return unsupported("dynamic realization store lost exact mutable-self custody");
+    }
+    let scalar_type = terminal_scalar_type(store.primitive_type)?;
+    let declaration = structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "dynamic realization store self type is absent",
+        ))?;
+    let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return unsupported("dynamic realization store self must be a record");
+    };
+    let matching = fields
+        .iter()
+        .filter(|field| {
+            field.identity == store.field_identity
+                && !field.relevance.is_erased()
+                && field.field_type == psi_terminal::StructuralFieldType::Scalar(scalar_type)
+        })
+        .collect::<Vec<_>>();
+    let [field] = matching.as_slice() else {
+        return unsupported("dynamic realization store field is absent or ambiguous");
+    };
+    let constant = match &store.value {
+        CheckedScalarExpression::IntegerLiteral { literal }
+            if store.primitive_type == PrimitiveType::I32 =>
+        {
+            if integer_landing_scalar_type(literal)? != scalar_type {
+                return unsupported("dynamic realization store integer landing drifted");
+            }
+            OperationKind::IntegerConstant {
+                value: integer_value(literal, scalar_type)?,
+            }
+        }
+        CheckedScalarExpression::Boolean(boolean)
+            if store.primitive_type == PrimitiveType::Bool =>
+        {
+            let CheckedBooleanExpression::Constant(value) = boolean.as_ref() else {
+                return unsupported("dynamic realization store Boolean value is not constant");
+            };
+            OperationKind::BooleanConstant { value: *value }
+        }
+        _ => return unsupported("dynamic realization store value is unsupported"),
+    };
+    let constant_operation = operation_id(allocate_dense(next_operation)?);
+    let constant_value = value_id(allocate_dense(next_value)?);
+    let store_operation = operation_id(allocate_dense(next_operation)?);
+    Ok(vec![
+        Operation {
+            id: constant_operation,
+            result: OperationResult::Scalar(ValueDeclaration {
+                id: constant_value,
+                scalar_type,
+            }),
+            kind: constant,
+        },
+        Operation {
+            id: store_operation,
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: parameter.place,
+                path: Vec::new(),
+                field: field.id,
+                value: constant_value,
+            },
+        },
+    ])
 }
 
 fn empty_terminal_contract(identity: u64) -> MachineContract {

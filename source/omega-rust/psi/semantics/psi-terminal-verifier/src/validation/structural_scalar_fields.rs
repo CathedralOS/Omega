@@ -88,7 +88,7 @@ pub(super) fn structural_scalar_field_store_type(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         || !has_empty_structural_custody(machine, destination)
-        || !matches!(path, [StructuralPathSegment::Field(_)])
+        || !matches!(path, [] | [StructuralPathSegment::Field(_)])
     {
         return Err(invalid());
     }

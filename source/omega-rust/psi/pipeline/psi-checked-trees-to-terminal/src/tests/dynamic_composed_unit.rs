@@ -55,6 +55,32 @@ const DIRECT_DYNAMIC_INTEGER_STORE_SOURCE: &str = r#"
     }
 "#;
 
+const MUTATING_REALIZATION_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&mut self) -> i32;
+    }
+
+    data Item [copy] {
+        value: i32;
+    }
+
+    Primary: Item satisfies Measure {
+        machine measure(&mut self) -> i32 {
+            self.value = 23;
+            transition { _ -> self.value }
+        }
+    }
+
+    data Main [copy] {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let erased: &mut dyn Measure = &mut self.item as &mut dyn Item::Primary;
+        let result: i32 = erased.measure();
+    }
+"#;
+
 const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     boundary trait Console {
         machine exit_process(return_code: i32) reaches Console;
@@ -675,6 +701,59 @@ fn lowers_checked_integer_field_store_through_the_selected_dynamic_realization()
 
     let _artifact = produce_terminal_artifact(&checked, "Main::run")
         .expect("integer store route has canonical source-free encoding");
+}
+
+#[test]
+fn lowers_checked_mutating_dynamic_realization_before_its_scalar_return() {
+    let checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    let plan = direct_plan(&checked);
+    assert!(plan.realization_structural_scalar_field_store.is_some());
+
+    let lowered = lower_machine(&checked, "Main::run").expect("mutating realization lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("mutating realization module verifies");
+    let realization = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id != lowered.semantic_module.entry)
+        .expect("selected realization");
+    assert_eq!(
+        realization.structural_parameters[0].access,
+        psi_terminal::StructuralAccess::MutableBorrow
+    );
+    assert!(matches!(
+        realization.blocks[0].operations.as_slice(),
+        [
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerConstant { .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::StructuralScalarFieldStore { path, .. },
+                ..
+            },
+            psi_terminal::Operation {
+                kind: OperationKind::IntegerStructuralField { .. },
+                ..
+            }
+        ] if path.is_empty()
+    ));
+}
+
+#[test]
+fn rejects_mutating_realization_body_that_drifted_from_checked_custody() {
+    let mut checked = checked_source(MUTATING_REALIZATION_SOURCE);
+    direct_plan_mut(&mut checked)
+        .realization_structural_scalar_field_store
+        .as_mut()
+        .expect("checked realization field store")
+        .field_identity = "missing".into();
+
+    assert_eq!(
+        unsupported_message(&checked),
+        "direct dynamic selected body drifted from checked custody"
+    );
 }
 
 #[test]
