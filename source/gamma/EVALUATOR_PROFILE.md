@@ -79,6 +79,8 @@ code.
 
 Data-stack words and cells are raw 64-bit bit patterns. Definition rows and
 continuations contain private memory coordinates that are never Gamma values.
+`output-word` stores one raw word at `0x0D000000` in the reserved region and
+emits its eight byte-addressed contents; no Gamma operation can name that address.
 `jump` and `branch` replace the current body span directly. Ordinary calls push
 only the caller cursor and body end. All other evaluator control uses bounded
 Alpha subroutines whose maximum nesting is independent of Gamma execution.

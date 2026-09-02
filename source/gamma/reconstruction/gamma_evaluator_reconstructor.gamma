@@ -1,0 +1,213 @@
+# Assemble the canonical addressed Beta evaluator source.
+# Cells: 0 cursor; 1 token start; 2 token length; 3/4 hash index/value;
+# 5/6/7 numeric index/end/value.
+
+: cursor 0x0 cell-get ;
+: advance cursor + 0x0 cell-set ;
+: token_start 0x1 cell-get ;
+: token_length 0x2 cell-get ;
+: token_char token_start + input-get ;
+
+: next jump skip ;
+: skip cursor input-length = branch no_token skip_char ;
+: no_token 0x0 ;
+: skip_char
+  cursor input-get dup 0x21 < branch skip_whitespace skip_comma
+;
+: skip_whitespace drop 0x1 advance jump skip ;
+: skip_comma dup 0x2c = branch skip_separator skip_comment_test ;
+: skip_separator drop 0x1 advance jump skip ;
+: skip_comment_test 0x3b = branch skip_comment token_begin ;
+: skip_comment 0x1 advance jump comment_loop ;
+: comment_loop cursor input-length = branch no_token comment_char ;
+: comment_char
+  cursor input-get dup 0xa = branch comment_end comment_cr
+;
+: comment_cr dup 0xd = branch comment_end comment_advance ;
+: comment_end drop 0x1 advance jump skip ;
+: comment_advance drop 0x1 advance jump comment_loop ;
+
+: token_begin cursor 0x1 cell-set jump token_loop ;
+: token_loop cursor input-length = branch token_done token_body_char ;
+: token_body_char
+  cursor input-get dup 0x21 < branch token_delimiter token_comma
+;
+: token_comma dup 0x2c = branch token_delimiter token_semicolon ;
+: token_semicolon 0x3b = branch token_done token_advance ;
+: token_delimiter drop jump token_done ;
+: token_advance 0x1 advance jump token_loop ;
+: token_done
+  cursor token_start - 0x2 cell-set
+  0x1
+;
+
+: need_token next 0x1 assert-equal ;
+
+: nibble
+  dup 0x30 < branch bad nibble_upper_decimal
+;
+: nibble_upper_decimal
+  dup 0x3a < branch nibble_decimal nibble_lower
+;
+: nibble_decimal 0x30 - ;
+: nibble_lower
+  dup 0x61 < branch bad nibble_upper_alpha
+;
+: nibble_upper_alpha
+  dup 0x67 < branch nibble_alpha bad
+;
+: nibble_alpha 0x57 - ;
+
+: parse_loop
+  0x5 cell-get 0x6 cell-get = branch parse_done parse_digit
+;
+: parse_digit
+  0x5 cell-get token_char nibble
+  0x7 cell-get 0x10 * + 0x7 cell-set
+  0x5 cell-get 0x1 + 0x5 cell-set
+  jump parse_loop
+;
+: parse_done 0x7 cell-get ;
+
+: parse_word
+  token_length 0x3 < branch bad word_max
+;
+: word_max token_length 0x13 < branch word_prefix bad ;
+: word_prefix
+  0x0 token_char 0x30 assert-equal
+  0x1 token_char 0x78 assert-equal
+  0x2 0x5 cell-set
+  token_length 0x6 cell-set
+  0x0 0x7 cell-set
+  jump parse_loop
+;
+
+: parse_assertion
+  token_length 0x4 < branch bad assertion_max
+;
+: assertion_max token_length 0x14 < branch assertion_prefix bad ;
+: assertion_prefix
+  0x0 token_char 0x30 assert-equal
+  0x1 token_char 0x78 assert-equal
+  token_length 0x1 - token_char 0x3a assert-equal
+  0x2 0x5 cell-set
+  token_length 0x1 - 0x6 cell-set
+  0x0 0x7 cell-set
+  jump parse_loop
+;
+
+: parse_register
+  token_length 0x2 < branch bad register_max
+;
+: register_max token_length 0x4 < branch register_prefix bad ;
+: register_prefix
+  0x0 token_char 0x72 assert-equal
+  0x1 0x5 cell-set
+  token_length 0x6 cell-set
+  0x0 0x7 cell-set
+  jump parse_loop
+;
+
+: token_hash
+  0x0 0x3 cell-set
+  0x0 0x4 cell-set
+  jump hash_loop
+;
+: hash_loop
+  0x3 cell-get token_length = branch hash_done hash_byte
+;
+: hash_byte
+  0x4 cell-get 0x83 *
+  0x3 cell-get token_char + 0x4 cell-set
+  0x3 cell-get 0x1 + 0x3 cell-set
+  jump hash_loop
+;
+: hash_done 0x4 cell-get ;
+
+: emit_register need_token parse_register output-byte ;
+: emit_word need_token parse_word output-word ;
+
+: compile
+  next 0x0 = branch done classify
+;
+: done ;
+: classify
+  token_length 0x1 - token_char 0x3a = branch assertion dispatch_halt
+;
+: assertion parse_assertion output-position assert-equal jump compile ;
+
+: dispatch_halt token_hash dup 0xe092519 = branch op_halt check_imm ;
+: check_imm dup 0x1bb6e5 = branch op_imm check_mov ;
+: check_mov dup 0x1cc418 = branch op_mov check_add ;
+: check_add dup 0x1999f9 = branch op_add check_sub ;
+: check_sub dup 0x1e594c = branch op_sub check_mul ;
+: check_mul dup 0x1cc720 = branch op_mul check_div ;
+: check_div dup 0x1a65b5 = branch op_div check_mod ;
+: check_mod dup 0x1cc406 = branch op_mod check_loadb ;
+: check_loadb dup 0x776c22a58 = branch op_loadb check_storeb ;
+: check_storeb dup 0x410ffa235a5 = branch op_storeb check_load ;
+: check_load dup 0xe960052 = branch op_load check_store ;
+: check_store dup 0x7f2515c41 = branch op_store check_jmp ;
+: check_jmp dup 0x1bf9f1 = branch op_jmp check_jz ;
+: check_jz dup 0x36b8 = branch op_jz check_jnz ;
+: check_jnz dup 0x1bfa7e = branch op_jnz check_jlt ;
+: check_jlt dup 0x1bf972 = branch op_jlt check_jeq ;
+: check_jeq dup 0x1bf5da = branch op_jeq check_read ;
+: check_read dup 0xf61339a = branch op_read check_write ;
+: check_write dup 0x83842091f = branch op_write check_call ;
+: check_call dup 0xd5da10a = branch op_call check_ret ;
+: check_ret dup 0x1e0e25 = branch op_ret check_db ;
+: check_db 0x338e = branch op_db bad ;
+
+: op_halt drop 0x0 output-byte emit_register jump compile ;
+: op_imm drop 0x1 output-byte emit_register emit_word jump compile ;
+: op_mov drop 0x2 output-byte emit_register emit_register jump compile ;
+: op_add drop 0x3 output-byte emit_register emit_register jump compile ;
+: op_sub drop 0x4 output-byte emit_register emit_register jump compile ;
+: op_mul drop 0x5 output-byte emit_register emit_register jump compile ;
+: op_div drop 0x6 output-byte emit_register emit_register jump compile ;
+: op_mod drop 0x7 output-byte emit_register emit_register jump compile ;
+: op_loadb drop 0x8 output-byte emit_register emit_register jump compile ;
+: op_storeb drop 0x9 output-byte emit_register emit_register jump compile ;
+: op_load drop 0xa output-byte emit_register emit_register jump compile ;
+: op_store drop 0xb output-byte emit_register emit_register jump compile ;
+: op_jmp drop 0xc output-byte emit_word jump compile ;
+: op_jz drop 0xd output-byte emit_register emit_word jump compile ;
+: op_jnz drop 0xe output-byte emit_register emit_word jump compile ;
+: op_jlt drop 0xf output-byte emit_register emit_register emit_word jump compile ;
+: op_jeq drop 0x10 output-byte emit_register emit_register emit_word jump compile ;
+: op_read drop 0x11 output-byte emit_register jump compile ;
+: op_write drop 0x12 output-byte emit_register jump compile ;
+: op_call drop 0x13 output-byte emit_word jump compile ;
+: op_ret drop 0x14 output-byte jump compile ;
+
+: op_db jump db_skip ;
+: db_skip
+  cursor input-length = branch bad db_skip_char
+;
+: db_skip_char
+  cursor input-get dup 0x21 < branch db_skip_space db_open_test
+;
+: db_skip_space drop 0x1 advance jump db_skip ;
+: db_open_test 0x22 = branch db_open bad ;
+: db_open 0x1 advance jump db_loop ;
+: db_loop cursor input-length = branch bad db_char ;
+: db_char
+  cursor input-get dup 0x22 = branch db_close db_escape_test
+;
+: db_escape_test dup 0x5c = branch db_escape db_emit ;
+: db_emit output-byte 0x1 advance jump db_loop ;
+: db_escape
+  drop 0x1 advance
+  cursor input-length = branch bad db_escape_char
+;
+: db_escape_char
+  cursor input-get 0x30 assert-equal
+  0x0 output-byte
+  0x1 advance
+  jump db_loop
+;
+: db_close drop 0x1 advance jump compile ;
+
+: bad input-length input-get ;
+: main 0x0 0x0 cell-set jump compile ;

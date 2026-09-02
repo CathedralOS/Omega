@@ -49,6 +49,7 @@ if actual != expected:
 
 assert_case literal 0 ': main 0x2a output-byte ;' '' 2a
 assert_case word-little-endian 0 ': main 0x102030405060708 output-word ;' '' 0807060504030201
+assert_case full-word-little-endian 0 ': main 0xffffffffffffffff output-word ;' '' ffffffffffffffff
 assert_case comments 0 '# head
 : main # body
   0x41 output-byte ;' '' 41
@@ -92,4 +93,4 @@ set -e
 [ "$STATUS" -eq 1 ] && [ ! -s "$TMP/output" ]
 echo "ok - invalid-source-length"
 
-echo "Gamma evaluator: 28/28 cases passed ($(wc -l < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" | tr -d ' ') lines, $(wc -c < "$TMP/evaluator.tape" | tr -d ' ') tape bytes)"
+echo "Gamma evaluator: 29/29 cases passed ($(wc -l < "$OMEGA_PATH_GAMMA_EVALUATOR_SOURCE" | tr -d ' ') lines, $(wc -c < "$TMP/evaluator.tape" | tr -d ' ') tape bytes)"

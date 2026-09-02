@@ -41,10 +41,11 @@ Delta, and the former Delta is Epsilon.
 - [x] Gamma's concatenative compiler-machine contract is fixed at
   `source/gamma/LANGUAGE.md`; an 81-line Gamma compiler emits and runs an exact
   35-byte addressed-CFG customer tape.
-- [ ] A 739-line Beta-authored Gamma evaluator source and 28-case focused gate
+- [ ] A 738-line Beta-authored Gamma evaluator source and 29-case focused gate
   cover words, stacks, cells, sealed input, append-only output, ordinary calls,
-  and explicit tail CFG transfers. Its
-  derived Alpha tape and complete conformance suite remain absent.
+  and explicit tail CFG transfers. A 213-line Gamma reconstructor emits the
+  exact 4,289-byte evaluator tape from canonical Beta source. Tape admission and
+  the complete conformance suite remain absent.
 - [ ] Gamma derivation checker is absent.
 - [ ] Gamma-written Delta compiler source and tape are absent.
 - [ ] `source/epsilon/compiler/epsilon_compiler.delta` is incomplete; its tape is
@@ -95,8 +96,8 @@ Delta, and the former Delta is Epsilon.
   Its derived Alpha tape is bound through the admitted Beta compiler rather
   than separately admitted as opaque bytecode.
 
-  The current source is a 28-case-passing, 739-line evaluator core producing a
-  4,292-byte tape. An 81-line Gamma-written Delta0 compiler exercises cells,
+  The current source is a 29-case-passing, 738-line evaluator core producing a
+  4,289-byte tape. An 81-line Gamma-written Delta0 compiler exercises cells,
   stack effects, source traversal, exact address assertions, byte emission, and
   direct CFG execution.
 
