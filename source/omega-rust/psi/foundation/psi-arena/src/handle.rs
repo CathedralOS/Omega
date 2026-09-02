@@ -1,4 +1,5 @@
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
 pub struct Handle<T> {
@@ -67,6 +68,13 @@ impl<T> PartialEq for Handle<T> {
 
 impl<T> Eq for Handle<T> {}
 
+impl<T> Hash for Handle<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.arena_index.hash(state);
+        self.generation.hash(state);
+    }
+}
+
 impl<T> fmt::Debug for Handle<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -74,5 +82,23 @@ impl<T> fmt::Debug for Handle<T> {
             .field("arena_index", &self.arena_index)
             .field("generation", &self.generation)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::Handle;
+
+    struct NonHashItem;
+
+    #[test]
+    fn hash_uses_the_complete_untyped_handle_identity() {
+        let first = Handle::<NonHashItem>::from_parts(7, 2);
+        let same = Handle::<NonHashItem>::from_parts(7, 2);
+        let next_generation = Handle::<NonHashItem>::from_parts(7, 3);
+
+        assert_eq!(HashSet::from([first, same, next_generation]).len(), 2);
     }
 }

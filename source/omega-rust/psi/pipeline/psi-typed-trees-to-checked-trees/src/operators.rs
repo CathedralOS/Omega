@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use psi_arena::Arena;
 use psi_checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedNamedOperatorUseFact, CheckedOperatorCandidateFact,
@@ -33,7 +35,7 @@ pub(crate) fn build_operator_facts(
     let mut uses = Arena::default();
     let mut named_uses = Arena::default();
     let mut candidates = Arena::default();
-    let mut seen = Vec::new();
+    let mut seen = HashSet::new();
 
     for (_, value) in values.values.iter() {
         collect_expression_operator_use(
@@ -363,15 +365,14 @@ fn collect_expression_operator_use(
     program: &TypedTrees,
     expression: ExpressionHandle,
     origin: CheckedValueOrigin,
-    seen: &mut Vec<(ExpressionHandle, CheckedValueOrigin)>,
+    seen: &mut HashSet<(ExpressionHandle, CheckedValueOrigin)>,
     uses: &mut Arena<CheckedOperatorUseFact>,
     named_uses: &mut Arena<CheckedNamedOperatorUseFact>,
     candidates: &mut Arena<CheckedOperatorCandidateFact>,
 ) {
-    if !expression.is_valid() || seen.iter().any(|seen| *seen == (expression, origin)) {
+    if !expression.is_valid() || !seen.insert((expression, origin)) {
         return;
     }
-    seen.push((expression, origin));
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => collect_expression_operator_use(

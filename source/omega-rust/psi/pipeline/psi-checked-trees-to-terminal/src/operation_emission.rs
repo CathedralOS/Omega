@@ -1,7 +1,12 @@
 //! Terminal operation emission and proof finalization.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use super::*;
 use crate::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
+
+const PARALLEL_PROOF_THRESHOLD: usize = 16;
+const MAX_PROOF_WORKERS: usize = 8;
 
 pub(super) fn finalize_operation_proofs(
     lowered: &mut LoweredTerminalPsi,
@@ -27,27 +32,35 @@ pub(super) fn finalize_operation_proofs(
         reconstruct_operation_obligations(&lowered.semantic_module)
     }
     .map_err(LoweringError::InvalidTerminalModule)?;
-    for site in obligations {
-        // Some closure builders have already supplied source-derived evidence
-        // for contextual call/cleanup obligations. Reconstruct every site,
-        // but synthesize only obligations that remain undispatched; the final
-        // verifier still checks the retained evidence against the exact goal.
-        if lowered
-            .proof_bundle
-            .evidence
-            .iter()
-            .any(|evidence| evidence.obligation == site.obligation.id)
-        {
-            continue;
-        }
-        let owner = lowered.semantic_module.machines.iter().find_map(|machine| {
-            machine.blocks.iter().find_map(|block| {
-                block.operations.iter().find_map(|operation| {
-                    let obligation = proof_bearing_operation_obligation(&operation.kind)?;
-                    (obligation == site.obligation.id).then_some(machine)
+    let existing = lowered
+        .proof_bundle
+        .evidence
+        .iter()
+        .map(|evidence| evidence.obligation)
+        .collect::<BTreeSet<_>>();
+    // Some closure builders have already supplied source-derived evidence for
+    // contextual call/cleanup obligations. Reconstruct every site, but
+    // synthesize only obligations that remain undispatched; the final verifier
+    // still checks the retained evidence against the exact goal.
+    let pending = obligations
+        .into_iter()
+        .filter(|site| !existing.contains(&site.obligation.id))
+        .collect::<Vec<_>>();
+    let owners = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine.blocks.iter().flat_map(move |block| {
+                block.operations.iter().filter_map(move |operation| {
+                    proof_bearing_operation_obligation(&operation.kind)
+                        .map(|obligation| (obligation, machine))
                 })
             })
-        });
+        })
+        .collect::<BTreeMap<_, _>>();
+    let produce = |site: &psi_terminal_verifier::ReconstructedOperationObligation| {
+        let owner = owners.get(&site.obligation.id).copied();
         let assumptions = owner
             .map(|machine| machine.contract.requires.as_slice())
             .unwrap_or_default();
@@ -82,7 +95,7 @@ pub(super) fn finalize_operation_proofs(
             )
         };
         let proof = proof.ok_or(LoweringError::OperationProofUnavailable(site.obligation.id))?;
-        lowered.proof_bundle.evidence.push(ObligationEvidence {
+        Ok::<_, LoweringError>(ObligationEvidence {
             obligation: site.obligation.id,
             route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                 identity: EvidenceIdentity::new(site.obligation.id.get())
@@ -90,8 +103,54 @@ pub(super) fn finalize_operation_proofs(
                 proof_system_marker: ProofSystemMarker::CURRENT,
                 proof,
             }),
-        });
-    }
+        })
+    };
+    let generated = if pending.len() < PARALLEL_PROOF_THRESHOLD {
+        pending.iter().map(produce).collect::<Result<Vec<_>, _>>()?
+    } else {
+        // Certificate searches are independent and read only validated module
+        // state. Bound the pool so one large compile can use the host without
+        // turning ordinary concurrent test runs into nested fan-out.
+        let worker_count = std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1)
+            .min(MAX_PROOF_WORKERS)
+            .min(pending.len());
+        let next = AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            let produce = &produce;
+            let pending = pending.as_slice();
+            let mut workers = Vec::with_capacity(worker_count);
+            for _ in 0..worker_count {
+                let next = &next;
+                workers.push(scope.spawn(move || {
+                    let mut generated = Vec::new();
+                    loop {
+                        let index = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(site) = pending.get(index) else {
+                            break;
+                        };
+                        generated.push((index, produce(site)));
+                    }
+                    generated
+                }));
+            }
+            let mut generated = Vec::with_capacity(pending.len());
+            for worker in workers {
+                generated.extend(
+                    worker
+                        .join()
+                        .expect("operation-proof synthesis worker does not panic"),
+                );
+            }
+            generated.sort_by_key(|(index, _)| *index);
+            generated
+                .into_iter()
+                .map(|(_, evidence)| evidence)
+                .collect::<Result<Vec<_>, _>>()
+        })?
+    };
+    lowered.proof_bundle.evidence.extend(generated);
     lowered
         .proof_bundle
         .evidence

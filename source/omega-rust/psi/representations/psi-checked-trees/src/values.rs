@@ -13,7 +13,7 @@ pub struct CheckedIntegerRange {
     pub maximum: psi_numerics::bignum::BigInt,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CheckedValueOrigin {
     MachineDecrease {
         machine_symbol: SymbolHandle,
@@ -53,7 +53,7 @@ impl CheckedValueOrigin {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum CheckedValueStatementRole {
     #[default]
     Expression,
