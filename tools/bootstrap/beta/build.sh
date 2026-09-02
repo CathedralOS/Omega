@@ -29,13 +29,17 @@ materialize_beta_compiler "$BUILD_DIR/compiler" >/dev/null
 SRC=${1:-$OMEGA_REPO_ROOT/tests/beta/compiler/examples/multiply.beta}
 NAME=$(basename "$SRC" .beta)
 OUT="$BUILD_DIR/$NAME.exe"
+TAPE="$BUILD_DIR/$NAME.tape"
+TEMP_TAPE="$TAPE.tmp.$$"
+trap 'rm -f -- "$TEMP_TAPE"' EXIT HUP INT TERM
 
 # 1. .beta source -> Alpha bytecode, via the Beta compiler running on the seed
-"$BUILD_DIR/compiler" < "$SRC" > "$BUILD_DIR/$NAME.tape"
-TLEN=$(wc -c < "$BUILD_DIR/$NAME.tape")
+"$BUILD_DIR/compiler" < "$SRC" > "$TEMP_TAPE"
+mv "$TEMP_TAPE" "$TAPE"
+TLEN=$(wc -c < "$TAPE")
 [ "$TLEN" -le "$ALPHA_MAX_RAW_TAPE_SIZE" ] || { echo "FAIL: $NAME tape is $TLEN B, exceeds the AlphaBootstrapV2 raw maximum ($ALPHA_MAX_RAW_TAPE_SIZE B)" >&2; exit 1; }
 
 # 2. stamp [4-byte LE length][bytecode] into a fresh copy of the seed
-stamp_seed "$BUILD_DIR/$NAME.tape" "$SEED" "$OUT"
+stamp_seed "$TAPE" "$SEED" "$OUT"
 
 echo "built $OUT  ($(wc -c < "$OUT") bytes; $TLEN bytes of program in the seed's hole)"

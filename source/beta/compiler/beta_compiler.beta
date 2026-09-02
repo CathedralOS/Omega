@@ -1,32 +1,28 @@
-; beta_compiler.beta - the Beta compiler, written in Beta. Reads Beta text
-; on stdin, writes a bytecode tape on stdout. Two passes: pass 1 records label
-; addresses, pass 2 emits, resolving label references. This is the self-hosting
-; target: assembled to a tape, which the alpha seed then runs to reproduce that tape.
+; beta_compiler.beta - addressed Beta compiler, written in Beta.
+; Address assertions are `0x...:` and
+; every control target is a numeric word. One pass emits directly to stdout.
 ;
 ; The source language is human mnemonics: opcode names (imm/mov/add/.../ret), registers
-; written `rH` or `rHH`, `0xH...` word immediates, and label names. Hex digits are
+; written `rH` or `rHH`, `0xH...` word immediates, and numeric targets. Hex digits are
 ; lowercase. Commas are treated as whitespace.
 ; `;` starts a comment. No Rust/--num step - the direct Alpha tape reads .beta directly.
 ;
 ; r0-rb are caller-clobbered scratch. High registers preserve state across calls:
 ;   r80 source end  r81 cursor  r82 token start  r83 token length  r85 OUT
-;   r86 label-row end cursor  r87 operand-width-list pointer
+;   r87 operand-width-list pointer
 ;   r8c NUM word scratch address
-;   r91 source base  r92 source limit/label rows  r93 label-row limit
-;   r95 output maximum.
-; Label rows are 24 bytes: source pointer, length, output address.
-; Preserved pass state: r96 operand counter, r97 mode,
-;   r98 current operand width. Constants: r99 = 0 from Alpha initialization,
+;   r91 source base  r92 source limit  r95 output maximum.
+; Preserved pass state: r96 width-list cursor, r98 current operand width.
+; Constants: r99 = 0 from Alpha initialization,
 ;   r9a = 1, r9b = 8-byte Alpha word width, r9c = 9 failure status,
 ;   r9d = ASCII '0'.
-; Buffers: 0x100000..0x200000 source; 0x200000..0x380000 label rows.
+; Buffer: 0x100000..0x200000 source.
 ; Mnemonic table: 21 Alpha instructions plus db at mnemonic_table.
 
 ; ---------------- main ----------------
         imm   r8c, 0x80060
         imm   r91, 0x100000
         imm   r92, 0x200000
-        imm   r93, 0x380000
         imm   r95, 0xffffc
         imm   r9a, 0x1
         imm   r9b, 0x8
@@ -35,152 +31,134 @@
 
         ; read all of stdin into SRC
         mov   r0, r91       ; r0 = write pointer
-read_loop:
+0x53: ; read_loop:
         mov   r2, r92
-        jeq   r0, r2, read_full
+        jeq   r0, r2, 0xee                  ; -> read_full:
         read  r1
         mov   r3, r99
-        jlt   r1, r3, read_done ; byte < 0  =>  EOF
+        jlt   r1, r3, 0x10c                 ; byte < 0  =>  EOF -> read_done:
         mov   r3, r9c
-        jeq   r1, r3, read_store
+        jeq   r1, r3, 0xdc                  ; -> read_store:
         imm   r3, 0xa
-        jeq   r1, r3, read_store
+        jeq   r1, r3, 0xdc                  ; -> read_store:
         imm   r3, 0xd
-        jeq   r1, r3, read_store
+        jeq   r1, r3, 0xdc                  ; -> read_store:
         imm   r3, 0x20
-        jlt   r1, r3, source_reject
+        jlt   r1, r3, 0x107                 ; -> source_reject:
         imm   r3, 0x7f
-        jlt   r1, r3, read_store
-        jmp   source_reject
-read_store:
+        jlt   r1, r3, 0xdc                  ; -> read_store:
+        jmp   0x107                         ; -> source_reject:
+0xdc: ; read_store:
         storeb r0, r1
         mov   r3, r9a
         add   r0, r3
-        jmp   read_loop
-read_full:
+        jmp   0x53                          ; -> read_loop:
+0xee: ; read_full:
         read  r1
         mov   r3, r99
-        jlt   r1, r3, read_done
-        jmp   source_reject
-source_reject:
+        jlt   r1, r3, 0x10c                 ; -> read_done:
+        jmp   0x107                         ; -> source_reject:
+0x107: ; source_reject:
         mov   r0, r9c
         halt  r0
-read_done:
+0x10c: ; read_done:
         mov   r80, r0           ; source end pointer
-        mov   r86, r92          ; empty label-row range
-
-        ; Pass 1 counts output and builds the label table.
         mov   r81, r91          ; CUR = source start
         mov   r85, r99          ; OUT = 0
-        mov   r97, r99          ; count mode
-        call  scan_program
-
-        ; Pass 2 emits with the complete label table.
-        mov   r81, r91
-        mov   r97, r9a          ; emit mode
-        call  scan_program
+        call  0x123                         ; -> scan_program:
         mov   r0, r99
         halt  r0
 
-scan_program:
-scan_loop:
-        call  next_token
+0x123: ; scan_program:
+0x123: ; scan_loop:
+        call  0x1e4                         ; -> next_token:
         mov   r1, r99
-        jlt   r0, r1, scan_done
-        jnz   r0, scan_label
-        call  parse_op
+        jlt   r0, r1, 0x1e3                 ; -> scan_done:
+        jnz   r0, 0x1a8                     ; -> scan_address:
+        call  0x46f                         ; -> parse_op:
         imm   r1, 0x15
-        jeq   r0, r1, scan_db  ; db pseudo-opcode
-        jnz   r97, scan_emit
-
-        ; Count this instruction and consume its width list.
+        jeq   r0, r1, 0x1d1                 ; db pseudo-opcode -> scan_db:
+        write r0
         add   r85, r9a
-        jlt   r95, r85, source_reject
+        jlt   r95, r85, 0x107               ; -> source_reject:
         mov   r96, r87
-scan_count_operand:
+0x175: ; scan_operand:
         loadb r98, r96
-        jz    r98, scan_loop
+        jz    r98, 0x123                    ; -> scan_loop:
         sub   r98, r9d
         add   r85, r98
-        jlt   r95, r85, source_reject
-        call  next_token
-        jnz   r0, operand_reject
+        jlt   r95, r85, 0x107               ; -> source_reject:
+        call  0x540                         ; -> emit_operand:
         add   r96, r9a
-        jmp   scan_count_operand
+        jmp   0x175                         ; -> scan_operand:
 
-scan_emit:
-        write r0
-        mov   r96, r87
-scan_emit_operand:
-        loadb r98, r96
-        jz    r98, scan_loop
-        sub   r98, r9d
-        call  emit_operand
-        add   r96, r9a
-        jmp   scan_emit_operand
+0x1a8: ; scan_address:
+        sub   r83, r9a         ; remove ':' from the asserted word
+        call  0x353                         ; -> parse_hex_word:
+        add   r83, r9a
+        mov   r3, r8c
+        load  r0, r3
+        jeq   r0, r85, 0x123                ; -> scan_loop:
+        jmp   0x107                         ; -> source_reject:
 
-scan_label:
-        jnz   r97, scan_loop
-        call  record_label
-        jmp   scan_loop
-scan_db:
-        call  db_scan
-        jmp   scan_loop
-scan_done:
+0x1d1: ; scan_db:
+        call  0x645                         ; -> db_scan:
+        jmp   0x123                         ; -> scan_loop:
+0x1e3: ; scan_done:
         ret
 
 ; ---------------- next_token ----------------
 ; skip exact whitespace (space/HT/LF/CR), commas, and `;` comments, then read a token;
-; set TSTART/TLEN; return 0 token, 1 label definition, or -1 source end.
-next_token:
+; set TSTART/TLEN; return 0 token, 1 address assertion, or -1 source end.
+0x1e4: ; next_token:
         mov   r1, r81           ; r1 = CUR
         mov   r3, r80           ; r3 = source end
-nt_skip:
-        jlt   r1, r3, nt_have
-        jmp   nt_none
-nt_have:
+0x1ea: ; nt_skip:
+        jlt   r1, r3, 0x1fe                 ; -> nt_have:
+        jmp   0x345                         ; -> nt_none:
+0x1fe: ; nt_have:
         loadb r2, r1           ; c
         ; The validated envelope makes c < 0x21 exactly HT/LF/CR/space.
         imm   r6, 0x21
-        jlt   r2, r6, nt_adv
+        jlt   r2, r6, 0x249                 ; -> nt_adv:
         imm   r6, 0x2c
-        jeq   r2, r6, nt_adv   ; ','     =>  separator
+        jeq   r2, r6, 0x249                 ; ','     =>  separator -> nt_adv:
         imm   r6, 0x3b
-        jeq   r2, r6, nt_comment
-        jmp   nt_token
-nt_adv:
+        jeq   r2, r6, 0x258                 ; -> nt_comment:
+        jmp   0x2a8                         ; -> nt_token:
+0x249: ; nt_adv:
         mov   r6, r9a
         add   r1, r6
-        jmp   nt_skip
-nt_comment:
-        jlt   r1, r3, nt_comment_in
-        jmp   nt_none
-nt_comment_in:
+        jmp   0x1ea                         ; -> nt_skip:
+0x258: ; nt_comment:
+        jlt   r1, r3, 0x26c                 ; -> nt_comment_in:
+        jmp   0x345                         ; -> nt_none:
+0x26c: ; nt_comment_in:
         loadb r2, r1
         mov   r6, r9a
         add   r1, r6
         imm   r6, 0xa
-        jeq   r2, r6, nt_skip  ; LF ends the comment
+        jeq   r2, r6, 0x1ea                 ; LF ends the comment -> nt_skip:
         imm   r6, 0xd
-        jeq   r2, r6, nt_skip  ; CR ends the comment
-        jmp   nt_comment
-nt_token:
+        jeq   r2, r6, 0x1ea                 ; CR ends the comment -> nt_skip:
+        jmp   0x258                         ; -> nt_comment:
+0x2a8: ; nt_token:
         mov   r82, r1           ; TSTART = CUR
-nt_tloop:
-        jlt   r1, r3, nt_tin
-        jmp   nt_tend
-nt_tin:
+0x2ab: ; nt_tloop:
+        jlt   r1, r3, 0x2bf                 ; -> nt_tin:
+        jmp   0x310                         ; -> nt_tend:
+0x2bf: ; nt_tin:
         loadb r2, r1
         imm   r6, 0x21
-        jlt   r2, r6, nt_tend  ; validated whitespace ends token
+        jlt   r2, r6, 0x310                 ; validated whitespace ends token -> nt_tend:
         imm   r6, 0x2c
-        jeq   r2, r6, nt_tend  ; ',' ends token
+        jeq   r2, r6, 0x310                 ; ',' ends token -> nt_tend:
         imm   r6, 0x3b
-        jeq   r2, r6, nt_tend  ; `;` ends token
+        jeq   r2, r6, 0x310                 ; `;` ends token -> nt_tend:
         mov   r6, r9a
         add   r1, r6
-        jmp   nt_tloop
-nt_tend:
+        jmp   0x2ab                         ; -> nt_tloop:
+0x310: ; nt_tend:
         mov   r8, r82           ; TSTART
         mov   r9, r1
         sub   r9, r8           ; TLEN = CUR - TSTART
@@ -190,13 +168,13 @@ nt_tend:
         sub   r7, r9a
         loadb r8, r7
         imm   r9, 0x3a           ; ':'
-        jeq   r8, r9, nt_label
+        jeq   r8, r9, 0x341                 ; -> nt_label:
         mov   r0, r99           ; ordinary token
         ret
-nt_label:
-        mov   r0, r9a           ; label definition
+0x341: ; nt_label:
+        mov   r0, r9a           ; address assertion
         ret
-nt_none:
+0x345: ; nt_none:
         mov   r81, r1
         imm   r0, 0xffffffffffffffff
         ret
@@ -204,371 +182,249 @@ nt_none:
 ; ---------------- parse_hex_word ----------------
 ; NUM = 0x-prefixed lowercase hexadecimal value of the current token.
 ; One through sixteen digits cover the complete unsigned Alpha word domain.
-parse_hex_word:
+0x353: ; parse_hex_word:
         mov   r4, r82           ; TSTART
         mov   r5, r83           ; TLEN
         imm   r8, 0x3
-        jlt   r5, r8, operand_reject
+        jlt   r5, r8, 0x639                 ; -> operand_reject:
         imm   r8, 0x12
-        jlt   r8, r5, operand_reject
+        jlt   r8, r5, 0x639                 ; -> operand_reject:
         mov   r8, r4
         mov   ra, r9a
         add   r8, ra
         loadb r9, r8
         imm   ra, 0x78          ; 'x'
-        jeq   r9, ra, phw_digits
-        jmp   operand_reject
-phw_digits:
+        jeq   r9, ra, 0x3ad                 ; -> phw_digits:
+        jmp   0x639                         ; -> operand_reject:
+0x3ad: ; phw_digits:
         imm   r7, 0x2            ; skip '0x'
-        call  parse_hex_digits
+        call  0x3c1                         ; -> parse_hex_digits:
         ret
 
 ; r4/r5 token span and r7 first digit -> NUM.
-parse_hex_digits:
+0x3c1: ; parse_hex_digits:
         mov   r6, r99            ; accumulator
-phd_loop:
-        jlt   r7, r5, phd_byte
+0x3c4: ; phd_loop:
+        jlt   r7, r5, 0x3d6                 ; -> phd_byte:
         mov   r3, r8c
         store r3, r6
         ret
-phd_byte:
+0x3d6: ; phd_byte:
         mov   r8, r4
         add   r8, r7
         loadb r9, r8
-        call  hex_nibble
+        call  0x407                         ; -> hex_nibble:
         imm   ra, 0x10
         mul   r6, ra
         add   r6, r9
         mov   ra, r9a
         add   r7, ra
-        jmp   phd_loop
+        jmp   0x3c4                         ; -> phd_loop:
 
 ; Lowercase hexadecimal byte r9 -> nibble r9. Preserves r4-r8.
-hex_nibble:
+0x407: ; hex_nibble:
         mov   ra, r9d           ; '0'
-        jlt   r9, ra, operand_reject
+        jlt   r9, ra, 0x639                 ; -> operand_reject:
         imm   rb, 0x3a           ; ':'
-        jlt   r9, rb, hn_digit
+        jlt   r9, rb, 0x45d                 ; -> hn_digit:
         imm   ra, 0x61           ; 'a'
-        jlt   r9, ra, operand_reject
+        jlt   r9, ra, 0x639                 ; -> operand_reject:
         imm   rb, 0x67          ; 'g'
-        jlt   r9, rb, hn_lower
-        jmp   operand_reject
-hn_digit:
+        jlt   r9, rb, 0x461                 ; -> hn_lower:
+        jmp   0x639                         ; -> operand_reject:
+0x45d: ; hn_digit:
         sub   r9, ra
         ret
-hn_lower:
+0x461: ; hn_lower:
         imm   ra, 0x57           ; 'a' - 10
         sub   r9, ra
         ret
 
 ; ---------------- parse_op ----------------
-; Compare the current token directly with each padded mnemonic row.
+; Compare the current token directly with each mnemonic row.
 ; Return opcode in r0 and install its operand descriptor. Halt 8 if unknown.
-parse_op:
+0x46f: ; parse_op:
         mov   r4, r82           ; TSTART
         mov   r5, r83           ; TLEN
         mov   rb, r9b
-        jlt   rb, r5, unknown_mnemonic
+        jlt   rb, r5, 0x53b                 ; -> unknown_mnemonic:
         mov   r0, r99            ; op = 0
-        imm   r1, mnemonic_table
-po_mloop:
+        imm   r1, 0x7b8
+0x490: ; po_mloop:
         loadb rb, r1
-        jz    rb, unknown_mnemonic
+        jz    rb, 0x53b                     ; -> unknown_mnemonic:
         mov   r6, r99            ; byte index
-po_compare:
-        jlt   r6, r5, po_compare_byte
+0x4a0: ; po_compare:
+        jlt   r6, r5, 0x4c1                 ; -> po_compare_byte:
         loadb r7, r1
-        jz    r7, po_found
-        jmp   po_next
-po_compare_byte:
+        jz    r7, 0x534                     ; -> po_found:
+        jmp   0x4f0                         ; -> po_next:
+0x4c1: ; po_compare_byte:
         mov   r7, r4
         add   r7, r6
         loadb r8, r7
         loadb r9, r1
-        jeq   r8, r9, po_same
-        jmp   po_next
-po_same:
+        jeq   r8, r9, 0x4e1                 ; -> po_same:
+        jmp   0x4f0                         ; -> po_next:
+0x4e1: ; po_same:
         add   r1, r9a
         add   r6, r9a
-        jmp   po_compare
-po_next:
+        jmp   0x4a0                         ; -> po_compare:
+0x4f0: ; po_next:
         loadb r7, r1
-        jz    r7, po_skip_widths
+        jz    r7, 0x509                     ; -> po_skip_widths:
         add   r1, r9a
-        jmp   po_next
-po_skip_widths:
+        jmp   0x4f0                         ; -> po_next:
+0x509: ; po_skip_widths:
         add   r1, r9a
-po_skip_width:
+0x50c: ; po_skip_width:
         loadb r7, r1
-        jz    r7, po_next_row
+        jz    r7, 0x525                     ; -> po_next_row:
         add   r1, r9a
-        jmp   po_skip_width
-po_next_row:
+        jmp   0x50c                         ; -> po_skip_width:
+0x525: ; po_next_row:
         add   r1, r9a          ; past descriptor NUL
         add   r0, r9a
-        jmp   po_mloop
-po_found:
+        jmp   0x490                         ; -> po_mloop:
+0x534: ; po_found:
         add   r1, r9a          ; NUL-terminated ASCII width list follows name
         mov   r87, r1
         ret
 
-unknown_mnemonic:
+0x53b: ; unknown_mnemonic:
         mov   r0, r9b
         halt  r0
 
-; ---------------- validate_ident ----------------
-; Validate IDENT at source pointer r4 with length r5. Preserve r4/r5.
-validate_ident:
-        mov   r6, r9a
-        jlt   r5, r6, operand_reject
-        mov   r6, r99
-vi_loop:
-        jlt   r6, r5, vi_byte
-        ret
-vi_byte:
-        mov   r7, r4
-        add   r7, r6
-        loadb r8, r7
-        mov   r9, r99
-        jeq   r6, r9, vi_lower
-        ; Subsequent identifier bytes additionally admit decimal digits.
-        mov   r9, r9d
-        jlt   r8, r9, vi_lower
-        imm   r9, 0x3a
-        jlt   r8, r9, vi_valid
-vi_lower:
-        imm   r9, 0x5f           ; '_'
-        jeq   r8, r9, vi_valid
-        imm   r9, 0x61
-        jlt   r8, r9, operand_reject
-        imm   r9, 0x7b
-        jlt   r8, r9, vi_valid ; a-z
-        jmp   operand_reject
-vi_valid:
-        mov   r9, r9a
-        add   r6, r9
-        jmp   vi_loop
-
-; ---------------- record_label ----------------
-; Validate uniqueness, then append (TSTART, TLEN-1, OUT) to the label rows.
-record_label:
-        mov   r4, r82           ; TSTART
-        mov   r5, r83           ; TLEN including ':'
-        mov   r6, r9a
-        sub   r5, r6
-        call  validate_ident
-
-        call  lookup_label
-        jnz   r0, operand_reject
-
-        jeq   r86, r93, source_reject
-        mov   r4, r82           ; TSTART
-        mov   r5, r86
-        store r5, r4           ; source pointer
-        mov   r4, r83           ; TLEN
-        mov   r6, r9a
-        sub   r4, r6           ; drop ':'
-        mov   r6, r9b
-        add   r5, r6
-        store r5, r4           ; length
-        mov   r4, r85           ; OUT
-        add   r5, r6
-        store r5, r4           ; output address
-        add   r5, r9b
-        mov   r86, r5           ; advance by one 24-byte row
-        ret
-
-; r4/r5 name span -> r0 label row, or zero when absent.
-lookup_label:
-        mov   r2, r92
-ll_loop:
-        jlt   r2, r86, ll_in
-        mov   r0, r99
-        ret
-ll_in:
-        mov   r3, r2
-        add   r3, r9b
-        load  r6, r3           ; stored length
-        jeq   r6, r5, ll_lenok
-        jmp   ll_next
-ll_lenok:
-        load  r6, r2           ; source pointer
-        mov   r8, r99            ; j
-ll_cmp:
-        jlt   r8, r5, ll_byte
-        mov   r0, r2
-        ret
-ll_byte:
-        mov   r9, r6
-        add   r9, r8
-        loadb ra, r9          ; name byte
-        mov   r9, r4
-        add   r9, r8
-        loadb rb, r9          ; token byte
-        jeq   ra, rb, ll_same
-        jmp   ll_next
-ll_same:
-        add   r8, r9a
-        jmp   ll_cmp
-ll_next:
-        imm   r3, 0x18
-        add   r2, r3
-        jmp   ll_loop
-
-; ---------------- find_label ----------------
-; NUM = address of the label whose name equals the current token; halt 7 if none.
-find_label:
-        mov   r4, r82
-        mov   r5, r83
-        call  lookup_label
-        jz    r0, fl_none
-        imm   r3, 0x10
-        add   r0, r3
-        load  r9, r0           ; output address
-        mov   r3, r8c
-        store r3, r9           ; NUM = addr
-        ret
-fl_none:
-        jmp   operand_reject
-
 ; ---------------- emit_operand ----------------
 ; Read and validate the next operand according to EMITW: width 1 is exactly
-; REGISTER, width 8 is exactly HEXWORD or IDENT. Emit little-endian bytes.
-emit_operand:
-        call  next_token
-        jnz   r0, operand_reject
+; REGISTER, width 8 is exactly HEXWORD. Emit little-endian bytes.
+0x540: ; emit_operand:
+        call  0x1e4                         ; -> next_token:
+        jnz   r0, 0x639                     ; -> operand_reject:
         mov   r1, r98           ; width
         mov   r2, r9a
-        jeq   r1, r2, eo_register
+        jeq   r1, r2, 0x57b                 ; -> eo_register:
         mov   r2, r9b
-        jeq   r1, r2, eo_word
-        jmp   operand_reject
+        jeq   r1, r2, 0x5de                 ; -> eo_word:
+        jmp   0x639                         ; -> operand_reject:
 
-eo_register:
+0x57b: ; eo_register:
         mov   r4, r82           ; TSTART
         mov   r5, r83           ; TLEN
         imm   r6, 0x2
-        jlt   r5, r6, operand_reject
+        jlt   r5, r6, 0x639                 ; -> operand_reject:
         imm   r6, 0x3
-        jlt   r6, r5, operand_reject
+        jlt   r6, r5, 0x639                 ; -> operand_reject:
         mov   r6, r4
         loadb r6, r6
         imm   r7, 0x72          ; 'r'
-        jeq   r6, r7, er_parse
-        jmp   operand_reject
-er_parse:
+        jeq   r6, r7, 0x5cf                 ; -> er_parse:
+        jmp   0x639                         ; -> operand_reject:
+0x5cf: ; er_parse:
         mov   r7, r9a            ; skip 'r'
-        call  parse_hex_digits
+        call  0x3c1                         ; -> parse_hex_digits:
         write r6
         ret
 
-eo_word:
+0x5de: ; eo_word:
         mov   r4, r82
         mov   r5, r83
         mov   r6, r4
         loadb r6, r6
         mov   r7, r9d            ; '0'
-        jeq   r6, r7, eo_hex_word
-        jmp   eo_identifier
-eo_hex_word:
-        call  parse_hex_word
-        jmp   eo_emit
-eo_identifier:
-        call  find_label
-eo_emit:
+        jeq   r6, r7, 0x601                 ; -> eo_hex_word:
+        jmp   0x639                         ; -> operand_reject:
+0x601: ; eo_hex_word:
+        call  0x353                         ; -> parse_hex_word:
+        jmp   0x613                         ; -> eo_emit:
+0x613: ; eo_emit:
         mov   r3, r8c
         mov   r1, r8c
         add   r1, r9b          ; end of eight-byte NUM scratch
-eo_bloop:
-        jeq   r3, r1, eo_done
+0x61c: ; eo_bloop:
+        jeq   r3, r1, 0x638                 ; -> eo_done:
         loadb r0, r3
         write r0
         add   r3, r9a
-        jmp   eo_bloop
-eo_done:
+        jmp   0x61c                         ; -> eo_bloop:
+0x638: ; eo_done:
         ret
 
-operand_reject:
+0x639: ; operand_reject:
         imm   r0, 0x7
         halt  r0
 
 ; ---------------- db_scan ----------------
 ; Handle a `db "..."` data directive. Only whitespace may occur before the
 ; opening quote. Raw string bytes must be printable ASCII; escapes are exactly
-; \0, \\, and \". r97 selects:
-;   0 = pass 1, add each byte to OUT (so labels after the data get right addrs);
-;   1 = pass 2, write each byte to the tape. Leaves CUR past the closing quote.
-db_scan:
+; \0, \\, and \". Leaves CUR past the closing quote.
+0x645: ; db_scan:
         mov   r1, r81           ; r1 = CUR
         mov   r3, r80           ; r3 = source end
-ds_findq:
-        jlt   r1, r3, ds_fq_in
+0x64b: ; ds_findq:
+        jlt   r1, r3, 0x65b                 ; -> ds_fq_in:
         mov   r0, r9c
         halt  r0               ; malformed db: no opening quote
-ds_fq_in:
+0x65b: ; ds_fq_in:
         loadb r2, r1
         imm   r6, 0x22           ; '"'
-        jeq   r2, r6, ds_open
+        jeq   r2, r6, 0x6a0                 ; -> ds_open:
         imm   r6, 0x21
-        jlt   r2, r6, ds_fq_adv
-        jmp   source_reject
-ds_fq_adv:
+        jlt   r2, r6, 0x691                 ; -> ds_fq_adv:
+        jmp   0x107                         ; -> source_reject:
+0x691: ; ds_fq_adv:
         mov   r6, r9a
         add   r1, r6
-        jmp   ds_findq
-ds_open:
+        jmp   0x64b                         ; -> ds_findq:
+0x6a0: ; ds_open:
         mov   r6, r9a
         add   r1, r6           ; past the opening quote
-ds_loop:
-        jlt   r1, r3, ds_loop_in
+0x6a6: ; ds_loop:
+        jlt   r1, r3, 0x6b6                 ; -> ds_loop_in:
         mov   r0, r9c
         halt  r0               ; unterminated db string
-ds_loop_in:
+0x6b6: ; ds_loop_in:
         loadb r2, r1           ; c
         imm   r6, 0x22           ; '"'
-        jeq   r2, r6, ds_close
+        jeq   r2, r6, 0x7ae                 ; -> ds_close:
         imm   r6, 0x5c           ; '\'
-        jeq   r2, r6, ds_esc
+        jeq   r2, r6, 0x716                 ; -> ds_esc:
         imm   r6, 0x20
-        jlt   r2, r6, source_reject
+        jlt   r2, r6, 0x107                 ; -> source_reject:
         imm   r6, 0x7f
-        jlt   r2, r6, ds_emit
-        jmp   source_reject
-ds_esc:
+        jlt   r2, r6, 0x780                 ; -> ds_emit:
+        jmp   0x107                         ; -> source_reject:
+0x716: ; ds_esc:
         mov   r6, r9a
         add   r1, r6           ; skip the backslash
-        jlt   r1, r3, ds_esc_in
-        jmp   source_reject
-ds_esc_in:
+        jlt   r1, r3, 0x730                 ; -> ds_esc_in:
+        jmp   0x107                         ; -> source_reject:
+0x730: ; ds_esc_in:
         loadb r2, r1           ; escaped char
         mov   r6, r9d           ; '0'
-        jeq   r2, r6, ds_e_0
+        jeq   r2, r6, 0x774                 ; -> ds_e_0:
         imm   r6, 0x5c           ; '\\'
-        jeq   r2, r6, ds_emit
+        jeq   r2, r6, 0x780                 ; -> ds_emit:
         imm   r6, 0x22           ; '\"'
-        jeq   r2, r6, ds_emit
-        jmp   source_reject
-ds_e_0:
+        jeq   r2, r6, 0x780                 ; -> ds_emit:
+        jmp   0x107                         ; -> source_reject:
+0x774: ; ds_e_0:
         mov   r2, r99
-        jmp   ds_emit
-ds_emit:
-        jnz   r97, ds_write
+        jmp   0x780                         ; -> ds_emit:
+0x780: ; ds_emit:
         mov   r8, r85           ; OUT
         mov   r6, r95
-        jeq   r8, r6, source_reject
+        jeq   r8, r6, 0x107                 ; -> source_reject:
         mov   r6, r9a
         add   r8, r6
         mov   r85, r8           ; OUT += 1
-        jmp   ds_next
-ds_write:
         write r2
-ds_next:
+0x79c: ; ds_next:
         mov   r6, r9a
         add   r1, r6           ; past this source char
         mov   r3, r80           ; reload source end
-        jmp   ds_loop
-ds_close:
+        jmp   0x6a6                         ; -> ds_loop:
+0x7ae: ; ds_close:
         mov   r6, r9a
         add   r1, r6           ; past the closing quote
         mov   r81, r1           ; CUR = r1
@@ -576,7 +432,7 @@ ds_close:
 
 ; NUL-terminated names in opcode order. Each name is followed by a
 ; NUL-terminated list of ASCII widths: 1 register byte or 8 word bytes.
-mnemonic_table:
+0x7b8: ; mnemonic_table:
         db "halt\01\0"
         db "imm\018\0"
         db "mov\011\0"

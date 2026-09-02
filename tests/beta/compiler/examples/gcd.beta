@@ -5,19 +5,19 @@
 
         imm   r0, 0x30
         imm   r1, 0x24
-        call  gcd
+        call  0x1f                          ; -> gcd:
         halt  r0                ; exit code = 12
 
-gcd:                            ; gcd(a in r0, b in r1)
+0x1f: ; gcd: gcd(a in r0, b in r1)
         imm   r2, 0x0
-        jeq   r1, r2, gcd_done  ; b == 0  ->  return a
+        jeq   r1, r2, 0x4a                  ; b == 0  ->  return a -> gcd_done:
         ; r2 = a % b
         mov   r2, r0
         mod   r2, r1
         ; (a, b) <- (b, a % b)
         mov   r0, r1
         mov   r1, r2
-        call  gcd               ; tail call - no frame: nothing lives across it
+        call  0x1f                          ; tail call - no frame: nothing lives across it -> gcd:
         ret
-gcd_done:
+0x4a: ; gcd_done:
         ret                     ; return a (already in r0)

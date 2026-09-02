@@ -1,11 +1,11 @@
 ; echo - copy stdin to stdout until EOF. The simplest end-to-end test of the VM's
 ; byte I/O and control flow. read returns -1 at EOF.
         imm   r1, 0x0
-loop:
+0xa: ; loop:
         read  r0
-        jlt   r0, r1, done      ; r0 < 0  =>  EOF
+        jlt   r0, r1, 0x22                  ; r0 < 0  =>  EOF -> done:
         write r0
-        jmp   loop
-done:
+        jmp   0xa                           ; -> loop:
+0x22: ; done:
         imm   r0, 0x0
         halt  r0

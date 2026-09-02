@@ -2936,3 +2936,38 @@ weaken readability, or save too little. New Alpha compare-immediate opcodes
 would save about 380 Beta tape bytes and more in later Beta programs, but do not
 yet justify revising both native seeds, Alpha semantics, listings, and
 conformance. That option remains measurable rather than selected.
+
+## D65 — Beta uses asserted addresses instead of symbolic labels
+
+D65 supersedes D64's symbolic Beta syntax. The compiler remains readable Alpha
+tape assembly, but every control target is a lowercase hexadecimal word and a
+block boundary may assert its exact output offset:
+
+```text
+0x107: ; source_reject:
+  jmp 0x107                 ; -> source_reject:
+```
+
+Assertions emit no bytes and reject unless their value equals the running
+output length. Comments carry human block names; they have no semantic role.
+Every numeric jump or call in retained source repeats its target's comment name,
+so reviewers can compare the literal address, assertion, and generated tape
+without trusting a symbol resolver.
+
+This removes identifier semantics, label rows, duplicate/unresolved-label
+checking, fixups, and the count pass. The admitted compiler emits once while
+checking its source and output bounds. A late failure may leave a stdout prefix;
+invocation plumbing publishes only status-zero output and otherwise removes the
+temporary destination.
+
+The resulting 16,812-byte, 458-line source reconstructs a 2,135-byte Alpha tape,
+down from D64's 2,706-byte symbolic compiler. The addressed Gamma evaluator
+produces the same Alpha tape as its former symbolic source and passes the same
+behavior suite. Address changes are intentionally unpleasant and cascading;
+that maintenance cost is accepted for this nearly frozen trust rung because the
+source makes physical control-flow identity explicit.
+
+The migration renderer used to calculate address updates is nonauthoritative,
+ignored build scaffolding. It may propose a diff, but it is not retained source,
+a compiler stage, or a trust premise. Exact assertions, independent assembly,
+self-reconstruction, and downstream behavior validate the checked-in result.
