@@ -1,8 +1,9 @@
-# Gamma bootstrap calculus
+# Gamma compiler machine
 
-Gamma is the strict, first-order functional rung above Beta. It is an
-S-expression calculus for writing the Delta compiler and small bootstrap tools
-such as the derivation checker.
+Gamma is the bounded concatenative rung above Beta. It provides named words,
+an explicit value stack, fixed cells, sealed input, append-only output, ordinary
+calls, and tail CFG transfers for writing the Delta compiler and small bootstrap
+tools.
 
 Its evaluator is written in trusted Beta and compiled to Alpha tape by the
 admitted Beta compiler. Its obligation is the exact Gamma evaluation relation
@@ -13,11 +14,11 @@ in [`LANGUAGE.md`](LANGUAGE.md) under the implementation contract in
 audited Alpha VM + admitted Beta compiler tape
   + gamma_evaluator.beta -> gamma_evaluator_bytecode.tape
   + Gamma source + sealed input
-    -> returned Gamma value
+    -> emitted bytes
 ```
 
 The admitted evaluator artifact, complete conformance closure, and Gamma-written
-Delta compiler are currently open. The executable narrowed evaluator core lives at
+Delta compiler are currently open. The executable evaluator core lives at
 [`evaluator/gamma_evaluator.beta`](evaluator/gamma_evaluator.beta), with its
 focused gate at
 [`../../tests/gamma/evaluator-slice.sh`](../../tests/gamma/evaluator-slice.sh).

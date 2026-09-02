@@ -14,8 +14,8 @@ audited Alpha VM + admitted Beta compiler tape
 ```
 
 Alpha is unchanged. Beta is the trusted imperative tape-assembly language whose
-self-reconstructing compiler has an admitted Alpha tape. Gamma is the strict
-functional calculus formerly called Beta. Delta is the former Gamma typed
+self-reconstructing compiler has an admitted Alpha tape. Gamma is the bounded
+concatenative compiler machine above it. Delta is the former Gamma typed
 functional language, and Epsilon is the former Delta fixed-storage compiler
 host.
 

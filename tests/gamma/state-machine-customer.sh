@@ -19,8 +19,7 @@ from pathlib import Path
 source = Path(os.environ["SOURCE"]).read_bytes()
 invocation_input = os.environ["INPUT"].encode("ascii")
 sys.stdout.buffer.write(
-    b"GAMMAREQ\x01"
-    + struct.pack("<II", len(source), len(invocation_input))
+    struct.pack("<I", len(source))
     + source
     + invocation_input
 )
@@ -56,4 +55,4 @@ for BAD in S01H00 X00; do
     }
 done
 
-echo "Gamma state-machine customer: 96-line compiler emitted and ran exact 35-byte countdown CFG"
+echo "Gamma state-machine customer: 81-line compiler emitted and ran exact 35-byte countdown CFG"

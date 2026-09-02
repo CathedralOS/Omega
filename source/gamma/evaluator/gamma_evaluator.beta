@@ -1,445 +1,573 @@
-; Gamma evaluator core, written in Beta.
+; Concatenative Gamma evaluator. Request is u32 source length, source, input.
+; Source is textual ASCII. Definitions are `: name body ;` with whitespace.
+; Hex words push values. Builtins and user words operate on one checked stack.
+; `jump name` and `branch true-name false-name` are tail CFG transfers.
 ;
-; Implemented now:
-; - exact-ended GAMMAREQ v1 loading and source-envelope validation;
-; - unary function declaration rows plus one entry, selected by exact name;
-; - unary calls with isolated lexical environments and bounded recursion;
-; - complete structural validation for the retained expression surface;
-; - input and lowercase #x byte values;
-; - heterogeneous pair values and checked first/second projection;
-; - Complete, Reject, checked integer operations, and every byte primitive;
-; - immutable raw/hex/single/concat/slice byte nodes in the bounded value arena;
-; - one-pass output whose bytes are authoritative only with status zero.
-;
-; Ordinary calls use the fixed evaluator stack; collision is Incomplete rather
-; than a Gamma result. This source is not the canonical evaluator tape.
+; Persistent registers:
+; r80 source start, r81 source end, r82 cursor, r83 token start, r84 token len
+; r85 definition end, r86 current scan/word end, r87 data stack cursor
+; r88 return stack cursor, r89 request end, r8a input start, r8b input length
+; r8c output position, r90 zero, r91 one.
 
-; Global words in the declaration region.
-; 9437184 total request bytes
-; 9437192 source start
-; 9437200 source length
-; 9437208 source end
-; 9437216 input start
-; 9437224 input length
-; 9437232 cursor
-; 9437240 token start
-; 9437248 token length
-; 9437256 def name start
-; 9437264 def name length
-; 9437272 parameter start
-; 9437280 parameter length
-; 9437288 body start
-; 9437296 body end
-; 9437304 entry name start
-; 9437312 entry name length
-; 9437320 function-row end cursor
-; 9437328 have entry
-; 9437336 input Bytes handle
-; 9437344 arena cursor
-; 9437352 value tag
-; 9437360 value word zero
-; 9437368 value word one
-; 9437416 binding cursor
-; 9437464 active binding base
-; Function rows begin at 0x901000 and contain six source-span words.
-
-        imm rf, 0x2100000
+        imm r90, 0x0
+        imm r91, 0x1
         imm re, 0x100000
-0x14: ; read_request_loop:
-        imm r2, 0x900000
-        jeq re, r2, 0x59                    ; -> read_request_probe:
+0x1e: ; read_loop:
+        imm r0, 0x900000
+        jeq re, r0, 0x4f                    ; -> read_probe:
         read r1
-        imm r3, 0x0
-        jlt r1, r3, 0x79                    ; -> read_request_done:
+        jlt r1, r90, 0x65                   ; -> read_done:
         storeb re, r1
-        imm r3, 0x1
-        add re, r3
-        jmp 0x14                            ; -> read_request_loop:
-0x59: ; read_request_probe:
+        add re, r91
+        jmp 0x1e                            ; -> read_loop:
+0x4f: ; read_probe:
         read r1
-        imm r3, 0x0
-        jlt r1, r3, 0x79                    ; -> read_request_done:
-        jmp 0x34a1                          ; -> gamma_incomplete:
-0x79: ; read_request_done:
-        mov r0, re
-        imm r1, 0x100000
-        sub r0, r1
-        imm r1, 0x900000
-        store r1, r0
-        imm r1, 0x11
-        jlt r0, r1, 0x3489                  ; -> gamma_invalid:
-
+        jlt r1, r90, 0x65                   ; -> read_done:
+        jmp 0x101b                          ; -> incomplete:
+0x65: ; read_done:
+        mov r89, re
+        imm r0, 0x100004
+        jlt r89, r0, 0x1003                 ; -> invalid:
         imm r0, 0x100000
-        call 0x3e7                          ; -> validate_request_magic:
-
-        imm r0, 0x100009
-        call 0x4bb                          ; -> read_u32:
-        imm r1, 0x900010
-        store r1, r0
-        mov ra, r0
-        imm r0, 0x10000d
-        call 0x4bb                          ; -> read_u32:
-        imm r1, 0x900028
-        store r1, r0
-        mov rb, r0
-
-        mov rc, ra
-        add rc, rb
-        imm rd, 0x11
-        add rc, rd
-        imm r1, 0x900000
-        load r2, r1
-        jeq rc, r2, 0x138                   ; -> request_extent_valid:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x138: ; request_extent_valid:
-        imm r0, 0x100011
-        imm r1, 0x900008
-        store r1, r0
+        call 0x155                          ; -> read_u32:
         mov r1, r0
-        add r1, ra
-        imm r2, 0x900018
-        store r2, r1
-        imm r2, 0x900020
-        store r2, r1
+        imm r80, 0x100004
+        mov r81, r80
+        add r81, r1
+        jlt r81, r80, 0x1003                ; -> invalid:
+        jlt r89, r81, 0x1003                ; -> invalid:
+        mov r8a, r81
+        mov r8b, r89
+        sub r8b, r8a
+        call 0x1a1                          ; -> validate_source:
 
-        call 0x511                          ; -> validate_source_envelope:
+        imm r85, 0x900000
+        mov r82, r80
+        mov r86, r81
+        call 0x231                          ; -> parse_definitions:
 
-        imm r0, 0x900088
-        imm r1, 0x901000
-        store r0, r1
-        imm r0, 0x900090
-        imm r1, 0x0
-        store r0, r1
-        imm r0, 0x900008
-        load r1, r0
-        imm r0, 0x900030
-        store r0, r1
-        call 0x5c2                          ; -> parse_program:
-
-        imm r0, 0x2100000
-        jeq rf, r0, 0x1e7                   ; -> parser_stack_balanced:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x1e7: ; parser_stack_balanced:
-        imm r0, 0x2100000
-        mov rf, r0
-        imm r0, 0x9000e8
-        imm r1, 0x1100000
-        store r0, r1
-        imm r0, 0x2100000
-        ; rf already set; initialize the immutable arena.
-        imm r0, 0x2100000
-        imm r1, 0x9000a0
-        store r1, r0
-        ; Correct arena start is 0x02100000 = 34603008.
-
-        imm r0, 0x900028
-        load r1, r0
-        imm r2, 0x0
-        jeq r1, r2, 0x297                   ; -> input_is_empty:
-        imm r0, 0x1
-        mov r2, r1
-        imm r1, 0x900020
-        load r3, r1
-        mov r1, r2
-        mov r2, r3
-        imm r3, 0x0
-        call 0x239e                         ; -> allocate_node:
-        imm r1, 0x900098
-        store r1, r0
-        jmp 0x2ae                           ; -> input_ready:
-0x297: ; input_is_empty:
-        imm r0, 0x900098
-        imm r1, 0x0
-        store r0, r1
-0x2ae: ; input_ready:
-        imm r0, 0x1100000
-        imm r1, 0x900118
-        store r1, r0
-        imm r0, 0x900058
-        load r0, r0
-        imm r1, 0x900060
-        load r1, r1
-        imm r2, 0x2
-        imm r3, 0x900098
-        load r3, r3
-        imm r4, 0x0
-        call 0x3405                         ; -> push_binding:
-        imm r0, 0x900068
-        load r1, r0
-        imm r0, 0x900030
-        store r0, r1
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x900030
-        load r1, r0
-        imm r0, 0x900070
-        load r2, r0
-        jeq r1, r2, 0x35a                   ; -> body_consumed:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x35a: ; body_consumed:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x3
-        jeq r1, r2, 0x385                   ; -> outcome_ready:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x385: ; outcome_ready:
-        imm r0, 0x9000b0
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x3495                  ; -> gamma_authored_trap:
-        imm r2, 0x1
-        jeq r1, r2, 0x3c5                   ; -> emit_complete:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x3c5: ; emit_complete:
-        imm r0, 0x9000b8
-        load r0, r0
-        call 0x26b1                         ; -> emit_bytes:
-        imm r0, 0x0
-        halt r0
-
-; r0 = request base. Exact nine-byte GAMMAREQ v1 magic.
-0x3e7: ; validate_request_magic:
+        imm r0, 0x1033
+        imm r1, 0x4
+        call 0xd36                          ; -> find_word:
+        jz r0, 0x1003                       ; -> invalid:
         mov r4, r0
-        imm r5, 0x47
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x41
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x4d
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x4d
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x41
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x52
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x45
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x51
-        call 0x496                          ; -> require_memory_byte:
-        imm r5, 0x1
-        call 0x496                          ; -> require_memory_byte:
+        imm r1, 0x10
+        add r4, r1
+        load r82, r4
+        imm r1, 0x8
+        add r4, r1
+        load r86, r4
+        imm r87, 0x1100000
+        imm r88, 0xc000000
+        imm r8c, 0x0
+        jmp 0x34d                           ; -> execute_loop:
+
+; r0 points to four little-endian bytes.
+0x155: ; read_u32:
+        loadb r1, r0
+        mov r2, r0
+        add r2, r91
+        loadb r3, r2
+        imm r4, 0x100
+        mul r3, r4
+        add r1, r3
+        add r2, r91
+        loadb r3, r2
+        imm r4, 0x10000
+        mul r3, r4
+        add r1, r3
+        add r2, r91
+        loadb r3, r2
+        imm r4, 0x1000000
+        mul r3, r4
+        add r1, r3
+        mov r0, r1
         ret
 
-; r4 = pointer, r5 = expected byte. Advances r4.
-0x496: ; require_memory_byte:
-        loadb r6, r4
-        jeq r6, r5, 0x4ad                   ; -> require_memory_byte_ok:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x4ad: ; require_memory_byte_ok:
-        imm r6, 0x1
-        add r4, r6
+0x1a1: ; validate_source:
+        mov r4, r80
+0x1a4: ; validate_source_loop:
+        jlt r4, r81, 0x1b0                  ; -> validate_source_byte:
         ret
-
-; r0 = pointer, returns little-endian u32 in r0.
-0x4bb: ; read_u32:
-        mov r4, r0
+0x1b0: ; validate_source_byte:
         loadb r5, r4
-        imm r6, 0x1
+        imm r6, 0x9
+        jeq r5, r6, 0x225                   ; -> validate_source_next:
+        imm r6, 0xa
+        jeq r5, r6, 0x225                   ; -> validate_source_next:
+        imm r6, 0xd
+        jeq r5, r6, 0x225                   ; -> validate_source_next:
+        imm r6, 0x20
+        jlt r5, r6, 0x1003                  ; -> invalid:
+        imm r6, 0x7f
+        jlt r5, r6, 0x225                   ; -> validate_source_next:
+        jmp 0x1003                          ; -> invalid:
+0x225: ; validate_source_next:
+        add r4, r91
+        jmp 0x1a4                           ; -> validate_source_loop:
+
+; Collect exact 32-byte rows: name start/len, body start/end.
+0x231: ; parse_definitions:
+0x231: ; parse_definition_loop:
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x34c                  ; -> parse_definitions_done:
+        imm r0, 0x1037
+        imm r1, 0x1
+        call 0xd9e                          ; -> token_equals:
+        jz r0, 0x1003                       ; -> invalid:
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x1003                 ; -> invalid:
+        call 0xc44                          ; -> require_name:
+        mov r8d, r83
+        mov r8e, r84
+        mov r0, r8d
+        mov r1, r8e
+        call 0xd36                          ; -> find_word:
+        jnz r0, 0x1003                      ; -> invalid:
+        call 0xf3c                          ; -> parse_builtin:
+        jnz r0, 0x1003                      ; -> invalid:
+        mov rb, r82
+0x2be: ; parse_definition_body:
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x1003                 ; -> invalid:
+        imm r0, 0x1038
+        imm r1, 0x1
+        call 0xd9e                          ; -> token_equals:
+        jz r0, 0x2be                        ; -> parse_definition_body:
+        mov rc, r83
+        mov r4, r85
+        imm r5, 0x20
+        add r5, r4
+        imm r6, 0x1100000
+        jlt r6, r5, 0x101b                  ; -> incomplete:
+        store r4, r8d
+        imm r6, 0x8
         add r4, r6
-        loadb r7, r4
-        imm r8, 0x100
-        mul r7, r8
-        add r5, r7
+        store r4, r8e
         add r4, r6
-        loadb r7, r4
-        imm r8, 0x10000
-        mul r7, r8
-        add r5, r7
+        store r4, rb
         add r4, r6
-        loadb r7, r4
-        imm r8, 0x1000000
-        mul r7, r8
-        add r5, r7
-        mov r0, r5
+        store r4, rc
+        mov r85, r5
+        jmp 0x231                           ; -> parse_definition_loop:
+0x34c: ; parse_definitions_done:
         ret
 
-0x511: ; validate_source_envelope:
-        imm r0, 0x900008
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-0x52b: ; source_envelope_loop:
-        jlt r4, r5, 0x537                   ; -> source_envelope_byte:
-        ret
-0x537: ; source_envelope_byte:
-        loadb r6, r4
-        imm r7, 0x9
-        jeq r6, r7, 0x5ac                   ; -> source_envelope_next:
-        imm r7, 0xa
-        jeq r6, r7, 0x5ac                   ; -> source_envelope_next:
-        imm r7, 0xd
-        jeq r6, r7, 0x5ac                   ; -> source_envelope_next:
-        imm r7, 0x20
-        jlt r6, r7, 0x3489                  ; -> gamma_invalid:
-        imm r7, 0x7f
-        jlt r6, r7, 0x5ac                   ; -> source_envelope_next:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x5ac: ; source_envelope_next:
-        imm r7, 0x1
-        add r4, r7
-        jmp 0x52b                           ; -> source_envelope_loop:
-
-0x5c2: ; parse_program:
-0x5c2: ; parse_program_loop:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-        jlt r4, r5, 0x5f9                   ; -> parse_program_form:
-        jmp 0x8da                           ; -> parse_program_done:
-0x5f9: ; parse_program_form:
-        call 0x2d5e                         ; -> consume_open:
-        call 0x2f70                         ; -> next_token:
-        imm r0, 0x34b9
+0x34d: ; execute_loop:
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x58c                  ; -> execute_return:
+        call 0xf3c                          ; -> parse_builtin:
+        jz r0, 0x536                        ; -> execute_literal_or_call:
+        imm r1, 0x1
+        jeq r0, r1, 0x62c                   ; -> op_input_length:
+        imm r1, 0x2
+        jeq r0, r1, 0x641                   ; -> op_input_get:
         imm r1, 0x3
-        call 0x319d                         ; -> token_equals:
-        imm r1, 0x1
-        jeq r0, r1, 0x678                   ; -> parse_def:
-        imm r0, 0x34bc
+        jeq r0, r1, 0x681                   ; -> op_output_byte:
+        imm r1, 0x4
+        jeq r0, r1, 0x6d6                   ; -> op_output_word:
         imm r1, 0x5
-        call 0x319d                         ; -> token_equals:
-        imm r1, 0x1
-        jeq r0, r1, 0x840                   ; -> parse_entry:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x678: ; parse_def:
-        imm r0, 0x900088
-        load r1, r0
-        mov r2, r1
-        imm r3, 0x30
-        add r2, r3
-        imm r3, 0x1100000
-        jlt r2, r3, 0x6b3                   ; -> parse_def_new:
-        jmp 0x34a1                          ; -> gamma_incomplete:
-0x6b3: ; parse_def_new:
-        call 0x2f70                         ; -> next_token:
-        call 0x2c09                         ; -> require_lower_name:
-        imm r1, 0x900040
-        load r1, r1
-        imm r0, 0x900038
-        load r0, r0
-        call 0x9ad                          ; -> find_function:
-        imm r1, 0x0
-        jeq r0, r1, 0x706                   ; -> parse_def_unique:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x706: ; parse_def_unique:
-        imm r0, 0x900088
-        load r4, r0
-        imm r0, 0x900038
-        load r1, r0
-        store r4, r1
-        imm r2, 0x8
-        add r4, r2
-        imm r0, 0x900040
-        load r1, r0
-        store r4, r1
-        call 0x2d5e                         ; -> consume_open:
-        call 0x2f70                         ; -> next_token:
-        call 0x2c09                         ; -> require_lower_name:
-        imm r0, 0x900088
-        load r4, r0
-        imm r2, 0x10
-        add r4, r2
-        imm r0, 0x900038
-        load r1, r0
-        store r4, r1
-        imm r2, 0x8
-        add r4, r2
-        imm r0, 0x900040
-        load r1, r0
-        store r4, r1
-        call 0x2dd1                         ; -> consume_close:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900088
-        load r4, r0
-        imm r2, 0x20
-        add r4, r2
-        imm r0, 0x900030
-        load r1, r0
-        store r4, r1
-        call 0xa34                          ; -> validate_expression:
-        imm r0, 0x900088
-        load r4, r0
-        imm r2, 0x28
-        add r4, r2
-        imm r0, 0x900030
-        load r1, r0
-        store r4, r1
-        call 0x2dd1                         ; -> consume_close:
-        imm r0, 0x900088
-        load r1, r0
-        imm r2, 0x30
-        add r1, r2
-        store r0, r1
-        jmp 0x5c2                           ; -> parse_program_loop:
-0x840: ; parse_entry:
-        imm r0, 0x900090
-        load r1, r0
-        imm r2, 0x0
-        jeq r1, r2, 0x86b                   ; -> parse_entry_new:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x86b: ; parse_entry_new:
-        call 0x2f70                         ; -> next_token:
-        call 0x2c09                         ; -> require_lower_name:
-        imm r0, 0x900038
-        load r1, r0
-        imm r0, 0x900078
-        store r0, r1
-        imm r0, 0x900040
-        load r1, r0
-        imm r0, 0x900080
-        store r0, r1
-        call 0x2dd1                         ; -> consume_close:
-        imm r0, 0x900090
-        imm r1, 0x1
-        store r0, r1
-        jmp 0x5c2                           ; -> parse_program_loop:
-0x8da: ; parse_program_done:
-        imm r0, 0x900088
-        load r1, r0
-        imm r2, 0x901000
-        jlt r2, r1, 0x905                   ; -> parse_have_def:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x905: ; parse_have_def:
-        imm r0, 0x900090
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x930                   ; -> parse_have_entry:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x930: ; parse_have_entry:
-        imm r0, 0x900078
-        load r0, r0
-        imm r1, 0x900080
-        load r1, r1
-        call 0x9ad                          ; -> find_function:
-        imm r1, 0x1
-        jlt r0, r1, 0x3489                  ; -> gamma_invalid:
+        jeq r0, r1, 0x735                   ; -> op_output_position:
+        imm r1, 0x6
+        jeq r0, r1, 0x74a                   ; -> op_assert_equal:
+        imm r1, 0x7
+        jeq r0, r1, 0x773                   ; -> op_cell_get:
+        imm r1, 0x8
+        jeq r0, r1, 0x791                   ; -> op_cell_set:
+        imm r1, 0x9
+        jeq r0, r1, 0x7b2                   ; -> op_dup:
+        imm r1, 0xa
+        jeq r0, r1, 0x7dc                   ; -> op_swap:
+        imm r1, 0xb
+        jeq r0, r1, 0x815                   ; -> op_over:
+        imm r1, 0xc
+        jeq r0, r1, 0x857                   ; -> op_drop:
+        imm r1, 0xd
+        jeq r0, r1, 0x869                   ; -> op_add:
+        imm r1, 0xe
+        jeq r0, r1, 0x88a                   ; -> op_sub:
+        imm r1, 0xf
+        jeq r0, r1, 0x8ab                   ; -> op_mul:
+        imm r1, 0x10
+        jeq r0, r1, 0x8cc                   ; -> op_div:
+        imm r1, 0x11
+        jeq r0, r1, 0x8f6                   ; -> op_mod:
+        imm r1, 0x12
+        jeq r0, r1, 0x920                   ; -> op_less:
+        imm r1, 0x13
+        jeq r0, r1, 0x949                   ; -> op_equal:
+        imm r1, 0x14
+        jeq r0, r1, 0x987                   ; -> op_jump:
+        imm r1, 0x15
+        jeq r0, r1, 0x9c6                   ; -> op_branch:
+        jmp 0x1027                          ; -> internal:
+
+0x536: ; execute_literal_or_call:
+        mov r0, r83
+        mov r1, r84
+        call 0xdf9                          ; -> parse_hex:
+        jnz r1, 0x57a                       ; -> execute_push_literal:
+        mov r0, r83
+        mov r1, r84
+        call 0xd36                          ; -> find_word:
+        jz r0, 0x100f                       ; -> authored_trap:
+        call 0x5cd                          ; -> enter_word:
+        jmp 0x34d                           ; -> execute_loop:
+0x57a: ; execute_push_literal:
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+
+0x58c: ; execute_return:
+        imm r0, 0xc000000
+        jeq r88, r0, 0xff7                  ; -> complete:
+        imm r0, 0x10
+        sub r88, r0
+        load r82, r88
+        mov r4, r88
+        imm r0, 0x8
+        add r4, r0
+        load r86, r4
+        jmp 0x34d                           ; -> execute_loop:
+
+; r0 definition row. Save continuation and enter body.
+0x5cd: ; enter_word:
+        mov r4, r88
+        imm r5, 0x10
+        add r5, r4
+        imm r6, 0xd000000
+        jlt r6, r5, 0x101b                  ; -> incomplete:
+        store r4, r82
+        imm r6, 0x8
+        add r4, r6
+        store r4, r86
+        mov r88, r5
+0x608: ; enter_word_tail:
         mov r4, r0
-        imm r5, 0x900048
-        imm r6, 0x6
-        imm r7, 0x1
-0x989: ; parse_select_entry_loop:
-        load r1, r4
-        store r5, r1
-        imm r2, 0x8
-        add r4, r2
-        add r5, r2
-        sub r6, r7
-        jnz r6, 0x989                       ; -> parse_select_entry_loop:
-0x9ac: ; parse_program_ok:
+        imm r5, 0x10
+        add r4, r5
+        load r82, r4
+        imm r5, 0x8
+        add r4, r5
+        load r86, r4
         ret
 
-; r0/r1 function-name span. Returns its 48-byte row or zero.
-0x9ad: ; find_function:
+0x62c: ; op_input_length:
+        mov r0, r8b
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x641: ; op_input_get:
+        call 0xb13                          ; -> pop:
+        jlt r0, r90, 0x100f                 ; -> authored_trap:
+        jlt r0, r8b, 0x669                  ; -> op_input_get_ok:
+        jmp 0x100f                          ; -> authored_trap:
+0x669: ; op_input_get_ok:
+        add r0, r8a
+        loadb r0, r0
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x681: ; op_output_byte:
+        call 0xb13                          ; -> pop:
+        jlt r0, r90, 0x100f                 ; -> authored_trap:
+        imm r1, 0x100
+        jlt r0, r1, 0x6b3                   ; -> op_output_byte_ok:
+        jmp 0x100f                          ; -> authored_trap:
+0x6b3: ; op_output_byte_ok:
+        imm r1, 0xffffc
+        jeq r8c, r1, 0x101b                 ; -> incomplete:
+        write r0
+        add r8c, r91
+        jmp 0x34d                           ; -> execute_loop:
+0x6d6: ; op_output_word:
+        call 0xb13                          ; -> pop:
+        mov r4, r0
+        mov r5, r8c
+        imm r6, 0x8
+        add r5, r6
+        imm r7, 0xffffc
+        jlt r7, r5, 0x101b                  ; -> incomplete:
+0x707: ; op_output_word_loop:
+        imm r7, 0x100
+        mov r0, r4
+        mod r0, r7
+        write r0
+        div r4, r7
+        add r8c, r91
+        sub r6, r91
+        jnz r6, 0x707                       ; -> op_output_word_loop:
+        jmp 0x34d                           ; -> execute_loop:
+0x735: ; op_output_position:
+        mov r0, r8c
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x74a: ; op_assert_equal:
+        call 0xb13                          ; -> pop:
+        mov r4, r0
+        call 0xb13                          ; -> pop:
+        jeq r0, r4, 0x34d                   ; -> execute_loop:
+        jmp 0x100f                          ; -> authored_trap:
+0x773: ; op_cell_get:
+        call 0xaa0                          ; -> checked_cell_address:
+        load r0, r0
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x791: ; op_cell_set:
+        call 0xaa0                          ; -> checked_cell_address:
+        mov r4, r0
+        call 0xb13                          ; -> pop:
+        store r4, r0
+        jmp 0x34d                           ; -> execute_loop:
+0x7b2: ; op_dup:
+        call 0xb13                          ; -> pop:
+        mov r4, r0
+        call 0xaed                          ; -> push:
+        mov r0, r4
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x7dc: ; op_swap:
+        call 0xb13                          ; -> pop:
+        mov r4, r0
+        call 0xb13                          ; -> pop:
+        mov r5, r0
+        mov r0, r4
+        call 0xaed                          ; -> push:
+        mov r0, r5
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x815: ; op_over:
+        call 0xb13                          ; -> pop:
+        mov r4, r0
+        call 0xb13                          ; -> pop:
+        mov r5, r0
+        call 0xaed                          ; -> push:
+        mov r0, r4
+        call 0xaed                          ; -> push:
+        mov r0, r5
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x857: ; op_drop:
+        call 0xb13                          ; -> pop:
+        jmp 0x34d                           ; -> execute_loop:
+0x869: ; op_add:
+        call 0xa51                          ; -> binary:
+        add r8, r9
+        mov r0, r8
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x88a: ; op_sub:
+        call 0xa51                          ; -> binary:
+        sub r8, r9
+        mov r0, r8
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x8ab: ; op_mul:
+        call 0xa51                          ; -> binary:
+        mul r8, r9
+        mov r0, r8
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x8cc: ; op_div:
+        call 0xa51                          ; -> binary:
+        call 0xa6a                          ; -> reject_invalid_division:
+        div r8, r9
+        mov r0, r8
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x8f6: ; op_mod:
+        call 0xa51                          ; -> binary:
+        call 0xa6a                          ; -> reject_invalid_division:
+        mod r8, r9
+        mov r0, r8
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x920: ; op_less:
+        call 0xa51                          ; -> binary:
+        jlt r8, r9, 0x972                   ; -> op_true:
+        mov r0, r90
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x949: ; op_equal:
+        call 0xa51                          ; -> binary:
+        jeq r8, r9, 0x972                   ; -> op_true:
+        mov r0, r90
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+0x972: ; op_true:
+        mov r0, r91
+        call 0xaed                          ; -> push:
+        jmp 0x34d                           ; -> execute_loop:
+
+0x987: ; op_jump:
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x1003                 ; -> invalid:
+        mov r0, r83
+        mov r1, r84
+        call 0xd36                          ; -> find_word:
+        jz r0, 0x100f                       ; -> authored_trap:
+        call 0x608                          ; -> enter_word_tail:
+        jmp 0x34d                           ; -> execute_loop:
+0x9c6: ; op_branch:
+        call 0xb13                          ; -> pop:
+        mov rd, r0
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x1003                 ; -> invalid:
+        mov r0, r83
+        mov r1, r84
+        call 0xd36                          ; -> find_word:
+        jz r0, 0x100f                       ; -> authored_trap:
+        mov r8d, r0
+        call 0xb39                          ; -> next_token:
+        jlt r0, r90, 0x1003                 ; -> invalid:
+        jnz rd, 0xa3c                       ; -> op_branch_selected:
+        mov r0, r83
+        mov r1, r84
+        call 0xd36                          ; -> find_word:
+        jz r0, 0x100f                       ; -> authored_trap:
+        mov r8d, r0
+0xa3c: ; op_branch_selected:
+        mov r0, r8d
+        call 0x608                          ; -> enter_word_tail:
+        jmp 0x34d                           ; -> execute_loop:
+
+0xa51: ; binary:
+        call 0xb13                          ; -> pop:
+        mov r9, r0
+        call 0xb13                          ; -> pop:
+        mov r8, r0
+        ret
+
+0xa6a: ; reject_invalid_division:
+        jz r9, 0x100f                       ; -> authored_trap:
+        imm r0, 0x8000000000000000
+        jeq r8, r0, 0xa8a                   ; -> reject_division_min:
+        ret
+0xa8a: ; reject_division_min:
+        imm r0, 0xffffffffffffffff
+        jeq r9, r0, 0x100f                  ; -> authored_trap:
+        ret
+
+0xaa0: ; checked_cell_address:
+        call 0xb13                          ; -> pop:
+        jlt r0, r90, 0x100f                 ; -> authored_trap:
+        imm r1, 0x13e0000
+        jlt r0, r1, 0xad2                   ; -> checked_cell_index:
+        jmp 0x100f                          ; -> authored_trap:
+0xad2: ; checked_cell_index:
+        imm r1, 0x8
+        mul r0, r1
+        imm r1, 0x2100000
+        add r0, r1
+        ret
+
+0xaed: ; push:
+        imm r1, 0x2100000
+        jeq r87, r1, 0x101b                 ; -> incomplete:
+        store r87, r0
+        imm r1, 0x8
+        add r87, r1
+        ret
+0xb13: ; pop:
+        imm r1, 0x1100000
+        jeq r87, r1, 0x100f                 ; -> authored_trap:
+        imm r1, 0x8
+        sub r87, r1
+        load r0, r87
+        ret
+
+; Tokenizer bounded by r86. Whitespace and `#` line comments are skipped.
+0xb39: ; next_token:
+        mov r4, r82
+0xb3c: ; next_token_skip:
+        jlt r4, r86, 0xb55                  ; -> next_token_have:
+        mov r82, r4
+        imm r0, 0xffffffffffffffff
+        ret
+0xb55: ; next_token_have:
+        loadb r5, r4
+        imm r6, 0x21
+        jlt r5, r6, 0xb8b                   ; -> next_token_advance:
+        imm r6, 0x23
+        jeq r5, r6, 0xb97                   ; -> next_token_comment:
+        jmp 0xbe7                           ; -> next_token_start:
+0xb8b: ; next_token_advance:
+        add r4, r91
+        jmp 0xb3c                           ; -> next_token_skip:
+0xb97: ; next_token_comment:
+        add r4, r91
+0xb9a: ; next_token_comment_loop:
+        jlt r4, r86, 0xbae                  ; -> next_token_comment_byte:
+        jmp 0xb3c                           ; -> next_token_skip:
+0xbae: ; next_token_comment_byte:
+        loadb r5, r4
+        add r4, r91
+        imm r6, 0xa
+        jeq r5, r6, 0xb3c                   ; -> next_token_skip:
+        imm r6, 0xd
+        jeq r5, r6, 0xb3c                   ; -> next_token_skip:
+        jmp 0xb9a                           ; -> next_token_comment_loop:
+0xbe7: ; next_token_start:
+        mov r83, r4
+0xbea: ; next_token_body:
+        jlt r4, r86, 0xbfe                  ; -> next_token_body_byte:
+        jmp 0xc37                           ; -> next_token_finish:
+0xbfe: ; next_token_body_byte:
+        loadb r5, r4
+        imm r6, 0x21
+        jlt r5, r6, 0xc37                   ; -> next_token_finish:
+        imm r6, 0x23
+        jeq r5, r6, 0xc37                   ; -> next_token_finish:
+        add r4, r91
+        jmp 0xbea                           ; -> next_token_body:
+0xc37: ; next_token_finish:
+        mov r84, r4
+        sub r84, r83
+        mov r82, r4
+        mov r0, r90
+        ret
+
+0xc44: ; require_name:
+        jz r84, 0x1003                      ; -> invalid:
+        loadb r4, r83
+        imm r5, 0x5f
+        jeq r4, r5, 0xc99                   ; -> require_name_rest:
+        imm r5, 0x61
+        jlt r4, r5, 0x1003                  ; -> invalid:
+        imm r5, 0x7b
+        jlt r4, r5, 0xc99                   ; -> require_name_rest:
+        jmp 0x1003                          ; -> invalid:
+0xc99: ; require_name_rest:
+        imm r4, 0x1
+0xca3: ; require_name_loop:
+        jlt r4, r84, 0xcaf                  ; -> require_name_byte:
+        ret
+0xcaf: ; require_name_byte:
+        mov r5, r83
+        add r5, r4
+        loadb r6, r5
+        imm r7, 0x5f
+        jeq r6, r7, 0xd2a                   ; -> require_name_next:
+        imm r7, 0x30
+        jlt r6, r7, 0x1003                  ; -> invalid:
+        imm r7, 0x3a
+        jlt r6, r7, 0xd2a                   ; -> require_name_next:
+        imm r7, 0x61
+        jlt r6, r7, 0x1003                  ; -> invalid:
+        imm r7, 0x7b
+        jlt r6, r7, 0xd2a                   ; -> require_name_next:
+        jmp 0x1003                          ; -> invalid:
+0xd2a: ; require_name_next:
+        add r4, r91
+        jmp 0xca3                           ; -> require_name_loop:
+
+; r0/r1 span. Returns definition row or zero.
+0xd36: ; find_word:
         mov r8, r0
         mov r9, r1
-        imm ra, 0x901000
-        imm r0, 0x900088
-        load rb, r0
-0x9ca: ; find_function_loop:
-        jlt ra, rb, 0x9e0                   ; -> find_function_row:
-        imm r0, 0x0
+        imm ra, 0x900000
+0xd46: ; find_word_loop:
+        jlt ra, r85, 0xd55                  ; -> find_word_row:
+        mov r0, r90
         ret
-0x9e0: ; find_function_row:
+0xd55: ; find_word_row:
         load r2, ra
         mov r3, ra
         imm r4, 0x8
@@ -447,1785 +575,165 @@
         load r3, r3
         mov r0, r8
         mov r1, r9
-        call 0x3231                         ; -> spans_equal:
-        imm r1, 0x1
-        jeq r0, r1, 0xa30                   ; -> find_function_found:
-        imm r4, 0x30
+        call 0xda4                          ; -> spans_equal:
+        jnz r0, 0xd9a                       ; -> find_word_found:
+        imm r4, 0x20
         add ra, r4
-        jmp 0x9ca                           ; -> find_function_loop:
-0xa30: ; find_function_found:
+        jmp 0xd46                           ; -> find_word_loop:
+0xd9a: ; find_word_found:
         mov r0, ra
         ret
 
-; Complete structural validation for the implemented expression subset.
-0xa34: ; validate_expression:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-        jlt r4, r5, 0xa6b                   ; -> validate_expression_byte:
-        jmp 0x3489                          ; -> gamma_invalid:
-0xa6b: ; validate_expression_byte:
-        loadb r6, r4
-        imm r7, 0x28
-        jeq r6, r7, 0xaf9                   ; -> validate_expression_list:
-        call 0x2f70                         ; -> next_token:
-        imm r0, 0x900038
-        load r4, r0
-        loadb r6, r4
-        imm r7, 0x23
-        jeq r6, r7, 0xcb1                   ; -> validate_hex_token:
-        imm r7, 0x2d
-        jeq r6, r7, 0xcbb                   ; -> validate_integer_token:
-        imm r7, 0x30
-        jlt r6, r7, 0xcc5                   ; -> validate_identifier_token:
-        imm r7, 0x3a
-        jlt r6, r7, 0xcbb                   ; -> validate_integer_token:
-        jmp 0xcc5                           ; -> validate_identifier_token:
-0xaf9: ; validate_expression_list:
-        call 0x2d5e                         ; -> consume_open:
-        call 0x2f70                         ; -> next_token:
-        call 0x30a3                         ; -> parse_reserved:
-        imm r1, 0x1
-        jeq r0, r1, 0xc5e                   ; -> validate_ternary:
-        imm r1, 0x2
-        jeq r0, r1, 0xc83                   ; -> validate_let:
-        imm r1, 0x3
-        jlt r0, r1, 0xbbb                   ; -> validate_unknown_form:
-        imm r1, 0x6
-        jlt r0, r1, 0xc2f                   ; -> validate_unary:
-        imm r1, 0xe
-        jlt r0, r1, 0xc42                   ; -> validate_binary:
-        jeq r0, r1, 0xc5e                   ; -> validate_ternary:
-        imm r1, 0x11
-        jlt r0, r1, 0xc42                   ; -> validate_binary:
-        imm r1, 0x13
-        jlt r0, r1, 0xc2f                   ; -> validate_unary:
-        jmp 0x34ad                          ; -> gamma_internal:
-0xbbb: ; validate_unknown_form:
-        imm r0, 0x900038
-        load r0, r0
-        loadb r0, r0
-        imm r1, 0x5f
-        jeq r0, r1, 0xc13                   ; -> validate_call:
-        imm r1, 0x61
-        jlt r0, r1, 0x3489                  ; -> gamma_invalid:
-        imm r1, 0x7b
-        jlt r0, r1, 0xc13                   ; -> validate_call:
-        jmp 0x3489                          ; -> gamma_invalid:
-0xc13: ; validate_call:
-        call 0x2c09                         ; -> require_lower_name:
-        call 0xa34                          ; -> validate_expression:
-        call 0x2dd1                         ; -> consume_close:
+; Current token against r0/r1.
+0xd9e: ; token_equals:
+        mov r2, r83
+        mov r3, r84
+0xda4: ; spans_equal:
+        jeq r1, r3, 0xdb3                   ; -> spans_equal_length:
+        mov r0, r90
         ret
-0xc2f: ; validate_unary:
-        call 0xa34                          ; -> validate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        ret
-0xc42: ; validate_binary:
-        call 0xa34                          ; -> validate_expression:
-        call 0xa34                          ; -> validate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        ret
-0xc5e: ; validate_ternary:
-        call 0xa34                          ; -> validate_expression:
-        call 0xa34                          ; -> validate_expression:
-        call 0xa34                          ; -> validate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        ret
-0xc83: ; validate_let:
-        call 0x2f70                         ; -> next_token:
-        call 0x2c09                         ; -> require_lower_name:
-        call 0xa34                          ; -> validate_expression:
-        call 0xa34                          ; -> validate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        ret
-0xcb1: ; validate_hex_token:
-        call 0x294c                         ; -> require_hex_token:
-        ret
-0xcbb: ; validate_integer_token:
-        call 0x2aa4                         ; -> parse_integer_token:
-        ret
-0xcc5: ; validate_identifier_token:
-        imm r0, 0x34c1
-        imm r1, 0x6
-        call 0x319d                         ; -> token_equals:
-        imm r1, 0x1
-        jeq r0, r1, 0xd00                   ; -> validate_identifier_ok:
-        call 0x2c09                         ; -> require_lower_name:
-0xd00: ; validate_identifier_ok:
-        ret
-
-0xd01: ; evaluate_expression:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-        jlt r4, r5, 0xd38                   ; -> evaluate_expression_byte:
-        jmp 0x34ad                          ; -> gamma_internal:
-0xd38: ; evaluate_expression_byte:
-        loadb r6, r4
-        imm r7, 0x28
-        jeq r6, r7, 0xf70                   ; -> evaluate_expression_list:
-        call 0x2f70                         ; -> next_token:
-        imm r0, 0x900038
-        load r4, r0
-        loadb r6, r4
-        imm r7, 0x23
-        jeq r6, r7, 0xdc6                   ; -> evaluate_hex:
-        imm r7, 0x2d
-        jeq r6, r7, 0xe81                   ; -> evaluate_integer:
-        imm r7, 0x30
-        jlt r6, r7, 0xeab                   ; -> evaluate_identifier:
-        imm r7, 0x3a
-        jlt r6, r7, 0xe81                   ; -> evaluate_integer:
-        jmp 0xeab                           ; -> evaluate_identifier:
-0xdc6: ; evaluate_hex:
-        call 0x294c                         ; -> require_hex_token:
-        imm r0, 0x900040
-        load r1, r0
-        imm r2, 0x2
-        sub r1, r2
-        imm r2, 0x2
-        div r1, r2
-        imm r2, 0x0
-        jeq r1, r2, 0xe59                   ; -> set_empty_bytes:
-        imm r0, 0x2
-        imm r2, 0x900038
-        load r2, r2
-        imm r3, 0x2
-        add r2, r3
-        imm r3, 0x0
-        call 0x239e                         ; -> allocate_node:
-        mov r1, r0
-        imm r0, 0x2
-        call 0x22d2                         ; -> set_value:
-        ret
-0xe59: ; set_empty_bytes:
-        imm r0, 0x2
-        imm r1, 0x0
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0xe81: ; evaluate_integer:
-        call 0x2aa4                         ; -> parse_integer_token:
-        mov r1, r0
-        imm r0, 0x1
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0xeab: ; evaluate_identifier:
-        imm r0, 0x34c1
-        imm r1, 0x6
-        call 0x319d                         ; -> token_equals:
-        imm r1, 0x1
-        jeq r0, r1, 0xf48                   ; -> set_reject:
-        imm r0, 0x900038
-        load r0, r0
-        imm r1, 0x900040
-        load r1, r1
-        call 0x337b                         ; -> find_binding:
-        imm r1, 0x0
-        jeq r0, r1, 0x3495                  ; -> gamma_authored_trap:
-        mov r4, r0
-        imm r5, 0x10
-        add r4, r5
-        load r0, r4
-        imm r5, 0x8
-        add r4, r5
-        load r1, r4
-        add r4, r5
-        load r2, r4
-        call 0x22d2                         ; -> set_value:
-        ret
-0xf48: ; set_reject:
-        imm r0, 0x3
-        imm r1, 0x2
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0xf70: ; evaluate_expression_list:
-        call 0x2d5e                         ; -> consume_open:
-        call 0x2f70                         ; -> next_token:
-        call 0x30a3                         ; -> parse_reserved:
-        imm r1, 0x1
-        jeq r0, r1, 0x1648                  ; -> evaluate_if:
-        imm r1, 0x2
-        jeq r0, r1, 0x16d6                  ; -> evaluate_let:
-        imm r1, 0x3
-        jeq r0, r1, 0x17f2                  ; -> evaluate_complete:
-        imm r1, 0x4
-        jeq r0, r1, 0x1872                  ; -> evaluate_bytes_single:
-        imm r1, 0x5
-        jeq r0, r1, 0x1952                  ; -> evaluate_bytes_length:
-        imm r1, 0x6
-        jeq r0, r1, 0x19d8                  ; -> evaluate_bytes_get:
-        imm r1, 0x7
-        jeq r0, r1, 0x1cbf                  ; -> evaluate_add:
-        imm r1, 0x8
-        jeq r0, r1, 0x1d37                  ; -> evaluate_subtract:
-        imm r1, 0x9
-        jeq r0, r1, 0x1daf                  ; -> evaluate_multiply:
-        imm r1, 0xa
-        jeq r0, r1, 0x1e61                  ; -> evaluate_divide:
-        imm r1, 0xb
-        jeq r0, r1, 0x1e83                  ; -> evaluate_remainder:
-        imm r1, 0xc
-        jeq r0, r1, 0x1ea5                  ; -> evaluate_less:
-        imm r1, 0xd
-        jeq r0, r1, 0x1ee1                  ; -> evaluate_equal:
-        imm r1, 0xe
-        jeq r0, r1, 0x1af2                  ; -> evaluate_bytes_slice:
-        imm r1, 0xf
-        jeq r0, r1, 0x21d2                  ; -> evaluate_bytes_concat:
-        imm r1, 0x10
-        jeq r0, r1, 0x110e                  ; -> evaluate_pair:
-        imm r1, 0x11
-        jeq r0, r1, 0x1231                  ; -> evaluate_pair_first:
-        imm r1, 0x12
-        jeq r0, r1, 0x124d                  ; -> evaluate_pair_second:
-        jmp 0x1352                          ; -> evaluate_call:
-
-0x110e: ; evaluate_pair:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov rd, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rc, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rb, r0
-        call 0x32d9                         ; -> pop_word:
-        mov ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        mov r0, r8
-        mov r1, r9
-        mov r2, ra
-        mov r3, rb
-        mov r4, rc
-        mov r5, rd
-        call 0x240f                         ; -> allocate_pair:
-        mov r1, r0
-        imm r0, 0x4
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-
-0x1231: ; evaluate_pair_first:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r8, 0x8
-        jmp 0x1260                          ; -> evaluate_pair_projection:
-0x124d: ; evaluate_pair_second:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r8, 0x20
-0x1260: ; evaluate_pair_projection:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x4
-        jeq r1, r2, 0x128b                  ; -> evaluate_pair_projection_kind:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x128b: ; evaluate_pair_projection_kind:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        mov r0, r8
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r4, r0
-        imm r5, 0x2100000
-        jlt r4, r5, 0x34ad                  ; -> gamma_internal:
-        imm r5, 0x9000a0
-        load r6, r5
-        mov r7, r4
-        imm r5, 0x38
-        add r7, r5
-        jlt r6, r7, 0x34ad                  ; -> gamma_internal:
-        load r5, r4
-        imm r6, 0x6
-        jeq r5, r6, 0x132c                  ; -> evaluate_pair_projection_valid:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x132c: ; evaluate_pair_projection_valid:
-        add r4, r8
-        load r0, r4
-        imm r5, 0x8
-        add r4, r5
-        load r1, r4
-        add r4, r5
-        load r2, r4
-        call 0x22d2                         ; -> set_value:
-        ret
-
-; Unary function call. Caller and callee locals occupy disjoint binding ranges.
-0x1352: ; evaluate_call:
-        imm r0, 0x900038
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x900040
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov rc, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rb, r0
-        call 0x32d9                         ; -> pop_word:
-        mov ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        mov r0, r8
-        mov r1, r9
-        call 0x9ad                          ; -> find_function:
-        imm r1, 0x0
-        jeq r0, r1, 0x3495                  ; -> gamma_authored_trap:
-        mov rd, r0
-
-        imm r0, 0x900030
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r4, 0x900058
-        imm r5, 0x4
-0x145f: ; evaluate_call_save_context:
-        load r0, r4
-        call 0x32a5                         ; -> push_word:
-        imm r6, 0x8
-        add r4, r6
-        imm r6, 0x1
-        sub r5, r6
-        jnz r5, 0x145f                      ; -> evaluate_call_save_context:
-        imm r0, 0x900118
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000e8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-
-        mov r4, rd
-        imm r6, 0x10
-        add r4, r6
-        imm r5, 0x900058
-        imm r7, 0x4
-0x14df: ; evaluate_call_set_context:
-        load r0, r4
-        store r5, r0
-        imm r6, 0x8
-        add r4, r6
-        add r5, r6
-        imm r6, 0x1
-        sub r7, r6
-        jnz r7, 0x14df                      ; -> evaluate_call_set_context:
-        imm r0, 0x9000e8
-        load r0, r0
-        imm r1, 0x900118
-        store r1, r0
-        imm r0, 0x900058
-        load r0, r0
-        imm r1, 0x900060
-        load r1, r1
-        imm r2, 0x9000a8
-        load r2, r2
-        imm r3, 0x9000b0
-        load r3, r3
-        imm r4, 0x9000b8
-        load r4, r4
-        call 0x3405                         ; -> push_binding:
-        imm r0, 0x900068
-        load r1, r0
-        imm r0, 0x900030
-        store r0, r1
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x900030
-        load r1, r0
-        imm r0, 0x900070
-        load r2, r0
-        jeq r1, r2, 0x15c1                  ; -> evaluate_call_body_consumed:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x15c1: ; evaluate_call_body_consumed:
-        call 0x32d9                         ; -> pop_word:
-        imm r1, 0x9000e8
-        store r1, r0
-        call 0x32d9                         ; -> pop_word:
-        imm r1, 0x900118
-        store r1, r0
-        imm r4, 0x900070
-        imm r5, 0x4
-0x1601: ; evaluate_call_restore_context:
-        call 0x32d9                         ; -> pop_word:
-        store r4, r0
-        imm r6, 0x8
-        sub r4, r6
-        imm r6, 0x1
-        sub r5, r6
-        jnz r5, 0x1601                      ; -> evaluate_call_restore_context:
-        call 0x32d9                         ; -> pop_word:
-        imm r1, 0x900030
-        store r1, r0
-        ret
-0x1648: ; evaluate_if:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x167c                  ; -> evaluate_if_int:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x167c: ; evaluate_if_int:
-        imm r0, 0x9000b0
-        load r1, r0
-        imm r2, 0x0
-        jeq r1, r2, 0x16ba                  ; -> evaluate_if_false:
-        call 0xd01                          ; -> evaluate_expression:
-        call 0xa34                          ; -> validate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        ret
-0x16ba: ; evaluate_if_false:
-        call 0xa34                          ; -> validate_expression:
-        call 0xd01                          ; -> evaluate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        ret
-0x16d6: ; evaluate_let:
-        call 0x2f70                         ; -> next_token:
-        call 0x2c09                         ; -> require_lower_name:
-        imm r0, 0x900038
-        load r0, r0
-        imm r1, 0x900040
-        load r1, r1
-        call 0x32ff                         ; -> require_fresh_local:
-        imm r0, 0x900038
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x900040
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x32d9                         ; -> pop_word:
-        mov rc, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rb, r0
-        call 0x32d9                         ; -> pop_word:
-        mov ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        mov r0, r8
-        mov r1, r9
-        mov r2, ra
-        mov r3, rb
-        mov r4, rc
-        call 0x3405                         ; -> push_binding:
-        call 0xd01                          ; -> evaluate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x3456                         ; -> pop_binding:
-        ret
-0x17f2: ; evaluate_complete:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x1826                  ; -> evaluate_complete_bytes:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1826: ; evaluate_complete_bytes:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r4, r0
-        imm r0, 0x3
-        imm r1, 0x1
-        mov r2, r4
-        call 0x22d2                         ; -> set_value:
-        ret
-0x1872: ; evaluate_bytes_single:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x18a6                  ; -> evaluate_bytes_single_int:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x18a6: ; evaluate_bytes_single_int:
-        imm r0, 0x9000b0
-        load r4, r0
-        imm r5, 0x0
-        jlt r4, r5, 0x3495                  ; -> gamma_authored_trap:
-        imm r5, 0x100
-        jlt r4, r5, 0x18e6                  ; -> evaluate_bytes_single_range:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x18e6: ; evaluate_bytes_single_range:
-        mov r0, r4
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r4, r0
-        imm r0, 0x3
-        imm r1, 0x1
-        mov r2, r4
-        imm r3, 0x0
-        call 0x239e                         ; -> allocate_node:
-        mov r1, r0
-        imm r0, 0x2
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0x1952: ; evaluate_bytes_length:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x1986                  ; -> evaluate_bytes_length_bytes:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1986: ; evaluate_bytes_length_bytes:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x24ac                         ; -> bytes_length:
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r1, r0
-        imm r0, 0x1
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0x19d8: ; evaluate_bytes_get:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x1a0c                  ; -> evaluate_bytes_get_source:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1a0c: ; evaluate_bytes_get_source:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x1a56                  ; -> evaluate_bytes_get_index:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1a56: ; evaluate_bytes_get_index:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        imm ra, 0x0
-        jlt r9, ra, 0x3495                  ; -> gamma_authored_trap:
-        mov r0, r8
-        call 0x24ac                         ; -> bytes_length:
-        jlt r9, r0, 0x1ac2                  ; -> evaluate_bytes_get_in_bounds:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1ac2: ; evaluate_bytes_get_in_bounds:
-        mov r0, r8
-        mov r1, r9
-        call 0x275d                         ; -> bytes_at:
-        mov r1, r0
-        imm r0, 0x1
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0x1af2: ; evaluate_bytes_slice:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x1b26                  ; -> evaluate_bytes_slice_source:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1b26: ; evaluate_bytes_slice_source:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x1b70                  ; -> evaluate_bytes_slice_start:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1b70: ; evaluate_bytes_slice_start:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x1bba                  ; -> evaluate_bytes_slice_length:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1bba: ; evaluate_bytes_slice_length:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        imm rb, 0x0
-        jlt r9, rb, 0x3495                  ; -> gamma_authored_trap:
-        jlt ra, rb, 0x3495                  ; -> gamma_authored_trap:
-        mov r0, r8
-        call 0x24ac                         ; -> bytes_length:
-        mov rc, r0
-        jlt rc, r9, 0x3495                  ; -> gamma_authored_trap:
-        sub rc, r9
-        jlt rc, ra, 0x3495                  ; -> gamma_authored_trap:
-        imm rb, 0x0
-        jeq ra, rb, 0x1c97                  ; -> evaluate_bytes_slice_empty:
-        imm r0, 0x5
-        mov r1, ra
-        mov r2, r8
-        mov r3, r9
-        call 0x239e                         ; -> allocate_node:
-        mov r1, r0
-        imm r0, 0x2
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0x1c97: ; evaluate_bytes_slice_empty:
-        imm r0, 0x2
-        imm r1, 0x0
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0x1cbf: ; evaluate_add:
-        call 0x20ba                         ; -> evaluate_binary_ints:
-        mov ra, r8
-        add ra, r9
-        imm rb, 0x0
-        jlt r8, rb, 0x1d02                  ; -> evaluate_add_left_negative:
-        jlt r9, rb, 0x1d2a                  ; -> evaluate_add_ok:
-        jlt ra, rb, 0x3495                  ; -> gamma_authored_trap:
-        jmp 0x1d2a                          ; -> evaluate_add_ok:
-0x1d02: ; evaluate_add_left_negative:
-        jlt r9, rb, 0x1d16                  ; -> evaluate_add_both_negative:
-        jmp 0x1d2a                          ; -> evaluate_add_ok:
-0x1d16: ; evaluate_add_both_negative:
-        jlt ra, rb, 0x1d2a                  ; -> evaluate_add_ok:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1d2a: ; evaluate_add_ok:
-        mov r0, ra
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1d37: ; evaluate_subtract:
-        call 0x20ba                         ; -> evaluate_binary_ints:
-        mov ra, r8
-        sub ra, r9
-        imm rb, 0x0
-        jlt r8, rb, 0x1d83                  ; -> evaluate_subtract_left_negative:
-        jlt r9, rb, 0x1d6f                  ; -> evaluate_subtract_positive_negative:
-        jmp 0x1da2                          ; -> evaluate_subtract_ok:
-0x1d6f: ; evaluate_subtract_positive_negative:
-        jlt ra, rb, 0x3495                  ; -> gamma_authored_trap:
-        jmp 0x1da2                          ; -> evaluate_subtract_ok:
-0x1d83: ; evaluate_subtract_left_negative:
-        jlt r9, rb, 0x1da2                  ; -> evaluate_subtract_ok:
-        jlt ra, rb, 0x1da2                  ; -> evaluate_subtract_ok:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1da2: ; evaluate_subtract_ok:
-        mov r0, ra
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1daf: ; evaluate_multiply:
-        call 0x20ba                         ; -> evaluate_binary_ints:
-        imm ra, 0x0
-        jeq r8, ra, 0x1e4a                  ; -> evaluate_multiply_zero:
-        jeq r9, ra, 0x1e4a                  ; -> evaluate_multiply_zero:
-        imm ra, 0x8000000000000000
-        imm rb, 0xffffffffffffffff
-        jeq r8, ra, 0x1e00                  ; -> evaluate_multiply_left_min:
-        jmp 0x1e0b                          ; -> evaluate_multiply_check_right_min:
-0x1e00: ; evaluate_multiply_left_min:
-        jeq r9, rb, 0x3495                  ; -> gamma_authored_trap:
-0x1e0b: ; evaluate_multiply_check_right_min:
-        jeq r9, ra, 0x1e1f                  ; -> evaluate_multiply_right_min:
-        jmp 0x1e2a                          ; -> evaluate_multiply_product:
-0x1e1f: ; evaluate_multiply_right_min:
-        jeq r8, rb, 0x3495                  ; -> gamma_authored_trap:
-0x1e2a: ; evaluate_multiply_product:
-        mov ra, r8
-        mul ra, r9
-        mov rb, ra
-        div rb, r9
-        jeq rb, r8, 0x1e54                  ; -> evaluate_multiply_ok:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x1e4a: ; evaluate_multiply_zero:
-        imm ra, 0x0
-0x1e54: ; evaluate_multiply_ok:
-        mov r0, ra
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1e61: ; evaluate_divide:
-        call 0x20ba                         ; -> evaluate_binary_ints:
-        call 0x2170                         ; -> reject_invalid_division:
-        div r8, r9
-        mov r0, r8
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1e83: ; evaluate_remainder:
-        call 0x20ba                         ; -> evaluate_binary_ints:
-        call 0x2170                         ; -> reject_invalid_division:
-        mod r8, r9
-        mov r0, r8
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1ea5: ; evaluate_less:
-        call 0x20ba                         ; -> evaluate_binary_ints:
-        jlt r8, r9, 0x1ecd                  ; -> evaluate_less_true:
-        imm r0, 0x0
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1ecd: ; evaluate_less_true:
-        imm r0, 0x1
-        call 0x21b1                         ; -> set_int:
-        ret
-0x1ee1: ; evaluate_equal:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        imm r0, 0x9000b8
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        call 0x2dd1                         ; -> consume_close:
-        imm r0, 0x9000a8
-        load r8, r0
-        imm r0, 0x9000b0
-        load r9, r0
-        imm r0, 0x9000b8
-        load ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rd, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rc, r0
-        call 0x32d9                         ; -> pop_word:
-        mov rb, r0
-        imm r0, 0x4
-        jeq rb, r0, 0x3495                  ; -> gamma_authored_trap:
-        jeq r8, r0, 0x3495                  ; -> gamma_authored_trap:
-        jeq rb, r8, 0x1fbd                  ; -> evaluate_equal_same_kind:
-        jmp 0x20a6                          ; -> evaluate_equal_false:
-0x1fbd: ; evaluate_equal_same_kind:
-        imm r0, 0x1
-        jeq rb, r0, 0x2005                  ; -> evaluate_equal_word_zero:
-        imm r0, 0x2
-        jeq rb, r0, 0x2019                  ; -> evaluate_equal_bytes:
-        imm r0, 0x3
-        jeq rb, r0, 0x2032                  ; -> evaluate_equal_outcome:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x2005: ; evaluate_equal_word_zero:
-        jeq rc, r9, 0x2092                  ; -> evaluate_equal_true:
-        jmp 0x20a6                          ; -> evaluate_equal_false:
-0x2019: ; evaluate_equal_bytes:
-        mov r0, rc
-        mov r1, r9
-        call 0x255e                         ; -> bytes_equal:
-        call 0x21b1                         ; -> set_int:
-        ret
-0x2032: ; evaluate_equal_outcome:
-        jeq rc, r9, 0x2046                  ; -> evaluate_equal_same_outcome:
-        jmp 0x20a6                          ; -> evaluate_equal_false:
-0x2046: ; evaluate_equal_same_outcome:
-        imm r0, 0x2
-        jeq rc, r0, 0x2092                  ; -> evaluate_equal_true:
-        imm r0, 0x1
-        jeq rc, r0, 0x2079                  ; -> evaluate_equal_complete:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x2079: ; evaluate_equal_complete:
-        mov r0, rd
-        mov r1, ra
-        call 0x255e                         ; -> bytes_equal:
-        call 0x21b1                         ; -> set_int:
-        ret
-0x2092: ; evaluate_equal_true:
-        imm r0, 0x1
-        call 0x21b1                         ; -> set_int:
-        ret
-0x20a6: ; evaluate_equal_false:
-        imm r0, 0x0
-        call 0x21b1                         ; -> set_int:
-        ret
-
-; Strictly evaluates two integer operands and returns left/right in r8/r9.
-0x20ba: ; evaluate_binary_ints:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x20ee                  ; -> evaluate_binary_left_int:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x20ee: ; evaluate_binary_left_int:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x1
-        jeq r1, r2, 0x2138                  ; -> evaluate_binary_right_int:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x2138: ; evaluate_binary_right_int:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        ret
-
-; Rejects Gamma's two division traps before issuing an Alpha div/mod.
-0x2170: ; reject_invalid_division:
-        imm ra, 0x0
-        jeq r9, ra, 0x3495                  ; -> gamma_authored_trap:
-        imm ra, 0x8000000000000000
-        jeq r8, ra, 0x219b                  ; -> reject_division_min:
-        ret
-0x219b: ; reject_division_min:
-        imm ra, 0xffffffffffffffff
-        jeq r9, ra, 0x3495                  ; -> gamma_authored_trap:
-        ret
-
-0x21b1: ; set_int:
-        mov r1, r0
-        imm r0, 0x1
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-0x21d2: ; evaluate_bytes_concat:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x2206                  ; -> evaluate_concat_left_bytes:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x2206: ; evaluate_concat_left_bytes:
-        imm r0, 0x9000b0
-        load r0, r0
-        call 0x32a5                         ; -> push_word:
-        call 0xd01                          ; -> evaluate_expression:
-        imm r0, 0x9000a8
-        load r1, r0
-        imm r2, 0x2
-        jeq r1, r2, 0x2250                  ; -> evaluate_concat_right_bytes:
-        jmp 0x3495                          ; -> gamma_authored_trap:
-0x2250: ; evaluate_concat_right_bytes:
-        imm r0, 0x9000b0
-        load r6, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r5, r0
-        mov r0, r5
-        call 0x32a5                         ; -> push_word:
-        mov r0, r6
-        call 0x32a5                         ; -> push_word:
-        call 0x2dd1                         ; -> consume_close:
-        call 0x32d9                         ; -> pop_word:
-        mov r6, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r5, r0
-        mov r0, r5
-        mov r1, r6
-        call 0x22fa                         ; -> make_concat:
-        mov r1, r0
-        imm r0, 0x2
-        imm r2, 0x0
-        call 0x22d2                         ; -> set_value:
-        ret
-
-; r0 tag, r1 word zero, r2 word one.
-0x22d2: ; set_value:
-        imm r3, 0x9000a8
-        store r3, r0
-        imm r3, 0x9000b0
-        store r3, r1
-        imm r3, 0x9000b8
-        store r3, r2
-        ret
-
-; r0 left handle, r1 right handle, returns handle.
-0x22fa: ; make_concat:
-        imm r2, 0x0
-        jeq r0, r2, 0x2399                  ; -> concat_left_empty:
-        jeq r1, r2, 0x239d                  ; -> concat_right_empty:
-        mov r8, r0
-        mov r9, r1
-        call 0x32a5                         ; -> push_word:
-        mov r0, r9
-        call 0x32a5                         ; -> push_word:
-        mov r0, r8
-        call 0x24ac                         ; -> bytes_length:
-        mov ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        mov r0, r8
-        call 0x24ac                         ; -> bytes_length:
-        mov rb, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        mov rc, ra
-        add rc, rb
-        jlt rc, ra, 0x3495                  ; -> gamma_authored_trap:
-        imm r0, 0x4
-        mov r1, rc
-        mov r2, r9
-        mov r3, r8
-        call 0x239e                         ; -> allocate_node:
-        ret
-0x2399: ; concat_left_empty:
-        mov r0, r1
-        ret
-0x239d: ; concat_right_empty:
-        ret
-
-; r0 tag, r1 length, r2 a, r3 b. Returns nonzero absolute handle.
-0x239e: ; allocate_node:
-        mov r8, r0
-        mov r9, r1
-        mov ra, r2
-        mov rb, r3
-        imm r4, 0x9000a0
-        load r5, r4
-        mov r6, r5
-        imm r7, 0x20
-        add r6, r7
-        imm r7, 0xe000000
-        jlt r7, r6, 0x34a1                  ; -> gamma_incomplete:
-        store r5, r8
-        imm r7, 0x8
-        add r5, r7
-        store r5, r9
-        add r5, r7
-        store r5, ra
-        add r5, r7
-        store r5, rb
-        store r4, r6
-        mov r0, r6
-        imm r7, 0x20
-        sub r0, r7
-        ret
-
-; r0-r2 left value, r3-r5 right value. Returns a checked pair handle.
-0x240f: ; allocate_pair:
-        mov r8, r0
-        mov r9, r1
-        mov ra, r2
-        mov rb, r3
-        mov rc, r4
-        mov rd, r5
-        imm r0, 0x9000a0
-        load r4, r0
-        mov r5, r4
-        imm r6, 0x38
-        add r5, r6
-        imm r6, 0xe000000
-        jlt r6, r5, 0x34a1                  ; -> gamma_incomplete:
-        imm r6, 0x6
-        store r4, r6
-        imm r6, 0x8
-        add r4, r6
-        store r4, r8
-        add r4, r6
-        store r4, r9
-        add r4, r6
-        store r4, ra
-        add r4, r6
-        store r4, rb
-        add r4, r6
-        store r4, rc
-        add r4, r6
-        store r4, rd
-        imm r0, 0x9000a0
-        store r0, r5
-        mov r0, r5
-        imm r6, 0x38
-        sub r0, r6
-        ret
-
-; r0 Bytes handle, returns logical length.
-0x24ac: ; bytes_length:
-        imm r1, 0x0
-        jeq r0, r1, 0x2553                  ; -> bytes_length_empty:
-        imm r1, 0x2100000
-        jlt r0, r1, 0x34ad                  ; -> gamma_internal:
-        imm r1, 0x9000a0
-        load r2, r1
-        jlt r0, r2, 0x24f7                  ; -> bytes_length_in_arena:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x24f7: ; bytes_length_in_arena:
-        load r3, r0
-        imm r4, 0x1
-        jlt r3, r4, 0x34ad                  ; -> gamma_internal:
-        imm r4, 0x6
-        jlt r3, r4, 0x252d                  ; -> bytes_length_tag_ok:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x252d: ; bytes_length_tag_ok:
-        imm r4, 0x8
-        add r0, r4
-        load r0, r0
+0xdb3: ; spans_equal_length:
         imm r4, 0x0
-        jlt r0, r4, 0x34ad                  ; -> gamma_internal:
+0xdbd: ; spans_equal_loop:
+        jlt r4, r1, 0xdcc                   ; -> spans_equal_byte:
+        mov r0, r91
         ret
-0x2553: ; bytes_length_empty:
-        imm r0, 0x0
-        ret
-
-; r0/r1 Bytes handles. Returns logical structural equality as zero or one.
-0x255e: ; bytes_equal:
-        jeq r0, r1, 0x26a6                  ; -> bytes_equal_true:
-        imm r2, 0x9000f0
-        store r2, r0
-        imm r2, 0x9000f8
-        store r2, r1
-        call 0x24ac                         ; -> bytes_length:
-        imm r2, 0x900100
-        store r2, r0
-        imm r2, 0x9000f8
-        load r0, r2
-        call 0x24ac                         ; -> bytes_length:
-        imm r2, 0x900100
-        load r3, r2
-        jeq r3, r0, 0x25d2                  ; -> bytes_equal_lengths:
-        imm r0, 0x0
-        ret
-0x25d2: ; bytes_equal_lengths:
-        imm r0, 0x900108
-        imm r1, 0x0
-        store r0, r1
-0x25e9: ; bytes_equal_loop:
-        imm r0, 0x900108
-        load r1, r0
-        imm r0, 0x900100
-        load r2, r0
-        jlt r1, r2, 0x2617                  ; -> bytes_equal_byte:
-        jmp 0x26a6                          ; -> bytes_equal_true:
-0x2617: ; bytes_equal_byte:
-        imm r0, 0x9000f0
-        load r0, r0
-        call 0x275d                         ; -> bytes_at:
-        imm r1, 0x900110
-        store r1, r0
-        imm r0, 0x9000f8
-        load r0, r0
-        imm r1, 0x900108
-        load r1, r1
-        call 0x275d                         ; -> bytes_at:
-        imm r1, 0x900110
-        load r2, r1
-        jeq r2, r0, 0x2680                  ; -> bytes_equal_next:
-        imm r0, 0x0
-        ret
-0x2680: ; bytes_equal_next:
-        imm r0, 0x900108
-        load r1, r0
-        imm r2, 0x1
-        add r1, r2
-        store r0, r1
-        jmp 0x25e9                          ; -> bytes_equal_loop:
-0x26a6: ; bytes_equal_true:
-        imm r0, 0x1
-        ret
-
-; r0 Bytes handle. Streams once and permits non-authoritative failure prefixes.
-0x26b1: ; emit_bytes:
-        mov r8, r0
-        call 0x24ac                         ; -> bytes_length:
-        mov r9, r0
-        imm ra, 0x0
-0x26ca: ; emit_bytes_loop:
-        jlt ra, r9, 0x26d6                  ; -> emit_bytes_one:
-        ret
-0x26d6: ; emit_bytes_one:
-        imm rb, 0xffffc
-        jeq ra, rb, 0x34a1                  ; -> gamma_incomplete:
-        mov r0, r8
-        call 0x32a5                         ; -> push_word:
-        mov r0, r9
-        call 0x32a5                         ; -> push_word:
-        mov r0, ra
-        call 0x32a5                         ; -> push_word:
-        mov r0, r8
-        mov r1, ra
-        call 0x275d                         ; -> bytes_at:
-        mov rc, r0
-        call 0x32d9                         ; -> pop_word:
-        mov ra, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r9, r0
-        call 0x32d9                         ; -> pop_word:
-        mov r8, r0
-        write rc
-        imm rb, 0x1
-        add ra, rb
-        jmp 0x26ca                          ; -> emit_bytes_loop:
-
-; r0 handle, r1 index. Iteratively resolves raw/hex/single/concat nodes.
-0x275d: ; bytes_at:
-0x275d: ; bytes_at_loop:
-        imm r2, 0x0
-        jeq r0, r2, 0x34ad                  ; -> gamma_internal:
-        mov r8, r0
-        mov r9, r1
-        call 0x24ac                         ; -> bytes_length:
-        jlt r9, r0, 0x2795                  ; -> bytes_at_index_ok:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x2795: ; bytes_at_index_ok:
-        mov r0, r8
-        load r3, r0
-        imm r4, 0x1
-        jeq r3, r4, 0x280d                  ; -> bytes_at_raw:
-        imm r4, 0x2
-        jeq r3, r4, 0x2824                  ; -> bytes_at_hex:
-        imm r4, 0x3
-        jeq r3, r4, 0x2880                  ; -> bytes_at_single:
-        imm r4, 0x4
-        jeq r3, r4, 0x2891                  ; -> bytes_at_concat:
-        imm r4, 0x5
-        jeq r3, r4, 0x28e9                  ; -> bytes_at_slice:
-        jmp 0x34ad                          ; -> gamma_internal:
-0x280d: ; bytes_at_raw:
-        imm r4, 0x10
-        add r0, r4
-        load r5, r0
-        add r5, r9
-        loadb r0, r5
-        ret
-0x2824: ; bytes_at_hex:
-        imm r4, 0x10
-        add r0, r4
-        load r5, r0
-        mov r6, r9
-        imm r7, 0x2
-        mul r6, r7
-        add r5, r6
-        loadb r0, r5
-        call 0x291b                         ; -> hex_nibble:
-        mov r6, r0
-        imm r7, 0x10
-        mul r6, r7
-        imm r7, 0x1
-        add r5, r7
-        loadb r0, r5
-        call 0x291b                         ; -> hex_nibble:
-        add r0, r6
-        ret
-0x2880: ; bytes_at_single:
-        imm r4, 0x10
-        add r0, r4
-        load r0, r0
-        ret
-0x2891: ; bytes_at_concat:
-        imm r4, 0x10
-        add r0, r4
-        load r5, r0
-        imm r4, 0x8
-        add r0, r4
-        load r6, r0
-        mov r0, r5
-        call 0x24ac                         ; -> bytes_length:
-        jlt r9, r0, 0x28da                  ; -> bytes_at_concat_left:
-        sub r9, r0
-        mov r0, r6
-        mov r1, r9
-        jmp 0x275d                          ; -> bytes_at_loop:
-0x28da: ; bytes_at_concat_left:
-        mov r0, r5
-        mov r1, r9
-        jmp 0x275d                          ; -> bytes_at_loop:
-0x28e9: ; bytes_at_slice:
-        imm r4, 0x10
-        add r0, r4
-        load r5, r0
-        imm r4, 0x8
-        add r0, r4
-        load r6, r0
-        add r6, r9
-        mov r0, r5
-        mov r1, r6
-        jmp 0x275d                          ; -> bytes_at_loop:
-
-0x291b: ; hex_nibble:
-        imm r1, 0x3a
-        jlt r0, r1, 0x293e                  ; -> hex_nibble_digit:
-        imm r1, 0x57
-        sub r0, r1
-        ret
-0x293e: ; hex_nibble_digit:
-        imm r1, 0x30
-        sub r0, r1
-        ret
-
-0x294c: ; require_hex_token:
-        imm r0, 0x900038
-        load r4, r0
-        imm r0, 0x900040
-        load r5, r0
-        imm r6, 0x2
-        jlt r5, r6, 0x3489                  ; -> gamma_invalid:
-        loadb r7, r4
-        imm r8, 0x23
-        jeq r7, r8, 0x299c                  ; -> require_hex_x:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x299c: ; require_hex_x:
-        imm r8, 0x1
-        add r4, r8
-        loadb r7, r4
-        imm r9, 0x78
-        jeq r7, r9, 0x29ca                  ; -> require_hex_length:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x29ca: ; require_hex_length:
-        mov ra, r5
-        imm rb, 0x2
-        sub ra, rb
-        mov rc, ra
-        imm rd, 0x2
-        mod rc, rd
-        imm rd, 0x0
-        jeq rc, rd, 0x2a08                  ; -> require_hex_digits:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2a08: ; require_hex_digits:
-        imm r8, 0x1
-        add r4, r8
-        imm r6, 0x2
-0x2a1f: ; require_hex_loop:
-        jlt r6, r5, 0x2a2b                  ; -> require_hex_digit:
-        ret
-0x2a2b: ; require_hex_digit:
-        loadb r7, r4
-        imm r8, 0x30
-        jlt r7, r8, 0x3489                  ; -> gamma_invalid:
-        imm r8, 0x3a
-        jlt r7, r8, 0x2a8b                  ; -> require_hex_next:
-        imm r8, 0x61
-        jlt r7, r8, 0x3489                  ; -> gamma_invalid:
-        imm r8, 0x67
-        jlt r7, r8, 0x2a8b                  ; -> require_hex_next:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2a8b: ; require_hex_next:
-        imm r8, 0x1
-        add r4, r8
-        add r6, r8
-        jmp 0x2a1f                          ; -> require_hex_loop:
-
-; Parses current token as exact signed i64. Returns value in r0.
-0x2aa4: ; parse_integer_token:
-        imm r0, 0x900038
-        load r4, r0
-        imm r0, 0x900040
-        load r5, r0
-        imm r6, 0x0
-        imm r7, 0x0
-        loadb r8, r4
-        imm r9, 0x2d
-        jeq r8, r9, 0x2af3                  ; -> parse_integer_negative:
-        jmp 0x2b18                          ; -> parse_integer_digits:
-0x2af3: ; parse_integer_negative:
-        imm r7, 0x1
-        imm r9, 0x1
-        add r6, r9
-        add r4, r9
-        jeq r6, r5, 0x3489                  ; -> gamma_invalid:
-0x2b18: ; parse_integer_digits:
-        imm ra, 0x0
-0x2b22: ; parse_integer_loop:
-        jlt r6, r5, 0x2b69                  ; -> parse_integer_digit:
-        imm r9, 0x1
-        jeq r7, r9, 0x2b65                  ; -> parse_integer_done:
-        imm r9, 0x8000000000000000
-        jeq ra, r9, 0x3489                  ; -> gamma_invalid:
-        imm r0, 0x0
-        sub r0, ra
-        ret
-0x2b65: ; parse_integer_done:
-        mov r0, ra
-        ret
-0x2b69: ; parse_integer_digit:
-        loadb r8, r4
-        imm r9, 0x30
-        jlt r8, r9, 0x3489                  ; -> gamma_invalid:
-        imm rb, 0x3a
-        jlt r8, rb, 0x2b9f                  ; -> parse_integer_digit_ok:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2b9f: ; parse_integer_digit_ok:
-        sub r8, r9
-        imm rb, 0xf333333333333334
-        jlt ra, rb, 0x3489                  ; -> gamma_invalid:
-        jeq ra, rb, 0x2bcb                  ; -> parse_integer_last_digit:
-        jmp 0x2be0                          ; -> parse_integer_accumulate:
-0x2bcb: ; parse_integer_last_digit:
-        imm rc, 0x8
-        jlt rc, r8, 0x3489                  ; -> gamma_invalid:
-0x2be0: ; parse_integer_accumulate:
-        imm rc, 0xa
-        mul ra, rc
-        sub ra, r8
-        imm rc, 0x1
-        add r4, rc
-        add r6, rc
-        jmp 0x2b22                          ; -> parse_integer_loop:
-
-0x2c09: ; require_lower_name:
-        imm r0, 0x900038
-        load r4, r0
-        imm r0, 0x900040
-        load r5, r0
-        imm r6, 0x0
-        jeq r5, r6, 0x3489                  ; -> gamma_invalid:
-        loadb r7, r4
-        imm r8, 0x5f
-        jeq r7, r8, 0x2c83                  ; -> require_name_rest:
-        imm r8, 0x61
-        jlt r7, r8, 0x3489                  ; -> gamma_invalid:
-        imm r8, 0x7b
-        jlt r7, r8, 0x2c83                  ; -> require_name_rest:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2c83: ; require_name_rest:
-        imm r6, 0x1
-        imm r8, 0x1
-        add r4, r8
-0x2c9a: ; require_name_loop:
-        jlt r6, r5, 0x2ca6                  ; -> require_name_byte:
-        ret
-0x2ca6: ; require_name_byte:
-        loadb r7, r4
-        imm r8, 0x5f
-        jeq r7, r8, 0x2d45                  ; -> require_name_next:
-        imm r8, 0x30
-        jlt r7, r8, 0x3489                  ; -> gamma_invalid:
-        imm r8, 0x3a
-        jlt r7, r8, 0x2d45                  ; -> require_name_next:
-        imm r8, 0x41
-        jlt r7, r8, 0x3489                  ; -> gamma_invalid:
-        imm r8, 0x5b
-        jlt r7, r8, 0x2d45                  ; -> require_name_next:
-        imm r8, 0x61
-        jlt r7, r8, 0x3489                  ; -> gamma_invalid:
-        imm r8, 0x7b
-        jlt r7, r8, 0x2d45                  ; -> require_name_next:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2d45: ; require_name_next:
-        imm r8, 0x1
-        add r4, r8
-        add r6, r8
-        jmp 0x2c9a                          ; -> require_name_loop:
-
-0x2d5e: ; consume_open:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-        jlt r4, r5, 0x2d95                  ; -> consume_open_byte:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2d95: ; consume_open_byte:
-        loadb r6, r4
-        imm r7, 0x28
-        jeq r6, r7, 0x2db6                  ; -> consume_open_ok:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2db6: ; consume_open_ok:
-        imm r7, 0x1
-        add r4, r7
-        imm r0, 0x900030
-        store r0, r4
-        ret
-
-0x2dd1: ; consume_close:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-        jlt r4, r5, 0x2e08                  ; -> consume_close_byte:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2e08: ; consume_close_byte:
-        loadb r6, r4
-        imm r7, 0x29
-        jeq r6, r7, 0x2e29                  ; -> consume_close_ok:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2e29: ; consume_close_ok:
-        imm r7, 0x1
-        add r4, r7
-        imm r0, 0x900030
-        store r0, r4
-        ret
-
-0x2e44: ; skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-0x2e5e: ; skip_trivia_loop:
-        jlt r4, r5, 0x2e77                  ; -> skip_trivia_byte:
-        imm r0, 0x900030
-        store r0, r4
-        ret
-0x2e77: ; skip_trivia_byte:
-        loadb r6, r4
-        imm r7, 0x9
-        jeq r6, r7, 0x2ef1                  ; -> skip_trivia_next:
-        imm r7, 0xa
-        jeq r6, r7, 0x2ef1                  ; -> skip_trivia_next:
-        imm r7, 0xd
-        jeq r6, r7, 0x2ef1                  ; -> skip_trivia_next:
-        imm r7, 0x20
-        jeq r6, r7, 0x2ef1                  ; -> skip_trivia_next:
-        imm r7, 0x3b
-        jeq r6, r7, 0x2f07                  ; -> skip_comment:
-        imm r0, 0x900030
-        store r0, r4
-        ret
-0x2ef1: ; skip_trivia_next:
-        imm r7, 0x1
-        add r4, r7
-        jmp 0x2e5e                          ; -> skip_trivia_loop:
-0x2f07: ; skip_comment:
-        imm r7, 0x1
-        add r4, r7
-0x2f14: ; skip_comment_loop:
-        jlt r4, r5, 0x2f2d                  ; -> skip_comment_byte:
-        imm r0, 0x900030
-        store r0, r4
-        ret
-0x2f2d: ; skip_comment_byte:
-        loadb r6, r4
-        imm r7, 0xa
-        jeq r6, r7, 0x2ef1                  ; -> skip_trivia_next:
-        imm r7, 0xd
-        jeq r6, r7, 0x2ef1                  ; -> skip_trivia_next:
-        imm r7, 0x1
-        add r4, r7
-        jmp 0x2f14                          ; -> skip_comment_loop:
-
-0x2f70: ; next_token:
-        call 0x2e44                         ; -> skip_trivia:
-        imm r0, 0x900030
-        load r4, r0
-        imm r0, 0x900018
-        load r5, r0
-        jlt r4, r5, 0x2fa7                  ; -> next_token_start:
-        jmp 0x3489                          ; -> gamma_invalid:
-0x2fa7: ; next_token_start:
-        mov r6, r4
-0x2faa: ; next_token_loop:
-        jlt r4, r5, 0x2fbe                  ; -> next_token_byte:
-        jmp 0x306a                          ; -> next_token_done:
-0x2fbe: ; next_token_byte:
-        loadb r7, r4
-        imm r8, 0x9
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0xa
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0xd
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0x20
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0x28
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0x29
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0x3b
-        jeq r7, r8, 0x306a                  ; -> next_token_done:
-        imm r8, 0x1
-        add r4, r8
-        jmp 0x2faa                          ; -> next_token_loop:
-0x306a: ; next_token_done:
-        jeq r4, r6, 0x3489                  ; -> gamma_invalid:
-        imm r0, 0x900038
-        store r0, r6
-        mov r7, r4
-        sub r7, r6
-        imm r0, 0x900040
-        store r0, r7
-        imm r0, 0x900030
-        store r0, r4
-        ret
-
-; Returns the one-based reserved-form ordinal, or zero for an ordinary call.
-0x30a3: ; parse_reserved:
-        imm r8, 0x34c7
-        imm r9, 0x1
-        imm r0, 0x900038
-        load ra, r0
-        imm r0, 0x900040
-        load rb, r0
-0x30d1: ; parse_reserved_row:
-        imm r0, 0x353e
-        jlt r8, r0, 0x30f1                  ; -> parse_reserved_compare_start:
-        imm r0, 0x0
-        ret
-0x30f1: ; parse_reserved_compare_start:
-        imm r6, 0x0
-0x30fb: ; parse_reserved_compare:
-        loadb r0, r8
-        jz r0, 0x3152                       ; -> parse_reserved_row_end:
-        jlt r6, rb, 0x311c                  ; -> parse_reserved_compare_byte:
-        jmp 0x315d                          ; -> parse_reserved_skip:
-0x311c: ; parse_reserved_compare_byte:
-        mov rd, ra
-        add rd, r6
-        loadb r1, rd
-        jeq r0, r1, 0x3139                  ; -> parse_reserved_next:
-        jmp 0x315d                          ; -> parse_reserved_skip:
-0x3139: ; parse_reserved_next:
-        imm r1, 0x1
-        add r8, r1
-        add r6, r1
-        jmp 0x30fb                          ; -> parse_reserved_compare:
-0x3152: ; parse_reserved_row_end:
-        jeq r6, rb, 0x3199                  ; -> parse_reserved_found:
-0x315d: ; parse_reserved_skip:
-        loadb r0, r8
-        jz r0, 0x3180                       ; -> parse_reserved_advance:
-        imm r1, 0x1
-        add r8, r1
-        jmp 0x315d                          ; -> parse_reserved_skip:
-0x3180: ; parse_reserved_advance:
-        imm r1, 0x1
-        add r8, r1
-        add r9, r1
-        jmp 0x30d1                          ; -> parse_reserved_row:
-0x3199: ; parse_reserved_found:
-        mov r0, r9
-        ret
-
-; Current token versus expected bytes at r0 with expected length r1.
-0x319d: ; token_equals:
-        mov r8, r0
-        mov r9, r1
-        imm r0, 0x900040
-        load r5, r0
-        jeq r5, r9, 0x31c6                  ; -> token_equals_length:
-        imm r0, 0x0
-        ret
-0x31c6: ; token_equals_length:
-        imm r0, 0x900038
-        load r4, r0
-        imm r6, 0x0
-0x31dd: ; token_equals_loop:
-        jlt r6, r5, 0x31f3                  ; -> token_equals_byte:
-        imm r0, 0x1
-        ret
-0x31f3: ; token_equals_byte:
-        mov ra, r4
-        add ra, r6
-        loadb rb, ra
-        mov ra, r8
-        add ra, r6
-        loadb rc, ra
-        jeq rb, rc, 0x321b                  ; -> token_equals_next:
-        imm r0, 0x0
-        ret
-0x321b: ; token_equals_next:
-        imm ra, 0x1
-        add r6, ra
-        jmp 0x31dd                          ; -> token_equals_loop:
-
-; r0/startA r1/lenA r2/startB r3/lenB.
-0x3231: ; spans_equal:
-        jeq r1, r3, 0x3247                  ; -> spans_equal_length:
-        imm r0, 0x0
-        ret
-0x3247: ; spans_equal_length:
-        imm r4, 0x0
-0x3251: ; spans_equal_loop:
-        jlt r4, r1, 0x3267                  ; -> spans_equal_byte:
-        imm r0, 0x1
-        ret
-0x3267: ; spans_equal_byte:
+0xdcc: ; spans_equal_byte:
         mov r5, r0
         add r5, r4
         loadb r6, r5
         mov r5, r2
         add r5, r4
         loadb r7, r5
-        jeq r6, r7, 0x328f                  ; -> spans_equal_next:
-        imm r0, 0x0
+        jeq r6, r7, 0xded                   ; -> spans_equal_next:
+        mov r0, r90
         ret
-0x328f: ; spans_equal_next:
-        imm r5, 0x1
-        add r4, r5
-        jmp 0x3251                          ; -> spans_equal_loop:
+0xded: ; spans_equal_next:
+        add r4, r91
+        jmp 0xdbd                           ; -> spans_equal_loop:
 
-0x32a5: ; push_word:
-        imm r1, 0x8
-        sub rf, r1
-        imm r1, 0x9000e8
-        load r2, r1
-        jlt rf, r2, 0x34a1                  ; -> gamma_incomplete:
-        jeq rf, r2, 0x34a1                  ; -> gamma_incomplete:
-        store rf, r0
-        ret
-0x32d9: ; pop_word:
-        imm r1, 0x2100000
-        jeq rf, r1, 0x34ad                  ; -> gamma_internal:
-        load r0, rf
-        imm r1, 0x8
-        add rf, r1
-        ret
-
-; r0 name start, r1 name length. Duplicate active locals trap when reached.
-0x32ff: ; require_fresh_local:
-        mov r8, r0
-        mov r9, r1
-        imm r0, 0x900118
-        load ra, r0
-        imm r0, 0x9000e8
-        load rb, r0
-0x331f: ; require_fresh_local_loop:
-        jlt ra, rb, 0x332b                  ; -> require_fresh_local_row:
-        ret
-0x332b: ; require_fresh_local_row:
-        load r2, ra
-        mov r3, ra
-        imm r4, 0x8
-        add r3, r4
-        load r3, r3
+; r0/r1 span. Returns word in r0 and success in r1.
+0xdf9: ; parse_hex:
+        mov r4, r0
+        mov r5, r1
+        imm r1, 0x3
+        jlt r5, r1, 0xf38                   ; -> parse_hex_fail:
+        imm r1, 0x13
+        jlt r5, r1, 0xe32                   ; -> parse_hex_width_ok:
+        jmp 0xf38                           ; -> parse_hex_fail:
+0xe32: ; parse_hex_width_ok:
+        loadb r6, r4
+        imm r7, 0x30
+        jeq r6, r7, 0xe53                   ; -> parse_hex_x:
+        jmp 0xf38                           ; -> parse_hex_fail:
+0xe53: ; parse_hex_x:
+        add r4, r91
+        loadb r6, r4
+        imm r7, 0x78
+        jeq r6, r7, 0xe77                   ; -> parse_hex_digits:
+        jmp 0xf38                           ; -> parse_hex_fail:
+0xe77: ; parse_hex_digits:
+        add r4, r91
+        imm r6, 0x2
+        imm r8, 0x0
+0xe8e: ; parse_hex_loop:
+        jlt r6, r5, 0xea0                   ; -> parse_hex_digit:
         mov r0, r8
-        mov r1, r9
-        call 0x3231                         ; -> spans_equal:
-        imm r1, 0x1
-        jeq r0, r1, 0x3495                  ; -> gamma_authored_trap:
-        imm r4, 0x28
-        add ra, r4
-        jmp 0x331f                          ; -> require_fresh_local_loop:
+        mov r1, r91
+        ret
+0xea0: ; parse_hex_digit:
+        loadb r7, r4
+        imm r9, 0x30
+        jlt r7, r9, 0xf38                   ; -> parse_hex_fail:
+        imm ra, 0x3a
+        jlt r7, ra, 0xf00                   ; -> parse_hex_decimal:
+        imm r9, 0x61
+        jlt r7, r9, 0xf38                   ; -> parse_hex_fail:
+        imm ra, 0x67
+        jlt r7, ra, 0xf0c                   ; -> parse_hex_alpha:
+        jmp 0xf38                           ; -> parse_hex_fail:
+0xf00: ; parse_hex_decimal:
+        sub r7, r9
+        jmp 0xf19                           ; -> parse_hex_accumulate:
+0xf0c: ; parse_hex_alpha:
+        imm r9, 0x57
+        sub r7, r9
+0xf19: ; parse_hex_accumulate:
+        imm r9, 0x10
+        mul r8, r9
+        add r8, r7
+        add r4, r91
+        add r6, r91
+        jmp 0xe8e                           ; -> parse_hex_loop:
+0xf38: ; parse_hex_fail:
+        mov r1, r90
+        ret
 
-; r0 name start, r1 name length. Returns binding row or zero.
-0x337b: ; find_binding:
-        mov r8, r0
-        mov r9, r1
-        imm r0, 0x900118
-        load ra, r0
-        imm r0, 0x9000e8
-        load rb, r0
-0x339b: ; find_binding_loop:
-        jlt ra, rb, 0x33b1                  ; -> find_binding_row:
+; Returns one-based builtin ordinal or zero.
+0xf3c: ; parse_builtin:
+        imm r8, 0x1039
+        imm r9, 0x1
+0xf50: ; parse_builtin_row:
+        imm r0, 0x10c4
+        jlt r8, r0, 0xf69                   ; -> parse_builtin_compare_start:
+        mov r0, r90
+        ret
+0xf69: ; parse_builtin_compare_start:
+        imm r6, 0x0
+0xf73: ; parse_builtin_compare:
+        loadb r0, r8
+        jz r0, 0xfc0                        ; -> parse_builtin_row_end:
+        jlt r6, r84, 0xf94                  ; -> parse_builtin_compare_byte:
+        jmp 0xfcb                           ; -> parse_builtin_skip:
+0xf94: ; parse_builtin_compare_byte:
+        mov rd, r83
+        add rd, r6
+        loadb r1, rd
+        jeq r0, r1, 0xfb1                   ; -> parse_builtin_next:
+        jmp 0xfcb                           ; -> parse_builtin_skip:
+0xfb1: ; parse_builtin_next:
+        add r8, r91
+        add r6, r91
+        jmp 0xf73                           ; -> parse_builtin_compare:
+0xfc0: ; parse_builtin_row_end:
+        jeq r6, r84, 0xff3                  ; -> parse_builtin_found:
+0xfcb: ; parse_builtin_skip:
+        loadb r0, r8
+        jz r0, 0xfe4                        ; -> parse_builtin_advance:
+        add r8, r91
+        jmp 0xfcb                           ; -> parse_builtin_skip:
+0xfe4: ; parse_builtin_advance:
+        add r8, r91
+        add r9, r91
+        jmp 0xf50                           ; -> parse_builtin_row:
+0xff3: ; parse_builtin_found:
+        mov r0, r9
+        ret
+
+0xff7: ; complete:
         imm r0, 0x0
-        ret
-0x33b1: ; find_binding_row:
-        load r2, ra
-        mov r3, ra
-        imm r4, 0x8
-        add r3, r4
-        load r3, r3
-        mov r0, r8
-        mov r1, r9
-        call 0x3231                         ; -> spans_equal:
-        imm r1, 0x1
-        jeq r0, r1, 0x3401                  ; -> find_binding_found:
-        imm r4, 0x28
-        add ra, r4
-        jmp 0x339b                          ; -> find_binding_loop:
-0x3401: ; find_binding_found:
-        mov r0, ra
-        ret
-
-; r0/r1 name span, r2 tag, r3/r4 value words.
-0x3405: ; push_binding:
-        imm r5, 0x9000e8
-        load r6, r5
-        mov r7, r6
-        imm r8, 0x28
-        add r7, r8
-        jlt rf, r7, 0x34a1                  ; -> gamma_incomplete:
-        store r6, r0
-        imm r8, 0x8
-        add r6, r8
-        store r6, r1
-        add r6, r8
-        store r6, r2
-        add r6, r8
-        store r6, r3
-        add r6, r8
-        store r6, r4
-        store r5, r7
-        ret
-
-0x3456: ; pop_binding:
-        imm r0, 0x9000e8
-        load r1, r0
-        imm r2, 0x28
-        sub r1, r2
-        imm r2, 0x1100000
-        jlt r1, r2, 0x34ad                  ; -> gamma_internal:
-        store r0, r1
-        ret
-
-0x3489: ; gamma_invalid:
+        halt r0
+0x1003: ; invalid:
         imm r0, 0x1
         halt r0
-0x3495: ; gamma_authored_trap:
+0x100f: ; authored_trap:
         imm r0, 0x2
         halt r0
-0x34a1: ; gamma_incomplete:
+0x101b: ; incomplete:
         imm r0, 0x3
         halt r0
-0x34ad: ; gamma_internal:
+0x1027: ; internal:
         imm r0, 0x4
         halt r0
 
-0x34b9: ; kw_def:
-        db "def"
-0x34bc: ; kw_entry:
-        db "entry"
-0x34c1: ; kw_reject:
-        db "Reject"
-0x34c7: ; reserved_table:
-        db "if\0let\0Complete\0bytes-single\0bytes-length\0bytes-get\0"
-        db "+\0-\0*\0/\0%\0<\0=\0bytes-slice\0bytes-concat\0pair\0"
-        db "pair-first\0pair-second\0"
-0x353e: ; reserved_table_end:
+0x1033: ; main_name:
+        db "main"
+0x1037: ; colon_token:
+        db ":"
+0x1038: ; semicolon_token:
+        db ";"
+0x1039: ; builtin_table:
+        db "input-length\0input-get\0output-byte\0output-word\0output-position\0"
+        db "assert-equal\0cell-get\0cell-set\0dup\0swap\0over\0drop\0"
+        db "+\0-\0*\0/\0%\0<\0=\0jump\0branch\0"
+0x10c4: ; builtin_table_end:

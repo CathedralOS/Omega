@@ -166,7 +166,7 @@ Omega/
 |-- source/
 |   |-- alpha/                                             # Alpha semantics and native VM seeds.
 |   |-- beta/                                              # Trusted tape-assembly language and compiler.
-|   |-- gamma/                                             # Strict functional calculus and Beta-written evaluator.
+|   |-- gamma/                                             # Concatenative compiler machine and Beta-written evaluator.
 |   |-- delta/                                             # Typed pure functional compiler language.
 |   |-- epsilon/                                           # Fixed-storage compiler-host language.
 |   |   `-- compiler/                                      # Incomplete Delta-written Epsilon compiler.
@@ -192,7 +192,7 @@ Omega/
 |-- tests/
 |   |-- alpha/                                         # Alpha conformance and reference differential.
 |   |-- beta/                                          # Beta compiler reconstruction and differential.
-|   |-- gamma/                                         # Gamma evaluator development gate.
+|   |-- gamma/                                         # Gamma evaluator and compiler-customer gates.
 |   |-- bootstrap/                                     # Tests whose subject spans multiple rungs.
 |   |-- omega/
 |   |   |-- pass/                                       # Focused Omega cases expected to check.

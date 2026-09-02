@@ -131,7 +131,7 @@ See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a
 
 The selected bootstrap lattice is Alpha -> Beta -> Gamma -> Delta -> Epsilon ->
 Omega. Alpha is raw tape execution; Beta is the trusted imperative tape-
-assembly language; Gamma is the tiny first-order functional calculus; Delta is
+assembly language; Gamma is the tiny concatenative compiler machine; Delta is
 the typed functional compiler language; and Epsilon is the fixed-storage
 compiler host. The Epsilon-written compiler closure `D` produces the first full Omega
 compiler `omega₀`, which compiles the Omega-written closure `C` into production

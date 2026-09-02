@@ -1,122 +1,97 @@
 # Gamma language
 
-Gamma is a strict, first-order functional bootstrap calculus. Its only customers
-are the Delta compiler and named bootstrap tools. General-purpose language
-features have no standing.
+Gamma is a bounded concatenative compiler machine. Its only customers are the
+Delta compiler and named bootstrap tools. It exposes an explicit value stack,
+fixed cells, sealed input, append-only output, ordinary word calls, and tail
+control-flow transfers. General-purpose language features have no standing.
 
 ## Source form
 
 Source bytes are HT, LF, CR, and printable ASCII. Every other byte rejects
 before tokenization at its exact byte offset. Space, tab, CR, and LF separate
-tokens; `;` begins a comment through the next CR, LF, or source end.
+tokens. `#` begins a comment through the next CR, LF, or source end.
 
-Identifiers match `[a-z_][A-Za-z0-9_]*`. Integers are an optional `-`
-followed by decimal digits and must fit signed 64-bit `Int`. A byte literal is
-`#x` followed by zero or more pairs of lowercase hexadecimal digits
-`[0-9a-f]`. Each pair denotes one byte in source order; bare `#x` denotes empty
-`Bytes`. Uppercase digits, separators, quotes, and escapes are not admitted.
+Names match `[a-z_][a-z0-9_]*`. A hexadecimal word is `0x` followed by one to
+sixteen lowercase hexadecimal digits. It denotes one 64-bit bit pattern.
+Leading zeroes are permitted. Decimal words, uppercase digits, bare `0x`, and
+wider words are not literals.
 
 ```text
-program      := form+
-form         := (def NAME (NAME) expression)
-              | (entry NAME)
-
-expression   := INTEGER | BYTE_LITERAL | NAME
-              | (if expression expression expression)
-              | (let NAME expression expression)
-              | (+ expression expression)
-              | (- expression expression)
-              | (* expression expression)
-              | (/ expression expression)
-              | (% expression expression)
-              | (= expression expression)
-              | (< expression expression)
-              | (bytes-single expression)
-              | (bytes-length expression)
-              | (bytes-get expression expression)
-              | (bytes-slice expression expression expression)
-              | (bytes-concat expression expression)
-              | (pair expression expression)
-              | (pair-first expression)
-              | (pair-second expression)
-              | (NAME expression)
+program     := definition+
+definition  := ':' NAME TOKEN* ';'
+HEXWORD     := '0x' [0-9a-f]{1,16}
+NAME        := [a-z_] [a-z0-9_]*
 ```
 
-Exactly one `entry` is required and it must name a declared function. Function
-names are globally unique. Every function has exactly one parameter and every
-application supplies exactly one argument. Parameters and `let` bindings may
-not shadow an active local.
+`:` and `;` must be separate tokens. Definitions are mutually visible and
+unique. A source name may not equal a builtin. Exactly one definition named
+`main` is required. The complete definition census occurs before execution;
+body tokens are otherwise opaque until reached. A reached token is classified
+as a `HEXWORD`, builtin, or exact user-word name. Every other reached token is
+an authored trap. `jump` consumes one following token as its target name;
+`branch` consumes two. A missing target token is malformed source.
 
-`Complete` and `Reject` are reserved evaluator-provided outcome forms with
-arities one and zero. Source may neither declare nor bind those names. The entry
-function must return `(Complete bytes)` or `Reject`; every other returned value
-is an evaluator contradiction. Only `Complete` can publish bytes.
+## Machine state
 
-Reserved primitive forms retain the fixed arities shown by the grammar.
-Function names occur only in call position: Gamma has no function values.
-Declarations are mutually visible, permitting forward and mutual recursion.
+Gamma execution has:
 
-Before execution, one complete structural pass validates every source byte and
-token, balanced list, top-level declaration, and expression form including each
-form's child count. It records function/body spans, rejects duplicate functions,
-and resolves the single entry. It constructs no AST or bound occurrence graph.
+- an immutable sealed input byte sequence;
+- an append-only output byte sequence;
+- a stack of 64-bit words;
+- zero-initialized fixed 64-bit cells addressed by nonnegative index;
+- a bounded stack of ordinary word continuations; and
+- the current word and source-token position.
 
-Global and local name resolution and duplicate active local bindings are checked
-only when execution reaches that form. Failure traps explicitly; it is never
-ignored or converted into a value. Applying a primitive to the wrong runtime
-value kind likewise traps explicitly. Thus malformed unreachable syntax rejects
-before execution, while a structurally valid unreachable name mistake has no
-effect until reached.
+Returning from `main` completes successfully. Returning from any other word
+resumes immediately after its call token. `jump target` transfers to `target`
+without retaining the current word. `branch yes no` pops one condition,
+consumes both target-name tokens, and tail-transfers to `yes` when nonzero or
+`no` when zero. Thus source CFG loops use constant continuation storage.
 
-## Values and evaluation
+An ordinary user name calls that word and retains one continuation. An unknown
+reached name, stack underflow, invalid cell/input access, invalid output byte,
+failed assertion, or selected unknown transfer target is an authored trap.
+An unselected branch target has no runtime name-resolution effect.
 
-Values are `Int`, immutable `Bytes`, immutable heterogeneous `Pair` values, or
-the reserved outcomes `Complete(Bytes)` and `Reject`.
-Evaluation is strict and left-to-right. `if` evaluates only its selected branch;
-integer zero is false and every other integer is true. A call evaluates its
-argument exactly once before entering the callee. Gamma requires no proper-tail
-implementation; a bounded evaluator may report `Incomplete` when its fixed call
-storage is exhausted.
+## Builtins
 
-Integer addition, subtraction, and multiplication trap when the mathematical
-result is outside signed 64-bit range. Division and remainder use truncation
-toward zero and trap for zero divisors and `INT64_MIN / -1`. `=` compares
-non-pair values structurally and returns `0` or `1`: unlike kinds are unequal,
-integers compare numerically, bytes compare logical contents, and outcomes
-compare their complete contents. Either operand being a `Pair` traps. `<`
-accepts only `Int`.
+The stack notation `( before -- after )` writes the top at the right.
 
-`pair` evaluates left then right and returns one immutable ordered pair.
-`pair-first` and `pair-second` return the corresponding field and trap on every
-other value kind. Nested pairs supply the only aggregate-data mechanism.
+| Builtin | Stack effect | Meaning |
+| --- | --- | --- |
+| `input-length` | `( -- n )` | Push sealed input length. |
+| `input-get` | `( index -- byte )` | Push the indexed input byte; bounds-check first. |
+| `output-byte` | `( value -- )` | Append one byte, requiring `0 <= value <= 255`. |
+| `output-word` | `( value -- )` | Append eight little-endian bytes. |
+| `output-position` | `( -- n )` | Push current output length. |
+| `assert-equal` | `( left right -- )` | Trap unless both words are identical. |
+| `cell-get` | `( index -- value )` | Load one checked cell. |
+| `cell-set` | `( value index -- )` | Store one checked cell. |
+| `dup` | `( a -- a a )` | Duplicate top. |
+| `swap` | `( a b -- b a )` | Exchange top two. |
+| `over` | `( a b -- a b a )` | Copy the second word. |
+| `drop` | `( a -- )` | Discard top. |
+| `+` | `( a b -- a+b )` | Wrapping addition modulo $2^{64}$. |
+| `-` | `( a b -- a-b )` | Wrapping subtraction modulo $2^{64}$. |
+| `*` | `( a b -- a*b )` | Wrapping multiplication modulo $2^{64}$. |
+| `/` | `( a b -- a/b )` | Signed division truncating toward zero. |
+| `%` | `( a b -- a%b )` | Signed remainder matching `/`. |
+| `<` | `( a b -- flag )` | Signed comparison, producing zero or one. |
+| `=` | `( a b -- flag )` | Bit-pattern equality, producing zero or one. |
 
-`bytes-single` accepts one `Int` in `0..255` and returns that one byte;
-out-of-range input traps. `bytes-length` returns a nonnegative `Int`.
-`bytes-get` traps on a negative or out-of-range index. `bytes-slice` takes start
-and length and traps unless that half-open range is contained in the source.
-`bytes-concat` traps before allocation if the exact result length exceeds
-`INT64_MAX`. Byte sequences are immutable finite logical sequences;
-representation shape is unobservable. Byte sequences are not lists, addresses,
-mutable buffers, or host strings.
+Division and remainder trap for a zero divisor and `INT64_MIN / -1`.
+Arithmetic otherwise has Alpha's exact two's-complement meaning.
 
-The entry function receives the invocation's sealed input as one `Bytes` value.
-Gamma has no ambient input, output, clock, filesystem, process, or foreign-call
-operation.
+## Boundaries and exclusions
 
-## Evaluator boundary
+[`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md) fixes request framing, capacities,
+terminal statuses, publication, and private representation. Capacity exhaustion
+produces `Incomplete`; it is not a Gamma value, authored trap, or source
+rejection. A program may diverge through actual infinite control transfer.
 
-[`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md) fixes the first Beta-authored
-evaluator's exact request bytes, terminal statuses, artifact-publication rule,
-spatial bounds, and private representation constraints. Those choices realize
-this language but do not add Gamma values or expressions. A profile revision
-must preserve the language relation or explicitly revise this document.
-
-## Deliberate exclusions
-
-Gamma has no user-defined algebraic data, pattern matching, arbitrary function
-arity, proper-tail guarantee, mutation, raw memory, closures, higher-order
-values, macros, polymorphism, general garbage collector, continuations,
-exceptions, modules, packages, interactive evaluation, implicit conversion,
-subtyping, concurrency, or ambient effects. A new primitive or form is admitted
-only when a named Delta-compiler or checker workload lowers the complete audited
-chain cost.
+Gamma has no strings, local names, lexical environments, pairs, algebraic data,
+pattern matching, function parameters, function values, closures, heap,
+garbage collector, mutation outside fixed cells, raw addresses, computed jumps,
+exceptions, modules, packages, concurrency, ambient input/output, or host calls.
+A builtin is admitted only when a named compiler/checker customer lowers the
+complete audited chain cost.
