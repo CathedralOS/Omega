@@ -17,6 +17,7 @@ pub(crate) fn replay_boundary_settlement(
         execution,
         realization: omega_target_operations::BoundaryRealization::ClaimCompletionOnly(realization),
         scalar_arguments,
+        runtime_scalar_arguments,
         arguments: target_arguments,
         byte_sequence_arguments,
         completion_claim_sources: target_sources,
@@ -94,6 +95,7 @@ pub(crate) fn replay_boundary_settlement(
     if target_operation != psi_operation
         || target_boundary != boundary
         || !scalar_arguments.is_empty()
+        || !runtime_scalar_arguments.is_empty()
         || !arguments.is_empty()
         || !byte_sequence_arguments.is_empty()
         || target_arguments != structural_arguments

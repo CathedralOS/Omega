@@ -112,6 +112,7 @@ pub(super) fn derive_compiler_intrinsic_settlement_proposals(
         if !matches!(
             *execution,
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
+                | CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32
         ) {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
@@ -119,10 +120,19 @@ pub(super) fn derive_compiler_intrinsic_settlement_proposals(
             )));
             continue;
         }
+        let execution = match execution {
+            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
+                omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32
+            }
+            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
+                omega_target_operations::CompilerBuiltinExecution::LinuxWriteByteI32
+            }
+            _ => unreachable!("native boundary intrinsic was checked above"),
+        };
         evidence.push(CompilerIntrinsicSettlementProposal {
             requirement_identity: requirement.clone(),
             plan_index: *plan_index,
-            execution: omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+            execution,
         });
     }
     if diagnostics.is_empty() {

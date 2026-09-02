@@ -37,8 +37,9 @@ use omega_machine_code::{
     SemanticCodeSite,
 };
 use omega_target_operations::{
-    BoundaryRealization, BoundaryScalarArgument, LinuxExitGroupI32Realization,
-    ProviderExecutionBinding, ProviderPlanReportIdentity, TerminalPsiProvenance,
+    BoundaryRealization, BoundaryScalarArgument, ClaimCompletionOnlyRealization,
+    LinuxExitGroupI32Realization, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    TerminalPsiProvenance,
 };
 use psi_core::{BoundaryMachineId, EdgeId, MachineId, OperationId, ProfileDecisionId};
 use psi_extents::{
@@ -271,7 +272,8 @@ fn terminal_image(
     omega_image_emission::ExecutableImage,
 ) {
     let machine = MachineId::new(1).expect("machine");
-    let operation = OperationId::new(1).expect("operation");
+    let provider_operation = OperationId::new(1).expect("provider operation");
+    let exit_operation = OperationId::new(2).expect("exit operation");
     let edge = EdgeId::new(1).expect("edge");
     let bytes = omega_isa_x86_64::encode_linux_exit_group_i32(0);
     let provider = ProviderExecutionBinding::from_execution_record(
@@ -300,7 +302,7 @@ fn terminal_image(
             structural_call_scalar_return: None,
             unit_scalar_abi: None,
             provenance: TerminalPsiProvenance {
-                operations: vec![operation],
+                operations: vec![provider_operation, exit_operation],
                 edges: vec![edge],
             },
             bytes: bytes.clone(),
@@ -327,42 +329,74 @@ fn terminal_image(
             unit_affine_cleanup: None,
             semantic_code_attribution: vec![
                 SemanticCodeAttribution {
-                    site: SemanticCodeSite::Operation(operation),
+                    site: SemanticCodeSite::Operation(provider_operation),
                     operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 0,
+                },
+                SemanticCodeAttribution {
+                    site: SemanticCodeSite::Operation(exit_operation),
+                    operation_ordinal: 1,
                     code_offset: 0,
                     byte_count: bytes.len(),
                 },
                 SemanticCodeAttribution {
                     site: SemanticCodeSite::Edge(edge),
-                    operation_ordinal: 1,
+                    operation_ordinal: 2,
                     code_offset: bytes.len(),
                     byte_count: 0,
                 },
             ],
             port_effects: Vec::new(),
-            boundary_settlements: vec![BoundarySettlementRecord {
-                psi_operation: operation,
-                boundary: BoundaryMachineId::new(1).expect("boundary"),
-                execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
-                    provider.into(),
-                ),
-                realization: BoundaryRealization::LinuxExitGroupI32(LinuxExitGroupI32Realization),
-                scalar_arguments: vec![BoundaryScalarArgument {
-                    source_value: psi_core::ValueId::new(1).expect("value"),
-                    scalar_type,
-                    immediate: psi_core::IntegerValue::Signed(0),
-                    destination: omega_calling_conventions::MachineRegister::X86Rdi,
-                }],
-                arguments: Vec::new(),
-                byte_sequence_arguments: Vec::new(),
-                completion_claim_sources: Vec::new(),
-                completion_receipts: Vec::new(),
-                completion_provider_custody: Vec::new(),
-                native_result: None,
-                operation_ordinal: 0,
-                code_offset: 0,
-                byte_count: bytes.len(),
-            }],
+            boundary_settlements: vec![
+                BoundarySettlementRecord {
+                    psi_operation: provider_operation,
+                    boundary: BoundaryMachineId::new(1).expect("provider boundary"),
+                    execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
+                        provider.into(),
+                    ),
+                    realization: BoundaryRealization::ClaimCompletionOnly(
+                        ClaimCompletionOnlyRealization,
+                    ),
+                    scalar_arguments: Vec::new(),
+                    runtime_scalar_arguments: Vec::new(),
+                    arguments: Vec::new(),
+                    byte_sequence_arguments: Vec::new(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                    completion_provider_custody: Vec::new(),
+                    native_result: None,
+                    operation_ordinal: 0,
+                    code_offset: 0,
+                    byte_count: 0,
+                },
+                BoundarySettlementRecord {
+                    psi_operation: exit_operation,
+                    boundary: BoundaryMachineId::new(2).expect("exit boundary"),
+                    execution: omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                        omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
+                    ),
+                    realization: BoundaryRealization::LinuxExitGroupI32(
+                        LinuxExitGroupI32Realization,
+                    ),
+                    scalar_arguments: vec![BoundaryScalarArgument {
+                        source_value: psi_core::ValueId::new(1).expect("value"),
+                        scalar_type,
+                        immediate: psi_core::IntegerValue::Signed(0),
+                        destination: omega_calling_conventions::MachineRegister::X86Rdi,
+                    }],
+                    runtime_scalar_arguments: Vec::new(),
+                    arguments: Vec::new(),
+                    byte_sequence_arguments: Vec::new(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                    completion_provider_custody: Vec::new(),
+                    native_result: None,
+                    operation_ordinal: 1,
+                    code_offset: 0,
+                    byte_count: bytes.len(),
+                },
+            ],
             scalar_affine_cleanup: None,
             scalar_control_affine_cleanups: Vec::new(),
             scalar_structural_parameters: Vec::new(),

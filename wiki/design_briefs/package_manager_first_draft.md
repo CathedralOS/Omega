@@ -983,6 +983,12 @@ not D39 semantic external termination. One explicit checked terminal-effect
 completion identity must survive from the boundary contract through Terminal
 and the selected target realization before the path can issue that observation;
 Unit and backend nonreturning knowledge are insufficient.
+Review v126/canonical row v84 separately closes exact selected Linux
+`Console::write_byte(i32) -> Unit` for the current direct-constant and exact
+preceding internal Unit-call-home source frontier. Its ProcessOutput permission,
+runtime scalar custody, scratch materialization, balanced stack slot, and
+single-byte syscall remain distinct from exit authority; incoming-parameter ABI
+replay and sibling Console rows remain fenced.
 Selected payload-bearing leaves also cross the provider-plan ABI extractor by
 the same exact top-level requirement and normalized overload. Its semantic
 `self` is the satisfier's explicit carrier argument, not an erasable trait

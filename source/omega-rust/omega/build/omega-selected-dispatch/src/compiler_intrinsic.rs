@@ -130,9 +130,50 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
         )));
     }
+    if linux_console_write_byte_row(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
+    )? {
+        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32,
+        )));
+    }
     Ok(Some(
         SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
     ))
+}
+
+fn linux_console_write_byte_row(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
+) -> Result<bool, Diagnostic> {
+    linux_console_i32_row(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
+        "write_byte",
+        "ConsoleNativeProvider::write_byte",
+    )
 }
 
 fn linux_console_exit_row(
@@ -145,6 +186,35 @@ fn linux_console_exit_row(
     selected_target: Option<&str>,
     accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
     accepted_declaration_symbol: Option<SymbolHandle>,
+) -> Result<bool, Diagnostic> {
+    linux_console_i32_row(
+        checked,
+        plan,
+        row,
+        trait_symbol,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        accepted_binding,
+        accepted_declaration_symbol,
+        "exit_process",
+        "ConsoleNativeProvider::exit_process",
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn linux_console_i32_row(
+    checked: &CheckedTrees,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    trait_symbol: SymbolHandle,
+    requirement_symbol: SymbolHandle,
+    realization_symbol: SymbolHandle,
+    selected_target: Option<&str>,
+    accepted_binding: Option<&omega_package_compilation::AcceptedSemanticBinding>,
+    accepted_declaration_symbol: Option<SymbolHandle>,
+    requirement_name: &str,
+    realization_name: &str,
 ) -> Result<bool, Diagnostic> {
     let Some(selected_target @ ("linux_x86_64" | "linux_arm64")) = selected_target else {
         return Ok(false);
@@ -174,7 +244,7 @@ fn linux_console_exit_row(
         return Ok(false);
     }
 
-    console_exit_process_i32_row_shape(
+    console_i32_to_unit_row_shape(
         checked,
         plan,
         row,
@@ -182,6 +252,8 @@ fn linux_console_exit_row(
         requirement_symbol,
         realization_symbol,
         true,
+        requirement_name,
+        realization_name,
     )
 }
 
@@ -259,7 +331,7 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
     ) {
         return Ok(false);
     }
-    console_exit_process_i32_row_shape(
+    console_i32_to_unit_row_shape(
         checked,
         plan,
         row,
@@ -267,10 +339,12 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
         requirement_symbol,
         realization_symbol,
         false,
+        "exit_process",
+        "ConsoleNativeProvider::exit_process",
     )
 }
 
-fn console_exit_process_i32_row_shape(
+fn console_i32_to_unit_row_shape(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -278,6 +352,8 @@ fn console_exit_process_i32_row_shape(
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     require_inferred_supply: bool,
+    requirement_name: &str,
+    realization_name: &str,
 ) -> Result<bool, Diagnostic> {
     let typed = &checked.typed;
 
@@ -329,11 +405,11 @@ fn console_exit_process_i32_row_shape(
         )));
     };
     if plan.schema.trait_name != definition.name.as_str()
-        || method.name != "exit_process"
+        || method.name != requirement_name
         || method.requirement_owner != definition.name.as_str()
         || method.requirement_identity != requirement_identity
         || row.requirement_identity != requirement_identity
-        || !exact_i32_to_unit_signature(typed, requirement)
+        || !exact_i32_to_unit_signature(typed, requirement, requirement_name)
     {
         return Ok(false);
     }
@@ -357,7 +433,7 @@ fn console_exit_process_i32_row_shape(
     let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
         unreachable!("caller already admitted only compiler-intrinsic rows");
     };
-    if realization.name.as_str() != "ConsoleNativeProvider::exit_process"
+    if realization.name.as_str() != realization_name
         || machine != &realization_identity
         || !realization.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(realization).is_empty()
@@ -395,7 +471,7 @@ fn console_exit_process_i32_row_shape(
             conformance.symbol == trait_symbol
                 && conformance.requirement_symbol == requirement_symbol
                 && conformance.requirement.as_ref().map(|name| name.as_str())
-                    == Some("exit_process")
+                    == Some(requirement_name)
                 && ((inferred_supply
                     && conformance.external_binding.is_none()
                     && !conformance.via_expression.is_valid()
@@ -439,8 +515,9 @@ pub(crate) fn accepted_binding_matches_selected_row_identity(
 fn exact_i32_to_unit_signature(
     typed: &psi_typed_trees::TypedTrees,
     signature: &psi_typed_trees::signature::StateSignature,
+    requirement_name: &str,
 ) -> bool {
-    signature.name.as_str() == "exit_process"
+    signature.name.as_str() == requirement_name
         && signature.lifetime_parameters.is_empty()
         && typed.state_signature_type_parameters(signature).is_empty()
         && signature.native_callback_parameters.is_empty()

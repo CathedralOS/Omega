@@ -307,34 +307,6 @@ fn ordinary_x86_fma_object_replays_semantic_operands_plan_and_mxcsr_custody() {
 
 #[test]
 fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
-    #[derive(Debug)]
-    struct ExitProvider;
-    impl ProviderExecutionEvidence for ExitProvider {
-        fn requirement_identity(&self) -> &str {
-            "Console::exit_process"
-        }
-
-        fn provider_plan_report_identity(&self) -> u64 {
-            91
-        }
-
-        fn provider_execution_report_identity(&self) -> u64 {
-            92
-        }
-
-        fn provider_execution_report_fingerprint(&self) -> u64 {
-            93
-        }
-
-        fn normalized_root_report_identity(&self) -> u64 {
-            94
-        }
-
-        fn boundary_contract_report_fingerprint(&self) -> u64 {
-            95
-        }
-    }
-
     for (target, destination) in [
         (
             NativeTarget::linux_x64(),
@@ -366,14 +338,6 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 omega_isa_aarch64::encode_linux_exit_group_i32(37).unwrap()
             }
         };
-        let provider = ProviderExecutionBinding::from_execution_record(
-            ProviderPlanReportIdentity::new(91).unwrap(),
-            92,
-            93,
-            94,
-            95,
-        )
-        .unwrap();
         let plan = MachineCodePlan {
             psi: identity(),
             target,
@@ -435,13 +399,14 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 boundary_settlements: vec![BoundarySettlementRecord {
                     psi_operation: settlement_operation,
                     boundary,
-                    execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
-                        provider.into(),
+                    execution: omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                        omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
                     ),
                     realization: BoundaryRealization::LinuxExitGroupI32(
                         LinuxExitGroupI32Realization,
                     ),
                     scalar_arguments: vec![argument],
+                    runtime_scalar_arguments: Vec::new(),
                     arguments: Vec::new(),
                     byte_sequence_arguments: Vec::new(),
                     completion_claim_sources: Vec::new(),
@@ -472,12 +437,8 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
             image.boundary_settlements()[0].settlement.byte_count,
             bytes.len()
         );
-        let installation = build_installation_record_with_provider_executions(
-            &image,
-            ProfileDecisionId::new(91).unwrap(),
-            [&ExitProvider],
-        )
-        .expect("exit installation record");
+        let installation = build_installation_record(&image, ProfileDecisionId::new(91).unwrap())
+            .expect("exit installation record");
         let encoded =
             encode_installation_record(&installation).expect("exit installation encoding");
         let decoded = decode_installation_record(&encoded).expect("exit installation decoding");
@@ -562,7 +523,6 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     let return_offset = bytes.len();
     bytes.push(0xc3);
     let write_provider = Provider(970);
-    let exit_provider = Provider(980);
     let binding = |provider: &Provider| {
         ProviderExecutionBinding::from_execution_record(
             ProviderPlanReportIdentity::new(provider.provider_plan_report_identity()).unwrap(),
@@ -675,6 +635,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                     ),
                     realization: omega_target_operations::LinuxWriteLineRealization.into(),
                     scalar_arguments: Vec::new(),
+                    runtime_scalar_arguments: Vec::new(),
                     arguments: vec![structural_argument.clone()],
                     byte_sequence_arguments: vec![
                         omega_machine_code::BoundaryByteSequenceArgumentRecord {
@@ -699,11 +660,12 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
                 BoundarySettlementRecord {
                     psi_operation: exit_operation,
                     boundary: exit_boundary,
-                    execution: omega_machine_code::BoundaryExecutionRecord::AdmittedProvider(
-                        binding(&exit_provider).into(),
+                    execution: omega_machine_code::BoundaryExecutionRecord::CompilerBuiltin(
+                        omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
                     ),
                     realization: LinuxExitGroupI32Realization.into(),
                     scalar_arguments: vec![exit_argument],
+                    runtime_scalar_arguments: Vec::new(),
                     arguments: Vec::new(),
                     byte_sequence_arguments: Vec::new(),
                     completion_claim_sources: Vec::new(),
@@ -729,7 +691,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
     let installation = build_installation_record_with_provider_executions(
         &image,
         ProfileDecisionId::new(97).unwrap(),
-        [&write_provider, &exit_provider],
+        [&write_provider],
     )
     .expect("composed installation validates");
     let encoded = encode_installation_record(&installation).unwrap();
@@ -2347,7 +2309,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "45e520a75a373db175775f5d9667292d24319551fcebe0f23dcd6fb8bb2842b6"
+        "37bed07bdb185231ea2c774a665ed78583cd76ac70d623d5842b7325ca3fd147"
     );
 
     let mut changed_plan = plan;
@@ -2604,6 +2566,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
                 ),
                 realization: realization.into(),
                 scalar_arguments: Vec::new(),
+                runtime_scalar_arguments: Vec::new(),
                 arguments: Vec::new(),
                 byte_sequence_arguments: Vec::new(),
                 completion_claim_sources: Vec::new(),

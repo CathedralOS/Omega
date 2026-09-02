@@ -11,6 +11,9 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// Exact toolchain-owned `Console::exit_process(i32) -> Unit` execution
     /// selected for one canonical Linux target.
     LinuxExitGroupI32,
+    /// Exact toolchain-owned `Console::write_byte(i32) -> Unit` execution
+    /// selected for one canonical Linux target.
+    LinuxWriteByteI32,
     BuiltinFunction(psi_symbols::BuiltinFunction),
     PrimitiveFloatBinary {
         operation: CompilerPrimitiveFloatBinaryOperation,
@@ -33,6 +36,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
     let mut bytes = [0_u8; 8];
     match identity {
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => bytes[0] = 0,
+        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             bytes[0] = 1;
             bytes[1..5].copy_from_slice(&(function.ordinal() as u32).to_be_bytes());
@@ -754,7 +758,10 @@ mod tests {
 
     #[test]
     fn compiler_intrinsic_atoms_have_unique_canonical_encodings() {
-        let mut identities = vec![CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32];
+        let mut identities = vec![
+            CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32,
+            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32,
+        ];
         identities.extend(
             psi_symbols::BuiltinFunction::ALL
                 .into_iter()

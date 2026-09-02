@@ -48,6 +48,7 @@ pub(super) fn unsupported_scalar_call(
                 Some(
                     omega_target_operations::BoundarySettlementRealization::Builtin(
                         BoundaryRealization::LinuxExitGroupI32(_)
+                            | BoundaryRealization::LinuxWriteByteI32(_)
                     )
                 ) | Some(
                     omega_target_operations::BoundarySettlementRealization::NormalizedForeignCall(

@@ -16,6 +16,7 @@ pub(super) fn boundary_result_is_exact(
         BoundaryRealization::ClaimCompletionOnly(_) => result.is_none(),
         BoundaryRealization::LinuxWriteLine(_) => result.is_none(),
         BoundaryRealization::LinuxExitGroupI32(_) => result.is_none(),
+        BoundaryRealization::LinuxWriteByteI32(_) => result.is_none(),
         BoundaryRealization::DirectPortReadU8(_) => {
             target.architecture == Architecture::X86_64
                 && result.is_some_and(|result| {

@@ -172,6 +172,9 @@ pub(super) fn encode_compiler_intrinsic_execution(
         PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32 => {
             encoder.byte(4);
         }
+        PackageReviewCompilerIntrinsicExecution::LinuxWriteByteI32 => {
+            encoder.byte(5);
+        }
         PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function) => {
             encoder.byte(0);
             encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {

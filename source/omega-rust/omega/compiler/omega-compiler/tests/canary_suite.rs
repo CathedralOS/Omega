@@ -53,6 +53,20 @@ fn production_compile(
     )?;
     let mut request = CompileRequest::new(options).with_requested_product(requested_product);
     if let Some(package_inputs) = package_inputs {
+        let permission_policy =
+            omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+                package_inputs
+                    .accepted_semantic_bindings()
+                    .flat_map(|binding| binding.terminal_authority_permissions())
+                    .cloned()
+                    .collect(),
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot construct repository fixture terminal-authority policy: {error:?}"
+                ))]
+            })?;
+        request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
     let report = omega_compiler::compile(request)?;
@@ -82,6 +96,20 @@ fn compile_with_artifact_policy(
         .with_requested_product(requested_product)
         .with_artifact_policy(artifact_policy);
     if let Some(package_inputs) = package_inputs {
+        let permission_policy =
+            omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+                package_inputs
+                    .accepted_semantic_bindings()
+                    .flat_map(|binding| binding.terminal_authority_permissions())
+                    .cloned()
+                    .collect(),
+            )
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot construct repository fixture terminal-authority policy: {error:?}"
+                ))]
+            })?;
+        request = request.with_terminal_authority_permission_policy(permission_policy);
         request = request.with_package_inputs(package_inputs);
     }
     let report = omega_compiler::compile(request)?;
@@ -1456,6 +1484,46 @@ fn compile_rooted_backend_canary_without_output_for_target(
     )
 }
 
+fn compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
+    canary_dir: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let build_dir = unique_no_output_build_dir();
+    let root_path = canary_dir.join("main.omg");
+    let package_inputs = reviewed_repository_fixture_package_inputs(&root_path, Some(target))?
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "fixture has no repository package inputs",
+            )]
+        })?;
+    let permission_policy =
+        omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
+            package_inputs
+                .accepted_semantic_bindings()
+                .flat_map(|binding| binding.terminal_authority_permissions())
+                .cloned()
+                .collect(),
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot construct repository fixture terminal-authority policy: {error:?}"
+            ))]
+        })?;
+    let result = omega_compiler::compile(
+        CompileRequest::new(CompilerOptions {
+            root_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(target.into()),
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly)
+        .with_terminal_authority_permission_policy(permission_policy)
+        .with_package_inputs(package_inputs),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+    result
+}
+
 fn compile_rooted_backend_canary_without_output_for_target_and_permission_policy(
     canary_dir: &Path,
     target: &str,
@@ -2707,8 +2775,15 @@ fn fixture_accepts_console_exit(root_path: &Path) -> bool {
     })
 }
 
+fn fixture_accepts_console_output(root_path: &Path) -> bool {
+    fs::read_to_string(root_path).is_ok_and(|source| {
+        source.contains("omega_language_std::console") && source.contains(".write_byte(")
+    })
+}
+
 fn candidate_console_exit_binding(
     checked: &CheckedCompilation,
+    accepts_console_output: bool,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let standard_library = fixture_package_identity(2);
     let candidates = checked
@@ -2736,7 +2811,7 @@ fn candidate_console_exit_binding(
         .typed
         .symbols
         .display_path(provenance.provider.schema.symbol(), "::");
-    AcceptedSemanticBinding::new(
+    let binding = AcceptedSemanticBinding::new(
         AcceptedSemanticBindingRole::ConsoleExitProcessI32,
         standard_library,
         declaration_path,
@@ -2747,7 +2822,43 @@ fn candidate_console_exit_binding(
         vec![Diagnostic::error(format!(
             "cannot construct repository fixture Console exit binding: {error}"
         ))]
-    })
+    })?;
+    let mut permissions = plan
+        .schema
+        .methods
+        .iter()
+        .filter(|method| {
+            method.name == "exit_process" || (accepts_console_output && method.name == "write_byte")
+        })
+        .map(|method| {
+            omega_effects::ServiceTerminalAuthorityPermission::new(
+                plan.schema.identity_digest(),
+                method.requirement_identity.clone(),
+                omega_effects::TerminalAuthorityDisposition::from_classes(
+                    match method.name.as_str() {
+                        "exit_process" => {
+                            vec![omega_effects::TerminalAuthorityClass::ProcessTermination]
+                        }
+                        "write_byte" => {
+                            vec![omega_effects::TerminalAuthorityClass::ProcessOutput]
+                        }
+                        _ => unreachable!("filtered above"),
+                    },
+                ),
+            )
+        })
+        .collect::<Vec<_>>();
+    permissions.sort_by(|left, right| {
+        left.requirement_identity()
+            .cmp(right.requirement_identity())
+    });
+    binding
+        .with_terminal_authority_permissions(permissions)
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "cannot attach repository fixture Console terminal permissions: {error}"
+            ))]
+        })
 }
 
 fn reviewed_repository_fixture_package_inputs(
@@ -2759,7 +2870,8 @@ fn reviewed_repository_fixture_package_inputs(
     };
     let accepts_filesystem = fixture_accepts_filesystem_service(root_path);
     let accepts_console_exit = fixture_accepts_console_exit(root_path);
-    if !accepts_filesystem && !accepts_console_exit {
+    let accepts_console_output = fixture_accepts_console_output(root_path);
+    if !accepts_filesystem && !accepts_console_exit && !accepts_console_output {
         return Ok(Some(package_inputs));
     }
 
@@ -2782,8 +2894,11 @@ fn reviewed_repository_fixture_package_inputs(
                 .map_err(|diagnostic| vec![diagnostic])?,
         );
     }
-    if accepts_console_exit {
-        bindings.push(candidate_console_exit_binding(&preliminary)?);
+    if accepts_console_exit || accepts_console_output {
+        bindings.push(candidate_console_exit_binding(
+            &preliminary,
+            accepts_console_output,
+        )?);
     }
     package_inputs
         .with_accepted_semantic_bindings(bindings)

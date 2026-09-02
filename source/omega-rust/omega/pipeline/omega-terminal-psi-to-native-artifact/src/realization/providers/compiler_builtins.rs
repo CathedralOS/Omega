@@ -6,6 +6,7 @@ use omega_abstract_operations_to_target_operations::{
 use omega_effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
 use omega_target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, LinuxExitGroupI32Realization,
+    LinuxWriteByteI32Realization,
 };
 use psi_diagnostics::Diagnostic;
 
@@ -87,6 +88,17 @@ pub(super) fn settle_compiler_builtins<'request>(
                     request.target
                 ))]);
             }
+            CompilerBuiltinExecution::LinuxWriteByteI32
+                if request.target.object_format == omega_target::ObjectFormat::Elf =>
+            {
+                LinuxWriteByteI32Realization.into()
+            }
+            CompilerBuiltinExecution::LinuxWriteByteI32 => {
+                return Err(vec![Diagnostic::error(format!(
+                    "local target catalog cannot realize Linux write-byte for `{requirement}` on {:?}",
+                    request.target
+                ))]);
+            }
         };
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
@@ -107,6 +119,9 @@ const fn compiler_intrinsic_execution_identity(
     match execution {
         CompilerBuiltinExecution::LinuxExitGroupI32 => {
             CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32
+        }
+        CompilerBuiltinExecution::LinuxWriteByteI32 => {
+            CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32
         }
     }
 }

@@ -491,11 +491,14 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
         }
         _ => None,
     };
-    let inferred_console_exit = machine.supply_mode == MachineSupplyMode::Boundary
-        && machine.name.as_str() == "ConsoleNativeProvider::exit_process"
+    let inferred_console_intrinsic = machine.supply_mode == MachineSupplyMode::Boundary
+        && matches!(
+            machine.name.as_str(),
+            "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte"
+        )
         && machine.attached_data.as_ref().map(|name| name.as_str())
             == Some("ConsoleNativeProvider");
-    if authored_binding.is_none() && !inferred_console_exit {
+    if authored_binding.is_none() && !inferred_console_intrinsic {
         return None;
     }
     let [state] = program.machine_states(machine) else {
@@ -515,11 +518,12 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
         .machine_trait_conformances(machine)
         .iter()
         .filter_map(|conformance| {
-            if ((inferred_console_exit
+            if ((inferred_console_intrinsic
                 && (conformance.external_binding.is_some()
                     || conformance.via_expression.is_valid()
                     || conformance.external_binding_source_span.is_some()))
-                || (!inferred_console_exit && conformance.external_binding != authored_binding))
+                || (!inferred_console_intrinsic
+                    && conformance.external_binding != authored_binding))
                 || conformance.requirement.is_none()
                 || !program
                     .type_reference_table
@@ -541,11 +545,16 @@ pub(super) fn exact_compiler_intrinsic_boundary_requirement(
             };
             (definition.symbol == conformance.symbol
                 && definition.is_boundary
-                && (!inferred_console_exit || definition.name.as_str() == "Console")
+                && (!inferred_console_intrinsic || definition.name.as_str() == "Console")
                 && definition.lifetime_parameters.is_empty()
                 && program.trait_type_parameters(definition).is_empty()
                 && requirement.symbol == conformance.requirement_symbol
-                && (!inferred_console_exit || requirement.name.as_str() == "exit_process")
+                && (!inferred_console_intrinsic
+                    || machine
+                        .name
+                        .as_str()
+                        .strip_prefix("ConsoleNativeProvider::")
+                        == Some(requirement.name.as_str()))
                 && requirement.lifetime_parameters.is_empty()
                 && program
                     .state_signature_type_parameters(requirement)

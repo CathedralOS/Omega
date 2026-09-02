@@ -117,7 +117,7 @@ fn builtin_partition_is_exact_and_explicit() {
 }
 
 #[test]
-fn linux_exit_and_numeric_families_have_exact_dispositions() {
+fn linux_console_and_numeric_families_have_exact_dispositions() {
     let policy = current_compiler_intrinsic_terminal_authority_policy();
     assert_eq!(
         policy
@@ -126,9 +126,16 @@ fn linux_exit_and_numeric_families_have_exact_dispositions() {
             .classes(),
         &[TerminalAuthorityClass::ProcessTermination]
     );
+    assert_eq!(
+        policy
+            .classify(CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32)
+            .expect("Linux write-byte must have a committed policy row")
+            .classes(),
+        &[TerminalAuthorityClass::ProcessOutput]
+    );
     for mechanism in closed_policy_mechanisms()
         .into_iter()
-        .skip(1 + BuiltinFunction::COUNT)
+        .skip(2 + BuiltinFunction::COUNT)
     {
         assert!(
             policy
@@ -158,8 +165,8 @@ fn policy_identity_binds_version_and_complete_table() {
     assert_eq!(
         identity.commitment(),
         [
-            84, 53, 183, 206, 20, 95, 125, 211, 166, 25, 16, 71, 143, 255, 159, 161, 78, 162, 157,
-            72, 252, 99, 202, 138, 4, 108, 51, 45, 177, 251, 73, 33,
+            107, 239, 0, 3, 237, 102, 255, 174, 179, 104, 243, 187, 27, 192, 176, 201, 109, 167,
+            111, 242, 46, 13, 95, 241, 11, 170, 140, 74, 199, 208, 60, 106,
         ]
     );
 }

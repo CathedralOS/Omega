@@ -1811,6 +1811,7 @@ pub(super) fn emit_unit_body(
                 execution,
                 realization,
                 scalar_arguments,
+                runtime_scalar_arguments,
                 arguments,
                 byte_sequence_arguments,
                 completion_claim_sources,
@@ -1826,14 +1827,21 @@ pub(super) fn emit_unit_body(
                 .ok_or(EmissionError::InvalidCompletionProviderCustody)?;
                 let settlement_code_offset = bytes.len();
                 let mut byte_sequence_records = Vec::new();
+                let mut runtime_scalar_records = Vec::new();
                 match realization {
                     omega_target_operations::BoundaryRealization::MetadataOnlyPort(_) => {
-                        if !scalar_arguments.is_empty() || !byte_sequence_arguments.is_empty() {
+                        if !scalar_arguments.is_empty()
+                            || !runtime_scalar_arguments.is_empty()
+                            || !byte_sequence_arguments.is_empty()
+                        {
                             return Err(EmissionError::InvalidLinuxWriteLineCustody);
                         }
                     }
                     omega_target_operations::BoundaryRealization::ClaimCompletionOnly(_) => {
-                        if !scalar_arguments.is_empty() || !byte_sequence_arguments.is_empty() {
+                        if !scalar_arguments.is_empty()
+                            || !runtime_scalar_arguments.is_empty()
+                            || !byte_sequence_arguments.is_empty()
+                        {
                             return Err(EmissionError::InvalidClaimCompletionOnlyCustody);
                         }
                     }
@@ -1847,6 +1855,7 @@ pub(super) fn emit_unit_body(
                             return Err(EmissionError::InvalidLinuxWriteLineCustody);
                         };
                         if !scalar_arguments.is_empty()
+                            || !runtime_scalar_arguments.is_empty()
                             || arguments.as_slice() != [argument.argument.clone()]
                             || *literal_operation != argument.literal_operation
                             || structural_type != &argument.structural_type
@@ -1911,6 +1920,7 @@ pub(super) fn emit_unit_body(
                         };
                         if target.object_format != ObjectFormat::Elf
                             || argument.destination != expected_destination
+                            || !runtime_scalar_arguments.is_empty()
                             || !arguments.is_empty()
                             || !byte_sequence_arguments.is_empty()
                         {
@@ -1926,6 +1936,59 @@ pub(super) fn emit_unit_body(
                             ),
                         }
                     }
+                    omega_target_operations::BoundaryRealization::LinuxWriteByteI32(_) => {
+                        let [argument] = runtime_scalar_arguments.as_slice() else {
+                            return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary));
+                        };
+                        let i32_type =
+                            psi_core::IntegerType::new(psi_core::IntegerSign::Signed, 32)
+                                .expect("i32 is valid");
+                        let expected_destination = match target.architecture {
+                            Architecture::X86_64 => {
+                                omega_calling_conventions::MachineRegister::X86R11
+                            }
+                            Architecture::Aarch64 => {
+                                omega_calling_conventions::MachineRegister::Aarch64X(9)
+                            }
+                        };
+                        if target.object_format != ObjectFormat::Elf
+                            || argument.parameter_index != 0
+                            || argument.source.scalar_type()
+                                != psi_core::ScalarType::Integer(i32_type)
+                            || !matches!(
+                                argument.placement.locations.as_slice(),
+                                [ValueLocation::Register {
+                                    register,
+                                    value_byte_offset: 0,
+                                    byte_size: 4,
+                                }] if *register == expected_destination
+                            )
+                            || !scalar_arguments.is_empty()
+                            || !arguments.is_empty()
+                            || !byte_sequence_arguments.is_empty()
+                        {
+                            return Err(EmissionError::LinuxExitGroupArgumentMismatch(*boundary));
+                        }
+                        let materialization_offset = bytes.len();
+                        emit_foreign_integer_argument(&mut bytes, target, argument, 0)?;
+                        let materialization_byte_count = bytes.len() - materialization_offset;
+                        match target.architecture {
+                            Architecture::X86_64 => bytes.extend_from_slice(
+                                &omega_isa_x86_64::encode_linux_write_byte_i32_from_r11(),
+                            ),
+                            Architecture::Aarch64 => bytes.extend_from_slice(
+                                &omega_isa_aarch64::encode_linux_write_byte_i32_from_w9()
+                                    .map_err(|_| EmissionError::LinuxWriteLineEncoding)?,
+                            ),
+                        }
+                        runtime_scalar_records.push(ForeignCallScalarArgumentRecord {
+                            parameter_index: 0,
+                            source: foreign_scalar_source_record(argument.source),
+                            placement: argument.placement.clone(),
+                            code_offset: materialization_offset,
+                            byte_count: materialization_byte_count,
+                        });
+                    }
                     omega_target_operations::BoundaryRealization::DirectPortReadU8(_) => {
                         return Err(EmissionError::InvalidLinuxWriteLineCustody);
                     }
@@ -1936,6 +1999,7 @@ pub(super) fn emit_unit_body(
                     execution,
                     realization: *realization,
                     scalar_arguments: scalar_arguments.clone(),
+                    runtime_scalar_arguments: runtime_scalar_records,
                     arguments: arguments.clone(),
                     byte_sequence_arguments: byte_sequence_records,
                     completion_claim_sources: completion_claim_sources.clone(),

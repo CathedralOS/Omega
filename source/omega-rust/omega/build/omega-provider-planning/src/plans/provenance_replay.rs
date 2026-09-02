@@ -146,15 +146,13 @@ fn derive_satisfies_plans_with_optional_evaluated_bindings(
                             && !clause.via_expression.is_valid()
                             && clause.external_binding_source_span.is_none() =>
                     {
-                        let Some((binding, origin)) =
-                            inferred_linux_console_exit_compiler_intrinsic(
-                                typed,
-                                machine,
-                                clause,
-                                selected_target,
-                                target_machine_origins,
-                            )
-                        else {
+                        let Some((binding, origin)) = inferred_linux_console_compiler_intrinsic(
+                            typed,
+                            machine,
+                            clause,
+                            selected_target,
+                            target_machine_origins,
+                        ) else {
                             continue;
                         };
                         (binding, Some(origin))
@@ -892,7 +890,7 @@ fn exact_installed_external_binding_identity<'typed>(
 /// The first payload-free source-inferred compiler catalog leaf. This is only
 /// candidate derivation: selected-dispatch independently rejoins package
 /// custody and the canonical target before granting a closed execution.
-fn inferred_linux_console_exit_compiler_intrinsic(
+fn inferred_linux_console_compiler_intrinsic(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     conformance: &psi_typed_trees::machine::TraitConformance,
@@ -902,12 +900,18 @@ fn inferred_linux_console_exit_compiler_intrinsic(
     if matches!(selected_target, Some(target) if !matches!(target, "linux_x86_64" | "linux_arm64"))
         || machine.supply_mode != psi_language_semantics::MachineSupplyMode::Boundary
         || machine.body_is_present
-        || machine.name.as_str() != "ConsoleNativeProvider::exit_process"
+        || !matches!(
+            machine.name.as_str(),
+            "ConsoleNativeProvider::exit_process" | "ConsoleNativeProvider::write_byte"
+        )
         || machine.attached_data.as_ref().map(|name| name.as_str()) != Some("ConsoleNativeProvider")
         || !machine.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(machine).is_empty()
         || conformance.name.as_str() != "Console"
-        || conformance.requirement.as_ref().map(|name| name.as_str()) != Some("exit_process")
+        || !matches!(
+            conformance.requirement.as_ref().map(|name| name.as_str()),
+            Some("exit_process" | "write_byte")
+        )
         || conformance.external_binding.is_some()
         || conformance.via_expression.is_valid()
         || conformance.external_binding_source_span.is_some()
@@ -940,7 +944,12 @@ fn inferred_linux_console_exit_compiler_intrinsic(
         || !definition.lifetime_parameters.is_empty()
         || !typed.trait_type_parameters(definition).is_empty()
         || requirement.symbol != conformance.requirement_symbol
-        || requirement.name.as_str() != "exit_process"
+        || !matches!(requirement.name.as_str(), "exit_process" | "write_byte")
+        || machine
+            .name
+            .as_str()
+            .strip_prefix("ConsoleNativeProvider::")
+            != Some(requirement.name.as_str())
         || !exact_catalog_i32_to_unit_signature(
             typed,
             typed.state_signature_parameters(requirement),
@@ -2208,7 +2217,7 @@ fn replay_provider_row_binding(
                             plan.name, row.requirement_identity,
                         )));
                     };
-                    let (binding, replayed_origin) = inferred_linux_console_exit_compiler_intrinsic(
+                    let (binding, replayed_origin) = inferred_linux_console_compiler_intrinsic(
                         typed,
                         realization,
                         conformance,

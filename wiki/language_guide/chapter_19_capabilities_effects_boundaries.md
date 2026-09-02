@@ -520,8 +520,9 @@ accepted policy version and commitment in the native artifact's strong
 identity. Replaying against a different accepted policy fails. This is not yet
 the service/schema containment join and grants no provider-execution admission.
 
-Direct normalized foreign imports now enter that same version-2 policy through
-a distinct `TerminalMechanismIdentity` role. Each explicit row binds the exact
+Direct normalized foreign imports enter that same versioned policy through a
+distinct `TerminalMechanismIdentity` role (introduced in version 2; version 3
+adds the Linux write-byte ProcessOutput row). Each explicit row binds the exact
 target and collision-resistant normalized locator identity to the strong
 contract commitment of its canonical admitted `BoundaryEntryPlan`, never to a
 provider report fingerprint. Native realization classifies every directly

@@ -382,6 +382,7 @@ pub enum AssignedUnitOperation {
         execution: omega_target_operations::BoundaryExecutionBinding,
         realization: BoundaryRealization,
         scalar_arguments: Vec<BoundaryScalarArgument>,
+        runtime_scalar_arguments: Vec<AssignedNormalizedForeignScalarArgument>,
         arguments: Vec<StructuralArgument>,
         byte_sequence_arguments: Vec<BoundaryByteSequenceArgument>,
         completion_claim_sources: Vec<CompletionClaimSource>,

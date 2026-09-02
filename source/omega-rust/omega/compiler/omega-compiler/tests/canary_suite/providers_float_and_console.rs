@@ -1708,7 +1708,7 @@ fn runtime_adapter_forwarding_exit_canary_runs() {
 }
 
 #[test]
-fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
+fn linux_console_compiler_intrinsic_review_identities_are_exact() {
     use omega_provider_planning::plans::CompilerIntrinsicExecutionIdentity;
 
     let canary = pass_canary("providers/runtime_adapter_forwarding_exit");
@@ -1730,6 +1730,15 @@ fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
     assert_eq!(
         retained.row_compiler_intrinsic_executions[exit],
         Some(CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32),
+    );
+    let write_byte = plan
+        .rows
+        .iter()
+        .position(|row| row.method == "write_byte")
+        .expect("Console plan must retain write_byte");
+    assert_eq!(
+        retained.row_compiler_intrinsic_executions[write_byte],
+        Some(CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32),
     );
     let derive = |requirement, realization, target| {
         omega_selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row(
@@ -1780,7 +1789,7 @@ fn linux_console_exit_compiler_intrinsic_review_identity_is_exact() {
             "requirement, realization, and selected target are independent catalog authority",
         );
     }
-    for method in ["read_line", "read_byte", "write_byte"] {
+    for method in ["read_line", "read_byte"] {
         let index = plan
             .rows
             .iter()
@@ -2337,6 +2346,19 @@ fn runtime_console_byte_literal_exit_canary_runs() {
     assert_eq!(output.status.code(), Some(70));
     assert_eq!(output.stdout, b"7\n".to_vec(), "native literal bytes");
     let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
+fn runtime_console_byte_literal_linux_catalog_replays_both_targets() {
+    let canary = pass_canary("host/runtime_console_byte_literal_exit");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        compile_rooted_backend_canary_without_output_for_target_with_fixture_permissions(
+            &canary, target,
+        )
+        .unwrap_or_else(|error| {
+            panic!("Linux write-byte catalog must compile for {target}: {error:?}")
+        });
+    }
 }
 
 #[test]

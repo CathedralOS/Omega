@@ -52,6 +52,9 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
             PackageReviewCompilerIntrinsicExecution::LinuxExitGroupI32
         }
+        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
+            PackageReviewCompilerIntrinsicExecution::LinuxWriteByteI32
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             PackageReviewCompilerIntrinsicExecution::BuiltinFunction(function)
         }
@@ -77,6 +80,9 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
     match identity {
         CompilerIntrinsicExecutionIdentity::LinuxExitGroupI32 => {
             "Linux exit-group with one `i32` argument".to_owned()
+        }
+        CompilerIntrinsicExecutionIdentity::LinuxWriteByteI32 => {
+            "Linux write-byte with one `i32` argument".to_owned()
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             format!("builtin function `{}`", function.name())
