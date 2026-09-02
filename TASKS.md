@@ -12106,9 +12106,19 @@ checked-result arithmetic decision listed below.
   Unit and reject scalar-result substitution. Direct descriptor forwarding
   remains checked-only because Terminal has no direct-selection descriptor
   argument source; it fails closed rather than fabricating a rebound source.
-  Abstract operations explicitly reject both new dynamic Unit variants until
-  the table/adapter and target-neutral call carrier are added. No native support
-  is claimed.
+  Target-neutral abstract operations now retain the same result-independent
+  rebound and parameter dispatch carriers used by scalar requirements. A
+  forwarded outer Unit call is distinct as `CallUnitWithDynamicArguments`, so
+  its exact descriptor argument cannot disappear between the caller and the
+  helper's `CallDynamicParameterUnit`; local rebound calls remain
+  `CallDynamicUnit`. Terminal-to-abstract rejoining shares one implementation
+  across scalar and Unit result classes and checks the selected closed callable
+  result instead of duplicating Unit-only lookup logic. Optimizer identity,
+  provenance, place/ownership custody, call-graph reachability, effect
+  observation, and independent unit validation preserve all three operations
+  without inventing scalar definitions. Target lowering rejects them with an
+  explicit `UnsupportedDynamicUnitDispatch` fence until the table/adapter ABI
+  exists. No native support is claimed.
 
   Remaining work:
 
@@ -12127,10 +12137,10 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - carry the operation-free Unit-returning requirement lane through abstract
-    operations, complete tables/adapters, and native execution; add an honest
-    direct-selection descriptor argument source before admitting direct
-    forwarding, and do not widen bodies or call forms first;
+  - carry the admitted Unit-returning abstract operations through target
+    tables/adapters and native execution; add an honest direct-selection
+    descriptor argument source before admitting direct forwarding, and do not
+    widen bodies or call forms first;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

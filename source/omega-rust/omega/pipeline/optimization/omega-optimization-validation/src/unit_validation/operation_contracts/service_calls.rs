@@ -23,6 +23,11 @@ pub(crate) fn operation_service_contract_matches(
             callee,
             dynamic_arguments,
             ..
+        }
+        | O::CallUnitWithDynamicArguments {
+            callee,
+            dynamic_arguments,
+            ..
         } => {
             functions
                 .get(callee)
@@ -44,6 +49,9 @@ pub(crate) fn operation_service_contract_matches(
                     })
         }
         O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        }
+        | O::CallDynamicUnit {
             dynamic_dispatch, ..
         } => functions
             .get(&dynamic_dispatch.dispatch.realization)
@@ -78,6 +86,26 @@ pub(crate) fn operation_structural_call_contract_matches(
             affine_scalar_record_establishment_matches(caller, operation, types)
         }
         O::CallUnit {
+            callee,
+            structural_arguments,
+            claim_transfers,
+            ..
+        } => functions.get(callee).is_some_and(|callee| {
+            structural_arguments_match(
+                caller,
+                structural_arguments,
+                &callee.structural_parameters,
+                types,
+                StructuralProjectionPolicy::Unit,
+                false,
+            ) && validate_internal_claim_transfers(
+                caller,
+                callee,
+                structural_arguments,
+                claim_transfers,
+            )
+        }),
+        O::CallUnitWithDynamicArguments {
             callee,
             structural_arguments,
             claim_transfers,
@@ -138,6 +166,9 @@ pub(crate) fn operation_structural_call_contract_matches(
             )
         }),
         O::CallDynamicScalar {
+            dynamic_dispatch, ..
+        }
+        | O::CallDynamicUnit {
             dynamic_dispatch, ..
         } => functions
             .get(&dynamic_dispatch.dispatch.realization)

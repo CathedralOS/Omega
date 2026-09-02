@@ -10,7 +10,7 @@ pub use function_fragments::*;
 pub use x86_fma::*;
 
 use omega_abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractReboundDynamicScalarDispatch, AbstractResult,
+    AbstractDynamicDescriptorArgument, AbstractReboundDynamicDispatch, AbstractResult,
     RankedU32CountdownCustody,
 };
 use omega_calling_conventions::{CallPlan, ValuePlacement, ValueShape};
@@ -324,7 +324,7 @@ pub struct DynamicInstanceMaterializationRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DynamicScalarCallRecord {
     pub psi_operation: OperationId,
-    pub dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+    pub dynamic_dispatch: AbstractReboundDynamicDispatch,
     pub call_plan: CallPlan,
     pub result: InternalUnitScalarCallResultRecord,
     pub descriptor_abi: DynamicTraitDescriptorAbiRecord,

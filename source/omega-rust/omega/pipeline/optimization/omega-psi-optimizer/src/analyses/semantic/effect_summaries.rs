@@ -359,10 +359,13 @@ fn operation_effect(
         | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::CallUnit { .. }
+        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamicScalar { .. }
         | O::CallDynamicParameterScalar { .. }
+        | O::CallDynamicUnit { .. }
+        | O::CallDynamicParameterUnit { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),

@@ -184,6 +184,12 @@ pub enum LoweringError {
         machine: MachineId,
         operation: OperationId,
     },
+    /// Abstract custody admits result-less dynamic dispatch, but target
+    /// operations do not yet define its descriptor ABI or indirect call form.
+    UnsupportedDynamicUnitDispatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     StructuralCallArgumentCountMismatch {
         callee: MachineId,
         expected: usize,

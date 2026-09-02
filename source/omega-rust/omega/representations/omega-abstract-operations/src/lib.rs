@@ -256,7 +256,7 @@ pub struct AbstractResult {
     pub scalar_type: ScalarType,
 }
 
-/// Exact target-neutral custody for one rebound dynamic scalar invocation.
+/// Exact target-neutral custody for one rebound dynamic invocation.
 ///
 /// The two selections retain the initializer and latest runtime source. The
 /// descriptor retains their version relation. `application` is the complete
@@ -264,7 +264,7 @@ pub struct AbstractResult {
 /// permitted at this call site. Realization machines are table content, not
 /// statically addressed call targets.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractReboundDynamicScalarDispatch {
+pub struct AbstractReboundDynamicDispatch {
     pub initial: TerminalDynamicConformanceSelection,
     pub rebound: TerminalDynamicConformanceSelection,
     pub descriptor: TerminalReboundDynamicDescriptor,
@@ -376,16 +376,16 @@ impl AbstractDynamicDescriptorArgument {
     }
 }
 
-/// One scalar call through a descriptor received by the current function.
+/// One call through a descriptor received by the current function.
 /// The closed parameter interface supplies the public slot and result shape;
 /// the concrete table and instance remain runtime inputs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AbstractParameterDynamicScalarDispatch {
+pub struct AbstractParameterDynamicDispatch {
     pub parameter: TerminalDynamicDescriptorParameter,
     pub dispatch: TerminalParameterDynamicDispatch,
 }
 
-impl AbstractReboundDynamicScalarDispatch {
+impl AbstractReboundDynamicDispatch {
     /// Replay the complete selected-table join without trusting the repeated
     /// call-site row or compact report coordinate as authority.
     pub fn has_complete_application_custody(
@@ -537,6 +537,17 @@ pub enum AbstractOperation {
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// Invoke one Unit-result machine while forwarding exact existential
+    /// descriptor arguments into its declared dynamic parameter interface.
+    CallUnitWithDynamicArguments {
+        psi_operation: OperationId,
+        callee: MachineId,
+        structural_arguments: Vec<StructuralArgument>,
+        dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
     CallStructuralScalar {
         psi_operation: OperationId,
         result: AbstractResult,
@@ -564,14 +575,32 @@ pub enum AbstractOperation {
     CallDynamicScalar {
         psi_operation: OperationId,
         result: AbstractResult,
-        dynamic_dispatch: AbstractReboundDynamicScalarDispatch,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
     CallDynamicParameterScalar {
         psi_operation: OperationId,
         result: AbstractResult,
-        dynamic_dispatch: AbstractParameterDynamicScalarDispatch,
+        dynamic_dispatch: AbstractParameterDynamicDispatch,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one Unit-result requirement through the same exact rebound
+    /// descriptor carrier as a scalar dynamic call. Result shape is a property
+    /// of the selected callable row, not of descriptor custody.
+    CallDynamicUnit {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractReboundDynamicDispatch,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// Invoke one Unit-result requirement through a descriptor received by the
+    /// current function. The closed parameter interface supplies the result
+    /// shape and the concrete instance/table pair remains a runtime input.
+    CallDynamicParameterUnit {
+        psi_operation: OperationId,
+        dynamic_dispatch: AbstractParameterDynamicDispatch,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },

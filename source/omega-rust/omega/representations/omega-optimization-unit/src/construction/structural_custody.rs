@@ -24,11 +24,19 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         }
         O::CallDynamicScalar {
             dynamic_dispatch, ..
+        }
+        | O::CallDynamicUnit {
+            dynamic_dispatch, ..
         } => {
             places.insert(dynamic_dispatch.initial.source.place);
             places.insert(dynamic_dispatch.rebound.source.place);
         }
         O::CallStructuralScalarWithDynamicArguments {
+            structural_arguments,
+            dynamic_arguments,
+            ..
+        }
+        | O::CallUnitWithDynamicArguments {
             structural_arguments,
             dynamic_arguments,
             ..
@@ -88,6 +96,9 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
     use AbstractOperation as O;
     match operation {
         O::CallUnit {
+            claim_transfers, ..
+        }
+        | O::CallUnitWithDynamicArguments {
             claim_transfers, ..
         }
         | O::CallStructuralScalar {

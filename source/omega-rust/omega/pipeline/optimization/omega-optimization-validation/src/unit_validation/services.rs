@@ -192,6 +192,11 @@ pub(crate) fn derive_root_service_reach(
                     callee,
                     dynamic_arguments,
                     ..
+                }
+                | O::CallUnitWithDynamicArguments {
+                    callee,
+                    dynamic_arguments,
+                    ..
                 } => {
                     pending.push(*callee);
                     for argument in dynamic_arguments {
@@ -210,6 +215,9 @@ pub(crate) fn derive_root_service_reach(
                     }
                 }
                 O::CallDynamicScalar {
+                    dynamic_dispatch, ..
+                }
+                | O::CallDynamicUnit {
                     dynamic_dispatch, ..
                 } => pending.push(dynamic_dispatch.dispatch.realization),
                 O::BoundaryCall { boundary, .. } => {

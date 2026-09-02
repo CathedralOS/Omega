@@ -76,6 +76,14 @@ pub(super) fn lower_operation(
                 operation: *psi_operation,
             });
         }
+        AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
+        | AbstractOperation::CallDynamicUnit { psi_operation, .. }
+        | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. } => {
+            return Err(LoweringError::UnsupportedDynamicUnitDispatch {
+                machine: function.machine,
+                operation: *psi_operation,
+            });
+        }
         AbstractOperation::CallStructuralScalar { .. }
         | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
         | AbstractOperation::CallDynamicScalar { .. }

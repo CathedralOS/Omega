@@ -338,6 +338,14 @@ pub(super) fn lower_unit_body(
                     operation: *psi_operation,
                 });
             }
+            AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
+            | AbstractOperation::CallDynamicUnit { psi_operation, .. }
+            | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. } => {
+                return Err(LoweringError::UnsupportedDynamicUnitDispatch {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                });
+            }
             AbstractOperation::PortWrite {
                 psi_operation,
                 service,

@@ -1,7 +1,7 @@
 //! Exhaustive abstract-operation to terminal-authority edge classification.
 
 use omega_abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractOperation, AbstractParameterDynamicScalarDispatch,
+    AbstractDynamicDescriptorArgument, AbstractOperation, AbstractParameterDynamicDispatch,
 };
 use psi_core::{BoundaryMachineId, MachineId};
 
@@ -12,7 +12,7 @@ pub(super) enum AuthorityEdge<'operation> {
         callee: MachineId,
         arguments: &'operation [AbstractDynamicDescriptorArgument],
     },
-    DynamicParameterDispatch(&'operation AbstractParameterDynamicScalarDispatch),
+    DynamicParameterDispatch(&'operation AbstractParameterDynamicDispatch),
     Boundary(BoundaryMachineId),
     UnsupportedCheckedPhysical,
 }
@@ -27,11 +27,22 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
         AbstractOperation::CallDynamicScalar {
             dynamic_dispatch, ..
+        }
+        | AbstractOperation::CallDynamicUnit {
+            dynamic_dispatch, ..
         } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
         AbstractOperation::CallDynamicParameterScalar {
             dynamic_dispatch, ..
+        }
+        | AbstractOperation::CallDynamicParameterUnit {
+            dynamic_dispatch, ..
         } => AuthorityEdge::DynamicParameterDispatch(dynamic_dispatch),
         AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            callee,
+            dynamic_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnitWithDynamicArguments {
             callee,
             dynamic_arguments,
             ..

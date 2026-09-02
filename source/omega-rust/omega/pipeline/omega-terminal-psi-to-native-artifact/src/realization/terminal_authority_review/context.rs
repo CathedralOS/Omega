@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use omega_abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractFunction,
-    AbstractOperationPlan, AbstractParameterDynamicScalarDispatch,
+    AbstractOperationPlan, AbstractParameterDynamicDispatch,
 };
 use omega_effects::{
     SelectedProviderPlanFacts, TerminalMechanismIdentity,
@@ -258,7 +258,7 @@ impl<'a> ReviewContext<'a> {
         &self,
         machine: MachineId,
         bindings: &DynamicBindings,
-        dispatch: &AbstractParameterDynamicScalarDispatch,
+        dispatch: &AbstractParameterDynamicDispatch,
     ) -> Result<MachineId, String> {
         let parameter = &dispatch.parameter;
         if parameter.owner != machine

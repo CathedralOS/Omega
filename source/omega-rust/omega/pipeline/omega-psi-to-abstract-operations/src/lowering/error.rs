@@ -11,10 +11,7 @@ pub enum LoweringError {
     UnsupportedByteSequenceLiteral(psi_core::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.
-    InvalidDynamicScalarCall(psi_core::OperationId),
-    /// Terminal preserves an exact result-less dynamic call, but the
-    /// target-neutral abstract-operation layer has not admitted that call yet.
-    UnsupportedDynamicUnitCall(psi_core::OperationId),
+    InvalidDynamicCall(psi_core::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin the exact
     /// whole-root write-only parameter and its preceding scalar definition.
     InvalidWriteOnlyPrimitiveStore(psi_core::OperationId),
