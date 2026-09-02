@@ -113,13 +113,13 @@ after the complete current-version lock payload exists.
   coordinates, and strong contract commitment, independently rechecks it, and
   emits a concrete in-memory discharged result; missing or duplicate evidence
   remains open or rejects, and an end-to-end dependency canary proves only the
-  discharged row ceases to propagate as `OpenLaterDischarge`. Remaining work
-  is to add any further classes demanded by the supported package surface,
-  derive the complete transitive discharge/open-obligation result, and finish
-  required final-realization joins. Preserve exact open-obligation propagation
-  and pre-policy rejection. Do not persist this partial lane, cite standalone
-  `psi-proof` as production enforcement, or add an empty generic certificate
-  framework.
+  discharged row ceases to propagate as `OpenLaterDischarge`; both open and
+  discharged results now retain explicit transitive root-closure indexes with
+  their original package owners. Remaining work is to add any further classes
+  demanded by the supported package surface and finish required final-
+  realization joins. Preserve exact open-obligation propagation and pre-policy
+  rejection. Do not persist this partial lane, cite standalone `psi-proof` as
+  production enforcement, or add an empty generic certificate framework.
 
   **Landed prerequisite:** `TASKS.md` `PROOF-CERTIFICATION-BRIDGE` owns the
   first real checked-IR assumption-discharge certificate and local rechecker,

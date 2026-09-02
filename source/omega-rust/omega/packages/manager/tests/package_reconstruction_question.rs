@@ -989,6 +989,19 @@ machine build(builder: &mut Build) {
         composed.root_open_contract_entailment_obligations().count(),
         0
     );
+    let root_discharges = composed
+        .root_contract_entailment_assumption_discharges()
+        .collect::<Vec<_>>();
+    let [(discharge_owner, root_discharge)] = root_discharges.as_slice() else {
+        panic!("one dependency discharge must compose to the root")
+    };
+    assert_eq!(discharge_owner.name().as_str(), "contract-surface");
+    assert_eq!(
+        *root_discharge,
+        &dependency_entry
+            .results()
+            .contract_entailment_assumption_discharges()[0]
+    );
 
     let conflicts = compare_review_only_initial_capabilities(
         &reviews,

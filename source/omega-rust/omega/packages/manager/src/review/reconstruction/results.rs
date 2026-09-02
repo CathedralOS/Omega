@@ -1,4 +1,4 @@
-//! In-memory transitive composition of locally reconstructed open obligations.
+//! In-memory transitive composition of locally reconstructed obligation results.
 
 use super::{
     CanonicalPackageReconstructionQuestion, CanonicalPackageReconstructionQuestionError,
@@ -8,9 +8,10 @@ use crate::declarations::PackageKey;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::CompilerIssuedPackageReviewSet;
 use omega_package_evidence::ledger::{
-    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentOpenObligation,
-    OrdinaryPackageDangerousAuthorityObligation, OrdinaryPackageExternalExecutableSupplyObligation,
-    OrdinaryPackageObligationResultSet, OrdinaryPackageTerminalAuthorityPermissionObligation,
+    OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentAssumptionDischarge,
+    OrdinaryPackageContractEntailmentOpenObligation, OrdinaryPackageDangerousAuthorityObligation,
+    OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
+    OrdinaryPackageTerminalAuthorityPermissionObligation,
 };
 use std::collections::BTreeMap;
 
@@ -51,6 +52,12 @@ struct OpenContractEntailmentReference {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ContractEntailmentAssumptionDischargeReference {
+    package_index: usize,
+    discharge_index: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct OpenDangerousAuthorityReference {
     package_index: usize,
     authority_index: usize,
@@ -72,6 +79,8 @@ pub struct LocallyComposedPackageObligationResults {
     question: CanonicalPackageReconstructionQuestion,
     entries: Vec<LocallyComposedPackageObligationEntry>,
     root_open_accepted_claims: Vec<OpenAcceptedClaimReference>,
+    root_contract_entailment_assumption_discharges:
+        Vec<ContractEntailmentAssumptionDischargeReference>,
     root_open_contract_entailment_obligations: Vec<OpenContractEntailmentReference>,
     root_open_external_executable_supplies: Vec<OpenExternalExecutableSupplyReference>,
     root_open_dangerous_authorities: Vec<OpenDangerousAuthorityReference>,
@@ -108,6 +117,7 @@ impl LocallyComposedPackageObligationResults {
                 )
             })?;
         let mut open_claim_count = 0usize;
+        let mut contract_entailment_assumption_discharge_count = 0usize;
         let mut open_contract_entailment_count = 0usize;
         let mut open_external_supply_count = 0usize;
         let mut open_dangerous_authority_count = 0usize;
@@ -144,6 +154,14 @@ impl LocallyComposedPackageObligationResults {
                         "package obligation open contract-entailment count overflowed",
                     )
                 })?;
+            contract_entailment_assumption_discharge_count =
+                contract_entailment_assumption_discharge_count
+                    .checked_add(results.contract_entailment_assumption_discharges().len())
+                    .ok_or_else(|| {
+                        CanonicalPackageReconstructionQuestionError::new(
+                            "package obligation contract-entailment assumption-discharge count overflowed",
+                        )
+                    })?;
             open_external_supply_count = open_external_supply_count
                 .checked_add(results.open_external_executable_supplies().len())
                 .ok_or_else(|| {
@@ -190,6 +208,29 @@ impl LocallyComposedPackageObligationResults {
                     package_index,
                     claim_index,
                 });
+            }
+        }
+
+        let mut root_contract_entailment_assumption_discharges = Vec::new();
+        root_contract_entailment_assumption_discharges
+            .try_reserve_exact(contract_entailment_assumption_discharge_count)
+            .map_err(|_| {
+                CanonicalPackageReconstructionQuestionError::new(
+                    "package obligation contract-entailment assumption-discharge reference allocation failed",
+                )
+            })?;
+        for (package_index, entry) in entries.iter().enumerate() {
+            for discharge_index in 0..entry
+                .results
+                .contract_entailment_assumption_discharges()
+                .len()
+            {
+                root_contract_entailment_assumption_discharges.push(
+                    ContractEntailmentAssumptionDischargeReference {
+                        package_index,
+                        discharge_index,
+                    },
+                );
             }
         }
 
@@ -269,6 +310,7 @@ impl LocallyComposedPackageObligationResults {
             question,
             entries,
             root_open_accepted_claims,
+            root_contract_entailment_assumption_discharges,
             root_open_contract_entailment_obligations,
             root_open_external_executable_supplies,
             root_open_dangerous_authorities,
@@ -294,6 +336,28 @@ impl LocallyComposedPackageObligationResults {
                     &entry.package,
                     &entry.results.open_contract_entailment_obligations()
                         [reference.obligation_index],
+                )
+            })
+    }
+
+    /// Iterate every locally rechecked contract assumption discharge in the
+    /// selected root's package closure while retaining its exact package owner.
+    pub fn root_contract_entailment_assumption_discharges(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            &PackageKey,
+            &OrdinaryPackageContractEntailmentAssumptionDischarge,
+        ),
+    > {
+        self.root_contract_entailment_assumption_discharges
+            .iter()
+            .map(|reference| {
+                let entry = &self.entries[reference.package_index];
+                (
+                    &entry.package,
+                    &entry.results.contract_entailment_assumption_discharges()
+                        [reference.discharge_index],
                 )
             })
     }
