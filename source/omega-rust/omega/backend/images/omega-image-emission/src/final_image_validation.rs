@@ -116,6 +116,7 @@ fn validate_terminal_image_with_import_count(
         .collect::<Vec<_>>();
     let expected_region_count = artifact.functions.len()
         + artifact.private_functions.len()
+        + artifact.forwarded_dynamic_descriptor_adapters.len()
         + usize::from(scalar_exit_shim.is_some());
     if compiler_regions.len() != expected_region_count {
         return Err(Diagnostic::error(format!(
@@ -138,6 +139,23 @@ fn validate_terminal_image_with_import_count(
             return Err(Diagnostic::error(format!(
                 "terminal-Psi function {} must bind exactly one final executable region; found {matching}",
                 function.machine
+            )));
+        }
+    }
+    for adapter in &artifact.forwarded_dynamic_descriptor_adapters {
+        let symbol = omega_object_file::object_symbol_name(object, adapter.symbol);
+        let matching = compiler_regions
+            .iter()
+            .filter(|region| {
+                region.symbol == symbol
+                    && region.section_offset == adapter.text_offset
+                    && region.byte_count == adapter.byte_count
+            })
+            .count();
+        if matching != 1 {
+            return Err(Diagnostic::error(format!(
+                "forwarded descriptor adapter {:?} must bind exactly one final executable region; found {matching}",
+                adapter.record.identity
             )));
         }
     }
@@ -321,6 +339,100 @@ fn validate_dynamic_conformance_tables(
             }
         }
     }
+    for table in artifact.forwarded_dynamic_descriptor_tables() {
+        let symbol = object.layout.symbols.get(table.symbol);
+        if symbol.section
+            != omega_object_file::SymbolSection::Section(omega_object_file::SectionKind::Data)
+            || symbol.kind != omega_object_file::SymbolKind::Object
+            || symbol.offset != table.data_offset
+            || symbol.size != table.byte_count
+            || table.byte_count != table.slots.len().saturating_mul(8)
+            || table.slots.len() != table.application.rows.len()
+        {
+            return Err(invalid());
+        }
+        for (row_index, slot) in table.slots.iter().enumerate() {
+            let expected_offset = table
+                .data_offset
+                .checked_add(row_index.checked_mul(8).ok_or_else(invalid)?)
+                .ok_or_else(invalid)?;
+            let adapters = artifact
+                .forwarded_dynamic_descriptor_adapters()
+                .iter()
+                .filter(|adapter| {
+                    adapter.record.identity == slot.adapter && adapter.symbol == slot.adapter_symbol
+                })
+                .collect::<Vec<_>>();
+            let [adapter] = adapters.as_slice() else {
+                return Err(invalid());
+            };
+            let adapter_symbol = object.layout.symbols.get(adapter.symbol);
+            let table_relocations = relocations
+                .records()
+                .filter(|(_, relocation)| {
+                    relocation.origin
+                        == omega_object_file::RelocationOrigin::Materialization {
+                            object_symbol_handle: table.symbol,
+                        }
+                        && relocation.section == omega_object_file::SectionKind::Data
+                        && relocation.offset == slot.data_offset
+                        && relocation.byte_width == 8
+                        && relocation.symbol_handle == adapter.symbol
+                        && relocation.addend == 0
+                        && relocation.kind == omega_object_file::RelocationKind::Absolute64
+                })
+                .count();
+            if usize::try_from(slot.row_index) != Ok(row_index)
+                || slot.adapter.application != table.application.commitment
+                || slot.adapter.row_index != slot.row_index
+                || slot.data_offset != expected_offset
+                || adapter_symbol.kind != omega_object_file::SymbolKind::Function
+                || adapter_symbol.offset != adapter.text_offset
+                || adapter_symbol.size != adapter.byte_count
+                || table_relocations != 1
+            {
+                return Err(invalid());
+            }
+            expected_data_relocations += 1;
+
+            let (call_offset, call_kind) = match artifact.target().architecture {
+                omega_target::Architecture::X86_64 => (
+                    adapter
+                        .text_offset
+                        .checked_add(adapter.record.direct_call_offset)
+                        .and_then(|offset| offset.checked_add(1))
+                        .ok_or_else(invalid)?,
+                    omega_object_file::RelocationKind::X86_64Relative32,
+                ),
+                omega_target::Architecture::Aarch64 => (
+                    adapter
+                        .text_offset
+                        .checked_add(adapter.record.direct_call_offset)
+                        .ok_or_else(invalid)?,
+                    omega_object_file::RelocationKind::Aarch64Branch26,
+                ),
+            };
+            if relocations
+                .records()
+                .filter(|(_, relocation)| {
+                    relocation.origin
+                        == omega_object_file::RelocationOrigin::Materialization {
+                            object_symbol_handle: adapter.symbol,
+                        }
+                        && relocation.section == omega_object_file::SectionKind::Text
+                        && relocation.offset == call_offset
+                        && relocation.byte_width == 4
+                        && relocation.symbol_handle == adapter.target_symbol
+                        && relocation.addend == 0
+                        && relocation.kind == call_kind
+                })
+                .count()
+                != 1
+            {
+                return Err(invalid());
+            }
+        }
+    }
     if relocations
         .records()
         .filter(|(_, relocation)| relocation.section == omega_object_file::SectionKind::Data)
@@ -392,6 +504,76 @@ fn validate_dynamic_conformance_tables(
                     != 1
                 {
                     return Err(invalid());
+                }
+            }
+        }
+        for call in &function.forwarded_dynamic_descriptor_calls {
+            for argument in &call.dynamic_arguments {
+                let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    application,
+                    ..
+                } = &argument.custody.source
+                else {
+                    return Err(invalid());
+                };
+                let table = artifact
+                    .forwarded_dynamic_descriptor_tables()
+                    .iter()
+                    .find(|table| {
+                        super::same_dynamic_table_application(&table.application, application)
+                    })
+                    .ok_or_else(invalid)?;
+                let origin = omega_object_file::RelocationOrigin::SemanticOperation {
+                    function_symbol_handle: function.symbol,
+                    operation_identity: call.psi_operation.get(),
+                };
+                let expected = match argument.table_address.encoding {
+                    omega_machine_code::DynamicTableAddressEncoding::X86_64Relative32 {
+                        relocation_offset,
+                    } => vec![(
+                        function
+                            .text_offset
+                            .checked_add(relocation_offset)
+                            .ok_or_else(invalid)?,
+                        omega_object_file::RelocationKind::X86_64Relative32,
+                    )],
+                    omega_machine_code::DynamicTableAddressEncoding::Aarch64PageAddress {
+                        page_relocation_offset,
+                        page_offset_relocation_offset,
+                    } => vec![
+                        (
+                            function
+                                .text_offset
+                                .checked_add(page_relocation_offset)
+                                .ok_or_else(invalid)?,
+                            omega_object_file::RelocationKind::Aarch64Page21,
+                        ),
+                        (
+                            function
+                                .text_offset
+                                .checked_add(page_offset_relocation_offset)
+                                .ok_or_else(invalid)?,
+                            omega_object_file::RelocationKind::Aarch64PageOffset12,
+                        ),
+                    ],
+                };
+                for (offset, kind) in expected {
+                    if relocations
+                        .records()
+                        .filter(|(_, relocation)| {
+                            relocation.origin == origin
+                                && relocation.section == omega_object_file::SectionKind::Text
+                                && relocation.offset == offset
+                                && relocation.byte_width == 4
+                                && relocation.symbol_handle == table.symbol
+                                && relocation.addend == 0
+                                && relocation.kind == kind
+                        })
+                        .count()
+                        != 1
+                    {
+                        return Err(invalid());
+                    }
                 }
             }
         }

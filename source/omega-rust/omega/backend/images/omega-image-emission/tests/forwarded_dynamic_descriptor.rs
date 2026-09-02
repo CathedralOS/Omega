@@ -1,5 +1,7 @@
 use omega_abstract_operations_to_target_operations::lower_to_target_operations;
-use omega_image_emission::{build_object_artifact, ObjectError};
+use omega_image_emission::{
+    ObjectError, build_object_artifact, emit_executable_image, validate_executable_image,
+};
 use omega_machine_emission::emit_machine_code;
 use omega_psi_to_abstract_operations::lower_artifact_sections;
 use omega_target::NativeTarget;
@@ -48,7 +50,7 @@ fn machine_plan(target: NativeTarget) -> omega_machine_code::MachineCodePlan {
 }
 
 #[test]
-fn object_construction_rejects_until_forwarded_adapter_tables_are_installed() {
+fn object_construction_binds_forwarded_tables_through_adapters() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let plan = machine_plan(target);
         let caller = plan
@@ -59,12 +61,76 @@ fn object_construction_rejects_until_forwarded_adapter_tables_are_installed() {
         let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
             panic!("one forwarded descriptor call expected")
         };
+        let object = build_object_artifact(&plan).expect("bind forwarded descriptor object");
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one forwarded argument expected")
+        };
+        let [table] = object.forwarded_dynamic_descriptor_tables() else {
+            panic!("one forwarded table expected")
+        };
         assert_eq!(
-            build_object_artifact(&plan),
-            Err(ObjectError::DynamicParameterAdapterTablesUnavailable {
-                caller: caller.machine,
-                operation: call.psi_operation,
-            })
+            table.application.commitment,
+            argument.adapters[0].identity.application
+        );
+        assert_eq!(table.slots.len(), argument.adapters.len());
+        assert_eq!(
+            object.forwarded_dynamic_descriptor_adapters().len(),
+            argument.adapters.len()
+        );
+        for (slot, adapter) in table
+            .slots
+            .iter()
+            .zip(object.forwarded_dynamic_descriptor_adapters())
+        {
+            assert_eq!(slot.adapter, adapter.record.identity);
+            assert_eq!(slot.adapter_symbol, adapter.symbol);
+            assert_eq!(adapter.bytes(&object), adapter.record.bytes);
+        }
+        assert_eq!(
+            object.relocations().records().count(),
+            plan.functions
+                .iter()
+                .map(|function| function.internal_calls.len())
+                .sum::<usize>()
+                + argument.adapters.len() * 2
+                + match target.architecture {
+                    omega_target::Architecture::X86_64 => 1,
+                    omega_target::Architecture::Aarch64 => 2,
+                }
+        );
+        let image = emit_executable_image(&object, 3).expect("emit forwarded descriptor image");
+        validate_executable_image(&object, &image).expect("replay forwarded descriptor image");
+        assert_eq!(
+            image.forwarded_dynamic_descriptor_adapters(),
+            object.forwarded_dynamic_descriptor_adapters()
+        );
+        assert_eq!(
+            image.forwarded_dynamic_descriptor_tables(),
+            object.forwarded_dynamic_descriptor_tables()
         );
     }
+}
+
+#[test]
+fn object_construction_rejects_forwarded_adapter_byte_drift() {
+    let mut plan = machine_plan(NativeTarget::linux_x64());
+    let caller = plan
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let call = caller
+        .forwarded_dynamic_descriptor_calls
+        .first_mut()
+        .expect("forwarded descriptor call");
+    let caller_id = caller.machine;
+    let operation = call.psi_operation;
+    call.dynamic_arguments[0].adapters[0].bytes[0] ^= 1;
+    assert_eq!(
+        build_object_artifact(&plan),
+        Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
+            caller: caller_id,
+            operation,
+        })
+    );
 }
