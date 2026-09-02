@@ -47,14 +47,6 @@ pub(crate) fn derive_physical_evidence(
     {
         return Ok(None);
     }
-    if matches!(
-        scope,
-        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
-    ) && !object.object().layout.normalized_imports.is_empty()
-    {
-        return Ok(None);
-    }
-
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
