@@ -3,6 +3,233 @@
 
 use super::*;
 
+/// Rejoin the checked parameter receipt to the exact typed state signature
+/// before any raw checked-to-Terminal caller can erase the boundary-opaque
+/// carrier. Owner-selected Fused provenance is validated by the compiler's
+/// later custody gate; this layer independently rejects missing, fabricated,
+/// or source-substituted checked receipts.
+pub(crate) fn validate_fused_service_parameter_receipts(
+    checked: &CheckedTrees,
+) -> Result<(), LoweringError> {
+    let has_receipt = |parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan]| {
+        parameters
+            .iter()
+            .any(|parameter| parameter.fused_service_erasure.is_some())
+    };
+    let flow = &checked.facts.flow;
+    let unsupported_receipt = flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter()
+        .any(|plan| has_receipt(&plan.structural_parameters))
+        || flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .flat_map(|machine| &machine.states)
+            .any(|state| has_receipt(&state.structural_parameters))
+        || flow
+            .terminal_partial_affine_unit_cleanups
+            .machines
+            .iter()
+            .any(|plan| has_receipt(&plan.machine.structural_parameters))
+        || flow
+            .terminal_nominal_affine_unit_cleanups
+            .machines
+            .iter()
+            .any(|plan| has_receipt(&plan.machine.structural_parameters))
+        || flow
+            .terminal_structural_unit_controls
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.states)
+            .any(|state| has_receipt(&state.structural_parameters))
+        || flow
+            .terminal_structural_scalar_returns
+            .machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters))
+        || flow
+            .terminal_structural_scalar_returns
+            .selected_operator_machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters))
+        || flow
+            .terminal_structural_scalar_returns
+            .trait_operator_machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters))
+        || flow
+            .terminal_boundary_scalar_returns
+            .boundary_machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters))
+        || flow
+            .terminal_boundary_scalar_returns
+            .machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters))
+        || flow
+            .terminal_structural_returns
+            .machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters))
+        || flow
+            .terminal_structural_call_returns
+            .machines
+            .iter()
+            .any(|machine| has_receipt(&machine.structural_parameters));
+    if unsupported_receipt {
+        return unsupported(
+            "fused Service parameter receipt appears outside the first direct Unit-machine rung",
+        );
+    }
+
+    for plan in &checked.facts.flow.terminal_unit_effects.machines {
+        let carries_receipt = has_receipt(&plan.structural_parameters);
+        let Some(machine) = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == plan.machine)
+        else {
+            if carries_receipt {
+                return unsupported(
+                    "fused Service parameter plan has no exact typed machine",
+                );
+            }
+            continue;
+        };
+        let Some(state) = checked
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == plan.state)
+        else {
+            if carries_receipt {
+                return unsupported(
+                    "fused Service parameter plan has no exact typed state",
+                );
+            }
+            continue;
+        };
+        let source_parameters = checked.state_parameters(state);
+        for (position, source) in source_parameters.iter().enumerate() {
+            let carrier = psi_typed_trees::service::classify_exact_bound_service_carrier(
+                checked,
+                source.type_reference,
+            )
+            .map_err(|_| {
+                LoweringError::Unsupported(
+                    "typed Unit parameter has an invalid routed Service carrier",
+                )
+            })?;
+            let matches = plan
+                .structural_parameters
+                .iter()
+                .filter(|parameter| usize::try_from(parameter.position).ok() == Some(position))
+                .collect::<Vec<_>>();
+            let checked_parameter = match matches.as_slice() {
+                [parameter] => Some(*parameter),
+                [] => None,
+                _ => {
+                    return unsupported(
+                        "Unit structural parameters duplicate an authored source position",
+                    );
+                }
+            };
+            let Some(carrier) = carrier else {
+                if checked_parameter
+                    .is_some_and(|parameter| parameter.fused_service_erasure.is_some())
+                {
+                    return unsupported(
+                        "ordinary Unit parameter fabricates a fused Service erasure receipt",
+                    );
+                }
+                continue;
+            };
+            let parameter = checked_parameter.ok_or(LoweringError::Unsupported(
+                "typed routed Service parameter has no checked structural parameter",
+            ))?;
+            let receipt =
+                parameter
+                    .fused_service_erasure
+                    .as_ref()
+                    .ok_or(LoweringError::Unsupported(
+                        "typed routed Service parameter lost its Fused erasure receipt",
+                    ))?;
+            if source.is_self
+                || source.is_const
+                || source.is_mutable
+                || parameter.is_self
+                || parameter.multiplicity != Multiplicity::Affine
+                || parameter.access != psi_checked_trees::CheckedStructuralAccess::Owned
+                || receipt.source_parameter != source.symbol
+                || receipt.requirement != carrier.requirement
+                || receipt.carrier_type_identity
+                    != checked
+                        .normalized_type_identity(source.type_reference)
+                        .into_string()
+            {
+                return unsupported(
+                    "fused Service parameter receipt does not rejoin its exact owned affine typed source",
+                );
+            }
+            let Some(authorization) = checked.fused_service_erasure(carrier.requirement) else {
+                return unsupported(
+                    "fused Service parameter lacks compiler-owned erasure authorization",
+                );
+            };
+            if authorization.provider_plan_digest != receipt.provider_plan_digest {
+                return unsupported("fused Service parameter substituted its provider-plan digest");
+            }
+            let (base_identity, mut qualifications) =
+                fused_service_parameter_base_and_qualifications(checked, source.type_reference);
+            qualifications.sort_by_key(|domain| domain.0);
+            qualifications.dedup();
+            if parameter.type_identity != base_identity
+                || parameter.qualifications != qualifications
+                || qualifications.len() != 1
+            {
+                return unsupported(
+                    "fused Service parameter substituted its base type or Bound qualification",
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn fused_service_parameter_base_and_qualifications(
+    checked: &CheckedTrees,
+    mut type_reference: psi_typed_trees::types::TypeReferenceHandle,
+) -> (String, Vec<SemanticDomainId>) {
+    let mut qualifications = Vec::new();
+    while let psi_typed_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = checked.type_reference_table.type_reference(type_reference)
+    {
+        qualifications.extend(
+            checked
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .filter_map(|constraint| match constraint {
+                    psi_typed_trees::types::TypeConstraintNode::Domain(domain) => {
+                        Some(domain.semantic_id)
+                    }
+                    _ => None,
+                }),
+        );
+        type_reference = *base_type;
+    }
+    (
+        checked
+            .normalized_type_identity(type_reference)
+            .into_string(),
+        qualifications,
+    )
+}
+
 pub(crate) fn lower_unit_parameters(
     parameters: &[psi_checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
@@ -29,6 +256,16 @@ pub(crate) fn lower_unit_parameters(
             if qualifications.len() != parameter.qualifications.len() {
                 return Err(LoweringError::Unsupported(
                     "Unit structural parameter repeats a qualification",
+                ));
+            }
+            if parameter.fused_service_erasure.is_some()
+                && (parameter.is_self
+                    || parameter.multiplicity != Multiplicity::Affine
+                    || parameter.access != psi_checked_trees::CheckedStructuralAccess::Owned
+                    || parameter.qualifications.len() != 1)
+            {
+                return Err(LoweringError::Unsupported(
+                    "fused Service parameter has an invalid checked structural shape",
                 ));
             }
             Ok(StructuralParameterDeclaration {

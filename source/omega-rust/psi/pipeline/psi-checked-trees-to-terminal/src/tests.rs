@@ -2809,6 +2809,7 @@ fn hard_root_checked_fixture() -> CheckedTrees {
         multiplicity: Multiplicity::Linear,
         access: psi_checked_trees::CheckedStructuralAccess::Owned,
         qualifications: vec![domain],
+        fused_service_erasure: None,
     };
     let entry_claim = |machine, state| psi_checked_trees::CheckedUnitEntryClaimPlan {
         claim_identity: unit_claim(machine, state),

@@ -268,6 +268,45 @@ fn plan_selected_boundary_adapter_rewrites(
         }
     }
 
+    // The first parameter rung is admitted only when checked Unit planning
+    // retained an exact typed-parameter symbol plus the matching Fused plan
+    // digest. Do not rediscover arbitrary Service-looking parameters from
+    // names or types here: receipt custody is what authorizes receiver
+    // erasure and direct adapter dispatch.
+    for machine in &checked.facts.flow.terminal_unit_effects.machines {
+        for parameter in &machine.structural_parameters {
+            let Some(receipt) = &parameter.fused_service_erasure else {
+                continue;
+            };
+            if !adapters.iter().any(|adapter| {
+                adapter.receiver_trait == receipt.requirement
+                    && adapter.provider_plan_digest == receipt.provider_plan_digest
+            }) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "routed service parameter {:?} has no exact Fused selected-provider-plan join",
+                    receipt.source_parameter,
+                )));
+                continue;
+            }
+            if let Some(existing) = boundary_fields
+                .iter()
+                .find(|existing| existing.symbol == receipt.source_parameter)
+            {
+                if existing.trait_symbol != receipt.requirement {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "boundary receiver symbol {:?} maps to both trait symbols {:?} and {:?}",
+                        receipt.source_parameter, existing.trait_symbol, receipt.requirement,
+                    )));
+                }
+                continue;
+            }
+            boundary_fields.push(BoundaryField {
+                symbol: receipt.source_parameter,
+                trait_symbol: receipt.requirement,
+            });
+        }
+    }
+
     let machine_statement_spans = typed
         .machines()
         .iter()

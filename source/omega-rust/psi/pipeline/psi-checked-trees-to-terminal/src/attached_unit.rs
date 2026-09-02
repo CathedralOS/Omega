@@ -15,6 +15,8 @@ mod provider_attachments;
 mod providers;
 mod selected_operator;
 
+pub(super) use parameters::validate_fused_service_parameter_receipts;
+
 use call_closure::{
     checked_selected_scalar_call_closure, checked_terminal_machine_name,
     reject_recursive_unit_closure, unique_unit_boundary, validate_unit_operation_sequence,

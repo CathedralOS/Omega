@@ -119,13 +119,14 @@ machine build(builder: &mut Build) {
     write_file(
         application.join("main.omg"),
         r#"use ordinary_console::main;
+use omega::language::core::service;
 
-data Main { console: Console; }
+data Main { console: Service<Console> in Bound; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);
 }
 
-pub machine terminate(console: Console, return_code: i32)
+pub machine terminate(console: Service<Console> in Bound, return_code: i32)
 reaches Console
 invokes console;
 {

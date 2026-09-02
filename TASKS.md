@@ -12219,6 +12219,21 @@ checked-result arithmetic decision listed below.
     downgrade or substitution rejects. Generic or lifetime-parametric `R`,
     nested carriers, and Independent execution remain fenced until their exact
     slot/lifecycle representations land;
+  - the first direct owned-parameter rung is live for a nongeneric,
+    lifetime-free, one-state attached Unit machine making one direct boundary
+    call through one affine `Service<R> in Bound` parameter. Checked trees
+    retain the exact typed parameter symbol, authored position, normalized
+    carrier/base identities, exact `Bound` domain, requirement, and selected
+    Fused plan digest. Adapter settlement consumes only that receipt; raw
+    checked-to-Terminal lowering and the final compiler custody gate both
+    reject removal, fabrication, source substitution, borrowed access, or
+    digest/provenance drift. Recursive placement validation rejects Service
+    carriers hidden in references, arrays, slices, generic wrappers, locals,
+    returns, trait/requirement signatures, and operators. Internal
+    Service-to-Service forwarding, projected or borrowed arguments, multiple
+    carrier parameters/calls, composed control, scalar-bearing executable
+    helpers, free-machine Terminal lowering, root establishment, and
+    Independent execution remain separately fenced;
   - replace transitional bare boundary-trait runtime values with the explicit
     affine `Service<R> in Bound` carrier and routed installation/publication
     establishment; fused selection may erase it, while independent calls
@@ -12284,9 +12299,13 @@ checked-result arithmetic decision listed below.
   `source/psi/parse/ParserHarness::console` are both
   `Service<Console> in Bound`. Their owner-controlled builds retain exact
   Fused Console selection, and both source roots pass checked compilation.
-  Provider-internal nested fields and boundary-bearing parameters remain on
-  the transitional representation until their separately fenced carrier
-  rungs land; do not broaden the first direct-field custody proof by name.
+  The `process-exit` package's public `terminate` helper now also exposes
+  `Service<Console> in Bound`; package review preserves its exact Console reach
+  and parameter-zero invocation identity. That free helper's additional scalar
+  input remains outside the executable Terminal parameter rung above.
+  Provider-internal nested fields and all other boundary-bearing parameters
+  remain transitional until their separately fenced carrier rungs land; do not
+  broaden either custody proof by name.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.

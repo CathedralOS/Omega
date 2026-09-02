@@ -252,6 +252,23 @@ fn validate_state_signature_types<'program>(
                 continue;
             }
 
+            if matches!(owner, StateSignatureOwner::Machine(_))
+                && psi_typed_trees::service::exact_bound_service_requirement(
+                    program,
+                    parameter.type_reference,
+                )
+                .is_some()
+                && (parameter.is_const
+                    || parameter.is_mutable
+                    || !type_parameters.is_empty()
+                    || !signature.lifetime_parameters.is_empty())
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} state `{}` parameter `{}` uses `Service<R> in Bound` outside the first immutable, nongeneric, lifetime-free owned-parameter rung",
+                    signature.name, parameter.name,
+                )));
+            }
+
             validate_type_reference_handle_with_type_parameters(
                 program,
                 parameter.type_reference,
