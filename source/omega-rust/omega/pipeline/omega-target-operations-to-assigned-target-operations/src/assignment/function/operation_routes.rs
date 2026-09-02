@@ -29,7 +29,7 @@ pub(super) fn assign_operation(
         | TargetOperation::BooleanControlWithCleanup { .. }) => {
             cleanup::assign(function, operation, target)
         }
-        operation @ TargetOperation::ScalarReturnAfterStructuralScalarFieldStore { .. } => {
+        operation @ TargetOperation::ScalarReturnAfterStructuralScalarFieldStores { .. } => {
             scalar_store::assign(function, operation, target)
         }
         operation @ (TargetOperation::ReturnBoundaryPortReadU8 { .. }

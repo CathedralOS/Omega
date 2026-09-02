@@ -177,7 +177,7 @@ fn validate_return_only_machine_function(
         || !function.unit_integer_constants.is_empty()
         || !function.unit_affine_scalar_records.is_empty()
         || !function.unit_structural_scalar_field_stores.is_empty()
-        || function.scalar_structural_scalar_field_store.is_some()
+        || !function.scalar_structural_scalar_field_stores.is_empty()
         || function.scalar_affine_cleanup.is_some()
         || !function.scalar_control_affine_cleanups.is_empty()
         || !function.scalar_structural_parameters.is_empty()
@@ -293,7 +293,7 @@ fn validate_return_only_object_function(
         || !function.unit_integer_constants.is_empty()
         || !function.unit_affine_scalar_records.is_empty()
         || !function.unit_structural_scalar_field_stores.is_empty()
-        || function.scalar_structural_scalar_field_store.is_some()
+        || !function.scalar_structural_scalar_field_stores.is_empty()
         || !function.unit_parameters.is_empty()
         || !function.unit_parameter_homes.is_empty()
         || function.scalar_affine_cleanup.is_some()
@@ -494,7 +494,7 @@ mod tests {
                 unit_integer_constants: Vec::new(),
                 unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
-                scalar_structural_scalar_field_store: None,
+                scalar_structural_scalar_field_stores: Vec::new(),
                 unit_affine_cleanup: Some(UnitAffineCleanupRecord {
                     psi_edge: return_edge,
                     structural_types: Vec::new(),

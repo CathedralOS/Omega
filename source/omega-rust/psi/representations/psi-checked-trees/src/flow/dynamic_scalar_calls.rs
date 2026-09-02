@@ -166,10 +166,10 @@ pub struct CheckedDynamicScalarCallPlan {
     /// unrestricted borrowed `self`, so downstream lowering consumes this
     /// expression directly instead of reopening typed source.
     pub realization_return_expression: CheckedScalarExpression,
-    /// Exact optional primitive-field mutation performed by the selected
-    /// realization immediately before its scalar return. This is realization
+    /// Exact ordered primitive-field mutations performed by the selected
+    /// realization immediately before its scalar return. These are realization
     /// custody, not the independent caller-side pre-selection store below.
-    pub realization_structural_scalar_field_store: Option<CheckedStructuralScalarFieldStorePlan>,
+    pub realization_structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,
     /// Complete closed realization roster for the selected conformance. A
     /// rebound dynamic descriptor is materializable only when every table
     /// slot retains its exact checked callable and scalar body; retaining only
@@ -212,10 +212,11 @@ pub struct CheckedDynamicRealizationCallablePlan {
     pub realization_state: SymbolHandle,
     pub realization_identity: String,
     pub result_type: psi_typed_trees::types::PrimitiveType,
-    /// Exact optional primitive-field mutation performed before the return.
-    /// The v1 body shape admits at most one direct literal store through
-    /// mutable `self`; downstream lowering must not rediscover it from source.
-    pub structural_scalar_field_store: Option<CheckedStructuralScalarFieldStorePlan>,
+    /// Exact ordered primitive-field mutations performed before the return.
+    /// The bounded body shape admits at most two distinct literal stores
+    /// through mutable `self`; downstream lowering must not rediscover them
+    /// from source.
+    pub structural_scalar_field_stores: Vec<CheckedStructuralScalarFieldStorePlan>,
     pub return_expression: CheckedScalarExpression,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: MachineContractCommitment,

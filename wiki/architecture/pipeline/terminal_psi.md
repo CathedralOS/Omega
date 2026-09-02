@@ -814,31 +814,33 @@ forms through the existing transparent descriptor-parameter hop. Unit remains
 result-less throughout.
 
 The same closed application now admits one exact mutation-bearing callable in
-Terminal form. Its checked row carries a primitive-field literal store through
-`&mut self` separately from the scalar return expression. The field may be
-directly below the realization's attached self type or below an exact finite
-path of relevant named record fields. Lowering materializes the constant and
-store before the existing self-field read, and Terminal validation retains and
-replays every carrier-path segment exactly. An exclusive field
+Terminal form. Its checked row carries one or two distinct ordered
+primitive-field literal stores through `&mut self` separately from the scalar
+return expression. Each field may be directly below the realization's attached
+self type or below an exact finite path of relevant named record fields.
+Lowering materializes every constant and store before the existing self-field
+read, and Terminal validation retains and replays every carrier-path segment
+and source order exactly. An exclusive field
 subloan from an unrestricted mutable-borrow root retains unrestricted
 multiplicity for the duration of that exclusive call; it does not invent a
 linear entry claim. Direct Boolean and signed or unsigned 8-, 16-, 32-, or
 64-bit integer literal stores now lower
-`&mut self` as one no-copy pointer to caller storage, emit the store before an
+`&mut self` as one no-copy pointer to caller storage, emit the stores before an
 independently identified direct scalar field read, and retain independent
 x86-64/AArch64 machine, object, image, and installation replay evidence. Target
 lowering accumulates every record-field and final primitive-field offset;
 assignment replays the path against the retained declarations, and machine
-emission rejects path or offset drift before producing bytes. A
+emission rejects path, offset, or order drift before producing bytes. Canonical
+installation format 65 retains the bounded ordered store vector. A
 structural-only scalar-result realization publishes the ABI that its private
 erased-data adapter must rejoin before calling it. Boolean-returning forwarded
 calls now publish the same ABI with an exact Boolean result, normalize and
 store that result into a one-byte durable Unit home, and branch directly on
 that home with target-specific zero tests. The first Boolean store still
-returns an independent `i32` self field through the fixed-integer lane. A
-second write, indexed/case projection, address or IEEE-float literal, computed
-store value, shared receiver, or body reorder remains outside the native
-carrier.
+returns an independent `i32` self field through the fixed-integer lane. A third
+write, repeated destination, indexed/case projection, address or IEEE-float
+literal, computed store value, shared receiver, or body reorder remains outside
+the native carrier.
 
 Each write-only event names its exact loan occurrence, projected logical place,
 physical write footprint, and outcome guard. Verification invalidates facts

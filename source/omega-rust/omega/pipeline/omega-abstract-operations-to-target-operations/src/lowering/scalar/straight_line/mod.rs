@@ -24,7 +24,7 @@ pub(super) fn lower_straight_line(
 ) -> Result<TargetFunction, LoweringError> {
     let mut provenance = TerminalPsiProvenance::default();
     let mut returned = None;
-    let mut structural_scalar_field_store = None;
+    let mut structural_scalar_field_stores = Vec::new();
     for (operation_index, abstract_operation) in function.operations.iter().enumerate() {
         if returned.is_some() {
             return Err(LoweringError::OperationAfterReturn(function.machine));
@@ -41,15 +41,15 @@ pub(super) fn lower_straight_line(
             &call_plan,
             &target_structural_parameters,
             &mut provenance,
-            &mut structural_scalar_field_store,
+            &mut structural_scalar_field_stores,
             &mut returned,
         )?;
     }
 
     let mut operation = returned.ok_or(LoweringError::FunctionHasNoReturn(function.machine))?;
-    if let Some(store) = structural_scalar_field_store {
-        operation = TargetOperation::ScalarReturnAfterStructuralScalarFieldStore {
-            store,
+    if !structural_scalar_field_stores.is_empty() {
+        operation = TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
+            stores: structural_scalar_field_stores,
             scalar: Box::new(operation),
             structural_types: structural_types
                 .values()

@@ -90,7 +90,7 @@ use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
 use scalar_stack::validate_scalar_stack;
-use scalar_structural_scalar_field_store::validate_scalar_structural_scalar_field_store;
+use scalar_structural_scalar_field_store::validate_scalar_structural_scalar_field_stores;
 use structural_return::validate_structural_return_record;
 use unit_affine_cleanup::validate_unit_affine_cleanup;
 use unit_call_custody::{
@@ -292,8 +292,8 @@ pub struct ObjectFunction {
         Vec<omega_machine_code::UnitAffineScalarRecordEstablishmentRecord>,
     pub unit_structural_scalar_field_stores:
         Vec<omega_machine_code::UnitStructuralScalarFieldStoreRecord>,
-    pub scalar_structural_scalar_field_store:
-        Option<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
+    pub scalar_structural_scalar_field_stores:
+        Vec<omega_machine_code::ScalarStructuralScalarFieldStoreRecord>,
     pub unit_parameters: Vec<omega_machine_code::UnitParameterRecord>,
     pub unit_parameter_homes: Vec<omega_machine_code::UnitParameterHomeRecord>,
     pub unit_affine_cleanup: Option<omega_machine_code::UnitAffineCleanupRecord>,
@@ -1207,7 +1207,8 @@ fn build_object_artifact_with_x86_feature_profile(
         });
         let scalar_custody = scalar_cleanup_custody
             || scalar_boundary_custody
-            || function.mixed_structural_scalar_abi.is_some();
+            || function.mixed_structural_scalar_abi.is_some()
+            || !function.scalar_structural_scalar_field_stores.is_empty();
         let parameter_homes = if scalar_custody {
             function.scalar_structural_parameter_homes.as_slice()
         } else {
@@ -1332,7 +1333,7 @@ fn build_object_artifact_with_x86_feature_profile(
             stack.local_peak_bytes = stack.local_peak_bytes.max(dynamic_peak);
         }
         validate_unit_structural_scalar_field_stores(plan.target, function)?;
-        validate_scalar_structural_scalar_field_store(plan.target, function)?;
+        validate_scalar_structural_scalar_field_stores(plan.target, function)?;
         match (&function.unit_stack, &function.unit_affine_cleanup) {
             (Some(_), Some(cleanup)) => validate_unit_affine_cleanup(
                 function.machine,
@@ -2108,8 +2109,8 @@ fn build_object_artifact_with_x86_feature_profile(
             unit_structural_scalar_field_stores: function
                 .unit_structural_scalar_field_stores
                 .clone(),
-            scalar_structural_scalar_field_store: function
-                .scalar_structural_scalar_field_store
+            scalar_structural_scalar_field_stores: function
+                .scalar_structural_scalar_field_stores
                 .clone(),
             unit_parameters: function.unit_parameters.clone(),
             unit_parameter_homes: function.unit_parameter_homes.clone(),

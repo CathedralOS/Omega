@@ -12120,7 +12120,7 @@ checked-result arithmetic decision listed below.
   table roles. Its relocation graph binds caller to table, table to adapter,
   and adapter to realization without fabricated Terminal machines or source
   identities. Final-image replay accounts for every adapter code region and
-  relocation. Canonical installation format 64 retains compact strong-identity
+  relocation. Canonical installation format 65 retains compact strong-identity
   and exact-span projections for the adapters, tables, forwarding calls, and
   parameter-slot calls, and rejoins them to the complete executable-image
   evidence. Each installed forwarding row also retains the semantic scalar
@@ -12152,17 +12152,17 @@ checked-result arithmetic decision listed below.
   corresponding entry claim.
 
   The first mutation-bearing realization body is live through checked custody
-  and Terminal verification. It is exactly one literal `bool` or signed or
-  unsigned 8-, 16-, 32-, or 64-bit integer store
-  into either a direct primitive field of `&mut self` or a primitive field
-  below an exact finite path of relevant record fields, followed by the existing
-  exact scalar self-field return. The checked callable roster retains the store,
-  source statement, mutable-self parameter, field identity, primitive type,
-  and literal independently from the return expression; the selected-call
-  summary must equal its selected callable. Terminal materializes the constant
-  and self-field store before the read and permits no second mutation,
-  indexed/case projection, erased or scalar-intermediate path, computed value,
-  shared receiver, or reordered body. The
+  and Terminal verification. It is one or two distinct, ordered literal `bool`
+  or signed or unsigned 8-, 16-, 32-, or 64-bit integer stores into direct
+  primitive fields of `&mut self` or primitive fields below exact finite paths
+  of relevant record fields, followed by the existing exact scalar self-field
+  return. The checked callable roster retains every store, source statement,
+  mutable-self parameter, field identity, primitive type, and literal
+  independently from the return expression; the selected-call summary must
+  equal its selected callable. Terminal materializes each constant and
+  self-field store before the read and permits no third mutation, repeated
+  destination, indexed/case projection, erased or scalar-intermediate path,
+  computed value, shared receiver, or reordered body. The
   Boolean and fixed-integer literal stores now cross target lowering,
   assignment, machine emission, object/image replay, installation, and native
   execution. The store field and subsequent scalar return field are retained
@@ -12176,17 +12176,19 @@ checked-result arithmetic decision listed below.
   path against the retained declarations. Machine and object evidence bind
   the literal store, path, accumulated offset, subsequent read, result
   normalization, return, provenance, and exact x86-64/AArch64 bytes. The
-  authored integer mutable pass-through canary changes the selected field to
-  23; the direct and nested-projected Boolean mutation canaries store `true` and
-  return an independent selected code of 23. All three exit 70 on Linux x86-64
+  authored mutable pass-through canary stores `513u64` and then `true` before
+  returning an independent selected code of 23; the direct and nested-projected
+  Boolean mutation canaries store `true` and return an independent selected
+  code of 23. All three exit 70 on Linux x86-64
   while their target artifacts cross-link. Exact machine tests place the
   nested projected Boolean through the `Envelope/Flags` path at byte offset 8
   and reject path or accumulated-offset drift before emission. Canonical
-  installation format 64 retains this already-encoded path evidence.
+  installation format 65 retains ordered scalar-store vectors and their
+  already-encoded path evidence.
   The fixed-integer source gate now matches that already-general physical
   carrier: a nested `u16` source fixture and direct `u64` native canary retain
   exact landed types, values, widths, offsets, and bytes. Address, IEEE-float,
-  computed, and multiple-store mutation forms remain fenced.
+  computed, repeated-destination, and third-store mutation forms remain fenced.
 
   Boolean-returning forwarded calls now use the same producer-bound result-
   home model without pretending that a Boolean is an integer. The mixed
@@ -12199,7 +12201,7 @@ checked-result arithmetic decision listed below.
   native canary selects `true` from the rebound instance, cross-links on both
   Linux architectures, and exits 70 on the hosted target. Object and
   installation replay rejoin the Boolean semantic result, call placement,
-  home roster, normalization/store interval, and canonical format-64 scalar
+  home roster, normalization/store interval, and canonical format-65 scalar
   tag. Integer-result forwarding remains unchanged.
 
   The first Unit-returning requirement rung now has checked custody without
@@ -12254,17 +12256,18 @@ checked-result arithmetic decision listed below.
   operation order even when no scalar home follows them. Machine parameter
   records now retain authored access, so shared/mutable borrows are not
   misclassified as owned affine values requiring cleanup; canonical
-  installation format 64 uses the prior reserved parameter byte for that
-  access tag. Dynamic-source borrowing no longer suppresses cleanup of an
-  independently owned root. Source-driven calls cross machine/object/image/
-  installation replay on all four native targets. Forwarded Unit dispatch now
+  installation format 65 retains the parameter access tag introduced in the
+  prior format's reserved parameter byte. Dynamic-source borrowing no longer
+  suppresses cleanup of an independently owned root. Source-driven calls cross
+  machine/object/image/installation replay on all four native targets.
+  Forwarded Unit dispatch now
   crosses the same complete path: target lowering preserves a distinct
   result-less outer call and function-level helper slot call, assignment
   shares the descriptor ABI planners while allocating no scalar home, and
   machine evidence makes both semantic and physical results explicitly
   absent. Adapter construction reads Unit realization ABI from the Unit
   body's native call plan instead of requiring scalar-only mixed-result ABI
-  metadata. Object, image, and format-64 installation replay validate both
+  metadata. Object, image, and format-65 installation replay validate both
   call roles on x86-64 and AArch64; the installed codec carries an explicit
   result-presence tag and rejects mismatched semantic/physical result pairs.
 
@@ -12294,10 +12297,10 @@ checked-result arithmetic decision listed below.
     final-image custody remain complete on both architectures, and the Linux
     x86-64 full-pipeline canary executes the forwarded adapter and checks the
     selected instance through exit status;
-  - widen beyond the current single Boolean or fixed-integer literal
-    store only when each wider body has an exact semantic and physical rule;
-    computed values, indexed/case projections, and multiple writes still have
-    no native carrier;
+  - widen beyond the current two distinct ordered Boolean or fixed-integer
+    literal stores only when each wider body has an exact semantic and physical
+    rule; computed values, indexed/case projections, repeated destinations, and
+    a third write still have no native carrier;
   - extend descriptors to stored/joined/escaping, aggregate-erased, and
     component-crossing forms.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

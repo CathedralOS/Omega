@@ -250,7 +250,7 @@ fn assigned_direct_scalar_type(operation: &AssignedOperation) -> Option<psi_core
         AssignedOperation::ScalarReturnWithCleanup { scalar, .. } => {
             assigned_direct_scalar_type(scalar)
         }
-        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore { scalar, .. } => {
+        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStores { scalar, .. } => {
             assigned_direct_scalar_type(scalar)
         }
         _ => None,
@@ -286,7 +286,7 @@ fn retained_scalar_cleanup_abi_matches(
                 && call_plan == &row.call_plan
                 && structural_parameters == &row.structural_parameters
         }
-        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore {
+        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStores {
             scalar,
             call_plan,
             structural_parameters,
@@ -378,7 +378,7 @@ fn emit_function(
     let mut unit_integer_constants = Vec::new();
     let mut unit_affine_scalar_records = Vec::new();
     let mut unit_structural_scalar_field_stores = Vec::new();
-    let mut scalar_structural_scalar_field_store = None;
+    let mut scalar_structural_scalar_field_stores = Vec::new();
     let mut x86_scalar_fma = Vec::new();
     let mut x86_scalar_fma_occurrences = Vec::new();
     let mut x86_floating_control = None;
@@ -404,16 +404,16 @@ fn emit_function(
         AssignedOperation::BooleanControlWithCleanup { .. } => {
             unreachable!("Boolean-control cleanup is emitted by the early carrier path")
         }
-        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStore {
-            store,
+        AssignedOperation::ScalarReturnAfterStructuralScalarFieldStores {
+            stores,
             scalar,
             structural_parameters,
             ..
         } => {
             let emitted =
-                scalar_store::emit(function, store, scalar, structural_parameters, target)?;
+                scalar_store::emit(function, stores, scalar, structural_parameters, target)?;
             semantic_code_attribution = emitted.semantic_code_attribution;
-            scalar_structural_scalar_field_store = Some(emitted.store);
+            scalar_structural_scalar_field_stores = emitted.stores;
             scalar_structural_parameters = structural_parameters
                 .iter()
                 .map(|parameter| omega_machine_code::UnitParameterRecord {
@@ -1170,7 +1170,7 @@ fn emit_function(
         unit_integer_constants,
         unit_affine_scalar_records,
         unit_structural_scalar_field_stores,
-        scalar_structural_scalar_field_store,
+        scalar_structural_scalar_field_stores,
         unit_affine_cleanup,
         scalar_affine_cleanup: None,
         scalar_control_affine_cleanups: Vec::new(),
@@ -1407,6 +1407,7 @@ pub enum EmissionError {
     InvalidUnitScalarCallCustody(psi_core::OperationId),
     InvalidInstalledProviderScalarCallCustody(psi_core::OperationId),
     InvalidStructuralScalarFieldStoreCustody(psi_core::OperationId),
+    EmptyStructuralScalarFieldStores(psi_core::MachineId),
     InvalidStructuralScalarCallCustody(psi_core::OperationId),
     InvalidMixedStructuralScalarFunctionAbi(MachineId),
     InvalidDynamicDescriptorCallCustody(psi_core::OperationId),

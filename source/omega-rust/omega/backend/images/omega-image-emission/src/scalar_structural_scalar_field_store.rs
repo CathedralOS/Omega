@@ -1,4 +1,4 @@
-//! Independent object replay for the direct mutable-self scalar-store carrier.
+//! Independent object replay for bounded ordered mutable-self scalar stores.
 
 use omega_calling_conventions::{IndirectPointerLocation, ValueClass, ValueLocation};
 use omega_machine_code::{MachineCodeFunction, SemanticCodeSite};
@@ -9,15 +9,19 @@ use crate::ObjectError;
 use crate::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
 use crate::unit_structural_scalar_field_store::integer_bits;
 
-pub(super) fn validate_scalar_structural_scalar_field_store(
+pub(super) fn validate_scalar_structural_scalar_field_stores(
     target: NativeTarget,
     function: &MachineCodeFunction,
 ) -> Result<(), ObjectError> {
-    let Some(store) = &function.scalar_structural_scalar_field_store else {
+    let stores = &function.scalar_structural_scalar_field_stores;
+    let Some(anchor) = stores.first() else {
         return Ok(());
     };
     let invalid = || ObjectError::InvalidScalarStructuralScalarFieldStoreEvidence(function.machine);
-    let parameter_index = usize::try_from(store.destination.position).map_err(|_| invalid())?;
+    if stores.len() > 2 {
+        return Err(invalid());
+    }
+    let parameter_index = usize::try_from(anchor.destination.position).map_err(|_| invalid())?;
     let parameter = function
         .scalar_structural_parameters
         .get(parameter_index)
@@ -26,32 +30,21 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
         .scalar_structural_parameter_homes
         .get(parameter_index)
         .ok_or_else(invalid)?;
-    let (scalar_type, width, bits) = match store.immediate {
-        omega_target_operations::TargetScalarImmediate::Boolean(value) => {
-            (ScalarType::Boolean, 1, u64::from(u8::from(value)))
-        }
-        omega_target_operations::TargetScalarImmediate::Integer { scalar_type, value } => (
-            ScalarType::Integer(scalar_type),
-            scalar_type.bits().checked_div(8).ok_or_else(invalid)?,
-            integer_bits(scalar_type, value).ok_or_else(invalid)?,
-        ),
-    };
-    let return_width = scalar_width(store.return_scalar_type).ok_or_else(invalid)?;
-    if !store.destination.is_self
-        || function.attachment != Some(store.destination.structural_type)
-        || store.destination.access != psi_terminal::StructuralAccess::MutableBorrow
+    let return_width = scalar_width(anchor.return_scalar_type).ok_or_else(invalid)?;
+    if !anchor.destination.is_self
+        || function.attachment != Some(anchor.destination.structural_type)
+        || anchor.destination.access != psi_terminal::StructuralAccess::MutableBorrow
         || !matches!(
-            store.destination.multiplicity,
+            anchor.destination.multiplicity,
             psi_terminal::StructuralMultiplicity::Unrestricted
                 | psi_terminal::StructuralMultiplicity::Affine
         )
-        || !store.destination.qualifications.is_empty()
-        || !store.destination.projected_qualifications.is_empty()
-        || !valid_store_path(&store.path)
-        || parameter.place != store.destination.place
-        || parameter.structural_type != store.destination.structural_type
-        || parameter.multiplicity != store.destination.multiplicity
-        || parameter.access != store.destination.access
+        || !anchor.destination.qualifications.is_empty()
+        || !anchor.destination.projected_qualifications.is_empty()
+        || parameter.place != anchor.destination.place
+        || parameter.structural_type != anchor.destination.structural_type
+        || parameter.multiplicity != anchor.destination.multiplicity
+        || parameter.access != anchor.destination.access
         || parameter.shape.class != ValueClass::BorrowedReference
         || home.place != parameter.place
         || home.structural_type != parameter.structural_type
@@ -59,66 +52,113 @@ pub(super) fn validate_scalar_structural_scalar_field_store(
         || home.access != parameter.access
         || home.shape != parameter.shape
         || !home.indirect
-        || home.source != store.destination_placement
-        || store.destination_placement.shape != parameter.shape
+        || home.source != anchor.destination_placement
+        || anchor.destination_placement.shape != parameter.shape
         || !matches!(
-            store.destination_placement.locations.as_slice(),
+            anchor.destination_placement.locations.as_slice(),
             [ValueLocation::Indirect {
                 copy_stack_byte_offset: None,
                 ..
             }]
         )
-        || !matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_))
-        || store
-            .field_byte_offset
-            .checked_add(u32::from(width))
-            .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
-        || store
+        || anchor
             .return_field_byte_offset
             .checked_add(u32::from(return_width))
             .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
         || !function
             .provenance
             .operations
-            .contains(&store.defining_operation)
-        || !function
-            .provenance
-            .operations
-            .contains(&store.psi_operation)
-        || !function
-            .provenance
-            .operations
-            .contains(&store.return_operation)
-        || store.return_operation == store.psi_operation
-        || store.operation_ordinal != 1
-        || store.code_offset != 0
-        || exact_attribution_count(function, store) != 1
+            .contains(&anchor.return_operation)
     {
         return Err(invalid());
     }
-    let (expected_store, expected_function) = match target.architecture {
-        Architecture::X86_64 => expected_x86(store, width, bits, return_width),
-        Architecture::Aarch64 => expected_aarch64(store, width, bits, return_width),
+    let mut expected_store_prefix = Vec::new();
+    let mut expected_return_suffix = None;
+    for (index, store) in stores.iter().enumerate() {
+        let (scalar_type, width, bits) = match store.immediate {
+            omega_target_operations::TargetScalarImmediate::Boolean(value) => {
+                (ScalarType::Boolean, 1, u64::from(u8::from(value)))
+            }
+            omega_target_operations::TargetScalarImmediate::Integer { scalar_type, value } => (
+                ScalarType::Integer(scalar_type),
+                scalar_type.bits().checked_div(8).ok_or_else(invalid)?,
+                integer_bits(scalar_type, value).ok_or_else(invalid)?,
+            ),
+        };
+        let operation_ordinal = index
+            .checked_mul(2)
+            .and_then(|ordinal| ordinal.checked_add(1))
+            .ok_or_else(invalid)?;
+        if store.destination != anchor.destination
+            || store.destination_placement != anchor.destination_placement
+            || store.return_operation != anchor.return_operation
+            || store.return_source_value != anchor.return_source_value
+            || store.return_field != anchor.return_field
+            || store.return_field_byte_offset != anchor.return_field_byte_offset
+            || store.return_scalar_type != anchor.return_scalar_type
+            || !valid_store_path(&store.path)
+            || !matches!(scalar_type, ScalarType::Boolean | ScalarType::Integer(_))
+            || store
+                .field_byte_offset
+                .checked_add(u32::from(width))
+                .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
+            || !function
+                .provenance
+                .operations
+                .contains(&store.defining_operation)
+            || !function
+                .provenance
+                .operations
+                .contains(&store.psi_operation)
+            || store.return_operation == store.psi_operation
+            || store.operation_ordinal != operation_ordinal
+            || store.code_offset != expected_store_prefix.len()
+            || exact_defining_attribution_count(function, store) != 1
+            || exact_attribution_count(function, store) != 1
+            || stores[..index].iter().any(|earlier| {
+                earlier.psi_operation == store.psi_operation
+                    || earlier.defining_operation == store.defining_operation
+                    || earlier.source_value == store.source_value
+                    || (earlier.path == store.path && earlier.field == store.field)
+            })
+        {
+            return Err(invalid());
+        }
+        let (expected_store, expected_function) = match target.architecture {
+            Architecture::X86_64 => expected_x86(store, width, bits, return_width),
+            Architecture::Aarch64 => expected_aarch64(store, width, bits, return_width),
+        }
+        .ok_or_else(invalid)?;
+        if store.byte_count == 0
+            || store.byte_count != expected_store.len()
+            || store.bytes != expected_store
+        {
+            return Err(invalid());
+        }
+        if index == 0 {
+            expected_return_suffix = Some(expected_function[expected_store.len()..].to_vec());
+        }
+        expected_store_prefix.extend_from_slice(&expected_store);
     }
-    .ok_or_else(invalid)?;
     let return_byte_count = match target.architecture {
         Architecture::X86_64 => 1,
         Architecture::Aarch64 => 4,
     };
-    let read_byte_count = expected_function
+    let expected_return_suffix = expected_return_suffix.ok_or_else(invalid)?;
+    let read_byte_count = expected_return_suffix
         .len()
-        .checked_sub(
-            expected_store
-                .len()
-                .checked_add(return_byte_count)
-                .ok_or_else(invalid)?,
-        )
+        .checked_sub(return_byte_count)
         .ok_or_else(invalid)?;
-    if store.byte_count == 0
-        || store.byte_count != expected_store.len()
-        || store.bytes != expected_store
-        || function.bytes != expected_function
-        || exact_return_attribution_count(function, store, read_byte_count) != 1
+    let mut expected_function = expected_store_prefix.clone();
+    expected_function.extend_from_slice(&expected_return_suffix);
+    if function.bytes != expected_function
+        || exact_return_attribution_count(
+            function,
+            anchor,
+            stores.len(),
+            expected_store_prefix.len(),
+            read_byte_count,
+        ) != 1
     {
         return Err(invalid());
     }
@@ -147,9 +187,27 @@ fn exact_attribution_count(
         .count()
 }
 
+fn exact_defining_attribution_count(
+    function: &MachineCodeFunction,
+    store: &omega_machine_code::ScalarStructuralScalarFieldStoreRecord,
+) -> usize {
+    function
+        .semantic_code_attribution
+        .iter()
+        .filter(|row| {
+            row.site == SemanticCodeSite::Operation(store.defining_operation)
+                && row.operation_ordinal + 1 == store.operation_ordinal
+                && row.code_offset == store.code_offset
+                && row.byte_count == 0
+        })
+        .count()
+}
+
 fn exact_return_attribution_count(
     function: &MachineCodeFunction,
     store: &omega_machine_code::ScalarStructuralScalarFieldStoreRecord,
+    store_count: usize,
+    store_byte_count: usize,
     byte_count: usize,
 ) -> usize {
     function
@@ -157,8 +215,8 @@ fn exact_return_attribution_count(
         .iter()
         .filter(|row| {
             row.site == SemanticCodeSite::Operation(store.return_operation)
-                && row.operation_ordinal == 2
-                && row.code_offset == store.byte_count
+                && row.operation_ordinal == store_count * 2
+                && row.code_offset == store_byte_count
                 && row.byte_count == byte_count
         })
         .count()

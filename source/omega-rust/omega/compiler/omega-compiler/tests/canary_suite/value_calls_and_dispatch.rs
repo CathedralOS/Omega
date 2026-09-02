@@ -1228,22 +1228,22 @@ fn assert_forwarded_dynamic_result_canary(
         if fixture == "traits/runtime_local_named_dyn_boolean_pass_through_exit" {
             assert_boolean_forwarded_native_custody(&report, target);
         } else if fixture == "traits/runtime_local_named_dyn_mutable_pass_through_exit" {
-            let object = report
+            let native = report
                 .retained_native_artifact()
-                .expect("fixed-integer mutation keeps native custody")
-                .object();
+                .expect("fixed-integer mutation keeps native custody");
+            let object = native.object();
             let stores = object
                 .functions()
                 .iter()
-                .filter_map(|function| function.scalar_structural_scalar_field_store.as_ref())
+                .flat_map(|function| &function.scalar_structural_scalar_field_stores)
                 .collect::<Vec<_>>();
-            let [store] = stores.as_slice() else {
-                panic!("{target} should retain one fixed-integer realization store")
+            let [integer_store, boolean_store] = stores.as_slice() else {
+                panic!("{target} should retain two ordered realization stores")
             };
-            assert!(store.path.is_empty());
-            assert_eq!(store.field_byte_offset, 0);
+            assert!(integer_store.path.is_empty());
+            assert_eq!(integer_store.field_byte_offset, 0);
             assert!(matches!(
-                store.immediate,
+                integer_store.immediate,
                 omega_target_operations::TargetScalarImmediate::Integer {
                     scalar_type,
                     value: psi_core::IntegerValue::Unsigned(513),
@@ -1252,6 +1252,17 @@ fn assert_forwarded_dynamic_result_canary(
                     64,
                 ).expect("u64 type")
             ));
+            assert!(boolean_store.path.is_empty());
+            assert_eq!(boolean_store.field_byte_offset, 8);
+            assert!(matches!(
+                boolean_store.immediate,
+                omega_target_operations::TargetScalarImmediate::Boolean(true)
+            ));
+            assert!(integer_store.operation_ordinal < boolean_store.operation_ordinal);
+            assert_eq!(
+                boolean_store.code_offset,
+                integer_store.code_offset + integer_store.byte_count
+            );
         } else if fixture
             == "traits/runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit"
         {
@@ -1262,7 +1273,7 @@ fn assert_forwarded_dynamic_result_canary(
             let stores = object
                 .functions()
                 .iter()
-                .filter_map(|function| function.scalar_structural_scalar_field_store.as_ref())
+                .flat_map(|function| &function.scalar_structural_scalar_field_stores)
                 .collect::<Vec<_>>();
             let [store] = stores.as_slice() else {
                 panic!("{target} should retain one nested realization store")

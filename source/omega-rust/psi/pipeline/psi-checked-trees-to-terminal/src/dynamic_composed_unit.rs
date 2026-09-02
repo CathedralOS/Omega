@@ -471,8 +471,8 @@ fn validate_exact_dynamic_plan(
         return unsupported("direct dynamic selected callable is absent or ambiguous");
     };
     if selected_callable.return_expression != plan.realization_return_expression
-        || selected_callable.structural_scalar_field_store
-            != plan.realization_structural_scalar_field_store
+        || selected_callable.structural_scalar_field_stores
+            != plan.realization_structural_scalar_field_stores
     {
         return unsupported("direct dynamic selected body drifted from checked custody");
     }
@@ -1473,7 +1473,7 @@ fn materialize_dynamic_realizations(
                 projected_qualifications: Vec::new(),
             };
             let operations = lower_realization_operations(
-                callable.structural_scalar_field_store.as_ref(),
+                &callable.structural_scalar_field_stores,
                 &callable.return_expression,
                 scalar_type,
                 &parameter,
@@ -1953,7 +1953,7 @@ fn lower_caller_store_operations(
 }
 
 fn lower_realization_operations(
-    store: Option<&psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
+    stores: &[psi_checked_trees::CheckedStructuralScalarFieldStorePlan],
     expression: &CheckedScalarExpression,
     expected: psi_core::ScalarType,
     parameter: &StructuralParameterDeclaration,
@@ -1962,7 +1962,7 @@ fn lower_realization_operations(
     next_value: &mut u64,
 ) -> Result<Vec<Operation>, LoweringError> {
     let mut operations = lower_realization_store_operations(
-        store,
+        stores,
         parameter,
         structural_types,
         next_operation,
@@ -2067,17 +2067,47 @@ fn lower_realization_operations(
 }
 
 fn lower_realization_store_operations(
-    store: Option<&psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
+    stores: &[psi_checked_trees::CheckedStructuralScalarFieldStorePlan],
     parameter: &StructuralParameterDeclaration,
     structural_types: &[psi_terminal::StructuralTypeDeclaration],
     next_operation: &mut u64,
     next_value: &mut u64,
 ) -> Result<Vec<Operation>, LoweringError> {
-    let Some(store) = store else {
-        return Ok(Vec::new());
-    };
+    if stores.len() > 2 {
+        return unsupported("dynamic realization has too many structural stores");
+    }
+    let mut operations = Vec::with_capacity(stores.len() * 2);
+    for (statement_index, store) in stores.iter().enumerate() {
+        if stores[..statement_index].iter().any(|earlier| {
+            earlier.carrier_path == store.carrier_path
+                && earlier.field_identity == store.field_identity
+        }) {
+            return unsupported("dynamic realization repeats a structural store destination");
+        }
+        operations.extend(lower_realization_store_operation(
+            store,
+            statement_index,
+            parameter,
+            structural_types,
+            next_operation,
+            next_value,
+        )?);
+    }
+    Ok(operations)
+}
+
+fn lower_realization_store_operation(
+    store: &psi_checked_trees::CheckedStructuralScalarFieldStorePlan,
+    statement_index: usize,
+    parameter: &StructuralParameterDeclaration,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    next_operation: &mut u64,
+    next_value: &mut u64,
+) -> Result<Vec<Operation>, LoweringError> {
     if parameter.access != StructuralAccess::MutableBorrow
-        || store.statement_index != 0
+        || store.statement_index
+            != u32::try_from(statement_index)
+                .map_err(|_| LoweringError::Unsupported("dynamic store index exceeds u32"))?
         || store.destination_parameter_position != parameter.position
         || !checked_store_literal_matches(&store.value, store.primitive_type)
     {

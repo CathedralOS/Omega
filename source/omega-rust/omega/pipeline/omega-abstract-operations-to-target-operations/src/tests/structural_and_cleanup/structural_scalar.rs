@@ -280,8 +280,19 @@ fn unrestricted_shared_integer_field_return_plan() -> AbstractOperationPlan {
     }
 }
 
-fn unrestricted_mutable_integer_field_store_return_plan() -> AbstractOperationPlan {
+fn unrestricted_mutable_integer_field_stores_return_plan() -> AbstractOperationPlan {
     let mut plan = unrestricted_shared_integer_field_return_plan();
+    let StructuralTypeShape::Record { fields } = &mut plan.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: StructuralFieldId::new(76).unwrap(),
+        identity: "other".into(),
+        relevance: psi_terminal::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        )),
+    });
     let function = &mut plan.functions[0];
     let parameter = &mut function.structural_parameters[0];
     parameter.access = StructuralAccess::MutableBorrow;
@@ -317,6 +328,29 @@ fn unrestricted_mutable_integer_field_store_return_plan() -> AbstractOperationPl
             path: Vec::new(),
             field: StructuralFieldId::new(73).unwrap(),
             value: literal,
+        },
+    );
+    let second_literal = AbstractResult {
+        value: ValueId::new(75).unwrap(),
+        scalar_type,
+    };
+    function.operations.insert(
+        2,
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(76).unwrap(),
+            result: second_literal.value,
+            scalar_type,
+            value: IntegerValue::Signed(31),
+        },
+    );
+    function.operations.insert(
+        3,
+        AbstractOperation::StructuralScalarFieldStore {
+            psi_operation: OperationId::new(77).unwrap(),
+            destination: function.structural_parameters[0].clone(),
+            path: Vec::new(),
+            field: StructuralFieldId::new(76).unwrap(),
+            value: second_literal,
         },
     );
     assert_eq!(integer_type.bits(), 32);
@@ -392,21 +426,24 @@ fn unrestricted_shared_integer_field_lowers_as_a_straight_line_return() {
 }
 
 #[test]
-fn unrestricted_mutable_integer_store_wraps_the_direct_field_return() {
+fn two_unrestricted_mutable_integer_stores_wrap_the_direct_field_return() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let lowered = lower_to_target_operations(
-            &unrestricted_mutable_integer_field_store_return_plan(),
+            &unrestricted_mutable_integer_field_stores_return_plan(),
             target,
         )
         .expect("direct mutable-self store and field return lower");
-        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStore {
-            store,
+        let TargetOperation::ScalarReturnAfterStructuralScalarFieldStores {
+            stores,
             scalar,
             structural_parameters,
             ..
         } = &lowered.functions[0].operation
         else {
             panic!("mutation-bearing return retains its dedicated target carrier")
+        };
+        let [store, second] = stores.as_slice() else {
+            panic!("two mutation-bearing stores expected")
         };
         assert_eq!(store.psi_operation, OperationId::new(75).unwrap());
         assert_eq!(store.defining_operation, OperationId::new(74).unwrap());
@@ -418,6 +455,10 @@ fn unrestricted_mutable_integer_store_wraps_the_direct_field_return() {
                 value: IntegerValue::Signed(23),
             } if scalar_type.bits() == 32
         ));
+        assert_eq!(second.psi_operation, OperationId::new(77).unwrap());
+        assert_eq!(second.defining_operation, OperationId::new(76).unwrap());
+        assert_eq!(second.source_value, ValueId::new(75).unwrap());
+        assert_eq!(second.field_byte_offset, 4);
         assert!(store.path.is_empty());
         assert_eq!(store.field_byte_offset, 0);
         assert_eq!(

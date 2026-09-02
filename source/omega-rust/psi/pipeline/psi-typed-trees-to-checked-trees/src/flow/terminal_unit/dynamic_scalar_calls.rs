@@ -902,7 +902,7 @@ fn build_checked_dynamic_scalar_call(
         realization_state: row.realization_state,
         realization_identity: row.realization_identity.clone(),
         realization_return_expression: realization_body.return_expression,
-        realization_structural_scalar_field_store: realization_body.structural_scalar_field_store,
+        realization_structural_scalar_field_stores: realization_body.structural_scalar_field_stores,
         realization_callables,
         realization_contract_report_fingerprint: contract.report_fingerprint,
         realization_contract_commitment: contract.commitment,
@@ -1023,7 +1023,7 @@ fn checked_dynamic_realization_callables(
                 realization_state: closed.realization_state,
                 realization_identity,
                 result_type,
-                structural_scalar_field_store: body.structural_scalar_field_store,
+                structural_scalar_field_stores: body.structural_scalar_field_stores,
                 return_expression: body.return_expression,
                 contract_report_fingerprint: contract.report_fingerprint,
                 contract_commitment: contract.commitment,
@@ -1405,7 +1405,7 @@ fn checked_self_attachment_source(
 }
 
 struct CheckedRealizationScalarBody {
-    structural_scalar_field_store: Option<psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
+    structural_scalar_field_stores: Vec<psi_checked_trees::CheckedStructuralScalarFieldStorePlan>,
     return_expression: CheckedScalarExpression,
 }
 
@@ -1419,21 +1419,51 @@ fn checked_realization_scalar_body(
     let statements = program
         .statement_table
         .statements(realization_state.statement_nodes);
-    let (structural_scalar_field_store, return_statement_index, statement) = match statements {
-        [statement] => (None, 0, statement),
-        [StatementNode::Assignment(assignment), statement] => (
-            Some(checked_realization_structural_scalar_field_store_plan(
-                program,
-                facts,
-                realization_machine,
-                realization_state,
-                assignment,
-            )?),
-            1,
-            statement,
-        ),
-        _ => return None,
-    };
+    let (statement, prefix) = statements.split_last()?;
+    if prefix.len() > 2 {
+        return None;
+    }
+    let mut stores_with_paths = Vec::with_capacity(prefix.len());
+    for (statement_index, statement) in prefix.iter().enumerate() {
+        let StatementNode::Assignment(assignment) = statement else {
+            return None;
+        };
+        stores_with_paths.push(checked_realization_structural_scalar_field_store_plan(
+            program,
+            facts,
+            realization_machine,
+            realization_state,
+            statement_index,
+            assignment,
+        )?);
+    }
+    if !stores_with_paths.is_empty() {
+        let mut expected_mutation_paths = stores_with_paths
+            .iter()
+            .map(|(_, path)| path.clone())
+            .collect::<Vec<_>>();
+        expected_mutation_paths.sort();
+        expected_mutation_paths.dedup();
+        if expected_mutation_paths.len() != stores_with_paths.len() {
+            return None;
+        }
+        let mutation_paths = facts
+            .mutation
+            .for_machine(realization_machine.symbol)?
+            .state_write_frames
+            .iter()
+            .find(|frame| frame.state == realization_state.symbol)?
+            .frame
+            .complete_paths()?;
+        if mutation_paths != expected_mutation_paths {
+            return None;
+        }
+    }
+    let return_statement_index = prefix.len();
+    let structural_scalar_field_stores = stores_with_paths
+        .into_iter()
+        .map(|(store, _)| store)
+        .collect();
     let (expression, value_role) = match statement {
         StatementNode::Expression(expression) => (
             *expression,
@@ -1480,7 +1510,7 @@ fn checked_realization_scalar_body(
         CheckedScalarExpressionRole::Return,
     ) {
         return Some(CheckedRealizationScalarBody {
-            structural_scalar_field_store,
+            structural_scalar_field_stores,
             return_expression: checked.clone(),
         });
     }
@@ -1494,7 +1524,7 @@ fn checked_realization_scalar_body(
         result_type,
     )?;
     Some(CheckedRealizationScalarBody {
-        structural_scalar_field_store,
+        structural_scalar_field_stores,
         return_expression,
     })
 }
@@ -1504,8 +1534,12 @@ fn checked_realization_structural_scalar_field_store_plan(
     facts: &CheckFacts,
     realization_machine: &psi_typed_trees::machine::Machine,
     realization_state: &psi_typed_trees::state::State,
+    statement_index: usize,
     assignment: &psi_typed_trees::statement::TableAssignment,
-) -> Option<psi_checked_trees::CheckedStructuralScalarFieldStorePlan> {
+) -> Option<(
+    psi_checked_trees::CheckedStructuralScalarFieldStorePlan,
+    String,
+)> {
     let self_parameters = program
         .state_parameters(realization_state)
         .iter()
@@ -1532,7 +1566,7 @@ fn checked_realization_structural_scalar_field_store_plan(
     let destination = crate::flow::canonical_place_from_expression_in_state(
         program,
         realization_state.symbol,
-        0,
+        statement_index,
         assignment.target,
     )?;
     if destination.root != psi_facts::PlaceRoot::Symbol(self_parameter.symbol) {
@@ -1617,21 +1651,9 @@ fn checked_realization_structural_scalar_field_store_plan(
         destination.root,
         &destination.segments,
     );
-    let mutation_paths = facts
-        .mutation
-        .for_machine(realization_machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == realization_state.symbol)?
-        .frame
-        .complete_paths()?;
-    if !matches!(mutation_paths, [path] if path == &expected_mutation_path) {
-        return None;
-    }
-
     let value = facts.values.scalar_expressions.expression_at(
         realization_state.symbol,
-        0,
+        u32::try_from(statement_index).ok()?,
         CheckedScalarExpressionRole::AssignmentValue,
     )?;
     let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
@@ -1644,14 +1666,17 @@ fn checked_realization_structural_scalar_field_store_plan(
         return None;
     }
 
-    Some(psi_checked_trees::CheckedStructuralScalarFieldStorePlan {
-        statement_index: 0,
-        destination_parameter_position: u32::try_from(*self_position).ok()?,
-        carrier_path,
-        field_identity: terminal_field_identity(program, field.symbol)?,
-        primitive_type,
-        value: value.clone(),
-    })
+    Some((
+        psi_checked_trees::CheckedStructuralScalarFieldStorePlan {
+            statement_index: u32::try_from(statement_index).ok()?,
+            destination_parameter_position: u32::try_from(*self_position).ok()?,
+            carrier_path,
+            field_identity: terminal_field_identity(program, field.symbol)?,
+            primitive_type,
+            value: value.clone(),
+        },
+        expected_mutation_path,
+    ))
 }
 
 fn checked_direct_self_field_return(
