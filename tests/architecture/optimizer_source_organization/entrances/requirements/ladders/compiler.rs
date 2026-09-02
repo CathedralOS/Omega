@@ -22,6 +22,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "compiler native optimization realization",
         paths: &[
             "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/mod.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/native_report/mod.rs",
+            "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/native_report/model.rs",
             "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/admission.rs",
             "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/native_realization.rs",
             "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/rollback/mod.rs",

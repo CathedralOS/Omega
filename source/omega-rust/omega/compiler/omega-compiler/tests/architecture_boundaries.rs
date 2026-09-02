@@ -287,12 +287,20 @@ fn compiler_driver_has_one_admission_frontend_and_exhaustive_product_stop() {
         repo_root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/request.rs");
     let optimization_path = repo_root
         .join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/mod.rs");
+    let native_report_path = repo_root.join(
+        "source/omega-rust/omega/compiler/omega-compiler/src/compiler/optimization/native_report/mod.rs",
+    );
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let request = fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
-    let optimization = fs::read_to_string(&optimization_path)
+    let mut optimization = fs::read_to_string(&optimization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", optimization_path.display()));
+    optimization.push_str(
+        &fs::read_to_string(&native_report_path).unwrap_or_else(|error| {
+            panic!("failed to read {}: {error}", native_report_path.display())
+        }),
+    );
     let compact_driver = without_ascii_whitespace(&driver);
     let compact_optimization = without_ascii_whitespace(&optimization);
 

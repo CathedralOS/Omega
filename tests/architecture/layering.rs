@@ -1352,8 +1352,7 @@ fn production_subject_projection_is_report_owned() {
 fn optimization_rollback_settlement_is_owner_complete() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler");
-    let native_join = std::fs::read_to_string(compiler.join("optimization/mod.rs"))
-        .expect("read native optimization join");
+    let native_join = recursive_rust_source(&compiler.join("optimization"));
     let owner = std::fs::read_to_string(compiler.join("optimization/rollback/mod.rs"))
         .expect("read optimization rollback owner");
 
@@ -2275,8 +2274,9 @@ fn retained_native_product_enters_only_terminal_realization() {
     assert!(
         driver.contains("compile_checked_with_observations(&request, prepared)?;")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains("super::optimization::native_report(request, &checked)?")
-            && driver.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
+            && driver.contains("super::optimization::native_report(request, checked).map(finalize_report)")
+            && driver.contains("super::optimization::prepare_native_report(request, checked)?")
+            && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
     );
     assert_eq!(
@@ -2298,7 +2298,7 @@ fn retained_native_product_enters_only_terminal_realization() {
     );
     for required in [
         "produce_terminal_artifact_with_checked_boundary_operator_scope(",
-        "realize_native_artifact_with_checked_boundary_operator_scope(",
+        "realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input(",
         "from_retained_native_artifact(",
     ] {
         assert!(
