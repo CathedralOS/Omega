@@ -1,6 +1,4 @@
-//! Omega compilation coordination.
-//! The rooted API is [`Compiler`]. Domain models are imported from their
-//! owning subsystem crates rather than republished here.
+//! Omega compilation coordination rooted at [`Compiler`]; domain models stay in their owners.
 mod compiler;
 mod pipeline;
 

@@ -9,6 +9,7 @@
 
 use std::collections::BTreeSet;
 
+use omega_abstract_operations::AbstractOperationPlan;
 use omega_boundary_applications::TerminalBoundaryApplicationCoverage;
 use omega_effects::{
     TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
@@ -16,6 +17,8 @@ use omega_effects::{
 };
 pub use omega_image_emission::BoundaryExecutionRecord;
 use omega_installation_evidence::ProviderExecutionEvidence;
+use omega_optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
+use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
 mod boundary_applications;
@@ -120,7 +123,10 @@ impl NativePhysicalEvidenceScope {
     /// Admit the exact surviving D29 operator and D41 boundary-call roster of
     /// one independently validated optimized abstract projection.
     pub fn from_validated_optimization(
-        optimized: &omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan,
+        final_plan: &AbstractOperationPlan,
+        terminal: TerminalPsiIdentity,
+        validation: OptimizedAbstractPlanProjectionIdentity,
+        final_unit: OptimizationUnitIdentity,
         boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
     ) -> Result<Self, &'static str> {
         let coverage_identity =
@@ -128,7 +134,10 @@ impl NativePhysicalEvidenceScope {
                 .expect("present boundary-application coverage has an identity");
         Ok(Self::ValidatedOptimizedProjection(
             derive_validated_optimization_scope(
-                optimized,
+                final_plan,
+                terminal,
+                validation,
+                final_unit,
                 boundary_application_coverage,
                 coverage_identity,
             )?,

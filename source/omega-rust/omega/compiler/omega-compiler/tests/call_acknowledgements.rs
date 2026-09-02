@@ -268,8 +268,19 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
 
 #[test]
 fn compiler_synthesized_calls_record_acknowledgements_without_source_tokens() {
-    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../tests/omega/pass/traits/equatable_record_equality_exit/main.omg");
+    let canary = write_program(
+        "synthesized-equality",
+        r#"
+trait Equatable { machine equals(&self, rhs: &Self) -> bool; }
+data Point { value: i32; }
+PointEquatable: Point satisfies Equatable;
+machine Point::equals(&self, rhs: &Point) -> bool { false }
+data Main { left: Point; right: Point; }
+machine Main::main(&mut self) {
+    let equal: bool = self.left == self.right;
+}
+"#,
+    );
     let checked =
         compile_to_checked(&canary, None).expect("synthesized equality-call canary should compile");
     let synthesized = checked
@@ -293,4 +304,7 @@ fn compiler_synthesized_calls_record_acknowledgements_without_source_tokens() {
             && call.operational_acknowledgement.acknowledges_block
                 == call.blocking.transitive_may_block
     }));
+    drop(synthesized);
+    drop(checked);
+    let _ = fs::remove_dir_all(canary.parent().expect("temporary program directory"));
 }
