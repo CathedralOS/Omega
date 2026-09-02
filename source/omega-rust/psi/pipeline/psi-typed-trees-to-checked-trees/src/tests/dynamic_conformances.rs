@@ -129,6 +129,41 @@ const MUTATING_REALIZATION_SOURCE: &str = r#"
     }
 "#;
 
+const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
+    trait Shape {
+        machine code(&mut self) -> i32;
+    }
+
+    data Payload {
+        value: i32;
+    }
+
+    data Envelope {
+        payload: Payload;
+    }
+
+    data Item {
+        envelope: Envelope;
+        code: i32;
+    }
+
+    Primary: Item satisfies Shape {
+        machine code(&mut self) -> i32 {
+            self.envelope.payload.value = 23;
+            transition { _ -> self.code }
+        }
+    }
+
+    data Main {
+        item: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let erased: &mut dyn Shape = &mut self.item as &mut dyn Item::Primary;
+        let result: i32 = erased.code();
+    }
+"#;
+
 fn check_dynamic_source(source: &str) -> psi_checked_trees::CheckedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
@@ -850,6 +885,23 @@ fn dynamic_plan_retains_exact_mutating_realization_body() {
         callable.return_expression,
         plan.realization_return_expression
     );
+}
+
+#[test]
+fn dynamic_plan_retains_nested_mutating_realization_path() {
+    let checked = check_dynamic_source(NESTED_MUTATING_REALIZATION_SOURCE);
+    let store = sole_direct_dynamic_plan(&checked)
+        .realization_structural_scalar_field_store
+        .as_ref()
+        .expect("selected nested realization store");
+    assert_eq!(
+        store.carrier_path,
+        [
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field("envelope".into()),
+            psi_checked_trees::CheckedUnitStructuralPathSegment::Field("payload".into()),
+        ]
+    );
+    assert_eq!(store.field_identity, "value");
 }
 
 #[test]

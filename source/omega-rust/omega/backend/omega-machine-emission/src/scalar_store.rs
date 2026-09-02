@@ -266,8 +266,9 @@ pub(super) fn emit(
 }
 
 fn valid_store_path(path: &[psi_terminal::StructuralPathSegment]) -> bool {
-    path.is_empty()
-        || matches!(path, [psi_terminal::StructuralPathSegment::Field(identity)] if !identity.is_empty())
+    path.iter().all(
+        |segment| matches!(segment, psi_terminal::StructuralPathSegment::Field(identity) if !identity.is_empty()),
+    )
 }
 
 fn emit_x86_store(

@@ -85,8 +85,9 @@ pub(super) fn lower_store(
             }) if *actual_type == scalar_type && *actual == expected
         ),
     };
-    let exact_path = path.is_empty()
-        || matches!(path.as_slice(), [StructuralPathSegment::Field(identity)] if !identity.is_empty());
+    let exact_path = path.iter().all(
+        |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
+    );
     if value.value != source_value
         || value.scalar_type != immediate.scalar_type()
         || !exact_immediate
@@ -105,19 +106,17 @@ pub(super) fn lower_store(
             function.machine,
         ));
     }
-    let (field_owner, path_byte_offset) = match path.as_slice() {
-        [] => (destination.structural_type, 0),
-        [StructuralPathSegment::Field(_)] => {
-            let (nested, _, offset) = resolve_structural_field_path(
-                destination.structural_type,
-                path,
-                structural_types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?;
-            (nested, offset)
-        }
-        _ => unreachable!("projected scalar store path was checked above"),
+    let (field_owner, path_byte_offset) = if path.is_empty() {
+        (destination.structural_type, 0)
+    } else {
+        let (nested, _, offset) = resolve_structural_field_path(
+            destination.structural_type,
+            path,
+            structural_types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?;
+        (nested, offset)
     };
     let direct_field_byte_offset = match immediate {
         TargetScalarImmediate::Boolean(_) => {

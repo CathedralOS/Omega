@@ -9,15 +9,19 @@ data Flags {
     enabled: bool;
 }
 
+data Envelope {
+    flags: Flags;
+}
+
 data Item {
     prefix: i32;
-    flags: Flags;
+    envelope: Envelope;
     code: i32;
 }
 
 Primary: Item satisfies Switch {
     machine enable(&mut self) -> i32 {
-        self.flags.enabled = true;
+        self.envelope.flags.enabled = true;
         transition {
             _ -> self.code
         }
@@ -32,12 +36,12 @@ data Main {
 
 machine Main::main(&mut self) {
     self.decoy.prefix = 1;
-    self.decoy.flags.pad = 2;
-    self.decoy.flags.enabled = false;
+    self.decoy.envelope.flags.pad = 2;
+    self.decoy.envelope.flags.enabled = false;
     self.decoy.code = 4;
     self.selected.prefix = 5;
-    self.selected.flags.pad = 6;
-    self.selected.flags.enabled = false;
+    self.selected.envelope.flags.pad = 6;
+    self.selected.envelope.flags.enabled = false;
     self.selected.code = 23;
     let mut erased: &mut dyn Switch = &mut self.decoy as &mut dyn Item::Primary;
     erased = &mut self.selected as &mut dyn Item::Primary;

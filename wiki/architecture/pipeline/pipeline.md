@@ -165,9 +165,10 @@ Its forwarding rows retain an exact semantic and physical scalar result when
 one exists, while Unit rows explicitly retain neither; they do not invent
 Terminal machine identities for native-only adapters. The bounded mutable form additionally carries `&mut
 self` as one no-copy pointer and replays one Boolean or fixed-integer literal
-store into either a direct field or a primitive field one record projection
-below it, followed by an independently identified direct scalar field read and
-return. Target assignment independently resolves that bounded path and its
+store into either a direct field or a primitive field below an exact non-erased
+record-field path, followed by an independently identified direct scalar field
+read and return. Target assignment independently resolves every retained path
+segment and its
 accumulated byte offset before native emission. Boolean-returning forwarded
 calls use an exact one-byte result home and direct Boolean control carrier;
 they do not pass through an invented integer comparison.
