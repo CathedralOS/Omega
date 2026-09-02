@@ -450,6 +450,7 @@ dependencies = [
  "omega-native-artifact",
  "omega-optimization-core",
  "omega-package-compilation",
+ "omega-program-entry-plan",
  "omega-target",
  "omega-target-operations",
  "omega-trust-model",
@@ -1404,6 +1405,7 @@ version = "0.1.0"
 dependencies = [
  "omega-effects",
  "omega-package-compilation",
+ "omega-program-entry-plan",
  "omega-provider-planning",
  "psi-arena",
  "psi-checked-trees",

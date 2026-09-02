@@ -156,8 +156,20 @@ requirement. The raw producer and final compiler custody gate independently
 replay the one source edge and both receipts. Scalar-bearing or repeated
 forwarding, projections, borrows, duplicate edges, multiple carriers, mixed
 receiver requirements, composed control, native installed-provider scalar ABI
-realization, initial root establishment, and Independent execution remain
-absent from Terminal rather than being guessed.
+realization, runtime publication, and Independent execution remain absent from
+Terminal rather than being guessed.
+
+For a target-selected attached `ProgramEntry`, the compiler now retains the
+first Fused root-establishment receipt beside Terminal. It derives one row per
+direct `Service<R> in Bound` receiver field only after exact provider
+selection. The row binds the selected source signature and target slot,
+source receiver and Terminal attachment identities, field, carrier/base and
+`Bound` identities, exact requirement/schema digest, and Fused plan digest.
+The native proposal independently rejoins it to the canonical entry
+attachment, erased Terminal field, and unique selected plan. Targetless
+checking, free entries, and same-shaped non-root owners produce no row. This
+proves that generated entry provisioning supplies the erased authority; it is
+not a runtime slot, publication, era, or service-handle representation.
 
 Preservation is not realization. Omega target lowering currently accepts the
 one exact Linux `exit_process(i32) -> Unit` migration shape through import-free

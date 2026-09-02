@@ -756,6 +756,10 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     let baseline = compile_to_checked(&canary.join("main.omg"), None)
         .expect("fused Service fixture should reach checked trees");
     let provenance = baseline.selected_provider_provenance().to_vec();
+    assert!(
+        baseline.selected_program_entry().is_none(),
+        "targetless checking must not establish an authored target root"
+    );
     omega_selected_dispatch::validate_fused_service_terminal_custody(&baseline, &provenance)
         .expect("exact typed Service, Fused provenance, and selected plan should rejoin");
     psi_checked_trees_to_terminal::lower_machine(&baseline, "Main::main")
@@ -1154,6 +1158,82 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .message
             .contains("lacks compiler-owned Fused erasure authority")
     }));
+}
+
+#[test]
+fn selected_program_entry_retains_one_exact_fused_service_establishment() {
+    let canary = pass_canary("providers/service_fused_root_establishment");
+    let baseline = compile_to_checked(&canary.join("main.omg"), Some("linux_x86_64"))
+        .expect("selected Fused Service root should reach checked trees");
+    let selected = baseline
+        .selected_program_entry()
+        .expect("target compilation should retain its selected ProgramEntry");
+    let [establishment] = selected.fused_service_establishments() else {
+        panic!("selected Main root should retain one direct Service establishment")
+    };
+    assert_eq!(selected.source_signature().machine_name(), "Main::main");
+    assert_eq!(establishment.field_identity(), "service");
+    assert!(establishment.requirement_identity().starts_with("Ping#"));
+    assert_eq!(establishment.bound_domain_identity(), "Bound");
+    assert_eq!(
+        establishment.source_signature_identity(),
+        selected.source_signature().identity()
+    );
+    assert_eq!(
+        establishment.target_slot(),
+        omega_target::TargetProfile::LinuxX64.program_entry_slot()
+    );
+    assert!(establishment.carrier_type_identity().contains("Service"));
+    assert!(establishment.carrier_base_identity().contains("Service"));
+
+    let provenance = baseline.selected_provider_provenance().to_vec();
+    let derived = omega_selected_dispatch::derive_fused_program_entry_establishments(
+        &baseline,
+        selected.source_signature(),
+        &provenance,
+    )
+    .expect("the selected root receipt should independently rederive");
+    assert_eq!(derived, selected.fused_service_establishments());
+
+    let mut substituted = baseline.clone();
+    match fused_service_field_mut(&mut substituted) {
+        psi_checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked {
+            erasure, ..
+        } => erasure.provider_plan_digest[0] ^= 1,
+        _ => unreachable!(),
+    }
+    assert!(
+        omega_selected_dispatch::derive_fused_program_entry_establishments(
+            &substituted,
+            selected.source_signature(),
+            &provenance,
+        )
+        .is_err(),
+        "a selected-root Terminal receipt substitution must reject"
+    );
+
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompilerOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: None,
+            target_name: Some("linux_x86_64".into()),
+        })
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+    )
+    .expect("selected Fused root should produce a retained Terminal proposal");
+    let artifact = report
+        .artifact()
+        .expect("Terminal compilation should retain its canonical artifact");
+    let proposal = report
+        .terminal_native_realization_proposal()
+        .expect("Terminal compilation should retain its native proposal");
+    let [proposed] = proposal.program_entry().fused_service_establishments() else {
+        panic!("Terminal proposal should retain one exact root establishment")
+    };
+    assert_eq!(proposed, establishment);
+    proposal
+        .validate_for_artifact(artifact)
+        .expect("Terminal proposal should independently replay root establishment");
 }
 
 #[test]

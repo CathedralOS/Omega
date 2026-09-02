@@ -34,7 +34,9 @@ pub use operator_adapter::{
     derive_checked_specialized_operator_application_realizations,
     settle_selected_operator_adapter_dispatch, validate_selected_operator_terminal_custody,
 };
-pub use service_custody::validate_fused_service_terminal_custody;
+pub use service_custody::{
+    derive_fused_program_entry_establishments, validate_fused_service_terminal_custody,
+};
 
 /// Settle checked-body adapters and compiler-intrinsic float execution in one
 /// atomic Unit-plan rebuild. Separate rebuilds would make the later family

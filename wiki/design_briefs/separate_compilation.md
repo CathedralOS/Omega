@@ -79,7 +79,7 @@ carrier, `Bound` domain, requirement, and selected-plan digest; raw plus final
 custody replay that edge independently. Borrowing, nesting, scalar-bearing or
 repeated forwarding, projections, duplicate edges, multiple carriers, mixed
 receiver requirements, composed control, native installed-provider scalar ABI
-realization, root establishment, and Independent mode remain closed rather
+realization, runtime publication, and Independent mode remain closed rather
 than being represented as fused.
 Multiple distinct carriers specifically wait on a
 Terminal domain-application identity: the current structural-domain table keys
@@ -87,6 +87,17 @@ only `SemanticDomainId` while binding one carrier identity, so one `Bound` row
 cannot represent both `Service<A>` and `Service<B>` without an unsound carrier
 collapse. This is a representation dependency, not an unresolved source-
 language decision.
+
+The first selected-root establishment row is retained separately from the
+erased carrier. For one target-selected attached `ProgramEntry`, post-selection
+custody derives one source-free row per direct `Service<R> in Bound` receiver
+field. It binds the source signature and target slot, source receiver and
+Terminal attachment, field and carrier/base/`Bound` identities, exact service
+schema digest, and selected Fused plan digest. Terminal proposal replay checks
+the canonical entry attachment, erased field, and unique selected plan again.
+No row is produced for targetless checking, free entries, or an identical
+non-root owner. This closes semantic establishment for the generated bridge;
+it does not claim runtime publication or Independent component execution.
 
 Selected Independent edges still reject at the componentization fence before
 checked facts or package-review evidence are published. Exact closed slot
