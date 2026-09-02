@@ -4,6 +4,7 @@
 //! requirements.
 
 pub use omega_abstract_operations::{
+    AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
     AbstractReboundDynamicScalarDispatch, AbstractResult, CompletionClaimSource,
     RankedU32CountdownCustody,
 };
@@ -109,6 +110,34 @@ pub struct TargetDynamicDescriptorParameterAbi {
     pub parameter: TerminalDynamicDescriptorParameter,
     pub instance: ValuePlacement,
     pub table: ValuePlacement,
+}
+
+/// One concrete instance address supplied to a target-level existential
+/// descriptor argument. The source remains a checked projection within one
+/// caller parameter; the destination is the pointer-shaped ABI placement for
+/// the callee's descriptor word.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDynamicDescriptorInstanceArgument {
+    pub place: PlaceId,
+    pub access: psi_terminal::StructuralAccess,
+    pub path: Vec<StructuralPathSegment>,
+    pub root_structural_type: StructuralTypeId,
+    pub structural_type: StructuralTypeId,
+    pub shape: ValueShape,
+    pub source_byte_offset: u32,
+    pub source: ValuePlacement,
+    pub destination: ValuePlacement,
+}
+
+/// Target-owned ABI application for one caller-supplied existential
+/// descriptor. `custody` retains the complete semantic source/target join;
+/// the physical fields retain only the two pointer placements and the exact
+/// concrete instance projection needed to materialize them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDynamicDescriptorArgument {
+    pub custody: AbstractDynamicDescriptorArgument,
+    pub instance: TargetDynamicDescriptorInstanceArgument,
+    pub table_destination: ValuePlacement,
 }
 
 /// Ordered terminal-Psi sources refined into one target function.
@@ -643,6 +672,21 @@ pub enum TargetUnitOperation {
         callee: MachineId,
         call_plan: CallPlan,
         arguments: Vec<TargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+    },
+    /// One direct scalar-result call whose authored parameter roster contains
+    /// one or more existential descriptors. This role remains distinct from
+    /// an ordinary structural call because each descriptor expands to an
+    /// ordered `{data, table}` ABI pair and requires adapter-table custody.
+    StructuralScalarCallWithDynamicArguments {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        callee: MachineId,
+        call_plan: CallPlan,
+        structural_arguments: Vec<TargetStructuralArgument>,
+        dynamic_arguments: Vec<TargetDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<psi_core::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,

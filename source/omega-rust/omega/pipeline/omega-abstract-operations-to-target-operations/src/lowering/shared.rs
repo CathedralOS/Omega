@@ -1,8 +1,9 @@
 pub(super) use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use omega_abstract_operations::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractParameter, AbstractResult, CompletionClaimSource, RankedNativeAbstractOperationPlan,
+    AbstractDynamicDescriptorSource, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, CompletionClaimSource,
+    RankedNativeAbstractOperationPlan,
 };
 pub(super) use omega_calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueClass, ValueLocation, ValuePlacement, ValueShape,
@@ -18,6 +19,7 @@ pub(super) use omega_target_operations::{
     BoundarySettlementBinding, FixedIntegerScalarAbiValue, FixedIntegerScalarFunctionAbi,
     MachineRegister, ScalarParameterLocation, TargetBooleanControl, TargetBooleanExpression,
     TargetCallArgument, TargetConditionalBooleanArm, TargetConditionalIntegerArm,
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
     TargetDynamicDescriptorParameterAbi, TargetFunction, TargetIeeeFloatFmaOperand,
     TargetIntegerControl, TargetIntegerExpression, TargetOperation, TargetOperationPlan,
     TargetRankedU32Countdown, TargetScalarExpression, TargetStructuralArgument,

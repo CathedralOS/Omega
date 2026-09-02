@@ -67,6 +67,51 @@ fn target_plan(target: NativeTarget) -> omega_target_operations::TargetOperation
         .expect("lower rebound dynamic call to target operations")
 }
 
+fn forwarded_target_plan(target: NativeTarget) -> omega_target_operations::TargetOperationPlan {
+    let source = r#"
+        trait Measure {
+            machine measure(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Measure {
+            machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+        }
+
+        data Main {
+            decoy: Item;
+            selected: Item;
+        }
+
+        machine Main::run(&mut self) {
+            let mut erased: &dyn Measure = &self.decoy as &dyn Item::Primary;
+            erased = &self.selected as &dyn Item::Primary;
+            let result: i32 = forward(erased);
+        }
+
+        machine forward(erased: &dyn Measure) -> i32 {
+            let result: i32 = erased.measure();
+            transition { _ -> result }
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed).expect("check source");
+    let terminal = psi_checked_trees_to_terminal::lower_machine(&checked, "Main::run")
+        .expect("lower forwarded dynamic source");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_bundle(&terminal.proof_bundle).expect("encode proof");
+    let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
+        .expect("lower verified Terminal artifact");
+    lower_to_target_operations(&abstract_plan, target)
+        .expect("lower caller and forwarded helper to target operations")
+}
+
 #[test]
 fn assigns_forwarded_descriptor_registers_and_indirect_mechanism() {
     let target = NativeTarget::linux_x64();
@@ -163,6 +208,63 @@ fn assigns_forwarded_descriptor_registers_and_indirect_mechanism() {
             table: omega_target_operations::MachineRegister::X86Rsi,
         }
     );
+}
+
+#[test]
+fn assigns_rebound_descriptor_arguments_to_forwarded_call_registers() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let target_plan = forwarded_target_plan(target);
+        let assigned = assign_registers(&target_plan)
+            .expect("assign complete caller-to-forwarder descriptor path");
+        let caller = assigned
+            .functions
+            .iter()
+            .find(|function| function.machine == assigned.entry)
+            .expect("entry caller");
+        let AssignedOperation::UnitBody(body) = &caller.operation else {
+            panic!("forwarding caller must remain an attached Unit body")
+        };
+        let calls = body
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+                    callee,
+                    call_plan,
+                    copies,
+                    dynamic_arguments,
+                    ..
+                } => Some((callee, call_plan, copies, dynamic_arguments)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [(callee, call_plan, copies, dynamic_arguments)] = calls.as_slice() else {
+            panic!("one assigned forwarded descriptor call expected: {body:#?}")
+        };
+        assert!(copies.is_empty());
+        let [argument] = dynamic_arguments.as_slice() else {
+            panic!("one assigned dynamic descriptor argument expected")
+        };
+        let expected_instance = match target.architecture {
+            omega_target::Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rdi,
+            omega_target::Architecture::Aarch64 => {
+                omega_target_operations::MachineRegister::Aarch64X(0)
+            }
+        };
+        let expected_table = match target.architecture {
+            omega_target::Architecture::X86_64 => omega_target_operations::MachineRegister::X86Rsi,
+            omega_target::Architecture::Aarch64 => {
+                omega_target_operations::MachineRegister::Aarch64X(1)
+            }
+        };
+        assert_eq!(argument.instance.destination, expected_instance);
+        assert_eq!(argument.table_destination, expected_table);
+        assert_eq!(call_plan.parameters.len(), 2);
+        assert!(target_plan
+            .functions
+            .iter()
+            .any(|function| function.machine == **callee));
+    }
 }
 
 #[test]

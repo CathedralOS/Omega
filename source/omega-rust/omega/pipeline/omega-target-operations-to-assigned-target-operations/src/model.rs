@@ -61,6 +61,10 @@ pub enum AssignmentError {
         machine: MachineId,
         operation: OperationId,
     },
+    DynamicDescriptorCallArgumentMismatch {
+        machine: MachineId,
+        operation: OperationId,
+    },
     DynamicScalarCallCustodyMismatch {
         machine: MachineId,
         operation: OperationId,

@@ -189,7 +189,7 @@ pub(super) fn assign_call(
     })
 }
 
-fn declaration_map(
+pub(super) fn declaration_map(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>> {
     let map = declarations
@@ -199,7 +199,7 @@ fn declaration_map(
     (map.len() == declarations.len()).then_some(map)
 }
 
-fn resolve_field_path(
+pub(super) fn resolve_field_path(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

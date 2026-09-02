@@ -1,4 +1,4 @@
-use super::{dynamic_scalar, foreign_call, scalar_call, structural_scalar};
+use super::{dynamic_argument, dynamic_scalar, foreign_call, scalar_call, structural_scalar};
 use crate::assignment::shared::*;
 
 pub(super) fn assign(
@@ -205,6 +205,30 @@ pub(super) fn assign(
             *callee,
             call_plan,
             arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        )?,
+        TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
+            psi_operation,
+            result,
+            callee,
+            call_plan,
+            structural_arguments,
+            dynamic_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+        } => dynamic_argument::assign(
+            machine,
+            body,
+            target,
+            *psi_operation,
+            *result,
+            *callee,
+            call_plan,
+            structural_arguments,
+            dynamic_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
