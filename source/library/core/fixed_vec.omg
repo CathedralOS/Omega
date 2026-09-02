@@ -41,7 +41,7 @@
 //     vector length, not the capacity — so it carries the window obligation
 //     `length <= items.len`.
 
-data FixedVec<T, const N: u64> {
+pub data FixedVec<T, const N: u64> {
     items: [T; N];
     length: u64;
 }
