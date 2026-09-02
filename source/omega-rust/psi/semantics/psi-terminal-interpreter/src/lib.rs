@@ -953,6 +953,7 @@ impl TerminalExecution {
         structural_arguments: &[StructuralArgument],
         resolved_arguments: &[TerminalStructuralValue],
         claim_transfers: &[ClaimTransfer],
+        dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
     ) -> Result<(), TerminalInterpretError> {
         let callee = self
             .machines
@@ -1027,7 +1028,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
-        self.dynamic_parameters = BTreeMap::new();
+        self.dynamic_parameters = dynamic_parameters;
         self.current_machine = callee_id;
         self.current = callee.entry;
         self.next_operation = 0;
@@ -1299,6 +1300,52 @@ impl TerminalExecution {
         Ok(())
     }
 
+    fn begin_runtime_dynamic_unit_call(
+        &mut self,
+        callee_id: MachineId,
+        source: TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        let callee = self
+            .machines
+            .get(&callee_id)
+            .cloned()
+            .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
+        if !callee.parameters.is_empty()
+            || callee.structural_parameters.len() != 1
+            || callee.result != TerminalMachineResult::Unit
+        {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let structural_values =
+            bind_structural_arguments(&callee.structural_parameters, &[source])?;
+        let callee_affine_frontier =
+            bind_affine_frontier(&callee.structural_parameters, &structural_values)?;
+        self.next_operation += 1;
+        self.call_stack.push(SuspendedCall {
+            blocks: std::mem::take(&mut self.blocks),
+            values: std::mem::take(&mut self.values),
+            structural_values: std::mem::take(&mut self.structural_values),
+            payloadless_case_values: std::mem::take(&mut self.payloadless_case_values),
+            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
+            live_claims: std::mem::take(&mut self.live_claims),
+            dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
+            current_machine: self.current_machine,
+            current: self.current,
+            next_operation: self.next_operation,
+            result: SuspendedCallResult::Unit,
+        });
+        self.blocks = callee.blocks;
+        self.values = BTreeMap::new();
+        self.structural_values = structural_values;
+        self.live_affine_frontier = callee_affine_frontier;
+        self.live_claims = BTreeMap::new();
+        self.dynamic_parameters = BTreeMap::new();
+        self.current_machine = callee_id;
+        self.current = callee.entry;
+        self.next_operation = 0;
+        Ok(())
+    }
+
     pub fn resume_with_effect_handler(
         &mut self,
         meter: &mut TerminalFuelMeter,
@@ -1498,11 +1545,14 @@ impl TerminalExecution {
                             &self.structural_values,
                             &structural_arguments,
                         )?;
+                        let dynamic_parameters =
+                            self.resolve_dynamic_call_arguments(operation.id)?;
                         self.begin_unit_call(
                             callee,
                             &structural_arguments,
                             &arguments,
                             &claim_transfers,
+                            dynamic_parameters,
                         )?;
                         continue;
                     }
@@ -1582,6 +1632,51 @@ impl TerminalExecution {
                             .copied()
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
                         self.begin_runtime_dynamic_scalar_call(callee, result, descriptor.source)?;
+                        continue;
+                    }
+                    OperationKind::CallDynamicUnit {
+                        descriptor_ordinal, ..
+                    } => {
+                        if operation.result != psi_terminal::OperationResult::Unit {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let (callee, source) = self
+                            .dynamic_scalar_calls
+                            .get(&(self.current_machine, descriptor_ordinal))
+                            .cloned()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let arguments = resolve_structural_arguments(
+                            &self.structural_types,
+                            &self.structural_values,
+                            std::slice::from_ref(&source),
+                        )?;
+                        let [source] = arguments.as_slice() else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        self.begin_runtime_dynamic_unit_call(callee, source.clone())?;
+                        continue;
+                    }
+                    OperationKind::CallDynamicParameterUnit {
+                        parameter_ordinal,
+                        requirement_slot,
+                        ..
+                    } => {
+                        if operation.result != psi_terminal::OperationResult::Unit {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let descriptor =
+                            self.dynamic_parameters
+                                .get(&parameter_ordinal)
+                                .cloned()
+                                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let slot = usize::try_from(requirement_slot)
+                            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+                        let callee = descriptor
+                            .callables
+                            .get(slot)
+                            .copied()
+                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        self.begin_runtime_dynamic_unit_call(callee, descriptor.source)?;
                         continue;
                     }
                     OperationKind::CallStructural {
@@ -1694,6 +1789,7 @@ impl TerminalExecution {
                                 &structural_arguments,
                                 &arguments,
                                 &claim_transfers,
+                                BTreeMap::new(),
                             )?;
                             continue;
                         }

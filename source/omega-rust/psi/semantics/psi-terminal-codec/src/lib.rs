@@ -1555,6 +1555,11 @@ fn validate_operation_foundation(
                 return malformed("scalar call declares a Unit result");
             }
         }
+        OperationKind::CallDynamicUnit { .. } | OperationKind::CallDynamicParameterUnit { .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("dynamic Unit call declares a result value");
+            }
+        }
         _ => {
             if !matches!(operation.result, OperationResult::Scalar(_)) {
                 return malformed("scalar operation declares a Unit result");

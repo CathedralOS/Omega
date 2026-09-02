@@ -91,6 +91,27 @@ pub(super) fn validate_machine(
                 operation.id,
                 ModuleError::DuplicateOperation,
             )?;
+            if let OperationKind::CallDynamicUnit {
+                requirement_obligations,
+                ..
+            }
+            | OperationKind::CallDynamicParameterUnit {
+                requirement_obligations,
+                ..
+            } = &operation.kind
+            {
+                if operation.result != psi_terminal::OperationResult::Unit {
+                    return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
+                }
+                for obligation in requirement_obligations {
+                    insert_unique(
+                        &mut registry.obligations,
+                        *obligation,
+                        ModuleError::DuplicateObligation,
+                    )?;
+                }
+                continue;
+            }
             if let OperationKind::CallDynamicScalar {
                 requirement_obligations,
                 ..
@@ -252,6 +273,8 @@ pub(super) fn validate_machine(
                 | OperationKind::CallStructuralScalar { .. }
                 | OperationKind::CallDynamicScalar { .. }
                 | OperationKind::CallDynamicParameterScalar { .. }
+                | OperationKind::CallDynamicUnit { .. }
+                | OperationKind::CallDynamicParameterUnit { .. }
                 | OperationKind::CallStructural { .. }
                 | OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }

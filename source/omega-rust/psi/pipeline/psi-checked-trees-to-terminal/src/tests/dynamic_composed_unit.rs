@@ -256,6 +256,78 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE: &str = r#"
     }
 "#;
 
+const DIRECT_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch {
+        machine touch(&self);
+    }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch {
+        machine touch(&self) {
+        }
+    }
+
+    data Main { item: Item; }
+
+    machine Main::run(&self) {
+        let erased: &dyn Touch = &self.item as &dyn Item::Primary;
+        erased.touch();
+    }
+"#;
+
+const REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch {
+        machine touch(&self);
+    }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch {
+        machine touch(&self) {
+        }
+    }
+
+    data Main {
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        erased.touch();
+    }
+"#;
+
+const FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch {
+        machine touch(&self);
+    }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch {
+        machine touch(&self) {
+        }
+    }
+
+    data Main {
+        decoy: Item;
+        selected: Item;
+    }
+
+    machine Main::run(&mut self) {
+        let mut erased: &dyn Touch = &self.decoy as &dyn Item::Primary;
+        erased = &self.selected as &dyn Item::Primary;
+        forward(erased);
+    }
+
+    machine forward(erased: &dyn Touch) {
+        erased.touch();
+    }
+"#;
+
 fn direct_dynamic_checked() -> psi_checked_trees::CheckedTrees {
     checked_source(DIRECT_DYNAMIC_SOURCE)
 }
@@ -425,6 +497,192 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     assert_eq!(
         unsupported_message(&checked),
         "direct dynamic call drifted from checked flow custody"
+    );
+}
+
+#[test]
+fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
+    let checked = checked_source(DIRECT_DYNAMIC_UNIT_SOURCE);
+    let lowered = lower_machine(&checked, "Main::run").expect("direct dynamic Unit call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("direct dynamic Unit module verifies");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 1);
+    assert_eq!(catalog.direct_dispatches.len(), 1);
+    assert!(catalog.rebound_descriptors.is_empty());
+    assert!(catalog.indirect_dispatches.is_empty());
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("dynamic Unit caller");
+    let [operation] = caller.blocks[0].operations.as_slice() else {
+        panic!("one direct Unit operation expected")
+    };
+    assert_eq!(operation.result, OperationResult::Unit);
+    assert!(matches!(operation.kind, OperationKind::CallUnit { .. }));
+    let [application] = lowered
+        .semantic_module
+        .closed_conformance_applications
+        .as_slice()
+    else {
+        panic!("one exact dynamic Unit application expected")
+    };
+    let [callable] = application.realization_callables.as_slice() else {
+        panic!("one Unit realization expected")
+    };
+    assert_eq!(
+        callable.result,
+        psi_terminal::ClosedConformanceCallableResult::Unit
+    );
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("direct dynamic Unit module encodes");
+    let decoded = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("direct dynamic Unit module decodes");
+    assert_eq!(decoded, lowered.semantic_module);
+    assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+#[test]
+fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
+    let checked = checked_source(REBOUND_DYNAMIC_UNIT_SOURCE);
+    let mut lowered =
+        lower_machine(&checked, "Main::run").expect("rebound dynamic Unit call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("rebound dynamic Unit module verifies");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 2);
+    assert_eq!(catalog.rebound_descriptors.len(), 1);
+    assert_eq!(catalog.indirect_dispatches.len(), 1);
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("dynamic Unit caller");
+    let [operation] = caller.blocks[0].operations.as_mut_slice() else {
+        panic!("one indirect Unit operation expected")
+    };
+    assert_eq!(operation.result, OperationResult::Unit);
+    assert!(matches!(
+        operation.kind,
+        OperationKind::CallDynamicUnit {
+            descriptor_ordinal: 0,
+            ..
+        }
+    ));
+    operation.result = OperationResult::Scalar(ValueDeclaration {
+        id: value_id(999),
+        scalar_type: psi_core::ScalarType::Boolean,
+    });
+    assert!(psi_terminal_verifier::validate_module(&lowered.semantic_module).is_err());
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("rebound dynamic Unit module encodes");
+    assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+#[test]
+fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
+    let checked = checked_source(FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE);
+    let lowered = lower_machine(&checked, "Main::run").expect("forwarded dynamic Unit call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("forwarded dynamic Unit module verifies");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    let [parameter] = catalog.parameters.as_slice() else {
+        panic!("one dynamic Unit parameter expected, got {catalog:#?}")
+    };
+    let [argument] = catalog.arguments.as_slice() else {
+        panic!("one dynamic Unit argument expected, got {catalog:#?}")
+    };
+    let [dispatch] = catalog.parameter_dispatches.as_slice() else {
+        panic!("one dynamic Unit parameter dispatch expected, got {catalog:#?}")
+    };
+    assert_eq!(parameter.owner, dispatch.owner);
+    assert_eq!(
+        parameter.requirements[0].result,
+        psi_terminal::ClosedConformanceCallableResult::Unit
+    );
+    assert_eq!(argument.parameter_ordinal, parameter.ordinal);
+    assert_eq!(
+        argument.source,
+        psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 }
+    );
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == argument.owner)
+        .expect("forwarded Unit caller");
+    let outer = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == argument.operation)
+        .expect("outer Unit call");
+    assert_eq!(outer.result, OperationResult::Unit);
+    assert!(matches!(outer.kind, OperationKind::CallUnit { .. }));
+    let helper = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == parameter.owner)
+        .expect("forwarded Unit helper");
+    let inner = helper
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == dispatch.operation)
+        .expect("inner Unit parameter dispatch");
+    assert_eq!(inner.result, OperationResult::Unit);
+    assert!(matches!(
+        inner.kind,
+        OperationKind::CallDynamicParameterUnit {
+            parameter_ordinal: 0,
+            requirement_slot: 0,
+            ..
+        }
+    ));
+    assert_eq!(lowered.source_call_occurrences.len(), 2);
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("forwarded dynamic Unit module encodes");
+    psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("forwarded dynamic Unit module decodes");
+    assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+fn assert_dynamic_unit_artifact_executes(artifact: &psi_terminal_codec::CanonicalTerminalArtifact) {
+    let module = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("dynamic Unit module decodes for execution");
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("dynamic Unit entry machine");
+    let [parameter] = entry.structural_parameters.as_slice() else {
+        panic!("dynamic Unit entry requires one structural self parameter")
+    };
+    let argument = psi_terminal_interpreter::TerminalStructuralValue {
+        opaque_identity: 1,
+        structural_type: parameter.structural_type,
+        qualifications: parameter.qualifications.clone(),
+        path: Vec::new(),
+    };
+    let mut execution =
+        psi_terminal_interpreter::TerminalExecution::start_artifact_with_structural_arguments(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &psi_proof_admission::AdmissionProfile::default(),
+            &[],
+            &[argument],
+        )
+        .expect("dynamic Unit artifact starts");
+    let mut meter = psi_terminal_fuel::TerminalFuelMeter::unbounded();
+    assert_eq!(
+        execution.resume(&mut meter).expect("dynamic Unit executes"),
+        psi_terminal_interpreter::TerminalExecutionStatus::Complete(
+            psi_terminal_interpreter::TerminalExecutionResult::Unit,
+        ),
     );
 }
 

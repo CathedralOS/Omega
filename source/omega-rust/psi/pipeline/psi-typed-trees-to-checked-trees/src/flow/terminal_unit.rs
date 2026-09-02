@@ -330,6 +330,19 @@ pub(crate) fn build_checked_unit_effect_plans(
                     ]
                 }),
         )
+        .chain(dynamic_dispatch.direct_unit_calls.iter().flat_map(|plan| {
+            [
+                plan.caller_attachment_type_identity.as_str(),
+                plan.source_type_identity.as_str(),
+            ]
+        }))
+        .chain(dynamic_dispatch.rebound_unit_calls.iter().flat_map(|plan| {
+            [
+                plan.latest.caller_attachment_type_identity.as_str(),
+                plan.initial.type_identity.as_str(),
+                plan.latest.source_type_identity.as_str(),
+            ]
+        }))
         .collect::<BTreeSet<_>>();
     for operation in candidates.iter().flat_map(|plan| &plan.operations) {
         match operation {

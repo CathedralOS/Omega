@@ -3850,15 +3850,15 @@ Remaining:
   Current migration inventory: the canonical proof synopsis now publishes one
   validated source-bound trust graph for the exact Rust decoder, proof kernel,
   verifier, eight sufficient-form reduction families, the current unproved
-  ledger framework, 38 closed leaf-schema rows, and five separate call-
-  composition rows covering all 43 `OperationKind` variants. Node
+  ledger framework, 43 closed leaf-schema rows, and ten separate call-
+  composition rows covering all 53 `OperationKind` variants. Node
   digests bind the exact deciding Rust/specification bytes and explicit
   versions; the graph identity also binds every canonical dependency edge.
   Unknown, cyclic, unreachable, duplicate, malformed-root, and noncanonical
   graphs reject, and the current artifact closure reports `fully-derived false`.
   The first production Rust ledger slice now has one closed
-  `psi-terminal-semantics` table covering all 43 operation kinds and preserving
-  the 38 leaf / 5 call-composition custody split. Twenty goal-free scalar leaves
+  `psi-terminal-semantics` table covering all 53 operation kinds and preserving
+  the 43 leaf / 10 call-composition custody split. Twenty goal-free scalar leaves
   carry explicit result, operand, denotation, goal, fact, crash, fuel, and
   frontier axes and reconstruct their local equations through one generic
   interpreter. Exact lookup rejects missing or duplicate rows. The terminal
@@ -3866,30 +3866,32 @@ Remaining:
   maintaining independent operation matches. Structural/effect rows and
   call/control composition remain separate and are not promoted into the
   goal-free scalar table. The second production Rust ledger slice
-  now owns a separate exact-unique six-row structural/effect table: write-only
-  primitive stores, payloadless-case establishment, byte-sequence literal
-  establishment, Boolean field reads, port writes, and trivial affine-local
-  establishment keep result, custody, action, external-effect, fuel, and place-
+  now owns a separate exact-unique nine-row structural/effect table: write-only
+  primitive stores, structural scalar-field stores, payloadless-case
+  establishment, byte-sequence literal establishment, Boolean and integer field
+  reads, port writes, trivial affine-local establishment, and affine scalar-
+  record establishment keep result, custody, action, external-effect, fuel, and place-
   frontier axes explicit. One generic interpreter emits distinct
   fact, effect, or frontier observations; the verifier consumes its Boolean
   equation instead of reconstructing that row independently. The trust graph
-  consumes the same table as 32 scalar-denotation plus six structural/effect
-  nodes while preserving the 38 leaf / five call-composition operation-custody
+  consumes the same table as 34 scalar-denotation plus nine structural/effect
+  nodes while preserving the 43 leaf / ten call-composition operation-custody
   split.
   The modular verifier source split is also fully rebound into trust identities:
   evidence provenance, integer foundations, proof-bundle custody,
   reconstruction, and substitution bytes can no longer change outside the
   registered verifier/ledger dependency digests.
-  The third production Rust ledger slice now owns an exact-unique five-row
+  The third production Rust ledger slice now owns an exact-unique ten-row
   call-composition table. Scalar, structural Unit, structural-scalar,
-  structural-result, and boundary calls
+  direct and parameter dynamic scalar/Unit, structural-result,
+  structural-result-with-scalar-arguments, and boundary calls
   retain independent target, result, argument, requirement, transfer, outcome,
   crash-route, evidence-lifetime, fuel, and frontier policies. The verifier's
   contract composition moved out of general operation reconstruction into one
   focused table-selected module; existing module validation still proves the
   concrete signature, movement, coverage, substitution, outcome, crash, and
   evidence invariants before composition. Call policy and implementation bytes
-  are both bound into the same five call trust nodes.
+  are both bound into the same ten call trust nodes.
   The fourth production Rust ledger slice now owns the twelve proof-bearing
   scalar leaves in a separate exact-unique table. Exact cast, left/right shift,
   exact add/subtract/multiply, and exact/wrapping/saturating divide/remainder
@@ -5355,9 +5357,9 @@ Remaining:
   caused most remaining repetition. The format-bound implementation was retired
   after its format-18/vocabulary-20 decoder fell behind the live artifact;
   commit `a5cfd83cc` and its follow-ups retain the executable provenance. Its
-  reusable structure now lives in production's exact-unique 43-row inventory:
-  32 scalar denotations plus six structural/effect rows form 38 leaf rows, and
-  five call-composition rows remain a separate algebra with mutation coverage.
+  reusable structure now lives in production's exact-unique 53-row inventory:
+  34 scalar denotations plus nine structural/effect rows form 43 leaf rows, and
+  ten call-composition rows remain a separate algebra with mutation coverage.
   Reusable low-rung byte, scalar/type/value, UTF-8, and structural-leaf grammar
   fragments remain gated without claiming a fixed terminal header or complete
   live decoder. The full assurance-owned low generator, row proofs, and
@@ -11123,7 +11125,7 @@ Remaining N6/N8 work:
   through the owner's declared structural types and requires the selected leaf
   to be `IeeeFloat(format)`. Unknown owners or roots, erased/non-float leaves,
   invalid or substituted paths, format drift, and duplicate tuples reject.
-  Terminal format 69 / vocabulary 72 encode this distinct source class; legacy
+  Terminal format 70 / vocabulary 73 encode this distinct source class; legacy
   formats reject its tag. Checked/source production remains transitional
   because no checked expression-to-Terminal structural-root/path correspondence
   is retained. Still open are carriers for other arbitrary Terminal values,
@@ -11952,7 +11954,7 @@ checked-result arithmetic decision listed below.
   Checked Psi publishes the exact caller/callee coordinate, dense runtime-
   parameter position, bare trait, source binding, and selected conformance for
   each descriptor transfer. Introduced in Terminal format 64 / vocabulary 67
-  and retained by current format 69 / vocabulary 72, these rows carry
+  and retained by current format 70 / vocabulary 73, these rows carry
   target-neutral descriptor parameters, ordered requirement slots, call
   arguments sourced from either a rebound local descriptor or an inbound
   descriptor parameter, and parameter-slot dispatches. Canonical validation
@@ -12093,8 +12095,20 @@ checked-result arithmetic decision listed below.
   transparent descriptor-parameter hop: the outer transfer and source
   selection must rejoin one bare parameter of identical access, whose
   operation-free Unit call is the helper's sole statement. Direct and
-  once-rebound sources retain both outer and inner coordinates. This does not
-  yet claim Terminal encoding, tables/adapters, or native execution.
+  once-rebound sources retain both outer and inner coordinates.
+
+  Terminal format 70 / vocabulary 73 now preserves that distinction. A direct
+  local Unit selection lowers to an exact result-less `CallUnit`; a rebound
+  local selection lowers to `CallDynamicUnit`; and an exactly once-rebound
+  forwarded source crosses one ordinary Unit call into a
+  `CallDynamicParameterUnit` helper. Canonical encoding, call-composition rows,
+  verification, fixed fuel, and reference interpretation all retain Unit as
+  Unit and reject scalar-result substitution. Direct descriptor forwarding
+  remains checked-only because Terminal has no direct-selection descriptor
+  argument source; it fails closed rather than fabricating a rebound source.
+  Abstract operations explicitly reject both new dynamic Unit variants until
+  the table/adapter and target-neutral call carrier are added. No native support
+  is claimed.
 
   Remaining work:
 
@@ -12113,9 +12127,10 @@ checked-result arithmetic decision listed below.
     store only when each wider body has an exact semantic and physical rule;
     computed values, paths deeper than one record field, indexed/case
     projections, and multiple writes still have no native carrier;
-  - carry the checked operation-free Unit-returning requirement lane through
-    Terminal encoding and verification, tables/adapters, and native execution
-    before widening its bodies or call forms;
+  - carry the operation-free Unit-returning requirement lane through abstract
+    operations, complete tables/adapters, and native execution; add an honest
+    direct-selection descriptor argument source before admitting direct
+    forwarding, and do not widen bodies or call forms first;
   - extend custody to changed-conformance, stored/joined/escaping,
     aggregate-erased, and component-crossing descriptors.
 - **TARGET-SEMANTIC-APPLICATIONS — close typed target observations and selected

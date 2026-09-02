@@ -7,7 +7,8 @@ use psi_checked_trees::{
 use crate::attached_unit::{lower_composed_unit_control_machine, lower_unit_effect_closure};
 use crate::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::dynamic_composed_unit::{
-    lower_direct_dynamic_composed_unit_machine, lower_rebound_dynamic_composed_unit_machine,
+    lower_direct_dynamic_composed_unit_machine, lower_direct_dynamic_unit_machine,
+    lower_rebound_dynamic_composed_unit_machine, lower_rebound_dynamic_unit_machine,
 };
 use crate::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
@@ -98,6 +99,52 @@ pub(super) fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
+    let rebound_dynamic_unit_plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .rebound_unit_calls
+        .iter()
+        .filter(|plan| plan.latest.caller_machine == selection.machine)
+        .collect::<Vec<_>>();
+    if !rebound_dynamic_unit_plans.is_empty() {
+        let [plan] = rebound_dynamic_unit_plans.as_slice() else {
+            return unsupported("rebound dynamic Unit plan is duplicated for one caller");
+        };
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("rebound dynamic Unit dispatch requires an attached caller");
+        }
+        return routed_machine(
+            lower_rebound_dynamic_unit_machine(checked, plan),
+            SelectedMachineRoute::ReboundDynamicComposedUnit {
+                realization_machine: plan.latest.realization_machine,
+            },
+        );
+    }
+    let direct_dynamic_unit_plans = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .dynamic_dispatch
+        .direct_unit_calls
+        .iter()
+        .filter(|plan| plan.caller_machine == selection.machine)
+        .collect::<Vec<_>>();
+    if !direct_dynamic_unit_plans.is_empty() {
+        let [plan] = direct_dynamic_unit_plans.as_slice() else {
+            return unsupported("direct dynamic Unit plan is duplicated for one caller");
+        };
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("direct dynamic Unit dispatch requires an attached caller");
+        }
+        return routed_machine(
+            lower_direct_dynamic_unit_machine(checked, plan),
+            SelectedMachineRoute::DirectDynamicComposedUnit {
+                realization_machine: plan.realization_machine,
+            },
+        );
+    }
     let rebound_dynamic_plans = checked
         .facts
         .flow

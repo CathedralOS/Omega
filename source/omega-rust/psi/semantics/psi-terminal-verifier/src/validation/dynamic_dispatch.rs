@@ -185,6 +185,23 @@ pub(super) fn validate_dynamic_dispatches(
                 && claim_transfers.is_empty()
                 && requirement_obligations.is_empty()
                 && crash_continuations.is_empty()
+        ) || matches!(
+            (&operation.kind, &operation.result, &realization.result),
+            (
+                OperationKind::CallUnit {
+                    callee,
+                    structural_arguments,
+                    claim_transfers,
+                    requirement_obligations,
+                    crash_continuations,
+                },
+                OperationResult::Unit,
+                TerminalMachineResult::Unit,
+            ) if *callee == dispatch.realization
+                && structural_arguments.as_slice() == std::slice::from_ref(&selection.source)
+                && claim_transfers.is_empty()
+                && requirement_obligations.is_empty()
+                && crash_continuations.is_empty()
         );
         if !exact_call
             || source_type.map(|declaration| declaration.identity.as_str())
@@ -391,6 +408,19 @@ pub(super) fn validate_dynamic_dispatches(
                 && operation_result.scalar_type == callable_result.scalar_type
                 && requirement_obligations.is_empty()
                 && crash_continuations.is_empty()
+        ) || matches!(
+            (&operation.kind, &operation.result, &realization.result),
+            (
+                OperationKind::CallDynamicUnit {
+                    descriptor_ordinal,
+                    requirement_obligations,
+                    crash_continuations,
+                },
+                OperationResult::Unit,
+                TerminalMachineResult::Unit,
+            ) if *descriptor_ordinal == dispatch.descriptor_ordinal
+                && requirement_obligations.is_empty()
+                && crash_continuations.is_empty()
         );
         let source_type = dynamic_source_type_identity(module, machines, latest);
         let realization_source_type = realization
@@ -473,8 +503,10 @@ pub(super) fn validate_dynamic_dispatches(
     }
     for machine in module.machines.iter() {
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-            if matches!(operation.kind, OperationKind::CallDynamicScalar { .. })
-                && !indirect_coordinates.contains(&(machine.id, operation.id))
+            if matches!(
+                operation.kind,
+                OperationKind::CallDynamicScalar { .. } | OperationKind::CallDynamicUnit { .. }
+            ) && !indirect_coordinates.contains(&(machine.id, operation.id))
             {
                 return Err(invalid_indirect_dispatch(machine.id, operation.id));
             }
@@ -600,12 +632,12 @@ fn validate_dynamic_descriptor_arguments(
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             let (callee, admits_dynamic_arguments) = match operation.kind {
                 OperationKind::Call { callee, .. }
-                | OperationKind::CallUnit { callee, .. }
                 | OperationKind::CallStructural { callee, .. }
                 | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
                     (callee, false)
                 }
-                OperationKind::CallStructuralScalar { callee, .. } => (callee, true),
+                OperationKind::CallUnit { callee, .. }
+                | OperationKind::CallStructuralScalar { callee, .. } => (callee, true),
                 _ => continue,
             };
             let target_parameters = module
@@ -819,6 +851,21 @@ fn validate_parameter_dynamic_dispatches(
                         && requirement_obligations.is_empty()
                         && crash_continuations.is_empty()
                         && result.scalar_type == psi_core::ScalarType::Boolean
+                ) || matches!(
+                    (&operation.kind, &operation.result, requirement.result),
+                    (
+                        OperationKind::CallDynamicParameterUnit {
+                            parameter_ordinal,
+                            requirement_slot,
+                            requirement_obligations,
+                            crash_continuations,
+                        },
+                        OperationResult::Unit,
+                        ClosedConformanceCallableResult::Unit,
+                    ) if *parameter_ordinal == dispatch.parameter_ordinal
+                        && *requirement_slot == dispatch.requirement_slot
+                        && requirement_obligations.is_empty()
+                        && crash_continuations.is_empty()
                 )
             }
             _ => false,
@@ -835,6 +882,7 @@ fn validate_parameter_dynamic_dispatches(
             if matches!(
                 operation.kind,
                 OperationKind::CallDynamicParameterScalar { .. }
+                    | OperationKind::CallDynamicParameterUnit { .. }
             ) && !coordinates.contains(&(*owner, operation.id))
             {
                 return Err(ModuleError::InvalidParameterDynamicDispatch {
