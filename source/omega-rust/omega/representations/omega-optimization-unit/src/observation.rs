@@ -376,7 +376,8 @@ fn operation_observations(
         operation: operation.clone(),
     };
     match operation {
-        O::IntegerConstant { .. }
+        O::DynamicDescriptorParameter { .. }
+        | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::BooleanConstant { .. }

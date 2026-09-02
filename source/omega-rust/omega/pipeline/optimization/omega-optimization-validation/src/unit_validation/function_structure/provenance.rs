@@ -13,7 +13,10 @@ pub(crate) fn validate_provenance_fuel_effects(
     for block in &function.blocks {
         for (index, node) in block.nodes.iter().enumerate() {
             let index = u32::try_from(index).expect("unit node index was built as u32");
-            if node.provenance.is_empty() && node.successors.is_empty() {
+            if node.provenance.is_empty()
+                && node.successors.is_empty()
+                && !matches!(node.operation, O::DynamicDescriptorParameter { .. })
+            {
                 return Err(OptimizationUnitValidationError::IncompleteProvenance {
                     machine: function.machine,
                     block: block.id,

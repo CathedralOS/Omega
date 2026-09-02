@@ -126,16 +126,16 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            245, 83, 42, 16, 156, 225, 62, 197, 102, 219, 50, 237, 34, 159, 93, 22, 178, 157, 111,
-            209, 70, 155, 2, 142, 189, 134, 211, 40, 180, 48, 17, 64,
+            61, 229, 119, 131, 216, 196, 31, 113, 230, 146, 20, 203, 223, 75, 19, 227, 216, 118,
+            12, 200, 62, 58, 139, 134, 100, 248, 50, 228, 17, 51, 23, 97,
         ],
         "integer-constant and scalar-return operation tags and fields are stable",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            184, 248, 211, 240, 193, 30, 183, 99, 36, 136, 58, 58, 79, 231, 37, 6, 85, 140, 38,
-            231, 95, 98, 23, 199, 31, 30, 252, 27, 223, 52, 251, 137,
+            10, 98, 189, 38, 161, 214, 180, 16, 191, 5, 22, 114, 156, 105, 169, 144, 111, 188, 236,
+            92, 37, 130, 118, 113, 161, 190, 247, 41, 165, 198, 56, 201,
         ],
         "write-only structural storage and unit-return operation tags and fields are stable",
     );

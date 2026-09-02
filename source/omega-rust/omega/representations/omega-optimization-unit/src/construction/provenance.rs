@@ -3,7 +3,9 @@ use super::*;
 pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance> {
     use AbstractOperation as O;
     let site = match operation {
-        O::Jump { .. } | O::Conditional { .. } => return Vec::new(),
+        O::DynamicDescriptorParameter { .. } | O::Jump { .. } | O::Conditional { .. } => {
+            return Vec::new();
+        }
         O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
             PsiProvenance::Edge(*psi_edge)
         }

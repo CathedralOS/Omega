@@ -5,6 +5,10 @@ use super::*;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::DynamicDescriptorParameter { parameter } => {
+            bytes.u8(55);
+            encode_dynamic_descriptor_parameter(bytes, parameter);
+        }
         O::CallUnit {
             psi_operation,
             callee,

@@ -40,6 +40,7 @@ pub(crate) fn validate_function(
     parameters::validate_entry_claim_index(function)?;
     let blocks = control_flow::index_blocks(function)?;
     parameters::validate_parameter_metadata(function)?;
+    parameters::validate_dynamic_descriptor_parameters(function)?;
     let control_flow = control_flow::validate_nodes_and_edges(function, blocks)?;
     control_flow::validate_total_cfg(
         function,

@@ -314,6 +314,7 @@ fn operation_effect(
 ) {
     use EffectKnowledge::{May, No, Yes};
     match operation {
+        O::DynamicDescriptorParameter { .. } => (EffectClass::StructuralState, No, No, No, No),
         O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

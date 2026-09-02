@@ -56,6 +56,7 @@ pub(super) fn lower_unit_body(
             return Err(LoweringError::OperationAfterReturn(function.machine));
         }
         match operation {
+            AbstractOperation::DynamicDescriptorParameter { .. } => {}
             AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. } => {
                 return Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
                     machine: function.machine,

@@ -235,6 +235,22 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
         .iter()
         .find(|function| function.machine == callee)
         .expect("forward helper retained");
+    let descriptor_parameters = helper
+        .operations
+        .iter()
+        .take_while(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(descriptor_parameters.len(), 1);
+    assert!(matches!(
+        descriptor_parameters[0],
+        AbstractOperation::DynamicDescriptorParameter { parameter }
+            if parameter == &argument.target
+    ));
     let parameter_calls = helper
         .operations
         .iter()
@@ -268,6 +284,26 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     .expect("forwarded descriptor custody reconstructs into the optimizer");
     validate_psi_optimization_unit(&optimization)
         .expect("forwarded descriptor optimizer custody validates independently");
+    let mut missing_parameter = optimization.clone();
+    let helper_function = missing_parameter
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == callee)
+        .expect("mutated helper");
+    let entry = helper_function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == helper_function.entry)
+        .expect("helper entry");
+    assert!(matches!(
+        entry.nodes.remove(0).operation,
+        AbstractOperation::DynamicDescriptorParameter { .. }
+    ));
+    missing_parameter.identity = recompute_psi_optimization_unit_identity(&missing_parameter);
+    assert!(
+        validate_psi_optimization_unit(&missing_parameter).is_err(),
+        "a forwarded call cannot outlive its callee's descriptor declaration"
+    );
     let helper = optimization
         .functions
         .iter()
