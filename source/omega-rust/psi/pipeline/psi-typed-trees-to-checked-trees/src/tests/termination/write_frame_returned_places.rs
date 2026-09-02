@@ -2202,6 +2202,14 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
         cells
     }
 
+    machine return_after_twenty_nine_computed_scalar<'cells, 'value>(
+        cells: &'cells mut [u64; 2],
+        value: &'value mut u64
+    ) -> &'cells mut [u64; 2] {
+        cells[0] = ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~compute(value);
+        cells
+    }
+
     machine return_after_three_projected_computed_scalar<'cells, 'value>(
         cells: &'cells mut [u64; 2],
         value: &'value mut u64
@@ -2431,6 +2439,12 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
         alias[0] = 2;
     }
 
+    machine Main::twenty_nine_computed_scalar_result(&mut self) {
+        let alias: &mut [u64; 2] =
+            return_after_twenty_nine_computed_scalar(&mut self.cells, &mut self.value);
+        alias[0] = 2;
+    }
+
     machine Main::three_projected_computed_scalar_result(&mut self) {
         let alias: &mut [u64; 2] = return_after_three_projected_computed_scalar(
             &mut self.cells,
@@ -2500,6 +2514,7 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
         "Main::twenty_five_computed_scalar_result",
         "Main::twenty_six_computed_scalar_result",
         "Main::twenty_seven_computed_scalar_result",
+        "Main::twenty_eight_computed_scalar_result",
         "Main::three_projected_computed_scalar_result",
     ] {
         let machine = typed
@@ -2547,7 +2562,7 @@ fn transparent_returned_place_accepts_bounded_direct_scalar_computations() {
     }
 
     for name in [
-        "Main::twenty_eight_computed_scalar_result",
+        "Main::twenty_nine_computed_scalar_result",
         "Main::binding_reborrow_computed_scalar_result",
         "Main::recursive_computed_scalar_result",
         "Main::reference_projection_computed_scalar_result",

@@ -2843,8 +2843,12 @@ interpretation, and independent prefix mutation. A twelfth bounded form admits
 exactly twelve enclosing relevant record fields and replays the same complete
 ordered path through whole-root equality, inequality, Unit-call rebasing,
 codecs, verification, fixed fuel, interpretation, and independent prefix
-mutation. Thirteen or more enclosing fields, mixed values below case payloads
-or another mixed shape, two mixed sibling fields, direct projected mixed
+mutation. A thirteenth bounded form admits exactly thirteen enclosing relevant
+record fields and replays the same complete ordered path through whole-root
+equality, inequality, Unit-call rebasing, codecs, verification, fixed fuel,
+interpretation, and independent prefix mutation. Fourteen or more enclosing
+fields, mixed values below case payloads or another mixed shape, two mixed
+sibling fields, direct projected mixed
 comparisons, recursive cycles, address and erased payload equality, written
 `equals` bodies, and runtime sum layout remain outside this bounded terminal
 slice. When an acyclic
