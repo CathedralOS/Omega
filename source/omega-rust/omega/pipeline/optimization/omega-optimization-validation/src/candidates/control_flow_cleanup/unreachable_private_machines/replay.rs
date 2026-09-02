@@ -142,10 +142,19 @@ pub(crate) fn validator_machine_references(
                 callee,
                 dynamic_arguments,
                 ..
+            }
+            | O::CallUnitWithDynamicArguments {
+                callee,
+                dynamic_arguments,
+                ..
             } => {
                 references.insert(*callee);
                 for argument in dynamic_arguments {
-                    if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    if let omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        application,
+                        ..
+                    }
+                    | omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
                         application,
                         ..
                     } = &argument.source
@@ -160,6 +169,9 @@ pub(crate) fn validator_machine_references(
                 }
             }
             O::CallDynamicScalar {
+                dynamic_dispatch, ..
+            }
+            | O::CallDynamicUnit {
                 dynamic_dispatch, ..
             } => {
                 references.insert(dynamic_dispatch.dispatch.realization);

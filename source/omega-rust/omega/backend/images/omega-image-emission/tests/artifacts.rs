@@ -2309,7 +2309,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "f3f0672ddece9332295d91ca48af828c4fb859f80b60498a607066226b3df7e9"
+        "2b2d976411bc539303086e43a02d39ebb57a5abc4dcbf1114d01b7e28cbad3dc"
     );
 
     let mut changed_plan = plan;

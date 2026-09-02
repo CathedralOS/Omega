@@ -137,14 +137,21 @@ pub(super) fn emit_forwarded_dynamic_descriptor_call(
         {
             return Err(invalid());
         }
-        let omega_target_operations::AbstractDynamicDescriptorSource::Rebound { rebound, .. } =
-            &argument.custody.source
-        else {
-            return Err(invalid());
+        let selection = match &argument.custody.source {
+            omega_target_operations::AbstractDynamicDescriptorSource::Selection {
+                selection,
+                ..
+            } => selection,
+            omega_target_operations::AbstractDynamicDescriptorSource::Rebound {
+                rebound, ..
+            } => rebound,
+            omega_target_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
+                return Err(invalid());
+            }
         };
-        if argument.instance.place != rebound.source.place
-            || argument.instance.access != rebound.source.access
-            || argument.instance.path != rebound.source.path
+        if argument.instance.place != selection.source.place
+            || argument.instance.access != selection.source.access
+            || argument.instance.path != selection.source.path
         {
             return Err(invalid());
         }
@@ -266,10 +273,16 @@ fn build_adapters(
     operation: psi_core::OperationId,
 ) -> Result<Vec<ForwardedDynamicDescriptorAdapterRecord>, EmissionError> {
     let invalid = || EmissionError::InvalidDynamicDescriptorCallCustody(operation);
-    let omega_target_operations::AbstractDynamicDescriptorSource::Rebound { application, .. } =
-        &argument.custody.source
-    else {
-        return Err(invalid());
+    let application = match &argument.custody.source {
+        omega_target_operations::AbstractDynamicDescriptorSource::Selection {
+            application, ..
+        }
+        | omega_target_operations::AbstractDynamicDescriptorSource::Rebound {
+            application, ..
+        } => application,
+        omega_target_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
+            return Err(invalid());
+        }
     };
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;

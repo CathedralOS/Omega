@@ -200,11 +200,14 @@ pub(crate) fn derive_root_service_reach(
                 } => {
                     pending.push(*callee);
                     for argument in dynamic_arguments {
-                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        if let omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
                             application,
                             ..
-                        } = &argument.source
-                        {
+                        }
+                        | omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                            application,
+                            ..
+                        } = &argument.source {
                             pending.extend(
                                 application
                                     .realization_callables

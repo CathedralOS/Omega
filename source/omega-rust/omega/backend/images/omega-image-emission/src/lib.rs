@@ -2552,15 +2552,21 @@ fn build_object_artifact_with_x86_feature_profile(
         }
         for call in &function.forwarded_dynamic_descriptor_calls {
             for argument in &call.dynamic_arguments {
-                let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                    application,
-                    ..
-                } = &argument.custody.source
-                else {
-                    return Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
-                        caller: function.machine,
-                        operation: call.psi_operation,
-                    });
+                let application = match &argument.custody.source {
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        application,
+                        ..
+                    }
+                    | omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        application,
+                        ..
+                    } => application,
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
+                        return Err(ObjectError::InvalidForwardedDynamicDescriptorEvidence {
+                            caller: function.machine,
+                            operation: call.psi_operation,
+                        });
+                    }
                 };
                 let table = forwarded_dynamic_descriptor_tables
                     .iter()

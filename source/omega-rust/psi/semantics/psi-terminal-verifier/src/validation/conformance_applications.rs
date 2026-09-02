@@ -151,28 +151,34 @@ pub(super) fn validate_closed_conformance_applications(
             .filter(|row| row.realization_callable_identity.is_some())
             .collect::<Vec<_>>();
         let dynamic_argument_consumed = module.dynamic_dispatch.arguments.iter().any(|argument| {
-            let psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } =
-                argument.source
-            else {
-                return false;
+            let selection_ordinal = match argument.source {
+                psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal } => ordinal,
+                psi_terminal::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
+                    let Some(descriptor) =
+                        module
+                            .dynamic_dispatch
+                            .rebound_descriptors
+                            .iter()
+                            .find(|descriptor| {
+                                descriptor.owner == application.owner
+                                    && descriptor.owner == argument.owner
+                                    && descriptor.ordinal == ordinal
+                            })
+                    else {
+                        return false;
+                    };
+                    descriptor.rebound_selection_ordinal
+                }
+                psi_terminal::TerminalDynamicDescriptorSource::Parameter { .. } => return false,
             };
-            module
-                .dynamic_dispatch
-                .rebound_descriptors
-                .iter()
-                .any(|descriptor| {
-                    descriptor.owner == application.owner
-                        && descriptor.owner == argument.owner
-                        && descriptor.ordinal == ordinal
-                        && module.dynamic_dispatch.selections.iter().any(|selection| {
-                            selection.owner == descriptor.owner
-                                && selection.ordinal == descriptor.rebound_selection_ordinal
-                                && selection.conformance_application_report_fingerprint
-                                    == application.report_fingerprint
-                                && selection.conformance_application_commitment
-                                    == application.commitment
-                        })
-                })
+            module.dynamic_dispatch.selections.iter().any(|selection| {
+                selection.owner == argument.owner
+                    && selection.owner == application.owner
+                    && selection.ordinal == selection_ordinal
+                    && selection.conformance_application_report_fingerprint
+                        == application.report_fingerprint
+                    && selection.conformance_application_commitment == application.commitment
+            })
         });
         match (
             application.realization_callables.as_slice(),

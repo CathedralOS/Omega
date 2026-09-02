@@ -269,7 +269,10 @@ impl<'a> ReviewContext<'a> {
                 ));
             }
             let application = match &argument.source {
-                AbstractDynamicDescriptorSource::Rebound { application, .. } => application.clone(),
+                AbstractDynamicDescriptorSource::Selection { application, .. }
+                | AbstractDynamicDescriptorSource::Rebound { application, .. } => {
+                    application.clone()
+                }
                 AbstractDynamicDescriptorSource::Parameter(source) => caller_bindings
                     .get(&source.ordinal)
                     .cloned()

@@ -70,17 +70,23 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
             ) {
                 return Err(invalid());
             }
-            let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                application,
-                rebound,
-                ..
-            } = &argument.custody.source
-            else {
-                return Err(invalid());
+            let (selection, application) = match &argument.custody.source {
+                omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                    selection,
+                    application,
+                } => (selection, application),
+                omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    rebound,
+                    application,
+                    ..
+                } => (rebound, application),
+                omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
+                    return Err(invalid());
+                }
             };
-            if argument.instance.place != rebound.source.place
-                || argument.instance.access != rebound.source.access
-                || argument.instance.path != rebound.source.path
+            if argument.instance.place != selection.source.place
+                || argument.instance.access != selection.source.access
+                || argument.instance.path != selection.source.path
                 || argument.adapters.len() != application.rows.len()
             {
                 return Err(invalid());

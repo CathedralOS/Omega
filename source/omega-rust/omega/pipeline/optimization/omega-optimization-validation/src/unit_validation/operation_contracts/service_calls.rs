@@ -38,6 +38,10 @@ pub(crate) fn operation_service_contract_matches(
                         omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
                             application,
                             ..
+                        }
+                        | omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                            application,
+                            ..
                         } => application.realization_callables.iter().all(|callable| {
                             functions.get(&callable.machine).is_some_and(|realization| {
                                 reached_is_published(&realization.published_service_ceiling)

@@ -64,7 +64,9 @@ fn assigned_plan(target: NativeTarget) -> omega_assigned_target_operations::Assi
 fn assigned_unit_plan(
     target: NativeTarget,
 ) -> omega_assigned_target_operations::AssignedOperationPlan {
-    let source = r#"
+    assigned_unit_plan_from_source(
+        target,
+        r#"
         trait Touch {
             machine touch(&self);
         }
@@ -89,7 +91,33 @@ fn assigned_unit_plan(
         machine forward(erased: &dyn Touch) {
             erased.touch();
         }
-    "#;
+    "#,
+    )
+}
+
+fn assigned_direct_unit_plan(
+    target: NativeTarget,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
+    assigned_unit_plan_from_source(
+        target,
+        r#"
+        trait Touch { machine touch(&self); }
+        data Item { value: i32; }
+        Primary: Item satisfies Touch { machine touch(&self) {} }
+        data Main { selected: Item; }
+        machine Main::run(&mut self) {
+            let erased: &dyn Touch = &self.selected as &dyn Item::Primary;
+            forward(erased);
+        }
+        machine forward(erased: &dyn Touch) { erased.touch(); }
+    "#,
+    )
+}
+
+fn assigned_unit_plan_from_source(
+    target: NativeTarget,
+    source: &str,
+) -> omega_assigned_target_operations::AssignedOperationPlan {
     let tokens = Lexer::new(source).tokenize().expect("tokenize source");
     let syntax = parse_syntax_trees(&tokens).expect("parse source");
     let resolved = lower_syntax_trees(&syntax).expect("resolve source");
@@ -104,6 +132,48 @@ fn assigned_unit_plan(
     let target_plan = lower_to_target_operations(&abstract_plan, target)
         .expect("lower result-less caller and helper to target operations");
     assign_registers(&target_plan).expect("assign result-less forwarded descriptor ABI")
+}
+
+#[test]
+fn emits_result_less_direct_selection_forwarding_without_rebound_evidence() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let assigned = assigned_direct_unit_plan(target);
+        let emitted = crate::emit_machine_code(&assigned)
+            .expect("emit direct-selection caller and descriptor helper");
+        let caller = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == emitted.entry)
+            .expect("entry caller");
+        let [call] = caller.forwarded_dynamic_descriptor_calls.as_slice() else {
+            panic!("one direct-selection forwarded descriptor call expected: {caller:#?}")
+        };
+        assert!(call.semantic_result.is_none());
+        assert!(call.result.is_none());
+        let [argument] = call.dynamic_arguments.as_slice() else {
+            panic!("one direct-selection descriptor argument expected")
+        };
+        assert!(matches!(
+            argument.custody.source,
+            omega_target_operations::AbstractDynamicDescriptorSource::Selection { .. }
+        ));
+        assert_eq!(argument.adapters.len(), 1);
+        assert_eq!(
+            argument.adapters[0].result,
+            psi_terminal::ClosedConformanceCallableResult::Unit
+        );
+
+        let helper = emitted
+            .functions
+            .iter()
+            .find(|function| function.machine == call.callee)
+            .expect("direct-selection forwarding helper");
+        let [parameter_call] = helper.dynamic_parameter_calls.as_slice() else {
+            panic!("one result-less parameter-slot call expected: {helper:#?}")
+        };
+        assert!(parameter_call.source_value.is_none());
+        assert!(parameter_call.scalar_type.is_none());
+    }
 }
 
 #[test]

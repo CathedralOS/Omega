@@ -114,14 +114,20 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
                 .map(|argument| argument.place)
                 .collect::<Vec<_>>();
             for argument in dynamic_arguments {
-                if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                    initial,
-                    rebound,
-                    ..
-                } = &argument.source
-                {
-                    places.push(initial.source.place);
-                    places.push(rebound.source.place);
+                match &argument.source {
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        selection,
+                        ..
+                    } => places.push(selection.source.place),
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        initial,
+                        rebound,
+                        ..
+                    } => {
+                        places.push(initial.source.place);
+                        places.push(rebound.source.place);
+                    }
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {}
                 }
             }
             places

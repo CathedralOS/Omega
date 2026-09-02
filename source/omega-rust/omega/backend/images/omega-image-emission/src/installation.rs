@@ -1405,22 +1405,28 @@ fn installed_forwarded_dynamic_descriptor_calls(
                     function.machine,
                 ));
             };
-            let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                application,
-                rebound,
-                ..
-            } = &argument.custody.source
-            else {
-                return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
-                    function.machine,
-                ));
+            let (selection, application) = match &argument.custody.source {
+                omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                    selection,
+                    application,
+                } => (selection, application),
+                omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                    rebound,
+                    application,
+                    ..
+                } => (rebound, application),
+                omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {
+                    return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                        function.machine,
+                    ));
+                }
             };
             Ok(InstalledForwardedDynamicDescriptorCall {
                 machine: function.machine,
                 operation: call.psi_operation,
                 callee: call.callee,
                 application_commitment: application.commitment,
-                source: rebound.source.place,
+                source: selection.source.place,
                 semantic_result: call.semantic_result,
                 result: call.result.clone(),
                 text_offset: function

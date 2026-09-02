@@ -276,6 +276,29 @@ const DIRECT_DYNAMIC_UNIT_SOURCE: &str = r#"
     }
 "#;
 
+const FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE: &str = r#"
+    trait Touch {
+        machine touch(&self);
+    }
+
+    data Item { value: i32; }
+
+    Primary: Item satisfies Touch {
+        machine touch(&self) {}
+    }
+
+    data Main { selected: Item; }
+
+    machine Main::run(&mut self) {
+        let erased: &dyn Touch = &self.selected as &dyn Item::Primary;
+        forward(erased);
+    }
+
+    machine forward(erased: &dyn Touch) {
+        erased.touch();
+    }
+"#;
+
 const REBOUND_DYNAMIC_UNIT_SOURCE: &str = r#"
     trait Touch {
         machine touch(&self);
@@ -648,6 +671,51 @@ fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
         .expect("forwarded dynamic Unit module encodes");
     psi_terminal_codec::decode_module(artifact.semantic_bytes())
         .expect("forwarded dynamic Unit module decodes");
+    assert_dynamic_unit_artifact_executes(&artifact);
+}
+
+#[test]
+fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descriptor() {
+    let checked = checked_source(FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE);
+    let mut lowered =
+        lower_machine(&checked, "Main::run").expect("direct forwarded dynamic Unit call lowers");
+    psi_terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("direct forwarded dynamic Unit module verifies");
+    let catalog = &lowered.semantic_module.dynamic_dispatch;
+    assert_eq!(catalog.selections.len(), 1);
+    assert!(catalog.rebound_descriptors.is_empty());
+    let [parameter] = catalog.parameters.as_slice() else {
+        panic!("one direct dynamic Unit parameter expected, got {catalog:#?}")
+    };
+    let [argument] = catalog.arguments.as_slice() else {
+        panic!("one direct dynamic Unit argument expected, got {catalog:#?}")
+    };
+    let [dispatch] = catalog.parameter_dispatches.as_slice() else {
+        panic!("one direct dynamic Unit parameter dispatch expected, got {catalog:#?}")
+    };
+    assert_eq!(parameter.owner, dispatch.owner);
+    assert_eq!(
+        argument.source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
+    );
+    assert_eq!(
+        parameter.requirements[0].result,
+        psi_terminal::ClosedConformanceCallableResult::Unit
+    );
+    assert_eq!(lowered.source_call_occurrences.len(), 2);
+
+    lowered.semantic_module.dynamic_dispatch.arguments[0].source =
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 1 };
+    assert!(psi_terminal_verifier::validate_module(&lowered.semantic_module).is_err());
+
+    let artifact = produce_terminal_artifact(&checked, "Main::run")
+        .expect("direct forwarded dynamic Unit module encodes");
+    let decoded = psi_terminal_codec::decode_module(artifact.semantic_bytes())
+        .expect("direct forwarded dynamic Unit module decodes");
+    assert_eq!(
+        decoded.dynamic_dispatch.arguments[0].source,
+        psi_terminal::TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
+    );
     assert_dynamic_unit_artifact_executes(&artifact);
 }
 

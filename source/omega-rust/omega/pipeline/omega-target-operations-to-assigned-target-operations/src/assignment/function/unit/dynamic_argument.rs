@@ -78,9 +78,10 @@ pub(super) fn assign(
             {
                 return Err(invalid());
             }
-            let AbstractDynamicDescriptorSource::Rebound { rebound, .. } = &argument.custody.source
-            else {
-                return Err(invalid());
+            let selection = match &argument.custody.source {
+                AbstractDynamicDescriptorSource::Selection { selection, .. } => selection,
+                AbstractDynamicDescriptorSource::Rebound { rebound, .. } => rebound,
+                AbstractDynamicDescriptorSource::Parameter(_) => return Err(invalid()),
             };
             let root = body
                 .parameters
@@ -109,9 +110,9 @@ pub(super) fn assign(
                     .path
                     .iter()
                     .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                || argument.instance.place != rebound.source.place
-                || argument.instance.access != rebound.source.access
-                || argument.instance.path != rebound.source.path
+                || argument.instance.place != selection.source.place
+                || argument.instance.access != selection.source.access
+                || argument.instance.path != selection.source.path
                 || argument.instance.root_structural_type != root.structural_type
                 || argument.instance.structural_type != projected_type
                 || argument.instance.shape != projected_shape

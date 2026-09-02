@@ -94,6 +94,10 @@ pub(super) fn encode_dynamic_descriptor_arguments(
         writer.id(argument.operation);
         writer.u32(argument.parameter_ordinal);
         match argument.source {
+            TerminalDynamicDescriptorSource::Selection { ordinal } => {
+                writer.u8(3);
+                writer.u32(ordinal);
+            }
             TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal } => {
                 writer.u8(1);
                 writer.u32(ordinal);
@@ -119,6 +123,9 @@ pub(super) fn decode_dynamic_descriptor_arguments(
                 ordinal: reader.u32()?,
             },
             2 => TerminalDynamicDescriptorSource::Parameter {
+                ordinal: reader.u32()?,
+            },
+            3 => TerminalDynamicDescriptorSource::Selection {
                 ordinal: reader.u32()?,
             },
             tag => {

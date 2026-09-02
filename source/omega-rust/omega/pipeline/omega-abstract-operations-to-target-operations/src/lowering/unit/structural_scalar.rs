@@ -618,16 +618,18 @@ fn prepare_dynamic_arguments(
         .iter()
         .enumerate()
         .map(|(ordinal, custody)| {
-            let AbstractDynamicDescriptorSource::Rebound { rebound, .. } = &custody.source else {
-                return Err(invalid());
+            let selection = match &custody.source {
+                AbstractDynamicDescriptorSource::Selection { selection, .. } => selection,
+                AbstractDynamicDescriptorSource::Rebound { rebound, .. } => rebound,
+                AbstractDynamicDescriptorSource::Parameter(_) => return Err(invalid()),
             };
             let root = parameters_by_place
-                .get(&rebound.source.place)
+                .get(&selection.source.place)
                 .copied()
                 .ok_or_else(invalid)?;
-            if custody.target.access != rebound.source.access
-                || rebound.source.path.is_empty()
-                || rebound
+            if custody.target.access != selection.source.access
+                || selection.source.path.is_empty()
+                || selection
                     .source
                     .path
                     .iter()
@@ -638,7 +640,7 @@ fn prepare_dynamic_arguments(
             let (projected_type, projected_shape, source_byte_offset) =
                 resolve_structural_field_path(
                     root.structural_type,
-                    &rebound.source.path,
+                    &selection.source.path,
                     structural_types,
                     shape_cache,
                     active,
@@ -654,9 +656,9 @@ fn prepare_dynamic_arguments(
             Ok(TargetDynamicDescriptorArgument {
                 custody: custody.clone(),
                 instance: TargetDynamicDescriptorInstanceArgument {
-                    place: rebound.source.place,
-                    access: rebound.source.access,
-                    path: rebound.source.path.clone(),
+                    place: selection.source.place,
+                    access: selection.source.access,
+                    path: selection.source.path.clone(),
                     root_structural_type: root.structural_type,
                     structural_type: projected_type,
                     shape: projected_shape,

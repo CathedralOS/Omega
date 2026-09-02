@@ -766,7 +766,7 @@ not general mutable initialized-data or BSS support. Multi-block continuation
 remains independent unfinished work. None of these boundaries permit
 devirtualizing the call.
 
-Terminal format 70/vocabulary 73 adds result-less dynamic Unit dispatch without
+Terminal format 70/vocabulary 73 introduced result-less dynamic Unit dispatch without
 inventing a scalar carrier. A direct local selection remains an exact
 `CallUnit` joined to its direct dispatch row. A same-conformance rebound uses
 `CallDynamicUnit`, and an exactly once-rebound descriptor passed through one
@@ -776,9 +776,10 @@ requirement slot, obligations, and crash continuations round-trip canonically.
 Validation rejoins the complete application, Unit callable interface, selected
 row or parameter slot, operation, access, and source. Fixed fuel and reference
 execution resolve the same rows without allocating a value ID or result home.
-Direct-selection forwarding remains outside Terminal because the descriptor-
-argument source vocabulary currently names only rebound descriptors and inbound
-parameters. The producer rejects that case rather than relabeling it. The
+Current format 71/vocabulary 74 adds a distinct owner-local selection argument
+source alongside rebound descriptors and inbound parameters. Direct-selection
+Unit forwarding therefore crosses the helper without relabeling its custody;
+direct scalar forwarding is not widened by this bounded rung. The
 Terminal-to-abstract boundary retains both dynamic Unit variants without a
 scalar definition. Local rebound dispatch and the exactly-once forwarded form
 now cross target lowering, assignment, native emission, object/image replay,
@@ -3857,8 +3858,9 @@ parameter table and rejects write-only borrow access; owned, shared-borrowed,
 and mutable-borrowed roots remain observable. It walks the complete relevant
 record/mixed-field, fixed-array-index, or sum-case payload path, and requires the selected leaf to
 declare the same IEEE format. Owner, root, path, relevance, leaf kind, and
-format substitution fail closed. Terminal format 70 / vocabulary 73 assign
-source tag 9 and reject it under legacy formats. Checked/source production now
+format substitution fail closed. Introduced in Terminal format 70 / vocabulary
+73 and retained by current format 71 / vocabulary 74, source tag 9 rejects
+under legacy formats. Checked/source production now
 covers one nonempty field/case path below a direct structural parameter in the
 owning top-level machine contract. Checked custody retains exact owner symbol,
 source parameter ordinal, normalized member identities, format, and fallback.

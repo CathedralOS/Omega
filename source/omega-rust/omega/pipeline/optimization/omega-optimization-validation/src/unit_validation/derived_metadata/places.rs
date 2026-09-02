@@ -108,14 +108,20 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
             for argument in dynamic_arguments {
-                if let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
-                    initial,
-                    rebound,
-                    ..
-                } = &argument.source
-                {
-                    require(initial.source.place, known)?;
-                    require(rebound.source.place, known)?;
+                match &argument.source {
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                        selection,
+                        ..
+                    } => require(selection.source.place, known)?,
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                        initial,
+                        rebound,
+                        ..
+                    } => {
+                        require(initial.source.place, known)?;
+                        require(rebound.source.place, known)?;
+                    }
+                    omega_abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => {}
                 }
             }
         }
