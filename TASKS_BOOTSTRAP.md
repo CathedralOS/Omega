@@ -58,12 +58,13 @@ Delta, and the former Delta is Epsilon.
   transitions, calls, dynamic indexed arenas, nested scopes, deterministic
   source-offset diagnostics, one-word nominal arrays, recursive AST rewrites,
   typed multiplication/division, signed comparisons, and direct Alpha emission
-  in 661 Gamma lines. A 427-line customer performs a
+  in 709 Gamma lines. A 427-line customer performs a
   five-variant postorder fold and subtree-selection transform over bounded
-  arenas. A 574-line Epsilon-shaped customer lays out and encodes every Alpha
+  arenas. A 552-line Epsilon-shaped customer lays out and encodes every Alpha
   instruction variant from symbolic items, compared with 834 retained functional
-  backend lines. Its fixed arenas carry the full 1,048,572-item/label and payload
-  bounds in 118,488,640 bytes including the static base. State-machine Delta does not justify inserting another
+  backend lines. Two typed record-row arenas carry the full
+  1,048,572-item/label and payload bounds in 118,488,640 bytes including the
+  static base. State-machine Delta does not justify inserting another
   functional rung on implementation necessity or full-profile backend source cost;
   actual Epsilon semantic lowering and the need for independent raw-tape replay
   are now the remaining language-choice questions. Its latest implementation is retained

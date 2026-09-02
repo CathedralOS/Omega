@@ -5,20 +5,10 @@
 
 sum AlphaKind label halt imm mov add sub mul div mod load_byte store_byte load_word store_word jump jump_zero jump_nonzero jump_less jump_equal read write call return end
 
-array Kinds AlphaKind 1048572
-array As word 1048572
-array Bs word 1048572
-array Cs word 1048572
-array I0s word 1048572
-array I1s word 1048572
-array I2s word 1048572
-array I3s word 1048572
-array I4s word 1048572
-array I5s word 1048572
-array I6s word 1048572
-array I7s word 1048572
-array Labels word 1048572
-array Defined word 1048572
+record AlphaItemRow item_kind AlphaKind item_a word item_b word item_c word item_i0 word item_i1 word item_i2 word item_i3 word item_i4 word item_i5 word item_i6 word item_i7 word end
+record AlphaLabelRow label_target word label_defined word end
+array Items AlphaItemRow 1048572
+array Labels AlphaLabelRow 1048572
 
 machine write_target target_value word target_result word
 local target_divisor word
@@ -71,20 +61,8 @@ local eof word
 local end_code word
 local pending_kind AlphaKind
 local kind AlphaKind
-local kinds Kinds
-local as As
-local bs Bs
-local cs Cs
-local i0s I0s
-local i1s I1s
-local i2s I2s
-local i3s I3s
-local i4s I4s
-local i5s I5s
-local i6s I6s
-local i7s I7s
+local items Items
 local labels Labels
-local defined Defined
 state start
 const result 0
 const item_count 0
@@ -351,25 +329,25 @@ construct pending_kind AlphaKind return
 const width 1
 
 state store_item
-index-set-dyn kinds item_count pending_kind
-index-set-dyn as item_count a
-index-set-dyn bs item_count b
-index-set-dyn cs item_count c
-index-set-dyn i0s item_count i0
-index-set-dyn i1s item_count i1
-index-set-dyn i2s item_count i2
-index-set-dyn i3s item_count i3
-index-set-dyn i4s item_count i4
-index-set-dyn i5s item_count i5
-index-set-dyn i6s item_count i6
-index-set-dyn i7s item_count i7
+index-field-set items item_count item_kind pending_kind
+index-field-set items item_count item_a a
+index-field-set items item_count item_b b
+index-field-set items item_count item_c c
+index-field-set items item_count item_i0 i0
+index-field-set items item_count item_i1 i1
+index-field-set items item_count item_i2 i2
+index-field-set items item_count item_i3 i3
+index-field-set items item_count item_i4 i4
+index-field-set items item_count item_i5 i5
+index-field-set items item_count item_i6 i6
+index-field-set items item_count item_i7 i7
 switch pending_kind AlphaKind label layout_label halt layout_instruction imm layout_instruction mov layout_instruction add layout_instruction sub layout_instruction mul layout_instruction div layout_instruction mod layout_instruction load_byte layout_instruction store_byte layout_instruction load_word layout_instruction store_word layout_instruction jump layout_instruction jump_zero layout_instruction jump_nonzero layout_instruction jump_less layout_instruction jump_equal layout_instruction read layout_instruction write layout_instruction call layout_instruction return layout_instruction endswitch
 state layout_label
-index-get-dyn defined_value defined a
+index-field-get defined_value labels a label_defined
 brzero defined_value bind_label malformed
 state bind_label
-index-set-dyn defined a one
-index-set-dyn labels a pc
+index-field-set labels a label_defined one
+index-field-set labels a label_target pc
 add binding_count binding_count one
 goto layout_next
 state layout_instruction
@@ -400,7 +378,7 @@ copy temp label_count
 sub temp temp scan
 brzero temp validate_start dense_one
 state dense_one
-index-get-dyn defined_value defined scan
+index-field-get defined_value labels scan label_defined
 brzero defined_value malformed dense_next
 state dense_next
 add scan scan one
@@ -414,10 +392,10 @@ copy temp item_count
 sub temp temp scan
 brzero temp emit_start validate_item
 state validate_item
-index-get-dyn kind kinds scan
-index-get-dyn a as scan
-index-get-dyn b bs scan
-index-get-dyn c cs scan
+index-field-get kind items scan item_kind
+index-field-get a items scan item_a
+index-field-get b items scan item_b
+index-field-get c items scan item_c
 switch kind AlphaKind label validate_next halt validate_next imm validate_next mov validate_next add validate_next sub validate_next mul validate_next div validate_next mod validate_next load_byte validate_next store_byte validate_next load_word validate_next store_word validate_next jump validate_target_a jump_zero validate_target_b jump_nonzero validate_target_b jump_less validate_target_c jump_equal validate_target_c read validate_next write validate_next call validate_target_a return validate_next endswitch
 state validate_target_a
 copy target a
@@ -428,7 +406,7 @@ goto validate_target
 state validate_target_c
 copy target c
 state validate_target
-index-get-dyn defined_value defined target
+index-field-get defined_value labels target label_defined
 brzero defined_value malformed validate_next
 state validate_next
 add scan scan one
@@ -442,10 +420,10 @@ copy temp item_count
 sub temp temp scan
 brzero temp success emit_item
 state emit_item
-index-get-dyn kind kinds scan
-index-get-dyn a as scan
-index-get-dyn b bs scan
-index-get-dyn c cs scan
+index-field-get kind items scan item_kind
+index-field-get a items scan item_a
+index-field-get b items scan item_b
+index-field-get c items scan item_c
 switch kind AlphaKind label emit_next halt emit_halt imm emit_imm mov emit_mov add emit_add sub emit_sub mul emit_mul div emit_div mod emit_mod load_byte emit_load_byte store_byte emit_store_byte load_word emit_load_word store_word emit_store_word jump emit_jump jump_zero emit_jump_zero jump_nonzero emit_jump_nonzero jump_less emit_jump_less jump_equal emit_jump_equal read emit_read write emit_write call emit_call return emit_return endswitch
 
 state emit_halt
@@ -465,21 +443,21 @@ state emit_imm
 const current 1
 write current
 write a
-index-get-dyn current i0s scan
+index-field-get current items scan item_i0
 write current
-index-get-dyn current i1s scan
+index-field-get current items scan item_i1
 write current
-index-get-dyn current i2s scan
+index-field-get current items scan item_i2
 write current
-index-get-dyn current i3s scan
+index-field-get current items scan item_i3
 write current
-index-get-dyn current i4s scan
+index-field-get current items scan item_i4
 write current
-index-get-dyn current i5s scan
+index-field-get current items scan item_i5
 write current
-index-get-dyn current i6s scan
+index-field-get current items scan item_i6
 write current
-index-get-dyn current i7s scan
+index-field-get current items scan item_i7
 write current
 goto emit_next
 
@@ -529,7 +507,7 @@ write current
 copy target a
 goto emit_target
 state emit_target
-index-get-dyn target labels target
+index-field-get target labels target label_target
 call temp write_target target
 goto emit_next
 
@@ -541,7 +519,7 @@ const current 14
 state emit_rt
 write current
 write a
-index-get-dyn target labels b
+index-field-get target labels b label_target
 call temp write_target target
 goto emit_next
 
@@ -554,7 +532,7 @@ state emit_rrt
 write current
 write a
 write b
-index-get-dyn target labels c
+index-field-get target labels c label_target
 call temp write_target target
 goto emit_next
 
