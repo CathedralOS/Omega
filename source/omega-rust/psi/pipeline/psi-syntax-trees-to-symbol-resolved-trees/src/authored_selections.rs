@@ -31,6 +31,8 @@ struct CandidateGroup {
     source_span: SourceSpan,
     exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     kind: Kind,
+    compiler_partition:
+        Option<psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     target: CandidateTarget,
     expressions: Vec<ExpressionHandle>,
 }
@@ -146,11 +148,17 @@ pub(crate) fn finalize_authored_expression_selections(
 
     let mut groups: Vec<CandidateGroup> = Vec::new();
     for (expression, exposure) in authored_expressions {
+        let compiler_partition = program
+            .tables
+            .bodies
+            .expressions
+            .compiler_selection_partition(expression);
         for candidate in expression_candidates(program, expression) {
             if let Some(group) = groups.iter_mut().find(|group| {
                 group.source_span == candidate.source_span
                     && group.exposure == exposure
                     && group.kind == candidate.kind
+                    && group.compiler_partition == compiler_partition
             }) {
                 group.target = reconcile_copy_targets(
                     program,
@@ -167,6 +175,7 @@ pub(crate) fn finalize_authored_expression_selections(
                     source_span: candidate.source_span,
                     exposure,
                     kind: candidate.kind,
+                    compiler_partition,
                     target: candidate.target,
                     expressions: vec![candidate.expression],
                 });
@@ -177,17 +186,19 @@ pub(crate) fn finalize_authored_expression_selections(
     for group in groups {
         let occurrence = match group.target {
             CandidateTarget::Resolved(symbol) => program
-                .record_resolved_authored_declaration_selection(
+                .record_resolved_authored_declaration_selection_in_partition(
                     group.source_span,
                     group.exposure,
                     group.kind,
+                    group.compiler_partition,
                     symbol,
                 ),
             CandidateTarget::LateBound(binding) => program
-                .record_late_bound_authored_declaration_selection(
+                .record_late_bound_authored_declaration_selection_in_partition(
                     group.source_span,
                     group.exposure,
                     group.kind,
+                    group.compiler_partition,
                     binding,
                 ),
         }
@@ -281,6 +292,8 @@ enum AuthoredStatementCallSite {
 struct AuthoredStatementCallCandidate {
     site: AuthoredStatementCallSite,
     source_span: SourceSpan,
+    compiler_partition:
+        Option<psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     target: CandidateTarget,
 }
 
@@ -312,6 +325,7 @@ fn finalize_authored_statement_call_selections(
                                 offset,
                             },
                             source_span: call.target.source_span(),
+                            compiler_partition: machine.compiler_selection_partition,
                             target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
                         });
                     }
@@ -321,6 +335,7 @@ fn finalize_authored_statement_call_selections(
                             offset,
                             false,
                             &transition.target,
+                            machine.compiler_selection_partition,
                             &mut candidates,
                         );
                         if let Some(continuation) = &transition.continuation {
@@ -329,6 +344,7 @@ fn finalize_authored_statement_call_selections(
                                 offset,
                                 true,
                                 continuation,
+                                machine.compiler_selection_partition,
                                 &mut candidates,
                             );
                         }
@@ -346,17 +362,19 @@ fn finalize_authored_statement_call_selections(
             } else {
                 match candidate.target {
                     CandidateTarget::Resolved(symbol) => program
-                        .record_resolved_authored_declaration_selection(
+                        .record_resolved_authored_declaration_selection_in_partition(
                             candidate.source_span,
                             Exposure::PrivateImplementation,
                             Kind::Call,
+                            candidate.compiler_partition,
                             symbol,
                         ),
                     CandidateTarget::LateBound(binding) => program
-                        .record_late_bound_authored_declaration_selection(
+                        .record_late_bound_authored_declaration_selection_in_partition(
                             candidate.source_span,
                             Exposure::PrivateImplementation,
                             Kind::Call,
+                            candidate.compiler_partition,
                             binding,
                         ),
                 }
@@ -384,6 +402,7 @@ fn existing_statement_call_occurrence(
             selection.source_span() == candidate.source_span
                 && selection.exposure() == Exposure::PrivateImplementation
                 && selection.kind() == Kind::Call
+                && selection.compiler_partition() == candidate.compiler_partition
         })
     {
         let existing_target = match selection.target() {
@@ -419,6 +438,9 @@ fn collect_authored_transition_call_candidate(
     offset: usize,
     continuation: bool,
     target: &psi_symbol_resolved_trees::statement::TransitionTarget,
+    compiler_partition: Option<
+        psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition,
+    >,
     candidates: &mut Vec<AuthoredStatementCallCandidate>,
 ) {
     let psi_symbol_resolved_trees::statement::TransitionTarget::Named(target) = target else {
@@ -432,6 +454,7 @@ fn collect_authored_transition_call_candidate(
                 continuation,
             },
             source_span: target.source_span,
+            compiler_partition,
             target: resolved_or_late(target.symbol, LateBinding::CheckedCall),
         });
     }
@@ -584,6 +607,7 @@ fn selection_already_recorded(
         row.source_span() == candidate.source_span
             && row.exposure() == candidate.exposure
             && row.kind() == candidate.kind
+            && row.compiler_partition().is_none()
             && match (row.target(), candidate.target) {
                 (
                     AuthoredDeclarationSelectionTarget::Resolved(existing),

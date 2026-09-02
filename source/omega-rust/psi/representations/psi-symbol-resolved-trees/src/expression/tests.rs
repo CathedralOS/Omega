@@ -7,6 +7,7 @@ use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelections,
 };
+use psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
 use psi_source::{SourceId, SourceSpan, Span};
 use psi_symbols::SymbolHandle;
 use std::sync::Arc;
@@ -47,6 +48,8 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
     );
     let source_span = SourceSpan::new(SourceId(7), Span::new(11, 19));
     source.set_source_span(expression, source_span);
+    let partition = CompilerDerivedSelectionPartition::from_compiler_ordinal(9);
+    source.set_compiler_selection_partition(expression, partition);
     source.attach_authored_selection_occurrences(expression, occurrences);
 
     assert_eq!(
@@ -69,6 +72,10 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
         Some(AuthoredDeclarationSelectionExposure::PublicInterface)
     );
     assert_eq!(copied.source_span(copied_expression), source_span);
+    assert_eq!(
+        copied.compiler_selection_partition(copied_expression),
+        Some(partition)
+    );
 
     let self_copied_expression = source.copy_from_self(expression);
     assert_eq!(
@@ -82,6 +89,10 @@ fn expression_occurrences_support_multiple_ids_and_survive_resolved_copies() {
         Some(AuthoredDeclarationSelectionExposure::PublicInterface)
     );
     assert_eq!(source.source_span(self_copied_expression), source_span);
+    assert_eq!(
+        source.compiler_selection_partition(self_copied_expression),
+        Some(partition)
+    );
 }
 
 #[test]

@@ -48,6 +48,11 @@ pub struct Machine {
     /// contract identity.
     pub suspends_keyword_source_spans: Vec<psi_source::SourceSpan>,
     pub blocks_keyword_source_spans: Vec<psi_source::SourceSpan>,
+    /// Transient application partition for a compiler-instantiated trait
+    /// default. This separates shared authored source from the distinct exact
+    /// realization selected by each conformance and is never package identity.
+    pub compiler_selection_partition:
+        Option<psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     pub storage: MachineStorage,
 }
 

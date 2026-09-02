@@ -19,6 +19,12 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
+    let compiler_selection_partition = compiler_selection_partition(
+        lowerer.symbol_resolved_trees.machines.len(),
+        syntax_trees,
+        machine,
+    );
+    lowerer.current_compiler_selection_partition = compiler_selection_partition;
     lowerer.current_machine_is_boundary = machine.boundary;
     lowerer.current_machine_root_index = Some(lowerer.symbol_resolved_trees.machines.len());
     lowerer.current_machine_name = Some(machine.name.as_str().to_owned());
@@ -146,6 +152,7 @@ pub(crate) fn lower_machine_into(
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         suspends_keyword_source_spans: machine.suspends_keyword_source_spans.clone(),
         blocks_keyword_source_spans: machine.blocks_keyword_source_spans.clone(),
+        compiler_selection_partition,
         storage: MachineStorage {
             lifetime_parameters: machine
                 .lifetime_parameters
@@ -167,7 +174,34 @@ pub(crate) fn lower_machine_into(
             states,
         },
     });
+    lowerer.current_compiler_selection_partition = None;
     Ok(())
+}
+
+fn compiler_selection_partition(
+    machine_ordinal: usize,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+) -> Option<psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition> {
+    let [requirement] = syntax_trees.items.satisfies_clauses(machine.satisfies) else {
+        return None;
+    };
+    let requirement_name = requirement.requirement.as_ref()?;
+    if machine.name.is_source_backed()
+        || requirement.trait_name.is_source_backed()
+        || requirement_name.is_source_backed()
+        || requirement.alias.is_some()
+        || requirement.via.is_some()
+        || requirement.via_expression.is_valid()
+    {
+        return None;
+    }
+    let ordinal = u64::try_from(machine_ordinal).ok()?;
+    Some(
+        psi_language_semantics::declaration_selection::CompilerDerivedSelectionPartition::from_compiler_ordinal(
+            ordinal,
+        ),
+    )
 }
 
 pub(crate) fn lower_generic_conformance_bounds(

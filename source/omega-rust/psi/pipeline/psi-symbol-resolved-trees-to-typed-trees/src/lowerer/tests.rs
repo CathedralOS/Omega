@@ -14,6 +14,64 @@ use psi_tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id}
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[test]
+fn inherited_trait_default_realizations_settle_exact_requirement_symbols() {
+    let source = r#"
+        trait Resettable {
+            machine set(&mut self, value: i32);
+            machine reset(&mut self) { self.set(30); }
+        }
+        trait Counter { requires Resettable; }
+
+        data Left { value: i32; }
+        LeftCounter: Left satisfies Counter;
+        machine Left::set(&mut self, value: i32) { self.value = value; }
+
+        data Right { value: i32; }
+        RightCounter: Right satisfies Counter;
+        machine Right::set(&mut self, value: i32) { self.value = value; }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let reset_requirement = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Resettable")
+        .and_then(|definition| {
+            typed
+                .trait_machine_signatures(definition)
+                .iter()
+                .find(|requirement| requirement.name.as_str() == "reset")
+        })
+        .expect("Resettable::reset requirement");
+
+    let applications = ["Left::reset", "Right::reset"].map(|name| {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("synthesized default realization");
+        let [conformance] = typed.machine_trait_conformances(machine) else {
+            panic!("one synthesized requirement edge");
+        };
+        assert_eq!(conformance.requirement_symbol, reset_requirement.symbol);
+        let state = typed.machine_states(machine).first().expect("entry state");
+        let call = typed
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                psi_typed_trees::statement::StatementNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .expect("default body call");
+        call.target_symbol
+    });
+    assert_ne!(applications[0], applications[1]);
+}
+
 fn seeded_plain_data_inputs(
     base_source: &str,
     extension_source: &str,

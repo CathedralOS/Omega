@@ -66,6 +66,12 @@ Must own:
   before table rebuilding consumes that form. Exact targets and static
   conformance arguments settle here; unresolved call targets retain an explicit
   checked-call obligation at the target token.
+- Partitioning authored selections copied into compiler-instantiated trait
+  defaults by their exact conformance application. Two applications retain the
+  same authored source coordinate but may correctly route a call to different
+  realization symbols. The partition is transient compiler join custody: it
+  survives resolved copying and ledger rebasing but never enters canonical
+  package evidence, lock identity, or source diagnostics as semantic identity.
 - Preserving authored `suspends` and `blocks` keyword spans on machine and
   structural signature owners while their booleans acquire resolved context.
   Synthesized trait-default machines inherit the originating requirement's

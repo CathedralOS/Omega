@@ -13,8 +13,8 @@ use psi_syntax_trees::expression::{
 };
 use psi_syntax_trees::identifier::Identifier;
 use psi_syntax_trees::item::{
-    ConformanceBody, ConformanceItem, ConformanceMember, Item, ItemHandle, Machine, State,
-    StateSignatureNode,
+    ConformanceBody, ConformanceItem, ConformanceMember, Item, ItemHandle, Machine,
+    SatisfiesClause, State, StateSignatureNode,
 };
 use psi_syntax_trees::statement::StatementNode;
 use psi_syntax_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 #[derive(Clone)]
 struct TraitDefaultsInput {
+    has_lifetime_parameters: bool,
     parameter_names: Vec<String>,
     signatures: Vec<TraitSignatureInput>,
     requirements: Vec<TraitRequirementInput>,
@@ -42,6 +43,7 @@ struct TraitRequirementInput {
 #[derive(Clone)]
 struct DefaultCandidate {
     origin: String,
+    requirement_owner: Option<String>,
     signature: StateSignatureNode,
     substitution: HashMap<String, TypeReferenceHandle>,
 }
@@ -130,6 +132,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
             Some((
                 trait_definition.name.as_str().to_string(),
                 TraitDefaultsInput {
+                    has_lifetime_parameters: !trait_definition.lifetime_parameters.is_empty(),
                     parameter_names,
                     signatures,
                     requirements,
@@ -261,6 +264,7 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
                     &conformance_name,
                     Identifier::generated(signature.name.as_str()),
                     &signature,
+                    exact_unargumented_requirement_owner(&traits, &requirement.declaring_trait),
                 );
                 closed_members.push(ConformanceMember::TraitDefault {
                     declaring_trait: Identifier::generated(requirement.declaring_trait),
@@ -334,7 +338,12 @@ pub fn synthesize_trait_defaults(syntax: &mut SyntaxTrees) -> Result<(), Vec<Dia
             } else {
                 instantiate_default_signature(syntax, &candidate.signature, &candidate.substitution)
             };
-            synthesize_default_machine(syntax, &type_name, &signature);
+            synthesize_default_machine(
+                syntax,
+                &type_name,
+                &signature,
+                candidate.requirement_owner.as_deref(),
+            );
         }
     }
 
@@ -494,6 +503,7 @@ fn synthesize_equatable_machine(
             "__omega_synthesized_equatable::{type_name}::equals"
         )),
         &signature,
+        None,
     );
     true
 }
@@ -568,6 +578,8 @@ fn collect_effective_defaults(
                 method_name,
                 vec![DefaultCandidate {
                     origin: trait_instance_label(syntax, trait_name, substitution),
+                    requirement_owner: exact_unargumented_requirement_owner(traits, trait_name)
+                        .map(str::to_owned),
                     signature: signature.clone(),
                     substitution: substitution.clone(),
                 }],
@@ -781,12 +793,14 @@ fn synthesize_default_machine(
     syntax: &mut SyntaxTrees,
     type_name: &str,
     signature: &StateSignatureNode,
+    requirement_owner: Option<&str>,
 ) {
     synthesize_machine_named(
         syntax,
         type_name,
         Identifier::generated(format!("{type_name}::{}", signature.name.as_str())),
         signature,
+        requirement_owner,
     );
 }
 
@@ -795,9 +809,25 @@ fn synthesize_machine_named(
     type_name: &str,
     machine_name: Identifier,
     signature: &StateSignatureNode,
+    requirement_owner: Option<&str>,
 ) {
-    let machine = machine_from_signature(syntax, type_name, machine_name, signature);
+    let machine = machine_from_signature(
+        syntax,
+        type_name,
+        machine_name,
+        signature,
+        requirement_owner,
+    );
     syntax.push_root_item(Item::Machine(machine));
+}
+
+fn exact_unargumented_requirement_owner<'name>(
+    traits: &HashMap<String, TraitDefaultsInput>,
+    trait_name: &'name str,
+) -> Option<&'name str> {
+    let definition = traits.get(trait_name)?;
+    (!definition.has_lifetime_parameters && definition.parameter_names.is_empty())
+        .then_some(trait_name)
 }
 
 fn machine_from_signature(
@@ -805,6 +835,7 @@ fn machine_from_signature(
     type_name: &str,
     machine_name: Identifier,
     signature: &StateSignatureNode,
+    requirement_owner: Option<&str>,
 ) -> Machine {
     let state = State {
         name: signature.name.clone(),
@@ -815,6 +846,19 @@ fn machine_from_signature(
     };
     let state = syntax.items.insert_state(&state);
     let state = syntax.items.append_state_handle(state);
+    let satisfies = requirement_owner.map_or_else(HandleSpan::empty, |trait_name| {
+        let clause = syntax.items.append_satisfies_clause(SatisfiesClause {
+            trait_name: Identifier::generated(trait_name),
+            lifetime_arguments: Vec::new(),
+            arguments: HandleSpan::empty(),
+            requirement: Some(Identifier::generated(signature.name.as_str())),
+            alias: None,
+            via: None,
+            via_expression: ExpressionHandle::invalid(),
+            via_keyword_source_span: None,
+        });
+        HandleSpan::from_parts(clause, 1)
+    });
     Machine {
         name: machine_name,
         attached_data: Some(Identifier::generated(type_name)),
@@ -825,7 +869,7 @@ fn machine_from_signature(
         is_top_level_boundary_requirement: false,
         lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters: HandleSpan::empty(),
-        satisfies: HandleSpan::empty(),
+        satisfies,
         conformance_bounds: Vec::new(),
         terminates_guarantee: signature.terminates_guarantee,
         ranking_subjects: HandleSpan::<ExpressionHandle>::empty(),
