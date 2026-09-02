@@ -211,6 +211,16 @@ boundaries at direct and optimized custody on all five targets. Exact or
 wrapping add, subtraction/multiplication, plain-immediate, parameter-family,
 and runtime-expression substitution fail closed. The family validates the
 existing lowering; it adds no target operation and no persisted wire form.
+Constant saturating integer subtract is its independently named ordered
+sibling. It admits exactly two same-type constants,
+`SaturatingIntegerSubtract`, and `Return`; recomputes the result through
+`IntegerType::saturating_sub`; and requires one exact
+`ReturnIntegerImmediate` with authored operand and provenance order intact.
+Signed/unsigned fixed 8/16/32/64 and address64 cross low and high clamps,
+ordinary decrement, and reversed-order behavior at direct and optimized
+custody on all five targets. Exact/wrapping subtraction, addition/
+multiplication, plain-immediate, parameter-family, and runtime-expression
+substitution fail closed. No target operation or persisted wire form is added.
 Constant wrapping integer add is a separate exact four-operation family. It
 validates two ordered same-type constants, `WrappingIntegerAdd`, and `Return`,
 computes modulo the declared width through `IntegerType::wrapping_add`, and

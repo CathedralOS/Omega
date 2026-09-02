@@ -27,6 +27,9 @@ impl AbstractToTargetFunctionTranslationReceipt {
             Self::StraightLineSaturatingIntegerAddImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerAddImmediate
             }
+            Self::StraightLineSaturatingIntegerSubtractImmediate(_) => {
+                AbstractToTargetTranslationFamily::StraightLineSaturatingIntegerSubtractImmediate
+            }
             Self::StraightLineWrappingIntegerAddImmediate(_) => {
                 AbstractToTargetTranslationFamily::StraightLineWrappingIntegerAddImmediate
             }

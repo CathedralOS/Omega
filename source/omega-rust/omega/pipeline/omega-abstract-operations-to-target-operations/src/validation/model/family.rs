@@ -9,6 +9,7 @@ pub enum AbstractToTargetTranslationFamily {
     StraightLineIntegerBitwiseXorImmediate,
     StraightLineSaturatingIntegerAddImmediate,
     StraightLineWrappingIntegerAddImmediate,
+    StraightLineSaturatingIntegerSubtractImmediate,
     StraightLineWrappingIntegerSubtractImmediate,
     StraightLineWrappingIntegerMultiplyImmediate,
     StraightLineIntegerBitwiseNotImmediate,
