@@ -20,7 +20,6 @@ omega-installation-evidence = { path = "../../../representations/omega-installat
 omega-machine-code = { path = "../../../representations/omega-machine-code" }
 omega-object-file = { path = "../../object/omega-object-file" }
 omega-optimization-core = { path = "../../../representations/omega-optimization-core" }
-omega-optimization-run-to-abstract-operations = { path = "../../../pipeline/omega-optimization-run-to-abstract-operations" }
 omega-target-operations = { path = "../../../representations/omega-target-operations" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }

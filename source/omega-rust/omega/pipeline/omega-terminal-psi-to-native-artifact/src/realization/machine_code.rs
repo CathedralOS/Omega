@@ -146,8 +146,12 @@ pub(crate) fn emit_realization_machine_code(
                     .map_err(|error| realization_error("optimized target lowering", error))?;
                 let physical_evidence_scope = match boundary_application_coverage {
                     Some(coverage) => {
+                        let validation = optimized.validation();
                         let scope = omega_native_artifact::NativePhysicalEvidenceScope::from_validated_optimization(
-                            &optimized,
+                            optimized.plan(),
+                            validation.psi(),
+                            validation.identity(),
+                            validation.final_unit(),
                             coverage,
                         )
                         .map_err(|error| {

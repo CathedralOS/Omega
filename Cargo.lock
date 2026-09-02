@@ -914,7 +914,6 @@ dependencies = [
  "omega-machine-code",
  "omega-object-file",
  "omega-optimization-core",
- "omega-optimization-run-to-abstract-operations",
  "omega-target",
  "omega-target-operations",
  "psi-core",

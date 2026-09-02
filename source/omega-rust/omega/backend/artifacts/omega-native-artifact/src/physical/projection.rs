@@ -7,7 +7,6 @@ use omega_optimization_core::{
     OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
-use omega_optimization_run_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use psi_core::OperationId;
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
@@ -35,13 +34,15 @@ struct D29ReferenceCoordinate {
 }
 
 pub(crate) fn derive_validated_optimization_scope(
-    optimized: &ValidatedOptimizedAbstractPlan,
+    final_plan: &AbstractOperationPlan,
+    terminal: TerminalPsiIdentity,
+    validation: OptimizedAbstractPlanProjectionIdentity,
+    final_unit: OptimizationUnitIdentity,
     boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
     boundary_application_coverage_identity: [u8; 32],
 ) -> Result<ValidatedOptimizedNativePhysicalEvidenceScope, &'static str> {
-    let validation = optimized.validation();
     boundary_application_coverage
-        .validate_for_terminal(validation.psi())
+        .validate_for_terminal(terminal)
         .map_err(|_| "optimized physical scope has invalid D29 coverage")?;
     let references = boundary_application_coverage
         .references()
@@ -53,11 +54,11 @@ pub(crate) fn derive_validated_optimization_scope(
         .collect::<Vec<_>>();
     derive_optimized_scope(
         ValidatedProjectionCoordinates {
-            terminal: validation.psi(),
-            validation: validation.identity(),
-            final_unit: validation.final_unit(),
+            terminal,
+            validation,
+            final_unit,
         },
-        optimized.plan(),
+        final_plan,
         &references,
         boundary_application_coverage_identity,
     )
