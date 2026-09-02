@@ -150,10 +150,14 @@ pub(super) fn checked_terminal_machine_name(
         "attached Unit member has no checked terminal selection",
     ))?;
     if matches.next().is_some()
-        || selection.signature != CheckedTerminalSignatureEligibility::Attached
+        || !matches!(
+            selection.signature,
+            CheckedTerminalSignatureEligibility::Attached
+                | CheckedTerminalSignatureEligibility::FreeUnitEffect
+        )
         || selection.name.is_empty()
     {
-        return unsupported("attached Unit member has an invalid checked terminal selection");
+        return unsupported("Unit-effect member has an invalid checked terminal selection");
     }
     Ok(&selection.name)
 }

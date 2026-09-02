@@ -154,7 +154,7 @@ fn lower_catalogs(
     type_roots.extend(
         admitted_internal_targets
             .iter()
-            .map(|(target, _)| target.attachment_type_identity.clone()),
+            .filter_map(|(target, _)| target.attachment_type_identity.clone()),
     );
     let (structural_types, type_ids) = lower_unit_structural_type_roots(checked, &type_roots)?;
     let (services, service_ids) = lower_composed_services(
@@ -187,7 +187,11 @@ fn lower_catalogs(
                             "composed Unit internal machine identity space is exhausted",
                         ))?,
                 ),
-                attachment_type_identity: target.attachment_type_identity.clone(),
+                attachment_type_identity: target.attachment_type_identity.clone().ok_or(
+                    LoweringError::Unsupported(
+                        "composed Unit internal target is not an attached machine",
+                    ),
+                )?,
                 contract_service_reach: target.contract_service_reach,
                 service_reach: target.service_reach,
                 nested_call_target: target.operations.iter().find_map(

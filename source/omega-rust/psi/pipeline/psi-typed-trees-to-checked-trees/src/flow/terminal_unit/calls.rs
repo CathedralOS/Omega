@@ -1972,6 +1972,70 @@ pub(super) fn fused_service_scalar_signature(
     structural_signature_with_affine_pair(program, shapes, machine, state, binders, false, true)
 }
 
+pub(super) fn free_fused_service_scalar_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &psi_typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    if !binders.is_empty() {
+        return None;
+    }
+    let mut structural_parameters = Vec::new();
+    let mut scalar_parameters = Vec::new();
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
+        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            return None;
+        }
+        let source_position = u32::try_from(position).ok()?;
+        if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference) {
+            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                source_position,
+                primitive_type,
+            });
+            continue;
+        }
+        if psi_typed_trees::service::exact_bound_service_requirement(
+            program,
+            parameter.type_reference,
+        )
+        .is_none()
+            || !structural_parameters.is_empty()
+        {
+            return None;
+        }
+        let (type_identity, fused_service_erasure) = shapes.add_fused_service_parameter_type(
+            parameter.type_reference,
+            parameter.symbol,
+            binders,
+        )?;
+        let qualifications =
+            parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
+        let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
+        let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        if multiplicity != Multiplicity::Affine
+            || access != CheckedStructuralAccess::Owned
+            || qualifications.len() != 1
+        {
+            return None;
+        }
+        structural_parameters.push(CheckedUnitStructuralParameterPlan {
+            position: source_position,
+            is_self: false,
+            type_identity,
+            multiplicity,
+            access,
+            qualifications,
+            fused_service_erasure: Some(fused_service_erasure),
+        });
+    }
+    matches!(structural_parameters.as_slice(), [parameter] if parameter.fused_service_erasure.is_some())
+        .then_some((structural_parameters, scalar_parameters))
+}
+
 pub(super) fn partial_affine_pair_structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,

@@ -183,7 +183,11 @@ fn nominal_affine_wide_scalar_unit_cleanup_retains_exact_field_shape() {
             type_identity: "named(name(Erased))".to_owned(),
         },
         CheckedUnitStructuralFieldType::Structural {
-            type_identity: plan.machine.attachment_type_identity.clone(),
+            type_identity: plan
+                .machine
+                .attachment_type_identity
+                .clone()
+                .expect("nominal cleanup fixture remains attached"),
         },
     ] {
         let mut stale = checked.clone();

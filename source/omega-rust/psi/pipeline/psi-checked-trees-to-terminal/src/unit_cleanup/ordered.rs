@@ -100,7 +100,9 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     }
     let attachment_shape = nominal_types
         .iter()
-        .find(|candidate| candidate.identity == plan.attachment_type_identity)
+        .find(|candidate| {
+            plan.attachment_type_identity.as_deref() == Some(candidate.identity.as_str())
+        })
         .ok_or(LoweringError::Unsupported(
             "ordered nominal cleanup attachment shape is absent",
         ))?;
@@ -293,7 +295,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
         if target.state != cleanup.cleanup_state
             || target.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
             || contract.report_fingerprint != cleanup.cleanup_contract_report_fingerprint
-            || target.attachment_type_identity != cleanup.type_identity
+            || target.attachment_type_identity.as_deref() != Some(cleanup.type_identity.as_str())
             || !target.structural_parameters.is_empty()
             || !target.trivial_affine_locals.is_empty()
             || !target.entry_claims.is_empty()
@@ -327,7 +329,9 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
             .structural_types
             .iter()
             .chain(nominal_types)
-            .find(|candidate| candidate.identity == helper.attachment_type_identity)
+            .find(|candidate| {
+                helper.attachment_type_identity.as_deref() == Some(candidate.identity.as_str())
+            })
             .ok_or(LoweringError::Unsupported(
                 "ordered nominal cleanup helper attachment shape is absent",
             ))?;

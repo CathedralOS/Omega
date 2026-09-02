@@ -222,7 +222,8 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
             || cleanup_calls.len() != cleanup_statements.len()
             || !trivial_affine_local_discard_ordinals.is_empty()
             || !trivial_affine_discards.is_empty()
-            || cleanup_target.attachment_type_identity != checked_parameter.type_identity
+            || cleanup_target.attachment_type_identity.as_deref()
+                != Some(checked_parameter.type_identity.as_str())
             || !cleanup_target.structural_parameters.is_empty()
             || !cleanup_target.trivial_affine_locals.is_empty()
             || !cleanup_target.entry_claims.is_empty()
@@ -266,7 +267,9 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         }
         for (helper_machine, helper_state, helper_fingerprint) in cleanup_helpers {
             let helper = unit_effects.for_machine(helper_machine)?;
-            let helper_shape = shapes.types.get(&helper.attachment_type_identity)?;
+            let helper_shape = shapes
+                .types
+                .get(helper.attachment_type_identity.as_ref()?)?;
             if helper.machine == machine.symbol
                 || helper.machine == cleanup_machine.symbol
                 || helper.state != helper_state
@@ -297,7 +300,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         machine: CheckedUnitEffectMachinePlan {
             machine: machine.symbol,
             state: state.symbol,
-            attachment_type_identity,
+            attachment_type_identity: Some(attachment_type_identity),
             structural_parameters,
             scalar_parameters: Vec::new(),
             provider_attachment_requirements: Vec::new(),
@@ -1121,7 +1124,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         machine: CheckedUnitEffectMachinePlan {
             machine: machine.symbol,
             state: state.symbol,
-            attachment_type_identity,
+            attachment_type_identity: Some(attachment_type_identity),
             structural_parameters,
             scalar_parameters: Vec::new(),
             provider_attachment_requirements: Vec::new(),

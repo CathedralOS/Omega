@@ -122,7 +122,7 @@ pub(super) fn lower_unit_structural_types(
     let mut roots = Vec::new();
     for symbol in closure {
         let machine = unique_unit_machine(plans, *symbol)?;
-        roots.push(machine.attachment_type_identity.clone());
+        roots.extend(machine.attachment_type_identity.iter().cloned());
         roots.extend(
             machine
                 .structural_parameters

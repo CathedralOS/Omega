@@ -274,7 +274,9 @@ pub(crate) fn build_checked_unit_effect_plans(
                 )
         })
         .chain(candidates.iter().flat_map(|plan| {
-            std::iter::once(plan.attachment_type_identity.as_str())
+            plan.attachment_type_identity
+                .iter()
+                .map(String::as_str)
                 .chain(
                     plan.structural_parameters
                         .iter()
@@ -367,7 +369,10 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            std::iter::once(plan.machine.attachment_type_identity.as_str())
+            plan.machine
+                .attachment_type_identity
+                .iter()
+                .map(String::as_str)
                 .chain(
                     plan.machine
                         .structural_parameters
@@ -422,7 +427,10 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            std::iter::once(plan.machine.attachment_type_identity.as_str())
+            plan.machine
+                .attachment_type_identity
+                .iter()
+                .map(String::as_str)
                 .chain(
                     plan.machine
                         .structural_parameters

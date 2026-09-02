@@ -79,7 +79,9 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
     }
     let attachment_shape = nominal_types
         .iter()
-        .find(|candidate| candidate.identity == plan.attachment_type_identity)
+        .find(|candidate| {
+            plan.attachment_type_identity.as_deref() == Some(candidate.identity.as_str())
+        })
         .ok_or(LoweringError::Unsupported(
             "nominal affine Unit attachment type is absent from its checked shapes",
         ))?;
@@ -255,7 +257,8 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
     if cleanup_target.state != cleanup.cleanup_state
         || cleanup_target.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
         || cleanup_contract.report_fingerprint != cleanup.cleanup_contract_report_fingerprint
-        || cleanup_target.attachment_type_identity != cleanup.type_identity
+        || cleanup_target.attachment_type_identity.as_deref()
+            != Some(cleanup.type_identity.as_str())
         || !cleanup_target.structural_parameters.is_empty()
         || !cleanup_target.trivial_affine_locals.is_empty()
         || !cleanup_target.entry_claims.is_empty()
@@ -283,7 +286,9 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
             .structural_types
             .iter()
             .chain(nominal_types)
-            .find(|candidate| candidate.identity == helper.attachment_type_identity)
+            .find(|candidate| {
+                helper.attachment_type_identity.as_deref() == Some(candidate.identity.as_str())
+            })
             .ok_or(LoweringError::Unsupported(
                 "nominal cleanup helper attachment is missing its checked shape",
             ))?;
@@ -661,7 +666,15 @@ pub(super) fn lower_nominal_affine_unit_cleanup_machine(
         return unsupported("nominal affine Unit terminal parameter drifted");
     };
     entry.contract.requires = caller_requires.clone();
-    if entry.attachment != Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?)
+    if entry.attachment
+        != Some(lookup_type_id(
+            &type_ids,
+            plan.attachment_type_identity
+                .as_deref()
+                .ok_or(LoweringError::Unsupported(
+                    "nominal cleanup caller is not attached",
+                ))?,
+        )?)
         || !entry.parameters.is_empty()
         || entry.result != TerminalMachineResult::Unit
         || entry.structural_places.len() != 1
