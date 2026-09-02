@@ -721,6 +721,16 @@ pub enum TargetUnitOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
+    /// One complete owned-affine one-i64-field record retained until its
+    /// exact owned use. The empty source placement used by that call is a
+    /// checked virtual aggregate, not a physical stack location.
+    EstablishAffineScalarRecord {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        field: StructuralFieldId,
+        value: IntegerValue,
+        shape: ValueShape,
+    },
     Call {
         psi_operation: OperationId,
         callee: MachineId,

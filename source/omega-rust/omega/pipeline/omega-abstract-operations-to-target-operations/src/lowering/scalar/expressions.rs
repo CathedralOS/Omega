@@ -434,6 +434,7 @@ pub(super) fn conditional_provenance(
             | AbstractOperation::EstablishPayloadlessCase { psi_operation, .. }
             | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
             | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
+            | AbstractOperation::EstablishAffineScalarRecord { psi_operation, .. }
             | AbstractOperation::CallUnit { psi_operation, .. }
             | AbstractOperation::CallStructuralScalar { psi_operation, .. }
             | AbstractOperation::CallStructuralScalarWithDynamicArguments {

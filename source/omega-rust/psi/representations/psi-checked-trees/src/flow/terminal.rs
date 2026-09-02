@@ -1086,6 +1086,10 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Dense declaration ordinal in the caller's checked trivial-affine-local
     /// table. This source is always the exact whole local.
     TrivialAffineLocal { declaration_ordinal: u32 },
+    /// Dense declaration ordinal among the caller's affine scalar-record
+    /// constructor results. This source is always the exact whole initialized
+    /// local.
+    AffineScalarRecordLocal { declaration_ordinal: u32 },
     /// Exact byte sequence passed directly to a bodyless boundary.
     ByteSequenceLiteral { bytes: Vec<u8> },
 }
@@ -1110,6 +1114,7 @@ impl CheckedUnitStructuralArgumentPlan {
                 Some(parameter_index)
             }
             CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
         }
     }
@@ -1120,6 +1125,18 @@ impl CheckedUnitStructuralArgumentPlan {
                 declaration_ordinal,
             } => Some(declaration_ordinal),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
+        }
+    }
+
+    pub fn source_affine_scalar_record_local_declaration_ordinal(&self) -> Option<u32> {
+        match self.source {
+            CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal {
+                declaration_ordinal,
+            } => Some(declaration_ordinal),
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
             | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => None,
         }
     }
@@ -1128,7 +1145,8 @@ impl CheckedUnitStructuralArgumentPlan {
         match &self.source {
             CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { bytes } => Some(bytes),
             CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. } => None,
+            | CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. }
+            | CheckedUnitStructuralArgumentSourcePlan::AffineScalarRecordLocal { .. } => None,
         }
     }
 }
@@ -1278,6 +1296,15 @@ pub enum CheckedUnitEffectOperationPlan {
         statement_index: u32,
         declaration_ordinal: u32,
         type_identity: String,
+    },
+    /// Atomically establish one complete owned-affine direct record from its
+    /// single compiler-checked fixed-width scalar field.
+    EstablishAffineScalarRecordLocal {
+        statement_index: u32,
+        declaration_ordinal: u32,
+        type_identity: String,
+        field_identity: String,
+        value: CheckedScalarExpression,
     },
     CallUnit {
         coordinate: CheckedUnitCallCoordinate,

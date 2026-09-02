@@ -1656,6 +1656,7 @@ pub(super) fn structural_crash_route_argument_prefix(
     argument: &StructuralArgument,
     parameters: &[StructuralParameterDeclaration],
     trivial_affine_locals: &[StructuralPlaceDeclaration],
+    affine_scalar_record_locals: &[StructuralPlaceDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<CanonicalStructuralPathSegment>, LoweringError> {
     let mut structural_type = parameters
@@ -1667,6 +1668,18 @@ pub(super) fn structural_crash_route_argument_prefix(
                 (local.id == argument.place)
                     .then(|| match local.kind {
                         StructuralPlaceKind::TrivialAffineLocal {
+                            structural_type, ..
+                        } => Some(structural_type),
+                        _ => None,
+                    })
+                    .flatten()
+            })
+        })
+        .or_else(|| {
+            affine_scalar_record_locals.iter().find_map(|local| {
+                (local.id == argument.place)
+                    .then(|| match local.kind {
+                        StructuralPlaceKind::OperationResult {
                             structural_type, ..
                         } => Some(structural_type),
                         _ => None,

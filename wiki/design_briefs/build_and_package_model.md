@@ -1132,9 +1132,14 @@ wire contract does not silently widen. Its verifier rejoins the exact scalar
 and structural parameter order, direct record shape, claim-free affine result,
 ownership transfer, result-place declaration, empty authority rows, and final
 discard; the canonical codec and reference interpreter preserve the same
-operation. Native ABI lowering and physical-child replay must still land before
-package review may claim final realization for it. Projections, borrows, services, content
-evidence, richer layouts, and wider cleanup remain outside this bounded front.
+operation. Native ABI lowering and physical-child replay now cover this form on
+Linux x86-64 and AArch64. Its rooted package-aware canary constructs the exact
+one-field affine 64-bit integer operand in source, transfers it once into the
+Unit helper, validates the retained native artifact, and requires D32 evidence.
+The constructor is retained independently through optimizer validation,
+machine/object/image custody, and installation encoding; it receives no
+invented stack home or claim. Projections, borrows, services, content evidence,
+richer layouts, and wider cleanup remain outside this bounded front.
 
 A provider may compose checked software and target-owned external leaves. An
 exact call to a public realization machine delegates directly and does not

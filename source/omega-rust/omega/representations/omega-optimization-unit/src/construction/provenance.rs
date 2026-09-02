@@ -31,6 +31,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
+        | O::EstablishAffineScalarRecord { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
         | O::CallStructuralScalar { psi_operation, .. }
         | O::CallStructuralScalarWithDynamicArguments { psi_operation, .. }

@@ -390,6 +390,7 @@ fn linux_exit_group_object_validation_replays_exact_scalar_and_trap_bytes() {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine,
@@ -595,6 +596,7 @@ fn linux_write_line_then_exit_survives_object_image_and_installation_replay() {
             forwarded_dynamic_descriptor_calls: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
             scalar_structural_scalar_field_store: None,
             machine,
@@ -2238,6 +2240,7 @@ fn supported_writers_preserve_exact_terminal_text_and_complete_regions() {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine,
@@ -2344,7 +2347,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "84db89458cfc85ff9011436a21da709ac13716be444d7574341907f726a66557"
+        "45e520a75a373db175775f5d9667292d24319551fcebe0f23dcd6fb8bb2842b6"
     );
 
     let mut changed_plan = plan;
@@ -2543,6 +2546,7 @@ fn privileged_effect_and_exact_provider_execution_survive_installation() {
             forwarded_dynamic_descriptor_calls: Vec::new(),
             unit_scalar_homes: Vec::new(),
             unit_integer_constants: Vec::new(),
+            unit_affine_scalar_records: Vec::new(),
             unit_structural_scalar_field_stores: Vec::new(),
             scalar_structural_scalar_field_store: None,
             machine: machine_id(1),
@@ -2731,6 +2735,7 @@ fn two_function_plan() -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(1),
@@ -2773,6 +2778,7 @@ fn two_function_plan() -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(2),
@@ -2977,6 +2983,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(1),
@@ -3019,6 +3026,7 @@ fn internal_call_plan(target: NativeTarget) -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(2),
@@ -4181,6 +4189,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(1),
@@ -4236,6 +4245,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(2),
@@ -4288,6 +4298,7 @@ fn edge_owned_cleanup_plan() -> MachineCodePlan {
                 forwarded_dynamic_descriptor_calls: Vec::new(),
                 unit_scalar_homes: Vec::new(),
                 unit_integer_constants: Vec::new(),
+                unit_affine_scalar_records: Vec::new(),
                 unit_structural_scalar_field_stores: Vec::new(),
                 scalar_structural_scalar_field_store: None,
                 machine: machine_id(3),

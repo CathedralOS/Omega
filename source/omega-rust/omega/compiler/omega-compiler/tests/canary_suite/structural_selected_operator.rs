@@ -847,6 +847,37 @@ fn specialized_mixed_structural_result_operator_has_exact_checked_custody() {
 }
 
 #[test]
+fn specialized_mixed_structural_result_operator_hosted_native_reaches_d32() {
+    let canary =
+        pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let report = compile_rooted_backend_canary_without_output_for_target(&canary, target)
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "hosted mixed structural-result selection should realize natively for {target}: {diagnostics:#?}"
+                )
+            });
+        let native = report.retained_native_artifact().unwrap_or_else(|| {
+            panic!("hosted mixed structural-result selection should retain {target} native custody")
+        });
+        native.validate().unwrap_or_else(|error| {
+            panic!("hosted mixed structural-result selection should replay for {target}: {error}")
+        });
+        let physical = report
+            .require_package_native_physical_evidence()
+            .unwrap_or_else(|error| {
+                panic!("hosted mixed structural-result selection should earn {target} D32: {error}")
+            });
+        assert!(std::ptr::eq(
+            physical,
+            native.physical_evidence().unwrap_or_else(|| panic!(
+                "hosted mixed structural-result selection should retain {target} D32"
+            )),
+        ));
+    }
+}
+
+#[test]
 fn specialized_mixed_structural_result_operator_has_exact_terminal_custody() {
     let canary =
         pass_canary("providers/specialized_mixed_structural_result_operator_hosted_native");

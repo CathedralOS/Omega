@@ -249,6 +249,13 @@ pub enum AssignedUnitOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
     },
+    EstablishAffineScalarRecord {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        field: psi_core::StructuralFieldId,
+        value: IntegerValue,
+        shape: ValueShape,
+    },
     Call {
         psi_operation: OperationId,
         callee: MachineId,

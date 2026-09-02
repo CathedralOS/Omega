@@ -331,6 +331,7 @@ operation_semantic_rows! {
     EstablishPayloadlessCase => ("schema:operation:establish-payloadless-case", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
+    EstablishAffineScalarRecord => ("schema:operation:establish-affine-scalar-record", LeafDenotation, None),
     Call => ("algebra:call:call", CallComposition, None),
     CallUnit => ("algebra:call:call-unit", CallComposition, None),
     CallStructuralScalar => ("algebra:call:call-structural-scalar", CallComposition, None),

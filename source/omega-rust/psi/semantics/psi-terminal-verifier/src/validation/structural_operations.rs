@@ -279,6 +279,59 @@ pub(super) fn validate_unit_operation_static(
                 });
             }
         }
+        OperationKind::EstablishAffineScalarRecord { field, value } => {
+            let Some(result) = operation.result.structural() else {
+                return Err(ModuleError::AffineScalarRecordResultMismatch(operation.id));
+            };
+            let Some(place) = machine
+                .structural_places
+                .iter()
+                .find(|place| place.id == result.place)
+            else {
+                return Err(ModuleError::AffineScalarRecordResultMismatch(operation.id));
+            };
+            if !matches!(
+                place.kind,
+                StructuralPlaceKind::OperationResult { producer, structural_type }
+                    if producer == operation.id && structural_type == result.structural_type
+            ) || result.multiplicity != StructuralMultiplicity::Affine
+                || !super::structural_result_contracts::has_empty_qualification_rosters(
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                )
+                || !result.claims.is_empty()
+            {
+                return Err(ModuleError::AffineScalarRecordResultMismatch(operation.id));
+            }
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == result.structural_type)
+                .ok_or(ModuleError::UnknownStructuralType(result.structural_type))?;
+            let exact_i64_field = matches!(
+                &declaration.shape,
+                StructuralTypeShape::Record { fields }
+                    if matches!(fields.as_slice(), [candidate]
+                        if candidate.id == *field
+                            && candidate.relevance == psi_terminal::BindingRelevance::Relevant
+                            && matches!(candidate.field_type,
+                                StructuralFieldType::Scalar(ScalarType::Integer(integer_type))
+                                    if integer_type.sign() == IntegerSign::Signed
+                                        && integer_type.bits() == 64))
+            );
+            if !exact_i64_field {
+                return Err(ModuleError::AffineScalarRecordRequiresSingleI64Field {
+                    operation: operation.id,
+                    structural_type: result.structural_type,
+                    field: *field,
+                });
+            }
+            let i64_type = IntegerType::new(IntegerSign::Signed, 64)
+                .expect("signed i64 is a valid fixed integer type");
+            if !i64_type.admits(*value) {
+                return Err(ModuleError::AffineScalarRecordValueOutsideI64(operation.id));
+            }
+        }
         OperationKind::CallUnit {
             callee,
             structural_arguments,
@@ -351,7 +404,7 @@ pub(super) fn validate_unit_operation_static(
                 &callee.structural_parameters,
                 operation.id,
                 true,
-                StructuralArgumentSourcePolicy::ParametersAndTrivialAffineLocals,
+                StructuralArgumentSourcePolicy::ParametersAndAffineLocals,
             )?;
             if let Some(argument_index) = structural_arguments
                 .iter()
@@ -1035,7 +1088,7 @@ fn unit_call_contract_propositions(callee: &TerminalMachine) -> impl Iterator<It
 pub(super) enum StructuralArgumentSourcePolicy {
     ParametersOnly,
     ParametersAndByteSequenceLiterals,
-    ParametersAndTrivialAffineLocals,
+    ParametersAndAffineLocals,
 }
 
 pub(super) fn validate_structural_arguments(
@@ -1093,8 +1146,37 @@ pub(super) fn validate_structural_arguments(
                         StructuralPlaceKind::TrivialAffineLocal {
                             structural_type, ..
                         } if source_policy
-                            == StructuralArgumentSourcePolicy::ParametersAndTrivialAffineLocals
+                            == StructuralArgumentSourcePolicy::ParametersAndAffineLocals
                             && argument.path.is_empty() => Some((
+                            structural_type,
+                            StructuralMultiplicity::Affine,
+                            StructuralAccess::Owned,
+                            &[][..],
+                            &[][..],
+                        )),
+                        StructuralPlaceKind::OperationResult {
+                            producer,
+                            structural_type,
+                        } if source_policy == StructuralArgumentSourcePolicy::ParametersAndAffineLocals
+                            && argument.path.is_empty()
+                            && caller.blocks.iter().flat_map(|block| &block.operations).any(
+                                |operation| {
+                                    operation.id == producer
+                                        && matches!(
+                                            operation.kind,
+                                            OperationKind::EstablishAffineScalarRecord { .. }
+                                        )
+                                        && operation.result.structural().is_some_and(|result| {
+                                            result.place == argument.place
+                                                && result.structural_type == structural_type
+                                                && result.multiplicity
+                                                    == StructuralMultiplicity::Affine
+                                                && result.qualifications.is_empty()
+                                                && result.projected_qualifications.is_empty()
+                                                && result.claims.is_empty()
+                                        })
+                                },
+                            ) => Some((
                             structural_type,
                             StructuralMultiplicity::Affine,
                             StructuralAccess::Owned,
@@ -1756,6 +1838,9 @@ pub(crate) fn structural_argument_canonical_prefix(
                         structural_type, ..
                     }
                     | StructuralPlaceKind::TrivialAffineLocal {
+                        structural_type, ..
+                    }
+                    | StructuralPlaceKind::OperationResult {
                         structural_type, ..
                     } if place.id == argument.place => Some(structural_type),
                     _ => None,

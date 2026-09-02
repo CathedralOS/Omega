@@ -175,6 +175,7 @@ pub(super) fn validate_machine(
             if matches!(
                 operation.kind,
                 OperationKind::EstablishPayloadlessCase { .. }
+                    | OperationKind::EstablishAffineScalarRecord { .. }
             ) {
                 validate_unit_operation_static(module, machine, machines, operation)?;
                 continue;
@@ -254,6 +255,7 @@ pub(super) fn validate_machine(
                 | OperationKind::CallStructural { .. }
                 | OperationKind::CallStructuralWithScalarArguments { .. }
                 | OperationKind::EstablishPayloadlessCase { .. }
+                | OperationKind::EstablishAffineScalarRecord { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::EstablishByteSequenceLiteral { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. } => {

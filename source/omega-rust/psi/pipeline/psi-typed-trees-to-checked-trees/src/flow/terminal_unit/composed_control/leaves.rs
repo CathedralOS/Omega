@@ -28,6 +28,7 @@ pub(super) fn build(
         state,
         structural_parameters,
         &[],
+        &[],
         entry_claims,
         call,
         false,

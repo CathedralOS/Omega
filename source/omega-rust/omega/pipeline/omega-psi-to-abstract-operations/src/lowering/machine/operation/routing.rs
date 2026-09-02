@@ -30,7 +30,8 @@ pub(super) fn lower(
     match &operation.kind {
         OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
-        | OperationKind::EstablishTrivialAffineLocal { .. } => structural_establishment::lower(
+        | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::EstablishAffineScalarRecord { .. } => structural_establishment::lower(
             operation,
             block,
             machine,

@@ -585,7 +585,8 @@ pub(super) fn validate_operation_operands(
         | OperationKind::BoundaryCall { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
-        | OperationKind::EstablishTrivialAffineLocal { .. } => None,
+        | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::EstablishAffineScalarRecord { .. } => None,
     }) else {
         return Ok(());
     };

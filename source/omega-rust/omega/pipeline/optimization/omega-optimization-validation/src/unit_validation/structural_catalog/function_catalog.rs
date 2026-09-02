@@ -120,6 +120,11 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
+                                | O::EstablishAffineScalarRecord {
+                                    psi_operation,
+                                    result,
+                                    ..
+                                }
                                 | O::CallStructural { psi_operation, result, .. }
                                     if *psi_operation == producer
                                         && result.place == place.id
@@ -177,9 +182,9 @@ pub(crate) fn validate_function_structural_catalog(
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         let structural_result = match &node.operation {
-            O::EstablishPayloadlessCase { result, .. } | O::CallStructural { result, .. } => {
-                Some(result)
-            }
+            O::EstablishPayloadlessCase { result, .. }
+            | O::EstablishAffineScalarRecord { result, .. }
+            | O::CallStructural { result, .. } => Some(result),
             _ => None,
         };
         if let Some(result) = structural_result
@@ -204,6 +209,11 @@ pub(crate) fn validate_function_structural_catalog(
             // recognition is validated together below.
             O::EstablishTrivialAffineLocal { .. } => None,
             O::EstablishPayloadlessCase {
+                psi_operation,
+                result,
+                ..
+            }
+            | O::EstablishAffineScalarRecord {
                 psi_operation,
                 result,
                 ..

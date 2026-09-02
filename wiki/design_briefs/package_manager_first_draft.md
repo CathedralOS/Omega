@@ -1353,13 +1353,16 @@ structural slot one, and the structural result placement without inventing a
 scalar home or claim. Machine, object, image, and installation replay retain
 the result and mandatory caller discard. Replay rejects a scalar/structural
 slot substitution, injected claim, or removed discard, and D32 classifies the
-distinct Terminal operation as the matching emitted internal call. This is
-not yet claimed as a rooted package D32 child: the current hosted
-`ProgramEntry` provisions an exclusive receiver and no arrival parameters, so
-it cannot supply the required nontrivial owned affine operand. That ingress
-must land as a real supported source form; `ProgramEntry` is not widened merely
-to manufacture a canary. Projections, borrows, services, content evidence,
-wider layouts, and wider cleanup shapes remain unsupported.
+distinct Terminal operation as the matching emitted internal call. A rooted,
+package-aware `NativeArtifact` canary now supplies the nontrivial operand
+through an ordinary source-level affine record construction with one relevant
+signed 64-bit integer field. The constructor has no independent stack home:
+machine emission materializes its exact bits at the one owned Unit-call use,
+while object/image replay and installation encoding retain and validate the
+constructor's result, field, value, shape, provenance, zero-code attribution,
+and unique later consumption. This does not widen `ProgramEntry` arrival
+authority. Projections, borrows, services, content evidence, wider layouts,
+and wider cleanup shapes remain unsupported.
 
 Unoptimized normalized imports with only fixed-width 8-, 16-, 32-, or 64-bit
 integer scalar arguments and either Unit or one such scalar result now reach

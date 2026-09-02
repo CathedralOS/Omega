@@ -39,6 +39,7 @@ impl TerminalFuelSchedule {
             OperationKind::EstablishPayloadlessCase { .. }
             | OperationKind::EstablishByteSequenceLiteral { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
+            | OperationKind::EstablishAffineScalarRecord { .. }
             | OperationKind::Call { .. }
             | OperationKind::CallUnit { .. }
             | OperationKind::CallStructuralScalar { .. }

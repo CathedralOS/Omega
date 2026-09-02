@@ -354,6 +354,7 @@ fn operation_effect(
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishAffineScalarRecord { .. }
         | O::BooleanStructuralField { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),

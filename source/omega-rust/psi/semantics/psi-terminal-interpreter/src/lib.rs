@@ -1437,6 +1437,53 @@ impl TerminalExecution {
                             structural_type: *structural_type,
                         });
                     }
+                    OperationKind::EstablishAffineScalarRecord { field, value } => {
+                        let psi_terminal::OperationResult::Structural(result) = &operation.result
+                        else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if self.structural_values.contains_key(&result.place)
+                            || result.multiplicity != StructuralMultiplicity::Affine
+                            || !result.qualifications.is_empty()
+                            || !result.projected_qualifications.is_empty()
+                            || !result.claims.is_empty()
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let Some(ScalarType::Integer(scalar_type)) = direct_scalar_field_type(
+                            &self.structural_types,
+                            result.structural_type,
+                            field,
+                        ) else {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        };
+                        if scalar_type.sign() != psi_core::IntegerSign::Signed
+                            || scalar_type.bits() != 64
+                            || !scalar_type.admits(value)
+                        {
+                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        }
+                        let structural_value = TerminalStructuralValue {
+                            opaque_identity: result.place.get(),
+                            structural_type: result.structural_type,
+                            qualifications: Vec::new(),
+                            path: Vec::new(),
+                        };
+                        self.structural_scalar_fields.insert(
+                            StructuralScalarRuntimeField {
+                                parent: StructuralRuntimePlace::from(&structural_value),
+                                field,
+                            },
+                            TerminalScalarValue::Integer { scalar_type, value },
+                        );
+                        self.structural_values
+                            .insert(result.place, structural_value);
+                        self.live_affine_frontier.insert(StructuralAffineDiscard {
+                            place: result.place,
+                            path: Vec::new(),
+                            structural_type: result.structural_type,
+                        });
+                    }
                     OperationKind::CallUnit {
                         callee,
                         structural_arguments,

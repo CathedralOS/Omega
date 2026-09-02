@@ -32,8 +32,8 @@ use super::{
         decode_scalar_structural_scalar_field_store, encode_scalar_structural_scalar_field_store,
     },
     unit_scalar_codec::{
-        decode_unit_integer_constants, decode_unit_scalar_homes, encode_unit_integer_constants,
-        encode_unit_scalar_homes,
+        decode_unit_affine_scalar_records, decode_unit_integer_constants, decode_unit_scalar_homes,
+        encode_unit_affine_scalar_records, encode_unit_integer_constants, encode_unit_scalar_homes,
     },
     unit_structural_scalar_field_store_codec::{
         decode_unit_structural_scalar_field_stores, encode_unit_structural_scalar_field_stores,
@@ -87,6 +87,7 @@ pub(super) fn encode_functions(
         encode_parameter_homes(bytes, &function.unit_parameter_homes)?;
         encode_unit_scalar_homes(bytes, &function.unit_scalar_homes)?;
         encode_unit_integer_constants(bytes, &function.unit_integer_constants)?;
+        encode_unit_affine_scalar_records(bytes, &function.unit_affine_scalar_records)?;
         encode_unit_structural_scalar_field_stores(
             bytes,
             &function.unit_structural_scalar_field_stores,
@@ -199,6 +200,7 @@ pub(super) fn decode_functions(
         let unit_parameter_homes = decode_unit_parameter_homes(reader)?;
         let unit_scalar_homes = decode_unit_scalar_homes(reader)?;
         let unit_integer_constants = decode_unit_integer_constants(reader)?;
+        let unit_affine_scalar_records = decode_unit_affine_scalar_records(reader)?;
         let unit_structural_scalar_field_stores =
             decode_unit_structural_scalar_field_stores(reader)?;
         let scalar_structural_scalar_field_store =
@@ -222,6 +224,7 @@ pub(super) fn decode_functions(
             unit_parameter_homes,
             unit_scalar_homes,
             unit_integer_constants,
+            unit_affine_scalar_records,
             unit_structural_scalar_field_stores,
             scalar_structural_scalar_field_store,
             unit_affine_cleanup: match reader.u8()? {

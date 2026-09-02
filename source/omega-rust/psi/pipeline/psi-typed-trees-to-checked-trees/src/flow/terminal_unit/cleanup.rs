@@ -993,6 +993,7 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
             state,
             &structural_parameters,
             &[],
+            &[],
             &entry_claims,
             call,
             true,

@@ -38,6 +38,7 @@ pub(crate) fn operation_scalar_types_match(
         O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishAffineScalarRecord { .. }
         | O::PortWrite { .. }
         | O::BooleanStructuralField { .. }
         | O::ReturnUnit { .. }

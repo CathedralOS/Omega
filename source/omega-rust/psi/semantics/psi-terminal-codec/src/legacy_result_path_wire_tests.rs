@@ -85,7 +85,7 @@ fn v56_v59_reconstructs_absent_result_path_rosters_as_current_empty_rows() {
     assert_eq!(decode_module(&legacy), Ok(module.clone()));
 
     let current = encode_module(&module).expect("current result-path bytes");
-    assert_eq!(&current[8..10], &69_u16.to_le_bytes());
+    assert_eq!(&current[8..10], &70_u16.to_le_bytes());
     assert_eq!(&current[10..12], &72_u16.to_le_bytes());
 
     let mut crossed_pair = legacy;

@@ -1786,6 +1786,12 @@ pub enum OperationKind {
     EstablishTrivialAffineLocal {
         destination: PlaceId,
     },
+    /// Atomically establish one complete owned-affine record local from its
+    /// single fixed-width scalar field.
+    EstablishAffineScalarRecord {
+        field: StructuralFieldId,
+        value: IntegerValue,
+    },
     /// Invoke one in-module machine with positional scalar arguments. Each
     /// callee `requires` clause has the obligation identity at the same index;
     /// successful return binds the operation result. `crash_continuations`

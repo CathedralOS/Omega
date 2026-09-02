@@ -90,6 +90,11 @@ pub(super) fn encode_block_for_result_paths(
                 writer.u8(37);
                 writer.id(destination);
             }
+            OperationKind::EstablishAffineScalarRecord { field, value } => {
+                writer.u8(51);
+                writer.id(field);
+                encode_integer_value(writer, value);
+            }
             OperationKind::Call {
                 callee,
                 arguments,
@@ -945,6 +950,10 @@ pub(super) fn decode_block_for_result_paths(
             },
             37 => OperationKind::EstablishTrivialAffineLocal {
                 destination: reader.id("PlaceId")?,
+            },
+            51 => OperationKind::EstablishAffineScalarRecord {
+                field: reader.id("StructuralFieldId")?,
+                value: decode_integer_value(reader)?,
             },
             39 => OperationKind::CallStructuralScalar {
                 callee: reader.id("MachineId")?,

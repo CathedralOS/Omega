@@ -119,6 +119,7 @@ pub(super) fn emit(
         forwarded_dynamic_descriptor_calls: Vec::new(),
         unit_scalar_homes: Vec::new(),
         unit_integer_constants: Vec::new(),
+        unit_affine_scalar_records: Vec::new(),
         unit_structural_scalar_field_stores: Vec::new(),
         scalar_structural_scalar_field_store: None,
         unit_affine_cleanup: None,

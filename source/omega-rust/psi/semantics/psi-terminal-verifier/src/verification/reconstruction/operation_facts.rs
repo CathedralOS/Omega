@@ -129,6 +129,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishPayloadlessCase { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::EstablishAffineScalarRecord { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::IntegerStructuralField { .. } => {

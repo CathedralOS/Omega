@@ -22,6 +22,64 @@ use super::instruction_loads::{
 use super::unit_scalar_call_custody::{expected_argument_bytes, validate_source};
 use super::{ObjectError, ObjectScalarCallStack, ObjectUnitCallStack, ObjectUnitStack};
 
+pub(super) fn validate_unit_affine_scalar_records(
+    function: &MachineCodeFunction,
+) -> Result<(), ObjectError> {
+    let invalid = || ObjectError::InvalidInternalUnitCallEvidence(function.machine);
+    let mut operations = std::collections::BTreeSet::new();
+    let mut places = std::collections::BTreeSet::new();
+    for record in &function.unit_affine_scalar_records {
+        let exact_attribution = function
+            .semantic_code_attribution
+            .iter()
+            .filter(|attribution| {
+                attribution.site == SemanticCodeSite::Operation(record.psi_operation)
+                    && attribution.operation_ordinal == record.operation_ordinal
+                    && attribution.byte_count == 0
+            });
+        let exact_use = function
+            .internal_unit_calls
+            .iter()
+            .filter(|call| call.operation_ordinal > record.operation_ordinal)
+            .flat_map(|call| &call.arguments)
+            .filter(|argument| {
+                argument.place == record.result.place
+                    && argument.path.is_empty()
+                    && argument.access == psi_terminal::StructuralAccess::Owned
+                    && argument.root_structural_type == record.result.structural_type
+                    && argument.structural_type == record.result.structural_type
+                    && argument.shape == record.shape
+                    && argument.source.shape == record.shape
+                    && argument.source.locations.is_empty()
+                    && argument.source_byte_offset == 0
+                    && argument.source_home_byte_offset == 0
+            })
+            .count();
+        if !operations.insert(record.psi_operation)
+            || !places.insert(record.result.place)
+            || record.shape != ValueShape::integer(8, 8)
+            || record.result.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+            || !record.result.qualifications.is_empty()
+            || !record.result.projected_qualifications.is_empty()
+            || !record.result.claims.is_empty()
+            || !matches!(record.value, psi_core::IntegerValue::Signed(value)
+                if i64::try_from(value).is_ok())
+            || function
+                .provenance
+                .operations
+                .iter()
+                .filter(|candidate| **candidate == record.psi_operation)
+                .count()
+                != 1
+            || exact_attribution.count() != 1
+            || exact_use != 1
+        {
+            return Err(invalid());
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_mixed_structural_scalar_abi(
     target: NativeTarget,
     function: &MachineCodeFunction,
@@ -587,6 +645,44 @@ pub(super) fn validate_internal_unit_call_custody(
                                 .count()
                                 == 1
                     });
+                let affine_scalar_record_source = function
+                    .unit_affine_scalar_records
+                    .iter()
+                    .find(|record| record.result.place == argument.place)
+                    .is_some_and(|record| {
+                        record.operation_ordinal < custody.operation_ordinal
+                            && record.shape == ValueShape::integer(8, 8)
+                            && record.result.structural_type == argument.structural_type
+                            && argument.path.is_empty()
+                            && argument.access == psi_terminal::StructuralAccess::Owned
+                            && argument.root_structural_type == argument.structural_type
+                            && argument.shape == record.shape
+                            && argument.source.shape == record.shape
+                            && argument.source.locations.is_empty()
+                            && argument.source_home_byte_offset == 0
+                            && record.result.multiplicity
+                                == psi_terminal::StructuralMultiplicity::Affine
+                            && record.result.qualifications.is_empty()
+                            && record.result.projected_qualifications.is_empty()
+                            && record.result.claims.is_empty()
+                            && matches!(record.value, psi_core::IntegerValue::Signed(value)
+                                if i64::try_from(value).is_ok())
+                            && provenance
+                                .operations
+                                .iter()
+                                .position(|candidate| candidate == &record.psi_operation)
+                                .is_some_and(|position| position < operation_position)
+                            && internal_unit_calls
+                                .iter()
+                                .flat_map(|call| &call.arguments)
+                                .filter(|candidate| {
+                                    candidate.place == argument.place
+                                        && candidate.path.is_empty()
+                                        && candidate.access == psi_terminal::StructuralAccess::Owned
+                                })
+                                .count()
+                                == 1
+                    });
                 let zero_byte_argument = (parameter_source || local_source)
                     && argument.path.is_empty()
                     && argument.byte_count == 0
@@ -596,7 +692,7 @@ pub(super) fn validate_internal_unit_call_custody(
                     && argument.destination.locations.is_empty();
                 argument.destination != *destination
                     || argument.call_stack_bytes != expected_call_stack_bytes
-                    || (!parameter_source && !local_source)
+                    || (!parameter_source && !local_source && !affine_scalar_record_source)
                     || (argument.byte_count == 0 && !zero_byte_argument)
                     || argument.bytes.len() != argument.byte_count
                     || argument
@@ -606,6 +702,10 @@ pub(super) fn validate_internal_unit_call_custody(
                         != Some(argument.bytes.as_slice())
                     || (!argument.path.is_empty()
                         && expected_projected_copy_bytes(target, argument).as_deref()
+                            != Some(argument.bytes.as_slice()))
+                    || (affine_scalar_record_source
+                        && expected_affine_scalar_record_argument_bytes(target, argument, function)
+                            .as_deref()
                             != Some(argument.bytes.as_slice()))
                     || argument.code_offset < custody.code_offset
                     || argument
@@ -808,6 +908,54 @@ fn validate_mixed_argument_bytes_and_order(
         return Err(invalid());
     }
     Ok(())
+}
+
+fn expected_affine_scalar_record_argument_bytes(
+    target: NativeTarget,
+    argument: &omega_machine_code::InternalUnitCallArgumentRecord,
+    function: &MachineCodeFunction,
+) -> Option<Vec<u8>> {
+    let record = function
+        .unit_affine_scalar_records
+        .iter()
+        .find(|record| record.result.place == argument.place)?;
+    let psi_core::IntegerValue::Signed(value) = record.value else {
+        return None;
+    };
+    let bits = u64::from_le_bytes(i64::try_from(value).ok()?.to_le_bytes());
+    let [
+        omega_calling_conventions::ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size: 8,
+        },
+    ] = argument.destination.locations.as_slice()
+    else {
+        return None;
+    };
+    match target.architecture {
+        Architecture::X86_64 => {
+            let register = x86_terminal_register(*register)?;
+            let mut bytes = vec![0x48 | ((register >> 3) & 1), 0xb8 | (register & 7)];
+            bytes.extend_from_slice(&bits.to_le_bytes());
+            Some(bytes)
+        }
+        Architecture::Aarch64 => {
+            let register = aarch64_terminal_register(*register)?;
+            let mut bytes = Vec::new();
+            for chunk in 0..4 {
+                let immediate = ((bits >> (chunk * 16)) & 0xffff) as u32;
+                if chunk == 0 || immediate != 0 {
+                    let base = if chunk == 0 { 0xd280_0000 } else { 0xf280_0000 };
+                    bytes.extend_from_slice(
+                        &(base | ((chunk as u32) << 21) | (immediate << 5) | u32::from(register))
+                            .to_le_bytes(),
+                    );
+                }
+            }
+            Some(bytes)
+        }
+    }
 }
 
 pub(super) fn expected_projected_copy_bytes(

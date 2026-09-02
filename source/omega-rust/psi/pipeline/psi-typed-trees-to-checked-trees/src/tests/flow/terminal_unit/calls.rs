@@ -6,6 +6,55 @@ use psi_checked_trees::{
 };
 
 #[test]
+fn retains_owned_affine_i64_record_literal_for_direct_unit_call() {
+    let checked = checked(
+        r#"
+        data Packet { value: i64; }
+
+        data Sink {}
+        machine Sink::accept(packet: Packet) {}
+
+        data Root {}
+        machine Root::enter() {
+            let packet: Packet = Packet { value: 7 };
+            Sink::accept(move packet);
+        }
+        "#,
+    );
+    let root = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "Root::enter"))
+        .expect("owned affine scalar-record caller plan");
+    assert!(matches!(
+        root.operations.as_slice(),
+        [
+            CheckedUnitEffectOperationPlan::EstablishAffineScalarRecordLocal {
+                declaration_ordinal: 0,
+                field_identity,
+                value: CheckedScalarExpression::IntegerLiteral { literal },
+                ..
+            },
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            },
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                trivial_affine_local_discard_ordinals,
+                ..
+            }
+        ] if field_identity.ends_with("value")
+            && literal.value_i64() == Some(7)
+            && matches!(structural_arguments.as_slice(), [argument]
+                if argument.source_affine_scalar_record_local_declaration_ordinal() == Some(0)
+                    && argument.path.is_empty()
+                    && argument.access == psi_checked_trees::CheckedStructuralAccess::Owned)
+            && trivial_affine_local_discard_ordinals.is_empty()
+    ));
+}
+
+#[test]
 fn retains_exact_byte_literal_for_static_bodyless_boundary() {
     let checked = checked(
         r#"

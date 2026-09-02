@@ -2228,6 +2228,10 @@ fn initial_linear_places(
                 conditional: claim.conditional,
             });
         }
+        // A claim-free affine aggregate still has whole-root ownership even
+        // when it has runtime fields. Track direct record construction here
+        // so later whole moves and affine cleanup are derived from the same
+        // permission timeline as payloadless affine locals.
         if claims.is_empty()
             && type_multiplicity(program, local.type_reference) == Multiplicity::Affine
             && !local.is_mutable
@@ -2242,10 +2246,6 @@ fn initial_linear_places(
                 program.expression_table.expression(local.initial_value),
                 psi_typed_trees::expression::ExpressionNode::StructLiteral(literal)
                     if literal.case_name.is_none()
-                        && program
-                            .expression_table
-                            .struct_fields(literal.fields)
-                            .is_empty()
             )
         {
             places.push(LinearPlace {

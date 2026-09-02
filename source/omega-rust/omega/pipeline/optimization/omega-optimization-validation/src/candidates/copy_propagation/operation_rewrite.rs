@@ -103,6 +103,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::EstablishPayloadlessCase { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
+        | O::EstablishAffineScalarRecord { .. }
         | O::CallUnit { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
