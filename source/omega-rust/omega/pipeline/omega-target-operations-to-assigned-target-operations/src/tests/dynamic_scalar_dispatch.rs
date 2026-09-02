@@ -15,12 +15,17 @@ fn target_plan(target: NativeTarget) -> omega_target_operations::TargetOperation
     let source = r#"
         trait Measure {
             machine measure(&self) -> i32;
+            machine alternate(&self) -> i32;
         }
 
         data Item { value: i32; }
 
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+
+            machine alternate(&self) -> i32 {
                 transition { _ -> self.value }
             }
         }
@@ -141,9 +146,54 @@ fn assigns_canonical_descriptor_and_distinct_rebound_source() {
         assert_eq!(rebound.path, dynamic.rebound.source.path);
         assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
         assert_eq!(initial.destination, rebound.destination);
-        assert_eq!(
-            dynamic.dispatch.realization,
-            target_plan.functions[1].machine
+        assert_eq!(dynamic.application.rows.len(), 2);
+        assert!(
+            target_plan
+                .functions
+                .iter()
+                .any(|function| function.machine == dynamic.dispatch.realization)
         );
     }
+}
+
+#[test]
+fn rejects_dynamic_call_missing_an_unselected_table_row() {
+    let mut plan = target_plan(NativeTarget::linux_x64());
+    let caller = plan
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("entry caller");
+    let omega_target_operations::TargetOperation::UnitBody(body) = &mut caller.operation else {
+        panic!("dynamic caller must remain an attached Unit body")
+    };
+    let rejected_operation = body
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            omega_target_operations::TargetUnitOperation::DynamicScalarCall {
+                psi_operation,
+                dynamic_dispatch,
+                ..
+            } => {
+                let selected = dynamic_dispatch
+                    .dispatch
+                    .public_requirement_identity
+                    .clone();
+                dynamic_dispatch
+                    .application
+                    .rows
+                    .retain(|row| row.public_requirement_identity == selected);
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .expect("dynamic call");
+    assert!(matches!(
+        assign_registers(&plan),
+        Err(crate::AssignmentError::DynamicScalarCallCustodyMismatch {
+            operation: rejected,
+            ..
+        }) if rejected == rejected_operation
+    ));
 }

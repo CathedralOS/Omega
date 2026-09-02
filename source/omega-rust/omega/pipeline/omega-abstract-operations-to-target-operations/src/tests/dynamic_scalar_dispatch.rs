@@ -14,12 +14,17 @@ fn abstract_plan() -> omega_abstract_operations::AbstractOperationPlan {
     let source = r#"
         trait Measure {
             machine measure(&self) -> i32;
+            machine alternate(&self) -> i32;
         }
 
         data Item { value: i32; }
 
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 {
+                transition { _ -> self.value }
+            }
+
+            machine alternate(&self) -> i32 {
                 transition { _ -> self.value }
             }
         }
@@ -82,7 +87,13 @@ fn lowers_rebound_dynamic_versions_to_one_target_indirect_call() {
         assert_eq!(rebound.path, dynamic.rebound.source.path);
         assert_ne!(initial.source_byte_offset, rebound.source_byte_offset);
         assert_eq!(initial.destination, rebound.destination);
-        assert_eq!(dynamic.dispatch.realization, source.functions[1].machine);
+        assert_eq!(dynamic.application.rows.len(), 2);
+        assert!(
+            source
+                .functions
+                .iter()
+                .any(|function| function.machine == dynamic.dispatch.realization)
+        );
     }
 }
 
@@ -104,6 +115,45 @@ fn rejects_reauthenticated_dynamic_descriptor_substitution() {
                 ..
             } => {
                 dynamic_dispatch.dispatch.descriptor_ordinal += 1;
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .expect("dynamic operation");
+    assert_eq!(
+        lower_to_target_operations(&source, NativeTarget::linux_x64()),
+        Err(LoweringError::InvalidDynamicScalarDispatch {
+            machine: source.entry,
+            operation: rejected_operation,
+        })
+    );
+}
+
+#[test]
+fn rejects_dynamic_call_missing_an_unselected_table_row() {
+    let mut source = abstract_plan();
+    let caller = source
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == source.entry)
+        .expect("entry caller");
+    let rejected_operation = caller
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallDynamicScalar {
+                psi_operation,
+                dynamic_dispatch,
+                ..
+            } => {
+                let selected = dynamic_dispatch
+                    .dispatch
+                    .public_requirement_identity
+                    .clone();
+                dynamic_dispatch
+                    .application
+                    .rows
+                    .retain(|row| row.public_requirement_identity == selected);
                 Some(*psi_operation)
             }
             _ => None,

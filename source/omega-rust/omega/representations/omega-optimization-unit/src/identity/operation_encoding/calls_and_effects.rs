@@ -70,6 +70,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u32(dynamic_dispatch.descriptor.ordinal);
             bytes.u32(dynamic_dispatch.descriptor.initial_selection_ordinal);
             bytes.u32(dynamic_dispatch.descriptor.rebound_selection_ordinal);
+            encode_closed_conformance_application(bytes, &dynamic_dispatch.application);
             bytes.id(dynamic_dispatch.dispatch.owner);
             bytes.id(dynamic_dispatch.dispatch.operation);
             bytes.u32(dynamic_dispatch.dispatch.descriptor_ordinal);
@@ -165,4 +166,54 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         }
         _ => unreachable!("operation family routing admitted a non-call operation"),
     }
+}
+
+fn encode_closed_conformance_application(
+    bytes: &mut CanonicalBytes,
+    application: &psi_terminal::ClosedConformanceApplication,
+) {
+    bytes.id(application.owner);
+    bytes.string(&application.declaration_identity);
+    bytes.slice(&application.telescope, |bytes, binding| {
+        bytes.string(&binding.parameter);
+        bytes.u8(match binding.kind {
+            psi_terminal::ClosedConformanceParameterKind::Lifetime => 1,
+            psi_terminal::ClosedConformanceParameterKind::Type => 2,
+            psi_terminal::ClosedConformanceParameterKind::Const => 3,
+            psi_terminal::ClosedConformanceParameterKind::Machine => 4,
+        });
+        bytes.string(&binding.argument);
+    });
+    bytes.boolean(application.subject_identity.is_some());
+    if let Some(subject) = &application.subject_identity {
+        bytes.string(subject);
+    }
+    bytes.string(&application.trait_identity);
+    bytes.slice(&application.trait_lifetime_arguments, |bytes, argument| {
+        bytes.string(argument);
+    });
+    bytes.slice(&application.trait_arguments, |bytes, argument| {
+        bytes.string(argument);
+    });
+    bytes.slice(&application.realization_callables, |bytes, callable| {
+        bytes.string(&callable.source_callable_identity);
+        bytes.id(callable.machine);
+        bytes.u8(match callable.result {
+            psi_terminal::ClosedConformanceCallableResult::Unit => 1,
+            psi_terminal::ClosedConformanceCallableResult::I32 => 2,
+            psi_terminal::ClosedConformanceCallableResult::Bool => 3,
+        });
+    });
+    bytes.slice(&application.rows, |bytes, row| {
+        bytes.string(&row.declaring_trait_identity);
+        bytes.string(&row.public_requirement_identity);
+        bytes.string(&row.requirement_identity);
+        bytes.string(&row.realization_identity);
+        bytes.boolean(row.realization_callable_identity.is_some());
+        if let Some(identity) = &row.realization_callable_identity {
+            bytes.string(identity);
+        }
+    });
+    bytes.u64(application.report_fingerprint);
+    bytes.bytes(&application.commitment.as_bytes());
 }

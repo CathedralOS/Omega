@@ -30,29 +30,9 @@ pub(super) fn lower_dynamic_scalar_call(
     else {
         unreachable!("dynamic scalar lowering receives only dynamic calls")
     };
-    let descriptor = &dynamic_dispatch.descriptor;
     let dispatch = &dynamic_dispatch.dispatch;
     if function.attachment.is_none()
-        || descriptor.owner != function.machine
-        || dispatch.owner != function.machine
-        || dispatch.operation != *psi_operation
-        || dispatch.descriptor_ordinal != descriptor.ordinal
-        || dynamic_dispatch.initial.owner != function.machine
-        || dynamic_dispatch.rebound.owner != function.machine
-        || dynamic_dispatch.initial.ordinal != descriptor.initial_selection_ordinal
-        || dynamic_dispatch.rebound.ordinal != descriptor.rebound_selection_ordinal
-        || dynamic_dispatch.initial.conformance_application_report_fingerprint
-            != dynamic_dispatch
-                .rebound
-                .conformance_application_report_fingerprint
-        || dynamic_dispatch.initial.conformance_application_commitment
-            != dynamic_dispatch
-                .rebound
-                .conformance_application_commitment
-        || dynamic_dispatch
-            .initial
-            .conformance_application_commitment
-            .is_zero()
+        || !dynamic_dispatch.has_complete_application_custody(function.machine, *psi_operation)
     {
         return Err(LoweringError::InvalidDynamicScalarDispatch {
             machine: function.machine,
