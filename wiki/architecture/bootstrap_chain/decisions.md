@@ -1709,11 +1709,15 @@ the verifier reconstructs the public meaning. Direct owning-machine parameter
 and result carriers rejoin their exact artifact declarations. A Terminal-only
 non-call operation-result carrier additionally retains exact owner, producer
 operation, declared scalar result, and format identity and is independently
-rejoined to the operation table. Call results remain a distinct source class.
-Its checked/source producer remains transitional until an
-expression-to-Terminal-operation correspondence exists. Other landed source
-forms remain explicitly transitional until their artifact-relative carriers
-exist.
+rejoined to the operation table. A separate Terminal-only block-parameter
+carrier retains exact owner, block, direct scalar parameter, and format
+identity and cannot be substituted by another value-declaration class. Call
+results remain a distinct source class. The operation-result checked/source
+producer remains transitional until an expression-to-Terminal-operation
+correspondence exists; block-parameter source production remains transitional
+until nested-state contract identity is proven to the emitted block coordinate.
+Other landed source forms remain explicitly transitional until their artifact-
+relative carriers exist.
 
 Source admission now recognizes the projection declaration only when its
 resolved symbol has the exact toolchain-owned `Float::meaning32` or
@@ -1726,8 +1730,8 @@ projection rows now carry the rooted-checker tuple `(format, operation,
 declaration, catalog-version)` and a domain-separated commitment to the exact
 owners, hermetic identity, private contract-free ordinary signature, source
 carrier, and nominal result. Independent replay rejects component or
-commitment drift. Artifact-aware contract/result, Terminal-value, and
-structural-leaf source coordinates remain separate engineering.
+commitment drift. Artifact-aware contract/result, remaining Terminal-value,
+and structural-leaf source coordinates remain separate engineering.
 
 The compiler canonicalizes equal tuples to one proof value before equality is
 formed. Multiple authored occurrences may therefore reference the same

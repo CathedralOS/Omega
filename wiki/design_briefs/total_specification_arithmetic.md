@@ -237,10 +237,16 @@ machine-result, parameter, block-parameter, owner, producer, value, or format
 substitution reject. Neither artifact carrier widens execution, fuel,
 interpreter behavior, or native float support. Checked/source production for
 operation results remains transitional because no expression-to-Terminal-
-operation correspondence is retained. Nested state and call results, arbitrary
-Terminal values, structural leaves, locals, members, casts, const parameters,
-non-floats, foreign-owner sources, and other nonliteral forms remain
-transitional rather than production proof-ledger evidence.
+operation correspondence is retained. A separate Terminal-only block-parameter
+carrier retains exact `(owner MachineId, block BlockId, parameter ValueId,
+format)` identity and independently rejoins the direct scalar parameter table
+of that block. Machine parameters, machine results, and operation results
+cannot substitute. Source production remains transitional until a nested-state
+contract is proven to the emitted block coordinate. Nested-state results and
+call results, other arbitrary Terminal values, structural leaves, locals,
+members, casts, const parameters, non-floats, foreign-owner sources, and other
+nonliteral forms remain transitional rather than production proof-ledger
+evidence.
 
 ## Crash routes
 

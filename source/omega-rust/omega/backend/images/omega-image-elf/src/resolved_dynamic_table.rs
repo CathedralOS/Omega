@@ -1,10 +1,10 @@
 //! Applied internal address fixups for the ELF64-LSB `.dynamic` payload.
 //!
 //! This layer consumes the placed section-header owner, copies the exact
-//! indexed `.dynamic` bytes, and resolves only the seven retained address
+//! indexed `.dynamic` bytes, and resolves only the eight retained address
 //! obligations against their exact allocated section placements. It does not
 //! modify any upstream bytes or the retained `FinalImage`, resolve procedure
-//! or source relocations, serialize ELF/program headers, add `.gnu.hash`, or
+//! or source relocations, serialize ELF/program headers, or
 //! claim loader or runnable-image authority.
 
 use crate::dynamic_tag_bytes::{ElfDynamicPayloadFixupKind, ValidatedElfDynamicTablePayload};
@@ -22,14 +22,15 @@ use psi_diagnostics::Diagnostic;
 const ELF64_DYNAMIC_ROW_SIZE: usize = 16;
 const ELF64_DYNAMIC_VALUE_OFFSET: usize = 8;
 const ELF64_DYNAMIC_VALUE_SIZE: u8 = 8;
-const DYNAMIC_SECTION_INDEX: u32 = 10;
-const DYNAMIC_FIXUP_COUNT: usize = 7;
+const DYNAMIC_SECTION_INDEX: u32 = 11;
+const DYNAMIC_FIXUP_COUNT: usize = 8;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 const EXPECTED_TARGETS: [ElfDynamicAddressApplicationTarget; DYNAMIC_FIXUP_COUNT] = [
     ElfDynamicAddressApplicationTarget::ProcedureGot,
     ElfDynamicAddressApplicationTarget::SystemVHash,
+    ElfDynamicAddressApplicationTarget::GnuHash,
     ElfDynamicAddressApplicationTarget::DynamicString,
     ElfDynamicAddressApplicationTarget::DynamicSymbol,
     ElfDynamicAddressApplicationTarget::ProcedureRelocation,
@@ -55,6 +56,7 @@ pub enum ElfDynamicAddressApplicationTarget {
     ProcedureRelocation = 5,
     GnuSymbolVersion = 6,
     GnuVersionRequirement = 7,
+    GnuHash = 8,
 }
 
 /// One exact address application retained beside the resulting `.dynamic`
@@ -110,7 +112,7 @@ impl ElfAppliedDynamicAddress {
     }
 }
 
-/// Independently replayed `.dynamic` payload with all seven internal address
+/// Independently replayed `.dynamic` payload with all eight internal address
 /// fields resolved.
 ///
 /// This non-clone carrier retains the complete placed-section-header and load-
@@ -201,7 +203,7 @@ struct CandidateValidationError {
     diagnostic: Diagnostic,
 }
 
-/// Apply the exact seven indexed `.dynamic` address fixups from the retained
+/// Apply the exact eight indexed `.dynamic` address fixups from the retained
 /// absolute section layout.
 pub fn apply_elf_dynamic_address_fixups(
     placed_section_headers: ValidatedElfPlacedSectionHeaderTable,
@@ -237,7 +239,7 @@ fn derive_contents(
     let source = dynamic_row(indexed)?;
     require(
         indexed.contents().dynamic_fixups.len() == DYNAMIC_FIXUP_COUNT,
-        "internal ELF dynamic application requires exactly seven indexed fixups",
+        "internal ELF dynamic application requires exactly eight indexed fixups",
     )?;
     let mut bytes = source.bytes.clone();
     let mut applications = Vec::with_capacity(DYNAMIC_FIXUP_COUNT);
@@ -359,7 +361,7 @@ fn validate_contents(
             && serialized_fixups.len() == DYNAMIC_FIXUP_COUNT
             && semantic.address_obligations.len() == DYNAMIC_FIXUP_COUNT
             && contents.applications.len() == DYNAMIC_FIXUP_COUNT,
-        "resolved ELF dynamic table does not retain exactly seven applications",
+        "resolved ELF dynamic table does not retain exactly eight applications",
     )?;
     require(
         contents.bytes.len() == source.bytes.len(),
@@ -541,6 +543,7 @@ const fn public_target(target: ElfDynamicAddressTarget) -> ElfDynamicAddressAppl
     match target {
         ElfDynamicAddressTarget::ProcedureGot => ElfDynamicAddressApplicationTarget::ProcedureGot,
         ElfDynamicAddressTarget::SystemVHash => ElfDynamicAddressApplicationTarget::SystemVHash,
+        ElfDynamicAddressTarget::GnuHash => ElfDynamicAddressApplicationTarget::GnuHash,
         ElfDynamicAddressTarget::DynamicString => ElfDynamicAddressApplicationTarget::DynamicString,
         ElfDynamicAddressTarget::DynamicSymbol => ElfDynamicAddressApplicationTarget::DynamicSymbol,
         ElfDynamicAddressTarget::ProcedureRelocation => {
@@ -557,11 +560,12 @@ const fn public_target(target: ElfDynamicAddressTarget) -> ElfDynamicAddressAppl
 
 const fn target_section_index(target: ElfDynamicAddressApplicationTarget) -> u32 {
     match target {
-        ElfDynamicAddressApplicationTarget::ProcedureGot => 8,
+        ElfDynamicAddressApplicationTarget::ProcedureGot => 9,
         ElfDynamicAddressApplicationTarget::SystemVHash => 4,
+        ElfDynamicAddressApplicationTarget::GnuHash => 7,
         ElfDynamicAddressApplicationTarget::DynamicString => 2,
         ElfDynamicAddressApplicationTarget::DynamicSymbol => 3,
-        ElfDynamicAddressApplicationTarget::ProcedureRelocation => 9,
+        ElfDynamicAddressApplicationTarget::ProcedureRelocation => 10,
         ElfDynamicAddressApplicationTarget::GnuSymbolVersion => 5,
         ElfDynamicAddressApplicationTarget::GnuVersionRequirement => 6,
     }
@@ -575,6 +579,7 @@ const fn target_section_kind(
             ElfPlacedDynamicSectionKind::ProcedureGot
         }
         ElfDynamicAddressApplicationTarget::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
+        ElfDynamicAddressApplicationTarget::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
         ElfDynamicAddressApplicationTarget::DynamicString => {
             ElfPlacedDynamicSectionKind::DynamicString
         }
@@ -597,6 +602,7 @@ const fn target_tag(target: ElfDynamicAddressApplicationTarget) -> ElfDynamicTag
     match target {
         ElfDynamicAddressApplicationTarget::ProcedureGot => ElfDynamicTag::ProcedureGot,
         ElfDynamicAddressApplicationTarget::SystemVHash => ElfDynamicTag::SystemVHash,
+        ElfDynamicAddressApplicationTarget::GnuHash => ElfDynamicTag::GnuHash,
         ElfDynamicAddressApplicationTarget::DynamicString => ElfDynamicTag::DynamicString,
         ElfDynamicAddressApplicationTarget::DynamicSymbol => ElfDynamicTag::DynamicSymbol,
         ElfDynamicAddressApplicationTarget::ProcedureRelocation => {
@@ -882,10 +888,10 @@ mod tests {
     }
 
     #[test]
-    fn both_linux_targets_apply_exact_seven_target_virtual_addresses() {
+    fn both_linux_targets_apply_exact_eight_target_virtual_addresses() {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let resolved = apply_elf_dynamic_address_fixups(standard_placed(target)).unwrap();
-            assert_eq!(resolved.applied_addresses().len(), 7);
+            assert_eq!(resolved.applied_addresses().len(), 8);
             assert_ne!(
                 resolved.non_authoritative_resolved_compatibility_fingerprint(),
                 0
@@ -900,7 +906,7 @@ mod tests {
             );
             let layout = resolved.placed_section_headers().load_layout();
             for application in resolved.applied_addresses() {
-                assert_eq!(application.storage_section_index(), 10);
+                assert_eq!(application.storage_section_index(), 11);
                 assert_eq!(application.byte_width(), 8);
                 assert_eq!(
                     application.kind(),
@@ -928,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn exactly_fifty_six_mutable_bytes_change_and_every_other_byte_is_preserved() {
+    fn exactly_sixty_four_mutable_bytes_change_and_every_other_byte_is_preserved() {
         let resolved =
             apply_elf_dynamic_address_fixups(standard_placed(TargetProfile::LinuxX64)).unwrap();
         let indexed = indexed_payloads(resolved.placed_section_headers());
@@ -938,7 +944,7 @@ mod tests {
             let end = application.byte_offset() + usize::from(application.byte_width());
             mutable[application.byte_offset()..end].fill(true);
         }
-        assert_eq!(mutable.iter().filter(|byte| **byte).count(), 56);
+        assert_eq!(mutable.iter().filter(|byte| **byte).count(), 64);
         for (offset, (&actual, &upstream)) in resolved.bytes().iter().zip(&source.bytes).enumerate()
         {
             if mutable[offset] {
@@ -1044,8 +1050,8 @@ mod tests {
         validate_candidate(sibling).expect_err("valid sibling target substitution must reject");
 
         let mut file_only = candidate(TargetProfile::LinuxX64);
-        let shstrtab = file_only.placed_section_headers.load_layout().sections()[11];
-        file_only.contents.applications[0].target_section_index = 11;
+        let shstrtab = file_only.placed_section_headers.load_layout().sections()[12];
+        file_only.contents.applications[0].target_section_index = 12;
         file_only.contents.applications[0].target_section_kind =
             ElfPlacedDynamicSectionKind::SectionNameTable;
         file_only.contents.applications[0].value = shstrtab.file_offset();

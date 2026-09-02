@@ -1506,7 +1506,18 @@ as `[17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and the
 verifier, codec, interpreter, Omega lowering, native emission, object/image
 replay, and installation encoding retain the common root plus exact nineteen
 fuel units. Missing/reordered operations or cleanup, changed indices/root
-length, and length-twenty or wider prefixes reject; no runtime liveness bitmap
+length, and other prefix drift reject; no runtime liveness bitmap or cleanup
+loop is introduced.
+
+The next bounded carrier admits the same shape at length twenty with
+establishments
+`[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]`. Terminal
+publishes nineteen ordered zero-ABI local places, the Unit return discards them
+as `[18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]`, and
+the verifier, codec, interpreter, Omega lowering, native emission, object/image
+replay, and installation encoding retain the common root plus exact twenty fuel
+units. Missing/reordered operations or cleanup, changed indices/root length,
+and length-twenty-one or wider prefixes reject; no runtime liveness bitmap
 or cleanup loop is introduced.
 
 The nominal-cleanup slice accepts one root-only, one-state Unit machine with a
@@ -3700,9 +3711,15 @@ owner and producer, requires that operation to declare the exact primitive
 substitution by machine results, parameters, or block parameters. Equal tuples deduplicate;
 the operation-result source class remains distinct from machine parameter and
 result classes. Checked/source production does not emit this carrier yet because
-it has no retained expression-to-Terminal-operation correspondence. Nested state
-and call results, arbitrary Terminal values, structural leaves, and every other
-nonliteral source remain transitional.
+it has no retained expression-to-Terminal-operation correspondence. A distinct
+Terminal-only block-parameter source retains exact owner machine, block,
+direct scalar parameter, and IEEE format. Independent validation requires the
+unique block in that owner and exact membership in its parameter table;
+machine parameters, machine results, and operation results cannot substitute.
+Source production remains transitional until nested-state contract identity is
+proven to that block coordinate. Nested-state results and call results, other
+arbitrary Terminal values, structural leaves, and every other nonliteral source
+remain transitional.
 The source-side exit checker admits the owning direct-result reflexivity form
 only after the exact authored `ensures` expression rejoins the checked
 `FloatMeaningEqual` row, both operands share one canonical proof value, and

@@ -8,7 +8,7 @@
 //! upstream custody chain.
 //!
 //! These resolved byte regions remain fragments. This layer does not place
-//! them into one file, mutate the retained `FinalImage`, add `.gnu.hash`,
+//! them into one file, mutate the retained `FinalImage`,
 //! publish bytes, or grant loader or runnable-image authority.
 
 use crate::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
@@ -254,19 +254,19 @@ fn derive_contents(
         source_text_bytes: load_layout(envelope).retained_image().memory.text.clone(),
         procedure_linkage_bytes: indexed_row_bytes(
             payloads,
-            7,
+            8,
             ElfDynamicRosterSectionKind::ProcedureLinkage,
         )?
         .to_vec(),
         procedure_got_bytes: indexed_row_bytes(
             payloads,
-            8,
+            9,
             ElfDynamicRosterSectionKind::ProcedureGot,
         )?
         .to_vec(),
         procedure_relocation_bytes: indexed_row_bytes(
             payloads,
-            9,
+            10,
             ElfDynamicRosterSectionKind::ProcedureRelocation,
         )?
         .to_vec(),
@@ -363,14 +363,14 @@ fn validate_contents(
         contents.source_text_bytes.len()
             == load_layout(envelope).retained_image().memory.text.len()
             && contents.procedure_linkage_bytes.len()
-                == indexed_row_bytes(payloads, 7, ElfDynamicRosterSectionKind::ProcedureLinkage)?
+                == indexed_row_bytes(payloads, 8, ElfDynamicRosterSectionKind::ProcedureLinkage)?
                     .len()
             && contents.procedure_got_bytes.len()
-                == indexed_row_bytes(payloads, 8, ElfDynamicRosterSectionKind::ProcedureGot)?.len()
+                == indexed_row_bytes(payloads, 9, ElfDynamicRosterSectionKind::ProcedureGot)?.len()
             && contents.procedure_relocation_bytes.len()
                 == indexed_row_bytes(
                     payloads,
-                    9,
+                    10,
                     ElfDynamicRosterSectionKind::ProcedureRelocation,
                 )?
                 .len(),
@@ -771,14 +771,14 @@ fn upstream_storage_bytes(
             Ok(&load_layout(envelope).retained_image().memory.text)
         }
         ElfAppliedProcedureLinkageStorage::ProcedureLinkage => {
-            indexed_row_bytes(payloads, 7, ElfDynamicRosterSectionKind::ProcedureLinkage)
+            indexed_row_bytes(payloads, 8, ElfDynamicRosterSectionKind::ProcedureLinkage)
         }
         ElfAppliedProcedureLinkageStorage::ProcedureGot => {
-            indexed_row_bytes(payloads, 8, ElfDynamicRosterSectionKind::ProcedureGot)
+            indexed_row_bytes(payloads, 9, ElfDynamicRosterSectionKind::ProcedureGot)
         }
         ElfAppliedProcedureLinkageStorage::ProcedureRelocation => indexed_row_bytes(
             payloads,
-            9,
+            10,
             ElfDynamicRosterSectionKind::ProcedureRelocation,
         ),
     }
@@ -946,6 +946,7 @@ const fn public_section_kind(kind: ElfDynamicRosterSectionKind) -> ElfPlacedDyna
         ElfDynamicRosterSectionKind::DynamicString => ElfPlacedDynamicSectionKind::DynamicString,
         ElfDynamicRosterSectionKind::DynamicSymbol => ElfPlacedDynamicSectionKind::DynamicSymbol,
         ElfDynamicRosterSectionKind::SystemVHash => ElfPlacedDynamicSectionKind::SystemVHash,
+        ElfDynamicRosterSectionKind::GnuHash => ElfPlacedDynamicSectionKind::GnuHash,
         ElfDynamicRosterSectionKind::GnuSymbolVersion => {
             ElfPlacedDynamicSectionKind::GnuSymbolVersion
         }

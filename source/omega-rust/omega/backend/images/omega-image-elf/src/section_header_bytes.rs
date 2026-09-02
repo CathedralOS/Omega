@@ -19,9 +19,9 @@ const ELF64_SECTION_HEADER_SIZE: usize = 64;
 const ELF64_SECTION_ADDRESS_OFFSET: usize = 16;
 const ELF64_SECTION_FILE_OFFSET: usize = 24;
 const ELF64_PLACEMENT_FIELD_SIZE: u8 = 8;
-const SECTION_COUNT: usize = 12;
-const FILE_OFFSET_FIXUP_COUNT: usize = 11;
-const VIRTUAL_ADDRESS_FIXUP_COUNT: usize = 10;
+const SECTION_COUNT: usize = 13;
+const FILE_OFFSET_FIXUP_COUNT: usize = 12;
+const VIRTUAL_ADDRESS_FIXUP_COUNT: usize = 11;
 const PLACEMENT_FIXUP_COUNT: usize = FILE_OFFSET_FIXUP_COUNT + VIRTUAL_ADDRESS_FIXUP_COUNT;
 const SHF_ALLOC: u64 = 0x2;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
@@ -155,7 +155,7 @@ struct CandidateValidationError {
     diagnostic: Diagnostic,
 }
 
-/// Serialize the exact numeric roster as twelve 64-byte ELF64-LSB section
+/// Serialize the exact numeric roster as thirteen 64-byte ELF64-LSB section
 /// headers with zero placement placeholders and typed fixup coordinates.
 ///
 /// This does not resolve a fixup, choose `sh_addr`, `sh_offset`, or `e_shoff`,
@@ -290,7 +290,7 @@ fn validate_contents(
 ) -> Result<(), Diagnostic> {
     require(
         roster.section_count() == SECTION_COUNT,
-        "ELF section-header serialization requires the exact twelve-row roster",
+        "ELF section-header serialization requires the exact thirteen-row roster",
     )?;
     let decoded = decode_rows(&contents.bytes, roster.section_count())?;
     require(
@@ -402,7 +402,7 @@ fn validate_fixups(
 ) -> Result<(), Diagnostic> {
     require(
         fixups.len() == PLACEMENT_FIXUP_COUNT,
-        "ELF section-header placement-fixup count is not exactly twenty-one",
+        "ELF section-header placement-fixup count is not exactly twenty-three",
     )?;
     let allocated_count = rows
         .iter()
@@ -410,7 +410,7 @@ fn validate_fixups(
         .count();
     require(
         allocated_count == VIRTUAL_ADDRESS_FIXUP_COUNT,
-        "ELF section-header roster does not own exactly ten allocated rows",
+        "ELF section-header roster does not own exactly eleven allocated rows",
     )?;
 
     let mut expected_ordinal = 0usize;
@@ -747,27 +747,28 @@ mod tests {
     }
 
     #[test]
-    fn both_targets_serialize_exact_rows_and_twenty_one_zero_fixups() {
+    fn both_targets_serialize_exact_rows_and_twenty_three_zero_fixups() {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let template = serialize_elf_section_header_table(roster(target, &IMPORTS))
                 .expect("validated section-header template");
-            assert_eq!(template.row_count(), 12);
-            assert_eq!(template.byte_count(), 768);
-            assert_eq!(template.placement_fixup_count(), 21);
+            assert_eq!(template.row_count(), 13);
+            assert_eq!(template.byte_count(), 832);
+            assert_eq!(template.placement_fixup_count(), 23);
             assert_eq!(row(&template.contents.bytes, 0), &[0; 64]);
 
-            let decoded = decode_rows(&template.contents.bytes, 12).unwrap();
+            let decoded = decode_rows(&template.contents.bytes, 13).unwrap();
             assert_eq!(decoded[3].name_offset, 17);
             assert_eq!(decoded[3].section_type, 11);
             assert_eq!(decoded[3].flags, 2);
             assert_eq!(decoded[3].payload_size, 72);
             assert_eq!((decoded[3].link, decoded[3].info), (2, 1));
             assert_eq!((decoded[3].alignment, decoded[3].entry_size), (8, 24));
-            assert_eq!((decoded[9].link, decoded[9].info), (3, 8));
-            assert_eq!(decoded[10].link, 2);
-            assert_eq!(decoded[11].name_offset, 59);
-            assert_eq!(decoded[11].payload_size, 102);
-            assert_eq!((decoded[11].address, decoded[11].file_offset), (0, 0));
+            assert_eq!((decoded[7].section_type, decoded[7].link), (0x6fff_fff6, 3));
+            assert_eq!((decoded[10].link, decoded[10].info), (3, 9));
+            assert_eq!(decoded[11].link, 2);
+            assert_eq!(decoded[12].name_offset, 59);
+            assert_eq!(decoded[12].payload_size, 112);
+            assert_eq!((decoded[12].address, decoded[12].file_offset), (0, 0));
             assert_ne!(
                 template.non_authoritative_template_compatibility_fingerprint(),
                 0
@@ -791,15 +792,15 @@ mod tests {
             },
         );
         assert_eq!(template.contents.placement_fixups[1].byte_offset, 88);
-        assert_eq!(template.contents.placement_fixups[18].row_index, 10);
-        assert_eq!(template.contents.placement_fixups[18].byte_offset, 656);
-        assert_eq!(template.contents.placement_fixups[19].byte_offset, 664);
+        assert_eq!(template.contents.placement_fixups[20].row_index, 11);
+        assert_eq!(template.contents.placement_fixups[20].byte_offset, 720);
+        assert_eq!(template.contents.placement_fixups[21].byte_offset, 728);
         assert_eq!(
-            template.contents.placement_fixups[20],
+            template.contents.placement_fixups[22],
             ElfSectionHeaderPlacementFixup {
-                row_index: 11,
+                row_index: 12,
                 section_kind: ElfDynamicRosterSectionKind::SectionNameTable,
-                byte_offset: 728,
+                byte_offset: 792,
                 byte_width: 8,
                 kind: ElfSectionHeaderPlacementFixupKind::FileOffset,
             },
@@ -813,7 +814,7 @@ mod tests {
                     fixup.kind == ElfSectionHeaderPlacementFixupKind::VirtualAddress
                 })
                 .count(),
-            10,
+            11,
         );
         assert!(template.contents.placement_fixups.iter().all(|fixup| {
             read_u64(

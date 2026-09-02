@@ -8,19 +8,19 @@ use psi_core::{ContentProjectionIdentity, IeeeFloatFormat};
 use psi_terminal::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
-    ClosedConformanceParameterKind, ClosedConformanceRow, DirectMachineFloatParameter,
-    DirectMachineFloatResult, DirectOperationFloatResult, EvidenceContractLane,
-    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
-    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
-    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
-    StructuralDomainDeclaration, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
-    TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule, TerminalPlacedViewInput,
-    TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
-    TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
-    TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
+    ClosedConformanceParameterKind, ClosedConformanceRow, DirectBlockFloatParameter,
+    DirectMachineFloatParameter, DirectMachineFloatResult, DirectOperationFloatResult,
+    EvidenceContractLane, EvidenceContractLaneKind, EvidenceTermDeclaration,
+    FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+    FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency,
+    ProofOnlyValueType, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
+    ProofOutputRuntimeCall, ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration,
+    ProofValueId, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
+    StructuralContentProjection, StructuralDomainDeclaration, TerminalBorrowBoundarySource,
+    TerminalBorrowOwnerSegment, TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule,
+    TerminalPlacedViewInput, TerminalProofRankingRelation, TerminalProofRecursiveCallSite,
+    TerminalProofRecursiveComponent, TerminalProofRecursiveEdge, TerminalProofRecursiveField,
+    TerminalProofRecursiveMember, TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
     TerminalReborrowRestorationClass, TerminalReborrowRestoredCallUse, TerminalReborrowRootHandoff,
     TerminalReborrowRootHandoffStep, TerminalReborrowSharedCohortMember, TerminalRootServiceReach,
     VocabularyMarker,
@@ -668,13 +668,15 @@ fn encode_raw_for_result_paths(
         module.float_meaning_projections.len(),
     )?;
     for projection in &module.float_meaning_projections {
-        if result_path_format == ResultPathWireFormat::LegacyWithoutResultPaths
-            && matches!(
-                projection.source,
-                FloatMeaningSource::DirectOperationResult(_)
-            )
-        {
-            return Err(CodecError::InvalidTag("legacy FloatMeaningSource", 6));
+        if result_path_format == ResultPathWireFormat::LegacyWithoutResultPaths {
+            let current_only_tag = match projection.source {
+                FloatMeaningSource::DirectOperationResult(_) => Some(6),
+                FloatMeaningSource::DirectBlockParameter(_) => Some(7),
+                _ => None,
+            };
+            if let Some(tag) = current_only_tag {
+                return Err(CodecError::InvalidTag("legacy FloatMeaningSource", tag));
+            }
         }
         writer.u32(projection.result.id.0);
         writer.u8(match projection.result.value_type {
@@ -703,6 +705,16 @@ fn encode_raw_for_result_paths(
                 writer.id(result.owner);
                 writer.id(result.result);
                 writer.u8(match result.format {
+                    IeeeFloatFormat::Binary32 => 1,
+                    IeeeFloatFormat::Binary64 => 2,
+                });
+            }
+            FloatMeaningSource::DirectBlockParameter(parameter) => {
+                writer.u8(7);
+                writer.id(parameter.owner);
+                writer.id(parameter.block);
+                writer.id(parameter.parameter);
+                writer.u8(match parameter.format {
                     IeeeFloatFormat::Binary32 => 1,
                     IeeeFloatFormat::Binary64 => 2,
                 });
@@ -1113,6 +1125,18 @@ pub(super) fn decode_module_body(
                         owner: reader.id("float-meaning direct operation-result owner")?,
                         producer: reader.id("float-meaning direct operation-result producer")?,
                         result: reader.id("float-meaning direct operation-result value")?,
+                        format: match reader.u8()? {
+                            1 => IeeeFloatFormat::Binary32,
+                            2 => IeeeFloatFormat::Binary64,
+                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                        },
+                    })
+                }
+                7 if result_path_format == ResultPathWireFormat::Current => {
+                    FloatMeaningSource::DirectBlockParameter(DirectBlockFloatParameter {
+                        owner: reader.id("float-meaning direct block-parameter owner")?,
+                        block: reader.id("float-meaning direct block-parameter block")?,
+                        parameter: reader.id("float-meaning direct block-parameter value")?,
                         format: match reader.u8()? {
                             1 => IeeeFloatFormat::Binary32,
                             2 => IeeeFloatFormat::Binary64,

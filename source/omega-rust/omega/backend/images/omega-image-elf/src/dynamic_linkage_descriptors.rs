@@ -29,14 +29,14 @@ const ELF64_RELA_SIZE: u64 = 24;
 const PROCEDURE_LINKAGE_ALIGNMENT: u64 = 16;
 const PROCEDURE_GOT_ALIGNMENT: u64 = 8;
 const PROCEDURE_RELOCATION_ALIGNMENT: u64 = 8;
-const UPSTREAM_DESCRIPTOR_COUNT: usize = 6;
+const UPSTREAM_DESCRIPTOR_COUNT: usize = 7;
 const APPENDED_DESCRIPTOR_COUNT: usize = 3;
 const PROCEDURE_LINKAGE_NAME_SUFFIX: &[u8] = b".plt\0.got.plt\0.rela.plt\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// Independently validated address-free descriptors for the three procedure-
-/// linkage sections, retaining the exact target templates and prior six-row
+/// linkage sections, retaining the exact target templates and prior seven-row
 /// descriptor carrier.
 ///
 /// The extended name seed is append-only and still is not a completed
@@ -377,7 +377,7 @@ fn validate_contents(
     let base_descriptors = templates.linkage().descriptors();
     require(
         base_descriptors.descriptor_count() == UPSTREAM_DESCRIPTOR_COUNT,
-        "ELF linkage descriptors require the exact sealed six-row base",
+        "ELF linkage descriptors require the exact sealed seven-row base",
     )?;
     let base_seed = base_descriptors.section_name_table_seed();
     let expected_seed_len = checked_sum(
@@ -717,19 +717,19 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let plan = plan_elf_procedure_linkage_section_descriptors(templates(target, &IMPORTS))
                 .expect("validated linkage descriptors");
-            assert_eq!(plan.templates.linkage().descriptors().descriptor_count(), 6);
+            assert_eq!(plan.templates.linkage().descriptors().descriptor_count(), 7);
             assert_eq!(
                 plan.templates
                     .linkage()
                     .descriptors()
                     .section_name_seed_byte_count(),
-                69,
+                79,
             );
-            assert_eq!(plan.descriptor_count(), 9);
+            assert_eq!(plan.descriptor_count(), 10);
             assert_eq!(plan.appended_descriptor_count(), 3);
-            assert_eq!(plan.section_name_seed_byte_count(), 93);
+            assert_eq!(plan.section_name_seed_byte_count(), 103);
             assert_eq!(
-                &plan.contents.section_name_table_seed[69..],
+                &plan.contents.section_name_table_seed[79..],
                 PROCEDURE_LINKAGE_NAME_SUFFIX,
             );
 
@@ -737,7 +737,7 @@ mod tests {
                 &plan.contents,
                 ElfProcedureLinkageSectionKind::ProcedureLinkage,
             );
-            assert_eq!(plt.name_offset, 69);
+            assert_eq!(plt.name_offset, 79);
             assert_eq!(plt.section_type, SHT_PROGBITS);
             assert_eq!(plt.alignment, 16);
             assert_eq!(plt.entry_size, 0);
@@ -766,7 +766,7 @@ mod tests {
                 *row(&plan.contents, ElfProcedureLinkageSectionKind::ProcedureGot,),
                 ElfProcedureLinkageSectionDescriptor {
                     kind: ElfProcedureLinkageSectionKind::ProcedureGot,
-                    name_offset: 74,
+                    name_offset: 84,
                     section_type: SHT_PROGBITS,
                     flags: SHF_ALLOC | SHF_WRITE,
                     payload_size: 40,
@@ -783,7 +783,7 @@ mod tests {
                 ),
                 ElfProcedureLinkageSectionDescriptor {
                     kind: ElfProcedureLinkageSectionKind::ProcedureRelocation,
-                    name_offset: 83,
+                    name_offset: 93,
                     section_type: SHT_RELA,
                     flags: SHF_ALLOC | SHF_INFO_LINK,
                     payload_size: 48,
@@ -805,7 +805,7 @@ mod tests {
     }
 
     #[test]
-    fn name_seed_is_an_exact_append_only_version_of_the_six_row_owner() {
+    fn name_seed_is_an_exact_append_only_version_of_the_seven_row_owner() {
         let plan = plan_elf_procedure_linkage_section_descriptors(templates(
             TargetProfile::LinuxX64,
             &IMPORTS,

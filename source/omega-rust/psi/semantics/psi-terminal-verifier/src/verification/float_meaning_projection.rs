@@ -1,6 +1,6 @@
 //! Independent reconstruction of proof-only float-meaning projection rows.
 
-use psi_core::{IeeeFloatFormat, MachineId, ScalarType, ValueId};
+use psi_core::{BlockId, IeeeFloatFormat, MachineId, ScalarType, ValueId};
 use psi_numerics::{
     float_projection::{FloatProjectionOperation, FloatProjectionRule},
     float_semantics::{FloatFormat, FloatMeaning},
@@ -71,6 +71,7 @@ pub fn reconstruct_float_meaning_projection(
         FloatMeaningSource::TransitionalInput(_)
         | FloatMeaningSource::DirectMachineParameter(_)
         | FloatMeaningSource::DirectMachineResult(_)
+        | FloatMeaningSource::DirectBlockParameter(_)
         | FloatMeaningSource::DirectOperationResult(_) => None,
         FloatMeaningSource::ExactBinary32Literal(bits) => {
             Some(FloatMeaning::from_f32(f32::from_bits(bits)))
@@ -175,6 +176,70 @@ pub(crate) fn verify_direct_float_parameter(
     Ok(())
 }
 
+/// Rejoin one artifact-relative source to the exact scalar parameter table of
+/// one block in its owning Terminal machine.
+pub(crate) fn verify_direct_block_float_parameter(
+    module: &TerminalModule,
+    parameter: psi_terminal::DirectBlockFloatParameter,
+) -> Result<(), FloatMeaningProjectionVerificationError> {
+    let mut owners = module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == parameter.owner);
+    let owner = owners.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectBlockParameterOwner(parameter.owner),
+    )?;
+    if owners.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectBlockParameterOwner(
+                parameter.owner,
+            ),
+        );
+    }
+    let mut blocks = owner
+        .blocks
+        .iter()
+        .filter(|block| block.id == parameter.block);
+    let block = blocks.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectBlockParameterBlock {
+            owner: parameter.owner,
+            block: parameter.block,
+        },
+    )?;
+    if blocks.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectBlockParameterBlock {
+                owner: parameter.owner,
+                block: parameter.block,
+            },
+        );
+    }
+    let mut parameters = block
+        .parameters
+        .iter()
+        .filter(|declaration| declaration.id == parameter.parameter);
+    let declaration = parameters.next().ok_or(
+        FloatMeaningProjectionVerificationError::InvalidDirectBlockParameter {
+            owner: parameter.owner,
+            block: parameter.block,
+            parameter: parameter.parameter,
+        },
+    )?;
+    if parameters.next().is_some() {
+        return Err(
+            FloatMeaningProjectionVerificationError::InvalidDirectBlockParameter {
+                owner: parameter.owner,
+                block: parameter.block,
+                parameter: parameter.parameter,
+            },
+        );
+    }
+    if declaration.scalar_type != ScalarType::IeeeFloat(parameter.format) {
+        return Err(FloatMeaningProjectionVerificationError::DirectBlockParameterFormatMismatch);
+    }
+    Ok(())
+}
+
 /// Rejoin one artifact-relative source to the exact scalar result declared by
 /// one operation in its owning Terminal machine.
 pub(crate) fn verify_direct_operation_float_result(
@@ -273,6 +338,17 @@ pub enum FloatMeaningProjectionVerificationError {
         result: ValueId,
     },
     DirectResultFormatMismatch,
+    InvalidDirectBlockParameterOwner(MachineId),
+    InvalidDirectBlockParameterBlock {
+        owner: MachineId,
+        block: BlockId,
+    },
+    InvalidDirectBlockParameter {
+        owner: MachineId,
+        block: BlockId,
+        parameter: ValueId,
+    },
+    DirectBlockParameterFormatMismatch,
     InvalidDirectOperationResultOwner(MachineId),
     InvalidDirectOperationResultProducer {
         owner: MachineId,

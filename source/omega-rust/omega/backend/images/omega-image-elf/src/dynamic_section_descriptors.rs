@@ -3,13 +3,15 @@
 //! These descriptors follow the System V ABI [section header], [section type],
 //! [section flag], and [`sh_link`/`sh_info`] rules plus the LSB [GNU section
 //! types]. Links remain semantic section kinds rather than premature final
-//! section indexes.
+//! section indexes. The [original GNU implementation] defines the GNU-hash
+//! section type and its dynamic-tag relationship.
 //!
 //! [section header]: https://gabi.xinuos.com/elf/03-sheader.html#section-header
 //! [section type]: https://gabi.xinuos.com/elf/03-sheader.html#section-types
 //! [section flag]: https://gabi.xinuos.com/elf/03-sheader.html#section-attributes
 //! [`sh_link`/`sh_info`]: https://gabi.xinuos.com/elf/03-sheader.html#the-sh-link-and-sh-info-fields
 //! [GNU section types]: https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/sections.html
+//! [original GNU implementation]: https://sourceware.org/pipermail/binutils/2006-July/048074.html
 
 use crate::dynamic_section_bytes::ValidatedElfDynamicSectionPayloads;
 use psi_diagnostics::Diagnostic;
@@ -18,6 +20,7 @@ const SHT_PROGBITS: u32 = 1;
 const SHT_STRTAB: u32 = 3;
 const SHT_HASH: u32 = 5;
 const SHT_DYNSYM: u32 = 11;
+const SHT_GNU_HASH: u32 = 0x6fff_fff6;
 const SHT_GNU_VERNEED: u32 = 0x6fff_fffe;
 const SHT_GNU_VERSYM: u32 = 0x6fff_ffff;
 const SHF_ALLOC: u64 = 0x2;
@@ -29,22 +32,24 @@ const SYSTEM_V_HASH_NAME_OFFSET: u32 = 25;
 const GNU_SYMBOL_VERSION_NAME_OFFSET: u32 = 31;
 const GNU_VERSION_REQUIREMENT_NAME_OFFSET: u32 = 44;
 const SECTION_NAME_TABLE_NAME_OFFSET: u32 = 59;
+const GNU_HASH_NAME_OFFSET: u32 = 69;
 
 const SECTION_NAME_TABLE_SEED: &[u8] =
-    b"\0.interp\0.dynstr\0.dynsym\0.hash\0.gnu.version\0.gnu.version_r\0.shstrtab\0";
+    b"\0.interp\0.dynstr\0.dynsym\0.hash\0.gnu.version\0.gnu.version_r\0.shstrtab\0.gnu.hash\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-const DYNAMIC_SECTION_KINDS: [ElfDynamicSectionKind; 6] = [
+const DYNAMIC_SECTION_KINDS: [ElfDynamicSectionKind; 7] = [
     ElfDynamicSectionKind::Interpreter,
     ElfDynamicSectionKind::DynamicString,
     ElfDynamicSectionKind::DynamicSymbol,
     ElfDynamicSectionKind::SystemVHash,
     ElfDynamicSectionKind::GnuSymbolVersion,
     ElfDynamicSectionKind::GnuVersionRequirement,
+    ElfDynamicSectionKind::GnuHash,
 ];
 
-/// Independently validated address-free metadata for the six serialized
+/// Independently validated address-free metadata for the seven serialized
 /// dynamic payloads.
 ///
 /// The append-only name seed stabilizes current `sh_name` offsets but is not a
@@ -140,6 +145,7 @@ pub(crate) enum ElfDynamicSectionKind {
     SystemVHash = 4,
     GnuSymbolVersion = 5,
     GnuVersionRequirement = 6,
+    GnuHash = 7,
 }
 
 impl ElfDynamicSectionKind {
@@ -151,6 +157,7 @@ impl ElfDynamicSectionKind {
             Self::SystemVHash => b".hash",
             Self::GnuSymbolVersion => b".gnu.version",
             Self::GnuVersionRequirement => b".gnu.version_r",
+            Self::GnuHash => b".gnu.hash",
         }
     }
 }
@@ -288,6 +295,17 @@ fn derive_contents(
             Some(ElfDynamicSectionKind::DynamicString),
             needed_object_count,
         )?,
+        descriptor(
+            ElfDynamicSectionKind::GnuHash,
+            GNU_HASH_NAME_OFFSET,
+            SHT_GNU_HASH,
+            SHF_ALLOC,
+            bytes.gnu_hash.len(),
+            8,
+            0,
+            Some(ElfDynamicSectionKind::DynamicSymbol),
+            0,
+        )?,
     ];
     Ok(ElfDynamicSectionDescriptorContents {
         section_name_table_seed: SECTION_NAME_TABLE_SEED.to_vec(),
@@ -374,7 +392,7 @@ fn validate_contents(
     )?;
     require(
         contents.descriptors.len() == DYNAMIC_SECTION_KINDS.len(),
-        "ELF dynamic descriptor plan does not contain exactly six rows",
+        "ELF dynamic descriptor plan does not contain exactly seven rows",
     )?;
 
     for (index, expected_kind) in DYNAMIC_SECTION_KINDS.iter().enumerate() {
@@ -500,6 +518,15 @@ fn validate_row(
             Some(ElfDynamicSectionKind::DynamicString),
             needed_object_count,
         ),
+        ElfDynamicSectionKind::GnuHash => (
+            GNU_HASH_NAME_OFFSET,
+            SHT_GNU_HASH,
+            bytes.gnu_hash.len(),
+            8,
+            0,
+            Some(ElfDynamicSectionKind::DynamicSymbol),
+            0,
+        ),
     };
     require(
         row.name_offset == expected.0
@@ -563,7 +590,7 @@ fn non_authoritative_descriptor_compatibility_fingerprint(
     contents: &ElfDynamicSectionDescriptorContents,
 ) -> u64 {
     let mut hash = Fnv1a::new();
-    hash.bytes(b"omega.elf-dynamic-section-descriptors.v1");
+    hash.bytes(b"omega.elf-dynamic-section-descriptors.v2");
     hash.bytes(
         &payloads
             .non_authoritative_payload_compatibility_fingerprint()
@@ -753,15 +780,15 @@ mod tests {
                 .expect("validated descriptor plan");
             let contents = &plan.contents;
             assert_eq!(contents.section_name_table_seed, SECTION_NAME_TABLE_SEED);
-            assert_eq!(plan.descriptor_count(), 6);
-            assert_eq!(plan.section_name_seed_byte_count(), 69);
+            assert_eq!(plan.descriptor_count(), 7);
+            assert_eq!(plan.section_name_seed_byte_count(), 79);
             assert_eq!(
                 contents
                     .descriptors
                     .iter()
                     .map(|descriptor| descriptor.name_offset)
                     .collect::<Vec<_>>(),
-                [1, 9, 17, 25, 31, 44],
+                [1, 9, 17, 25, 31, 44, 69],
             );
             assert_eq!(
                 contents
@@ -776,6 +803,7 @@ mod tests {
                     36,
                     8,
                     80,
+                    40,
                 ],
             );
 
@@ -849,6 +877,20 @@ mod tests {
                     info: 2,
                 }
             );
+            assert_eq!(
+                *row(contents, ElfDynamicSectionKind::GnuHash),
+                ElfAddressFreeSectionDescriptor {
+                    kind: ElfDynamicSectionKind::GnuHash,
+                    name_offset: 69,
+                    section_type: SHT_GNU_HASH,
+                    flags: SHF_ALLOC,
+                    payload_size: 40,
+                    alignment: 8,
+                    entry_size: 0,
+                    link: Some(ElfDynamicSectionKind::DynamicSymbol),
+                    info: 0,
+                }
+            );
             assert_ne!(
                 plan.non_authoritative_descriptor_compatibility_fingerprint(),
                 0
@@ -890,6 +932,10 @@ mod tests {
         );
         assert_eq!(
             row(&plan.contents, ElfDynamicSectionKind::SystemVHash).link,
+            Some(ElfDynamicSectionKind::DynamicSymbol)
+        );
+        assert_eq!(
+            row(&plan.contents, ElfDynamicSectionKind::GnuHash).link,
             Some(ElfDynamicSectionKind::DynamicSymbol)
         );
     }
@@ -944,6 +990,7 @@ mod tests {
             }),
             Box::new(|candidate| candidate.contents.descriptors[2].info = 0),
             Box::new(|candidate| candidate.contents.descriptors[5].info += 1),
+            Box::new(|candidate| candidate.contents.descriptors[6].entry_size = 4),
             Box::new(|candidate| {
                 candidate.non_authoritative_descriptor_compatibility_fingerprint ^= 1
             }),

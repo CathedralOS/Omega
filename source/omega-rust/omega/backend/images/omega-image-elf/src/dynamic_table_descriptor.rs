@@ -19,9 +19,9 @@ const SHF_WRITE: u64 = 0x1;
 const SHF_ALLOC: u64 = 0x2;
 const ELF64_DYNAMIC_ALIGNMENT: u64 = 8;
 const ELF64_DYNAMIC_ENTRY_SIZE: u64 = 16;
-const UPSTREAM_DESCRIPTOR_COUNT: usize = 9;
-const UPSTREAM_NAME_SEED_SIZE: usize = 93;
-const DYNAMIC_NAME_OFFSET: u32 = 93;
+const UPSTREAM_DESCRIPTOR_COUNT: usize = 10;
+const UPSTREAM_NAME_SEED_SIZE: usize = 103;
+const DYNAMIC_NAME_OFFSET: u32 = 103;
 const DYNAMIC_NAME_SUFFIX: &[u8] = b".dynamic\0";
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -263,12 +263,12 @@ fn validate_contents(
     let descriptors = payload.plan().descriptors();
     require(
         descriptors.descriptor_count() == UPSTREAM_DESCRIPTOR_COUNT,
-        "dynamic-table descriptor requires the exact sealed nine-row base",
+        "dynamic-table descriptor requires the exact sealed ten-row base",
     )?;
     let base_seed = base_name_seed(payload);
     require(
         base_seed.len() == UPSTREAM_NAME_SEED_SIZE,
-        "dynamic-table descriptor requires the exact 93-byte upstream name seed",
+        "dynamic-table descriptor requires the exact 103-byte upstream name seed",
     )?;
     let expected_seed_len = checked_sum(
         base_seed.len(),
@@ -580,22 +580,22 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let plan = plan_elf_dynamic_table_section_descriptor(payload(target, &IMPORTS))
                 .expect("validated dynamic-table descriptor");
-            assert_eq!(plan.payload.plan().descriptors().descriptor_count(), 9);
-            assert_eq!(plan.descriptor_count(), 10);
+            assert_eq!(plan.payload.plan().descriptors().descriptor_count(), 10);
+            assert_eq!(plan.descriptor_count(), 11);
             assert_eq!(plan.appended_descriptor_count(), 1);
-            assert_eq!(plan.section_name_seed_byte_count(), 102);
+            assert_eq!(plan.section_name_seed_byte_count(), 112);
             assert_eq!(
-                &plan.contents.section_name_table_seed[93..],
+                &plan.contents.section_name_table_seed[103..],
                 DYNAMIC_NAME_SUFFIX,
             );
             assert_eq!(
                 plan.contents.descriptor,
                 ElfDynamicTableSectionDescriptor {
                     kind: ElfDynamicTableSectionKind::DynamicTable,
-                    name_offset: 93,
+                    name_offset: 103,
                     section_type: SHT_DYNAMIC,
                     flags: SHF_WRITE | SHF_ALLOC,
-                    payload_size: 240,
+                    payload_size: 256,
                     alignment: 8,
                     entry_size: 16,
                     link: Some(ElfDynamicSectionKind::DynamicString),
@@ -617,13 +617,13 @@ mod tests {
             plan_elf_dynamic_table_section_descriptor(payload(TargetProfile::LinuxX64, &IMPORTS))
                 .unwrap();
         let base = base_name_seed(plan.payload());
-        assert_eq!(&plan.contents.section_name_table_seed[..93], base);
+        assert_eq!(&plan.contents.section_name_table_seed[..103], base);
         assert_eq!(
             &plan.contents.section_name_table_seed[59..69],
             b".shstrtab\0"
         );
         assert_eq!(
-            &plan.contents.section_name_table_seed[83..93],
+            &plan.contents.section_name_table_seed[93..103],
             b".rela.plt\0"
         );
         validate_name(
