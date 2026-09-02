@@ -14,11 +14,14 @@ pub(super) fn assign(
     result: omega_target_operations::AbstractResult,
     callee: MachineId,
     call_plan: &omega_calling_conventions::CallPlan,
+    result_home: omega_target_operations::TargetUnitScalarHomeRequirement,
     structural_arguments: &[omega_target_operations::TargetStructuralArgument],
     dynamic_arguments: &[TargetDynamicDescriptorArgument],
     claim_transfers: &[ClaimTransfer],
     requirement_obligations: &[psi_core::ObligationId],
     crash_continuations: &[CrashRouteBucket],
+    assigned_homes: &mut BTreeMap<ValueId, AssignedUnitScalarHome>,
+    next_home: &mut u32,
 ) -> Result<AssignedUnitOperation, AssignmentError> {
     let invalid = || AssignmentError::DynamicDescriptorCallArgumentMismatch {
         machine,
@@ -47,6 +50,10 @@ pub(super) fn assign(
     if &expected_plan != call_plan
         || call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
         || call_plan.parameters.len() != parameter_count
+        || result_home.defining_operation != psi_operation
+        || result_home.source_value != result.value
+        || result_home.scalar_type != integer_type
+        || result_home.shape != result_shape
     {
         return Err(invalid());
     }
@@ -133,6 +140,12 @@ pub(super) fn assign(
             })
         })
         .collect::<Result<Vec<_>, AssignmentError>>()?;
+    let result_home = super::scalar_call::allocate_unit_scalar_home(
+        result_home,
+        assigned_homes,
+        next_home,
+        AssignmentError::UnitScalarCallSourceMismatch(result.value),
+    )?;
 
     Ok(
         AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
@@ -140,6 +153,7 @@ pub(super) fn assign(
             result,
             callee,
             call_plan: call_plan.clone(),
+            result_home,
             copies: Vec::new(),
             dynamic_arguments,
             claim_transfers: claim_transfers.to_vec(),
@@ -153,11 +167,13 @@ fn exact_pointer_register(
     placement: &omega_calling_conventions::ValuePlacement,
     target: NativeTarget,
 ) -> Option<MachineRegister> {
-    let [ValueLocation::Register {
-        register,
-        value_byte_offset: 0,
-        byte_size,
-    }] = placement.locations.as_slice()
+    let [
+        ValueLocation::Register {
+            register,
+            value_byte_offset: 0,
+            byte_size,
+        },
+    ] = placement.locations.as_slice()
     else {
         return None;
     };

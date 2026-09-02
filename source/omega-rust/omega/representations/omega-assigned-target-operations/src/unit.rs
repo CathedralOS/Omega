@@ -284,6 +284,7 @@ pub enum AssignedUnitOperation {
         result: AbstractResult,
         callee: MachineId,
         call_plan: CallPlan,
+        result_home: AssignedUnitScalarHome,
         copies: Vec<AssignedAggregateCopy>,
         dynamic_arguments: Vec<AssignedDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,

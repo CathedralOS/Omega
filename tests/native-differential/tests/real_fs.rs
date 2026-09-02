@@ -1586,6 +1586,7 @@ machine Main::main(&mut self) {{
                 write_roots: vec![grant_root(2, base.clone())],
             }),
             filesystem_metadata_layout: Default::default(),
+            filesystem_service_binding: None,
         },
     );
     assert!(!real.is_error(), "refusal probe errored: {:?}", real.error);

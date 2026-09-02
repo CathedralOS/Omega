@@ -2416,6 +2416,11 @@ fn assigned_unit_scalar_homes(
                 result_home,
                 ..
             } => Some((*psi_operation, *result_home)),
+            AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+                psi_operation,
+                result_home,
+                ..
+            } => Some((*psi_operation, *result_home)),
             AssignedUnitOperation::NormalizedForeignCall {
                 psi_operation,
                 result_home: Some(result_home),
@@ -2456,6 +2461,9 @@ fn validate_assigned_unit_frame(
     for operation in &body.operations {
         let home = match operation {
             AssignedUnitOperation::ScalarCall { result_home, .. }
+            | AssignedUnitOperation::StructuralScalarCallWithDynamicArguments {
+                result_home, ..
+            }
             | AssignedUnitOperation::NormalizedForeignCall {
                 result_home: Some(result_home),
                 ..

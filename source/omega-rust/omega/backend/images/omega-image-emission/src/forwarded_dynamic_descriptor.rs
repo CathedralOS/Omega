@@ -12,6 +12,7 @@ use omega_target::{Architecture, NativeTarget};
 use psi_core::MachineId;
 
 use super::instruction_loads::{aarch64_terminal_register, x86_terminal_register};
+use super::unit_scalar_call_custody::expected_unit_scalar_result_bytes;
 use super::{ObjectError, same_dynamic_table_application};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +58,26 @@ pub(super) fn validate_forwarded_dynamic_descriptors(
                 || call.dynamic_arguments.len() != 1
                 || call.call_plan.parameters.len() != 2
                 || machine_functions.get(&call.callee).is_none()
+                || call.semantic_result.value != call.result.home.source_value
+                || call.semantic_result.scalar_type
+                    != psi_core::ScalarType::Integer(call.result.home.scalar_type)
+                || call.result.home.defining_operation != call.psi_operation
+                || call.call_plan.result.as_ref() != Some(&call.result.source)
+                || !function.unit_scalar_homes.contains(&call.result.home)
+            {
+                return Err(invalid());
+            }
+            let expected_result =
+                expected_unit_scalar_result_bytes(target, &call.result).ok_or_else(invalid)?;
+            let result_end = call
+                .result
+                .code_offset
+                .checked_add(call.result.byte_count)
+                .ok_or_else(invalid)?;
+            if call.result.byte_count != expected_result.len()
+                || function.bytes.get(call.result.code_offset..result_end)
+                    != Some(expected_result.as_slice())
+                || result_end != operation_end
             {
                 return Err(invalid());
             }

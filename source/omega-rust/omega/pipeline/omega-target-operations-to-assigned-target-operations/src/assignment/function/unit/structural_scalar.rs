@@ -218,7 +218,7 @@ pub(super) fn resolve_field_path(
         let mut selected = None;
         for candidate in fields
             .iter()
-            .filter(|candidate| candidate.relevance != BindingRelevance::Erased)
+            .filter(|candidate| physically_retained_field(candidate))
         {
             let shape = field_shape(
                 &candidate.field_type,
@@ -256,7 +256,7 @@ fn direct_integer_field_offset(
     let mut offset = 0_u32;
     for candidate in fields
         .iter()
-        .filter(|candidate| candidate.relevance != BindingRelevance::Erased)
+        .filter(|candidate| physically_retained_field(candidate))
     {
         let shape = field_shape(
             &candidate.field_type,
@@ -294,7 +294,7 @@ fn structural_shape(
             let mut alignment = 1_u16;
             for field in fields
                 .iter()
-                .filter(|field| field.relevance != BindingRelevance::Erased)
+                .filter(|field| physically_retained_field(field))
             {
                 let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
                 alignment = alignment.max(field_shape.alignment);
@@ -338,6 +338,11 @@ fn field_shape(
         }
         _ => None,
     }
+}
+
+fn physically_retained_field(field: &psi_terminal::StructuralFieldDeclaration) -> bool {
+    field.relevance != BindingRelevance::Erased
+        && !matches!(field.field_type, StructuralFieldType::Erased { .. })
 }
 
 fn align(value: u32, alignment: u32) -> Option<u32> {

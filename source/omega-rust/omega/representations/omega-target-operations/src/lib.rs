@@ -700,6 +700,9 @@ pub enum TargetUnitOperation {
         result: AbstractResult,
         callee: MachineId,
         call_plan: CallPlan,
+        /// Durable home required when later Unit operations consume the
+        /// forwarded call's fixed-width scalar result.
+        result_home: TargetUnitScalarHomeRequirement,
         structural_arguments: Vec<TargetStructuralArgument>,
         dynamic_arguments: Vec<TargetDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,

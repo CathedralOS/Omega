@@ -216,6 +216,12 @@ pub(super) fn assign_known_unit_scalar_source(
                         operation,
                         TargetUnitOperation::DynamicScalarCall { result_home, .. }
                             if *result_home == home
+                    ) || matches!(
+                        operation,
+                        TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
+                            result_home,
+                            ..
+                        } if *result_home == home
                     )
                 })
                 .count();

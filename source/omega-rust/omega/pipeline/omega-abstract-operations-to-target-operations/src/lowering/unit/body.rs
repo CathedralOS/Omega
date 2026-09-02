@@ -194,6 +194,7 @@ pub(super) fn lower_unit_body(
                     &parameters_by_place,
                     &mut shape_cache,
                     &mut active,
+                    &mut scalar_values,
                     &mut operations,
                     &mut provenance,
                 )?

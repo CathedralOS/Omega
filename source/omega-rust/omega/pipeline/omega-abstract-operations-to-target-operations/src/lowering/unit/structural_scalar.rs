@@ -6,7 +6,7 @@ use super::super::shared::*;
 use super::super::structural_layout::{
     direct_integer_field_offset, resolve_structural_field_path, structural_shape,
 };
-use super::scalar_call::KnownUnitInteger;
+use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_field_store(
@@ -262,6 +262,7 @@ pub(super) fn lower_dynamic_argument_scalar_call(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
+    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
@@ -328,6 +329,11 @@ pub(super) fn lower_dynamic_argument_scalar_call(
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
     let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
+    let ScalarType::Integer(result_type) = result.scalar_type else {
+        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
+            result.value,
+        ));
+    };
     let descriptor_parameter_count = dynamic_arguments.len().checked_mul(2).ok_or_else(invalid)?;
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -396,12 +402,24 @@ pub(super) fn lower_dynamic_argument_scalar_call(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let result_home = TargetUnitScalarHomeRequirement {
+        defining_operation: *psi_operation,
+        source_value: result.value,
+        scalar_type: result_type,
+        shape: result_shape,
+    };
+    insert_known_unit_integer(
+        scalar_values,
+        result.value,
+        KnownUnitInteger::Home(result_home),
+    )?;
     operations.push(
         TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
             psi_operation: *psi_operation,
             result: *result,
             callee: *callee,
             call_plan,
+            result_home,
             structural_arguments: Vec::new(),
             dynamic_arguments: target_dynamic_arguments,
             claim_transfers: claim_transfers.clone(),

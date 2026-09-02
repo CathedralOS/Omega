@@ -5,6 +5,7 @@ use super::boundary_call::lower_boundary_call;
 use super::dynamic_scalar::lower_dynamic_scalar_call;
 use super::scalar_call::KnownUnitInteger;
 use super::scalar_definitions::lower_integer_constant;
+use super::structural_scalar::lower_dynamic_argument_scalar_call;
 
 pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
     function.block_entries.len() == 3
@@ -20,6 +21,7 @@ pub(super) fn has_bounded_shape(function: &AbstractFunction) -> bool {
         && matches!(
             function.operations[0],
             AbstractOperation::CallDynamicScalar { .. }
+                | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
         )
         && matches!(
             function.operations[1],
@@ -83,19 +85,37 @@ pub(super) fn lower(
     let mut integer_constants = BTreeMap::new();
     let mut scalar_values = BTreeMap::new();
 
-    lower_dynamic_scalar_call(
-        &function.operations[0],
-        function,
-        target,
-        functions,
-        structural_types,
-        &parameters_by_place,
-        &mut shape_cache,
-        &mut active,
-        &mut scalar_values,
-        &mut operations,
-        &mut provenance,
-    )?;
+    match &function.operations[0] {
+        AbstractOperation::CallDynamicScalar { .. } => lower_dynamic_scalar_call(
+            &function.operations[0],
+            function,
+            target,
+            functions,
+            structural_types,
+            &parameters_by_place,
+            &mut shape_cache,
+            &mut active,
+            &mut scalar_values,
+            &mut operations,
+            &mut provenance,
+        )?,
+        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
+            lower_dynamic_argument_scalar_call(
+                &function.operations[0],
+                function,
+                target,
+                functions,
+                structural_types,
+                &parameters_by_place,
+                &mut shape_cache,
+                &mut active,
+                &mut scalar_values,
+                &mut operations,
+                &mut provenance,
+            )?
+        }
+        _ => unreachable!("bounded shape fixes the dynamic scalar operation"),
+    }
     lower_constant(
         function,
         &function.operations[1],

@@ -39,6 +39,7 @@ pub(super) fn validate_internal_unit_scalar_calls(
         .count();
     if function.internal_unit_scalar_calls.is_empty()
         && function.dynamic_scalar_calls.is_empty()
+        && function.forwarded_dynamic_descriptor_calls.is_empty()
         && foreign_result_count == 0
     {
         if !function.unit_scalar_homes.is_empty() {
@@ -127,6 +128,18 @@ fn validate_home_roster(
                 &call.result,
             )
         }))
+        .chain(
+            function
+                .forwarded_dynamic_descriptor_calls
+                .iter()
+                .map(|call| {
+                    (
+                        call.operation_ordinal,
+                        CallSiteOwner::Operation(call.psi_operation),
+                        &call.result,
+                    )
+                }),
+        )
         .collect::<Vec<_>>();
     producers.sort_by_key(|(ordinal, _, _)| *ordinal);
     if function.unit_scalar_homes.len() != producers.len()
@@ -455,7 +468,33 @@ pub(super) fn exact_preceding_unit_scalar_home_producer_count(
                 })
         })
         .count();
-    internal + foreign
+    let dynamic = function
+        .dynamic_scalar_calls
+        .iter()
+        .filter(|producer| {
+            producer.result.home == home
+                && producer.operation_ordinal < consumer_operation_ordinal
+                && producer
+                    .result
+                    .code_offset
+                    .checked_add(producer.result.byte_count)
+                    .is_some_and(|end| end <= consumer_code_offset)
+        })
+        .count();
+    let forwarded = function
+        .forwarded_dynamic_descriptor_calls
+        .iter()
+        .filter(|producer| {
+            producer.result.home == home
+                && producer.operation_ordinal < consumer_operation_ordinal
+                && producer
+                    .result
+                    .code_offset
+                    .checked_add(producer.result.byte_count)
+                    .is_some_and(|end| end <= consumer_code_offset)
+        })
+        .count();
+    internal + foreign + dynamic + forwarded
 }
 
 fn expected_argument_bytes(
