@@ -1085,7 +1085,7 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
                 .terminal_authority_permission_policy_identity,
             terminal_authority_closure_review: parts.terminal_authority_closure_review.clone(),
             boundary_application_coverage: parts.boundary_application_coverage.clone(),
-            physical_evidence_scope: parts.physical_evidence_scope,
+            physical_evidence_scope: parts.physical_evidence_scope.clone(),
             physical_evidence: parts.physical_evidence.clone(),
         }
     }
@@ -1358,13 +1358,18 @@ fn linux_console_exit_catalog_settlement_emits_elf() {
 #[test]
 fn terminal_product_reloads_native_realization_without_checked_compilation() {
     let canary = pass_canary("providers/adapter_satisfies_compile");
+    let package_inputs =
+        reviewed_repository_fixture_package_inputs(&canary.join("main.omg"), Some("linux_x86_64"))
+            .expect("derive reviewed repository fixture package inputs")
+            .expect("Console canary has a standard-library dependency");
     let report = omega_compiler::compile(
         CompileRequest::new(CompilerOptions {
             root_path: canary.join("main.omg"),
             build_dir: None,
             target_name: Some("linux_x86_64".into()),
         })
-        .with_requested_product(RequestedCompileProduct::TerminalArtifact),
+        .with_requested_product(RequestedCompileProduct::TerminalArtifact)
+        .with_package_inputs(package_inputs),
     )
     .expect("Terminal product should retain its target-constrained native proposal");
     let retained = report
@@ -1421,7 +1426,10 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         )
         .collect::<Vec<_>>();
     let profile = psi_proof_admission::AdmissionProfile::default();
-    let optimizations = omega_optimization_core::OptimizationSelections::default();
+    let optimizations = omega_optimization_core::OptimizationSelections::new([
+        omega_optimization_core::Optimization::ControlFlowCleanup,
+    ])
+    .expect("one verified Psi optimization selection");
     let permission_policy =
         omega_terminal_psi_to_native_artifact::terminal_authority_permission_policy_with_rows(
             proposal
@@ -1463,7 +1471,9 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
             callback_thunks: &[],
         },
     )
-    .expect("retained Terminal product and independent local admission should realize natively");
+    .expect(
+        "retained Terminal product and verified Psi optimization should realize natively",
+    );
     assert!(native.image().output().bytes.starts_with(b"\x7fELF"));
     assert_eq!(native.provider_executions().len(), 0);
     assert_eq!(
@@ -1482,6 +1492,21 @@ fn terminal_product_reloads_native_realization_without_checked_compilation() {
         omega_terminal_psi_to_native_artifact::BoundaryExecutionRecord::CompilerBuiltin(
             omega_target_operations::CompilerBuiltinExecution::LinuxExitGroupI32,
         ),
+    );
+    assert!(matches!(
+        native.physical_evidence_scope(),
+        omega_terminal_psi_to_native_artifact::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+    ));
+    let replayed = omega_terminal_psi_to_native_artifact::NativeArtifact::from_replayed_parts(
+        native.into_parts(),
+    )
+    .expect("optimized D32 artifact should replay from retained custody");
+    let mut missing_child = replayed.into_parts();
+    missing_child.physical_evidence = None;
+    assert!(
+        omega_terminal_psi_to_native_artifact::NativeArtifact::from_replayed_parts(missing_child)
+            .is_err(),
+        "optimized D32 replay must reject removal of its surviving physical child",
     );
 }
 

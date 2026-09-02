@@ -45,9 +45,10 @@ stop the item on one precise owner question before adding machinery.
     fixed-token structural applications beyond the proven all-affine,
     structural-operand/scalar-result Terminal lane, including mixed
     structural/scalar operands, structural results, and native custody;
-  - complete D32 physical-child custody for verified non-identity optimization
-    and remaining native roles, with an exact bijection to surviving optimized
-    occurrences and reconstructible D29/D41 parents;
+  - extend the landed verified Psi-phase D32 non-identity projection through
+    selected-lowering, allocation, post-allocation, and layout optimization,
+    and cover remaining native roles. Preserve the exact survivor/child
+    bijection and reconstructible D29/D41 parents;
   - add external realization custody only when independently admitted concrete
     authority exists. Never substitute a self-issued commitment.
 
@@ -64,9 +65,9 @@ stop the item on one precise owner question before adding machinery.
   their distinct evidence classes; absence of Terminal evidence grants no
   Terminal claim.
 
-  Complete the admitted-provider parent and verified non-identity optimization-
-  projection lanes. Extend `CompilerBuiltinExecution` only for a demanded local
-  target mechanism and keep planner conversion exhaustive.
+  Complete the admitted-provider parent and post-Psi optimization-projection
+  lanes. Extend `CompilerBuiltinExecution` only for a demanded local target
+  mechanism and keep planner conversion exhaustive.
   Retain complete standalone-product structures as additional native proposal
   classes land; do not regress to hidden `CheckedCompilation` state or replace
   those structures with compact report fingerprints. The accepted package

@@ -9,12 +9,10 @@ pub(super) fn validate_boundary_application_coverage(
     module: &psi_terminal::TerminalModule,
     terminal: psi_terminal::TerminalPsiIdentity,
     coverage: Option<&TerminalBoundaryApplicationCoverage>,
-    physical_evidence_scope: NativePhysicalEvidenceScope,
+    physical_evidence_scope: &NativePhysicalEvidenceScope,
 ) -> Result<(), &'static str> {
     let Some(coverage) = coverage else {
-        if physical_evidence_scope
-            == NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence
-        {
+        if physical_evidence_scope.requires_boundary_application_coverage() {
             return Err(
                 "native artifact claims an exact empty D29 scope without retained coverage",
             );

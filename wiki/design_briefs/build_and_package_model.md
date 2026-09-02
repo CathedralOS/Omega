@@ -1155,6 +1155,14 @@ duplicate, stale, substituted, padded, or role-swapped children. A verified
 eliminated occurrence needs no child. Package review may stop at D29 semantic
 coverage; native or external execution claims may not.
 
+The current non-identity implementation is deliberately bounded to verified
+Psi-phase selections. It derives survivors from the optimizer-validated final
+abstract plan, binds validation and final-unit identity into every occurrence,
+and emits that plan through the ordinary validated native backend. It does not
+require the selected-instruction pipeline to validate bytes that pipeline did
+not produce. Selected-lowering, allocation, post-allocation, and layout
+selections remain fail-closed before native publication.
+
 The first identity-projection implementation now exercises compiler-intrinsic
 direct bytes and a nongeneric checked-body internal call through final native
 custody. A checked call in one straight-line block before an immediate Linux

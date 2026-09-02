@@ -8,12 +8,21 @@ use omega_machine_code::{CompilerPrivateMachineCodeFunction, MachineCodePlanWith
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
 use psi_diagnostics::Diagnostic;
 
+pub(crate) struct EmittedRealizationMachineCode {
+    pub(crate) machine_code: MachineCodePlanWithPrivateFunctions,
+    pub(crate) physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
+}
+
 pub(crate) fn emit_realization_machine_code(
     input: NativeRealizationInput,
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
+    boundary_application_coverage: Option<
+        &omega_boundary_applications::TerminalBoundaryApplicationCoverage,
+    >,
+    initial_physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
     request: &NativeRealizationRequest<'_>,
-) -> Result<MachineCodePlanWithPrivateFunctions, Vec<Diagnostic>> {
+) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
     match input {
         NativeRealizationInput::Unoptimized(
             omega_psi_to_abstract_operations::NativeArtifactOperationPlan::Ordinary(plan),
@@ -49,9 +58,12 @@ pub(crate) fn emit_realization_machine_code(
             )?;
             let plan = omega_machine_emission::emit_machine_code_with_native_callbacks(&assigned)
                 .map_err(|error| realization_error("machine-code emission", error))?;
-            Ok(MachineCodePlanWithPrivateFunctions {
-                plan,
-                private_functions,
+            Ok(EmittedRealizationMachineCode {
+                machine_code: MachineCodePlanWithPrivateFunctions {
+                    plan,
+                    private_functions,
+                },
+                physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
         NativeRealizationInput::Unoptimized(
@@ -80,9 +92,12 @@ pub(crate) fn emit_realization_machine_code(
                     .map_err(|error| realization_error("ranked physical assignment", error))?;
             let plan = omega_machine_emission::emit_machine_code(&assigned)
                 .map_err(|error| realization_error("ranked machine-code emission", error))?;
-            Ok(MachineCodePlanWithPrivateFunctions {
-                plan,
-                private_functions: Vec::new(),
+            Ok(EmittedRealizationMachineCode {
+                machine_code: MachineCodePlanWithPrivateFunctions {
+                    plan,
+                    private_functions: Vec::new(),
+                },
+                physical_evidence_scope: initial_physical_evidence_scope,
             })
         }
         NativeRealizationInput::ExplicitOptimization(input) => {
@@ -107,6 +122,54 @@ pub(crate) fn emit_realization_machine_code(
                 optimization_request,
             )
             .map_err(|error| realization_error("canonical optimization", error))?;
+            let psi_only = request
+                .optimization_selections
+                .as_slice()
+                .iter()
+                .all(|selection| {
+                    selection.execution_phase()
+                        == omega_optimization_core::OptimizationExecutionPhase::Psi
+                });
+            if psi_only {
+                let installation = provider_installation.as_ref().map(|installation| {
+                    installation as &dyn omega_installation_evidence::ProviderInstallationEvidence
+                });
+                let optimized_target =
+                    omega_abstract_operations_to_target_operations::lower_to_target_operations_with_provider_executions_installation_ieee_float_fma_and_native_callbacks(
+                        optimized.plan(),
+                        request.target,
+                        settlements,
+                        installation,
+                        &[],
+                        &[],
+                    )
+                    .map_err(|error| realization_error("optimized target lowering", error))?;
+                let physical_evidence_scope = match boundary_application_coverage {
+                    Some(coverage) => {
+                        let scope = omega_native_artifact::NativePhysicalEvidenceScope::from_validated_optimization(
+                            &optimized,
+                            coverage,
+                        )
+                        .map_err(|error| {
+                            realization_error("optimized physical-evidence projection", error)
+                        })?;
+                        scope
+                    }
+                    None => omega_native_artifact::NativePhysicalEvidenceScope::Unavailable,
+                };
+                let assigned = omega_target_operations_to_assigned_target_operations::assign_registers_with_native_callbacks(&optimized_target)
+                    .map_err(|error| realization_error("optimized physical assignment", error))?;
+                let plan =
+                    omega_machine_emission::emit_machine_code_with_native_callbacks(&assigned)
+                        .map_err(|error| realization_error("machine-code emission", error))?;
+                return Ok(EmittedRealizationMachineCode {
+                    machine_code: MachineCodePlanWithPrivateFunctions {
+                        plan,
+                        private_functions: Vec::new(),
+                    },
+                    physical_evidence_scope,
+                });
+            }
             let continuation = match provider_installation {
                 Some(installation) => omega_optimization_pipeline::stage_optimized_native_continuation_with_provider_executions_and_installation(
                     optimized,
@@ -128,25 +191,22 @@ pub(crate) fn emit_realization_machine_code(
                     error,
                 ) => selected_physical_pipeline_failed(request.optimization_selections, error),
             })?;
-            let assigned = match continuation {
+            match continuation {
                 omega_optimization_pipeline::StagedOptimizedNativeContinuation::CoverageFallbackAssigned(
-                    assigned,
-                ) => assigned,
-                omega_optimization_pipeline::StagedOptimizedNativeContinuation::SelectedPhysical(
-                    physical,
+                    _,
                 ) => {
-                    return Err(selected_physical_pipeline_not_publishable(
-                        request.optimization_selections,
-                        &physical,
+                    return Err(realization_error(
+                        "optimized native continuation",
+                        "a nonempty optimization selection unexpectedly used the coverage fallback",
                     ));
                 }
-            };
-            let plan = omega_machine_emission::emit_machine_code(assigned.assigned())
-                .map_err(|error| realization_error("machine-code emission", error))?;
-            Ok(MachineCodePlanWithPrivateFunctions {
-                plan,
-                private_functions: Vec::new(),
-            })
+                omega_optimization_pipeline::StagedOptimizedNativeContinuation::SelectedPhysical(
+                    physical,
+                ) => return Err(selected_physical_pipeline_not_publishable(
+                    request.optimization_selections,
+                    &physical,
+                )),
+            }
         }
     }
 }

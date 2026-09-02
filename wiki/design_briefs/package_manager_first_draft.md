@@ -1308,7 +1308,7 @@ the survivor set and rejects missing, duplicate, stale, substituted, padded,
 or role-swapped children. Package review does not claim assigned homes,
 relocation, or emitted bytes merely because its semantic D29 row is complete.
 
-The implemented D32 identity-projection lanes realize Linux ELF
+The implemented D32 lanes realize Linux ELF
 `exit_group(i32)` on x86-64 and AArch64 and supported D29 operator
 applications. The compiler positively establishes an unoptimized handoff and
 retains exact D29 coverage, including exact-empty custody. The native-artifact
@@ -1322,10 +1322,21 @@ the direct-byte path end to end; checked-body call replay additionally binds
 the Terminal callee and semantic relocation owner, target, zero addend, kind,
 and changed-byte interval. A one-block checked call followed by an independent
 immediate Linux exit now exercises that path end to end without widening the
-exit settlement to dynamic or multi-block arguments. Explicit optimization,
-port effects, normalized foreign calls, admitted native providers, and other
-unsupported executable roles produce no partial D32 evidence. Admitted-
-provider parents and non-identity optimization projections remain open.
+exit settlement to dynamic or multi-block arguments.
+
+Verified Psi-phase optimization also has a bounded non-identity lane. The
+optimizer's validated final abstract plan determines the exact surviving D29
+and D41 occurrences; their identities additionally bind the validation, final
+optimization unit, final operation ordinal, immutable Terminal identity, and
+exact D29 coverage. That plan then enters the ordinary validated target,
+assignment, machine, object, and image pipeline. The unrelated selected-
+instruction pipeline is not treated as authority for bytes it did not emit.
+Native replay requires one child per survivor and none for eliminated
+occurrences. Selected-lowering, allocation, post-allocation, and layout
+optimization remain fenced before native publication. Port effects,
+normalized foreign calls, admitted native providers, and other unsupported
+executable roles produce no partial D32 evidence; admitted-provider parents
+remain open.
 
 The older standalone trust-lock lane cannot admit package claims. Domain names
 and unmatched strings reject rather than becoming FNV receipts or bare accepted-

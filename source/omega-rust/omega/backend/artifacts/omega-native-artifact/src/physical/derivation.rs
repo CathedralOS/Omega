@@ -18,10 +18,11 @@ use sha2::{Digest, Sha256};
 use super::{model::*, operator_applications::derive_operator_physical_span};
 use crate::{
     NativePhysicalEvidenceScope, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
+    boundary_applications::boundary_application_coverage_identity,
 };
 
 pub(crate) fn derive_physical_evidence(
-    scope: NativePhysicalEvidenceScope,
+    scope: &NativePhysicalEvidenceScope,
     terminal_artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
     target: NativeTarget,
     object: &omega_image_emission::ObjectArtifact,
@@ -29,7 +30,7 @@ pub(crate) fn derive_physical_evidence(
     selected_provider_plans: &[NativeSelectedProviderPlan],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<Option<NativePhysicalEvidence>, &'static str> {
-    if scope != NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence {
+    if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
         return Ok(None);
     }
     let module = psi_terminal_codec::decode_module(terminal_artifact.semantic_bytes())
@@ -47,11 +48,28 @@ pub(crate) fn derive_physical_evidence(
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
-    let projection = derive_identity_projection(
-        terminal_artifact.manifest().semantic(),
-        &module,
-        boundary_application_coverage,
-    )?;
+    let projection = match scope {
+        NativePhysicalEvidenceScope::Unavailable => unreachable!("unavailable returned above"),
+        NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => {
+            derive_identity_projection(
+                terminal_artifact.manifest().semantic(),
+                &module,
+                boundary_application_coverage,
+            )?
+        }
+        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
+            if optimized.projection().terminal() != terminal_artifact.manifest().semantic()
+                || optimized.boundary_application_coverage()
+                    != &boundary_application_coverage_identity(Some(boundary_application_coverage))
+                        .expect("present boundary-application coverage has an identity")
+            {
+                return Err(
+                    "optimized physical scope is detached from its Terminal or D29 coverage",
+                );
+            }
+            optimized.projection().clone()
+        }
+    };
     let mut settlements = BTreeMap::new();
     for installed in object.boundary_settlements() {
         let key = (
@@ -207,32 +225,87 @@ pub(crate) fn derive_physical_evidence(
         );
     }
     children.sort_by_key(|child| child.occurrence());
-    if children
-        .windows(2)
-        .any(|pair| pair[0].occurrence() >= pair[1].occurrence())
-    {
-        return Err("native physical evidence contains duplicate optimized occurrences");
-    }
-    if children.len()
-        != projection
-            .operator_occurrences()
-            .len()
-            .checked_add(projection.boundary_occurrences().len())
-            .ok_or("native physical evidence occurrence count overflow")?
-    {
-        return Err("native physical evidence does not cover the exact surviving occurrence set");
-    }
+    validate_exact_physical_children(&projection, &children)?;
     let identity = physical_evidence_identity(projection.identity(), &children);
     Ok(Some(native_physical_evidence(
         projection, children, identity,
     )))
 }
 
+#[derive(Clone, Copy)]
+struct PhysicalChildCoordinate {
+    projection: NativeOptimizationProjectionIdentity,
+    occurrence: NativePhysicalOccurrence,
+    parent_role: u8,
+}
+
+fn validate_exact_physical_children(
+    projection: &NativeOptimizationProjection,
+    children: &[NativePhysicalChild],
+) -> Result<(), &'static str> {
+    validate_exact_physical_child_coordinates(
+        projection,
+        children.iter().map(|child| PhysicalChildCoordinate {
+            projection: child.projection(),
+            occurrence: child.occurrence(),
+            parent_role: child.parent().role_tag(),
+        }),
+    )
+}
+
+fn validate_exact_physical_child_coordinates(
+    projection: &NativeOptimizationProjection,
+    children: impl IntoIterator<Item = PhysicalChildCoordinate>,
+) -> Result<(), &'static str> {
+    let expected = projection
+        .operator_occurrences()
+        .iter()
+        .map(|occurrence| (NativePhysicalOccurrence::Operator(occurrence.identity()), 1))
+        .chain(
+            projection
+                .boundary_occurrences()
+                .iter()
+                .map(|occurrence| (NativePhysicalOccurrence::Boundary(occurrence.identity()), 2)),
+        )
+        .collect::<BTreeMap<_, _>>();
+    if expected.len()
+        != projection
+            .operator_occurrences()
+            .len()
+            .checked_add(projection.boundary_occurrences().len())
+            .ok_or("native physical evidence occurrence count overflow")?
+    {
+        return Err("native physical evidence projection repeats an optimized occurrence");
+    }
+
+    let mut observed = BTreeMap::new();
+    for child in children {
+        if child.projection != projection.identity() {
+            return Err("native physical child is detached from its optimized projection");
+        }
+        if child.parent_role != child.occurrence.role_tag()
+            || expected.get(&child.occurrence) != Some(&child.parent_role)
+        {
+            return Err("native physical child swapped or substituted its semantic parent role");
+        }
+        if observed
+            .insert(child.occurrence, child.parent_role)
+            .is_some()
+        {
+            return Err("native physical evidence contains duplicate optimized occurrences");
+        }
+    }
+    if observed != expected {
+        return Err("native physical evidence does not cover the exact surviving occurrence set");
+    }
+    Ok(())
+}
+
 fn derive_identity_projection(
     terminal: psi_terminal::TerminalPsiIdentity,
     module: &psi_terminal::TerminalModule,
     boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
-) -> Result<NativeIdentityOptimizationProjection, &'static str> {
+) -> Result<NativeOptimizationProjection, &'static str> {
     let operator_operations = boundary_application_coverage
         .references()
         .iter()
@@ -303,7 +376,7 @@ fn derive_identity_projection(
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
     let identity = NativeOptimizationProjectionIdentity::from_canonical_bytes(&canonical);
-    Ok(identity_projection(
+    Ok(native_optimization_projection(
         terminal,
         operator_occurrences,
         boundary_occurrences,
@@ -606,6 +679,56 @@ mod tests {
     use super::*;
     use psi_terminal::{SemanticFingerprint, VocabularyMarker};
 
+    fn physical_projection() -> NativeOptimizationProjection {
+        let terminal = psi_terminal::TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([19; 32]),
+        };
+        let machine = psi_core::MachineId::new(1).expect("machine");
+        let operator = optimized_operator_occurrence(
+            terminal,
+            machine,
+            psi_core::OperationId::new(2).expect("operator"),
+            0,
+            OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"operator survivor"),
+        );
+        let boundary = optimized_boundary_occurrence(
+            terminal,
+            machine,
+            psi_core::OperationId::new(3).expect("boundary operation"),
+            psi_core::BoundaryMachineId::new(4).expect("boundary"),
+            1,
+            OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(b"boundary survivor"),
+        );
+        native_optimization_projection(
+            terminal,
+            vec![operator],
+            vec![boundary],
+            NativeOptimizationProjectionIdentity::from_canonical_bytes(b"physical projection"),
+        )
+    }
+
+    fn exact_coordinates(
+        projection: &NativeOptimizationProjection,
+    ) -> [PhysicalChildCoordinate; 2] {
+        [
+            PhysicalChildCoordinate {
+                projection: projection.identity(),
+                occurrence: NativePhysicalOccurrence::Operator(
+                    projection.operator_occurrences()[0].identity(),
+                ),
+                parent_role: 1,
+            },
+            PhysicalChildCoordinate {
+                projection: projection.identity(),
+                occurrence: NativePhysicalOccurrence::Boundary(
+                    projection.boundary_occurrences()[0].identity(),
+                ),
+                parent_role: 2,
+            },
+        ]
+    }
+
     #[test]
     fn equal_boundary_requirements_at_distinct_operations_have_distinct_occurrences() {
         let terminal = psi_terminal::TerminalPsiIdentity {
@@ -653,5 +776,55 @@ mod tests {
         );
 
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn physical_children_require_an_exact_survivor_bijection() {
+        let projection = physical_projection();
+        let [operator, boundary] = exact_coordinates(&projection);
+        assert!(
+            validate_exact_physical_child_coordinates(&projection, [operator, boundary]).is_ok()
+        );
+
+        assert_eq!(
+            validate_exact_physical_child_coordinates(&projection, [operator]),
+            Err("native physical evidence does not cover the exact surviving occurrence set")
+        );
+        assert_eq!(
+            validate_exact_physical_child_coordinates(&projection, [operator, operator, boundary]),
+            Err("native physical evidence contains duplicate optimized occurrences")
+        );
+
+        let padded = PhysicalChildCoordinate {
+            projection: projection.identity(),
+            occurrence: NativePhysicalOccurrence::Operator(
+                OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(b"stale occurrence"),
+            ),
+            parent_role: 1,
+        };
+        assert_eq!(
+            validate_exact_physical_child_coordinates(&projection, [operator, boundary, padded]),
+            Err("native physical child swapped or substituted its semantic parent role")
+        );
+
+        let detached = PhysicalChildCoordinate {
+            projection: NativeOptimizationProjectionIdentity::from_canonical_bytes(
+                b"detached projection",
+            ),
+            ..operator
+        };
+        assert_eq!(
+            validate_exact_physical_child_coordinates(&projection, [detached, boundary]),
+            Err("native physical child is detached from its optimized projection")
+        );
+
+        let role_swapped = PhysicalChildCoordinate {
+            parent_role: 2,
+            ..operator
+        };
+        assert_eq!(
+            validate_exact_physical_child_coordinates(&projection, [role_swapped, boundary]),
+            Err("native physical child swapped or substituted its semantic parent role")
+        );
     }
 }

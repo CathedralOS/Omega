@@ -1,6 +1,7 @@
 use omega_boundary_applications::OperatorApplicationCoverageRef;
 use omega_optimization_core::{
-    NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
+    NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,
+    OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
 use omega_target::NativeTarget;
@@ -102,15 +103,17 @@ impl OptimizedOperatorOccurrence {
     }
 }
 
+/// Exact optimized-operation survivor roster used to derive D32 children.
+/// Identity and non-identity optimization lanes share this representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeIdentityOptimizationProjection {
+pub struct NativeOptimizationProjection {
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
 }
 
-impl NativeIdentityOptimizationProjection {
+impl NativeOptimizationProjection {
     pub const fn terminal(&self) -> TerminalPsiIdentity {
         self.terminal
     }
@@ -125,6 +128,44 @@ impl NativeIdentityOptimizationProjection {
 
     pub const fn identity(&self) -> NativeOptimizationProjectionIdentity {
         self.identity
+    }
+}
+
+/// Opaque native custody for one independently validated optimized abstract
+/// projection and its exact surviving D29/D41 occurrence set.
+///
+/// Construction is owned by [`crate::NativePhysicalEvidenceScope`]. Keeping
+/// every field private prevents replay parts from manufacturing optimizer
+/// authority; callers may only retain or move a value issued by that
+/// constructor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedOptimizedNativePhysicalEvidenceScope {
+    validation: OptimizedAbstractPlanProjectionIdentity,
+    final_unit: OptimizationUnitIdentity,
+    boundary_application_coverage: [u8; 32],
+    projection: NativeOptimizationProjection,
+    identity: [u8; 32],
+}
+
+impl ValidatedOptimizedNativePhysicalEvidenceScope {
+    pub const fn validation(&self) -> OptimizedAbstractPlanProjectionIdentity {
+        self.validation
+    }
+
+    pub const fn final_unit(&self) -> OptimizationUnitIdentity {
+        self.final_unit
+    }
+
+    pub const fn projection(&self) -> &NativeOptimizationProjection {
+        &self.projection
+    }
+
+    pub const fn identity(&self) -> &[u8; 32] {
+        &self.identity
+    }
+
+    pub(super) const fn boundary_application_coverage(&self) -> &[u8; 32] {
+        &self.boundary_application_coverage
     }
 }
 
@@ -318,13 +359,13 @@ impl NativePhysicalChild {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePhysicalEvidence {
-    projection: NativeIdentityOptimizationProjection,
+    projection: NativeOptimizationProjection,
     children: Vec<NativePhysicalChild>,
     identity: [u8; 32],
 }
 
 impl NativePhysicalEvidence {
-    pub const fn projection(&self) -> &NativeIdentityOptimizationProjection {
+    pub const fn projection(&self) -> &NativeOptimizationProjection {
         &self.projection
     }
 
@@ -399,7 +440,7 @@ pub struct NativePhysicalChildParts {
 
 #[derive(Debug)]
 pub struct NativePhysicalEvidenceParts {
-    pub projection: NativeIdentityOptimizationProjection,
+    pub projection: NativeOptimizationProjection,
     pub children: Vec<NativePhysicalChild>,
     pub identity: [u8; 32],
 }
@@ -460,13 +501,13 @@ pub(super) fn optimized_operator_occurrence(
     }
 }
 
-pub(super) fn identity_projection(
+pub(super) fn native_optimization_projection(
     terminal: TerminalPsiIdentity,
     operator_occurrences: Vec<OptimizedOperatorOccurrence>,
     boundary_occurrences: Vec<OptimizedBoundaryOccurrence>,
     identity: NativeOptimizationProjectionIdentity,
-) -> NativeIdentityOptimizationProjection {
-    NativeIdentityOptimizationProjection {
+) -> NativeOptimizationProjection {
+    NativeOptimizationProjection {
         terminal,
         operator_occurrences,
         boundary_occurrences,
@@ -474,8 +515,24 @@ pub(super) fn identity_projection(
     }
 }
 
+pub(super) fn validated_optimized_native_physical_evidence_scope(
+    validation: OptimizedAbstractPlanProjectionIdentity,
+    final_unit: OptimizationUnitIdentity,
+    boundary_application_coverage: [u8; 32],
+    projection: NativeOptimizationProjection,
+    identity: [u8; 32],
+) -> ValidatedOptimizedNativePhysicalEvidenceScope {
+    ValidatedOptimizedNativePhysicalEvidenceScope {
+        validation,
+        final_unit,
+        boundary_application_coverage,
+        projection,
+        identity,
+    }
+}
+
 pub(super) fn native_physical_evidence(
-    projection: NativeIdentityOptimizationProjection,
+    projection: NativeOptimizationProjection,
     children: Vec<NativePhysicalChild>,
     identity: [u8; 32],
 ) -> NativePhysicalEvidence {
