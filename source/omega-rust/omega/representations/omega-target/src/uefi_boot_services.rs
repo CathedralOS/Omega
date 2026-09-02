@@ -5,7 +5,7 @@
 //! x86-64 layout as descriptive evidence. It neither inspects a runtime table
 //! nor grants permission to invoke a retained function pointer.
 //!
-//! [UEFI Boot Services table]: https://uefi.org/specs/UEFI/2.10_A/04_EFI_System_Table.html#efi-boot-services-table
+//! [UEFI Boot Services table]: https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html#efi-boot-services-table
 
 use crate::{
     Architecture, ObjectFormat, ProgramEntryCallingConvention, ProgramEntryPhysicalContractPackage,
@@ -23,6 +23,7 @@ const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 /// Structured UEFI protocol identity in specification field order. It is a
 /// name, not a pointer, interface occurrence, or provider admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
 pub struct UefiProtocolGuid {
     pub data1: u32,
     pub data2: u16,
@@ -530,6 +531,8 @@ mod tests {
     #[test]
     fn uefi_x64_retains_complete_boot_services_layout() {
         let layout = plan_uefi_boot_services_native_layout(TargetProfile::UefiX64).unwrap();
+        assert_eq!(std::mem::size_of::<UefiProtocolGuid>(), 16);
+        assert_eq!(std::mem::align_of::<UefiProtocolGuid>(), 4);
         assert_eq!(layout.field_count(), 49);
         assert_eq!(layout.table_header_size(), 24);
         assert_eq!(layout.known_prefix_byte_size(), 376);
@@ -583,9 +586,11 @@ mod tests {
         validate_fields(canonical_fields()).unwrap();
         let mut drift = canonical_fields().to_vec();
         drift[21].byte_offset += 8;
-        assert!(validate_fields(&drift)
-            .unwrap_err()
-            .message
-            .contains("drifted"));
+        assert!(
+            validate_fields(&drift)
+                .unwrap_err()
+                .message
+                .contains("drifted")
+        );
     }
 }

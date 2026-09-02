@@ -6,6 +6,7 @@
 //! lease. The result remains a metadata-only lifecycle carrier: service-field
 //! projection belongs to a later provider-specific edge.
 
+use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use omega_calling_conventions::{CallSignature, CallingPolicy, validate_boundary_entry_plan};
@@ -61,6 +62,7 @@ pub struct UefiApplicationFirmwareLedger<'occurrence> {
     invocation: UefiPhysicalInvocationId,
     phase: ReturningApplicationPhase,
     image_handle: Option<UefiImageHandleOccurrenceId>,
+    image_handle_value: Option<NonZeroU64>,
     image_handle_provenance_issued: bool,
     occurrence: Option<UefiSystemTableOccurrenceId>,
     table_bytes: Option<&'occurrence [u8]>,
@@ -78,6 +80,7 @@ impl std::fmt::Debug for UefiApplicationFirmwareLedger<'_> {
             .field("invocation", &self.invocation)
             .field("phase", &self.phase)
             .field("image_handle", &self.image_handle)
+            .field("has_image_handle_value", &self.image_handle_value.is_some())
             .field(
                 "image_handle_provenance_issued",
                 &self.image_handle_provenance_issued,
@@ -107,6 +110,7 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             invocation,
             phase: ReturningApplicationPhase::BootServicesLive,
             image_handle: None,
+            image_handle_value: None,
             image_handle_provenance_issued: false,
             occurrence: None,
             table_bytes: None,
@@ -135,6 +139,26 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
         &mut self,
         occurrence: UefiImageHandleOccurrenceId,
     ) -> Result<UefiImageHandleProvenance, ExternalRootDiagnostic> {
+        self.admit_image_handle(occurrence, None)
+    }
+
+    /// Admit the opaque non-null image-handle value supplied by the exact
+    /// physical UEFI entry occurrence. The value stays private beneath the
+    /// provenance carrier: it can become a firmware-call operand, but never a
+    /// storage address or `Extent` projection.
+    pub fn admit_image_handle_physical_input(
+        &mut self,
+        occurrence: UefiImageHandleOccurrenceId,
+        handle: NonZeroU64,
+    ) -> Result<UefiImageHandleProvenance, ExternalRootDiagnostic> {
+        self.admit_image_handle(occurrence, Some(handle))
+    }
+
+    fn admit_image_handle(
+        &mut self,
+        occurrence: UefiImageHandleOccurrenceId,
+        handle: Option<NonZeroU64>,
+    ) -> Result<UefiImageHandleProvenance, ExternalRootDiagnostic> {
         if self.phase != ReturningApplicationPhase::BootServicesLive {
             return Err(ExternalRootDiagnostic(
                 "UEFI image handle arrived after the returning firmware phase began".into(),
@@ -146,6 +170,7 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             ));
         }
         self.image_handle = Some(occurrence);
+        self.image_handle_value = handle;
         self.image_handle_provenance_issued = true;
         Ok(UefiImageHandleProvenance {
             authority: self.authority,
@@ -153,6 +178,7 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             session: self.session,
             invocation: self.invocation,
             occurrence,
+            opaque_handle: handle,
         })
     }
 
@@ -341,6 +367,7 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
             && provenance.session == self.session
             && provenance.invocation == self.invocation
             && Some(provenance.occurrence) == self.image_handle
+            && provenance.opaque_handle == self.image_handle_value
     }
 
     fn matches_lease(&self, lease: &UefiBootServicesPhaseLease) -> bool {
@@ -355,8 +382,9 @@ impl<'occurrence> UefiApplicationFirmwareLedger<'occurrence> {
 }
 
 /// Opaque provenance for the image handle supplied to one exact physical
-/// invocation. The carrier deliberately retains no raw handle address and
-/// cannot be projected into storage authority.
+/// invocation. A concrete physical-input admission retains the non-null handle
+/// value privately for exact provider invocation; no public handle/address
+/// projection exists and the carrier cannot become storage authority.
 #[must_use = "UEFI image-handle provenance is a linear physical-arrival input"]
 pub struct UefiImageHandleProvenance {
     authority: u64,
@@ -364,6 +392,7 @@ pub struct UefiImageHandleProvenance {
     session: UefiFirmwareSessionId,
     invocation: UefiPhysicalInvocationId,
     occurrence: UefiImageHandleOccurrenceId,
+    opaque_handle: Option<NonZeroU64>,
 }
 
 impl std::fmt::Debug for UefiImageHandleProvenance {
@@ -2157,7 +2186,7 @@ mod tests {
             .collect::<String>();
         assert_eq!(
             compact_handle,
-            "pubstructUefiImageHandleProvenance{authority:u64,ledger:UefiApplicationBootstrapLedgerId,session:UefiFirmwareSessionId,invocation:UefiPhysicalInvocationId,occurrence:UefiImageHandleOccurrenceId,}"
+            "pubstructUefiImageHandleProvenance{authority:u64,ledger:UefiApplicationBootstrapLedgerId,session:UefiFirmwareSessionId,invocation:UefiPhysicalInvocationId,occurrence:UefiImageHandleOccurrenceId,opaque_handle:Option<NonZeroU64>,}"
         );
         let compact_source = source
             .chars()

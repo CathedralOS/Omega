@@ -3264,8 +3264,19 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         machine Root::one_eight(values: [[Token; 8]; 2]) {
             Sink::take(values[1][7]);
         }
-        machine Root::too_wide(values: [[Token; 9]; 2]) {
+        machine Root::nested_nine(values: [[Token; 9]; 2]) {
             Sink::take(values[1][8]);
+            Sink::take(values[0][1]);
+        }
+        machine Root::same_outer_nine(values: [[Token; 9]; 2]) {
+            Sink::take(values[0][0]);
+            Sink::take(values[0][8]);
+        }
+        machine Root::one_nine(values: [[Token; 9]; 2]) {
+            Sink::take(values[1][8]);
+        }
+        machine Root::too_wide(values: [[Token; 10]; 2]) {
+            Sink::take(values[1][9]);
             Sink::take(values[0][1]);
         }
         "#,
@@ -3493,6 +3504,51 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         ],
         "octet outer and inner live complements both descend",
     );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .for_machine(machine_named(&checked, "nested_nine"))
+        .expect("one leaf move per outer nonet leaves sixteen exact residual leaves");
+    assert_eq!(
+        plan.machine.operations[..2]
+            .iter()
+            .map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::CallUnit {
+                    structural_arguments,
+                    ..
+                } => path(&structural_arguments[0].path),
+                _ => panic!("nested nonet cleanup contains calls before return"),
+            })
+            .collect::<Vec<_>>(),
+        vec![(1, 8), (0, 1)],
+        "authored nested-nonet move order is retained",
+    );
+    assert_eq!(
+        plan.residual_affine_discards
+            .iter()
+            .map(|discard| path(&discard.path))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, 7),
+            (1, 6),
+            (1, 5),
+            (1, 4),
+            (1, 3),
+            (1, 2),
+            (1, 1),
+            (1, 0),
+            (0, 8),
+            (0, 7),
+            (0, 6),
+            (0, 5),
+            (0, 4),
+            (0, 3),
+            (0, 2),
+            (0, 0),
+        ],
+        "nonet outer and inner live complements both descend",
+    );
     for machine in [
         "same_outer",
         "one",
@@ -3506,6 +3562,8 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         "one_seven",
         "same_outer_eight",
         "one_eight",
+        "same_outer_nine",
+        "one_nine",
         "too_wide",
     ] {
         assert!(

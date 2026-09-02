@@ -609,7 +609,13 @@ a validated native service-table layout only through its selected providers.
 The UEFI lifecycle join replays the complete target entry slot and every exact
 native field and aggregate-layout row; its compact FNV is a report/cache
 coordinate and cannot admit a layout. A physical handle or pointer is never
-itself an `Extent`. Slot selection and raw geometry authorize no claim. The
+itself an `Extent`. The physical-input ledger may retain an opaque non-null
+image-handle value only beneath its invocation provenance. The selected
+`HandleProtocol` provider binds that value, its private service address, the
+native-layout protocol GUID, and a fresh borrowed interface-output slot to the
+exact target calling plan; outcome admission must replay the same slot. None of
+those operands has a public raw-address projection or establishes content.
+Slot selection and raw geometry authorize no claim. The
 domain owner's route authorizes what the semantic installation edge may
 introduce, while the physical invocation, provider evidence, selected slot,
 bridge, and installation receipt identify the concrete occurrence.

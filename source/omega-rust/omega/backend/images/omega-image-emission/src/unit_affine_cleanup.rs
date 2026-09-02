@@ -511,7 +511,7 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
                 0 | 1 | 2 | 3
             )] | [
                 psi_terminal::StructuralPathSegment::FixedIndex(0 | 1),
-                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5 | 6 | 7),
+                psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8),
             ]
         )
 }

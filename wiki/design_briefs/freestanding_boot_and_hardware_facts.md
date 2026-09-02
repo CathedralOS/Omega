@@ -105,6 +105,17 @@ admits its return. Layout validation and interval arithmetic derive facts above
 those claims but never replace them. The ledger retains the postconditions and
 selected bindings, not a blanket statement that firmware is trusted.
 
+The first concrete `HandleProtocol` operand carrier retains the physical
+entry's non-null image-handle value opaquely, rejoins it to the exact live
+provider and Microsoft-x64 call plan, and borrows one initially zero interface
+output slot. The Loaded Image GUID has an exact 16-byte native layout. The
+service address, handle, GUID address, and output address remain private, while
+the public carrier reports only identities and RCX/RDX/R8 destinations.
+Address-free provenance, a stale output slot, or a success result inconsistent
+with that slot rejects transactionally. This is still pre-invocation custody:
+no firmware call, output provenance, image `Extent`, or semantic installation
+is inferred from the operand values.
+
 The selected profile exposes its minimum entry-stack bound as a target-semantic
 observation, conceptually
 `TargetSemantics::guaranteed_entry_stack<UefiX86_64>()`. It stays symbolic until

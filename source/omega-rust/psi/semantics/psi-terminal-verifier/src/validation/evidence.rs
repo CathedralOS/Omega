@@ -411,7 +411,7 @@ pub(super) fn validate_evidence_contract_lanes(
                 .collect::<Vec<_>>();
             selected_input_positions.sort_unstable();
             if let Some(first_use) = selected_uses.first()
-                && (selected_evidence.len() > 8
+                && (selected_evidence.len() > 9
                     || selected_uses.len() != selected_evidence.len()
                     || selected_evidence
                         .iter()
