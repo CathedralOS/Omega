@@ -8,7 +8,7 @@ use psi_source::SourceOrigin;
 use psi_syntax_trees::SyntaxTrees;
 use std::path::{Path, PathBuf};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct SourceStorage {
     pub files: Arena<SourceFile>,
     pub sources: SourceMap,

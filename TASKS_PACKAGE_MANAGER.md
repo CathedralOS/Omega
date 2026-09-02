@@ -254,14 +254,10 @@ explicitly.
 
 - [ ] **D54-EXPLICIT-MULTI-TARGET-ORCHESTRATION — fan out only where target
   semantics begin.**
-  - [x] resolve and retain one target-independent immutable package source
-    closure, then require review and production consumers to project an exact-
-    target child whose profile cannot disagree with its canonical subject;
-  - form and validate the compiler-owned immutable source/parse checkpoint
-    against the landed target-independent `PackageCompilationSourceInputs`
-    equality projection, then consume `ExplicitTargetSet` at the orchestration
-    boundary and reuse parsing, flat build facts, and every other target-
-    independent stage result across those children;
+  - consume `ExplicitTargetSet` at the orchestration boundary and reuse the
+    landed immutable package source and compiler source/parse checkpoints, flat
+    build facts, and every other target-independent stage result across exact
+    target children;
   - reuse an identical checked/Terminal Psi or PCC product across target
     children only after exact strong-identity equality, then supply each native
     branch with its own target and lowering-authority inputs;

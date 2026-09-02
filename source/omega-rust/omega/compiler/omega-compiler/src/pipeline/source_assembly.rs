@@ -3,7 +3,6 @@ use crate::pipeline::frontend::{
     discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
     load_package_generated_source, load_sources, parse_sources,
 };
-use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use crate::pipeline::stage::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use crate::pipeline::timing::CompileTimings;
@@ -11,6 +10,9 @@ use psi_diagnostics::Diagnostic;
 use psi_syntax_trees::SyntaxTrees;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+mod checkpoint;
+use checkpoint::ImmutableSourceParseCheckpoint;
 
 #[derive(Clone)]
 pub(super) struct AssembledSyntax {
@@ -185,110 +187,13 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-    let project_roots = project_roots(root_path);
-    let selected_build_path = project_roots
-        .build
-        .as_deref()
-        .map(|path| {
-            path.canonicalize().map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "failed to establish exact build source {}: {error}",
-                    path.display()
-                ))]
-            })
-        })
-        .transpose()?;
-    let mut imports = ImportQueue::default();
-    for root in project_roots.sources {
-        imports.seed(root);
+    let checkpoint = ImmutableSourceParseCheckpoint::prepare(root_path, package_inputs, timings)?;
+    match target_name {
+        Some(target_name) => checkpoint
+            .for_exact_target(target_name, package_inputs)?
+            .assemble(timings),
+        None => checkpoint.assemble_targetless(package_inputs, timings),
     }
-
-    let bundled_library_root = crate::pipeline::frontend::bundled_omega_root();
-    let mut source_storage = match package_inputs {
-        Some(package_inputs) => {
-            package_inputs.validate_for_compilation(
-                root_path,
-                &crate::pipeline::frontend::bundled_core_root(),
-            )?;
-            let root_package = package_inputs
-                .package_root(package_inputs.root())
-                .expect("validated package inputs retain their root")
-                .to_path_buf();
-            let mut storage = SourceStorage::for_package_compilation(
-                root_package,
-                package_inputs.root(),
-                crate::pipeline::frontend::bundled_core_root(),
-            );
-            for (identity, source_root) in package_inputs.packages() {
-                storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
-            }
-            storage
-        }
-        None => {
-            let root_package = root_path
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| PathBuf::from("."));
-            SourceStorage::for_compilation(root_package, bundled_library_root)
-        }
-    };
-    let generated_source_custody = match package_inputs {
-        Some(package_inputs) => append_dependency_generated_sources_to_storage(
-            &mut source_storage,
-            &mut imports,
-            target_name,
-            package_inputs,
-            timings,
-        )?,
-        None => Vec::new(),
-    };
-    load_pending_imports(
-        &mut source_storage,
-        &mut imports,
-        root_path,
-        target_name,
-        package_inputs,
-        timings,
-    )?;
-
-    let build_source_id = selected_build_path
-        .as_deref()
-        .map(|selected| {
-            source_storage
-                .files
-                .iter()
-                .find(|(_, file)| {
-                    file.path
-                        .canonicalize()
-                        .is_ok_and(|loaded| loaded == selected)
-                })
-                .map(|(_, file)| file.source_id)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "selected build source {} disappeared from the loaded frontier",
-                        selected.display()
-                    ))]
-                })
-        })
-        .transpose()?;
-    validate_selected_build_role(&source_storage, build_source_id)?;
-    let source_scoped_top_level_bindings = inject_build_prelude(
-        &mut source_storage,
-        build_source_id,
-        target_name.is_some(),
-        timings,
-    )?;
-
-    validate_selected_target(&source_storage, target_name)?;
-    let source_file_count = source_storage.file_count();
-    let syntax = assemble_syntax(
-        source_storage,
-        build_source_id,
-        source_scoped_top_level_bindings,
-        generated_source_custody,
-    )?;
-
-    Ok((source_file_count, syntax))
 }
 
 fn append_dependency_generated_sources_to_storage(
