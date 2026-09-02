@@ -651,6 +651,14 @@ pub struct CheckedComposedUnitControlStatePlan {
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub entry_claims: Vec<CheckedUnitEntryClaimPlan>,
+    /// Ordered immutable primitive locals evaluated before this state's
+    /// effects and terminator. Initializer expressions remain in the exact
+    /// checked scalar-expression table under these statement ordinals.
+    pub bindings: Vec<CheckedScalarBinding>,
+    /// Initializers retained independently by this composed-control plan.
+    /// Terminal admission requires exact agreement with the scalar-expression
+    /// fact at the corresponding binding coordinate before emitting either.
+    pub binding_initializers: Vec<CheckedScalarExpression>,
     /// Ordered effect operations only. Control exits remain in `terminator`.
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
     pub terminator: CheckedComposedUnitControlTerminatorPlan,
@@ -664,8 +672,8 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     },
     Conditional {
         /// Exact checked scalar expression selected by the authored guard.
-        /// The current family admits either one Boolean state parameter or a
-        /// closed expression with no local or structural dependencies.
+        /// The current family admits either one Boolean state parameter, a
+        /// closed expression, or the bounded one-local conditional lane.
         guard: CheckedScalarExpression,
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,

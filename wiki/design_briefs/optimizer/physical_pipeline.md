@@ -340,6 +340,19 @@ consumes its alias with an exact completion receipt. Checked-to-Terminal
 lowering independently replays those events and binds the aliases to one
 Terminal claim before verifier and codec publication.
 
+The same three-block family has one bounded scalar-local rung. The entry may
+declare exactly one immutable `u64` initialized by a closed integer literal or
+by the compile-known length of a non-inclusive subslice with two literal
+bounds. Checked Psi independently retains the landed `u64` initializer in the
+composed plan and scalar-expression facts, alongside the local/literal guard
+and shifted successor coordinates. Terminal admission requires exact agreement
+between those checked carriers without reopening typed source, then rejects a
+changed binding, value, type, guard, or edge before emitting the initializer.
+Explicit `true`/`false` arms are admitted only when their
+typed guard subjects are structurally identical; `_` remains the ordinary
+fallback spelling. Additional locals, runtime bounds, inclusive or open
+ranges, richer expressions, and scalar-bearing leaves remain fail-closed.
+
 A disjoint composed leaf family admits parameterless internal Unit calls. Each
 leaf rejoins the exact checked target state, contract fingerprint, service
 reach, and retained ordinary Unit plan. Lowering emits repeated calls to one

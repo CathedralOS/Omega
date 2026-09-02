@@ -86,6 +86,7 @@ pub(super) fn build(
             CheckedScalarExpressionRole::Guard,
         )?,
         control_parameters.last()?,
+        &[],
     )?;
     let empty_claims = Vec::new();
     let branches = [
@@ -150,6 +151,8 @@ pub(super) fn build(
                 structural_parameters: Vec::new(),
                 scalar_parameters: parameters.clone(),
                 entry_claims: Vec::new(),
+                bindings: Vec::new(),
+                binding_initializers: Vec::new(),
                 operations: Vec::new(),
                 terminator: CheckedComposedUnitControlTerminatorPlan::Jump { successor },
             },
@@ -160,6 +163,8 @@ pub(super) fn build(
         structural_parameters: Vec::new(),
         scalar_parameters: control_parameters.last()?.clone(),
         entry_claims: Vec::new(),
+        bindings: Vec::new(),
+        binding_initializers: Vec::new(),
         operations: Vec::new(),
         terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
             guard,

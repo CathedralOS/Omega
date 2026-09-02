@@ -121,6 +121,98 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
     ));
 }
 
+#[test]
+fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
+    let source = r#"
+        boundary trait Host { machine exit(code: i32); }
+        data Root { values: [i32; 5]; }
+        machine Root::enter(&mut self) {
+            let length: u64 = (self.values[1..4]).len;
+            transition length == 3 {
+                true -> yes()
+                false -> no()
+            }
+            state yes(&mut self) { Host::exit(1); }
+            state no(&mut self) { Host::exit(2); }
+        }
+    "#;
+    let checked = checked_source(source);
+    let lowered = lower_machine(&checked, "Root::enter")
+        .expect("one compile-known local lowers through composed Unit control");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("one composed Terminal machine")
+    };
+    assert!(matches!(
+        machine.blocks[0].operations.first(),
+        Some(Operation {
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(3),
+            },
+            ..
+        })
+    ));
+
+    let mut drifted_fact = checked.clone();
+    let initializer = drifted_fact
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter_mut()
+        .find(|expression| {
+            expression.statement_ordinal == 0
+                && expression.role
+                    == CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }
+        })
+        .expect("checked initializer fact");
+    initializer.expression = CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(4).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::U64,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    assert!(matches!(
+        lower_machine(&drifted_fact, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+
+    let mut drifted_retained_initializer = checked.clone();
+    drifted_retained_initializer
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines[0]
+        .states[0]
+        .binding_initializers[0] = CheckedScalarExpression::IntegerLiteral {
+        literal: psi_numerics::literals::IntegerLiteral::from_value(4).with_landing(
+            psi_numerics::literals::IntegerLanding {
+                landed_type: psi_numerics::literals::LandedIntegerType::U64,
+                domain: psi_numerics::arithmetic::ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    assert!(matches!(
+        lower_machine(&drifted_retained_initializer, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+
+    let mut drifted_binding = checked;
+    drifted_binding
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines[0]
+        .states[0]
+        .bindings[0]
+        .statement_ordinal = 1;
+    assert!(matches!(
+        lower_machine(&drifted_binding, "Root::enter"),
+        Err(LoweringError::Unsupported(_))
+    ));
+}
+
 fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
     let root = SymbolHandle::from_arena_index(1);
     let entry = SymbolHandle::from_arena_index(11);

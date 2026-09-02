@@ -73,6 +73,8 @@ pub(super) fn build(
         structural_parameters: structural_parameters.to_vec(),
         scalar_parameters: Vec::new(),
         entry_claims: entry_claims.to_vec(),
+        bindings: Vec::new(),
+        binding_initializers: Vec::new(),
         operations: vec![operation],
         terminator: CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
     })

@@ -61,6 +61,8 @@ pub(super) fn build(
                 structural_parameters: graph.entry_structural_parameters,
                 scalar_parameters: graph.entry_scalar_parameters,
                 entry_claims: graph.entry_claims,
+                bindings: graph.entry_bindings,
+                binding_initializers: graph.entry_binding_initializers,
                 operations: Vec::new(),
                 terminator: CheckedComposedUnitControlTerminatorPlan::Conditional {
                     guard: graph.guard,
