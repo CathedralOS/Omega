@@ -31,6 +31,7 @@ Statements are:
 const DEST NAT
 add DEST LEFT RIGHT
 sub DEST LEFT RIGHT
+mul DEST LEFT RIGHT
 div DEST LEFT RIGHT
 construct DEST SUM CASE
 field-set RECORD FIELD SOURCE
@@ -46,6 +47,7 @@ call DEST MACHINE ARG
 return SOURCE
 goto STATE
 brzero CONDITION ZERO_STATE NONZERO_STATE
+brlt LEFT RIGHT LESS_STATE NONLESS_STATE
 switch VALUE SUM (CASE STATE)+ endswitch
 halt SOURCE
 ```
@@ -73,16 +75,16 @@ they are not proposed Delta semantics.
 
 | Subject | Size |
 | --- | ---: |
-| Gamma-written experiment compiler | 636 lines / 25,533 bytes |
-| Native compiler produced by Gamma | 22,339 bytes |
+| Gamma-written experiment compiler | 661 lines / 26,802 bytes |
+| Native compiler produced by Gamma | 23,403 bytes |
 | Representative Delta source | 38 lines / 733 bytes |
 | Generated Alpha tape | 523 bytes |
 | Nested-scope parser source | 109 lines / 2,312 bytes |
 | Nested-scope parser Alpha tape | 1,919 bytes |
 | Recursive AST transform source | 427 lines / 10,774 bytes |
 | Recursive AST transform Alpha tape | 9,563 bytes |
-| Symbolic Alpha encoder source | 539 lines / 12,635 bytes |
-| Symbolic Alpha encoder tape | 10,842 bytes |
+| Symbolic Alpha encoder source | 574 lines / 13,602 bytes |
+| Symbolic Alpha encoder tape | 11,772 bytes |
 | Retained functional Alpha backend declarations/implementation | 834 lines / 39,426 bytes |
 
 The compiler line spend is approximately:
@@ -90,13 +92,13 @@ The compiler line spend is approximately:
 | Concern | Lines |
 | --- | ---: |
 | named compiler state | 69 |
-| tokenizer and exact keyword checks | 71 |
+| tokenizer and exact keyword checks | 73 |
 | identifiers and integers | 37 |
 | symbols and nominal types | 74 |
 | declaration/state census | 77 |
-| statement sizing | 57 |
+| statement sizing | 60 |
 | Alpha emitters and type helpers | 40 |
-| typed replay and lowering | 216 |
+| typed replay and lowering | 229 |
 
 The canonical Gamma evaluator and self-hosted Gamma compiler independently
 execute/compile this Gamma source. Their resulting native Delta compiler agrees
@@ -107,9 +109,10 @@ shadowing, duplicate-offset, malformed-scope, and arena-exhaustion cases. The
 transform customer passes mixed and fully folded trees, a surviving conditional,
 arity and framing errors, exact source offsets, and node/depth exhaustion.
 The encoder covers every Alpha opcode and target shape, forward labels,
-exact-ended input, high-bit immediate bytes, duplicate/missing/extra labels,
-undefined targets, malformed records, fail-before-output behavior, and item
-exhaustion.
+exact-ended input, high-bit immediate bytes, labels above 255,
+duplicate/missing/extra labels, undefined targets, malformed records,
+fail-before-output behavior, the exact 1,048,572-byte payload, and adjacent
+oversize rejection.
 
 ## Reading the result
 
@@ -135,12 +138,13 @@ compare those whole-edge costs against the actual Epsilon compiler rather than
 adding richer values speculatively.
 
 The symbolic backend supplies that first actual-customer comparison. The
-state-machine encoder is 539 lines and 103 states; the corresponding retained
+state-machine encoder is 574 lines and 106 states; the corresponding retained
 functional declarations and implementation occupy 834 lines. The smaller
 version also avoids a persistent trie and balanced byte rope because it uses
 fixed indexed item/label arenas and streams only after complete validation.
-This is not yet a complete replacement result: its experiment profile admits
-128 items and 256 labels, while the functional subsystem carries the full
-1,048,572-byte Alpha payload envelope and independently replays emitted bytes.
-Scaling the fixed arenas and closing Epsilon lowering remain required before
+Fourteen full-profile arenas consume 117,440,064 bytes; with Delta's 1 MiB
+static base they end at byte 118,488,640, below Alpha's 256 MiB memory bound.
+The customer now carries the full 1,048,572-byte Alpha payload envelope, but it
+does not independently replay emitted bytes. Connecting actual Epsilon lowering
+and deciding whether symbolic prevalidation is sufficient remain required before
 selecting normative Delta.

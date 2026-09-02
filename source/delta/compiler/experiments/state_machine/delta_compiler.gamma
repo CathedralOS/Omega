@@ -119,6 +119,7 @@
 : is_const 0x74736e6f63 0x0 0x5 token_exact ;
 : is_add 0x646461 0x0 0x3 token_exact ;
 : is_sub 0x627573 0x0 0x3 token_exact ;
+: is_mul 0x6c756d 0x0 0x3 token_exact ;
 : is_div 0x766964 0x0 0x3 token_exact ;
 : is_construct 0x63757274736e6f63 0x74 0x9 token_exact ;
 : is_field_set 0x65732d646c656966 0x74 0x9 token_exact ;
@@ -129,6 +130,7 @@
 : is_return 0x6e7275746572 0x0 0x6 token_exact ;
 : is_goto 0x6f746f67 0x0 0x4 token_exact ;
 : is_brzero 0x6f72657a7262 0x0 0x6 token_exact ;
+: is_brlt 0x746c7262 0x0 0x4 token_exact ;
 : is_switch 0x686374697773 0x0 0x6 token_exact ;
 : is_halt 0x746c6168 0x0 0x4 token_exact ;
 : is_word 0x64726f77 0x0 0x4 token_exact ;
@@ -331,7 +333,8 @@
 ;
 : count_const need_token need_token 0x17 add_pc jump p1_machine_body ;
 : count_add_test is_add branch count_binary count_sub_test ;
-: count_sub_test is_sub branch count_binary count_div_test ;
+: count_sub_test is_sub branch count_binary count_mul_test ;
+: count_mul_test is_mul branch count_binary count_div_test ;
 : count_div_test is_div branch count_binary count_construct_test ;
 : count_construct_test is_construct branch count_construct count_field_set_test ;
 : count_field_set_test is_field_set branch count_memory count_field_get_test ;
@@ -341,7 +344,8 @@
 : count_call_test is_call branch count_call count_return_test ;
 : count_return_test is_return branch count_return count_goto_test ;
 : count_goto_test is_goto branch count_goto count_brzero_test ;
-: count_brzero_test is_brzero branch count_brzero count_switch_test ;
+: count_brzero_test is_brzero branch count_brzero count_brlt_test ;
+: count_brlt_test is_brlt branch count_brlt count_switch_test ;
 : count_switch_test is_switch branch count_switch count_halt_test ;
 : count_halt_test is_halt branch count_halt count_copy_test ;
 : count_copy_test is_copy branch count_copy count_read_test ;
@@ -356,6 +360,7 @@
 : count_return need_token 0xe add_pc jump p1_machine_body ;
 : count_goto need_token 0x9 add_pc jump p1_machine_body ;
 : count_brzero need_token need_token need_token 0x20 add_pc jump p1_machine_body ;
+: count_brlt need_token need_token need_token need_token 0x2e add_pc jump p1_machine_body ;
 : count_halt need_token 0xf add_pc jump p1_machine_body ;
 : count_copy need_token need_token 0x1a add_pc jump p1_machine_body ;
 : count_read need_token 0xf add_pc jump p1_machine_body ;
@@ -472,11 +477,13 @@
   temp_one emit_store_r0 jump p2_machine_body
 ;
 : emit_add_test is_add branch emit_add emit_sub_test ;
-: emit_sub_test is_sub branch emit_sub emit_div_test ;
+: emit_sub_test is_sub branch emit_sub emit_mul_test ;
+: emit_mul_test is_mul branch emit_mul emit_div_test ;
 : emit_div_test is_div branch emit_div emit_construct_test ;
 : emit_add 0x0 set_member_count jump emit_binary ;
 : emit_sub 0x1 set_member_count jump emit_binary ;
-: emit_div 0x2 set_member_count jump emit_binary ;
+: emit_mul 0x2 set_member_count jump emit_binary ;
+: emit_div 0x3 set_member_count jump emit_binary ;
 : emit_binary
   require_word_variable set_temp_one require_word_variable set_temp_two
   require_word_variable set_temp_three
@@ -486,7 +493,9 @@
 : emit_binary_add 0x1 0x0 alpha_add jump emit_binary_store ;
 : emit_binary_sub_test member_count 0x1 = branch emit_binary_sub emit_binary_div ;
 : emit_binary_sub 0x1 0x0 alpha_sub jump emit_binary_store ;
-: emit_binary_div 0x1 0x0 alpha_div jump emit_binary_store ;
+: emit_binary_div member_count 0x2 = branch emit_binary_mul emit_binary_divide ;
+: emit_binary_mul 0x1 0x0 alpha_mul jump emit_binary_store ;
+: emit_binary_divide 0x1 0x0 alpha_div jump emit_binary_store ;
 : emit_binary_store temp_one emit_store_r0 jump p2_machine_body ;
 
 : emit_construct_test is_construct branch emit_construct emit_field_set_test ;
@@ -555,11 +564,20 @@
 ;
 : emit_goto_test is_goto branch emit_goto emit_brzero_test ;
 : emit_goto require_state symbol_aux0 alpha_jmp jump p2_machine_body ;
-: emit_brzero_test is_brzero branch emit_brzero emit_switch_test ;
+: emit_brzero_test is_brzero branch emit_brzero emit_brlt_test ;
+: emit_brlt_test is_brlt branch emit_brlt emit_switch_test ;
 : emit_brzero
   require_word_variable emit_load_r0 drop
   require_state symbol_aux0 0x0 alpha_jz
   require_state symbol_aux0 alpha_jmp jump p2_machine_body
+;
+: emit_brlt
+  require_word_variable emit_load_r0 drop
+  require_word_variable emit_load_r1 drop
+  require_state symbol_aux0 set_temp_one
+  require_state symbol_aux0 set_temp_two
+  temp_one 0x1 0x0 alpha_jlt
+  temp_two alpha_jmp jump p2_machine_body
 ;
 
 : emit_switch_test is_switch branch emit_switch emit_halt_test ;

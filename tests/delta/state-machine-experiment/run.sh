@@ -54,9 +54,9 @@ native_delta = subprocess.run(
 )
 if native_delta.returncode != 0:
     raise SystemExit(f"native Gamma compilation exited {native_delta.returncode}")
-if len(native_delta.stdout) != 22690:
+if len(native_delta.stdout) != 23403:
     raise SystemExit(f"native Delta compiler is {len(native_delta.stdout)} bytes")
-if hashlib.sha256(native_delta.stdout).hexdigest() != "b3c8091d57b4b743bcdcab70e1ab4a1e363d0d60a5420804874fc0a90b83ad27":
+if hashlib.sha256(native_delta.stdout).hexdigest() != "cd8fa38de56f9d019bfc72defbf18118419a07e376405316fc12aa7e54f18a2b":
     raise SystemExit("native Delta compiler identity changed")
 (temporary / "delta-compiler.tape").write_bytes(native_delta.stdout)
 '
@@ -168,9 +168,9 @@ left = interpreted(encoder)
 right = native(encoder)
 if left.returncode != 0 or right.returncode != 0 or left.stdout != right.stdout:
     raise SystemExit("Alpha encoder interpreted/native compilation disagrees")
-if len(left.stdout) != 10842:
+if len(left.stdout) != 11772:
     raise SystemExit(f"Alpha encoder tape is {len(left.stdout)} bytes")
-if hashlib.sha256(left.stdout).hexdigest() != "94df5d906a2ce105d07c5900bd8fdc6b81ce2cf3cbef6c131e310d62f07df6bb":
+if hashlib.sha256(left.stdout).hexdigest() != "c67d25e2a4a9d87062cf0dcf7f4eb6b59afb044fed95f11b69cc2c7af6635142":
     raise SystemExit("Alpha encoder tape identity changed")
 (temporary / "encoder.tape").write_bytes(left.stdout)
 '
@@ -241,14 +241,17 @@ import subprocess
 def item(kind, a=0, b=0, c=0, immediate=b"\0" * 8):
     return bytes((kind, a, b, c)) + immediate
 
-def program(label_count, *items):
-    return bytes((label_count,)) + b"".join(items) + b"\xff"
+def target_item(kind, target, a=0, b=0):
+    return item(kind, a, b, immediate=target.to_bytes(4, "little") + b"\0" * 4)
 
-items = [item(21, 0), item(0, 1), item(1, 2, immediate=bytes.fromhex("8877665544332211"))]
+def program(label_count, *items):
+    return label_count.to_bytes(4, "little") + b"".join(items) + b"\xff"
+
+items = [target_item(21, 0), item(0, 1), item(1, 2, immediate=bytes.fromhex("8877665544332211"))]
 items += [item(opcode, 3, 4) for opcode in range(2, 12)]
-items += [item(12, 1), item(13, 5, 1), item(14, 6, 1)]
-items += [item(15, 7, 8, 1), item(16, 9, 10, 1)]
-items += [item(17, 11), item(18, 12), item(19, 2), item(20), item(21, 1), item(0, 0), item(21, 2), item(20)]
+items += [target_item(12, 1), target_item(13, 1, 5), target_item(14, 1, 6)]
+items += [target_item(15, 1, 7, 8), target_item(16, 1, 9, 10)]
+items += [item(17, 11), item(18, 12), target_item(19, 2), item(20), target_item(21, 1), item(0, 0), target_item(21, 2), item(20)]
 
 prefix = bytes((0, 1, 1, 2)) + bytes.fromhex("8877665544332211")
 prefix += b"".join(bytes((opcode, 3, 4)) for opcode in range(2, 12))
@@ -263,17 +266,25 @@ expected += bytes((16, 9, 10)) + target_one.to_bytes(8, "little")
 expected += bytes((17, 11, 18, 12, 19)) + target_two.to_bytes(8, "little")
 expected += bytes((20, 0, 0, 20))
 
+high_labels = [target_item(21, label) for label in range(301)]
+high_label_output = bytes((12,)) + bytes(8) + bytes((0, 0))
+exact_items = [target_item(21, 0)] + [target_item(16, 0)] * 95324 + [item(20)] * 8
+exact_output = (bytes((16, 0, 0)) + bytes(8)) * 95324 + bytes((20,)) * 8
+oversized_items = [target_item(21, 0)] + [target_item(16, 0)] * 95325 + [item(20)] * 8
+
 cases = [
     ("all-opcodes", program(3, *items), 0, expected),
-    ("duplicate-label", program(1, item(21, 0), item(21, 0), item(0)), 1, b""),
-    ("missing-label", program(2, item(21, 0), item(0)), 1, b""),
-    ("extra-label", program(1, item(21, 0), item(21, 1), item(0)), 1, b""),
-    ("undefined-target", program(1, item(21, 0), item(12, 1)), 1, b""),
+    ("high-label", program(301, *high_labels, target_item(12, 300), item(0)), 0, high_label_output),
+    ("exact-payload", program(1, *exact_items), 0, exact_output),
+    ("oversized-payload", program(1, *oversized_items), 1, b""),
+    ("duplicate-label", program(1, target_item(21, 0), target_item(21, 0), item(0)), 1, b""),
+    ("missing-label", program(2, target_item(21, 0), item(0)), 1, b""),
+    ("extra-label", program(1, target_item(21, 0), target_item(21, 1), item(0)), 1, b""),
+    ("undefined-target", program(1, target_item(21, 0), target_item(12, 1)), 1, b""),
     ("unknown-item", program(0, item(22), item(0)), 1, b""),
-    ("truncated-item", bytes((0, 0, 0)), 1, b""),
+    ("truncated-item", bytes(4) + bytes((0, 0)), 1, b""),
     ("trailing-byte", program(0, item(0)) + b"x", 1, b""),
     ("empty-payload", program(0), 1, b""),
-    ("item-capacity", program(0, *([item(0)] * 129)), 2, b""),
 ]
 for name, data, expected_status, expected_output in cases:
     result = subprocess.run([os.environ["ENCODER"]], input=data, stdout=subprocess.PIPE)
@@ -284,4 +295,4 @@ for name, data, expected_status, expected_output in cases:
         )
 '
 
-echo "Delta state-machine experiment: 643-line Gamma compiler produced identical 22,690-byte native compiler; recursive AST and 10,842-byte Alpha encoder customers pass"
+echo "Delta state-machine experiment: 661-line Gamma compiler produced identical 23,403-byte native compiler; recursive AST and full-profile Alpha encoder customers pass"

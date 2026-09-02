@@ -1,23 +1,24 @@
 # Symbolic Alpha layout and encoding over fixed typed arenas.
-# Input: label-count byte, fixed 12-byte item records, then 0xff.
-# Record bytes are kind, a, b, c, and eight immediate bytes.
+# Input: little-endian u32 label count, fixed 12-byte item records, then 0xff.
+# Record bytes are kind, register fields a/b/c, and eight immediate bytes.
+# Label and target items use the low four immediate bytes as a u32 identity.
 
 sum AlphaKind label halt imm mov add sub mul div mod load_byte store_byte load_word store_word jump jump_zero jump_nonzero jump_less jump_equal read write call return end
 
-array Kinds AlphaKind 128
-array As word 128
-array Bs word 128
-array Cs word 128
-array I0s word 128
-array I1s word 128
-array I2s word 128
-array I3s word 128
-array I4s word 128
-array I5s word 128
-array I6s word 128
-array I7s word 128
-array Labels word 256
-array Defined word 256
+array Kinds AlphaKind 1048572
+array As word 1048572
+array Bs word 1048572
+array Cs word 1048572
+array I0s word 1048572
+array I1s word 1048572
+array I2s word 1048572
+array I3s word 1048572
+array I4s word 1048572
+array I5s word 1048572
+array I6s word 1048572
+array I7s word 1048572
+array Labels word 1048572
+array Defined word 1048572
 
 machine write_target target_value word target_result word
 local target_divisor word
@@ -64,6 +65,8 @@ local target word
 local defined_value word
 local temp word
 local one word
+local byte_radix word
+local payload_limit word
 local eof word
 local end_code word
 local pending_kind AlphaKind
@@ -89,12 +92,26 @@ const pc 0
 const instruction_count 0
 const binding_count 0
 const one 1
+const byte_radix 256
+const payload_limit 1048573
 const eof 18446744073709551615
 const end_code 255
-read label_count
-copy temp label_count
+read i0
+read i1
+read i2
+read i3
+copy temp i3
 sub temp temp eof
-brzero temp malformed read_item
+brzero temp malformed decode_label_count
+state decode_label_count
+copy label_count i3
+mul label_count label_count byte_radix
+add label_count label_count i2
+mul label_count label_count byte_radix
+add label_count label_count i1
+mul label_count label_count byte_radix
+add label_count label_count i0
+brlt label_count payload_limit read_item malformed
 
 state read_item
 read kind_code
@@ -119,7 +136,16 @@ read i6
 read i7
 copy temp i7
 sub temp temp eof
-brzero temp malformed decode_halt
+brzero temp malformed decode_target
+state decode_target
+copy target i3
+mul target target byte_radix
+add target target i2
+mul target target byte_radix
+add target target i1
+mul target target byte_radix
+add target target i0
+goto decode_halt
 
 state decode_halt
 copy temp kind_code
@@ -231,6 +257,7 @@ brzero temp kind_label malformed
 
 state kind_label
 construct pending_kind AlphaKind label
+copy a target
 const width 0
 goto store_item
 state kind_halt
@@ -283,22 +310,27 @@ const width 3
 goto store_item
 state kind_jump
 construct pending_kind AlphaKind jump
+copy a target
 const width 9
 goto store_item
 state kind_jump_zero
 construct pending_kind AlphaKind jump_zero
+copy b target
 const width 10
 goto store_item
 state kind_jump_nonzero
 construct pending_kind AlphaKind jump_nonzero
+copy b target
 const width 10
 goto store_item
 state kind_jump_less
 construct pending_kind AlphaKind jump_less
+copy c target
 const width 11
 goto store_item
 state kind_jump_equal
 construct pending_kind AlphaKind jump_equal
+copy c target
 const width 11
 goto store_item
 state kind_read
@@ -311,6 +343,7 @@ const width 2
 goto store_item
 state kind_call
 construct pending_kind AlphaKind call
+copy a target
 const width 9
 goto store_item
 state kind_return
@@ -341,6 +374,8 @@ add binding_count binding_count one
 goto layout_next
 state layout_instruction
 add pc pc width
+brlt pc payload_limit layout_instruction_ready malformed
+state layout_instruction_ready
 add instruction_count instruction_count one
 state layout_next
 add item_count item_count one
