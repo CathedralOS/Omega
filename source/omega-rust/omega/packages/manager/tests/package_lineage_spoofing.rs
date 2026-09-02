@@ -120,7 +120,6 @@ machine build(builder: &mut Build) {{
     let closure = resolve_external_local_package_closure_with_storage(
         &root,
         ExternalSourceContext::derive(b"same-name-different-lineage-fixture"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -160,9 +159,11 @@ machine build(builder: &mut Build) {{
         .target();
     assert_ne!(selected_key, lookalike_key);
 
-    let reviews =
-        compile_resolved_package_reviews(&closure, "windows_x86_64", &tree.compiler_workspace())
-            .expect("compiler review should preserve exact package lineage");
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(omega_target::TargetProfile::WindowsX64),
+        &tree.compiler_workspace(),
+    )
+    .expect("compiler review should preserve exact package lineage");
     assert_eq!(reviews.reviews().len(), 3);
     for node in closure.graph().packages() {
         let review = reviews

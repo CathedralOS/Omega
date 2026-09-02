@@ -24,7 +24,9 @@ pub(super) fn derive_and_assert(
     let conflicts = compare_review_only_capabilities(
         &scenario.baseline_reviews,
         &scenario.candidate_reviews,
-        &scenario.candidate_sources,
+        &scenario
+            .candidate_sources
+            .for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare exact compiler rows");
@@ -49,7 +51,9 @@ pub(super) fn derive_and_assert(
     let recovered_conflicts = compare_review_only_capabilities_from_baseline(
         &recovered_baseline,
         &scenario.candidate_reviews,
-        &scenario.candidate_sources,
+        &scenario
+            .candidate_sources
+            .for_exact_target(omega_target::TargetProfile::WindowsX64),
         ReviewOnlyCapabilityConflictLimits::default(),
     )
     .expect("compare candidate with recovered baseline");

@@ -4,7 +4,7 @@ use super::{
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
     LocallyComposedPackageObligationResults,
 };
-use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::{
     CompilerIssuedPackageReviewSet, ReviewOnlyCapabilityConflictChange,
     ReviewOnlyCapabilityConflictError, ReviewOnlyCapabilityConflictLimits,
@@ -128,14 +128,14 @@ impl std::error::Error for FreshPackageRootPolicyError {
 /// The conflict set is deliberately rederived here. A caller cannot pair
 /// obligations from one source closure with decisions displayed for another.
 pub fn bind_fresh_package_root_policy(
-    closure: &ResolvedPackageSourceClosure,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     reviews: &CompilerIssuedPackageReviewSet,
     reconstruction_limits: CanonicalPackageReconstructionQuestionLimits,
     conflict_limits: ReviewOnlyCapabilityConflictLimits,
     root_policy: Option<&ReviewOnlyRootPolicyResolution>,
 ) -> Result<FreshPackageRootPolicyAcceptance, FreshPackageRootPolicyError> {
     let obligations = LocallyComposedPackageObligationResults::from_resolved_and_reviews(
-        closure,
+        target_closure,
         reviews,
         reconstruction_limits,
     )
@@ -149,8 +149,9 @@ pub fn bind_fresh_package_root_policy(
             PackageReviewCanonicalRowKind::ContractEntailmentOpenObligation,
         ));
     }
-    let conflicts = compare_review_only_initial_capabilities(reviews, closure, conflict_limits)
-        .map_err(FreshPackageRootPolicyError::ConflictComparison)?;
+    let conflicts =
+        compare_review_only_initial_capabilities(reviews, target_closure, conflict_limits)
+            .map_err(FreshPackageRootPolicyError::ConflictComparison)?;
 
     validate_open_obligation_conflicts(&obligations, &conflicts)?;
 

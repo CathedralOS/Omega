@@ -70,7 +70,6 @@ fn resolve_external_local_package_closure(
     resolve_external_local_package_closure_with_storage(
         live_root,
         source_context,
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         source_limits,
         closure_limits,

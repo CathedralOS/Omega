@@ -2,7 +2,7 @@
 
 use super::ReviewOnlyBaselineCapsule;
 use crate::declarations::PackageKey;
-use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
 use crate::review::audit::{
     apply_root_role_change, assemble_update_source_review_records, triage_review_update_records,
@@ -21,7 +21,7 @@ use std::collections::BTreeSet;
 pub fn compare_review_only_capabilities_from_baseline(
     baseline: &ReviewOnlyBaselineCapsule,
     candidate: &CompilerIssuedPackageReviewSet,
-    candidate_sources: &ResolvedPackageSourceClosure,
+    candidate_sources: &ExactTargetPackageSourceClosure<'_>,
     limits: ReviewOnlyCapabilityConflictLimits,
 ) -> Result<ReviewOnlyCapabilityConflictSet, ReviewOnlyCapabilityConflictError> {
     compare_review_only_capability_records(

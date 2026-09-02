@@ -4,7 +4,7 @@ use super::model::{
     CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionLimits,
 };
 use super::validation::validate_association;
-use crate::resolution::graph::{CanonicalSourceClosureSubject, ResolvedPackageSourceClosure};
+use crate::resolution::graph::{CanonicalSourceClosureSubject, ExactTargetPackageSourceClosure};
 use crate::resolution::package_compilation_inputs_for;
 use crate::review::CompilerIssuedPackageReviewSet;
 use std::collections::BTreeMap;
@@ -18,20 +18,20 @@ impl CanonicalPackageReconstructionQuestion {
     /// additionally rejoins every review to resolver identity, immutable
     /// resolution, and the exact transitive source graph.
     pub fn from_resolved_and_reviews(
-        closure: &ResolvedPackageSourceClosure,
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
         reviews: &CompilerIssuedPackageReviewSet,
         limits: CanonicalPackageReconstructionQuestionLimits,
     ) -> Result<Self, CanonicalPackageReconstructionQuestionError> {
         let limits = limits.compiler_bounded();
         let source_closure =
-            CanonicalSourceClosureSubject::from_resolved(closure, limits.source_closure).map_err(
-                |_| {
+            CanonicalSourceClosureSubject::from_resolved(target_closure, limits.source_closure)
+                .map_err(|_| {
                     CanonicalPackageReconstructionQuestionError::new(
                         "could not project the canonical source-closure subject",
                     )
-                },
-            )?;
+                })?;
 
+        let closure = target_closure.source_closure();
         let mut reviews_by_package = BTreeMap::new();
         for review in reviews.reviews() {
             if reviews_by_package.insert(review.key(), review).is_some() {
@@ -96,11 +96,11 @@ impl CanonicalPackageReconstructionQuestion {
     /// package-aware reviews, then require exact equality.
     pub fn matches_resolved_and_reviews(
         &self,
-        closure: &ResolvedPackageSourceClosure,
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
         reviews: &CompilerIssuedPackageReviewSet,
         limits: CanonicalPackageReconstructionQuestionLimits,
     ) -> Result<bool, CanonicalPackageReconstructionQuestionError> {
-        Ok(self == &Self::from_resolved_and_reviews(closure, reviews, limits)?)
+        Ok(self == &Self::from_resolved_and_reviews(target_closure, reviews, limits)?)
     }
 
     pub(super) fn finish(

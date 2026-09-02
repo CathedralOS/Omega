@@ -154,7 +154,6 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
     let compiler = resolve_external_local_project_closure_with_storage(
         &repository.join("source/omega"),
         ExternalSourceContext::derive(b"repository-compiler-product"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -194,7 +193,6 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
     let parser = resolve_external_local_project_closure_with_storage(
         &repository.join("source/psi"),
         ExternalSourceContext::derive(b"repository-parser-package"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -652,7 +650,7 @@ fn small_mixed_runtime_categories_declare_only_their_required_standard_library_e
         ("dungeon", 14, 7),
         ("domains", 22, 19),
         ("host", 9, 8),
-        ("providers", 22, 14),
+        ("providers", 27, 14),
     ] {
         assert_mixed_canary_category_standard_library_edges(
             &repository_root().join("tests/omega/pass").join(category),

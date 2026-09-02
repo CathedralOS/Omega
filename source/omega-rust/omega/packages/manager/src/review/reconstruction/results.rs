@@ -5,7 +5,7 @@ use super::{
     CanonicalPackageReconstructionQuestionLimits,
 };
 use crate::declarations::PackageKey;
-use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::CompilerIssuedPackageReviewSet;
 use omega_package_evidence::ledger::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentOpenObligation,
@@ -81,12 +81,14 @@ pub struct LocallyComposedPackageObligationResults {
 impl LocallyComposedPackageObligationResults {
     /// Compose fresh compiler results over one exact resolver-owned closure.
     pub fn from_resolved_and_reviews(
-        closure: &ResolvedPackageSourceClosure,
+        target_closure: &ExactTargetPackageSourceClosure<'_>,
         reviews: &CompilerIssuedPackageReviewSet,
         limits: CanonicalPackageReconstructionQuestionLimits,
     ) -> Result<Self, CanonicalPackageReconstructionQuestionError> {
         let question = CanonicalPackageReconstructionQuestion::from_resolved_and_reviews(
-            closure, reviews, limits,
+            target_closure,
+            reviews,
+            limits,
         )?;
         let mut reviews_by_package = BTreeMap::new();
         for review in reviews.reviews() {

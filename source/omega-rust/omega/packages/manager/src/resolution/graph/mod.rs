@@ -19,9 +19,9 @@ pub use model::{
     ResolvedSourceIdentity,
 };
 pub use reconcile::{
-    DependencyRequestPath, DependencyRequestPathStep, PackageSourceClosureConflict,
-    PackageSourceClosureConflictCandidate, PackageSourceClosureLimitKind,
-    PackageSourceClosureLimits, PackageSourceClosureResolutionError,
+    DependencyRequestPath, DependencyRequestPathStep, ExactTargetPackageSourceClosure,
+    PackageSourceClosureConflict, PackageSourceClosureConflictCandidate,
+    PackageSourceClosureLimitKind, PackageSourceClosureLimits, PackageSourceClosureResolutionError,
     ResolvedDependencySourceRequest, ResolvedPackageSourceClosure, ResolvedPackageSourceRequestSet,
     ResolvedRootPackageSourceRequest,
 };

@@ -96,7 +96,6 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"ordinary-standard-library-canary"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -186,7 +185,6 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
     let closure = resolve_external_local_package_closure_with_storage(
         &standard_library,
         ExternalSourceContext::derive(b"ordinary-standard-library-review-entry"),
-        omega_target::TargetProfile::LinuxX64,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -194,8 +192,7 @@ fn real_standard_library_has_a_complete_ordinary_review_entry() {
     .expect("resolve the standard library as an ordinary package root");
 
     let reviews = compile_resolved_package_candidate_reviews(
-        &closure,
-        "linux_x86_64",
+        &closure.for_exact_target(omega_target::TargetProfile::LinuxX64),
         &tree.0.join("review-build"),
     )
     .expect("compile the complete ordinary standard-library review entry");
@@ -243,7 +240,6 @@ fn standard_library_alias_has_no_undeclared_bundled_fallback() {
     let closure = resolve_external_local_package_closure_with_storage(
         &live_root,
         ExternalSourceContext::derive(b"missing-standard-library-edge-canary"),
-        omega_target::TargetProfile::CrossPlatformCli,
         &storage,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),

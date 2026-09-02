@@ -27,7 +27,7 @@ use super::{
     ReviewedPackageProductionCandidate,
 };
 use crate::declarations::PackageKey;
-use crate::resolution::graph::ResolvedPackageSourceClosure;
+use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::resolution::{package_compilation_inputs_for, reachable_package_keys};
 use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_session;
 use omega_package_compilation::{AcceptedSemanticBinding, PackageCompilationInputError};
@@ -50,11 +50,10 @@ use std::path::Path;
 /// review session. Downloaded source remains immutable and cannot supply its
 /// own review rows. No review set is returned until the session is removed.
 pub fn compile_resolved_package_reviews(
-    closure: &ResolvedPackageSourceClosure,
-    target: &str,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_resolved_package_reviews_with_semantic_bindings(closure, target, build_root, &[])
+    compile_resolved_package_reviews_with_semantic_bindings(target_closure, build_root, &[])
 }
 
 /// Compile one install/update candidate through semantic-binding discovery.
@@ -63,18 +62,16 @@ pub fn compile_resolved_package_reviews(
 /// proposal is recompiled as consumer-scoped policy input so the compiler must
 /// consume it and the final review exposes every resulting policy blocker.
 pub fn compile_resolved_package_candidate_reviews(
-    closure: &ResolvedPackageSourceClosure,
-    target: &str,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    let preliminary = compile_resolved_package_reviews(closure, target, build_root)?;
+    let preliminary = compile_resolved_package_reviews(target_closure, build_root)?;
     let semantic_binding_inputs = candidate_semantic_binding_inputs(&preliminary)?;
     if semantic_binding_inputs.is_empty() {
         return Ok(preliminary);
     }
     compile_resolved_package_reviews_with_semantic_bindings(
-        closure,
-        target,
+        target_closure,
         build_root,
         &semantic_binding_inputs,
     )
@@ -83,13 +80,11 @@ pub fn compile_resolved_package_candidate_reviews(
 /// Compile one install/update candidate and retain its exact final checked
 /// application root for later accepted production.
 pub fn compile_resolved_package_candidate_for_production(
-    closure: &ResolvedPackageSourceClosure,
-    target: &str,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let preliminary = compile_resolved_package_candidate_for_production_with_semantic_bindings(
-        closure,
-        target,
+        target_closure,
         build_root,
         &[],
     )?;
@@ -98,8 +93,7 @@ pub fn compile_resolved_package_candidate_for_production(
         return Ok(preliminary);
     }
     compile_resolved_package_candidate_for_production_with_semantic_bindings(
-        closure,
-        target,
+        target_closure,
         build_root,
         &semantic_binding_inputs,
     )
@@ -108,11 +102,11 @@ pub fn compile_resolved_package_candidate_for_production(
 /// Compile one candidate with explicit consumer policy and retain the checked
 /// root from that same final review pass.
 pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
-    closure: &ResolvedPackageSourceClosure,
-    target: &str,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
     if closure.root_role() != omega_package_compilation::BuildDeclarationKind::Application {
         return Err(
@@ -126,8 +120,7 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
         semantic_bindings_by_consumer(closure, semantic_binding_inputs)?;
     let build_session = ReviewBuildSession::create(build_root)?;
     let result = compile_resolved_package_reviews_in_session(
-        closure,
-        target,
+        target_closure,
         build_session.root(),
         build_session.filesystem_sponsor(),
         build_session.evaluation_sponsor(),
@@ -147,7 +140,7 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
     let checked_subject = checked_root.package_compilation_subject();
     if checked_subject.map(|subject| subject.root()) != Some(root.identity())
         || checked_subject.map(|subject| subject.root_role()) != Some(closure.root_role())
-        || checked_root.selected_target_profile() != Some(closure.target_profile())
+        || checked_root.selected_target_profile() != Some(target_closure.target_profile())
     {
         return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: root });
     }
@@ -156,7 +149,7 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
         root,
         root_path,
         root_role: closure.root_role(),
-        target_profile: closure.target_profile(),
+        target_profile: target_closure.target_profile(),
         checked_root,
     })
 }
@@ -168,17 +161,16 @@ pub fn compile_resolved_package_candidate_for_production_with_semantic_bindings(
 /// Provider membership and binding contents remain compiler-input invariants;
 /// these rows are not proof/audit receipts and do not admit a package.
 pub fn compile_resolved_package_reviews_with_semantic_bindings(
-    closure: &ResolvedPackageSourceClosure,
-    target: &str,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     semantic_binding_inputs: &[ConsumerScopedSemanticBindingReviewInput],
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
+    let closure = target_closure.source_closure();
     let semantic_bindings_by_consumer =
         semantic_bindings_by_consumer(closure, semantic_binding_inputs)?;
     let build_session = ReviewBuildSession::create(build_root)?;
     let result = compile_resolved_package_reviews_in_session(
-        closure,
-        target,
+        target_closure,
         build_session.root(),
         build_session.filesystem_sponsor(),
         build_session.evaluation_sponsor(),
@@ -196,14 +188,15 @@ struct CompiledPackageReviews {
 }
 
 fn compile_resolved_package_reviews_in_session(
-    closure: &ResolvedPackageSourceClosure,
-    target: &str,
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_session_root: &Path,
     filesystem_sponsor: &FilesystemSponsor,
     evaluation_sponsor: &BuildEvaluationSponsor,
     semantic_bindings_by_consumer: &BTreeMap<PackageKey, Vec<AcceptedSemanticBinding>>,
     retain_checked_root: bool,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    let closure = target_closure.source_closure();
+    let target = target_closure.target_profile().target_name();
     let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut checked_root = None;
     let mut retained_obligation_ledger_total = 0usize;

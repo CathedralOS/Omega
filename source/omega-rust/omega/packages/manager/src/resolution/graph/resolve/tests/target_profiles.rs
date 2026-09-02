@@ -9,13 +9,11 @@ use omega_target::TargetProfile;
 
 fn resolve(
     root: &Path,
-    profile: TargetProfile,
     cache: &Path,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     resolve_external_local_package_closure(
         root,
         ExternalSourceContext::derive(b"flat-dependency-target-identity"),
-        profile,
         cache,
         LocalSourceLimits::default(),
         PackageSourceClosureLimits::default(),
@@ -25,8 +23,7 @@ fn resolve(
 #[test]
 fn selected_profile_changes_identity_even_when_the_source_graph_does_not() {
     let sources = temp_root("profile-identity-sources");
-    let windows_cache = temp_root("profile-identity-windows-cache");
-    let linux_cache = temp_root("profile-identity-linux-cache");
+    let cache = temp_root("profile-identity-cache");
     let root = sources.join("root");
     write_package(&root, "profile-identity-root", Some("../dependency"));
     write_package(
@@ -35,14 +32,30 @@ fn selected_profile_changes_identity_even_when_the_source_graph_does_not() {
         None,
     );
 
-    let windows = resolve(&root, TargetProfile::WindowsX64, &windows_cache)
-        .expect("resolve flat package graph for Windows");
-    let linux = resolve(&root, TargetProfile::LinuxX64, &linux_cache)
-        .expect("resolve flat package graph for Linux");
-    assert_eq!(windows.graph(), linux.graph());
+    let closure = resolve(&root, &cache).expect("resolve flat package graph once");
+    let windows = closure.for_exact_target(TargetProfile::WindowsX64);
+    let linux = closure.for_exact_target(TargetProfile::LinuxX64);
+    assert_eq!(windows.target_profile(), TargetProfile::WindowsX64);
+    assert_eq!(linux.target_profile(), TargetProfile::LinuxX64);
+    assert!(std::ptr::eq(
+        windows.source_closure(),
+        linux.source_closure()
+    ));
     assert_eq!(
-        windows.source_requests().dependencies().count(),
-        linux.source_requests().dependencies().count()
+        windows.source_closure().graph(),
+        linux.source_closure().graph()
+    );
+    assert_eq!(
+        windows
+            .source_closure()
+            .source_requests()
+            .dependencies()
+            .count(),
+        linux
+            .source_closure()
+            .source_requests()
+            .dependencies()
+            .count()
     );
 
     let windows_subject = CanonicalSourceClosureSubject::from_resolved(
@@ -50,6 +63,7 @@ fn selected_profile_changes_identity_even_when_the_source_graph_does_not() {
         CanonicalSourceClosureSubjectLimits::default(),
     )
     .expect("Windows subject");
+    let windows_bytes = windows_subject.canonical_bytes().to_vec();
     let linux_subject = CanonicalSourceClosureSubject::from_resolved(
         &linux,
         CanonicalSourceClosureSubjectLimits::default(),
@@ -60,8 +74,17 @@ fn selected_profile_changes_identity_even_when_the_source_graph_does_not() {
         linux_subject.canonical_bytes()
     );
     assert_ne!(windows_subject.fingerprint(), linux_subject.fingerprint());
+    assert_eq!(windows_subject.canonical_bytes(), windows_bytes);
+    assert_eq!(
+        CanonicalSourceClosureSubject::recover(
+            &windows_bytes,
+            CanonicalSourceClosureSubjectLimits::default(),
+        )
+        .expect("recover Windows child subject")
+        .target_profile(),
+        TargetProfile::WindowsX64,
+    );
 
     let _ = std::fs::remove_dir_all(sources);
-    let _ = std::fs::remove_dir_all(windows_cache);
-    let _ = std::fs::remove_dir_all(linux_cache);
+    let _ = std::fs::remove_dir_all(cache);
 }
