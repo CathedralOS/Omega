@@ -634,17 +634,10 @@ fn derive_normalized_foreign_child(
         .ok_or("normalized foreign D41 occurrence names an absent boundary")?;
     if *boundary != occurrence.boundary()
         || declaration.identity != requirement_identity
-        || operation.result != psi_terminal::OperationResult::Unit
-        || !arguments.is_empty()
         || !structural_arguments.is_empty()
         || !completion_receipts.is_empty()
-        || !declaration.scalar_parameters.is_empty()
         || !declaration.structural_parameters.is_empty()
-        || declaration.result.is_some()
         || foreign.callback_address.is_some()
-        || foreign.scalar_result.is_some()
-        || !foreign.boundary_entry_plan.call.parameters.is_empty()
-        || foreign.boundary_entry_plan.call.result.is_some()
         || !foreign
             .boundary_entry_plan
             .call
@@ -654,9 +647,58 @@ fn derive_normalized_foreign_child(
         return Ok(None);
     }
 
+    if foreign.operation_ordinal != occurrence.operation_ordinal()
+        || arguments.len() != declaration.scalar_parameters.len()
+        || foreign.scalar_arguments.len() != arguments.len()
+    {
+        return Err("normalized foreign D41 child changed its scalar call occurrence");
+    }
+    let Some(parameter_shapes) = declaration
+        .scalar_parameters
+        .iter()
+        .copied()
+        .map(fixed_integer_shape)
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Ok(None);
+    };
+    for ((argument, scalar_type), physical) in arguments
+        .iter()
+        .zip(&declaration.scalar_parameters)
+        .zip(&foreign.scalar_arguments)
+    {
+        if physical.source.source_value() != *argument
+            || ScalarType::Integer(physical.source.scalar_type()) != *scalar_type
+        {
+            return Err("normalized foreign D41 child changed a scalar argument source");
+        }
+    }
+    let result_shape = match (
+        &operation.result,
+        declaration.result,
+        &foreign.scalar_result,
+    ) {
+        (psi_terminal::OperationResult::Unit, None, None) => None,
+        (psi_terminal::OperationResult::Scalar(value), Some(declared), Some(physical))
+            if value.scalar_type == declared
+                && physical.home.source_value == value.id
+                && ScalarType::Integer(physical.home.scalar_type) == declared =>
+        {
+            let Some(shape) = fixed_integer_shape(declared) else {
+                return Ok(None);
+            };
+            Some(shape)
+        }
+        _ => return Err("normalized foreign D41 child changed its scalar result custody"),
+    };
+    let signature = omega_calling_conventions::CallSignature {
+        parameters: parameter_shapes,
+        result: result_shape,
+    };
+
     let validated_plan = omega_calling_conventions::validate_boundary_entry_plan(
         foreign.boundary_entry_plan.clone(),
-        &omega_calling_conventions::CallSignature::default(),
+        &signature,
     )
     .map_err(|_| "normalized foreign D41 child contains an invalid boundary entry plan")?;
     let boundary_plan_identity = validated_plan.contract_commitment_digest();
@@ -732,27 +774,38 @@ fn derive_normalized_foreign_child(
         .iter()
         .find(|function| function.machine == occurrence.machine())
         .ok_or("normalized foreign D41 child names an absent object function")?;
-    let relocation_code_offset = foreign
-        .text_offset
-        .checked_sub(function.text_offset)
-        .ok_or("normalized foreign D41 relocation precedes its function")?;
-    let (code_offset, byte_count, expected_kind) = match target.architecture {
-        Architecture::X86_64 => (
-            relocation_code_offset
-                .checked_sub(1)
-                .ok_or("x86 normalized foreign relocation has no call opcode")?,
-            5,
-            RelocationKind::X86_64Relative32,
-        ),
-        Architecture::Aarch64 => (relocation_code_offset, 4, RelocationKind::Aarch64Branch26),
+    let matching_attributions = object
+        .semantic_code_attribution()
+        .iter()
+        .filter(|attribution| {
+            attribution.machine == occurrence.machine()
+                && attribution.attribution.site
+                    == omega_machine_code::SemanticCodeSite::Operation(occurrence.operation())
+                && attribution.attribution.operation_ordinal == occurrence.operation_ordinal()
+        })
+        .collect::<Vec<_>>();
+    let [attribution] = matching_attributions.as_slice() else {
+        return Err("normalized foreign D41 child does not rejoin one emitted operation interval");
     };
-    let object_offset = function
-        .text_offset
-        .checked_add(code_offset)
-        .ok_or("normalized foreign D41 object span overflow")?;
+    let code_offset = attribution.attribution.code_offset;
+    let byte_count = attribution.attribution.byte_count;
+    let object_offset = attribution.text_offset;
+    if byte_count == 0
+        || function
+            .text_offset
+            .checked_add(code_offset)
+            .filter(|offset| *offset == object_offset)
+            .is_none()
+    {
+        return Err("normalized foreign D41 child has a detached emitted operation interval");
+    }
     let object_end = object_offset
         .checked_add(byte_count)
         .ok_or("normalized foreign D41 object end overflow")?;
+    let expected_kind = match target.architecture {
+        Architecture::X86_64 => RelocationKind::X86_64Relative32,
+        Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
+    };
     let matching_imports = object
         .object()
         .layout
@@ -790,6 +843,11 @@ fn derive_normalized_foreign_child(
         || relocation.symbol_handle != import.symbol
         || relocation.addend != 0
         || relocation.kind != expected_kind
+        || relocation.offset < object_offset
+        || relocation
+            .offset
+            .checked_add(relocation.byte_width)
+            .is_none_or(|end| end > object_end)
     {
         return Err(
             "normalized foreign D41 child changed import owner, symbol, addend, kind, or span",
@@ -899,6 +957,18 @@ fn derive_normalized_foreign_child(
         }
         .into(),
     ))
+}
+
+fn fixed_integer_shape(scalar_type: ScalarType) -> Option<omega_calling_conventions::ValueShape> {
+    let ScalarType::Integer(integer) = scalar_type else {
+        return None;
+    };
+    let bits = integer.bits();
+    if integer.carrier() != psi_core::IntegerCarrier::Fixed || !matches!(bits, 8 | 16 | 32 | 64) {
+        return None;
+    }
+    let bytes = bits / 8;
+    Some(omega_calling_conventions::ValueShape::integer(bytes, bytes))
 }
 
 fn builtin_boundary_trait_settlement_identity(

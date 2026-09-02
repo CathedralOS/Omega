@@ -243,6 +243,21 @@ fn assert_exact_runtime_scalar_home_import_reaches_dynamic_elf(
     assert!(omega_image_emission::build_object_artifact(&changed_bytes).is_err());
 
     let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
+    let [object_call] = object.foreign_calls() else {
+        panic!("one object foreign call")
+    };
+    assert_eq!(object_call.operation_ordinal, call.operation_ordinal);
+    assert_eq!(
+        object_call.scalar_arguments.len(),
+        call.scalar_arguments.len()
+    );
+    assert!(
+        object_call
+            .scalar_arguments
+            .iter()
+            .all(|argument| argument.source
+                == omega_machine_code::InternalUnitScalarArgumentSourceRecord::Home(expected_home))
+    );
     let interpreter = omega_target::normalize_elf_interpreter_plan(
         match profile {
             omega_target::TargetProfile::LinuxX64 => b"/lib64/ld-linux-x86-64.so.2".to_vec(),

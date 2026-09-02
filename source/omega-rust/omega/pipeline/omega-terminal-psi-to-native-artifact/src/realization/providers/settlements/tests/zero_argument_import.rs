@@ -334,10 +334,12 @@ fn exact_rejoined_import_reaches_machine_object_and_dynamic_elf_on_both_targets(
         };
         assert_eq!(object_call.machine, machine);
         assert_eq!(object_call.owner, call.owner);
+        assert_eq!(object_call.operation_ordinal, call.operation_ordinal);
         assert_eq!(object_call.locator, locator);
         assert_eq!(object_call.provider_execution, call.provider_execution);
         assert_eq!(object_call.boundary_entry_plan, boundary_entry_plan);
         assert_eq!(object_call.same_stack_contribution, same_stack);
+        assert!(object_call.scalar_arguments.is_empty());
         let [normalized_import] = object.object().layout.normalized_imports.as_slice() else {
             panic!("one normalized unresolved object import")
         };

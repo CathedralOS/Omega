@@ -363,6 +363,30 @@ fn assert_exact_fixed_integer_foreign_result_flow(
 
     let object = omega_image_emission::build_object_artifact(&machine_code).unwrap();
     assert_eq!(object.foreign_calls().len(), 2);
+    assert_eq!(
+        object.foreign_calls()[0].operation_ordinal,
+        machine_code.functions[0].foreign_calls[0].operation_ordinal,
+    );
+    let [object_argument] = object.foreign_calls()[1].scalar_arguments.as_slice() else {
+        panic!("expected one retained object scalar argument")
+    };
+    let [machine_argument] = machine_code.functions[0].foreign_calls[1]
+        .scalar_arguments
+        .as_slice()
+    else {
+        panic!("expected one emitted machine scalar argument")
+    };
+    assert_eq!(
+        object_argument.parameter_index,
+        machine_argument.parameter_index
+    );
+    assert_eq!(object_argument.source, machine_argument.source);
+    assert_eq!(object_argument.placement, machine_argument.placement);
+    assert_eq!(object_argument.byte_count, machine_argument.byte_count);
+    assert_eq!(
+        object_argument.code_offset,
+        object.functions()[0].text_offset + machine_argument.code_offset,
+    );
     assert!(object.foreign_calls()[0].scalar_result.is_some());
     assert_eq!(
         object.foreign_calls()[0].x86_floating_control.is_some(),
