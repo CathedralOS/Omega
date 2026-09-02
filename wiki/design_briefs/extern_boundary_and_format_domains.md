@@ -467,7 +467,17 @@ Independent replay preserves the distinction between ordinary
 result retains the complete source `ObjectArtifact`; replay therefore rejects
 PSI-only or other semantic/evidence substitution even when object bytes and
 layout are unchanged. This does not supply loader policy or the compiler's
-general native-artifact admission owner. The object-boundary production-retention prerequisite is now source-free:
+general native-artifact admission owner. The first compiler/native-artifact
+continuation now threads that request through the ordinary Terminal-to-object
+owner. The direct compatibility entrance still returns only the existing
+`NativeArtifact`. Import-bearing Linux custody instead returns a distinct
+`DynamicElfNativeArtifact`, retaining the complete canonical Terminal, object,
+selected-plan closure, provider execution, Terminal authority review, D29
+coverage, D32 evidence, and requested image inputs. Validation independently
+reruns object-bound writer selection and rejects PSI-only or outer-object
+substitution; rejection returns the exact image request. The dynamic carrier
+is authority-free and cannot enter installation or publication APIs. The
+object-boundary production-retention prerequisite is now source-free:
 `MachineCodeFunction` can own ordered `ForeignCallRelocation` rows joining one
 semantic call owner and exact native relocation field to the complete
 `NormalizedForeignLocator`. Ordinary object construction independently replays
@@ -524,8 +534,8 @@ General runtime expressions, non-fixed-integer, float, aggregate, and indirect
 result shapes, the external-root
 `StackPlan`/lease/entry-epoch join, stronger foreign-call alignment, optional
 hash-policy extensions beyond the now integrated `.hash` plus `.gnu.hash`
-carriers, general external-admission ownership, and compiler/native-artifact
-integration beyond the image-bound request router remain open
+carriers, general external-admission ownership, and later admission/publication
+integration beyond the authority-free requested native candidate remain open
 engineering work. An owned direct `[u8; N]` destination now contextually copies a quoted
 literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte

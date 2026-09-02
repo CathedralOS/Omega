@@ -4,7 +4,9 @@
 //! This first closed carrier retains only `FloatMeaning` projections from one
 //! landed IEEE input through the shared format-specific projection catalog.
 
-use psi_core::{BlockId, IeeeFloatFormat, MachineId, OperationId, ValueId};
+use psi_core::{
+    BlockId, IeeeFloatFormat, IeeeFloatStructuralField, MachineId, OperationId, ValueId,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ProofValueId(pub u32);
@@ -128,13 +130,26 @@ pub struct DirectCallFloatResult {
     pub format: IeeeFloatFormat,
 }
 
+/// Exact artifact-relative identity of one relevant IEEE leaf rooted at a
+/// direct structural parameter of `owner`.
+///
+/// `field` retains the complete canonical field/case/index path. The
+/// independent verifier walks the owner's declared structural parameter and
+/// structural-type tables and requires the selected leaf to declare `format`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DirectStructuralFloatLeaf {
+    pub owner: MachineId,
+    pub field: IeeeFloatStructuralField,
+    pub format: IeeeFloatFormat,
+}
+
 /// Verifier-reconstructible source of one float-meaning projection.
 ///
 /// Exact literals own their raw landed bits and therefore need no producer ID.
 /// The transitional coordinate is retained only for source forms whose
 /// artifact-relative carrier is still open; it is not interchangeable with an
 /// exact literal and cannot manufacture literal correspondence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FloatMeaningSource {
     TransitionalInput(FloatProjectionInput),
     DirectMachineParameter(DirectMachineFloatParameter),
@@ -142,12 +157,13 @@ pub enum FloatMeaningSource {
     DirectBlockParameter(DirectBlockFloatParameter),
     DirectOperationResult(DirectOperationFloatResult),
     DirectCallResult(DirectCallFloatResult),
+    DirectStructuralLeaf(DirectStructuralFloatLeaf),
     ExactBinary32Literal(u32),
     ExactBinary64Literal(u64),
 }
 
 impl FloatMeaningSource {
-    pub const fn format(self) -> IeeeFloatFormat {
+    pub const fn format(&self) -> IeeeFloatFormat {
         match self {
             Self::TransitionalInput(input) => input.format,
             Self::DirectMachineParameter(parameter) => parameter.format,
@@ -155,6 +171,7 @@ impl FloatMeaningSource {
             Self::DirectBlockParameter(parameter) => parameter.format,
             Self::DirectOperationResult(result) => result.format,
             Self::DirectCallResult(result) => result.format,
+            Self::DirectStructuralLeaf(leaf) => leaf.format,
             Self::ExactBinary32Literal(_) => IeeeFloatFormat::Binary32,
             Self::ExactBinary64Literal(_) => IeeeFloatFormat::Binary64,
         }
@@ -163,7 +180,7 @@ impl FloatMeaningSource {
 
 /// One total proof-only projection. This row is not an executable Terminal
 /// operation and cannot appear in a runtime block's `Operation` list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FloatMeaningProjection {
     pub result: ProofValueDeclaration,
     pub source: FloatMeaningSource,

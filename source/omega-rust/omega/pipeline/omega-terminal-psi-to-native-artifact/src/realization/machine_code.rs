@@ -2,7 +2,7 @@ use crate::realization::diagnostics::{
     realization_error, selected_physical_pipeline_failed,
     selected_physical_pipeline_not_publishable,
 };
-use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_machine_code::{CompilerPrivateMachineCodeFunction, MachineCodePlanWithPrivateFunctions};
 use omega_psi_to_abstract_operations::AdmittedProviderInstallation;
@@ -21,7 +21,7 @@ pub(crate) fn emit_realization_machine_code(
         &omega_boundary_applications::TerminalBoundaryApplicationCoverage,
     >,
     initial_physical_evidence_scope: omega_native_artifact::NativePhysicalEvidenceScope,
-    request: &NativeRealizationRequest<'_>,
+    request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<EmittedRealizationMachineCode, Vec<Diagnostic>> {
     match input {
         NativeRealizationInput::Unoptimized(

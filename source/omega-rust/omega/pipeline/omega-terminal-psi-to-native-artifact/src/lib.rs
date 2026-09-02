@@ -17,14 +17,16 @@ pub use entry_settlement::{
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use omega_abstract_operations_to_target_operations::AdmittedIeeeFloatFmaSettlement;
+pub use omega_image_emission::ExecutableImageEmissionRequest;
 pub use omega_native_artifact::{
     BoundaryExecutionRecord, BoundaryTraitSettlement, BoundaryTraitSettlementParts,
-    BoundaryTraitSettlementRole, NativeArtifact, NativeArtifactParts, NativeByteSpan,
-    NativePhysicalChild, NativePhysicalChildParts, NativePhysicalEvidence,
-    NativePhysicalEvidenceParts, NativePhysicalEvidenceScope, NativePhysicalOccurrence,
-    NativeProviderExecution, NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest,
-    NormalizedForeignCallRelocation, NormalizedForeignCallbackRelocation,
-    NormalizedForeignCallbackRelocations, PhysicalChildParent, PhysicalRelocationDisposition,
+    BoundaryTraitSettlementRole, DynamicElfNativeArtifact, DynamicElfNativeArtifactParts,
+    NativeArtifact, NativeArtifactParts, NativeByteSpan, NativePhysicalChild,
+    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalEvidenceParts,
+    NativePhysicalEvidenceScope, NativePhysicalOccurrence, NativeProviderExecution,
+    NativeSelectedProviderPlan, NativeSelectedProviderPlanDigest, NormalizedForeignCallRelocation,
+    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
+    PhysicalRelocationDisposition,
 };
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,
@@ -38,7 +40,8 @@ pub use realization::{
     CompilerIntrinsicTerminalAuthorityPolicy, MissingTerminalAuthorityPermission,
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
     NativeProviderSettlement, NativeRealizationRequest, PreparedNativeRealizationInput,
-    RealizedNativeArtifactWithCallbackCustody, SettledNativeArtifact,
+    RealizedNativeArtifactWithCallbackCustody, RequestedNativeArtifact,
+    RequestedNativeArtifactError, RequestedNativeRealizationRequest, SettledNativeArtifact,
     TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION, TERMINAL_AUTHORITY_POLICY_VERSION,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, TerminalAuthorityPolicy,
@@ -52,8 +55,9 @@ pub use realization::{
     realize_native_artifact_with_callback_custody,
     realize_native_artifact_with_checked_boundary_operator_scope,
     realize_native_artifact_with_checked_boundary_operator_scope_and_prepared_input,
-    realize_program_entry_native_artifact, terminal_authority_permission_policy_with_rows,
-    terminal_authority_policy_with_rows,
+    realize_program_entry_native_artifact, realize_requested_native_artifact,
+    realize_requested_native_artifact_with_checked_boundary_operator_scope,
+    terminal_authority_permission_policy_with_rows, terminal_authority_policy_with_rows,
 };
 
 #[cfg(test)]

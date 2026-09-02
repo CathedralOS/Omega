@@ -13,6 +13,7 @@ pub use compiler::{
     SourceEvaluatedImportSettlement, TrustAdmission, TrustAdmissionSettlement, compile,
     compile_targets, realize_retained_terminal_artifact_with_source_evaluated_imports,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
     retained_terminal_report_from_checked_package,
 };
 pub use pipeline::checked_entry::{

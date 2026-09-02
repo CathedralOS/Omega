@@ -1,5 +1,5 @@
 use crate::realization::diagnostics::realization_error;
-use crate::realization::model::{NativeRealizationInput, NativeRealizationRequest};
+use crate::realization::model::{NativeRealizationCoreRequest, NativeRealizationInput};
 use psi_diagnostics::Diagnostic;
 
 /// Reusable target-neutral lowering of one exact canonical Terminal artifact.
@@ -7,7 +7,7 @@ use psi_diagnostics::Diagnostic;
 /// Construction binds the full artifact identity, exact proof-admission
 /// profile, and the optimized/unoptimized entrance. Target selection,
 /// provider settlement, authority policy, callbacks, FMA admission, and every
-/// physical lowering input remain in each [`NativeRealizationRequest`].
+/// physical lowering input remain in each request's source-free core.
 #[derive(Debug, Clone)]
 pub struct PreparedNativeRealizationInput {
     terminal_artifact_identity: psi_terminal_codec::TerminalArtifactIdentity,
@@ -60,7 +60,7 @@ impl PreparedNativeRealizationInput {
     fn reopen(
         &self,
         artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
-        request: &NativeRealizationRequest<'_>,
+        request: &NativeRealizationCoreRequest<'_>,
     ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
         if !self.matches(
             artifact.manifest().identity(),
@@ -131,7 +131,7 @@ pub(crate) fn lower_realization_input(
 pub(crate) fn reopen_prepared_native_realization_input(
     prepared: &PreparedNativeRealizationInput,
     artifact: &psi_terminal_codec::CanonicalTerminalArtifact,
-    request: &NativeRealizationRequest<'_>,
+    request: &NativeRealizationCoreRequest<'_>,
 ) -> Result<NativeRealizationInput, Vec<Diagnostic>> {
     prepared.reopen(artifact, request)
 }

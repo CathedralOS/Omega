@@ -245,8 +245,8 @@ cannot substitute. Source production remains transitional until a nested-state
 contract is proven to the emitted block coordinate. Nested-state completion has
 no separate result source: states admit only arrival requirements and produce
 the owning machine's declared result, which is already represented by the
-direct-machine-result carrier. Other arbitrary Terminal values, structural
-leaves, locals, members, casts, const parameters, non-floats, foreign-owner
+direct-machine-result carrier. Other arbitrary Terminal values, locals,
+members, casts, const parameters, non-floats, foreign-owner
 sources, and other nonliteral forms remain transitional engineering rather than
 production proof-ledger evidence.
 
@@ -257,6 +257,16 @@ dynamic-parameter scalar, and boundary call operations. Non-call producers,
 Unit or structural calls, wrong result classes, and coordinate or format drift
 reject. Checked/source production remains transitional until an expression is
 proven to its emitted Terminal call operation.
+
+A Terminal-only structural-leaf source retains exact owner, direct structural-
+parameter root, complete canonical field/case/index path, and IEEE format
+identity. Independent replay walks the owner's declared relevant structural
+shape and requires the selected leaf to be the exact `IeeeFloat` format;
+write-only borrow roots and owner/root/path/leaf-kind/format substitution or
+duplicate tuples reject. Owned, shared-borrowed, and mutable-borrowed roots
+remain observable.
+Checked production remains transitional until an exact checked-expression to
+Terminal structural owner/root/path correspondence exists.
 
 ## Crash routes
 

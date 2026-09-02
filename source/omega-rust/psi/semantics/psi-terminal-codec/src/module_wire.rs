@@ -10,13 +10,13 @@ use psi_terminal::{
     ClosedConformanceCallableResult, ClosedConformanceParameterBinding,
     ClosedConformanceParameterKind, ClosedConformanceRow, DirectBlockFloatParameter,
     DirectCallFloatResult, DirectMachineFloatParameter, DirectMachineFloatResult,
-    DirectOperationFloatResult, EvidenceContractLane, EvidenceContractLaneKind,
-    EvidenceTermDeclaration, FloatMeaningEqualityProposition, FloatMeaningProjection,
-    FloatMeaningProjectionOperation, FloatMeaningSource, FloatProjectionInput,
-    FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
-    ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
-    ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
-    StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
+    DirectOperationFloatResult, DirectStructuralFloatLeaf, EvidenceContractLane,
+    EvidenceContractLaneKind, EvidenceTermDeclaration, FloatMeaningEqualityProposition,
+    FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
+    FloatProjectionInput, FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType,
+    ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
+    ProofOutputRuntimeResult, ProofPropositionId, ProofValueDeclaration, ProofValueId,
+    ServiceDeclaration, StaticRequirementDispatch, StructuralAccess, StructuralContentProjection,
     StructuralDomainDeclaration, TerminalBorrowBoundarySource, TerminalBorrowOwnerSegment,
     TerminalBorrowPlace, TerminalBorrowPlaceSegment, TerminalModule, TerminalPlacedViewInput,
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
@@ -46,6 +46,7 @@ use super::quotient_correspondence_wire::{
     decode_quotient_correspondence, encode_quotient_correspondence,
 };
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use super::structural_field_wire::{decode_ieee_float_field, encode_ieee_float_field};
 use super::structural_result_wire::ResultPathWireFormat;
 use super::structural_signature_wire::{
     decode_boundary_machine, decode_content_projection_expression, encode_boundary_machine,
@@ -670,10 +671,11 @@ fn encode_raw_for_result_paths(
     )?;
     for projection in &module.float_meaning_projections {
         if result_path_format == ResultPathWireFormat::LegacyWithoutResultPaths {
-            let current_only_tag = match projection.source {
+            let current_only_tag = match &projection.source {
                 FloatMeaningSource::DirectOperationResult(_) => Some(6),
                 FloatMeaningSource::DirectBlockParameter(_) => Some(7),
                 FloatMeaningSource::DirectCallResult(_) => Some(8),
+                FloatMeaningSource::DirectStructuralLeaf(_) => Some(9),
                 _ => None,
             };
             if let Some(tag) = current_only_tag {
@@ -684,7 +686,7 @@ fn encode_raw_for_result_paths(
         writer.u8(match projection.result.value_type {
             ProofOnlyValueType::FloatMeaning => 1,
         });
-        match projection.source {
+        match &projection.source {
             FloatMeaningSource::TransitionalInput(input) => {
                 writer.u8(1);
                 writer.u32(input.id.0);
@@ -741,13 +743,22 @@ fn encode_raw_for_result_paths(
                     IeeeFloatFormat::Binary64 => 2,
                 });
             }
+            FloatMeaningSource::DirectStructuralLeaf(leaf) => {
+                writer.u8(9);
+                writer.id(leaf.owner);
+                encode_ieee_float_field(&mut writer, &leaf.field)?;
+                writer.u8(match leaf.format {
+                    IeeeFloatFormat::Binary32 => 1,
+                    IeeeFloatFormat::Binary64 => 2,
+                });
+            }
             FloatMeaningSource::ExactBinary32Literal(bits) => {
                 writer.u8(2);
-                writer.u32(bits);
+                writer.u32(*bits);
             }
             FloatMeaningSource::ExactBinary64Literal(bits) => {
                 writer.u8(3);
-                writer.u64(bits);
+                writer.u64(*bits);
             }
         }
         writer.u8(match projection.operation {
@@ -1161,6 +1172,17 @@ pub(super) fn decode_module_body(
                         owner: reader.id("float-meaning direct call-result owner")?,
                         producer: reader.id("float-meaning direct call-result producer")?,
                         result: reader.id("float-meaning direct call-result value")?,
+                        format: match reader.u8()? {
+                            1 => IeeeFloatFormat::Binary32,
+                            2 => IeeeFloatFormat::Binary64,
+                            tag => return Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
+                        },
+                    })
+                }
+                9 if result_path_format == ResultPathWireFormat::Current => {
+                    FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
+                        owner: reader.id("float-meaning direct structural-leaf owner")?,
+                        field: decode_ieee_float_field(reader)?,
                         format: match reader.u8()? {
                             1 => IeeeFloatFormat::Binary32,
                             2 => IeeeFloatFormat::Binary64,

@@ -22,7 +22,7 @@ use crate::final_image_validation::validate_terminal_dynamic_elf_image;
 /// versioned ELF imports.  Supplying one cannot force an otherwise direct
 /// image through the dynamic ELF path, and omitting one cannot make an
 /// unresolved ELF import fall back to the direct writer.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExecutableImageEmissionRequest {
     Direct {
         subsystem: u16,
@@ -200,19 +200,30 @@ pub fn validate_requested_executable_image(
             crate::validate_executable_image(artifact, image)
         }
         RequestedExecutableImage::DynamicElf(image) => {
-            if artifact.target().object_format != ObjectFormat::Elf || !has_normalized_imports {
-                return Err(Diagnostic::error(
-                    "dynamic ELF image custody requires exact normalized ELF imports",
-                ));
-            }
-            if image.artifact != *artifact {
-                return Err(Diagnostic::error(
-                    "dynamic ELF image custody does not retain the exact source object artifact",
-                ));
-            }
-            validate_dynamic_elf_image_emission(artifact, &image.emission)
+            validate_requested_dynamic_elf_image(artifact, image)
         }
     }
+}
+
+/// Replay the dynamic branch of the request router without manufacturing an
+/// owned sum carrier. This remains a route/custody check, not loader policy.
+pub fn validate_requested_dynamic_elf_image(
+    artifact: &ObjectArtifact,
+    image: &RequestedDynamicElfImage,
+) -> Result<(), Diagnostic> {
+    if artifact.target().object_format != ObjectFormat::Elf
+        || artifact.object().layout.normalized_imports.is_empty()
+    {
+        return Err(Diagnostic::error(
+            "dynamic ELF image custody requires exact normalized ELF imports",
+        ));
+    }
+    if image.artifact != *artifact {
+        return Err(Diagnostic::error(
+            "dynamic ELF image custody does not retain the exact source object artifact",
+        ));
+    }
+    validate_dynamic_elf_image_emission(artifact, &image.emission)
 }
 
 /// Exact admitted dynamic ELF bytes after production-emitter reconciliation.

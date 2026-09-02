@@ -3,8 +3,8 @@ use super::{
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
 use crate::realization::model::{
-    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
-    NativeRealizationRequest,
+    NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationCoreRequest,
+    NativeRealizationInput,
 };
 use omega_abstract_operations_to_target_operations::AdmittedBoundarySettlement;
 use omega_native_artifact::NativeProviderExecution;
@@ -12,7 +12,7 @@ use psi_diagnostics::Diagnostic;
 
 pub(super) fn settle_boundary<'request>(
     input: &NativeRealizationInput,
-    request: &NativeRealizationRequest<'request>,
+    request: &NativeRealizationCoreRequest<'request>,
     settlement: &NativeProviderSettlement<'request>,
 ) -> Result<
     (

@@ -2,6 +2,7 @@ use omega_compiler::{
     ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct,
     SourceEvaluatedImportSettlement, compile,
     realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy,
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image,
 };
 use omega_effects::provider_plan::ProviderBinding;
 use omega_installation_evidence::ProviderExecutionEvidence;
@@ -169,7 +170,6 @@ windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
             export: "FlushProcessWriteBuffers",
         },
     }
-}
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
@@ -187,6 +187,53 @@ machine Main::main(&mut self) {
     builder.application("source-evaluated-windows-x86-fma");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}
+"#,
+        )
+    }
+
+    fn new_linux_named(name: &str, include_marker: bool) -> Self {
+        let marker = if include_marker {
+            "self.process.ping();"
+        } else {
+            ""
+        };
+        let source = format!(
+            r#"use omega::language::core::external_binding;
+
+target linux_x86_64 {{
+}}
+
+boundary trait Process {{
+    machine ping();
+}}
+
+linux_x86_64 machine ping_binding() -> Binding<9, 6, 11> {{
+    Binding::DllImport {{
+        import: DllImport::ElfVersioned {{
+            object: "libc.so.6",
+            symbol: "getpid",
+            version: "GLIBC_2.2.5",
+        }},
+    }}
+}}
+
+machine ping_leaf() satisfies Process::ping via ping_binding();
+
+data Main {{ process: Process; }}
+machine Main::main(&mut self) {{
+    {marker}
+    self.process.ping();
+}}
+"#,
+        );
+        Self::with_source(
+            name,
+            "linux_x86_64",
+            &source,
+            r#"machine build(builder: &mut Build) {
+    builder.application("source-evaluated-linux-native");
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
         )
@@ -527,6 +574,122 @@ fn admit_import(
         same_stack,
         plan_report_identity,
     }
+}
+
+fn realize_linux_dynamic(
+    retained: omega_compilation_report::RetainedTerminalArtifact,
+    receipt: u64,
+) -> native::RequestedNativeArtifact {
+    let admission = admit_import(
+        &retained,
+        SameStackContributionAdmissionReceiptId::from_normalized_identity(receipt).unwrap(),
+    );
+    let policy = terminal_authority_policy(&retained);
+    let permission_policy = terminal_authority_permission_policy(&retained);
+    let interpreter = omega_target::normalize_elf_interpreter_plan(
+        b"/lib64/ld-linux-x86-64.so.2".to_vec(),
+        omega_target::TargetProfile::LinuxX64,
+    )
+    .expect("canonical Linux x86-64 interpreter");
+    realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
+        retained,
+        &psi_proof_admission::AdmissionProfile::default(),
+        &omega_optimization_core::OptimizationSelections::default(),
+        policy,
+        omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+        permission_policy,
+        native::ExecutableImageEmissionRequest::dynamic_elf(interpreter),
+        &[SourceEvaluatedImportSettlement::new(
+            &admission.execution,
+            &admission.same_stack,
+        )],
+    )
+    .unwrap_or_else(|(_, diagnostics)| {
+        panic!("import-bearing Linux request should realize: {diagnostics:#?}")
+    })
+}
+
+#[test]
+fn import_bearing_linux_compiler_route_retains_non_installable_dynamic_candidate() {
+    let fixture = Fixture::new_linux_named("linux-dynamic", false);
+    let candidate = realize_linux_dynamic(fixture.compile_terminal(), 0x454c_4600_0001);
+    let native::RequestedNativeArtifact::DynamicElf(candidate) = candidate else {
+        panic!("normalized ELF imports must select dynamic native custody")
+    };
+    candidate
+        .validate()
+        .expect("dynamic native candidate independently replays");
+    assert_eq!(candidate.target(), omega_target::NativeTarget::linux_x64());
+    assert_eq!(
+        candidate.object().object().layout.normalized_imports.len(),
+        1
+    );
+    assert_eq!(candidate.image().output().final_image_imports, 1);
+    assert!(candidate.image().output().bytes.starts_with(b"\x7fELF"));
+
+    let replay = native::DynamicElfNativeArtifact::from_replayed_parts(candidate.into_parts())
+        .expect("exact dynamic native parts replay");
+    let mut psi_substitution = replay.into_parts();
+
+    let donor_fixture = Fixture::new_linux_named("linux-dynamic-marker", true);
+    let donor = realize_linux_dynamic(donor_fixture.compile_terminal(), 0x454c_4600_0002);
+    let native::RequestedNativeArtifact::DynamicElf(donor) = donor else {
+        unreachable!("donor has one normalized ELF import")
+    };
+    let donor_parts = donor.into_parts();
+    assert_ne!(
+        psi_substitution.psi_artifact.manifest().identity(),
+        donor_parts.psi_artifact.manifest().identity(),
+    );
+    psi_substitution.psi_artifact = donor_parts.psi_artifact;
+    assert!(
+        native::DynamicElfNativeArtifact::from_replayed_parts(psi_substitution).is_err(),
+        "substituting only canonical Terminal PSI must fail closed",
+    );
+
+    let object_candidate = realize_linux_dynamic(fixture.compile_terminal(), 0x454c_4600_0003);
+    let native::RequestedNativeArtifact::DynamicElf(object_candidate) = object_candidate else {
+        unreachable!("fixture has one normalized ELF import")
+    };
+    let mut object_substitution = object_candidate.into_parts();
+    object_substitution.object = donor_parts.object;
+    assert!(
+        native::DynamicElfNativeArtifact::from_replayed_parts(object_substitution).is_err(),
+        "substituting the outer object while retaining the requested image must fail closed",
+    );
+
+    let rejected = fixture.compile_terminal();
+    let admission = admit_import(
+        &rejected,
+        SameStackContributionAdmissionReceiptId::from_normalized_identity(0x454c_4600_0004)
+            .unwrap(),
+    );
+    let policy = terminal_authority_policy(&rejected);
+    let permission_policy = terminal_authority_permission_policy(&rejected);
+    let (request, diagnostics) =
+        realize_retained_terminal_artifact_with_source_evaluated_imports_and_policy_for_image(
+            rejected,
+            &psi_proof_admission::AdmissionProfile::default(),
+            &omega_optimization_core::OptimizationSelections::default(),
+            policy,
+            omega_terminal_psi_to_native_artifact::current_terminal_authority_permission_policy(),
+            permission_policy,
+            native::ExecutableImageEmissionRequest::direct(91),
+            &[SourceEvaluatedImportSettlement::new(
+                &admission.execution,
+                &admission.same_stack,
+            )],
+        )
+        .expect_err("import-bearing ELF cannot enter direct image custody");
+    assert!(matches!(
+        request,
+        native::ExecutableImageEmissionRequest::Direct { subsystem: 91 }
+    ));
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("requires an exact normalized interpreter")
+    }));
 }
 
 #[test]

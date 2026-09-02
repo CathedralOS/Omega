@@ -211,6 +211,17 @@ produces the owning machine's declared result. D40 therefore uses the existing
 direct-machine-result carrier and canonicalizes that value by machine result
 identity, without a state-, block-, or exit-scoped tag.
 
+A structural IEEE leaf has an existing source-free Terminal coordinate: the
+owning machine plus an `IeeeFloatStructuralField` whose root is a direct
+structural parameter and whose nonempty canonical path selects the leaf, plus
+the exact format. Owned, shared-borrowed, and mutable-borrowed roots permit
+observation; a write-only borrow does not. Independent replay walks the owner's
+declared relevant record/mixed fields, fixed-array indices, and sum-case payload fields and
+requires the selected declaration to be `IeeeFloat(format)`. This metadata
+cannot name an erased or non-float field, a local/result root, or another
+owner's path. Checked production remains transitional until the lowering
+pipeline retains an exact expression-to-Terminal owner/root/path join.
+
 The same semantic function is consumed by proof checking, build-time folding,
 the interpreter, checked software realizations, and target-validation tools.
 This replaces the current folder path that can evaluate landed `f32` operations

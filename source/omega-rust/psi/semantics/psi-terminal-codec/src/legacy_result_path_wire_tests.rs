@@ -1,11 +1,14 @@
 use psi_core::{
-    BlockId, ContractId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PsiSemanticId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, ContractId, EdgeId, IeeeFloatFormat,
+    IeeeFloatStructuralField, MachineId, OperationId, PlaceId, PsiSemanticId, StructuralFieldId,
+    ValueId,
 };
 use psi_terminal::{
     Block, DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatResult,
-    DirectOperationFloatResult, FloatMeaningProjection, FloatMeaningProjectionOperation,
-    FloatMeaningSource, MachineContract, ProofOnlyValueType, ProofValueDeclaration, ProofValueId,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, VocabularyMarker,
+    DirectOperationFloatResult, DirectStructuralFloatLeaf, FloatMeaningProjection,
+    FloatMeaningProjectionOperation, FloatMeaningSource, MachineContract, ProofOnlyValueType,
+    ProofValueDeclaration, ProofValueId, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, VocabularyMarker,
 };
 
 use super::{decode_module, encode_module};
@@ -136,6 +139,11 @@ fn v56_v59_rejects_current_only_direct_float_sources() {
         decode_module(&legacy),
         Err(super::CodecError::InvalidTag("FloatMeaningSource", 8))
     );
+    legacy[source_offset + 5] = 9;
+    assert_eq!(
+        decode_module(&legacy),
+        Err(super::CodecError::InvalidTag("FloatMeaningSource", 9))
+    );
 
     module.float_meaning_projections[0].source =
         FloatMeaningSource::DirectOperationResult(DirectOperationFloatResult {
@@ -179,6 +187,26 @@ fn v56_v59_rejects_current_only_direct_float_sources() {
         Err(super::CodecError::InvalidTag(
             "legacy FloatMeaningSource",
             8
+        ))
+    );
+
+    module.float_meaning_projections[0].source =
+        FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
+            owner: id::<MachineId>(1),
+            field: IeeeFloatStructuralField::new(
+                id::<PlaceId>(1),
+                vec![CanonicalStructuralPathSegment::Field(
+                    id::<StructuralFieldId>(1),
+                )],
+            )
+            .expect("nonempty structural path"),
+            format: IeeeFloatFormat::Binary32,
+        });
+    assert_eq!(
+        encode_legacy_result_path_raw(&module),
+        Err(super::CodecError::InvalidTag(
+            "legacy FloatMeaningSource",
+            9
         ))
     );
 }

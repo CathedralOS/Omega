@@ -82,16 +82,16 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
             u32::try_from(index).map_err(|_| ModuleError::NonDenseFloatMeaningProjection {
                 expected: u32::MAX,
                 result: projection.result.id.0,
-                transitional_source: transitional_source_id(projection.source),
+                transitional_source: transitional_source_id(&projection.source),
             })?;
         if projection.result.id.0 != index {
             return Err(ModuleError::NonDenseFloatMeaningProjection {
                 expected: index,
                 result: projection.result.id.0,
-                transitional_source: transitional_source_id(projection.source),
+                transitional_source: transitional_source_id(&projection.source),
             });
         }
-        if let psi_terminal::FloatMeaningSource::TransitionalInput(source) = projection.source {
+        if let psi_terminal::FloatMeaningSource::TransitionalInput(source) = &projection.source {
             if let Some((_, format)) = sources.iter().find(|(id, _)| *id == source.id) {
                 if *format != source.format {
                     return Err(
@@ -118,7 +118,7 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
                 sources.push((source.id, source.format));
             }
         }
-        let key = (projection.source, projection.operation);
+        let key = (projection.source.clone(), projection.operation);
         if let Some(first) = projection_keys.iter().position(|existing| *existing == key) {
             return Err(ModuleError::DuplicateFloatMeaningProjection {
                 first: u32::try_from(first).unwrap_or(u32::MAX),
@@ -135,25 +135,29 @@ fn validate_rows(projections: &[psi_terminal::FloatMeaningProjection]) -> Result
 fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
     for (index, projection) in module.float_meaning_projections.iter().enumerate() {
         let index = u32::try_from(index).unwrap_or(u32::MAX);
-        match projection.source {
+        match &projection.source {
             psi_terminal::FloatMeaningSource::DirectMachineParameter(parameter) => {
-                crate::verification::verify_direct_float_parameter(module, parameter)
+                crate::verification::verify_direct_float_parameter(module, *parameter)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
             psi_terminal::FloatMeaningSource::DirectMachineResult(result) => {
-                crate::verification::verify_direct_float_result(module, result)
+                crate::verification::verify_direct_float_result(module, *result)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
             psi_terminal::FloatMeaningSource::DirectBlockParameter(parameter) => {
-                crate::verification::verify_direct_block_float_parameter(module, parameter)
+                crate::verification::verify_direct_block_float_parameter(module, *parameter)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
             psi_terminal::FloatMeaningSource::DirectOperationResult(result) => {
-                crate::verification::verify_direct_operation_float_result(module, result)
+                crate::verification::verify_direct_operation_float_result(module, *result)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
             psi_terminal::FloatMeaningSource::DirectCallResult(result) => {
-                crate::verification::verify_direct_call_float_result(module, result)
+                crate::verification::verify_direct_call_float_result(module, *result)
+                    .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
+            }
+            psi_terminal::FloatMeaningSource::DirectStructuralLeaf(leaf) => {
+                crate::verification::verify_direct_structural_float_leaf(module, leaf)
                     .map_err(|error| ModuleError::InvalidFloatMeaningProjection { index, error })?;
             }
             _ => {}
@@ -162,7 +166,7 @@ fn validate_direct_sources(module: &TerminalModule) -> Result<(), ModuleError> {
     Ok(())
 }
 
-const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Option<u32> {
+const fn transitional_source_id(source: &psi_terminal::FloatMeaningSource) -> Option<u32> {
     match source {
         psi_terminal::FloatMeaningSource::TransitionalInput(input) => Some(input.id.0),
         psi_terminal::FloatMeaningSource::DirectMachineParameter(_)
@@ -170,6 +174,7 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
         | psi_terminal::FloatMeaningSource::DirectBlockParameter(_)
         | psi_terminal::FloatMeaningSource::DirectOperationResult(_)
         | psi_terminal::FloatMeaningSource::DirectCallResult(_)
+        | psi_terminal::FloatMeaningSource::DirectStructuralLeaf(_)
         | psi_terminal::FloatMeaningSource::ExactBinary32Literal(_)
         | psi_terminal::FloatMeaningSource::ExactBinary64Literal(_) => None,
     }
@@ -178,16 +183,19 @@ const fn transitional_source_id(source: psi_terminal::FloatMeaningSource) -> Opt
 #[cfg(test)]
 mod tests {
     use psi_core::{
-        BlockId, ContractId, EdgeId, IeeeFloatFormat, IeeeFloatValue, MachineId, OperationId,
-        PlaceId, ScalarType, StructuralTypeId, ValueId,
+        BlockId, CanonicalStructuralPathSegment, ContractId, EdgeId, IeeeFloatFormat,
+        IeeeFloatStructuralField, IeeeFloatValue, MachineId, OperationId, PlaceId, ScalarType,
+        StructuralFieldId, StructuralTypeId, ValueId,
     };
     use psi_terminal::{
         Block, DirectBlockFloatParameter, DirectCallFloatResult, DirectMachineFloatParameter,
-        DirectMachineFloatResult, DirectOperationFloatResult, FloatMeaningEqualityProposition,
-        FloatMeaningProjection, FloatMeaningProjectionOperation, FloatMeaningSource,
-        FloatProjectionInput, FloatProjectionInputId, Operation, OperationKind, OperationResult,
-        ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration, ProofValueId,
-        StructuralMultiplicity, StructuralOperationResult, TerminalMachine, TerminalMachineResult,
+        DirectMachineFloatResult, DirectOperationFloatResult, DirectStructuralFloatLeaf,
+        FloatMeaningEqualityProposition, FloatMeaningProjection, FloatMeaningProjectionOperation,
+        FloatMeaningSource, FloatProjectionInput, FloatProjectionInputId, Operation, OperationKind,
+        OperationResult, ProofOnlyValueType, ProofPropositionId, ProofValueDeclaration,
+        ProofValueId, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalMachineResult,
         Terminator, ValueDeclaration, VocabularyMarker,
     };
 
@@ -429,6 +437,59 @@ mod tests {
         module
     }
 
+    fn direct_structural_leaf_module(format: IeeeFloatFormat) -> TerminalModule {
+        let mut module = direct_module();
+        let owner = module.entry;
+        let root = semantic_id(10, PlaceId::new);
+        let structural_type = semantic_id(10, StructuralTypeId::new);
+        let field = semantic_id(10, StructuralFieldId::new);
+        module.structural_types = vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Fixture::FloatRecord".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: field,
+                    identity: "value".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::IeeeFloat(format),
+                }],
+            },
+        }];
+        module.machines[0].structural_parameters = vec![StructuralParameterDeclaration {
+            place: root,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }];
+        module.float_meaning_projections[0].source =
+            FloatMeaningSource::DirectStructuralLeaf(DirectStructuralFloatLeaf {
+                owner,
+                field: IeeeFloatStructuralField::new(
+                    root,
+                    vec![CanonicalStructuralPathSegment::Field(field)],
+                )
+                .expect("nonempty structural field path"),
+                format,
+            });
+        module.float_meaning_projections[0].operation = match format {
+            IeeeFloatFormat::Binary32 => FloatMeaningProjectionOperation::Meaning32,
+            IeeeFloatFormat::Binary64 => FloatMeaningProjectionOperation::Meaning64,
+        };
+        module.float_meaning_projections[0].contract = contract(match format {
+            IeeeFloatFormat::Binary32 => {
+                psi_numerics::float_projection::FloatProjectionOperation::Meaning32
+            }
+            IeeeFloatFormat::Binary64 => {
+                psi_numerics::float_projection::FloatProjectionOperation::Meaning64
+            }
+        });
+        module
+    }
+
     #[test]
     fn module_rows_reconstruct_in_dense_source_free_order() {
         assert_eq!(validate_rows(&[projection(0), projection(1)]), Ok(()));
@@ -460,7 +521,7 @@ mod tests {
             format: IeeeFloatFormat::Binary32,
         });
         assert!(matches!(
-            validate_rows(&[projection(0), duplicate]),
+            validate_rows(&[projection(0), duplicate.clone()]),
             Err(ModuleError::DuplicateFloatMeaningProjection {
                 first: 0,
                 duplicate: 1,
@@ -483,7 +544,7 @@ mod tests {
         let positive_zero = exact_binary32_projection(0, 0x0000_0000);
         let mut duplicate_with_fresh_ids = exact_binary32_projection(1, 0x0000_0000);
         assert!(matches!(
-            validate_rows(&[positive_zero, duplicate_with_fresh_ids]),
+            validate_rows(&[positive_zero.clone(), duplicate_with_fresh_ids.clone()]),
             Err(ModuleError::DuplicateFloatMeaningProjection {
                 first: 0,
                 duplicate: 1,
@@ -568,21 +629,21 @@ mod tests {
             shared_parameter,
             ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
         ));
-        let mut second = module.float_meaning_projections[0];
+        let mut second = module.float_meaning_projections[0].clone();
         second.result.id = ProofValueId(1);
         second.source = FloatMeaningSource::DirectMachineParameter(DirectMachineFloatParameter {
             owner: second_owner,
             parameter: shared_parameter,
             format: IeeeFloatFormat::Binary32,
         });
-        module.float_meaning_projections.push(second);
+        module.float_meaning_projections.push(second.clone());
         assert_eq!(validate_rows(&module.float_meaning_projections), Ok(()));
         assert_eq!(validate_direct_sources(&module), Ok(()));
 
         let mut duplicate = second;
-        duplicate.source = module.float_meaning_projections[0].source;
+        duplicate.source = module.float_meaning_projections[0].source.clone();
         assert!(matches!(
-            validate_rows(&[module.float_meaning_projections[0], duplicate]),
+            validate_rows(&[module.float_meaning_projections[0].clone(), duplicate]),
             Err(ModuleError::DuplicateFloatMeaningProjection { .. })
         ));
     }
@@ -1090,11 +1151,11 @@ mod tests {
     #[test]
     fn direct_call_result_tuple_deduplicates_without_aliasing_non_call_source_class() {
         let module = direct_call_result_module(IeeeFloatFormat::Binary32);
-        let first = module.float_meaning_projections[0];
-        let mut duplicate = first;
+        let first = module.float_meaning_projections[0].clone();
+        let mut duplicate = first.clone();
         duplicate.result.id = ProofValueId(1);
         assert!(matches!(
-            validate_rows(&[first, duplicate]),
+            validate_rows(&[first.clone(), duplicate.clone()]),
             Err(ModuleError::DuplicateFloatMeaningProjection { .. })
         ));
 
@@ -1115,11 +1176,11 @@ mod tests {
     #[test]
     fn direct_operation_result_tuple_deduplicates_and_does_not_alias_machine_result() {
         let module = direct_operation_result_module(IeeeFloatFormat::Binary32);
-        let first = module.float_meaning_projections[0];
-        let mut duplicate = first;
+        let first = module.float_meaning_projections[0].clone();
+        let mut duplicate = first.clone();
         duplicate.result.id = ProofValueId(1);
         assert!(matches!(
-            validate_rows(&[first, duplicate]),
+            validate_rows(&[first.clone(), duplicate.clone()]),
             Err(ModuleError::DuplicateFloatMeaningProjection { .. })
         ));
 
@@ -1133,6 +1194,134 @@ mod tests {
             format: source.format,
         });
         assert_eq!(validate_rows(&[first, machine_result]), Ok(()));
+    }
+
+    #[test]
+    fn direct_structural_leaf_replays_exact_owner_root_path_and_format() {
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let module = direct_structural_leaf_module(format);
+            assert_eq!(validate_direct_sources(&module), Ok(()));
+
+            for access in [
+                StructuralAccess::Owned,
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow,
+            ] {
+                let mut observable = module.clone();
+                observable.machines[0].structural_parameters[0].access = access;
+                assert_eq!(validate_direct_sources(&observable), Ok(()));
+            }
+
+            let mut write_only = module.clone();
+            write_only.machines[0].structural_parameters[0].access =
+                StructuralAccess::WriteOnlyBorrow;
+            assert!(matches!(
+                validate_direct_sources(&write_only),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    error: crate::verification::FloatMeaningProjectionVerificationError::DirectStructuralLeafWriteOnlyRoot { .. },
+                    ..
+                })
+            ));
+
+            let mut wrong_owner = module.clone();
+            let FloatMeaningSource::DirectStructuralLeaf(source) =
+                &mut wrong_owner.float_meaning_projections[0].source
+            else {
+                unreachable!()
+            };
+            source.owner = semantic_id(99, MachineId::new);
+            assert!(matches!(
+                validate_direct_sources(&wrong_owner),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeafOwner(_),
+                    ..
+                })
+            ));
+
+            let mut wrong_root = module.clone();
+            let FloatMeaningSource::DirectStructuralLeaf(source) =
+                &mut wrong_root.float_meaning_projections[0].source
+            else {
+                unreachable!()
+            };
+            source.field = IeeeFloatStructuralField::new(
+                semantic_id(99, PlaceId::new),
+                source.field.path().to_vec(),
+            )
+            .expect("nonempty structural field path");
+            assert!(matches!(
+                validate_direct_sources(&wrong_root),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeaf { .. },
+                    ..
+                })
+            ));
+
+            let mut wrong_path = module.clone();
+            let FloatMeaningSource::DirectStructuralLeaf(source) =
+                &mut wrong_path.float_meaning_projections[0].source
+            else {
+                unreachable!()
+            };
+            source.field = IeeeFloatStructuralField::new(
+                source.field.root(),
+                vec![CanonicalStructuralPathSegment::Field(semantic_id(
+                    99,
+                    StructuralFieldId::new,
+                ))],
+            )
+            .expect("nonempty structural field path");
+            assert!(matches!(
+                validate_direct_sources(&wrong_path),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    error: crate::verification::FloatMeaningProjectionVerificationError::InvalidDirectStructuralLeaf { .. },
+                    ..
+                })
+            ));
+
+            let mut wrong_format = module;
+            let FloatMeaningSource::DirectStructuralLeaf(source) =
+                &mut wrong_format.float_meaning_projections[0].source
+            else {
+                unreachable!()
+            };
+            source.format = match format {
+                IeeeFloatFormat::Binary32 => IeeeFloatFormat::Binary64,
+                IeeeFloatFormat::Binary64 => IeeeFloatFormat::Binary32,
+            };
+            assert!(matches!(
+                validate_direct_sources(&wrong_format),
+                Err(ModuleError::InvalidFloatMeaningProjection {
+                    error: crate::verification::FloatMeaningProjectionVerificationError::DirectStructuralLeafFormatMismatch,
+                    ..
+                })
+            ));
+        }
+    }
+
+    #[test]
+    fn direct_structural_leaf_tuple_deduplicates_but_path_is_semantic() {
+        let module = direct_structural_leaf_module(IeeeFloatFormat::Binary32);
+        let first = module.float_meaning_projections[0].clone();
+        let mut duplicate = first.clone();
+        duplicate.result.id = ProofValueId(1);
+        assert!(matches!(
+            validate_rows(&[first.clone(), duplicate.clone()]),
+            Err(ModuleError::DuplicateFloatMeaningProjection { .. })
+        ));
+
+        let FloatMeaningSource::DirectStructuralLeaf(source) = &mut duplicate.source else {
+            unreachable!()
+        };
+        source.field = IeeeFloatStructuralField::new(
+            source.field.root(),
+            vec![CanonicalStructuralPathSegment::Field(semantic_id(
+                99,
+                StructuralFieldId::new,
+            ))],
+        )
+        .expect("nonempty structural field path");
+        assert_eq!(validate_rows(&[first, duplicate]), Ok(()));
     }
 
     #[test]
