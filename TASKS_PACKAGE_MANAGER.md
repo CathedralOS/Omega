@@ -45,12 +45,16 @@ stop the item on one precise owner question before adding machinery.
     single-instantiation scalar-helper, nested-expression, and
     selected-provider-chain cohort only as another concrete language form
     requires it;
-  - extend the landed hosted D32 fixed-token lane beyond mixed fixed-width
-    integer scalar operands plus exact whole, claim-free, owned-affine
-    structural operands and one scalar result to structural results. Keep
-    projections, borrows, services, content evidence, nontrivial structural
-    layouts, and unsupported cleanup shapes fail-closed until each has
-    independent checked, Terminal, and native custody;
+  - finish the hosted D32 fixed-token structural-result lane. The checked
+    front now retains one mixed fixed-width integer/whole owned-affine selected
+    call over one direct 8-byte integer record, its exact claim-free affine
+    provider return, and mandatory caller discard as distinct
+    source-handle-free carriers. Add the corresponding
+    Terminal structural operation/result and mixed ABI, then carry that exact
+    occurrence through native lowering and D32 physical custody. Projections,
+    borrows, services, content evidence, nontrivial structural layouts, and
+    wider cleanup shapes remain fail-closed until each has independent
+    checked, Terminal, and native custody;
   - extend the landed verified Psi-phase D32 non-identity projection through
     selected-lowering, allocation, post-allocation, and layout optimization.
     Extend admitted-provider D41 custody beyond the landed normalized-import

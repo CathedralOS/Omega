@@ -44,6 +44,64 @@ pub(super) fn selected_operator_scalar_result_local<'applications>(
     ))
 }
 
+pub(super) fn selected_operator_structural_result_local<'applications>(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &psi_typed_trees::machine::Machine,
+    state: &psi_typed_trees::state::State,
+    statements: &[StatementNode],
+    applications: &'applications [crate::SelectedOperatorApplication],
+) -> Option<(
+    &'applications crate::SelectedOperatorApplication,
+    CheckedUnitStructuralResultBindingPlan,
+    SymbolHandle,
+)> {
+    let StatementNode::LocalData(local) = statements.first()? else {
+        return None;
+    };
+    if local.is_mutable
+        || !local.initial_value.is_valid()
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_some()
+        || is_reference(program, local.type_reference)
+        || crate::checks::type_multiplicity(program, local.type_reference) != Multiplicity::Affine
+        || type_graph_requires_nominal_drop(program, local.type_reference)
+    {
+        return None;
+    }
+    let matches = applications
+        .iter()
+        .filter(|application| {
+            application.expression == local.initial_value
+                && application.origin
+                    == psi_checked_trees::CheckedValueOrigin::StateStatement {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index: 0,
+                        role: psi_checked_trees::CheckedValueStatementRole::LocalInitializer,
+                    }
+        })
+        .collect::<Vec<_>>();
+    let [application] = matches.as_slice() else {
+        return None;
+    };
+    let binders = machine_binders(program, machine);
+    if !parameter_qualifications(program, shapes, local.type_reference, &binders)?.is_empty() {
+        return None;
+    }
+    Some((
+        *application,
+        CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: shapes.add_type(local.type_reference, &binders, &[])?,
+            multiplicity: Multiplicity::Affine,
+        },
+        local.symbol,
+    ))
+}
+
 pub(super) fn build_selected_operator_scalar_call(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -388,6 +446,169 @@ pub(super) fn build_selected_operator_structural_scalar_call(
             service_reach: realization_flow.service_reach,
             scalar_arguments,
             structural_arguments,
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_selected_operator_structural_call(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    source_machine: &psi_typed_trees::machine::Machine,
+    source_state: &psi_typed_trees::state::State,
+    structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
+    entry_claims: &[CheckedUnitEntryClaimPlan],
+    application: &crate::SelectedOperatorApplication,
+    mut result: CheckedUnitStructuralResultBindingPlan,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    if source_machine.attached_data.is_some()
+        || !program.machine_contracts(source_machine).is_empty()
+        || !program.state_contracts(source_state).is_empty()
+        || machine_has_content_evidence(facts, source_machine.symbol, source_state.symbol)
+        || !entry_claims.is_empty()
+        || application.provider_plan_report_fingerprint == 0
+        || application.provider_plan_commitment.is_empty()
+    {
+        return None;
+    }
+    let operator = program
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == application.requirement_operator)?;
+    if !operator.is_boundary
+        || program.operator_parameters(operator).len() != application.operands.len()
+    {
+        return None;
+    }
+    let realization = facts
+        .flow
+        .terminal_structural_returns
+        .claim_free_affine_machines
+        .iter()
+        .find(|plan| {
+            plan.machine == application.realization_machine
+                && plan.state == application.realization_state
+        })?;
+    if realization.scalar_parameters.len() + 1 != application.operands.len()
+        || structural_parameters.len() != 1
+        || result.multiplicity != Multiplicity::Affine
+    {
+        return None;
+    }
+    let source_flow = state_flow(facts, source_machine.symbol, source_state.symbol)?;
+    let realization_flow = state_flow(
+        facts,
+        application.realization_machine,
+        application.realization_state,
+    )?;
+    if !service_reach_is_empty(facts, source_flow.service_reach)
+        || !service_reach_is_empty(facts, realization_flow.service_reach)
+    {
+        return None;
+    }
+    for plan in &facts.flow.terminal_structural_returns.structural_types {
+        if shapes
+            .types
+            .get(&plan.identity)
+            .is_some_and(|existing| existing != plan)
+        {
+            return None;
+        }
+        shapes.types.insert(plan.identity.clone(), plan.clone());
+    }
+    let target = &realization.structural_parameter;
+    let operand = *application
+        .operands
+        .get(usize::try_from(target.position).ok()?)?;
+    let ExpressionNode::Name(path) = program.expression_table.expression(operand) else {
+        return None;
+    };
+    if program
+        .expression_table
+        .name_path_members(path.members)
+        .len()
+        != 1
+    {
+        return None;
+    }
+    let source_parameters = program.state_parameters(source_state);
+    let source_position = source_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == path.symbol)?;
+    let source_index = structural_parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == source_position)?;
+    let source_shape = &shapes
+        .types
+        .get(&structural_parameters[source_index].type_identity)?
+        .shape;
+    let target_shape = &shapes.types.get(&target.type_identity)?.shape;
+    let result_shape = &shapes.types.get(&realization.result.type_identity)?.shape;
+    let local_result_shape = &shapes.types.get(&result.type_identity)?.shape;
+    if source_shape != target_shape
+        || result_shape != local_result_shape
+        || structural_parameters[source_index].multiplicity != Multiplicity::Affine
+        || structural_parameters[source_index].access != CheckedStructuralAccess::Owned
+        || !structural_parameters[source_index]
+            .qualifications
+            .is_empty()
+        || target.multiplicity != Multiplicity::Affine
+        || target.access != CheckedStructuralAccess::Owned
+        || !target.qualifications.is_empty()
+        || realization.result.multiplicity != Multiplicity::Affine
+        || !realization.result.qualifications.is_empty()
+    {
+        return None;
+    }
+    structural_parameters[source_index].type_identity = target.type_identity.clone();
+    result.type_identity = realization.result.type_identity.clone();
+    let structural_arguments = vec![CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(source_index).ok()?,
+        },
+        path: Vec::new(),
+        type_identity: target.type_identity.clone(),
+        access: CheckedStructuralAccess::Owned,
+    }];
+    let scalar_arguments = realization
+        .scalar_parameters
+        .iter()
+        .map(|target| {
+            let operand = *application
+                .operands
+                .get(usize::try_from(target.source_position).ok()?)?;
+            crate::values::lower_unit_scalar_argument(
+                program,
+                &facts.operators,
+                source_state,
+                usize::try_from(result.statement_index).ok()?,
+                operand,
+                target.primitive_type,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let contract = facts
+        .contract_plans
+        .for_machine(application.realization_machine)?;
+    Some(
+        CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+            coordinate: CheckedUnitCallCoordinate {
+                statement_index: result.statement_index,
+                call_ordinal: 0,
+            },
+            result,
+            requirement_operator: application.requirement_operator,
+            provider_plan_report_fingerprint: application.provider_plan_report_fingerprint,
+            provider_plan_commitment: application.provider_plan_commitment,
+            realization_machine: application.realization_machine,
+            realization_state: application.realization_state,
+            realization_contract_report_fingerprint: contract.report_fingerprint,
+            realization_contract_commitment: contract.commitment,
+            service_reach: realization_flow.service_reach,
+            scalar_arguments,
+            structural_arguments,
+            discard_result_on_return: true,
         },
     )
 }

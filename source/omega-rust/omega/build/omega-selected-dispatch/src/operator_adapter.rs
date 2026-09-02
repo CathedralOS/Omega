@@ -113,6 +113,15 @@ pub fn validate_selected_operator_terminal_custody(
                     realization_machine,
                     realization_state,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
+                    coordinate,
+                    requirement_operator,
+                    provider_plan_report_fingerprint,
+                    provider_plan_commitment,
+                    realization_machine,
+                    realization_state,
+                    ..
                 } => (
                     coordinate,
                     requirement_operator,
