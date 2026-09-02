@@ -1,83 +1,20 @@
-//! Optimizer module role: executable entrance. Ordered inventory and exact-zero-or-one classification of replay families.
-//! Adding or disabling a family happens only in `ENABLED_TRANSLATION_FAMILIES`; every row visibly joins one source classifier to one typed replay adapter.
+//! Optimizer module role: executable entrance. Join exact family enablement, typed selection, and whole-plan replay.
+//! The adjacent `enabled_families` roster is the sole enable/disable seam; typed adapters remain under `dispatch`.
+
 mod dispatch;
+mod enabled_families;
 mod model;
 mod plan;
 mod selection;
+
 use omega_abstract_operations::AbstractFunction;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetFunction;
+
 use super::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetTranslationValidationError,
 };
-use model::TranslationFamilyDescriptor;
 
-const ENABLED_TRANSLATION_FAMILIES: &[TranslationFamilyDescriptor] = &[
-    dispatch::immediate::INTEGER,
-    dispatch::immediate::INTEGER_WIDEN,
-    dispatch::immediate::INTEGER_BITWISE_AND,
-    dispatch::immediate::INTEGER_BITWISE_OR,
-    dispatch::immediate::INTEGER_BITWISE_XOR,
-    dispatch::immediate::SATURATING_INTEGER_ADD,
-    dispatch::immediate::WRAPPING_INTEGER_ADD,
-    dispatch::immediate::SATURATING_INTEGER_SUBTRACT,
-    dispatch::immediate::WRAPPING_INTEGER_SUBTRACT,
-    dispatch::immediate::WRAPPING_INTEGER_MULTIPLY,
-    dispatch::immediate::INTEGER_BITWISE_NOT,
-    dispatch::immediate::INTEGER_EXACT_CAST_OPERAND,
-    dispatch::immediate::INTEGER_EQUAL,
-    dispatch::immediate::INTEGER_LESS_THAN,
-    dispatch::immediate::INTEGER_LESS_OR_EQUAL,
-    dispatch::immediate::BOOLEAN,
-    dispatch::immediate::BOOLEAN_NOT,
-    dispatch::immediate::BOOLEAN_EQUAL,
-    dispatch::terminal::UNIT_RETURN,
-    dispatch::terminal::PORT_WRITE_UNIT_RETURN,
-    dispatch::terminal::UNIT_CALL_RETURN,
-    dispatch::terminal::BYTE_SEQUENCE_LITERAL_UNIT_RETURN,
-    dispatch::terminal::INTEGER_LITERAL_UNIT_RETURN,
-    dispatch::terminal::INTEGER_LITERAL_SEQUENCE_UNIT_RETURN,
-    dispatch::terminal::IEEE_FLOAT_LITERAL_UNIT_RETURN,
-    dispatch::terminal::IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN,
-    dispatch::terminal::INTEGER_IEEE_FLOAT_LITERAL_SEQUENCE_UNIT_RETURN,
-    dispatch::terminal::NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD_UNIT_RETURN,
-    dispatch::terminal::TRIVIAL_AFFINE_LOCAL_UNIT_RETURN,
-    dispatch::terminal::SCALAR_CRASH,
-    dispatch::parameter::direct::INTEGER,
-    dispatch::parameter::direct::BOOLEAN,
-    dispatch::parameter::unary::BOOLEAN_NOT,
-    dispatch::parameter::comparison::BOOLEAN_EQUAL,
-    dispatch::parameter::comparison::INTEGER_EQUAL,
-    dispatch::parameter::comparison::INTEGER_LESS_THAN,
-    dispatch::parameter::comparison::INTEGER_LESS_OR_EQUAL,
-    dispatch::parameter::unary::INTEGER_BITWISE_NOT,
-    dispatch::parameter::unary::INTEGER_WIDEN,
-    dispatch::parameter::unary::INTEGER_EXACT_CAST,
-    dispatch::parameter::bitwise::INTEGER_AND,
-    dispatch::parameter::bitwise::INTEGER_OR,
-    dispatch::parameter::bitwise::INTEGER_XOR,
-    dispatch::parameter::shift::WRAPPING_INTEGER_SHIFT_LEFT,
-    dispatch::parameter::shift::WRAPPING_INTEGER_SHIFT_RIGHT,
-    dispatch::parameter::shift::EXACT_INTEGER_SHIFT_LEFT,
-    dispatch::parameter::shift::EXACT_INTEGER_SHIFT_RIGHT,
-    dispatch::parameter::arithmetic::EXACT_INTEGER_ADD,
-    dispatch::parameter::arithmetic::EXACT_INTEGER_SUBTRACT,
-    dispatch::parameter::arithmetic::EXACT_INTEGER_MULTIPLY,
-    dispatch::parameter::arithmetic::EXACT_INTEGER_DIVIDE,
-    dispatch::parameter::arithmetic::EXACT_INTEGER_REMAINDER,
-    dispatch::parameter::arithmetic::WRAPPING_INTEGER_DIVIDE,
-    dispatch::parameter::arithmetic::WRAPPING_INTEGER_REMAINDER,
-    dispatch::parameter::arithmetic::SATURATING_INTEGER_DIVIDE,
-    dispatch::parameter::arithmetic::SATURATING_INTEGER_REMAINDER,
-    dispatch::parameter::arithmetic::SATURATING_INTEGER_ADD,
-    dispatch::parameter::arithmetic::WRAPPING_INTEGER_ADD,
-    dispatch::parameter::arithmetic::SATURATING_INTEGER_SUBTRACT,
-    dispatch::parameter::arithmetic::WRAPPING_INTEGER_SUBTRACT,
-    dispatch::parameter::arithmetic::WRAPPING_INTEGER_MULTIPLY,
-    dispatch::parameter::arithmetic::SATURATING_INTEGER_MULTIPLY,
-    dispatch::structural::CALLER,
-    dispatch::structural::CALLEE,
-];
 pub(super) fn validate_function(
     source: &AbstractFunction,
     expected_target: NativeTarget,
@@ -91,10 +28,12 @@ pub(super) fn validate_function(
         source,
         expected_target,
         target,
-        ENABLED_TRANSLATION_FAMILIES,
+        enabled_families::ENABLED_TRANSLATION_FAMILIES,
         ieee_float_fma,
     )
 }
+
 pub(super) use plan::validate as validate_plan;
+
 #[cfg(test)]
 mod tests;

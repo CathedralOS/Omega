@@ -15,7 +15,8 @@ use psi_terminal::{
     StructuralTypeShape, TerminalAffineCleanupAction,
 };
 
-use super::model::TranslationFamilyValidator;
+use super::enabled_families::ENABLED_TRANSLATION_FAMILIES;
+use super::model::{TranslationFamilyDescriptor, TranslationFamilyValidator};
 use super::*;
 use crate::{
     AbstractToTargetFunctionTranslationDisposition, AbstractToTargetFunctionTranslationReceipt,

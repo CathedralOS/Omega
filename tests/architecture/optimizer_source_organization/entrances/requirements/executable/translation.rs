@@ -59,7 +59,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/mod.rs",
-        coordination_marker: "const ENABLED_TRANSLATION_FAMILIES",
+        coordination_marker: "enabled_families::ENABLED_TRANSLATION_FAMILIES",
     },
     RequiredCoordinationEntrance {
         path: "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations/src/validation/catalog/mod.rs",
