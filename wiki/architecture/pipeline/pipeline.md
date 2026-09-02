@@ -150,6 +150,16 @@ progress rejects rather than being discarded. Auxiliary observations remain
 controlled independently by `ArtifactEmissionPolicy`; with `OutputOnly`,
 retained-artifact compilation creates no build directory.
 
+Forwarded local dynamic descriptors preserve this same stop/resume boundary.
+Terminal Psi carries only the existential interface, ordered requirements,
+descriptor arguments, and parameter-slot dispatch. The selected native
+lowerer chooses the `{data, table}` entry placement, generates role-identified
+erased-data adapters, and emits distinct forwarded tables. Object and image
+replay bind caller-to-table, table-to-adapter, and adapter-to-realization
+relocations. Canonical installation format 53 retains the application/row/
+realization identities and exact code/data spans needed to rejoin those facts;
+it does not invent Terminal machine identities for native-only adapters.
+
 D32 makes this boundary the owner of physical children for every settled
 boundary occurrence. The canonical Terminal artifact remains immutable while
 the validated optimization projection identifies the surviving executable

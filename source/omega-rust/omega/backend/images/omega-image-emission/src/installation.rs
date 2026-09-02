@@ -15,7 +15,7 @@ use omega_image::{CompilerTextValidationEvidence, FinalImageLayout};
 use omega_machine_code::{SemanticCodeSite, StructuralReturnRecord};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_target_operations::{BoundaryRealization, CallSiteOwner};
-use psi_core::{MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralTypeId};
+use psi_core::{MachineId, OperationId, PlaceId, ProfileDecisionId, StructuralTypeId, ValueId};
 use psi_terminal::{
     StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape, TerminalPsiIdentity,
 };
@@ -86,7 +86,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 
-pub const INSTALLATION_FORMAT_MARKER: u16 = 52;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 53;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -222,6 +222,10 @@ pub struct InstallationRecord {
     internal_unit_scalar_calls: Vec<InstalledInternalUnitScalarCall>,
     dynamic_conformance_tables: Vec<InstalledDynamicConformanceTable>,
     dynamic_scalar_calls: Vec<InstalledDynamicScalarCall>,
+    forwarded_dynamic_descriptor_adapters: Vec<InstalledForwardedDynamicDescriptorAdapter>,
+    forwarded_dynamic_descriptor_tables: Vec<InstalledForwardedDynamicDescriptorTable>,
+    forwarded_dynamic_descriptor_calls: Vec<InstalledForwardedDynamicDescriptorCall>,
+    dynamic_parameter_scalar_calls: Vec<InstalledDynamicParameterScalarCall>,
     semantic_code_attribution: Vec<ObjectCodeAttribution>,
     port_effects: Vec<ObjectPortEffect>,
     boundary_settlements: Vec<ObjectBoundarySettlement>,
@@ -288,6 +292,26 @@ impl InstallationRecord {
 
     pub fn dynamic_scalar_calls(&self) -> &[InstalledDynamicScalarCall] {
         &self.dynamic_scalar_calls
+    }
+
+    pub fn forwarded_dynamic_descriptor_adapters(
+        &self,
+    ) -> &[InstalledForwardedDynamicDescriptorAdapter] {
+        &self.forwarded_dynamic_descriptor_adapters
+    }
+
+    pub fn forwarded_dynamic_descriptor_tables(
+        &self,
+    ) -> &[InstalledForwardedDynamicDescriptorTable] {
+        &self.forwarded_dynamic_descriptor_tables
+    }
+
+    pub fn forwarded_dynamic_descriptor_calls(&self) -> &[InstalledForwardedDynamicDescriptorCall] {
+        &self.forwarded_dynamic_descriptor_calls
+    }
+
+    pub fn dynamic_parameter_scalar_calls(&self) -> &[InstalledDynamicParameterScalarCall] {
+        &self.dynamic_parameter_scalar_calls
     }
 
     pub fn semantic_code_attribution(&self) -> &[ObjectCodeAttribution] {
@@ -357,6 +381,53 @@ pub struct InstalledDynamicScalarCall {
     pub rebound_source: PlaceId,
     pub selected_table_byte_offset: u32,
     pub realization: MachineId,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledForwardedDynamicDescriptorAdapter {
+    pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub row_index: u32,
+    pub realization: MachineId,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledForwardedDynamicDescriptorTable {
+    pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub application_report_fingerprint: u64,
+    pub data_offset: usize,
+    pub byte_count: usize,
+    pub slots: Vec<InstalledForwardedDynamicDescriptorSlot>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledForwardedDynamicDescriptorSlot {
+    pub row_index: u32,
+    pub realization: MachineId,
+    pub adapter_text_offset: usize,
+    pub data_offset: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledForwardedDynamicDescriptorCall {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub callee: MachineId,
+    pub application_commitment: psi_terminal::ClosedConformanceApplicationCommitment,
+    pub source: PlaceId,
+    pub text_offset: usize,
+    pub byte_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InstalledDynamicParameterScalarCall {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub source_value: ValueId,
+    pub requirement_slot: u32,
     pub text_offset: usize,
     pub byte_count: usize,
 }
@@ -694,6 +765,12 @@ where
             .collect(),
         dynamic_conformance_tables: installed_dynamic_conformance_tables(image),
         dynamic_scalar_calls: installed_dynamic_scalar_calls(image)?,
+        forwarded_dynamic_descriptor_adapters: installed_forwarded_dynamic_descriptor_adapters(
+            image,
+        ),
+        forwarded_dynamic_descriptor_tables: installed_forwarded_dynamic_descriptor_tables(image),
+        forwarded_dynamic_descriptor_calls: installed_forwarded_dynamic_descriptor_calls(image)?,
+        dynamic_parameter_scalar_calls: installed_dynamic_parameter_scalar_calls(image)?,
         semantic_code_attribution: image.semantic_code_attribution().to_vec(),
         port_effects: image.port_effects().to_vec(),
         boundary_settlements: image.boundary_settlements().to_vec(),
@@ -925,6 +1002,10 @@ pub fn encode_installation_record(
         &mut bytes,
         &record.dynamic_conformance_tables,
         &record.dynamic_scalar_calls,
+        &record.forwarded_dynamic_descriptor_adapters,
+        &record.forwarded_dynamic_descriptor_tables,
+        &record.forwarded_dynamic_descriptor_calls,
+        &record.dynamic_parameter_scalar_calls,
     )?;
     encode_semantic_code_attributions(
         &mut bytes,
@@ -954,8 +1035,14 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
     let structural_returns = decode_structural_returns(&mut reader)?;
     let internal_unit_calls = decode_internal_unit_calls(&mut reader)?;
     let internal_unit_scalar_calls = decode_internal_unit_scalar_calls(&mut reader)?;
-    let (dynamic_conformance_tables, dynamic_scalar_calls) =
-        decode_dynamic_conformance_custody(&mut reader)?;
+    let (
+        dynamic_conformance_tables,
+        dynamic_scalar_calls,
+        forwarded_dynamic_descriptor_adapters,
+        forwarded_dynamic_descriptor_tables,
+        forwarded_dynamic_descriptor_calls,
+        dynamic_parameter_scalar_calls,
+    ) = decode_dynamic_conformance_custody(&mut reader)?;
     let semantic_code_attribution = decode_semantic_code_attributions(&mut reader)?;
     let port_effects = decode_port_effects(&mut reader)?;
     let boundary_settlements = decode_boundary_settlements(&mut reader)?;
@@ -977,6 +1064,10 @@ pub fn decode_installation_record(bytes: &[u8]) -> Result<InstallationRecord, In
         internal_unit_scalar_calls,
         dynamic_conformance_tables,
         dynamic_scalar_calls,
+        forwarded_dynamic_descriptor_adapters,
+        forwarded_dynamic_descriptor_tables,
+        forwarded_dynamic_descriptor_calls,
+        dynamic_parameter_scalar_calls,
         semantic_code_attribution,
         port_effects,
         boundary_settlements,
@@ -1009,6 +1100,13 @@ pub fn validate_installation_record(
         || Some(record.compiler_text_validation) != image.output().compiler_text_validation
         || record.dynamic_conformance_tables != installed_dynamic_conformance_tables(image)
         || record.dynamic_scalar_calls != installed_dynamic_scalar_calls(image)?
+        || record.forwarded_dynamic_descriptor_adapters
+            != installed_forwarded_dynamic_descriptor_adapters(image)
+        || record.forwarded_dynamic_descriptor_tables
+            != installed_forwarded_dynamic_descriptor_tables(image)
+        || record.forwarded_dynamic_descriptor_calls
+            != installed_forwarded_dynamic_descriptor_calls(image)?
+        || record.dynamic_parameter_scalar_calls != installed_dynamic_parameter_scalar_calls(image)?
         || record.semantic_code_attribution != image.semantic_code_attribution()
         || record.port_effects != image.port_effects()
         || record.boundary_settlements != image.boundary_settlements()
@@ -1116,6 +1214,17 @@ fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {
                 .checked_add(private.function.byte_count)
                 .expect("validated compiler-private function text extent")
         }))
+        .chain(
+            image
+                .forwarded_dynamic_descriptor_adapters()
+                .iter()
+                .map(|adapter| {
+                    adapter
+                        .text_offset
+                        .checked_add(adapter.byte_count)
+                        .expect("validated forwarded adapter text extent")
+                }),
+        )
         .max()
         .unwrap_or(0);
     let data_byte_count = image
@@ -1127,6 +1236,17 @@ fn installed_image_sections(image: &ExecutableImage) -> InstalledImageSections {
                 .checked_add(table.byte_count)
                 .expect("validated dynamic-conformance table extent")
         })
+        .chain(
+            image
+                .forwarded_dynamic_descriptor_tables()
+                .iter()
+                .map(|table| {
+                    table
+                        .data_offset
+                        .checked_add(table.byte_count)
+                        .expect("validated forwarded descriptor table extent")
+                }),
+        )
         .max()
         .unwrap_or(0);
     let final_compiler_data = image
@@ -1188,6 +1308,126 @@ fn installed_dynamic_scalar_calls(
                         byte_count: call.byte_count,
                     })
                     .ok_or(InstallationError::FunctionOffsetNotRepresentable)
+            })
+        })
+        .collect()
+}
+
+fn installed_forwarded_dynamic_descriptor_adapters(
+    image: &ExecutableImage,
+) -> Vec<InstalledForwardedDynamicDescriptorAdapter> {
+    image
+        .forwarded_dynamic_descriptor_adapters()
+        .iter()
+        .map(|adapter| InstalledForwardedDynamicDescriptorAdapter {
+            application_commitment: adapter.record.identity.application,
+            row_index: adapter.record.identity.row_index,
+            realization: adapter.record.identity.realization,
+            text_offset: adapter.text_offset,
+            byte_count: adapter.byte_count,
+        })
+        .collect()
+}
+
+fn installed_forwarded_dynamic_descriptor_tables(
+    image: &ExecutableImage,
+) -> Vec<InstalledForwardedDynamicDescriptorTable> {
+    image
+        .forwarded_dynamic_descriptor_tables()
+        .iter()
+        .map(|table| InstalledForwardedDynamicDescriptorTable {
+            application_commitment: table.application.commitment,
+            application_report_fingerprint: table.application.report_fingerprint,
+            data_offset: table.data_offset,
+            byte_count: table.byte_count,
+            slots: table
+                .slots
+                .iter()
+                .map(|slot| {
+                    let adapter = image
+                        .forwarded_dynamic_descriptor_adapters()
+                        .iter()
+                        .find(|adapter| adapter.record.identity == slot.adapter)
+                        .expect("validated forwarded descriptor slot has one adapter");
+                    InstalledForwardedDynamicDescriptorSlot {
+                        row_index: slot.row_index,
+                        realization: slot.adapter.realization,
+                        adapter_text_offset: adapter.text_offset,
+                        data_offset: slot.data_offset,
+                    }
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+fn installed_forwarded_dynamic_descriptor_calls(
+    image: &ExecutableImage,
+) -> Result<Vec<InstalledForwardedDynamicDescriptorCall>, InstallationError> {
+    image
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            function
+                .forwarded_dynamic_descriptor_calls
+                .iter()
+                .map(move |call| (function, call))
+        })
+        .map(|(function, call)| {
+            let [argument] = call.dynamic_arguments.as_slice() else {
+                return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                    function.machine,
+                ));
+            };
+            let omega_abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                application,
+                rebound,
+                ..
+            } = &argument.custody.source
+            else {
+                return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                    function.machine,
+                ));
+            };
+            Ok(InstalledForwardedDynamicDescriptorCall {
+                machine: function.machine,
+                operation: call.psi_operation,
+                callee: call.callee,
+                application_commitment: application.commitment,
+                source: rebound.source.place,
+                text_offset: function
+                    .text_offset
+                    .checked_add(call.code_offset)
+                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)?,
+                byte_count: call.byte_count,
+            })
+        })
+        .collect()
+}
+
+fn installed_dynamic_parameter_scalar_calls(
+    image: &ExecutableImage,
+) -> Result<Vec<InstalledDynamicParameterScalarCall>, InstallationError> {
+    image
+        .functions()
+        .iter()
+        .flat_map(|function| {
+            function
+                .dynamic_parameter_scalar_calls
+                .iter()
+                .map(move |call| (function, call))
+        })
+        .map(|(function, call)| {
+            Ok(InstalledDynamicParameterScalarCall {
+                machine: function.machine,
+                operation: call.psi_operation,
+                source_value: call.source_value,
+                requirement_slot: call.requirement.slot,
+                text_offset: function
+                    .text_offset
+                    .checked_add(call.code_offset)
+                    .ok_or(InstallationError::FunctionOffsetNotRepresentable)?,
+                byte_count: call.byte_count,
             })
         })
         .collect()
@@ -1456,6 +1696,13 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
                 .iter()
                 .filter(|call| call.machine == function.machine)
                 .flat_map(|call| [call.initial_source, call.rebound_source])
+                .chain(
+                    record
+                        .forwarded_dynamic_descriptor_calls
+                        .iter()
+                        .filter(|call| call.machine == function.machine)
+                        .map(|call| call.source),
+                )
                 .collect::<std::collections::BTreeSet<_>>();
             let expected_parameter_discards = function
                 .unit_parameter_homes
@@ -1845,6 +2092,23 @@ fn validate_record_shape(record: &InstallationRecord) -> Result<(), Installation
             .checked_add(function.byte_count)
             .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
         previous_function = Some(function.machine);
+    }
+    let mut adapter_identities = std::collections::BTreeSet::new();
+    for adapter in &record.forwarded_dynamic_descriptor_adapters {
+        if adapter.application_commitment.is_zero()
+            || adapter.byte_count == 0
+            || adapter.text_offset != expected_text_offset
+            || !adapter_identities.insert((
+                adapter.application_commitment,
+                adapter.row_index,
+                adapter.realization,
+            ))
+        {
+            return Err(InstallationError::InvalidForwardedDynamicDescriptorAdapter);
+        }
+        expected_text_offset = expected_text_offset
+            .checked_add(adapter.byte_count)
+            .ok_or(InstallationError::FunctionOffsetNotRepresentable)?;
     }
     if record.private_functions.len() > 1 {
         return Err(InstallationError::TooManyCompilerPrivateFunctions);
@@ -2684,8 +2948,41 @@ fn validate_installed_dynamic_conformance(
     {
         return Err(InstallationError::InvalidImageSectionLayout);
     }
+    let functions = record
+        .functions
+        .iter()
+        .map(|function| (function.machine, function))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut parameter_call_sites = std::collections::BTreeSet::new();
+    for call in &record.dynamic_parameter_scalar_calls {
+        let function = functions.get(&call.machine).ok_or(
+            InstallationError::InvalidDynamicParameterScalarCall(call.machine),
+        )?;
+        let end = call.text_offset.checked_add(call.byte_count).ok_or(
+            InstallationError::InvalidDynamicParameterScalarCall(call.machine),
+        )?;
+        let function_end = function
+            .text_offset
+            .checked_add(function.byte_count)
+            .ok_or(InstallationError::InvalidDynamicParameterScalarCall(
+                call.machine,
+            ))?;
+        if call.byte_count == 0
+            || call.text_offset < function.text_offset
+            || end > function_end
+            || !parameter_call_sites.insert((call.machine, call.operation))
+        {
+            return Err(InstallationError::InvalidDynamicParameterScalarCall(
+                call.machine,
+            ));
+        }
+    }
     if sections.data_byte_count == 0 {
-        if !record.dynamic_conformance_tables.is_empty() || !record.dynamic_scalar_calls.is_empty()
+        if !record.dynamic_conformance_tables.is_empty()
+            || !record.dynamic_scalar_calls.is_empty()
+            || !record.forwarded_dynamic_descriptor_adapters.is_empty()
+            || !record.forwarded_dynamic_descriptor_tables.is_empty()
+            || !record.forwarded_dynamic_descriptor_calls.is_empty()
         {
             return Err(InstallationError::InvalidImageSectionLayout);
         }
@@ -2701,17 +2998,12 @@ fn validate_installed_dynamic_conformance(
         .ok_or(InstallationError::InvalidImageSectionLayout)?;
     if sections.layout.data_address < text_end
         || sections.layout.data_address % 8 != 0
-        || record.dynamic_conformance_tables.is_empty()
-        || record.dynamic_scalar_calls.is_empty()
+        || (record.dynamic_conformance_tables.is_empty()
+            && record.forwarded_dynamic_descriptor_tables.is_empty())
     {
         return Err(InstallationError::InvalidImageSectionLayout);
     }
 
-    let functions = record
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect::<std::collections::BTreeMap<_, _>>();
     let mut commitments = std::collections::BTreeSet::new();
     let mut expected_data_offset = 0usize;
     for table in &record.dynamic_conformance_tables {
@@ -2750,6 +3042,76 @@ fn validate_installed_dynamic_conformance(
         expected_data_offset = expected_data_offset
             .checked_add(table.byte_count)
             .ok_or(InstallationError::InvalidDynamicConformanceTable)?;
+    }
+    let adapters = record
+        .forwarded_dynamic_descriptor_adapters
+        .iter()
+        .map(|adapter| {
+            (
+                (
+                    adapter.application_commitment,
+                    adapter.row_index,
+                    adapter.realization,
+                ),
+                adapter,
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    if adapters.len() != record.forwarded_dynamic_descriptor_adapters.len() {
+        return Err(InstallationError::InvalidForwardedDynamicDescriptorAdapter);
+    }
+    let mut forwarded_commitments = std::collections::BTreeSet::new();
+    let mut table_adapter_identities = std::collections::BTreeSet::new();
+    for table in &record.forwarded_dynamic_descriptor_tables {
+        let table_byte_count = table
+            .slots
+            .len()
+            .checked_mul(8)
+            .ok_or(InstallationError::InvalidForwardedDynamicDescriptorTable)?;
+        if table.application_commitment.is_zero()
+            || table.application_report_fingerprint == 0
+            || !forwarded_commitments.insert(table.application_commitment)
+            || table.data_offset != expected_data_offset
+            || table.byte_count != table_byte_count
+            || table.slots.is_empty()
+        {
+            return Err(InstallationError::InvalidForwardedDynamicDescriptorTable);
+        }
+        for (row_index, slot) in table.slots.iter().enumerate() {
+            let data_offset = table
+                .data_offset
+                .checked_add(
+                    row_index
+                        .checked_mul(8)
+                        .ok_or(InstallationError::InvalidForwardedDynamicDescriptorTable)?,
+                )
+                .ok_or(InstallationError::InvalidForwardedDynamicDescriptorTable)?;
+            let adapter = adapters
+                .get(&(
+                    table.application_commitment,
+                    slot.row_index,
+                    slot.realization,
+                ))
+                .ok_or(InstallationError::InvalidForwardedDynamicDescriptorTable)?;
+            table_adapter_identities.insert((
+                table.application_commitment,
+                slot.row_index,
+                slot.realization,
+            ));
+            if usize::try_from(slot.row_index) != Ok(row_index)
+                || slot.data_offset != data_offset
+                || slot.adapter_text_offset != adapter.text_offset
+                || !functions.contains_key(&slot.realization)
+            {
+                return Err(InstallationError::InvalidForwardedDynamicDescriptorTable);
+            }
+        }
+        expected_data_offset = expected_data_offset
+            .checked_add(table.byte_count)
+            .ok_or(InstallationError::InvalidForwardedDynamicDescriptorTable)?;
+    }
+    if table_adapter_identities.len() != adapters.len() {
+        return Err(InstallationError::InvalidForwardedDynamicDescriptorTable);
     }
     if expected_data_offset != sections.data_byte_count {
         return Err(InstallationError::InvalidDynamicConformanceTable);
@@ -2805,6 +3167,37 @@ fn validate_installed_dynamic_conformance(
     }
     if referenced_commitments != commitments {
         return Err(InstallationError::InvalidDynamicConformanceTable);
+    }
+    let mut forwarded_references = std::collections::BTreeSet::new();
+    let mut forwarded_call_sites = std::collections::BTreeSet::new();
+    for call in &record.forwarded_dynamic_descriptor_calls {
+        let function = functions.get(&call.machine).ok_or(
+            InstallationError::InvalidForwardedDynamicDescriptorCall(call.machine),
+        )?;
+        let end = call.text_offset.checked_add(call.byte_count).ok_or(
+            InstallationError::InvalidForwardedDynamicDescriptorCall(call.machine),
+        )?;
+        let function_end = function
+            .text_offset
+            .checked_add(function.byte_count)
+            .ok_or(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                call.machine,
+            ))?;
+        if call.byte_count == 0
+            || call.text_offset < function.text_offset
+            || end > function_end
+            || !functions.contains_key(&call.callee)
+            || !forwarded_commitments.contains(&call.application_commitment)
+            || !forwarded_call_sites.insert((call.machine, call.operation))
+        {
+            return Err(InstallationError::InvalidForwardedDynamicDescriptorCall(
+                call.machine,
+            ));
+        }
+        forwarded_references.insert(call.application_commitment);
+    }
+    if forwarded_references != forwarded_commitments {
+        return Err(InstallationError::InvalidForwardedDynamicDescriptorTable);
     }
     Ok(())
 }
@@ -3200,6 +3593,11 @@ pub enum InstallationError {
     TooManyDynamicConformanceTables,
     TooManyDynamicConformanceSlots,
     TooManyDynamicScalarCalls,
+    TooManyForwardedDynamicDescriptorAdapters,
+    TooManyForwardedDynamicDescriptorTables,
+    TooManyForwardedDynamicDescriptorSlots,
+    TooManyForwardedDynamicDescriptorCalls,
+    TooManyDynamicParameterScalarCalls,
     TooManyInternalUnitCallArguments,
     TooManyInternalUnitScalarCallArguments,
     TooManyInternalUnitCallClaims,
@@ -3288,6 +3686,10 @@ pub enum InstallationError {
     InvalidImageSectionLayout,
     InvalidDynamicConformanceTable,
     InvalidDynamicScalarCall(MachineId),
+    InvalidForwardedDynamicDescriptorAdapter,
+    InvalidForwardedDynamicDescriptorTable,
+    InvalidForwardedDynamicDescriptorCall(MachineId),
+    InvalidDynamicParameterScalarCall(MachineId),
     InvalidUnitStructuralScalarFieldStore(MachineId),
     InvalidUnitAffineCleanup(MachineId),
     InvalidScalarControlAffineCleanupCount(usize),

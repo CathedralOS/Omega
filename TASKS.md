@@ -11777,25 +11777,28 @@ checked-result arithmetic decision listed below.
   indirect call or an AArch64 load-and-indirect-call mechanism. Machine-code
   emission now produces the corresponding slot call, balanced x86 call stack,
   and AArch64 link-register preservation with role-specific semantic, ABI,
-  register, slot, stack, and byte custody. Object construction explicitly
-  rejects that new record until erased-data adapter tables can be generated
-  and replayed; it never silently drops the evidence. Descriptor-bearing
-  caller calls still fail closed before target planning. The older
-  direct and caller-local rebound lanes still cross target lowering,
-  assignment, object replay, and x86-64/AArch64 execution unchanged.
+  register, slot, stack, and byte custody. Descriptor-bearing callers now
+  cross target planning and assignment, materialize the exact concrete source
+  address plus a symbolic table address, and call the retained helper on both
+  architectures. Each closed application generates one role-identified
+  erased-data adapter per canonical row. Object construction independently
+  replays the caller, helper, application, adapter bytes, and concrete call
+  plans, then publishes distinct direct-conformance and forwarded-adapter
+  table roles. Its relocation graph binds caller to table, table to adapter,
+  and adapter to realization without fabricated Terminal machines or source
+  identities. Final-image replay accounts for every adapter code region and
+  relocation. Canonical installation format 53 retains compact strong-identity
+  and exact-span projections for the adapters, tables, forwarding calls, and
+  parameter-slot calls, and rejoins them to the complete executable-image
+  evidence. Cross-architecture canaries cover two-row tables and reject
+  adapter-byte drift. The older direct and caller-local rebound lanes remain
+  disjoint and unchanged.
 
   Remaining work:
 
-  - lower the retained descriptor argument model through caller target plans,
-    adapter generation, relocation, object replay, and x86-64/AArch64
-    execution. The receiving lowerer must select one conventional erased
-    `{data pointer, table pointer}` ABI and generate one role-identified adapter
-    thunk per table slot: the forwarded helper does not know the concrete
-    subject layout, so its vtable cannot point directly at a realization whose
-    ABI still expects that concrete structural value. Adapter identity, table
-    content, call placement, relocation, and emitted bytes must rejoin the
-    Terminal application/slot/realization; no source-era `StateKey` may be
-    fabricated for this source-free private function;
+  - add a host-execution canary for the completed x86-64 forwarded-adapter
+    image and a relocation/result replay canary for AArch64; object, final-image,
+    and installation custody are already complete on both architectures;
   - extend the v1 shared-borrow/scalar-call surface when Unit results, mutable
     custody, or additional call forms have exact semantic and physical rules;
   - extend custody to changed-conformance, stored/joined/escaping,
